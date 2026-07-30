@@ -41,9 +41,15 @@ init -999 python:
     _sfx_editor_pool_enabled = False
     _sfx_editor_next_pool_time = 0.0
     _sfx_editor_played_markers = set()
-    _sfx_editor_available_files = []  # scanned from audio dir
-    _sfx_editor_current_time_str = "00:00.00"
-    _sfx_editor_total_time_str = "00:00.00"
+    _sfx_editor_available_files = []  # flat list of all file paths
+    _sfx_editor_audio_tree = []       # tree: [{type, name, children?, expanded?}]
+    _sfx_editor_expanded_folders = {} # folder_name -> bool
+    _sfx_editor_visible_tree = []     # pre-computed flat list for rendering
+    _sfx_editor_current_time_str = "--:--.--"
+    _sfx_editor_total_time_str = "--:--.--"
+    _sfx_editor_current_frame_str = "---"
+    _sfx_editor_total_frame_str = "---"
+    _sfx_editor_fps = 30
     _sfx_editor_paused = False
     _sfx_editor_scan_error = None
     _sfx_editor_channel_status = "No video"
@@ -65,6 +71,11 @@ init -999 python:
     _sfx_editor__using_fallback = False
     _sfx_editor__frame_time = 1.0 / 30.0
     _sfx_editor__marker_tolerance = 0.08
+    _sfx_editor__time_offset = 0.0
+    _sfx_editor__step_target = 0.0
+    _sfx_editor__pause_target = 0.0
+    _sfx_editor__pause_origin = 0.0
+    _sfx_editor__total_offset = 0.0
 
 
 ###############################################################################
@@ -143,39 +154,49 @@ init python:
 
     def _sfx_editor_toggle():
         """Toggle the overlay on/off. Called from the key-listener screen."""
-        _sfx_editor_log("TOGGLE: visible={}".format(_sfx_editor_visible))
         if _sfx_editor_visible:
-            _sfx_editor_log("TOGGLE: calling hide")
             _sfx_editor_hide()
         else:
-            _sfx_editor_log("TOGGLE: calling show")
             _sfx_editor_show()
 
 
+
     def _sfx_editor_show():
+        import time
+        t0 = time.time()
         global _sfx_editor_visible, _sfx_editor_active_channel
         global _sfx_editor_manual_channel_input
         global _sfx_editor_pool_min_str, _sfx_editor_pool_max_str
         _sfx_editor_visible = True
+        _sfx_editor_log("show: start")
         # Load persisted config
         _sfx_editor_load_config()
+        _sfx_editor_log("show: load_config took {:.3f}s".format(time.time() - t0))
         # Initialize string fields from current values
         _sfx_editor_manual_channel_input = (
             _sfx_editor_active_channel if _sfx_editor_active_channel else ""
         )
         _sfx_editor_pool_min_str = "{:.1f}".format(_sfx_editor_pool_min_delay)
         _sfx_editor_pool_max_str = "{:.1f}".format(_sfx_editor_pool_max_delay)
-        # Scan audio files
-        _sfx_editor_scan_audio()
+        # Scan audio on first open (cached thereafter)
+        if not _sfx_editor_available_files:
+            _sfx_editor_scan_audio()
+            _sfx_editor_log("show: scan_audio took {:.3f}s".format(time.time() - t0))
+        # Rebuild visible tree
+        global _sfx_editor_visible_tree
+        _sfx_editor_visible_tree = _sfx_editor_get_visible_tree()
         # Auto-detect channel
         _sfx_editor_refresh_channel()
+        _sfx_editor_log("show: refresh_channel took {:.3f}s".format(time.time() - t0))
         # Update channel input after detection
         _sfx_editor_manual_channel_input = (
             _sfx_editor_active_channel if _sfx_editor_active_channel else ""
         )
         # Show the overlay screen
         renpy.show_screen("sfx_editor_overlay", _layer="sfx_editor_layer")
+        _sfx_editor_log("show: show_screen took {:.3f}s".format(time.time() - t0))
         renpy.restart_interaction()
+        _sfx_editor_log("show: restart_interaction took {:.3f}s".format(time.time() - t0))
 
 
     def _sfx_editor_hide():
@@ -191,49 +212,69 @@ init python:
     # --------------------------------------------------------------------------
 
     def _sfx_editor_refresh_channel():
-        """Auto-detect the active movie channel by scanning ALL channels."""
+        """Auto-detect the active movie channel. Only finds video (movie) channels."""
         global _sfx_editor_active_channel, _sfx_editor_channel_status
+        global _sfx_editor_fps, _sfx_editor__frame_time
 
-        _sfx_editor_log("refresh_channel: scanning all channels...")
+        video_exts = (".webm", ".mp4", ".mkv", ".avi", ".ogv", ".mpeg", ".mpg")
 
-        # Try to access Ren'Py's internal channel list
+        def _apply_channel(ch_name, ch_obj=None):
+            global _sfx_editor_active_channel, _sfx_editor_channel_status
+            global _sfx_editor_fps, _sfx_editor__frame_time
+            path = renpy.music.get_playing(channel=ch_name)
+            dur = renpy.music.get_duration(channel=ch_name)
+            fname = path.replace("\\", "/").rsplit("/", 1)[-1]
+
+            # Try to detect actual FPS from the channel
+            fps = 30  # default
+            if ch_obj is not None:
+                for attr in ('framerate', 'fps', 'frame_rate'):
+                    try:
+                        val = getattr(ch_obj, attr, None)
+                        if callable(val):
+                            val = val()
+                        if val and val > 0:
+                            fps = int(round(val))
+                            break
+                    except Exception:
+                        pass
+            _sfx_editor_fps = fps
+            _sfx_editor__frame_time = 1.0 / fps
+
+            _sfx_editor_active_channel = ch_name
+            _sfx_editor_channel_status = "{} | {} ({}fps)".format(ch_name, fname, fps)
+            _sfx_editor_reset_loop_tracking()
+
         try:
             import renpy.audio.audio as aaudio
-            all_channels = list(aaudio.channels.keys())
-            _sfx_editor_log("refresh_channel: all channels = {}".format(all_channels))
-            for ch_name in all_channels:
+            for ch_name in aaudio.channels:
                 try:
-                    is_play = renpy.music.is_playing(channel=ch_name)
-                    dur = renpy.music.get_duration(channel=ch_name)
-                    path = renpy.music.get_playing(channel=ch_name)
-                    _sfx_editor_log("  {}: playing={}, dur={}, path={}".format(
-                        ch_name, is_play, dur,
-                        path[-60:] if path else None))
-                    if is_play and dur > 0:
-                        _sfx_editor_active_channel = ch_name
-                        _sfx_editor_channel_status = ch_name
-                        _sfx_editor_reset_loop_tracking()
-                        _sfx_editor_log("refresh_channel: FOUND active channel: {}".format(ch_name))
-                        return
-                except Exception as e2:
-                    _sfx_editor_log("  {}: error={}".format(ch_name, e2))
-        except Exception as e:
-            _sfx_editor_log("refresh_channel: failed to get channels: {}".format(e))
+                    ch = aaudio.channels.get(ch_name)
+                    if ch is None or not getattr(ch, 'movie', False):
+                        continue
+                    if renpy.music.is_playing(channel=ch_name):
+                        path = renpy.music.get_playing(channel=ch_name)
+                        dur = renpy.music.get_duration(channel=ch_name)
+                        if path and dur > 0:
+                            _apply_channel(ch_name, ch)
+                            return
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
-        # Fallback: check known channels
-        for ch in ["movie", "music", "sound", "audio"]:
+        # Fallback: check channels where path looks like a video
+        for ch in ["movie", "_movie_1", "_movie_2"]:
             try:
-                if renpy.music.is_playing(channel=ch) and renpy.music.get_duration(channel=ch) > 0:
-                    _sfx_editor_active_channel = ch
-                    _sfx_editor_channel_status = ch
-                    _sfx_editor_reset_loop_tracking()
-                    _sfx_editor_log("refresh_channel: fallback found: {}".format(ch))
+                path = renpy.music.get_playing(channel=ch)
+                if path and path.lower().endswith(video_exts):
+                    _apply_channel(ch, None)
                     return
             except Exception:
                 pass
 
+        _sfx_editor_active_channel = None
         _sfx_editor_channel_status = "No video detected"
-        _sfx_editor_log("refresh_channel: NO CHANNEL FOUND")
 
 
     def _sfx_editor_set_channel_manual(ch_name):
@@ -264,14 +305,14 @@ init python:
     # --------------------------------------------------------------------------
 
     def _sfx_editor_get_elapsed():
-        """Get current playback position in seconds. Falls back to timer."""
+        """Get current playback position (real pos + virtual offset)."""
         ch = _sfx_editor_active_channel
         if not ch:
             return 0.0
         try:
             pos = renpy.music.get_pos(channel=ch)
             if pos is not None:
-                return pos
+                return max(0.0, pos + _sfx_editor__time_offset)
         except Exception:
             pass
         return 0.0
@@ -308,16 +349,27 @@ init python:
 
     def _sfx_editor_toggle_pause():
         """Toggle pause on the active video channel."""
-        global _sfx_editor_paused
+        global _sfx_editor_paused, _sfx_editor__time_offset
+        global _sfx_editor__pause_origin, _sfx_editor__total_offset
         ch = _sfx_editor_active_channel
         if not ch:
             return
+
+        _sfx_editor__time_offset = 0.0
 
         try:
             currently_paused = renpy.music.get_pause(channel=ch)
             new_state = not currently_paused
             renpy.music.set_pause(new_state, channel=ch)
             _sfx_editor_paused = new_state
+
+            if new_state:  # Just paused — save origin
+                _sfx_editor__pause_origin = renpy.music.get_pos(channel=ch) or 0.0
+                _sfx_editor__total_offset = 0.0
+                _sfx_editor_log("pause: origin={:.3f}".format(_sfx_editor__pause_origin))
+            else:  # Just unpaused
+                _sfx_editor__total_offset = 0.0
+                _sfx_editor_log("unpause: reset offset")
         except Exception:
             # Fallback: use volume as pseudo-pause
             if not _sfx_editor_paused:
@@ -329,85 +381,95 @@ init python:
 
 
     # --------------------------------------------------------------------------
-    # Video Control: Frame Seeking
+    # Video Control: Frame Step (virtual offset — seeking doesn't work on
+    # Ren'Py movie channels, so we use a time offset for display/markers)
     # --------------------------------------------------------------------------
 
     def _sfx_editor_seek_frame(delta_frames):
-        """Step forward or backward by N frames.
-
-        Uses stop/restart with <from N> syntax because Ren'Py lacks
-        native seek. A frame is ~1/30 second (0.0333s).
-        """
+        """Step forward/backward.
+        Forward: briefly unpause, auto-re-pause via tick timer.
+        Backward: restart from 0, auto-pause at origin + accumulated offset."""
+        global _sfx_editor__time_offset, _sfx_editor__step_target
+        global _sfx_editor__pause_target, _sfx_editor__total_offset
         ch = _sfx_editor_active_channel
         if not ch:
             return
 
-        # Get current state
-        pos = renpy.music.get_pos(channel=ch)
-        if pos is None:
-            return
+        frame_seconds = _sfx_editor__frame_time
 
-        filepath = renpy.music.get_playing(channel=ch)
-        if filepath is None:
-            return
-
-        dur = renpy.music.get_duration(channel=ch)
-        if dur is None or dur <= 0:
-            return
-
-        # Calculate new position
-        new_time = pos + (delta_frames * _sfx_editor__frame_time)
-        new_time = max(0.0, min(new_time, dur - 0.05))
-
-        # Remember pause state
-        was_paused = _sfx_editor_paused or renpy.music.get_pause(channel=ch)
-
-        # Stop and restart from the new offset
-        renpy.music.stop(channel=ch, fadeout=0)
-        seek_path = "<from {:.3f}>{}".format(new_time, filepath)
-        renpy.music.play(seek_path, channel=ch, loop=True)
-
-        # Re-apply pause if needed
-        if was_paused:
+        # Auto-pause if video is playing
+        if not _sfx_editor_paused:
             renpy.music.set_pause(True, channel=ch)
+            _sfx_editor_paused = True
+            _sfx_editor__pause_origin = renpy.music.get_pos(channel=ch) or 0.0
+            _sfx_editor__total_offset = 0.0
+            _sfx_editor__time_offset = 0.0
 
-        # Update loop tracking
-        global _sfx_editor__last_pos
-        _sfx_editor__last_pos = new_time
+        if delta_frames > 0:
+            pos = renpy.music.get_pos(channel=ch) or 0.0
+            _sfx_editor__step_target = pos + delta_frames * frame_seconds
+            _sfx_editor_log("+f step_target={:.3f}".format(_sfx_editor__step_target))
+            renpy.music.set_pause(False, channel=ch)
+
+        else:  # delta_frames < 0
+            _sfx_editor__total_offset += delta_frames * frame_seconds
+            dur = renpy.music.get_duration(channel=ch) or 0.0
+            origin = _sfx_editor__pause_origin
+            target = origin + _sfx_editor__total_offset
+            if target < 0:
+                target = dur + target
+            target = max(0.0, min(target, dur - 0.05))
+
+            filepath = renpy.music.get_playing(channel=ch)
+            _sfx_editor_log(
+                "-f origin={:.3f} total_offset={:.3f} target={:.3f} dur={:.3f}"
+                .format(origin, _sfx_editor__total_offset, target, dur)
+            )
+            if filepath and dur > 0:
+                _sfx_editor__pause_target = target
+                renpy.music.stop(channel=ch, fadeout=0)
+                renpy.music.play(filepath, channel=ch, loop=True)
 
 
     def _sfx_editor_coarse_seek(delta_seconds):
-        """Jump forward or backward by a larger time amount."""
+        """Jump forward/backward. Auto-pauses if playing."""
+        global _sfx_editor__time_offset, _sfx_editor__step_target
+        global _sfx_editor__pause_target, _sfx_editor__total_offset
         ch = _sfx_editor_active_channel
         if not ch:
             return
 
-        pos = renpy.music.get_pos(channel=ch)
-        if pos is None:
-            return
-
-        filepath = renpy.music.get_playing(channel=ch)
-        if filepath is None:
-            return
-
-        dur = renpy.music.get_duration(channel=ch)
-        if dur is None or dur <= 0:
-            return
-
-        new_time = pos + delta_seconds
-        new_time = max(0.0, min(new_time, dur - 0.05))
-
-        was_paused = _sfx_editor_paused or renpy.music.get_pause(channel=ch)
-
-        renpy.music.stop(channel=ch, fadeout=0)
-        seek_path = "<from {:.3f}>{}".format(new_time, filepath)
-        renpy.music.play(seek_path, channel=ch, loop=True)
-
-        if was_paused:
+        # Auto-pause if playing
+        if not _sfx_editor_paused:
             renpy.music.set_pause(True, channel=ch)
+            _sfx_editor_paused = True
+            _sfx_editor__pause_origin = renpy.music.get_pos(channel=ch) or 0.0
+            _sfx_editor__total_offset = 0.0
+            _sfx_editor__time_offset = 0.0
 
-        global _sfx_editor__last_pos
-        _sfx_editor__last_pos = new_time
+        if delta_seconds > 0:
+            pos = renpy.music.get_pos(channel=ch) or 0.0
+            _sfx_editor__step_target = pos + delta_seconds
+            _sfx_editor_log("+coarse step_target={:.3f}".format(_sfx_editor__step_target))
+            renpy.music.set_pause(False, channel=ch)
+        else:
+            _sfx_editor__total_offset += delta_seconds
+            dur = renpy.music.get_duration(channel=ch) or 0.0
+            origin = _sfx_editor__pause_origin
+            target = origin + _sfx_editor__total_offset
+            if target < 0:
+                target = dur + target
+            target = max(0.0, min(target, dur - 0.05))
+
+            filepath = renpy.music.get_playing(channel=ch)
+            _sfx_editor_log(
+                "-coarse origin={:.3f} total_offset={:.3f} target={:.3f}"
+                .format(origin, _sfx_editor__total_offset, target)
+            )
+            if filepath and dur > 0:
+                _sfx_editor__pause_target = target
+                renpy.music.stop(channel=ch, fadeout=0)
+                renpy.music.play(filepath, channel=ch, loop=True)
 
 
     # --------------------------------------------------------------------------
@@ -415,8 +477,9 @@ init python:
     # --------------------------------------------------------------------------
 
     def _sfx_editor_scan_audio():
-        """Scan the audio directory for compatible SFX files."""
+        """Scan audio dir and build folder tree."""
         global _sfx_editor_available_files, _sfx_editor_scan_error
+        global _sfx_editor_audio_tree
 
         search_path = _sfx_editor_audio_dir
         if not search_path.endswith("/"):
@@ -428,25 +491,108 @@ init python:
             all_files = renpy.list_files()
         except Exception:
             _sfx_editor_available_files = []
+            _sfx_editor_audio_tree = []
             _sfx_editor_scan_error = "Failed to list files"
             return
 
+        # Build flat list of relative paths
         results = []
         for f in all_files:
             if f.startswith(search_path):
-                # Only top-level files in the directory
                 relative = f[len(search_path):]
-                if "/" not in relative and f.lower().endswith(audio_exts):
+                if relative and f.lower().endswith(audio_exts):
                     results.append(relative)
-
         results.sort()
         _sfx_editor_available_files = results
+
+        # Build tree from flat list
+        root = {}
+        for path in results:
+            parts = path.split("/")
+            node = root
+            for i, part in enumerate(parts):
+                if i == len(parts) - 1:
+                    # It's a file
+                    node.setdefault("__files__", []).append(part)
+                else:
+                    # It's a folder
+                    node = node.setdefault(part, {})
+
+        # Convert to sorted tree list
+        def _build_tree(node):
+            items = []
+            # Folders first
+            for name in sorted(node.keys()):
+                if name == "__files__":
+                    continue
+                items.append({
+                    "type": "folder",
+                    "name": name + "/",
+                    "children": _build_tree(node[name]),
+                    "expanded": False,
+                })
+            # Then files
+            for name in sorted(node.get("__files__", [])):
+                items.append({"type": "file", "name": name})
+            return items
+
+        _sfx_editor_audio_tree = _build_tree(root)
+
         if not results:
             _sfx_editor_scan_error = "No audio files found in: {}".format(
                 _sfx_editor_audio_dir
             )
         else:
             _sfx_editor_scan_error = None
+
+
+    def _sfx_editor_toggle_folder(folder_path):
+        """Toggle expand/collapse for a folder in the audio tree."""
+        global _sfx_editor_expanded_folders, _sfx_editor_visible_tree
+        if folder_path in _sfx_editor_expanded_folders:
+            _sfx_editor_expanded_folders[folder_path] = not _sfx_editor_expanded_folders[folder_path]
+        else:
+            _sfx_editor_expanded_folders[folder_path] = True
+        _sfx_editor_visible_tree = _sfx_editor_get_visible_tree()
+        renpy.restart_interaction()
+
+
+    def _sfx_editor_get_visible_tree():
+        """Return a flat list of visible tree items for rendering.
+        Each item: {type, name, depth, full_path, index_in_flat_list}"""
+        result = []
+        _walk_tree(_sfx_editor_audio_tree, "", 0, result)
+        return result
+
+
+    def _walk_tree(items, prefix, depth, result):
+        """Recursively walk tree, only descending into expanded folders."""
+        for item in items:
+            full = prefix + item["name"]
+            if item["type"] == "folder":
+                result.append({
+                    "type": "folder",
+                    "name": item["name"],
+                    "full_path": full,
+                    "depth": depth,
+                    "expanded": _sfx_editor_expanded_folders.get(full, False),
+                })
+                if _sfx_editor_expanded_folders.get(full, False):
+                    _walk_tree(item.get("children", []), full, depth + 1, result)
+            else:
+                # Find index in flat list
+                try:
+                    idx = _sfx_editor_available_files.index(full)
+                except ValueError:
+                    idx = -1
+                result.append({
+                    "type": "file",
+                    "name": item["name"],
+                    "full_path": full,
+                    "depth": depth,
+                    "index": idx,
+                    "in_pool": full in _sfx_editor_pool_files,
+                })
 
 
     def _sfx_editor_change_audio_dir(new_path):
@@ -503,6 +649,13 @@ init python:
     # --------------------------------------------------------------------------
     # Manual Marker Management
     # --------------------------------------------------------------------------
+
+    def _sfx_editor_set_selected_file(index):
+        """Set the selected file for marker placement by index."""
+        global _sfx_editor_selected_file_index
+        if 0 <= index < len(_sfx_editor_available_files):
+            _sfx_editor_selected_file_index = index
+
 
     def _sfx_editor_cycle_file(delta):
         """Cycle the selected file index for marker placement."""
@@ -656,7 +809,28 @@ init python:
         Updates time display, checks markers, and drives pool mode.
         """
         global _sfx_editor_current_time_str, _sfx_editor_total_time_str
+        global _sfx_editor_current_frame_str, _sfx_editor_total_frame_str
         global _sfx_editor_audio_count, _sfx_editor_marker_count, _sfx_editor_pool_count
+        global _sfx_editor__step_target, _sfx_editor__pause_target
+
+        ch = _sfx_editor_active_channel
+        pos = renpy.music.get_pos(channel=ch) if ch else None
+
+        # Auto-re-pause after backward seek (restart + play to target)
+        if _sfx_editor__pause_target > 0 and pos is not None:
+            if pos >= _sfx_editor__pause_target:
+                renpy.music.set_pause(True, channel=ch)
+                _sfx_editor__pause_target = 0.0
+                _sfx_editor_paused = True
+                _sfx_editor__time_offset = 0.0
+
+        # Auto-re-pause after forward frame step
+        if _sfx_editor__step_target > 0 and pos is not None:
+            if pos >= _sfx_editor__step_target:
+                renpy.music.set_pause(True, channel=ch)
+                _sfx_editor__step_target = 0.0
+                _sfx_editor_paused = True
+                _sfx_editor__time_offset = 0.0
 
         # Update display counts for screen text interpolation
         _sfx_editor_audio_count = len(_sfx_editor_available_files)
@@ -674,9 +848,18 @@ init python:
         elapsed = _sfx_editor_get_elapsed()
         duration = _sfx_editor_get_duration()
 
-        # Update time display strings
-        _sfx_editor_current_time_str = _sfx_editor_format_time(elapsed)
-        _sfx_editor_total_time_str = _sfx_editor_format_time(duration)
+        # Update time display strings (only if channel is active)
+        if _sfx_editor_active_channel:
+            _sfx_editor_current_time_str = _sfx_editor_format_time(elapsed)
+            _sfx_editor_total_time_str = _sfx_editor_format_time(duration)
+            fps = max(1, _sfx_editor_fps)
+            _sfx_editor_current_frame_str = str(int(elapsed * fps))
+            _sfx_editor_total_frame_str = str(int(duration * fps))
+        else:
+            _sfx_editor_current_time_str = "--:--.--"
+            _sfx_editor_total_time_str = "--:--.--"
+            _sfx_editor_current_frame_str = "---"
+            _sfx_editor_total_frame_str = "---"
 
         # Update pause state from the channel
         global _sfx_editor_paused
@@ -836,48 +1019,62 @@ init python:
 
 
 ###############################################################################
-# SECTION 4: Styles
+# SECTION 4: Styles (game-agnostic — all properties explicit, no inheritance)
 ###############################################################################
 
-style sfx_editor_frame:
-    background "#000000dd"
-    padding (10, 6)
+style sfx_frame is empty:
+    background "#000000ee"
+    padding (8, 6)
     xfill True
 
-style sfx_editor_button:
-    size_group "sfx_btn"
-    xysize (36, 28)
+style sfx_btn is empty:
+    xysize (32, 26)
+    background "#444444"
+    hover_background "#666666"
 
-style sfx_editor_button_text:
+style sfx_btn_text is empty:
     size 13
-    color "#cccccc"
+    color "#ffffff"
     hover_color "#ffffff"
+    font "DejaVuSans.ttf"
+    xalign 0.5
+    yalign 0.5
 
-style sfx_editor_small_button:
-    xysize (22, 22)
+style sfx_btn_sm is empty:
+    xysize (20, 20)
+    background "#444444"
+    hover_background "#666666"
 
-style sfx_editor_small_button_text:
-    size 11
-    color "#cccccc"
-    hover_color "#ff6666"
+style sfx_btn_sm_text is empty:
+    size 10
+    color "#ffffff"
+    hover_color "#ff8888"
+    font "DejaVuSans.ttf"
+    xalign 0.5
+    yalign 0.5
 
-style sfx_editor_text:
+style sfx_txt is empty:
     size 13
     color "#cccccc"
+    font "DejaVuSans.ttf"
 
-style sfx_editor_header:
+style sfx_hdr is empty:
     size 14
     color "#ffcc00"
     bold True
+    font "DejaVuSans.ttf"
 
-style sfx_editor_help:
+style sfx_help is empty:
     size 11
     color "#888888"
+    font "DejaVuSans.ttf"
 
-style sfx_editor_input:
+style sfx_input is empty:
     size 13
     color "#ffffff"
-    xysize (120, 24)
+    font "DejaVuSans.ttf"
+    xysize (100, 22)
+    background "#333333"
 
 
 ###############################################################################
@@ -891,6 +1088,245 @@ style sfx_editor_input:
 screen sfx_editor_key_listener():
     zorder 10000
     key "K_BACKQUOTE" action Function(_sfx_editor_toggle)
+
+
+# =============================================================================
+# SUB-SCREEN: Sidebar content (shared between normal and fullscreen frames)
+# =============================================================================
+
+screen sfx_editor_sidebar_content():
+    vbox:
+        spacing 4
+
+        # --- Top bar: channel + close ---
+        hbox:
+            text "[_sfx_editor_channel_status]" style "sfx_hdr"
+            textbutton "⟳":
+                style "sfx_btn"
+                text_style "sfx_btn_text"
+                action Function(_sfx_editor_refresh_channel)
+            textbutton "✕":
+                style "sfx_btn"
+                text_style "sfx_btn_text"
+                action Function(_sfx_editor_hide)
+                xalign 1.0
+
+        # --- Playback controls ---
+        hbox:
+            spacing 3
+            if _sfx_editor_paused:
+                textbutton "▶":
+                    style "sfx_btn"
+                    text_style "sfx_btn_text"
+                    action Function(_sfx_editor_toggle_pause)
+            else:
+                textbutton "⏸":
+                    style "sfx_btn"
+                    text_style "sfx_btn_text"
+                    action Function(_sfx_editor_toggle_pause)
+            textbutton "⏮":
+                style "sfx_btn"
+                text_style "sfx_btn_text"
+                action Function(_sfx_editor_coarse_seek, -1.0)
+            textbutton "-1f":
+                style "sfx_btn"
+                text_style "sfx_btn_text"
+                action Function(_sfx_editor_seek_frame, -1)
+            textbutton "+1f":
+                style "sfx_btn"
+                text_style "sfx_btn_text"
+                action Function(_sfx_editor_seek_frame, 1)
+            textbutton "⏭":
+                style "sfx_btn"
+                text_style "sfx_btn_text"
+                action Function(_sfx_editor_coarse_seek, 1.0)
+
+        # --- Time ---
+        text "[_sfx_editor_current_time_str] / [_sfx_editor_total_time_str]" style "sfx_txt"
+        text "f:[_sfx_editor_current_frame_str]/[_sfx_editor_total_frame_str]" style "sfx_txt" size 11
+
+        # --- Audio dir ---
+        hbox:
+            spacing 2
+            text "Audio:" style "sfx_txt"
+            input:
+                style "sfx_input"
+                value FieldInputValue(store, "_sfx_editor_audio_dir", default=False)
+            textbutton "Scan":
+                style "sfx_btn_sm"
+                text_style "sfx_btn_sm_text"
+                action [Function(_sfx_editor_change_audio_dir, _sfx_editor_audio_dir)]
+        if _sfx_editor_scan_error:
+            text "[_sfx_editor_scan_error]" style "sfx_help" color "#ff6666"
+        else:
+            text "([_sfx_editor_audio_count] files)" style "sfx_help"
+
+        null height 6
+
+        # ================================================================
+        # MANUAL MARKERS
+        # ================================================================
+        text "Manual Markers ([_sfx_editor_marker_count])" style "sfx_hdr"
+
+        # Marker status + add button
+        hbox:
+            spacing 3
+            text "File:" style "sfx_txt"
+            text _sfx_editor_get_selected_filename() style "sfx_txt" color "#ffcc00"
+            textbutton "Add Marker":
+                style "sfx_btn"
+                text_style "sfx_btn_text"
+                action Function(_sfx_editor_add_marker, None)
+
+        # Marker list
+        if _sfx_editor_markers:
+            viewport:
+                xfill True
+                ymaximum 180
+                mousewheel True
+                vbox:
+                    spacing 2
+                    for i, marker in enumerate(_sfx_editor_markers):
+                        frame:
+                            background "#333333"
+                            padding (3, 2)
+                            xfill True
+                            hbox:
+                                text _sfx_editor_format_time(marker["time"]) style "sfx_txt"
+                                text "  " + marker["file"] style "sfx_txt" color "#ffcc00" size 11
+                                null width 4
+                                textbutton "✕":
+                                    style "sfx_btn_sm"
+                                    text_style "sfx_btn_sm_text"
+                                    action Function(_sfx_editor_remove_marker, i)
+            textbutton "Clear All":
+                style "sfx_btn"
+                text_style "sfx_btn_text"
+                action Function(_sfx_editor_clear_all_markers)
+        else:
+            text "(pause, step, add marker)" style "sfx_help"
+
+        null height 6
+
+        # ================================================================
+        # SFX POOL
+        # ================================================================
+        text "SFX Pool ([_sfx_editor_pool_count])" style "sfx_hdr"
+
+        hbox:
+            spacing 2
+            text "Min:" style "sfx_txt"
+            input:
+                style "sfx_input"
+                value FieldInputValue(store, "_sfx_editor_pool_min_str", default=False)
+            textbutton "Set":
+                style "sfx_btn_sm"
+                text_style "sfx_btn_sm_text"
+                action Function(_sfx_editor_set_pool_delay, "min", _sfx_editor_pool_min_str)
+            null width 6
+            text "Max:" style "sfx_txt"
+            input:
+                style "sfx_input"
+                value FieldInputValue(store, "_sfx_editor_pool_max_str", default=False)
+            textbutton "Set":
+                style "sfx_btn_sm"
+                text_style "sfx_btn_sm_text"
+                action Function(_sfx_editor_set_pool_delay, "max", _sfx_editor_pool_max_str)
+
+        hbox:
+            spacing 3
+            if _sfx_editor_pool_enabled:
+                textbutton "⏹ Stop Pool":
+                    style "sfx_btn"
+                    text_style "sfx_btn_text"
+                    action Function(_sfx_editor_stop_pool)
+            else:
+                textbutton "▶ Start Pool":
+                    style "sfx_btn"
+                    text_style "sfx_btn_text"
+                    action Function(_sfx_editor_start_pool)
+
+        # Pool file list
+        if _sfx_editor_pool_files:
+            text "Pool files:" style "sfx_txt"
+            viewport:
+                xfill True
+                ymaximum 130
+                mousewheel True
+                vbox:
+                    spacing 1
+                    for i, filename in enumerate(_sfx_editor_pool_files):
+                        hbox:
+                            spacing 1
+                            textbutton "▶":
+                                style "sfx_btn_sm"
+                                text_style "sfx_btn_sm_text"
+                                action Function(_sfx_editor_play_sfx, filename)
+                            textbutton "✕":
+                                style "sfx_btn_sm"
+                                text_style "sfx_btn_sm_text"
+                                action Function(_sfx_editor_remove_from_pool, i)
+                            text filename style "sfx_txt" color "#ffcc00"
+
+        # Audio file browser
+        if _sfx_editor_audio_tree:
+            text "Audio files:" style "sfx_txt"
+            viewport:
+                xfill True
+                yfill True
+                mousewheel True
+                scrollbars "vertical"
+                vscrollbar_xsize 6
+                vscrollbar_unscrollable "hide"
+                vbox:
+                    spacing 1
+                    for item in _sfx_editor_visible_tree:
+                        hbox:
+                            spacing 1
+                            # Indent
+                            if item["depth"] > 0:
+                                text "  " * (item["depth"] * 2) style "sfx_txt"
+                            if item["type"] == "folder":
+                                if item["expanded"]:
+                                    textbutton "▾":
+                                        style "sfx_btn_sm"
+                                        text_style "sfx_btn_sm_text"
+                                        action Function(_sfx_editor_toggle_folder, item["full_path"])
+                                else:
+                                    textbutton "▸":
+                                        style "sfx_btn_sm"
+                                        text_style "sfx_btn_sm_text"
+                                        action Function(_sfx_editor_toggle_folder, item["full_path"])
+                                textbutton item["name"]:
+                                    style "sfx_btn"
+                                    text_style "sfx_btn_text"
+                                    action Function(_sfx_editor_toggle_folder, item["full_path"])
+                                    xsize None
+                            else:
+                                # Play preview
+                                textbutton "▶":
+                                    style "sfx_btn_sm"
+                                    text_style "sfx_btn_sm_text"
+                                    action Function(_sfx_editor_play_sfx, item["full_path"])
+                                # Set as marker file
+                                textbutton "M":
+                                    style "sfx_btn_sm"
+                                    text_style "sfx_btn_sm_text"
+                                    action Function(_sfx_editor_set_selected_file, item["index"])
+                                # Add to pool or already in pool
+                                if item["in_pool"]:
+                                    textbutton "P":
+                                        style "sfx_btn_sm"
+                                        text_style "sfx_help"
+                                        action NullAction()
+                                    text item["name"] style "sfx_help"
+                                else:
+                                    textbutton "P":
+                                        style "sfx_btn_sm"
+                                        text_style "sfx_btn_sm_text"
+                                        action Function(_sfx_editor_add_to_pool, item["index"])
+                                    text item["name"] style "sfx_txt" color "#ffcc00"
+
 
 
 # =============================================================================
@@ -912,367 +1348,11 @@ screen sfx_editor_overlay():
     # Timer to drive the SFX trigger engine
     timer 0.1 repeat True action Function(_sfx_editor_tick)
 
-    # Main panel — docked at bottom of screen
     frame:
-        style "sfx_editor_frame"
-        xalign 0.5
-        yalign 1.0
-        xfill True
-        ymaximum 280
+        style "sfx_frame"
+        xalign 0.0
+        yalign 0.0
+        xsize 420
+        yfill True
+        use sfx_editor_sidebar_content()
 
-        vbox:
-            spacing 4
-
-            # ================================================================
-            # ROW 1: Controls Bar
-            # ================================================================
-            hbox:
-                spacing 6
-
-                # Channel status & refresh
-                text "[_sfx_editor_channel_status]" style "sfx_editor_text" minwidth 120
-
-                textbutton "⟳":
-                    style "sfx_editor_button"
-                    text_style "sfx_editor_button_text"
-                    action Function(_sfx_editor_refresh_channel)
-                    tooltip "Refresh / auto-detect channel"
-
-                null width 6
-
-                # Pause / Play
-                if _sfx_editor_paused:
-                    textbutton "▶":
-                        style "sfx_editor_button"
-                        text_style "sfx_editor_button_text"
-                        action Function(_sfx_editor_toggle_pause)
-                        tooltip "Resume video"
-                else:
-                    textbutton "⏸":
-                        style "sfx_editor_button"
-                        text_style "sfx_editor_button_text"
-                        action Function(_sfx_editor_toggle_pause)
-                        tooltip "Pause video"
-
-                # Frame step buttons
-                textbutton "⏮":
-                    style "sfx_editor_button"
-                    text_style "sfx_editor_button_text"
-                    action Function(_sfx_editor_coarse_seek, -1.0)
-                    tooltip "Jump back 1 second"
-
-                textbutton "-1f":
-                    style "sfx_editor_button"
-                    text_style "sfx_editor_button_text"
-                    action Function(_sfx_editor_seek_frame, -1)
-                    tooltip "Step back 1 frame"
-
-                textbutton "+1f":
-                    style "sfx_editor_button"
-                    text_style "sfx_editor_button_text"
-                    action Function(_sfx_editor_seek_frame, 1)
-                    tooltip "Step forward 1 frame"
-
-                textbutton "⏭":
-                    style "sfx_editor_button"
-                    text_style "sfx_editor_button_text"
-                    action Function(_sfx_editor_coarse_seek, 1.0)
-                    tooltip "Jump forward 1 second"
-
-                null width 6
-
-                # Time display
-                text "[_sfx_editor_current_time_str] / [_sfx_editor_total_time_str]" style "sfx_editor_text"
-
-                null width 6
-
-                # Mode switcher
-                if _sfx_editor_mode == "manual":
-                    textbutton "Manual":
-                        style "sfx_editor_button"
-                        text_style "sfx_editor_header"
-                        action NullAction()
-                    textbutton "Pool":
-                        style "sfx_editor_button"
-                        text_style "sfx_editor_button_text"
-                        action [
-                            SetField(store, "_sfx_editor_mode", "pool"),
-                            Function(_sfx_editor_save_config),
-                        ]
-                else:
-                    textbutton "Manual":
-                        style "sfx_editor_button"
-                        text_style "sfx_editor_button_text"
-                        action [
-                            SetField(store, "_sfx_editor_mode", "manual"),
-                            Function(_sfx_editor_stop_pool),
-                            Function(_sfx_editor_save_config),
-                        ]
-                    textbutton "Pool":
-                        style "sfx_editor_button"
-                        text_style "sfx_editor_header"
-                        action NullAction()
-
-                null width 6
-
-                # Save
-                textbutton "💾":
-                    style "sfx_editor_button"
-                    text_style "sfx_editor_button_text"
-                    action Function(_sfx_editor_save_config)
-                    tooltip "Save configuration"
-
-                # Close
-                textbutton "✕":
-                    style "sfx_editor_button"
-                    text_style "sfx_editor_button_text"
-                    action Function(_sfx_editor_hide)
-                    tooltip "Close overlay (`)"
-
-            # ================================================================
-            # ROW 2: Mode-specific content
-            # ================================================================
-
-            if _sfx_editor_mode == "manual":
-                use sfx_editor_manual_panel()
-            else:
-                use sfx_editor_pool_panel()
-
-            # ================================================================
-            # ROW 3: Audio directory config
-            # ================================================================
-            hbox:
-                spacing 4
-                text "Audio dir:" style "sfx_editor_text"
-
-                input:
-                    style "sfx_editor_input"
-                    value FieldInputValue(store, "_sfx_editor_audio_dir", default=False)
-
-                textbutton "↻ Scan":
-                    style "sfx_editor_button"
-                    text_style "sfx_editor_button_text"
-                    action [
-                        Function(_sfx_editor_change_audio_dir, _sfx_editor_audio_dir),
-                    ]
-                    tooltip "Rescan audio directory"
-
-                if _sfx_editor_scan_error:
-                    text "[_sfx_editor_scan_error]" style "sfx_editor_help" color "#ff6666"
-                else:
-                    text "([_sfx_editor_audio_count] files)" style "sfx_editor_text"
-
-            # ================================================================
-            # ROW 4: Channel manual input + help
-            # ================================================================
-            hbox:
-                spacing 4
-                text "Channel:" style "sfx_editor_text"
-
-                input:
-                    style "sfx_editor_input"
-                    value FieldInputValue(store, "_sfx_editor_manual_channel_input", default=False)
-
-                textbutton "Set":
-                    style "sfx_editor_button"
-                    text_style "sfx_editor_button_text"
-                    action Function(
-                        _sfx_editor_set_channel_manual,
-                        _sfx_editor_manual_channel_input
-                    )
-
-                text "` toggle | Space pause | ← → frame step | ↑↓ ±1s" style "sfx_editor_help"
-
-
-# =============================================================================
-# SUB-SCREEN: Manual Mode Panel
-# =============================================================================
-
-screen sfx_editor_manual_panel():
-    vbox:
-        spacing 3
-
-        # Marker list header
-        hbox:
-            spacing 4
-            text "Markers:" style "sfx_editor_header"
-            text "([_sfx_editor_marker_count])" style "sfx_editor_text"
-
-        # Marker list (scrollable if needed)
-        if _sfx_editor_markers:
-            viewport:
-                scrollbars "horizontal"
-                xfill True
-                ymaximum 60
-                mousewheel True
-
-                hbox:
-                    spacing 4
-                    box_wrap False
-
-                    for i, marker in enumerate(_sfx_editor_markers):
-                        frame:
-                            background "#333333aa"
-                            padding (4, 2)
-                            xysize (180, 50)
-
-                            vbox:
-                                spacing 1
-
-                                hbox:
-                                    text _sfx_editor_format_time(marker["time"]) style "sfx_editor_text" size 13
-                                    null width 4
-                                    textbutton "✕":
-                                        style "sfx_editor_small_button"
-                                        text_style "sfx_editor_small_button_text"
-                                        action Function(_sfx_editor_remove_marker, i)
-                                        tooltip "Remove this marker"
-
-                                text marker["file"] style "sfx_editor_text" size 11 color "#ffcc00"
-        else:
-            text "(No markers yet — pause video, pick a file, and add a marker)" style "sfx_editor_help"
-
-        # Add marker controls
-        hbox:
-            spacing 4
-            textbutton "Add Marker":
-                style "sfx_editor_button"
-                text_style "sfx_editor_button_text"
-                action Function(_sfx_editor_add_marker, None)
-                tooltip "Add a marker at the current video time"
-
-            if _sfx_editor_available_files:
-                textbutton "◀":
-                    style "sfx_editor_small_button"
-                    text_style "sfx_editor_small_button_text"
-                    action Function(_sfx_editor_cycle_file, -1)
-                    tooltip "Previous file"
-
-                textbutton _sfx_editor_get_selected_filename():
-                    style "sfx_editor_button"
-                    text_style "sfx_editor_button_text"
-                    action NullAction()
-                    tooltip "File to use for the next marker"
-
-                textbutton "▶":
-                    style "sfx_editor_small_button"
-                    text_style "sfx_editor_small_button_text"
-                    action Function(_sfx_editor_cycle_file, 1)
-                    tooltip "Next file"
-
-            if _sfx_editor_markers:
-                textbutton "Clear All":
-                    style "sfx_editor_button"
-                    text_style "sfx_editor_button_text"
-                    action Function(_sfx_editor_clear_all_markers)
-                    tooltip "Remove all markers"
-
-
-# =============================================================================
-# SUB-SCREEN: Pool Mode Panel
-# =============================================================================
-
-screen sfx_editor_pool_panel():
-    vbox:
-        spacing 3
-
-        # Pool file list
-        hbox:
-            spacing 4
-            text "Pool files:" style "sfx_editor_header"
-            text "([_sfx_editor_pool_count])" style "sfx_editor_text"
-
-        if _sfx_editor_pool_files:
-            viewport:
-                scrollbars "horizontal"
-                xfill True
-                ymaximum 50
-                mousewheel True
-
-                hbox:
-                    spacing 4
-                    box_wrap False
-
-                    for i, filename in enumerate(_sfx_editor_pool_files):
-                        frame:
-                            background "#333333aa"
-                            padding (6, 3)
-
-                            hbox:
-                                spacing 3
-                                text filename style "sfx_editor_text" size 13 color "#ffcc00"
-                                textbutton "✕":
-                                    style "sfx_editor_small_button"
-                                    text_style "sfx_editor_small_button_text"
-                                    action Function(_sfx_editor_remove_from_pool, i)
-                                    tooltip "Remove from pool"
-        else:
-            text "(No files in pool — add files below)" style "sfx_editor_help"
-
-        # Pool delay settings
-        hbox:
-            spacing 4
-            text "Min delay (s):" style "sfx_editor_text"
-            input:
-                style "sfx_editor_input"
-                value FieldInputValue(store, "_sfx_editor_pool_min_str", default=False)
-            textbutton "Set":
-                style "sfx_editor_small_button"
-                text_style "sfx_editor_small_button_text"
-                action Function(_sfx_editor_set_pool_delay, "min", _sfx_editor_pool_min_str)
-
-            null width 10
-
-            text "Max delay (s):" style "sfx_editor_text"
-            input:
-                style "sfx_editor_input"
-                value FieldInputValue(store, "_sfx_editor_pool_max_str", default=False)
-            textbutton "Set":
-                style "sfx_editor_small_button"
-                text_style "sfx_editor_small_button_text"
-                action Function(_sfx_editor_set_pool_delay, "max", _sfx_editor_pool_max_str)
-
-        # Pool controls
-        hbox:
-            spacing 4
-
-            # Add file to pool
-            if _sfx_editor_available_files:
-                text "Add file:" style "sfx_editor_text"
-                # Show first 10 available files as buttons
-                for j, afile in enumerate(_sfx_editor_available_files):
-                    if j >= 8:
-                        textbutton "...":
-                            style "sfx_editor_small_button"
-                            text_style "sfx_editor_small_button_text"
-                            action NullAction()
-                        break
-                    if afile not in _sfx_editor_pool_files:
-                        textbutton afile:
-                            style "sfx_editor_small_button"
-                            text_style "sfx_editor_small_button_text"
-                            action Function(_sfx_editor_add_to_pool, j)
-                            tooltip "Add [afile] to pool"
-
-            null width 10
-
-            # Start / Stop pool
-            if _sfx_editor_pool_enabled:
-                textbutton "⏹ Stop Pool":
-                    style "sfx_editor_button"
-                    text_style "sfx_editor_button_text"
-                    action Function(_sfx_editor_stop_pool)
-                    tooltip "Stop the random SFX pool"
-            else:
-                if _sfx_editor_pool_files:
-                    textbutton "▶ Start Pool":
-                        style "sfx_editor_button"
-                        text_style "sfx_editor_button_text"
-                        action Function(_sfx_editor_start_pool)
-                        tooltip "Start playing random SFX from the pool"
-                else:
-                    textbutton "▶ Start Pool":
-                        style "sfx_editor_button"
-                        text_style "sfx_editor_button_text"
-                        action NullAction()
-                        tooltip "Add files to the pool first"
