@@ -61,7 +61,9 @@ init -999 python:
     _sfx_editor_current_image = ""
     _sfx_editor_current_dialogue = ""
     _sfx_editor_image_markers = []
-    _sfx_editor_last_marker_key = ""
+    _sfx_editor_dialogue_markers = []
+    _sfx_editor_last_image_key = ""
+    _sfx_editor_last_dialogue_key = ""
     _sfx_editor_pool_min_str = "2.0"
     _sfx_editor_pool_max_str = "8.0"
 
@@ -132,16 +134,11 @@ init 999 python:
 
         # Character callback for dialogue detection
         def _sfx_editor_char_callback(event, interact=True, **kwargs):
-            global _sfx_editor_current_dialogue, _sfx_editor_current_image
+            global _sfx_editor_current_dialogue
             if event == "show":
-                text = getattr(store, '_last_say_what', '') or ''
-                _sfx_editor_current_dialogue = text
-                _sfx_editor_current_image = _sfx_editor_get_showing_image()
-                # Dialogue started — also re-check video
-                if _sfx_editor_active_channel is None or not renpy.music.is_playing(channel=_sfx_editor_active_channel):
-                    _sfx_editor_refresh_channel()
+                _sfx_editor_current_dialogue = getattr(store, '_last_say_what', '') or ''
+                _sfx_editor_refresh_detections()
             elif event == "end":
-                # Dialogue ended — clear after a short delay so tick can re-check
                 _sfx_editor_current_dialogue = ""
         config.all_character_callbacks.append(_sfx_editor_char_callback)
 
@@ -212,8 +209,8 @@ init python:
         # Rebuild visible tree
         global _sfx_editor_visible_tree
         _sfx_editor_visible_tree = _sfx_editor_get_visible_tree()
-        # Auto-detect channel
-        _sfx_editor_refresh_channel()
+        # Auto-detect everything
+        _sfx_editor_refresh_detections()
         _sfx_editor_log("show: refresh_channel took {:.3f}s".format(time.time() - t0))
         # Update channel input after detection
         _sfx_editor_manual_channel_input = (
@@ -232,6 +229,22 @@ init python:
         # Save config on close
         _sfx_editor_save_config()
         renpy.hide_screen("sfx_editor_overlay", layer="sfx_editor_layer")
+
+
+    def _sfx_editor_refresh_detections():
+        """Re-detect video and image. Dialogue handled separately by
+        character callback (sets on 'show', clears on 'end')."""
+        global _sfx_editor_current_image
+
+        # 1. Re-detect video channel
+        _sfx_editor_refresh_channel()
+
+        # 2. Re-detect image (only if no video is playing)
+        is_video = _sfx_editor_active_channel is not None and renpy.music.is_playing(channel=_sfx_editor_active_channel)
+        if is_video:
+            _sfx_editor_current_image = ""
+        else:
+            _sfx_editor_current_image = _sfx_editor_get_showing_image()
 
 
     def _sfx_editor_redetect_dialogue():
@@ -794,19 +807,49 @@ init python:
 
 
     def _sfx_editor_clear_all_markers():
-        """Remove all markers (video + image)."""
-        global _sfx_editor_markers, _sfx_editor_played_markers, _sfx_editor_image_markers
+        """Remove all markers (video + image + dialogue)."""
+        global _sfx_editor_markers, _sfx_editor_played_markers
+        global _sfx_editor_image_markers, _sfx_editor_dialogue_markers
         _sfx_editor_markers = []
         _sfx_editor_played_markers = set()
         _sfx_editor_image_markers = []
+        _sfx_editor_dialogue_markers = []
         _sfx_editor_save_config()
 
 
-    # --- Image/dialogue markers ---
+    # --- Image markers (keyed by image filename only) ---
 
     def _sfx_editor_add_image_marker(file_index=None):
-        """Add a marker for the current image + dialogue + reveal step."""
+        """Add a marker for the current image only."""
         global _sfx_editor_image_markers
+        if not _sfx_editor_available_files:
+            return
+        if file_index is None:
+            file_index = _sfx_editor_selected_file_index
+        if file_index < 0 or file_index >= len(_sfx_editor_available_files):
+            file_index = 0
+        filename = _sfx_editor_available_files[file_index]
+        marker = {
+            "image": _sfx_editor_current_image,
+            "file": filename,
+        }
+        _sfx_editor_image_markers.append(marker)
+        _sfx_editor_save_config()
+
+
+    def _sfx_editor_remove_image_marker(index):
+        """Remove an image marker at the given list index."""
+        global _sfx_editor_image_markers
+        if 0 <= index < len(_sfx_editor_image_markers):
+            _sfx_editor_image_markers.pop(index)
+            _sfx_editor_save_config()
+
+
+    # --- Dialogue markers (keyed by image + dialogue text) ---
+
+    def _sfx_editor_add_dialogue_marker(file_index=None):
+        """Add a marker for the current image + dialogue."""
+        global _sfx_editor_dialogue_markers
         if not _sfx_editor_available_files:
             return
         if file_index is None:
@@ -819,15 +862,15 @@ init python:
             "dialogue": _sfx_editor_current_dialogue,
             "file": filename,
         }
-        _sfx_editor_image_markers.append(marker)
+        _sfx_editor_dialogue_markers.append(marker)
         _sfx_editor_save_config()
 
 
-    def _sfx_editor_remove_image_marker(index):
-        """Remove an image marker at the given list index."""
-        global _sfx_editor_image_markers
-        if 0 <= index < len(_sfx_editor_image_markers):
-            _sfx_editor_image_markers.pop(index)
+    def _sfx_editor_remove_dialogue_marker(index):
+        """Remove a dialogue marker at the given list index."""
+        global _sfx_editor_dialogue_markers
+        if 0 <= index < len(_sfx_editor_dialogue_markers):
+            _sfx_editor_dialogue_markers.pop(index)
             _sfx_editor_save_config()
 
 
@@ -951,7 +994,7 @@ init python:
         global _sfx_editor__redetect_tick
         _sfx_editor__redetect_tick = (_sfx_editor__redetect_tick + 1) % 5
         if _sfx_editor__redetect_tick == 0:
-            _sfx_editor_refresh_channel()
+            _sfx_editor_refresh_detections()
 
         # Detect current mode: video or image
         ch = _sfx_editor_active_channel
@@ -998,15 +1041,21 @@ init python:
             _sfx_editor_current_frame_str = "---"
             _sfx_editor_total_frame_str = "---"
 
-            # Trigger image markers on new dialogue key
-            key = "{}|{}".format(
-                _sfx_editor_current_image,
-                _sfx_editor_current_dialogue
-            )
-            global _sfx_editor_last_marker_key
-            if key != _sfx_editor_last_marker_key:
-                _sfx_editor_last_marker_key = key
+            # Trigger image markers when image changes
+            global _sfx_editor_last_image_key
+            img_key = _sfx_editor_current_image
+            if img_key != _sfx_editor_last_image_key:
+                _sfx_editor_last_image_key = img_key
                 for marker in _sfx_editor_image_markers:
+                    if marker["image"] == _sfx_editor_current_image:
+                        _sfx_editor_play_sfx(marker["file"])
+
+            # Trigger dialogue markers when image+dialogue combo changes
+            global _sfx_editor_last_dialogue_key
+            dlg_key = "{}|{}".format(_sfx_editor_current_image, _sfx_editor_current_dialogue)
+            if dlg_key != _sfx_editor_last_dialogue_key:
+                _sfx_editor_last_dialogue_key = dlg_key
+                for marker in _sfx_editor_dialogue_markers:
                     if (marker["image"] == _sfx_editor_current_image
                             and marker["dialogue"] == _sfx_editor_current_dialogue):
                         _sfx_editor_play_sfx(marker["file"])
@@ -1101,6 +1150,7 @@ init python:
             "last_channel": _sfx_editor_active_channel,
             "markers_per_video": existing_markers,
             "image_markers": list(_sfx_editor_image_markers),
+            "dialogue_markers": list(_sfx_editor_dialogue_markers),
             "version": _sfx_editor_version,
         }
 
@@ -1117,7 +1167,7 @@ init python:
         global _sfx_editor_pool_files, _sfx_editor_pool_min_delay
         global _sfx_editor_pool_max_delay, _sfx_editor_pool_enabled
         global _sfx_editor_active_channel, _sfx_editor_markers
-        global _sfx_editor_image_markers
+        global _sfx_editor_image_markers, _sfx_editor_dialogue_markers
 
         _sfx_editor_audio_dir = config.get("audio_dir", "sfx_editor/audio")
         _sfx_editor_mode = config.get("mode", "manual")
@@ -1137,6 +1187,7 @@ init python:
             _sfx_editor_markers = []
 
         _sfx_editor_image_markers = config.get("image_markers", [])
+        _sfx_editor_dialogue_markers = config.get("dialogue_markers", [])
 
 
     # --------------------------------------------------------------------------
@@ -1178,7 +1229,6 @@ style sfx_frame is empty:
     xfill True
 
 style sfx_btn is empty:
-    xysize (32, 26)
     background "#444444"
     hover_background "#666666"
 
@@ -1191,7 +1241,6 @@ style sfx_btn_text is empty:
     yalign 0.5
 
 style sfx_btn_sm is empty:
-    xysize (20, 20)
     background "#444444"
     hover_background "#666666"
 
@@ -1223,7 +1272,6 @@ style sfx_input is empty:
     size 13
     color "#ffffff"
     font "DejaVuSans.ttf"
-    xysize (100, 22)
     background "#333333"
 
 
@@ -1255,7 +1303,7 @@ screen sfx_editor_sidebar_content():
             textbutton "⟳":
                 style "sfx_btn"
                 text_style "sfx_btn_text"
-                action [Function(_sfx_editor_refresh_channel), Function(_sfx_editor_scan_audio), Function(_sfx_editor_redetect_dialogue)]
+                action [Function(_sfx_editor_refresh_detections), Function(_sfx_editor_scan_audio)]
             textbutton "✕":
                 style "sfx_btn"
                 text_style "sfx_btn_text"
@@ -1269,19 +1317,27 @@ screen sfx_editor_sidebar_content():
             text "No video or dialogue" style "sfx_help"
 
         # --- Video UI ---
+        # --- Shared file picker ---
+        if _is_video or _is_dialogue:
+            hbox:
+                spacing 5
+                text "File:" style "sfx_txt"
+                text _sfx_editor_get_selected_filename() style "sfx_txt" color "#ffcc00"
+
+        # --- Video UI ---
         if _is_video:
             frame:
                 background "#222222"
                 padding (2, 2)
-                yminimum 0
                 xfill True
+                yminimum 0
                 has vbox
                 $ _vid_name = (_sfx_editor_channel_status or "").split(" | ")[-1] if " | " in (_sfx_editor_channel_status or "") else "?"
                 text "Video: [_vid_name]" style "sfx_txt"
                 text "[_sfx_editor_current_time_str] / [_sfx_editor_total_time_str]" style "sfx_txt"
                 text "f: [_sfx_editor_current_frame_str]/[_sfx_editor_total_frame_str]" style "sfx_txt"
                 hbox:
-                    spacing 3
+                    spacing 5
                     if _sfx_editor_paused:
                         textbutton "▶":
                             style "sfx_btn"
@@ -1308,98 +1364,138 @@ screen sfx_editor_sidebar_content():
                         style "sfx_btn"
                         text_style "sfx_btn_text"
                         action Function(_sfx_editor_coarse_seek, 1.0)
+                # Video marker add + list
+                null height 5
+                fixed:
+                    xfill True
+                    ysize 1
+                    add Solid("#555555")
+                null height 5
+                vbox:
+                    spacing 5
+                    text "Video Markers ([_sfx_editor_marker_count])" style "sfx_txt"
+                    hbox:
+                        spacing 5
+                        textbutton "Add":
+                            style "sfx_btn_sm"
+                            text_style "sfx_btn_sm_text"
+                            action Function(_sfx_editor_add_marker, None)
+                        if _sfx_editor_markers:
+                            textbutton "Clear":
+                                style "sfx_btn_sm"
+                                text_style "sfx_btn_sm_text"
+                                action Function(_sfx_editor_clear_all_markers)
+                null height 5
+                if _sfx_editor_markers:
+                    vbox:
+                        spacing 2
+                        for i, marker in enumerate(_sfx_editor_markers):
+                            hbox:
+                                spacing 5
+                                textbutton "✕":
+                                        style "sfx_btn_sm"
+                                        text_style "sfx_btn_sm_text"
+                                        action Function(_sfx_editor_remove_marker, i)
+                                vbox:
+                                    text _sfx_editor_format_time(marker["time"]) style "sfx_txt"
+                                    text " " + marker["file"] style "sfx_txt" color "#ffcc00" size 11
+                                
 
-        # --- Dialogue UI (can coexist with video) ---
-        if _is_dialogue:
+        # --- Image UI ---
+        $ _has_image = bool(_sfx_editor_current_image)
+        if _has_image:
             frame:
                 background "#222222"
                 padding (2, 2)
-                yminimum 0
                 xfill True
+                yminimum 0
                 has vbox
                 text "Image: [_sfx_editor_current_image]" style "sfx_txt"
-                text "Dialogue: [_sfx_editor_current_dialogue]" style "sfx_txt"
-
-        if _sfx_editor_scan_error:
-            text "[_sfx_editor_scan_error]" style "sfx_help" color "#ff6666"
-
-        null height 6
-
-        # ================================================================
-        # MANUAL MARKERS
-        # ================================================================
-        # Marker header + add button
-        hbox:
-            spacing 3
-            if _is_video:
-                text "Video Markers ([_sfx_editor_marker_count])" style "sfx_hdr"
-            if _is_dialogue:
-                text "Image Markers" style "sfx_hdr"
-            if not _is_video and not _is_dialogue:
-                text "Markers" style "sfx_hdr"
-            text "File:" style "sfx_txt"
-            text _sfx_editor_get_selected_filename() style "sfx_txt" color "#ffcc00"
-            if _is_dialogue:
-                textbutton "Add Marker":
-                    style "sfx_btn"
-                    text_style "sfx_btn_text"
-                    action Function(_sfx_editor_add_image_marker, None)
-            if _is_video:
-                textbutton "Add Marker":
-                    style "sfx_btn"
-                    text_style "sfx_btn_text"
-                    action Function(_sfx_editor_add_marker, None)
-
-        # Video marker list
-        if _sfx_editor_markers:
-            viewport:
-                xfill True
-                ymaximum 120
-                mousewheel True
+                # Image marker add + list
+                null height 5
+                fixed:
+                    xfill True
+                    ysize 1
+                    add Solid("#555555")
+                null height 5
                 vbox:
-                    spacing 2
-                    for i, marker in enumerate(_sfx_editor_markers):
-                        frame:
-                            background "#333333"
-                            padding (3, 2)
-                            xfill True
+                    spacing 5
+                    text "Image Markers" style "sfx_txt"
+                    hbox:
+                        spacing 5
+                        textbutton "Add":
+                            style "sfx_btn_sm"
+                            text_style "sfx_btn_sm_text"
+                            action Function(_sfx_editor_add_image_marker, None)
+                        if _sfx_editor_image_markers:
+                            textbutton "Clear":
+                                style "sfx_btn_sm"
+                                text_style "sfx_btn_sm_text"
+                                action Function(_sfx_editor_clear_all_markers)
+                null height 5
+                if _sfx_editor_image_markers:
+                    vbox:
+                        spacing 2
+                        for i, marker in enumerate(_sfx_editor_image_markers):
                             hbox:
-                                text _sfx_editor_format_time(marker["time"]) style "sfx_txt"
-                                text "  " + marker["file"] style "sfx_txt" color "#ffcc00" size 11
-                                null width 4
-                                textbutton "✕":
-                                    style "sfx_btn_sm"
-                                    text_style "sfx_btn_sm_text"
-                                    action Function(_sfx_editor_remove_marker, i)
-
-        # Image marker list
-        if _sfx_editor_image_markers:
-            viewport:
-                xfill True
-                ymaximum 120
-                mousewheel True
-                vbox:
-                    spacing 2
-                    for i, marker in enumerate(_sfx_editor_image_markers):
-                        frame:
-                            background "#333333"
-                            padding (3, 2)
-                            xfill True
-                            hbox:
-                                text (marker["image"][:20] + " | \"" + marker["dialogue"][:30] + "\"") style "sfx_txt" size 10
-                                text "  " + marker["file"] style "sfx_txt" color "#ffcc00" size 11
-                                null width 4
+                                spacing 5
                                 textbutton "✕":
                                     style "sfx_btn_sm"
                                     text_style "sfx_btn_sm_text"
                                     action Function(_sfx_editor_remove_image_marker, i)
+                                vbox:
+                                    text marker["image"][:25] style "sfx_txt" size 10
+                                    text " " + marker["file"] style "sfx_txt" color "#ffcc00" size 11
 
-        if _sfx_editor_markers or _sfx_editor_image_markers:
-            textbutton "Clear All":
-                style "sfx_btn"
-                text_style "sfx_btn_text"
-                action Function(_sfx_editor_clear_all_markers)
-        elif not _is_video and not _is_dialogue:
+        # --- Dialogue UI ---
+        if _is_dialogue:
+            frame:
+                background "#222222"
+                padding (2, 2)
+                xfill True
+                yminimum 0
+                has vbox
+                text "Dialogue: [_sfx_editor_current_dialogue]" style "sfx_txt"
+                # Dialogue marker add + list
+                null height 5
+                fixed:
+                    xfill True
+                    ysize 1
+                    add Solid("#555555")
+                null height 5
+                vbox:
+                    spacing 5
+                    text "Dialogue Markers" style "sfx_txt"
+                    hbox:
+                        spacing 5
+                        textbutton "Add":
+                            style "sfx_btn_sm"
+                            text_style "sfx_btn_sm_text"
+                            action Function(_sfx_editor_add_dialogue_marker, None)
+                        if _sfx_editor_dialogue_markers:
+                            textbutton "Clear":
+                                style "sfx_btn_sm"
+                                text_style "sfx_btn_sm_text"
+                                action Function(_sfx_editor_clear_all_markers)
+                null height 5
+                if _sfx_editor_dialogue_markers:
+                    vbox:
+                        spacing 2
+                        for i, marker in enumerate(_sfx_editor_dialogue_markers):
+                            hbox:
+                                spacing 5
+                                textbutton "✕":
+                                    style "sfx_btn_sm"
+                                    text_style "sfx_btn_sm_text"
+                                    action Function(_sfx_editor_remove_dialogue_marker, i)
+                                vbox:
+                                    text (marker["image"][:20] + " | " + marker["dialogue"][:20]) style "sfx_txt" size 10
+                                    text " " + marker["file"] style "sfx_txt" color "#ffcc00" size 11
+
+        if _sfx_editor_scan_error:
+            text "[_sfx_editor_scan_error]" style "sfx_help" color "#ff6666"
+
+        if not _is_video and not _is_dialogue:
             text "No video or dialogue" style "sfx_help"
 
         null height 6
@@ -1430,7 +1526,7 @@ screen sfx_editor_sidebar_content():
                 action Function(_sfx_editor_set_pool_delay, "max", _sfx_editor_pool_max_str)
 
         hbox:
-            spacing 3
+            spacing 5
             if _sfx_editor_pool_enabled:
                 textbutton "⏹ Stop Pool":
                     style "sfx_btn"
@@ -1450,10 +1546,10 @@ screen sfx_editor_sidebar_content():
                 ymaximum 130
                 mousewheel True
                 vbox:
-                    spacing 1
+                    spacing 2
                     for i, filename in enumerate(_sfx_editor_pool_files):
                         hbox:
-                            spacing 1
+                            spacing 2
                             textbutton "▶":
                                 style "sfx_btn_sm"
                                 text_style "sfx_btn_sm_text"
@@ -1475,10 +1571,10 @@ screen sfx_editor_sidebar_content():
                 vscrollbar_xsize 6
                 vscrollbar_unscrollable "hide"
                 vbox:
-                    spacing 1
+                    spacing 2
                     for item in _sfx_editor_visible_tree:
                         hbox:
-                            spacing 1
+                            spacing 2
                             # Indent
                             if item["depth"] > 0:
                                 text "  " * (item["depth"] * 2) style "sfx_txt"
@@ -1536,7 +1632,7 @@ screen sfx_editor_sidebar_content():
 screen sfx_editor_overlay():
 
     zorder 9999
-    modal True
+    modal False
     tag sfx_editor
 
     # Screen-level key bindings
@@ -1549,11 +1645,17 @@ screen sfx_editor_overlay():
     # Timer to drive the SFX trigger engine
     timer 0.1 repeat True action Function(_sfx_editor_tick)
 
-    frame:
-        style "sfx_frame"
+    button:
         xalign 0.0
         yalign 0.0
         xsize 420
         yfill True
-        use sfx_editor_sidebar_content()
+        action NullAction()
+        background None
+        hover_background None
+        frame:
+            style "sfx_frame"
+            xfill True
+            yfill True
+            use sfx_editor_sidebar_content()
 
