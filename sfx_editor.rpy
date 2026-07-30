@@ -42,7 +42,7 @@ init -999 python:
     _sfx_editor_pool_ch = None      # channel currently playing
     _sfx_editor_pool_ready_at = 0.0 # wall clock when next SFX can start
     _sfx_editor_pool_play_start = 0.0
-    _sfx_editor_pool_last_played = []  # last 2 played files (no-repeat window)
+    _sfx_editor_pool_last_played = []  # last 2 played files (shared no-repeat)
     _sfx_editor_clipboard = None      # {markers, image_markers, dialogue_markers, pool_files, pool_frequency}
     _sfx_editor__active_sfx = {}        # {channel: {"source": str, "context": str}}
     _sfx_editor_played_markers = set()
@@ -1063,23 +1063,58 @@ init python:
             global _sfx_editor_last_image_key, _sfx_editor_last_dialogue_key
 
             # Image markers — pick one randomly
-            img_key = _sfx_editor_current_image
+            img_key = _sfx_editor_current_file
+            _sfx_editor_log("TRACE-IMG current_file={} last_key={}".format(repr(img_key), repr(_sfx_editor_last_image_key)))
             if img_key != _sfx_editor_last_image_key:
                 _sfx_editor_last_image_key = img_key
-                matching = [m for m in _sfx_editor_image_markers if m["image"] == _sfx_editor_current_image]
+                matching = [m for m in _sfx_editor_image_markers if m["image"] == _sfx_editor_current_file]
                 if matching:
-                    _sfx_editor_play_sfx(_random.choice(matching)["file"], "img:" + _sfx_editor_current_image)
+                    global _sfx_editor_pool_last_played
+                    if not isinstance(_sfx_editor_pool_last_played, list):
+                        _sfx_editor_pool_last_played = []
+                    _file = _random.choice(matching)["file"]
+                    if len(matching) > 1:
+                        _tries = 0
+                        while _file in _sfx_editor_pool_last_played and _tries < 10:
+                            _file = _random.choice(matching)["file"]
+                            _tries += 1
+                    _sfx_editor_pool_last_played.append(_file)
+                    if len(_sfx_editor_pool_last_played) > 2:
+                        _sfx_editor_pool_last_played.pop(0)
+                    _sfx_editor_play_sfx(_file, "img:" + _sfx_editor_current_file)
+                else:
+                    _all_keys = set(m["image"] for m in _sfx_editor_image_markers)
+                    _sfx_editor_log("TRIGGER-NO-MATCH img={} total={} keys={}".format(
+                        _sfx_editor_current_file, len(_sfx_editor_image_markers),
+                        list(_all_keys)[:10]))
 
             # Dialogue markers — pick one randomly
-            dlg_key = "{}|{}".format(_sfx_editor_current_image, _sfx_editor_current_dialogue)
+            dlg_key = "{}|{}".format(_sfx_editor_current_file, _sfx_editor_current_dialogue)
             if dlg_key != _sfx_editor_last_dialogue_key:
                 _sfx_editor_last_dialogue_key = dlg_key
                 matching = [m for m in _sfx_editor_dialogue_markers
-                            if m["image"] == _sfx_editor_current_image
+                            if m["image"] == _sfx_editor_current_file
                             and m["dialogue"] == _sfx_editor_current_dialogue]
                 if matching:
-                    _dlg_src = _sfx_editor_current_image + "|" + _sfx_editor_current_dialogue[:40]
-                    _sfx_editor_play_sfx(_random.choice(matching)["file"], "dlg:" + _dlg_src)
+                    global _sfx_editor_pool_last_played
+                    if not isinstance(_sfx_editor_pool_last_played, list):
+                        _sfx_editor_pool_last_played = []
+                    _file = _random.choice(matching)["file"]
+                    if len(matching) > 1:
+                        _tries = 0
+                        while _file in _sfx_editor_pool_last_played and _tries < 10:
+                            _file = _random.choice(matching)["file"]
+                            _tries += 1
+                    _sfx_editor_pool_last_played.append(_file)
+                    if len(_sfx_editor_pool_last_played) > 2:
+                        _sfx_editor_pool_last_played.pop(0)
+                    _dlg_src = _sfx_editor_current_file + "|" + _sfx_editor_current_dialogue[:40]
+                    _sfx_editor_play_sfx(_file, "dlg:" + _dlg_src)
+                else:
+                    _sfx_editor_log("TRIGGER-NO-MATCH dlg={}|{} total_dlg_markers={}".format(
+                        _sfx_editor_current_file,
+                        _sfx_editor_current_dialogue[:30] if _sfx_editor_current_dialogue else "",
+                        len(_sfx_editor_dialogue_markers)))
 
 
 
