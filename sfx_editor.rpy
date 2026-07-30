@@ -36,10 +36,20 @@ init -999 python:
     _sfx_editor_mode = "manual"       # "manual" or "pool"
     _sfx_editor_markers = []          # list of {time: float, file: str}
     _sfx_editor_pool_files = []       # list of filenames
-    _sfx_editor_pool_min_delay = 2.0
-    _sfx_editor_pool_max_delay = 8.0
-    _sfx_editor_pool_enabled = False
-    _sfx_editor_next_pool_time = 0.0
+    _sfx_editor_pool_frequency = 1  # 0 = Slow, 1 = Normal, 2 = Fast
+    _sfx_editor_next_pool_time_video = 0.0
+    _sfx_editor_next_pool_time_dlg = 0.0
+    _sfx_editor_pool_last_played = []  # last 2 played files (no-repeat window)
+    _sfx_editor_audio_durations = {}  # filename -> duration in seconds (cached)
+    _sfx_editor_last_sfx_duration = 2.0
+    _sfx_editor__dur_pending_ch = None  # channel waiting for duration capture
+    _sfx_editor__dur_pending_file = None
+    _sfx_editor__dur_scan_queue = []    # files to pre-scan for duration
+    _sfx_editor__dur_scan_active = {}   # {channel: filename} currently being scanned
+    _sfx_editor__dur_scan_channels = [   # 5 parallel scan channels
+        "_sfx_dur_scan_1", "_sfx_dur_scan_2", "_sfx_dur_scan_3",
+        "_sfx_dur_scan_4", "_sfx_dur_scan_5"
+    ]
     _sfx_editor_played_markers = set()
     _sfx_editor_available_files = []  # flat list of all file paths
     _sfx_editor_audio_tree = []       # tree: [{type, name, children?, expanded?}]
@@ -64,8 +74,6 @@ init -999 python:
     _sfx_editor_dialogue_markers = []
     _sfx_editor_last_image_key = ""
     _sfx_editor_last_dialogue_key = ""
-    _sfx_editor_pool_min_str = "2.0"
-    _sfx_editor_pool_max_str = "8.0"
 
     # Display counts (pre-computed for screen text interpolation)
     _sfx_editor_audio_count = 0
@@ -116,6 +124,14 @@ init 999 python:
                     ch_name, "sfx", loop=False, stop_on_mute=True, tight=False
                 )
 
+        # Dedicated channels for duration scanning (isolated from playback)
+        for i in range(1, 6):
+            ch_name = "_sfx_dur_scan_{}".format(i)
+            if not renpy.music.channel_defined(ch_name):
+                renpy.music.register_channel(
+                    ch_name, "sfx", loop=False, stop_on_mute=True, tight=False
+                )
+
         # Create a layer above screens for the overlay
         renpy.add_layer("sfx_editor_layer", above="screens")
 
@@ -126,18 +142,21 @@ init 999 python:
 
         # Register after_load callback (avoids label conflict with game's own after_load)
         def _sfx_editor_after_load():
+            global _sfx_editor_visible, _sfx_editor_paused
             if _sfx_editor_visible:
                 _sfx_editor_visible = False
                 _sfx_editor_paused = False
-                _sfx_editor_pool_enabled = False
         config.after_load_callbacks.append(_sfx_editor_after_load)
 
         # Character callback for dialogue detection
         def _sfx_editor_char_callback(event, interact=True, **kwargs):
             global _sfx_editor_current_dialogue
             if event == "show":
+                old_dlg = _sfx_editor_current_dialogue
                 _sfx_editor_current_dialogue = getattr(store, '_last_say_what', '') or ''
                 _sfx_editor_refresh_detections()
+                if _sfx_editor_current_dialogue != old_dlg:
+                    _sfx_editor_load_context()
             elif event == "end":
                 _sfx_editor_current_dialogue = ""
         config.all_character_callbacks.append(_sfx_editor_char_callback)
@@ -190,37 +209,28 @@ init python:
         t0 = time.time()
         global _sfx_editor_visible, _sfx_editor_active_channel
         global _sfx_editor_manual_channel_input
-        global _sfx_editor_pool_min_str, _sfx_editor_pool_max_str
         _sfx_editor_visible = True
-        _sfx_editor_log("show: start")
         # Load persisted config
         _sfx_editor_load_config()
-        _sfx_editor_log("show: load_config took {:.3f}s".format(time.time() - t0))
-        # Initialize string fields from current values
+        # Initialize string field from current values
         _sfx_editor_manual_channel_input = (
             _sfx_editor_active_channel if _sfx_editor_active_channel else ""
         )
-        _sfx_editor_pool_min_str = "{:.1f}".format(_sfx_editor_pool_min_delay)
-        _sfx_editor_pool_max_str = "{:.1f}".format(_sfx_editor_pool_max_delay)
         # Scan audio on first open (cached thereafter)
         if not _sfx_editor_available_files:
             _sfx_editor_scan_audio()
-            _sfx_editor_log("show: scan_audio took {:.3f}s".format(time.time() - t0))
         # Rebuild visible tree
         global _sfx_editor_visible_tree
         _sfx_editor_visible_tree = _sfx_editor_get_visible_tree()
         # Auto-detect everything
         _sfx_editor_refresh_detections()
-        _sfx_editor_log("show: refresh_channel took {:.3f}s".format(time.time() - t0))
         # Update channel input after detection
         _sfx_editor_manual_channel_input = (
             _sfx_editor_active_channel if _sfx_editor_active_channel else ""
         )
         # Show the overlay screen
         renpy.show_screen("sfx_editor_overlay", _layer="sfx_editor_layer")
-        _sfx_editor_log("show: show_screen took {:.3f}s".format(time.time() - t0))
         renpy.restart_interaction()
-        _sfx_editor_log("show: restart_interaction took {:.3f}s".format(time.time() - t0))
 
 
     def _sfx_editor_hide():
@@ -232,9 +242,13 @@ init python:
 
 
     def _sfx_editor_refresh_detections():
-        """Re-detect video and image. Dialogue handled separately by
-        character callback (sets on 'show', clears on 'end')."""
+        """Re-detect video and image, and swap context when they change."""
         global _sfx_editor_current_image
+        global _sfx_editor_current_dialogue
+
+        old_image = _sfx_editor_current_image
+        old_video = _sfx_editor_active_channel
+        old_dialogue = _sfx_editor_current_dialogue
 
         # 1. Re-detect video channel
         _sfx_editor_refresh_channel()
@@ -243,8 +257,15 @@ init python:
         is_video = _sfx_editor_active_channel is not None and renpy.music.is_playing(channel=_sfx_editor_active_channel)
         if is_video:
             _sfx_editor_current_image = ""
+            _sfx_editor_current_dialogue = ""
         else:
             _sfx_editor_current_image = _sfx_editor_get_showing_image()
+
+        # 3. If context changed, load new context (old was already saved on add/remove)
+        if (_sfx_editor_current_image != old_image
+                or _sfx_editor_active_channel != old_video
+                or _sfx_editor_current_dialogue != old_dialogue):
+            _sfx_editor_load_context()
 
 
     def _sfx_editor_redetect_dialogue():
@@ -311,7 +332,8 @@ init python:
 
                 _sfx_editor_active_channel = ch_name
                 _sfx_editor_channel_status = "{} | {} ({}fps)".format(ch_name, fname, fps)
-                _sfx_editor_reset_loop_tracking()
+                if old_ch != ch_name:
+                    _sfx_editor_reset_loop_tracking()
 
             try:
                 import renpy.audio.audio as aaudio
@@ -368,10 +390,10 @@ init python:
 
     def _sfx_editor_reset_loop_tracking():
         """Reset played markers and loop detection when video changes."""
-        global _sfx_editor_played_markers, _sfx_editor_next_pool_time
+        global _sfx_editor_played_markers, _sfx_editor_next_pool_time_video
         global _sfx_editor__last_pos
         _sfx_editor_played_markers = set()
-        _sfx_editor_next_pool_time = 0.0
+        _sfx_editor_next_pool_time_video = 0.0
         _sfx_editor__last_pos = 0.0
 
 
@@ -624,6 +646,12 @@ init python:
         global _sfx_editor_visible_tree
         _sfx_editor_visible_tree = _sfx_editor_get_visible_tree()
 
+        # Queue unscanned files for duration pre-scan (muted, one tick each)
+        global _sfx_editor__dur_scan_queue
+        for f in results:
+            if f not in _sfx_editor_audio_durations:
+                _sfx_editor__dur_scan_queue.append(f)
+
 
     def _sfx_editor_add_folder_to_pool(folder_path):
         """Recursively add all files under a folder prefix to the pool."""
@@ -730,6 +758,16 @@ init python:
 
         try:
             renpy.music.play(full_path, channel=target_ch, loop=False)
+            # Duration capture: defer to next tick (get_duration is channel-only
+            # and returns 0.0 if called right after play — audio loads async)
+            global _sfx_editor_audio_durations, _sfx_editor_last_sfx_duration
+            dur = _sfx_editor_audio_durations.get(filename)
+            if dur and dur > 0:
+                _sfx_editor_last_sfx_duration = dur
+            else:
+                global _sfx_editor__dur_pending_ch, _sfx_editor__dur_pending_file
+                _sfx_editor__dur_pending_ch = target_ch
+                _sfx_editor__dur_pending_file = filename
         except Exception:
             pass
 
@@ -895,94 +933,269 @@ init python:
             _sfx_editor_pool_files.pop(index)
             _sfx_editor_save_config()
 
+    def _sfx_editor_clear_pool():
+        """Remove all files from the pool."""
+        global _sfx_editor_pool_files, _sfx_editor_next_pool_time_video
+        global _sfx_editor_next_pool_time_dlg
+        _sfx_editor_pool_files = []
+        _sfx_editor_next_pool_time_video = 0.0
+        _sfx_editor_next_pool_time_dlg = 0.0
+        _sfx_editor_save_config()
 
-    def _sfx_editor_start_pool():
-        """Start the random pool SFX playback."""
-        global _sfx_editor_pool_enabled, _sfx_editor_next_pool_time
-        if not _sfx_editor_pool_files:
-            return
+
+    def _sfx_editor_get_pool_delay():
+        """Return a random delay based on the current pool frequency,
+        scaled proportionally by the last-played SFX duration.
+
+        Each adds (last_sfx_duration * 0.5) so longer sounds get more breathing room.
+        """
         import random
-        _sfx_editor_pool_enabled = True
-        elapsed = _sfx_editor_get_elapsed()
-        if elapsed > 0:
-            _sfx_editor_next_pool_time = elapsed + random.uniform(
-                _sfx_editor_pool_min_delay, _sfx_editor_pool_max_delay
-            )
+        freq = _sfx_editor_pool_frequency
+        dur = _sfx_editor_last_sfx_duration
+        if freq == 2: # fast
+            base = 0.5
+        elif freq == 1: # normal
+            base = 1.5 + (dur * 0.5) + random.uniform(0, 1)
+        else: # slow
+            base = 3.0 + (dur * 0.5) + random.uniform(0, 2.0)
+        return dur + base
+
+    def _sfx_editor_set_pool_frequency(freq):
+        """Set pool frequency. 0 = Slow, 1 = Normal, 2 = Fast."""
+        global _sfx_editor_pool_frequency
+        _sfx_editor_pool_frequency = int(freq)
         _sfx_editor_save_config()
-
-
-    def _sfx_editor_stop_pool():
-        """Stop the random pool SFX playback."""
-        global _sfx_editor_pool_enabled
-        _sfx_editor_pool_enabled = False
-        _sfx_editor_save_config()
-
-
-    def _sfx_editor_set_pool_delay(field, value_str):
-        """Set pool min or max delay from a string input."""
-        global _sfx_editor_pool_min_delay, _sfx_editor_pool_max_delay
-        global _sfx_editor_pool_min_str, _sfx_editor_pool_max_str
-        try:
-            value = float(value_str)
-            if value < 0.1:
-                value = 0.1
-            if field == "min":
-                _sfx_editor_pool_min_delay = value
-                _sfx_editor_pool_min_str = "{:.1f}".format(value)
-                if _sfx_editor_pool_max_delay < value:
-                    _sfx_editor_pool_max_delay = value + 0.1
-                    _sfx_editor_pool_max_str = "{:.1f}".format(value + 0.1)
-            elif field == "max":
-                _sfx_editor_pool_max_delay = value
-                _sfx_editor_pool_max_str = "{:.1f}".format(value)
-                if _sfx_editor_pool_min_delay > value:
-                    _sfx_editor_pool_min_delay = max(0.1, value - 0.1)
-                    _sfx_editor_pool_min_str = "{:.1f}".format(
-                        max(0.1, value - 0.1)
-                    )
-            _sfx_editor_save_config()
-        except (ValueError, TypeError):
-            # Restore from current values
-            _sfx_editor_pool_min_str = "{:.1f}".format(_sfx_editor_pool_min_delay)
-            _sfx_editor_pool_max_str = "{:.1f}".format(_sfx_editor_pool_max_delay)
+        renpy.restart_interaction()
 
 
     # --------------------------------------------------------------------------
     # SFX Trigger Engine (Tick)
     # --------------------------------------------------------------------------
 
-    def _sfx_editor_tick():
-        """Called ~10 times/sec by the overlay screen timer.
-
-        Updates time display, checks markers, and drives pool mode.
-        """
+    def _sfx_editor_tick_trigger():
+        """SFX trigger engine — runs always (even when overlay is hidden)."""
         import random as _random
         import time as _time
-        global _sfx_editor_current_time_str, _sfx_editor_total_time_str
-        global _sfx_editor_current_frame_str, _sfx_editor_total_frame_str
-        global _sfx_editor_audio_count, _sfx_editor_marker_count, _sfx_editor_pool_count
-        global _sfx_editor__step_target, _sfx_editor__pause_target
 
+        global _sfx_editor__tick_count
+        _sfx_editor__tick_count = getattr(store, '_sfx_editor__tick_count', 0) + 1
+        tick = _sfx_editor__tick_count
+
+        # Deferred duration capture (channel-based, after audio has loaded)
+        # Also handles startup pre-scan of unscanned files (muted, one tick each)
+        global _sfx_editor__dur_pending_ch, _sfx_editor__dur_pending_file
+        global _sfx_editor__dur_scan_queue, _sfx_editor__dur_scan_phase, _sfx_editor__dur_scan_ch
+        global _sfx_editor_audio_durations, _sfx_editor_last_sfx_duration
+
+        # Priority 1: normal pending capture (from a pool fire)
+        if _sfx_editor__dur_pending_ch is not None:
+            try:
+                pdur = renpy.music.get_duration(channel=_sfx_editor__dur_pending_ch)
+                if pdur and pdur > 0:
+                    _sfx_editor_audio_durations[_sfx_editor__dur_pending_file] = pdur
+                    _sfx_editor_last_sfx_duration = pdur
+                    _sfx_editor_log("TICK#{} DUR-CAPTURE file={} dur={:.1f}s".format(
+                        tick, _sfx_editor__dur_pending_file, pdur))
+                    _sfx_editor__dur_pending_ch = None
+                    _sfx_editor__dur_pending_file = None
+            except Exception:
+                pass
+
+        # Priority 2: startup duration pre-scan (muted, up to 5 parallel workers)
+        else:
+            # Phase 1: capture durations from channels that played last tick
+            done_chs = []
+            for scan_ch, scan_file in list(_sfx_editor__dur_scan_active.items()):
+                try:
+                    sdur = renpy.music.get_duration(channel=scan_ch)
+                    if sdur and sdur > 0:
+                        _sfx_editor_audio_durations[scan_file] = sdur
+                        _sfx_editor_log("TICK#{} DUR-SCAN file={} dur={:.1f}s queue={}".format(
+                            tick, scan_file, sdur, len(_sfx_editor__dur_scan_queue)))
+                    else:
+                        # No duration available (file may be too short / errored)
+                        _sfx_editor_log("TICK#{} DUR-SCAN failed file={} (no duration)".format(
+                            tick, scan_file))
+                except Exception:
+                    pass
+                try:
+                    renpy.music.stop(channel=scan_ch)
+                except Exception:
+                    pass
+                done_chs.append(scan_ch)
+
+            for scan_ch in done_chs:
+                del _sfx_editor__dur_scan_active[scan_ch]
+
+            # Phase 2: fill idle channels with next files from queue
+            idle = [c for c in _sfx_editor__dur_scan_channels if c not in _sfx_editor__dur_scan_active]
+            for scan_ch in idle:
+                if not _sfx_editor__dur_scan_queue:
+                    break
+                scan_file = _sfx_editor__dur_scan_queue.pop(0)
+                full = _sfx_editor_audio_dir.rstrip("/") + "/" + scan_file
+                try:
+                    renpy.music.play(full, channel=scan_ch, loop=False)
+                    renpy.music.set_volume(0.0, channel=scan_ch)
+                    _sfx_editor__dur_scan_active[scan_ch] = scan_file
+                    _sfx_editor_log("TICK#{} DUR-SCAN playing {} ch={} ({} remaining)".format(
+                        tick, scan_file, scan_ch, len(_sfx_editor__dur_scan_queue)))
+                except Exception:
+                    _sfx_editor_log("TICK#{} DUR-SCAN error playing {}".format(tick, scan_file))
+
+            # Restore volumes when all done
+            if not _sfx_editor__dur_scan_queue and not _sfx_editor__dur_scan_active:
+                for scan_ch in _sfx_editor__dur_scan_channels:
+                    try:
+                        renpy.music.set_volume(1.0, channel=scan_ch)
+                    except Exception:
+                        pass
+
+        # --- VIDEO MODE triggers ---
         ch = _sfx_editor_active_channel
-        pos = renpy.music.get_pos(channel=ch) if ch else None
+        if ch and renpy.music.is_playing(channel=ch):
+            elapsed = _sfx_editor_get_elapsed()
 
-        # Auto-re-pause after backward seek (restart + play to target)
-        if _sfx_editor__pause_target > 0 and pos is not None:
-            if pos >= _sfx_editor__pause_target:
+            # Auto-re-pause after seek
+            global _sfx_editor__pause_target, _sfx_editor__step_target
+            global _sfx_editor_paused, _sfx_editor__time_offset
+            pos = renpy.music.get_pos(channel=ch)
+            if _sfx_editor__pause_target > 0 and pos is not None and pos >= _sfx_editor__pause_target:
                 renpy.music.set_pause(True, channel=ch)
                 _sfx_editor__pause_target = 0.0
                 _sfx_editor_paused = True
                 _sfx_editor__time_offset = 0.0
-
-        # Auto-re-pause after forward frame step
-        if _sfx_editor__step_target > 0 and pos is not None:
-            if pos >= _sfx_editor__step_target:
+            if _sfx_editor__step_target > 0 and pos is not None and pos >= _sfx_editor__step_target:
                 renpy.music.set_pause(True, channel=ch)
                 _sfx_editor__step_target = 0.0
                 _sfx_editor_paused = True
                 _sfx_editor__time_offset = 0.0
 
-        # Update display counts for screen text interpolation
+            # Video markers
+            if _sfx_editor_mode == "manual":
+                for idx, marker in enumerate(_sfx_editor_markers):
+                    if idx not in _sfx_editor_played_markers:
+                        mt = marker["time"]
+                        if mt <= elapsed < mt + _sfx_editor__marker_tolerance:
+                            _sfx_editor_play_sfx(marker["file"])
+                            _sfx_editor_played_markers.add(idx)
+
+            # Video pool (wall-clock time, survives video loops)
+            if _sfx_editor_pool_files:
+                now = _time.time()
+                npt = _sfx_editor_next_pool_time_video
+                if npt == 0:
+                    delay = 0.5
+                    global _sfx_editor_next_pool_time_video
+                    _sfx_editor_next_pool_time_video = now + delay
+                    if tick % 10 == 0:
+                        _sfx_editor_log("TICK#{} VIDEO-POOL INIT now={:.2f} delay={:.2f} next={:.2f} files={}".format(
+                            tick, now, delay, _sfx_editor_next_pool_time_video, len(_sfx_editor_pool_files)))
+                elif now >= npt:
+                    global _sfx_editor_pool_last_played
+                    pool_size = len(_sfx_editor_pool_files)
+                    # No-repeat: require 2 different files before a repeat
+                    if pool_size >= 3:
+                        file = _random.choice(_sfx_editor_pool_files)
+                        tries = 0
+                        while file in _sfx_editor_pool_last_played and tries < 10:
+                            file = _random.choice(_sfx_editor_pool_files)
+                            tries += 1
+                    elif pool_size == 2:
+                        # Only 2 files — can't avoid repeat after both play
+                        file = _random.choice(_sfx_editor_pool_files)
+                    else:
+                        file = _sfx_editor_pool_files[0]
+                    # Track last 2 played
+                    if not isinstance(_sfx_editor_pool_last_played, list):
+                        _sfx_editor_pool_last_played = []
+                    _sfx_editor_pool_last_played.append(file)
+                    if len(_sfx_editor_pool_last_played) > 2:
+                        _sfx_editor_pool_last_played.pop(0)
+                    _sfx_editor_play_sfx(file)
+                    # Calculate delay based on the file we just played
+                    _sfx_editor_last_sfx_duration = _sfx_editor_audio_durations.get(file, 2.0)
+                    delay = _sfx_editor_get_pool_delay()
+                    global _sfx_editor_next_pool_time_video
+                    _sfx_editor_next_pool_time_video = now + delay
+                    _sfx_editor_log("TICK#{} VIDEO-POOL FIRE file={} dur={:.1f}s now={:.2f} next_delay={:.2f}".format(
+                        tick, file, _sfx_editor_audio_durations.get(file, 2.0), now, delay))
+
+            # Detect video loop (markers only, pool uses wall clock)
+            if _sfx_editor__last_pos > 0 and elapsed < _sfx_editor__last_pos - 0.3:
+                _sfx_editor_played_markers.clear()
+            global _sfx_editor__last_pos
+            _sfx_editor__last_pos = elapsed
+
+        # --- DIALOGUE MODE triggers ---
+        if _sfx_editor_current_dialogue:
+            global _sfx_editor_last_image_key, _sfx_editor_last_dialogue_key
+
+            # Image markers
+            img_key = _sfx_editor_current_image
+            if img_key != _sfx_editor_last_image_key:
+                _sfx_editor_last_image_key = img_key
+                for marker in _sfx_editor_image_markers:
+                    if marker["image"] == _sfx_editor_current_image:
+                        _sfx_editor_play_sfx(marker["file"])
+
+            # Dialogue markers
+            dlg_key = "{}|{}".format(_sfx_editor_current_image, _sfx_editor_current_dialogue)
+            if dlg_key != _sfx_editor_last_dialogue_key:
+                _sfx_editor_last_dialogue_key = dlg_key
+                for marker in _sfx_editor_dialogue_markers:
+                    if (marker["image"] == _sfx_editor_current_image
+                            and marker["dialogue"] == _sfx_editor_current_dialogue):
+                        _sfx_editor_play_sfx(marker["file"])
+
+            # Dialogue pool
+            if _sfx_editor_pool_files:
+                now = _time.time()
+                npt = _sfx_editor_next_pool_time_dlg
+                if npt == 0:
+                    delay = 0.5
+                    global _sfx_editor_next_pool_time_dlg
+                    _sfx_editor_next_pool_time_dlg = now + delay
+                    if tick % 10 == 0:
+                        _sfx_editor_log("TICK#{} DIALOGUE-POOL INIT now={:.2f} delay={:.2f} next={:.2f} dialogue={} files={}".format(
+                            tick, now, delay, _sfx_editor_next_pool_time_dlg,
+                            _sfx_editor_current_dialogue[:30] if _sfx_editor_current_dialogue else "", len(_sfx_editor_pool_files)))
+                elif now >= npt:
+                    global _sfx_editor_pool_last_played
+                    pool_size = len(_sfx_editor_pool_files)
+                    if pool_size >= 3:
+                        file = _random.choice(_sfx_editor_pool_files)
+                        tries = 0
+                        while file in _sfx_editor_pool_last_played and tries < 10:
+                            file = _random.choice(_sfx_editor_pool_files)
+                            tries += 1
+                    elif pool_size == 2:
+                        file = _random.choice(_sfx_editor_pool_files)
+                    else:
+                        file = _sfx_editor_pool_files[0]
+                    if not isinstance(_sfx_editor_pool_last_played, list):
+                        _sfx_editor_pool_last_played = []
+                    _sfx_editor_pool_last_played.append(file)
+                    if len(_sfx_editor_pool_last_played) > 2:
+                        _sfx_editor_pool_last_played.pop(0)
+                    _sfx_editor_play_sfx(file)
+                    _sfx_editor_last_sfx_duration = _sfx_editor_audio_durations.get(file, 2.0)
+                    delay = _sfx_editor_get_pool_delay()
+                    global _sfx_editor_next_pool_time_dlg
+                    _sfx_editor_next_pool_time_dlg = now + delay
+                    _sfx_editor_log("TICK#{} DIALOGUE-POOL FIRE file={} dur={:.1f}s now={:.2f} next_delay={:.2f}".format(
+                        tick, file, _sfx_editor_audio_durations.get(file, 2.0), now, delay))
+
+
+    def _sfx_editor_tick():
+        """Called ~10 times/sec by the overlay screen timer.
+
+        Updates time display, checks markers, and drives pool mode.
+        """
+        global _sfx_editor_current_time_str, _sfx_editor_total_time_str
+        global _sfx_editor_current_frame_str, _sfx_editor_total_frame_str
+        global _sfx_editor_audio_count, _sfx_editor_marker_count, _sfx_editor_pool_count
+
         _sfx_editor_audio_count = len(_sfx_editor_available_files)
         _sfx_editor_marker_count = len(_sfx_editor_markers)
         _sfx_editor_pool_count = len(_sfx_editor_pool_files)
@@ -1018,61 +1231,7 @@ init python:
             except Exception:
                 pass
 
-            # Detect video loop
-            if _sfx_editor__last_pos > 0 and elapsed < _sfx_editor__last_pos - 0.3:
-                _sfx_editor_played_markers.clear()
-                if _sfx_editor_pool_enabled:
-                    import random
-                    _sfx_editor_next_pool_time = elapsed + random.uniform(
-                        _sfx_editor_pool_min_delay, _sfx_editor_pool_max_delay
-                    )
-            _sfx_editor__last_pos = elapsed
-
-            # Video marker + pool trigger
-            if _sfx_editor_mode == "manual":
-                _sfx_editor_tick_manual(elapsed)
-            elif _sfx_editor_mode == "pool":
-                _sfx_editor_tick_pool(elapsed)
-
-        elif is_dialogue:
-            # --- IMAGE/DIALOGUE MODE ---
-            _sfx_editor_current_time_str = "--:--.--"
-            _sfx_editor_total_time_str = "--:--.--"
-            _sfx_editor_current_frame_str = "---"
-            _sfx_editor_total_frame_str = "---"
-
-            # Trigger image markers when image changes
-            global _sfx_editor_last_image_key
-            img_key = _sfx_editor_current_image
-            if img_key != _sfx_editor_last_image_key:
-                _sfx_editor_last_image_key = img_key
-                for marker in _sfx_editor_image_markers:
-                    if marker["image"] == _sfx_editor_current_image:
-                        _sfx_editor_play_sfx(marker["file"])
-
-            # Trigger dialogue markers when image+dialogue combo changes
-            global _sfx_editor_last_dialogue_key
-            dlg_key = "{}|{}".format(_sfx_editor_current_image, _sfx_editor_current_dialogue)
-            if dlg_key != _sfx_editor_last_dialogue_key:
-                _sfx_editor_last_dialogue_key = dlg_key
-                for marker in _sfx_editor_dialogue_markers:
-                    if (marker["image"] == _sfx_editor_current_image
-                            and marker["dialogue"] == _sfx_editor_current_dialogue):
-                        _sfx_editor_play_sfx(marker["file"])
-
-            # Pool trigger for image mode (time-based using system clock)
-            if _sfx_editor_pool_enabled and _sfx_editor_pool_files:
-                now = _time.time()
-                global _sfx_editor_next_pool_time
-                if _sfx_editor_next_pool_time == 0:
-                    _sfx_editor_next_pool_time = now + _random.uniform(
-                        _sfx_editor_pool_min_delay, _sfx_editor_pool_max_delay
-                    )
-                elif now >= _sfx_editor_next_pool_time:
-                    _sfx_editor_play_sfx(_random.choice(_sfx_editor_pool_files))
-                    _sfx_editor_next_pool_time = now + _random.uniform(
-                        _sfx_editor_pool_min_delay, _sfx_editor_pool_max_delay
-                    )
+            # (loop detection and triggers handled by _sfx_editor_tick_trigger)
 
         else:
             _sfx_editor_current_time_str = "--:--.--"
@@ -1080,41 +1239,6 @@ init python:
             _sfx_editor_current_frame_str = "---"
             _sfx_editor_total_frame_str = "---"
 
-
-    def _sfx_editor_tick_manual(elapsed):
-        """Check manual markers and trigger SFX if elapsed time is reached."""
-        for idx, marker in enumerate(_sfx_editor_markers):
-            if idx in _sfx_editor_played_markers:
-                continue
-            marker_time = marker["time"]
-            # Trigger when we pass the marker time (within tolerance)
-            if marker_time <= elapsed < marker_time + _sfx_editor__marker_tolerance:
-                _sfx_editor_play_sfx(marker["file"])
-                _sfx_editor_played_markers.add(idx)
-            elif elapsed >= marker_time + _sfx_editor__marker_tolerance:
-                # We overshot (e.g., due to seeking) — trigger anyway
-                _sfx_editor_play_sfx(marker["file"])
-                _sfx_editor_played_markers.add(idx)
-
-
-    def _sfx_editor_tick_pool(elapsed):
-        """Check pool schedule and trigger random SFX."""
-        if not _sfx_editor_pool_enabled:
-            return
-        if not _sfx_editor_pool_files:
-            return
-
-        npt = _sfx_editor_next_pool_time
-        if npt > 0 and elapsed >= npt:
-            import random
-            choice = random.choice(_sfx_editor_pool_files)
-            _sfx_editor_play_sfx(choice)
-
-            delay = random.uniform(
-                _sfx_editor_pool_min_delay, _sfx_editor_pool_max_delay
-            )
-            global _sfx_editor_next_pool_time
-            _sfx_editor_next_pool_time = elapsed + delay
 
 
     # --------------------------------------------------------------------------
@@ -1122,72 +1246,99 @@ init python:
     # --------------------------------------------------------------------------
 
     def _sfx_editor_save_config():
-        """Save current configuration to persistent storage."""
+        """Save current configuration to persistent storage, scoped by context."""
+        existing = getattr(persistent, '_sfx_editor_config', {})
+        if existing is None:
+            existing = {}
+
+        # --- Video markers (keyed by video path) ---
         video_path = _sfx_editor_get_video_path()
         video_key = video_path if video_path else "__no_video__"
+        vid_markers = existing.get("markers_per_video", {})
+        vid_markers[video_key] = list(_sfx_editor_markers)
+        existing["markers_per_video"] = vid_markers
 
-        # Load existing markers dict to preserve other videos' markers
-        existing = getattr(persistent, '_sfx_editor_config', None)
-        if existing is None:
-            existing_markers = {}
-        else:
-            existing_markers = existing.get("markers_per_video", {})
+        # --- Image markers (keyed by image name) ---
+        img_key = _sfx_editor_current_image or "__no_image__"
+        img_markers = existing.get("image_markers_per_image", {})
+        img_markers[img_key] = list(_sfx_editor_image_markers)
+        existing["image_markers_per_image"] = img_markers
 
-        # Update markers for the current video
-        if _sfx_editor_markers:
-            existing_markers[video_key] = list(_sfx_editor_markers)
-        elif video_key in existing_markers:
-            # Don't clear on empty — user might want to keep them
-            existing_markers[video_key] = []
+        # --- Dialogue markers (keyed by image + dialogue) ---
+        dlg_key = (_sfx_editor_current_image or "__") + "|" + (_sfx_editor_current_dialogue or "")
+        dlg_markers = existing.get("dialogue_markers_per_key", {})
+        dlg_markers[dlg_key] = list(_sfx_editor_dialogue_markers)
+        existing["dialogue_markers_per_key"] = dlg_markers
 
-        config = {
-            "audio_dir": _sfx_editor_audio_dir,
-            "mode": _sfx_editor_mode,
-            "pool_files": list(_sfx_editor_pool_files),
-            "pool_min_delay": _sfx_editor_pool_min_delay,
-            "pool_max_delay": _sfx_editor_pool_max_delay,
-            "pool_enabled": _sfx_editor_pool_enabled,
-            "last_channel": _sfx_editor_active_channel,
-            "markers_per_video": existing_markers,
-            "image_markers": list(_sfx_editor_image_markers),
-            "dialogue_markers": list(_sfx_editor_dialogue_markers),
-            "version": _sfx_editor_version,
+        # --- Pool (keyed by video or image) ---
+        pool_ctx = video_key if video_path else img_key
+        pool_dicts = existing.get("pool_per_context", {})
+        pool_dicts[pool_ctx] = {
+            "files": list(_sfx_editor_pool_files),
+            "frequency": _sfx_editor_pool_frequency,
         }
+        existing["pool_per_context"] = pool_dicts
 
-        persistent._sfx_editor_config = config
+        existing["audio_dir"] = _sfx_editor_audio_dir
+        existing["mode"] = _sfx_editor_mode
+        existing["last_channel"] = _sfx_editor_active_channel
+        existing["version"] = _sfx_editor_version
+        existing["audio_durations"] = dict(_sfx_editor_audio_durations)
+
+        persistent._sfx_editor_config = existing
 
 
-    def _sfx_editor_load_config():
-        """Load configuration from persistent storage."""
+    def _sfx_editor_load_context():
+        """Load markers and pool for the current video/image/dialogue context."""
         config = getattr(persistent, '_sfx_editor_config', None)
         if config is None:
             return
 
-        global _sfx_editor_audio_dir, _sfx_editor_mode
-        global _sfx_editor_pool_files, _sfx_editor_pool_min_delay
-        global _sfx_editor_pool_max_delay, _sfx_editor_pool_enabled
-        global _sfx_editor_active_channel, _sfx_editor_markers
-        global _sfx_editor_image_markers, _sfx_editor_dialogue_markers
+        global _sfx_editor_markers, _sfx_editor_image_markers
+        global _sfx_editor_dialogue_markers
 
-        _sfx_editor_audio_dir = config.get("audio_dir", "sfx_editor/audio")
-        _sfx_editor_mode = config.get("mode", "manual")
-        _sfx_editor_pool_files = config.get("pool_files", [])
-        _sfx_editor_pool_min_delay = config.get("pool_min_delay", 2.0)
-        _sfx_editor_pool_max_delay = config.get("pool_max_delay", 8.0)
-        _sfx_editor_pool_enabled = config.get("pool_enabled", False)
-        _sfx_editor_active_channel = config.get("last_channel", None)
-
-        # Load markers for current video
+        # Video markers
         video_path = _sfx_editor_get_video_path()
         video_key = video_path if video_path else "__no_video__"
         markers_dict = config.get("markers_per_video", {})
-        if video_key in markers_dict:
-            _sfx_editor_markers = list(markers_dict[video_key])
-        else:
-            _sfx_editor_markers = []
+        _sfx_editor_markers = list(markers_dict.get(video_key, []))
 
-        _sfx_editor_image_markers = config.get("image_markers", [])
-        _sfx_editor_dialogue_markers = config.get("dialogue_markers", [])
+        # Image markers
+        img_key = _sfx_editor_current_image or "__no_image__"
+        img_dict = config.get("image_markers_per_image", {})
+        _sfx_editor_image_markers = list(img_dict.get(img_key, []))
+
+        # Dialogue markers
+        dlg_key = (_sfx_editor_current_image or "__") + "|" + (_sfx_editor_current_dialogue or "")
+        dlg_dict = config.get("dialogue_markers_per_key", {})
+        _sfx_editor_dialogue_markers = list(dlg_dict.get(dlg_key, []))
+
+        # Pool (keyed by video if video, else image)
+        global _sfx_editor_pool_frequency
+        pool_ctx = video_key if video_path else img_key
+        pool_dicts = config.get("pool_per_context", {})
+        pool_data = pool_dicts.get(pool_ctx, {})
+        global _sfx_editor_pool_files
+        _sfx_editor_pool_files = list(pool_data.get("files", []))
+        _sfx_editor_pool_frequency = pool_data.get("frequency", 1)
+
+
+    def _sfx_editor_load_config():
+        """Load global config (not context-specific)."""
+        config = getattr(persistent, '_sfx_editor_config', None)
+        if config is None:
+            return
+
+        global _sfx_editor_audio_dir, _sfx_editor_mode, _sfx_editor_active_channel
+        global _sfx_editor_audio_durations
+
+        _sfx_editor_audio_dir = config.get("audio_dir", "sfx_editor/audio")
+        _sfx_editor_mode = config.get("mode", "manual")
+        _sfx_editor_active_channel = config.get("last_channel", None)
+        _sfx_editor_audio_durations = config.get("audio_durations", {})
+
+        # Load context-specific data
+        _sfx_editor_load_context()
 
 
     # --------------------------------------------------------------------------
@@ -1240,9 +1391,18 @@ style sfx_btn_text is empty:
     xalign 0.5
     yalign 0.5
 
-style sfx_btn_sm is empty:
+style sfx_btn_icon is empty:
+    xysize (24, 24)
     background "#444444"
     hover_background "#666666"
+
+style sfx_btn_icon_text is empty:
+    size 12
+    color "#ffffff"
+    hover_color "#ffffff"
+    font "DejaVuSans.ttf"
+    xalign 0.5
+    yalign 0.5
 
 style sfx_btn_sm_text is empty:
     size 10
@@ -1273,6 +1433,7 @@ style sfx_input is empty:
     color "#ffffff"
     font "DejaVuSans.ttf"
     background "#333333"
+    xsize 80
 
 
 ###############################################################################
@@ -1286,6 +1447,7 @@ style sfx_input is empty:
 screen sfx_editor_key_listener():
     zorder 10000
     key "K_BACKQUOTE" action Function(_sfx_editor_toggle)
+    timer 0.05 repeat True action Function(_sfx_editor_tick_trigger)
 
 
 # =============================================================================
@@ -1296,17 +1458,16 @@ screen sfx_editor_sidebar_content():
     vbox:
         spacing 4
 
-        # --- Top bar: refresh + close (right-aligned) ---
+        # --- Top bar: refresh + close ---
         hbox:
-            xfill True
-            null xfill True
+            spacing 2
             textbutton "⟳":
-                style "sfx_btn"
-                text_style "sfx_btn_text"
+                style "sfx_btn_icon"
+                text_style "sfx_btn_icon_text"
                 action [Function(_sfx_editor_refresh_detections), Function(_sfx_editor_scan_audio)]
             textbutton "✕":
-                style "sfx_btn"
-                text_style "sfx_btn_text"
+                style "sfx_btn_icon"
+                text_style "sfx_btn_icon_text"
                 action Function(_sfx_editor_hide)
 
         # --- Mode detection ---
@@ -1377,13 +1538,13 @@ screen sfx_editor_sidebar_content():
                     hbox:
                         spacing 5
                         textbutton "Add":
-                            style "sfx_btn_sm"
-                            text_style "sfx_btn_sm_text"
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
                             action Function(_sfx_editor_add_marker, None)
                         if _sfx_editor_markers:
                             textbutton "Clear":
-                                style "sfx_btn_sm"
-                                text_style "sfx_btn_sm_text"
+                                style "sfx_btn_icon"
+                                text_style "sfx_btn_icon_text"
                                 action Function(_sfx_editor_clear_all_markers)
                 null height 5
                 if _sfx_editor_markers:
@@ -1393,8 +1554,8 @@ screen sfx_editor_sidebar_content():
                             hbox:
                                 spacing 5
                                 textbutton "✕":
-                                        style "sfx_btn_sm"
-                                        text_style "sfx_btn_sm_text"
+                                        style "sfx_btn_icon"
+                                        text_style "sfx_btn_icon_text"
                                         action Function(_sfx_editor_remove_marker, i)
                                 vbox:
                                     text _sfx_editor_format_time(marker["time"]) style "sfx_txt"
@@ -1424,13 +1585,13 @@ screen sfx_editor_sidebar_content():
                     hbox:
                         spacing 5
                         textbutton "Add":
-                            style "sfx_btn_sm"
-                            text_style "sfx_btn_sm_text"
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
                             action Function(_sfx_editor_add_image_marker, None)
                         if _sfx_editor_image_markers:
                             textbutton "Clear":
-                                style "sfx_btn_sm"
-                                text_style "sfx_btn_sm_text"
+                                style "sfx_btn_icon"
+                                text_style "sfx_btn_icon_text"
                                 action Function(_sfx_editor_clear_all_markers)
                 null height 5
                 if _sfx_editor_image_markers:
@@ -1440,8 +1601,8 @@ screen sfx_editor_sidebar_content():
                             hbox:
                                 spacing 5
                                 textbutton "✕":
-                                    style "sfx_btn_sm"
-                                    text_style "sfx_btn_sm_text"
+                                    style "sfx_btn_icon"
+                                    text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_remove_image_marker, i)
                                 vbox:
                                     text marker["image"][:25] style "sfx_txt" size 10
@@ -1469,13 +1630,13 @@ screen sfx_editor_sidebar_content():
                     hbox:
                         spacing 5
                         textbutton "Add":
-                            style "sfx_btn_sm"
-                            text_style "sfx_btn_sm_text"
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
                             action Function(_sfx_editor_add_dialogue_marker, None)
                         if _sfx_editor_dialogue_markers:
                             textbutton "Clear":
-                                style "sfx_btn_sm"
-                                text_style "sfx_btn_sm_text"
+                                style "sfx_btn_icon"
+                                text_style "sfx_btn_icon_text"
                                 action Function(_sfx_editor_clear_all_markers)
                 null height 5
                 if _sfx_editor_dialogue_markers:
@@ -1485,8 +1646,8 @@ screen sfx_editor_sidebar_content():
                             hbox:
                                 spacing 5
                                 textbutton "✕":
-                                    style "sfx_btn_sm"
-                                    text_style "sfx_btn_sm_text"
+                                    style "sfx_btn_icon"
+                                    text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_remove_dialogue_marker, i)
                                 vbox:
                                     text (marker["image"][:20] + " | " + marker["dialogue"][:20]) style "sfx_txt" size 10
@@ -1506,41 +1667,47 @@ screen sfx_editor_sidebar_content():
         text "SFX Pool ([_sfx_editor_pool_count] / [_sfx_editor_audio_count] files)" style "sfx_hdr"
 
         hbox:
-            spacing 2
-            text "Min:" style "sfx_txt"
-            input:
-                style "sfx_input"
-                value FieldInputValue(store, "_sfx_editor_pool_min_str", default=False)
-            textbutton "Set":
-                style "sfx_btn_sm"
-                text_style "sfx_btn_sm_text"
-                action Function(_sfx_editor_set_pool_delay, "min", _sfx_editor_pool_min_str)
-            null width 6
-            text "Max:" style "sfx_txt"
-            input:
-                style "sfx_input"
-                value FieldInputValue(store, "_sfx_editor_pool_max_str", default=False)
-            textbutton "Set":
-                style "sfx_btn_sm"
-                text_style "sfx_btn_sm_text"
-                action Function(_sfx_editor_set_pool_delay, "max", _sfx_editor_pool_max_str)
-
-        hbox:
             spacing 5
-            if _sfx_editor_pool_enabled:
-                textbutton "⏹ Stop Pool":
-                    style "sfx_btn"
-                    text_style "sfx_btn_text"
-                    action Function(_sfx_editor_stop_pool)
-            else:
-                textbutton "▶ Start Pool":
-                    style "sfx_btn"
-                    text_style "sfx_btn_text"
-                    action Function(_sfx_editor_start_pool)
+            text "SFX Frequency" style "sfx_txt"
+            $ slow_selected = (_sfx_editor_pool_frequency == 0)
+            $ normal_selected = (_sfx_editor_pool_frequency == 1)
+            $ fast_selected = (_sfx_editor_pool_frequency == 2)
+            textbutton "Slow":
+                style "sfx_btn_icon"
+                text_style "sfx_btn_icon_text"
+                xsize 38
+                if slow_selected:
+                    background "#666699"
+                else:
+                    background "#444444"
+                action Function(_sfx_editor_set_pool_frequency, 0)
+            textbutton "Normal":
+                style "sfx_btn_icon"
+                text_style "sfx_btn_icon_text"
+                xsize 50
+                if normal_selected:
+                    background "#669966"
+                else:
+                    background "#444444"
+                action Function(_sfx_editor_set_pool_frequency, 1)
+            textbutton "Fast":
+                style "sfx_btn_icon"
+                text_style "sfx_btn_icon_text"
+                xsize 38
+                if fast_selected:
+                    background "#996666"
+                else:
+                    background "#444444"
+                action Function(_sfx_editor_set_pool_frequency, 2)
 
         # Pool file list
         if _sfx_editor_pool_files:
             text "Pool files:" style "sfx_txt"
+            textbutton "Clear":
+                style "sfx_btn"
+                text_style "sfx_btn_text"
+                xsize 50
+                action Function(_sfx_editor_clear_pool)
             viewport:
                 xfill True
                 ymaximum 130
@@ -1551,12 +1718,12 @@ screen sfx_editor_sidebar_content():
                         hbox:
                             spacing 2
                             textbutton "▶":
-                                style "sfx_btn_sm"
-                                text_style "sfx_btn_sm_text"
+                                style "sfx_btn_icon"
+                                text_style "sfx_btn_icon_text"
                                 action Function(_sfx_editor_play_sfx, filename)
                             textbutton "✕":
-                                style "sfx_btn_sm"
-                                text_style "sfx_btn_sm_text"
+                                style "sfx_btn_icon"
+                                text_style "sfx_btn_icon_text"
                                 action Function(_sfx_editor_remove_from_pool, i)
                             text filename style "sfx_txt" color "#ffcc00"
 
@@ -1581,17 +1748,17 @@ screen sfx_editor_sidebar_content():
                             if item["type"] == "folder":
                                 if item["expanded"]:
                                     textbutton "▾":
-                                        style "sfx_btn_sm"
-                                        text_style "sfx_btn_sm_text"
+                                        style "sfx_btn_icon"
+                                        text_style "sfx_btn_icon_text"
                                         action Function(_sfx_editor_toggle_folder, item["full_path"])
                                 else:
                                     textbutton "▸":
-                                        style "sfx_btn_sm"
-                                        text_style "sfx_btn_sm_text"
+                                        style "sfx_btn_icon"
+                                        text_style "sfx_btn_icon_text"
                                         action Function(_sfx_editor_toggle_folder, item["full_path"])
                                 textbutton "P":
-                                    style "sfx_btn_sm"
-                                    text_style "sfx_btn_sm_text"
+                                    style "sfx_btn_icon"
+                                    text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_add_folder_to_pool, item["full_path"])
                                 textbutton item["name"]:
                                     style "sfx_btn"
@@ -1601,25 +1768,25 @@ screen sfx_editor_sidebar_content():
                             else:
                                 # Play preview
                                 textbutton "▶":
-                                    style "sfx_btn_sm"
-                                    text_style "sfx_btn_sm_text"
+                                    style "sfx_btn_icon"
+                                    text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_play_sfx, item["full_path"])
                                 # Set as marker file
                                 textbutton "M":
-                                    style "sfx_btn_sm"
-                                    text_style "sfx_btn_sm_text"
+                                    style "sfx_btn_icon"
+                                    text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_set_selected_file, item["index"])
                                 # Add to pool or already in pool
                                 if item["in_pool"]:
                                     textbutton "P":
-                                        style "sfx_btn_sm"
+                                        style "sfx_btn_icon"
                                         text_style "sfx_help"
                                         action NullAction()
                                     text item["name"] style "sfx_help"
                                 else:
                                     textbutton "P":
-                                        style "sfx_btn_sm"
-                                        text_style "sfx_btn_sm_text"
+                                        style "sfx_btn_icon"
+                                        text_style "sfx_btn_icon_text"
                                         action Function(_sfx_editor_add_to_pool, item["index"])
                                     text item["name"] style "sfx_txt" color "#ffcc00"
 
@@ -1643,7 +1810,7 @@ screen sfx_editor_overlay():
     key "K_DOWN" action Function(_sfx_editor_coarse_seek, -1.0)
     key "K_BACKQUOTE" action Function(_sfx_editor_hide)
     # Timer to drive the SFX trigger engine
-    timer 0.1 repeat True action Function(_sfx_editor_tick)
+    timer 0.05 repeat True action Function(_sfx_editor_tick)
 
     button:
         xalign 0.0
