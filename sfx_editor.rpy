@@ -37,15 +37,14 @@ init -999 python:
     _sfx_editor_markers = []          # list of {time: float, file: str}
     _sfx_editor_pool_files = []       # list of filenames
     _sfx_editor_pool_frequency = 1  # 0 = Slow, 1 = Normal, 2 = Fast
-    _sfx_editor_pool_state_video = 0   # 0=waiting for next play, 1=playing (waiting for finish)
-    _sfx_editor_pool_state_dlg = 0
-    _sfx_editor_pool_ch_video = None   # channel currently playing SFX
-    _sfx_editor_pool_ch_dlg = None
-    _sfx_editor_pool_ready_at_video = 0.0  # wall clock when next SFX can start
-    _sfx_editor_pool_ready_at_dlg = 0.0
-    _sfx_editor_pool_play_start_video = 0.0
-    _sfx_editor_pool_play_start_dlg = 0.0
+    # Single unified pool state machine (one SFX at a time)
+    _sfx_editor_pool_state = 0      # 0=waiting, 1=playing
+    _sfx_editor_pool_ch = None      # channel currently playing
+    _sfx_editor_pool_ready_at = 0.0 # wall clock when next SFX can start
+    _sfx_editor_pool_play_start = 0.0
     _sfx_editor_pool_last_played = []  # last 2 played files (no-repeat window)
+    _sfx_editor_clipboard = None      # {markers, image_markers, dialogue_markers, pool_files, pool_frequency}
+    _sfx_editor__active_sfx = {}        # {channel: {"source": str, "context": str}}
     _sfx_editor_played_markers = set()
     _sfx_editor_available_files = []  # flat list of all file paths
     _sfx_editor_audio_tree = []       # tree: [{type, name, children?, expanded?}]
@@ -244,7 +243,6 @@ init python:
         is_video = _sfx_editor_active_channel is not None and renpy.music.is_playing(channel=_sfx_editor_active_channel)
         if is_video:
             _sfx_editor_current_image = ""
-            _sfx_editor_current_dialogue = ""
         else:
             _sfx_editor_current_image = _sfx_editor_get_showing_image()
 
@@ -377,10 +375,10 @@ init python:
 
     def _sfx_editor_reset_loop_tracking():
         """Reset played markers and loop detection when video changes."""
-        global _sfx_editor_played_markers, _sfx_editor_pool_ready_at_video
+        global _sfx_editor_played_markers, _sfx_editor_pool_ready_at
         global _sfx_editor__last_pos
         _sfx_editor_played_markers = set()
-        _sfx_editor_pool_ready_at_video = 0.0
+        _sfx_editor_pool_ready_at = 0.0
         _sfx_editor__last_pos = 0.0
 
 
@@ -740,11 +738,12 @@ init python:
 
     def _sfx_editor_preview_sfx(filename):
         """Play a preview of an SFX file. Restarts interaction to consume click."""
-        _sfx_editor_play_sfx(filename)
+        _sfx_editor_play_sfx(filename, "preview")
         renpy.restart_interaction()
 
-    def _sfx_editor_play_sfx(filename):
+    def _sfx_editor_play_sfx(filename, source=""):
         """Play an SFX on the next available dedicated channel.
+        source: descriptive key for logging (video, image, dialogue, or pool)
         Returns the channel name, or None on failure.
         """
         global _sfx_editor__sfx_channel_idx
@@ -771,7 +770,35 @@ init python:
             _sfx_editor__sfx_channel_idx = ch_num % 8
 
         try:
+            # Context mismatch warning: compare source context with current state
+            _warn = None
+            if source.startswith("vid:"):
+                _vid_parts = source[4:].rsplit("@", 1)
+                _expected_vid = _vid_parts[0]
+                _cur_vpath = _sfx_editor_get_video_path()
+                _cur_vname = _cur_vpath.rsplit("/", 1)[-1] if _cur_vpath else ""
+                if _expected_vid and _cur_vname and _expected_vid != _cur_vname:
+                    _warn = "expected vid={} actual vid={}".format(_expected_vid, _cur_vname)
+            elif source.startswith("img:"):
+                _expected_img = source[4:]
+                if _expected_img and _sfx_editor_current_image and _expected_img != _sfx_editor_current_image:
+                    _warn = "expected img={} actual img={}".format(_expected_img, _sfx_editor_current_image)
+            elif source.startswith("dlg:"):
+                # source: "dlg:image|dialogue"
+                _parts = source[4:].split("|", 1)
+                _expected_img = _parts[0]
+                _expected_dlg = _parts[1] if len(_parts) > 1 else ""
+                _cur_img = _sfx_editor_current_image or ""
+                _cur_dlg = (_sfx_editor_current_dialogue or "")[:40]
+                if _expected_img != _cur_img or _expected_dlg != _cur_dlg:
+                    _warn = "expected img={}|{} actual img={}|{}".format(
+                        _expected_img, _expected_dlg, _cur_img, _cur_dlg)
+            if _warn:
+                _sfx_editor_log("WARN CTX-MISMATCH file={} src={} {}".format(
+                    filename.rsplit("/", 1)[-1], source, _warn))
+
             renpy.music.play(full_path, channel=target_ch, loop=False)
+            _sfx_editor_log("PLAY-SFX file={} src={} ch={}".format(filename.rsplit("/", 1)[-1], source, target_ch))
             return target_ch
         except Exception:
             return None
@@ -788,8 +815,11 @@ init python:
             return
         if file_index < 0 or file_index >= len(_sfx_editor_available_files):
             return
+        ch = _sfx_editor_active_channel
+        if not ch or not renpy.music.is_playing(channel=ch):
+            return
         elapsed = _sfx_editor_get_elapsed()
-        if elapsed is None or elapsed < 0:
+        if elapsed is None or elapsed <= 0:
             return
         filename = _sfx_editor_available_files[file_index]
         marker = {"time": elapsed, "file": filename}
@@ -899,14 +929,11 @@ init python:
 
     def _sfx_editor_clear_pool():
         """Remove all files from the pool."""
-        global _sfx_editor_pool_files, _sfx_editor_pool_ready_at_video
-        global _sfx_editor_pool_ready_at_dlg, _sfx_editor_pool_state_video
-        global _sfx_editor_pool_state_dlg
+        global _sfx_editor_pool_files, _sfx_editor_pool_ready_at
+        global _sfx_editor_pool_state
         _sfx_editor_pool_files = []
-        _sfx_editor_pool_ready_at_video = 0.0
-        _sfx_editor_pool_ready_at_dlg = 0.0
-        _sfx_editor_pool_state_video = 0
-        _sfx_editor_pool_state_dlg = 0
+        _sfx_editor_pool_ready_at = 0.0
+        _sfx_editor_pool_state = 0
         _sfx_editor_save_config()
 
 
@@ -946,8 +973,51 @@ init python:
         tick = _sfx_editor__tick_count
 
         # --- POOL STATE MACHINE HELPERS ---
-        # State 0: waiting for ready_at to arrive
-        # State 1: SFX playing, waiting for channel to go silent
+        # --- UNIFIED POOL state machine (one SFX at a time, any context) ---
+        # Pool runs when it has files AND (video is playing OR dialogue is present)
+        _pool_active = (_sfx_editor_active_channel is not None and renpy.music.is_playing(channel=_sfx_editor_active_channel)) or bool(_sfx_editor_current_dialogue)
+        if _sfx_editor_pool_files and _pool_active:
+            now = _time.time()
+            global _sfx_editor_pool_state, _sfx_editor_pool_ch
+            global _sfx_editor_pool_ready_at, _sfx_editor_pool_play_start
+
+            if _sfx_editor_pool_state == 1:
+                if not renpy.music.is_playing(channel=_sfx_editor_pool_ch):
+                    dur = now - _sfx_editor_pool_play_start
+                    breathing = _sfx_editor_get_pool_delay()
+                    _sfx_editor_pool_ready_at = now + breathing
+                    _sfx_editor_pool_state = 0
+                    _sfx_editor_log("TICK#{} POOL-DONE  file={} dur={:.2f}s breathing={:.2f}s".format(
+                        tick, _sfx_editor_pool_last_played[-1] if _sfx_editor_pool_last_played else "?",
+                        dur, breathing))
+
+            if _sfx_editor_pool_state == 0:
+                if _sfx_editor_pool_ready_at == 0:
+                    _sfx_editor_pool_ready_at = now + 0.5
+                elif now >= _sfx_editor_pool_ready_at:
+                    global _sfx_editor_pool_last_played
+                    pool_size = len(_sfx_editor_pool_files)
+                    if pool_size >= 3:
+                        file = _random.choice(_sfx_editor_pool_files)
+                        tries = 0
+                        while file in _sfx_editor_pool_last_played and tries < 10:
+                            file = _random.choice(_sfx_editor_pool_files)
+                            tries += 1
+                    elif pool_size == 2:
+                        file = _random.choice(_sfx_editor_pool_files)
+                    else:
+                        file = _sfx_editor_pool_files[0]
+                    if not isinstance(_sfx_editor_pool_last_played, list):
+                        _sfx_editor_pool_last_played = []
+                    _sfx_editor_pool_last_played.append(file)
+                    if len(_sfx_editor_pool_last_played) > 2:
+                        _sfx_editor_pool_last_played.pop(0)
+                    ch_used = _sfx_editor_play_sfx(file, "pool")
+                    if ch_used:
+                        _sfx_editor_pool_state = 1
+                        _sfx_editor_pool_ch = ch_used
+                        _sfx_editor_pool_play_start = now
+                        _sfx_editor_log("TICK#{} POOL-PLAY  file={} ch={}".format(tick, file, ch_used))
 
         # --- VIDEO MODE triggers ---
         ch = _sfx_editor_active_channel
@@ -975,58 +1045,12 @@ init python:
                     if idx not in _sfx_editor_played_markers:
                         mt = marker["time"]
                         if mt <= elapsed < mt + _sfx_editor__marker_tolerance:
-                            _sfx_editor_play_sfx(marker["file"])
+                            _vpath = _sfx_editor_get_video_path()
+                            _vname = _vpath.rsplit("/", 1)[-1] if _vpath else "?"
+                            _vkey = "vid:{}@{:.2f}".format(_vname, marker["time"])
+                            _sfx_editor_play_sfx(marker["file"], _vkey)
                             _sfx_editor_played_markers.add(idx)
 
-            # Video pool state machine
-            # State 0: waiting — check if ready to play
-            # State 1: playing — check if SFX finished
-            if _sfx_editor_pool_files:
-                now = _time.time()
-                global _sfx_editor_pool_state_video, _sfx_editor_pool_ch_video
-                global _sfx_editor_pool_ready_at_video, _sfx_editor_pool_play_start_video
-
-                if _sfx_editor_pool_state_video == 1:
-                    # Waiting for SFX to finish
-                    if not renpy.music.is_playing(channel=_sfx_editor_pool_ch_video):
-                        dur = now - _sfx_editor_pool_play_start_video
-                        breathing = _sfx_editor_get_pool_delay()
-                        _sfx_editor_pool_ready_at_video = now + breathing
-                        _sfx_editor_pool_state_video = 0
-                        _sfx_editor_log("TICK#{} POOL-DONE  file={} dur={:.2f}s breathing={:.2f}s next_in={:.2f}s".format(
-                            tick, _sfx_editor_pool_last_played[-1] if _sfx_editor_pool_last_played else "?",
-                            dur, breathing, breathing))
-
-                if _sfx_editor_pool_state_video == 0:
-                    # Waiting for next play time
-                    if _sfx_editor_pool_ready_at_video == 0:
-                        # First init: 500ms delay
-                        _sfx_editor_pool_ready_at_video = now + 0.5
-                    elif now >= _sfx_editor_pool_ready_at_video:
-                        # Pick file with no-repeat protection
-                        global _sfx_editor_pool_last_played
-                        pool_size = len(_sfx_editor_pool_files)
-                        if pool_size >= 3:
-                            file = _random.choice(_sfx_editor_pool_files)
-                            tries = 0
-                            while file in _sfx_editor_pool_last_played and tries < 10:
-                                file = _random.choice(_sfx_editor_pool_files)
-                                tries += 1
-                        elif pool_size == 2:
-                            file = _random.choice(_sfx_editor_pool_files)
-                        else:
-                            file = _sfx_editor_pool_files[0]
-                        if not isinstance(_sfx_editor_pool_last_played, list):
-                            _sfx_editor_pool_last_played = []
-                        _sfx_editor_pool_last_played.append(file)
-                        if len(_sfx_editor_pool_last_played) > 2:
-                            _sfx_editor_pool_last_played.pop(0)
-                        ch = _sfx_editor_play_sfx(file)
-                        if ch:
-                            _sfx_editor_pool_state_video = 1
-                            _sfx_editor_pool_ch_video = ch
-                            _sfx_editor_pool_play_start_video = now
-                            _sfx_editor_log("TICK#{} POOL-PLAY  file={} ch={}".format(tick, file, ch))
 
             # Detect video loop (markers only, pool uses wall clock)
             if _sfx_editor__last_pos > 0 and elapsed < _sfx_editor__last_pos - 0.3:
@@ -1044,7 +1068,7 @@ init python:
                 _sfx_editor_last_image_key = img_key
                 matching = [m for m in _sfx_editor_image_markers if m["image"] == _sfx_editor_current_image]
                 if matching:
-                    _sfx_editor_play_sfx(_random.choice(matching)["file"])
+                    _sfx_editor_play_sfx(_random.choice(matching)["file"], "img:" + _sfx_editor_current_image)
 
             # Dialogue markers — pick one randomly
             dlg_key = "{}|{}".format(_sfx_editor_current_image, _sfx_editor_current_dialogue)
@@ -1054,51 +1078,9 @@ init python:
                             if m["image"] == _sfx_editor_current_image
                             and m["dialogue"] == _sfx_editor_current_dialogue]
                 if matching:
-                    _sfx_editor_play_sfx(_random.choice(matching)["file"])
+                    _dlg_src = _sfx_editor_current_image + "|" + _sfx_editor_current_dialogue[:40]
+                    _sfx_editor_play_sfx(_random.choice(matching)["file"], "dlg:" + _dlg_src)
 
-            # Dialogue pool state machine
-            if _sfx_editor_pool_files:
-                now = _time.time()
-                global _sfx_editor_pool_state_dlg, _sfx_editor_pool_ch_dlg
-                global _sfx_editor_pool_ready_at_dlg, _sfx_editor_pool_play_start_dlg
-
-                if _sfx_editor_pool_state_dlg == 1:
-                    if not renpy.music.is_playing(channel=_sfx_editor_pool_ch_dlg):
-                        dur = now - _sfx_editor_pool_play_start_dlg
-                        breathing = _sfx_editor_get_pool_delay()
-                        _sfx_editor_pool_ready_at_dlg = now + breathing
-                        _sfx_editor_pool_state_dlg = 0
-                        _sfx_editor_log("TICK#{} POOL-DONE  file={} dur={:.2f}s breathing={:.2f}s".format(
-                            tick, _sfx_editor_pool_last_played[-1] if _sfx_editor_pool_last_played else "?",
-                            dur, breathing))
-
-                if _sfx_editor_pool_state_dlg == 0:
-                    if _sfx_editor_pool_ready_at_dlg == 0:
-                        _sfx_editor_pool_ready_at_dlg = now + 0.5
-                    elif now >= _sfx_editor_pool_ready_at_dlg:
-                        global _sfx_editor_pool_last_played
-                        pool_size = len(_sfx_editor_pool_files)
-                        if pool_size >= 3:
-                            file = _random.choice(_sfx_editor_pool_files)
-                            tries = 0
-                            while file in _sfx_editor_pool_last_played and tries < 10:
-                                file = _random.choice(_sfx_editor_pool_files)
-                                tries += 1
-                        elif pool_size == 2:
-                            file = _random.choice(_sfx_editor_pool_files)
-                        else:
-                            file = _sfx_editor_pool_files[0]
-                        if not isinstance(_sfx_editor_pool_last_played, list):
-                            _sfx_editor_pool_last_played = []
-                        _sfx_editor_pool_last_played.append(file)
-                        if len(_sfx_editor_pool_last_played) > 2:
-                            _sfx_editor_pool_last_played.pop(0)
-                        ch = _sfx_editor_play_sfx(file)
-                        if ch:
-                            _sfx_editor_pool_state_dlg = 1
-                            _sfx_editor_pool_ch_dlg = ch
-                            _sfx_editor_pool_play_start_dlg = now
-                            _sfx_editor_log("TICK#{} POOL-PLAY  file={} ch={}".format(tick, file, ch))
 
 
     def _sfx_editor_tick():
@@ -1501,9 +1483,7 @@ screen sfx_editor_sidebar_content():
                                     style "sfx_btn_icon"
                                     text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_remove_image_marker, i)
-                                vbox:
-                                    text marker["image"][:25] style "sfx_txt" size 10
-                                    text " " + marker["file"] style "sfx_txt" color "#ffcc00" size 11
+                                text marker["file"] style "sfx_txt" color "#ffcc00" size 11
 
         # --- Dialogue UI ---
         if _is_dialogue:
@@ -1542,9 +1522,7 @@ screen sfx_editor_sidebar_content():
                                     style "sfx_btn_icon"
                                     text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_remove_dialogue_marker, i)
-                                vbox:
-                                    text (marker["image"][:20] + " | " + marker["dialogue"][:20]) style "sfx_txt" size 10
-                                    text " " + marker["file"] style "sfx_txt" color "#ffcc00" size 11
+                                text marker["file"] style "sfx_txt" color "#ffcc00" size 11
 
         if _sfx_editor_scan_error:
             text "[_sfx_editor_scan_error]" style "sfx_help" color "#ff6666"
@@ -1625,7 +1603,7 @@ screen sfx_editor_sidebar_content():
                                     style "sfx_btn_icon"
                                     text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_remove_from_pool, i)
-                                text filename style "sfx_txt" color "#ffcc00"
+                                text filename style "sfx_txt" color "#ffcc00" size 11
 
         # Audio file browser
         if _sfx_editor_audio_tree:
