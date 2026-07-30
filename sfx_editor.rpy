@@ -1536,7 +1536,7 @@ screen sfx_editor_sidebar_content():
 screen sfx_editor_overlay():
 
     zorder 9999
-    modal False
+    modal True
     tag sfx_editor
 
     # Screen-level key bindings
@@ -1545,6 +1545,7 @@ screen sfx_editor_overlay():
     key "K_RIGHT" action Function(_sfx_editor_seek_frame, 1)
     key "K_UP" action Function(_sfx_editor_coarse_seek, 1.0)
     key "K_DOWN" action Function(_sfx_editor_coarse_seek, -1.0)
+    key "K_BACKQUOTE" action Function(_sfx_editor_hide)
     # Timer to drive the SFX trigger engine
     timer 0.1 repeat True action Function(_sfx_editor_tick)
 
