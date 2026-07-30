@@ -60,7 +60,6 @@ init -999 python:
     _sfx_editor_scan_error = None
     _sfx_editor_channel_status = "No video"
     _sfx_editor_initialized = False
-    _sfx_editor_selected_file_index = 0
     _sfx_editor_manual_channel_input = ""
 
     # Image + dialogue mode
@@ -610,11 +609,14 @@ init python:
             for name in sorted(node.keys()):
                 if name == "__files__":
                     continue
+                children = _build_tree(node[name])
+                has_direct_files = len(node[name].get("__files__", [])) > 0
                 items.append({
                     "type": "folder",
                     "name": name + "/",
-                    "children": _build_tree(node[name]),
+                    "children": children,
                     "expanded": False,
+                    "has_files": has_direct_files,
                 })
             # Then files
             for name in sorted(node.get("__files__", [])):
@@ -641,6 +643,34 @@ init python:
         for f in _sfx_editor_available_files:
             if f.startswith(folder_path) and f not in _sfx_editor_pool_files:
                 _sfx_editor_pool_files.append(f)
+        _sfx_editor_save_config()
+
+    def _sfx_editor_add_folder_to_image_markers(folder_path):
+        """Add all files under a folder as image markers for current image."""
+        global _sfx_editor_image_markers
+        if not _sfx_editor_current_image:
+            return
+        for f in _sfx_editor_available_files:
+            if f.startswith(folder_path):
+                marker = {"image": _sfx_editor_current_image, "file": f}
+                if marker not in _sfx_editor_image_markers:
+                    _sfx_editor_image_markers.append(marker)
+        _sfx_editor_save_config()
+
+    def _sfx_editor_add_folder_to_dialogue_markers(folder_path):
+        """Add all files under a folder as dialogue markers for current image+dialogue."""
+        global _sfx_editor_dialogue_markers
+        if not _sfx_editor_current_dialogue:
+            return
+        for f in _sfx_editor_available_files:
+            if f.startswith(folder_path):
+                marker = {
+                    "image": _sfx_editor_current_image,
+                    "dialogue": _sfx_editor_current_dialogue,
+                    "file": f,
+                }
+                if marker not in _sfx_editor_dialogue_markers:
+                    _sfx_editor_dialogue_markers.append(marker)
         _sfx_editor_save_config()
 
 
@@ -674,6 +704,7 @@ init python:
                     "full_path": full,
                     "depth": depth,
                     "expanded": _sfx_editor_expanded_folders.get(full, False),
+                    "has_files": item.get("has_files", False),
                 })
                 if _sfx_editor_expanded_folders.get(full, False):
                     _walk_tree(item.get("children", []), full, depth + 1, result)
@@ -706,6 +737,11 @@ init python:
     # --------------------------------------------------------------------------
     # SFX Playback
     # --------------------------------------------------------------------------
+
+    def _sfx_editor_preview_sfx(filename):
+        """Play a preview of an SFX file. Restarts interaction to consume click."""
+        _sfx_editor_play_sfx(filename)
+        renpy.restart_interaction()
 
     def _sfx_editor_play_sfx(filename):
         """Play an SFX on the next available dedicated channel.
@@ -745,56 +781,19 @@ init python:
     # Manual Marker Management
     # --------------------------------------------------------------------------
 
-    def _sfx_editor_set_selected_file(index):
-        """Set the selected file for marker placement by index."""
-        global _sfx_editor_selected_file_index
-        if 0 <= index < len(_sfx_editor_available_files):
-            _sfx_editor_selected_file_index = index
-
-
-    def _sfx_editor_cycle_file(delta):
-        """Cycle the selected file index for marker placement."""
-        global _sfx_editor_selected_file_index
-        if not _sfx_editor_available_files:
-            _sfx_editor_selected_file_index = 0
-            return
-        count = len(_sfx_editor_available_files)
-        _sfx_editor_selected_file_index = (
-            _sfx_editor_selected_file_index + delta
-        ) % count
-
-
-    def _sfx_editor_get_selected_filename():
-        """Get the currently selected audio filename."""
-        if not _sfx_editor_available_files:
-            return "(no files)"
-        idx = _sfx_editor_selected_file_index
-        if 0 <= idx < len(_sfx_editor_available_files):
-            return _sfx_editor_available_files[idx]
-        return "(no files)"
-
-
-    def _sfx_editor_add_marker(file_index=None):
-        """Add a marker at the current video time with the selected SFX file."""
+    def _sfx_editor_add_video_marker(file_index):
+        """Add a video marker at current elapsed time for the given file index."""
         global _sfx_editor_markers
-
         if not _sfx_editor_available_files:
             return
-
-        if file_index is None:
-            file_index = _sfx_editor_selected_file_index
-
         if file_index < 0 or file_index >= len(_sfx_editor_available_files):
-            file_index = 0
-
+            return
         elapsed = _sfx_editor_get_elapsed()
         if elapsed is None or elapsed < 0:
             return
-
         filename = _sfx_editor_available_files[file_index]
         marker = {"time": elapsed, "file": filename}
         _sfx_editor_markers.append(marker)
-        # Keep sorted by time
         _sfx_editor_markers.sort(key=lambda m: m["time"])
         _sfx_editor_save_config()
 
@@ -826,15 +825,13 @@ init python:
 
     # --- Image markers (keyed by image filename only) ---
 
-    def _sfx_editor_add_image_marker(file_index=None):
-        """Add a marker for the current image only."""
+    def _sfx_editor_add_image_marker(file_index):
+        """Add a marker for the current image using the given file."""
         global _sfx_editor_image_markers
         if not _sfx_editor_available_files:
             return
-        if file_index is None:
-            file_index = _sfx_editor_selected_file_index
         if file_index < 0 or file_index >= len(_sfx_editor_available_files):
-            file_index = 0
+            return
         filename = _sfx_editor_available_files[file_index]
         marker = {
             "image": _sfx_editor_current_image,
@@ -854,15 +851,13 @@ init python:
 
     # --- Dialogue markers (keyed by image + dialogue text) ---
 
-    def _sfx_editor_add_dialogue_marker(file_index=None):
-        """Add a marker for the current image + dialogue."""
+    def _sfx_editor_add_dialogue_marker(file_index):
+        """Add a marker for the current image + dialogue using the given file."""
         global _sfx_editor_dialogue_markers
         if not _sfx_editor_available_files:
             return
-        if file_index is None:
-            file_index = _sfx_editor_selected_file_index
         if file_index < 0 or file_index >= len(_sfx_editor_available_files):
-            file_index = 0
+            return
         filename = _sfx_editor_available_files[file_index]
         marker = {
             "image": _sfx_editor_current_image,
@@ -919,18 +914,15 @@ init python:
         """Return random breathing room (silence) between SFX.
         This is the gap AFTER an SFX finishes before the next one starts.
 
-        Fast:   0.5-1.0s
-        Normal: 1.7-2.7s
-        Slow:   3.0-5.0s
         """
         import random
         freq = _sfx_editor_pool_frequency
         if freq == 2:
-            return 0.5 + random.uniform(0.0, 0.25)
+            return 0.5 + random.uniform(0.0, 0.15)
         elif freq == 1:
-            return 1.7 + random.uniform(0.0, 1.0)
+            return 1.7 + random.uniform(0.0, .75)
         else:
-            return 3.0 + random.uniform(0.0, 2.0)
+            return 3.0 + random.uniform(0.0, 1.5)
 
     def _sfx_editor_set_pool_frequency(freq):
         """Set pool frequency. 0 = Slow, 1 = Normal, 2 = Fast."""
@@ -1046,22 +1038,23 @@ init python:
         if _sfx_editor_current_dialogue:
             global _sfx_editor_last_image_key, _sfx_editor_last_dialogue_key
 
-            # Image markers
+            # Image markers — pick one randomly
             img_key = _sfx_editor_current_image
             if img_key != _sfx_editor_last_image_key:
                 _sfx_editor_last_image_key = img_key
-                for marker in _sfx_editor_image_markers:
-                    if marker["image"] == _sfx_editor_current_image:
-                        _sfx_editor_play_sfx(marker["file"])
+                matching = [m for m in _sfx_editor_image_markers if m["image"] == _sfx_editor_current_image]
+                if matching:
+                    _sfx_editor_play_sfx(_random.choice(matching)["file"])
 
-            # Dialogue markers
+            # Dialogue markers — pick one randomly
             dlg_key = "{}|{}".format(_sfx_editor_current_image, _sfx_editor_current_dialogue)
             if dlg_key != _sfx_editor_last_dialogue_key:
                 _sfx_editor_last_dialogue_key = dlg_key
-                for marker in _sfx_editor_dialogue_markers:
-                    if (marker["image"] == _sfx_editor_current_image
-                            and marker["dialogue"] == _sfx_editor_current_dialogue):
-                        _sfx_editor_play_sfx(marker["file"])
+                matching = [m for m in _sfx_editor_dialogue_markers
+                            if m["image"] == _sfx_editor_current_image
+                            and m["dialogue"] == _sfx_editor_current_dialogue]
+                if matching:
+                    _sfx_editor_play_sfx(_random.choice(matching)["file"])
 
             # Dialogue pool state machine
             if _sfx_editor_pool_files:
@@ -1310,17 +1303,19 @@ style sfx_btn_text is empty:
     yalign 0.5
 
 style sfx_btn_icon is empty:
-    xysize (24, 24)
+    xysize (18, 18)
+    padding (0, 0)
     background "#444444"
     hover_background "#666666"
 
 style sfx_btn_icon_text is empty:
-    size 12
+    size 10
     color "#ffffff"
     hover_color "#ffffff"
     font "DejaVuSans.ttf"
     xalign 0.5
     yalign 0.5
+    padding (0, 0)
 
 style sfx_btn_sm_text is empty:
     size 10
@@ -1396,14 +1391,6 @@ screen sfx_editor_sidebar_content():
             text "No video or dialogue" style "sfx_help"
 
         # --- Video UI ---
-        # --- Shared file picker ---
-        if _is_video or _is_dialogue:
-            hbox:
-                spacing 5
-                text "File:" style "sfx_txt"
-                text _sfx_editor_get_selected_filename() style "sfx_txt" color "#ffcc00"
-
-        # --- Video UI ---
         if _is_video:
             frame:
                 background "#222222"
@@ -1455,10 +1442,6 @@ screen sfx_editor_sidebar_content():
                     text "Video Markers ([_sfx_editor_marker_count])" style "sfx_txt"
                     hbox:
                         spacing 5
-                        textbutton "Add":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            action Function(_sfx_editor_add_marker, None)
                         if _sfx_editor_markers:
                             textbutton "Clear":
                                 style "sfx_btn_icon"
@@ -1499,13 +1482,9 @@ screen sfx_editor_sidebar_content():
                 null height 5
                 vbox:
                     spacing 5
-                    text "Image Markers" style "sfx_txt"
+                    text "Image SFX" style "sfx_txt"
                     hbox:
                         spacing 5
-                        textbutton "Add":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            action Function(_sfx_editor_add_image_marker, None)
                         if _sfx_editor_image_markers:
                             textbutton "Clear":
                                 style "sfx_btn_icon"
@@ -1544,13 +1523,9 @@ screen sfx_editor_sidebar_content():
                 null height 5
                 vbox:
                     spacing 5
-                    text "Dialogue Markers" style "sfx_txt"
+                    text "Dialogue SFX" style "sfx_txt"
                     hbox:
                         spacing 5
-                        textbutton "Add":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            action Function(_sfx_editor_add_dialogue_marker, None)
                         if _sfx_editor_dialogue_markers:
                             textbutton "Clear":
                                 style "sfx_btn_icon"
@@ -1582,68 +1557,75 @@ screen sfx_editor_sidebar_content():
         # ================================================================
         # SFX POOL
         # ================================================================
-        text "SFX Pool ([_sfx_editor_pool_count] / [_sfx_editor_audio_count] files)" style "sfx_hdr"
+        frame:
+            background "#222222"
+            padding (3, 3)
+            xfill True
+            yminimum 0
+            has vbox
 
-        hbox:
-            spacing 5
-            text "SFX Frequency" style "sfx_txt"
-            $ slow_selected = (_sfx_editor_pool_frequency == 0)
-            $ normal_selected = (_sfx_editor_pool_frequency == 1)
-            $ fast_selected = (_sfx_editor_pool_frequency == 2)
-            textbutton "Slow":
-                style "sfx_btn_icon"
-                text_style "sfx_btn_icon_text"
-                xsize 38
-                if slow_selected:
-                    background "#666699"
-                else:
-                    background "#444444"
-                action Function(_sfx_editor_set_pool_frequency, 0)
-            textbutton "Normal":
-                style "sfx_btn_icon"
-                text_style "sfx_btn_icon_text"
-                xsize 50
-                if normal_selected:
-                    background "#669966"
-                else:
-                    background "#444444"
-                action Function(_sfx_editor_set_pool_frequency, 1)
-            textbutton "Fast":
-                style "sfx_btn_icon"
-                text_style "sfx_btn_icon_text"
-                xsize 38
-                if fast_selected:
-                    background "#996666"
-                else:
-                    background "#444444"
-                action Function(_sfx_editor_set_pool_frequency, 2)
+            text "SFX Pool ([_sfx_editor_pool_count] / [_sfx_editor_audio_count] files)" style "sfx_hdr"
 
-        # Pool file list
-        if _sfx_editor_pool_files:
-            text "Pool files:" style "sfx_txt"
-            textbutton "Clear":
-                style "sfx_btn"
-                text_style "sfx_btn_text"
-                xsize 50
-                action Function(_sfx_editor_clear_pool)
-            viewport:
-                xfill True
-                ymaximum 130
-                mousewheel True
-                vbox:
-                    spacing 2
-                    for i, filename in enumerate(_sfx_editor_pool_files):
-                        hbox:
-                            spacing 2
-                            textbutton "▶":
-                                style "sfx_btn_icon"
-                                text_style "sfx_btn_icon_text"
-                                action Function(_sfx_editor_play_sfx, filename)
-                            textbutton "✕":
-                                style "sfx_btn_icon"
-                                text_style "sfx_btn_icon_text"
-                                action Function(_sfx_editor_remove_from_pool, i)
-                            text filename style "sfx_txt" color "#ffcc00"
+            hbox:
+                spacing 5
+                text "SFX Frequency" style "sfx_txt"
+                $ slow_selected = (_sfx_editor_pool_frequency == 0)
+                $ normal_selected = (_sfx_editor_pool_frequency == 1)
+                $ fast_selected = (_sfx_editor_pool_frequency == 2)
+                textbutton "Slow":
+                    style "sfx_btn_icon"
+                    text_style "sfx_btn_icon_text"
+                    xsize 38
+                    if slow_selected:
+                        background "#666699"
+                    else:
+                        background "#444444"
+                    action Function(_sfx_editor_set_pool_frequency, 0)
+                textbutton "Normal":
+                    style "sfx_btn_icon"
+                    text_style "sfx_btn_icon_text"
+                    xsize 50
+                    if normal_selected:
+                        background "#669966"
+                    else:
+                        background "#444444"
+                    action Function(_sfx_editor_set_pool_frequency, 1)
+                textbutton "Fast":
+                    style "sfx_btn_icon"
+                    text_style "sfx_btn_icon_text"
+                    xsize 38
+                    if fast_selected:
+                        background "#996666"
+                    else:
+                        background "#444444"
+                    action Function(_sfx_editor_set_pool_frequency, 2)
+
+            # Pool file list
+            if _sfx_editor_pool_files:
+                text "Pool files:" style "sfx_txt"
+                textbutton "Clear":
+                    style "sfx_btn"
+                    text_style "sfx_btn_text"
+                    xsize 50
+                    action Function(_sfx_editor_clear_pool)
+                viewport:
+                    xfill True
+                    ymaximum 130
+                    mousewheel True
+                    vbox:
+                        spacing 2
+                        for i, filename in enumerate(_sfx_editor_pool_files):
+                            hbox:
+                                spacing 2
+                                textbutton "▶":
+                                    style "sfx_btn_icon"
+                                    text_style "sfx_btn_icon_text"
+                                    action Function(_sfx_editor_preview_sfx, filename)
+                                textbutton "✕":
+                                    style "sfx_btn_icon"
+                                    text_style "sfx_btn_icon_text"
+                                    action Function(_sfx_editor_remove_from_pool, i)
+                                text filename style "sfx_txt" color "#ffcc00"
 
         # Audio file browser
         if _sfx_editor_audio_tree:
@@ -1662,7 +1644,7 @@ screen sfx_editor_sidebar_content():
                             spacing 2
                             # Indent
                             if item["depth"] > 0:
-                                text "  " * (item["depth"] * 2) style "sfx_txt"
+                                text " " * item["depth"] style "sfx_txt"
                             if item["type"] == "folder":
                                 if item["expanded"]:
                                     textbutton "▾":
@@ -1674,10 +1656,19 @@ screen sfx_editor_sidebar_content():
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
                                         action Function(_sfx_editor_toggle_folder, item["full_path"])
-                                textbutton "P":
-                                    style "sfx_btn_icon"
-                                    text_style "sfx_btn_icon_text"
-                                    action Function(_sfx_editor_add_folder_to_pool, item["full_path"])
+                                if item["has_files"]:
+                                    textbutton "I":
+                                        style "sfx_btn_icon"
+                                        text_style "sfx_btn_icon_text"
+                                        action Function(_sfx_editor_add_folder_to_image_markers, item["full_path"])
+                                    textbutton "D":
+                                        style "sfx_btn_icon"
+                                        text_style "sfx_btn_icon_text"
+                                        action Function(_sfx_editor_add_folder_to_dialogue_markers, item["full_path"])
+                                    textbutton "P":
+                                        style "sfx_btn_icon"
+                                        text_style "sfx_btn_icon_text"
+                                        action Function(_sfx_editor_add_folder_to_pool, item["full_path"])
                                 textbutton item["name"]:
                                     style "sfx_btn"
                                     text_style "sfx_btn_text"
@@ -1688,13 +1679,23 @@ screen sfx_editor_sidebar_content():
                                 textbutton "▶":
                                     style "sfx_btn_icon"
                                     text_style "sfx_btn_icon_text"
-                                    action Function(_sfx_editor_play_sfx, item["full_path"])
-                                # Set as marker file
-                                textbutton "M":
+                                    action Function(_sfx_editor_preview_sfx, item["full_path"])
+                                # Video marker (file only)
+                                textbutton "V":
                                     style "sfx_btn_icon"
                                     text_style "sfx_btn_icon_text"
-                                    action Function(_sfx_editor_set_selected_file, item["index"])
-                                # Add to pool or already in pool
+                                    action Function(_sfx_editor_add_video_marker, item["index"])
+                                # Image SFX
+                                textbutton "I":
+                                    style "sfx_btn_icon"
+                                    text_style "sfx_btn_icon_text"
+                                    action Function(_sfx_editor_add_image_marker, item["index"])
+                                # Dialogue SFX
+                                textbutton "D":
+                                    style "sfx_btn_icon"
+                                    text_style "sfx_btn_icon_text"
+                                    action Function(_sfx_editor_add_dialogue_marker, item["index"])
+                                # SFX Pool
                                 if item["in_pool"]:
                                     textbutton "P":
                                         style "sfx_btn_icon"
