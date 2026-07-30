@@ -37,19 +37,15 @@ init -999 python:
     _sfx_editor_markers = []          # list of {time: float, file: str}
     _sfx_editor_pool_files = []       # list of filenames
     _sfx_editor_pool_frequency = 1  # 0 = Slow, 1 = Normal, 2 = Fast
-    _sfx_editor_next_pool_time_video = 0.0
-    _sfx_editor_next_pool_time_dlg = 0.0
+    _sfx_editor_pool_state_video = 0   # 0=waiting for next play, 1=playing (waiting for finish)
+    _sfx_editor_pool_state_dlg = 0
+    _sfx_editor_pool_ch_video = None   # channel currently playing SFX
+    _sfx_editor_pool_ch_dlg = None
+    _sfx_editor_pool_ready_at_video = 0.0  # wall clock when next SFX can start
+    _sfx_editor_pool_ready_at_dlg = 0.0
+    _sfx_editor_pool_play_start_video = 0.0
+    _sfx_editor_pool_play_start_dlg = 0.0
     _sfx_editor_pool_last_played = []  # last 2 played files (no-repeat window)
-    _sfx_editor_audio_durations = {}  # filename -> duration in seconds (cached)
-    _sfx_editor_last_sfx_duration = 2.0
-    _sfx_editor__dur_pending_ch = None  # channel waiting for duration capture
-    _sfx_editor__dur_pending_file = None
-    _sfx_editor__dur_scan_queue = []    # files to pre-scan for duration
-    _sfx_editor__dur_scan_active = {}   # {channel: filename} currently being scanned
-    _sfx_editor__dur_scan_channels = [   # 5 parallel scan channels
-        "_sfx_dur_scan_1", "_sfx_dur_scan_2", "_sfx_dur_scan_3",
-        "_sfx_dur_scan_4", "_sfx_dur_scan_5"
-    ]
     _sfx_editor_played_markers = set()
     _sfx_editor_available_files = []  # flat list of all file paths
     _sfx_editor_audio_tree = []       # tree: [{type, name, children?, expanded?}]
@@ -119,14 +115,6 @@ init 999 python:
         # Register 8 dedicated SFX channels on the "sfx" mixer
         for i in range(1, 9):
             ch_name = "_sfx_{}".format(i)
-            if not renpy.music.channel_defined(ch_name):
-                renpy.music.register_channel(
-                    ch_name, "sfx", loop=False, stop_on_mute=True, tight=False
-                )
-
-        # Dedicated channels for duration scanning (isolated from playback)
-        for i in range(1, 6):
-            ch_name = "_sfx_dur_scan_{}".format(i)
             if not renpy.music.channel_defined(ch_name):
                 renpy.music.register_channel(
                     ch_name, "sfx", loop=False, stop_on_mute=True, tight=False
@@ -390,10 +378,10 @@ init python:
 
     def _sfx_editor_reset_loop_tracking():
         """Reset played markers and loop detection when video changes."""
-        global _sfx_editor_played_markers, _sfx_editor_next_pool_time_video
+        global _sfx_editor_played_markers, _sfx_editor_pool_ready_at_video
         global _sfx_editor__last_pos
         _sfx_editor_played_markers = set()
-        _sfx_editor_next_pool_time_video = 0.0
+        _sfx_editor_pool_ready_at_video = 0.0
         _sfx_editor__last_pos = 0.0
 
 
@@ -646,12 +634,6 @@ init python:
         global _sfx_editor_visible_tree
         _sfx_editor_visible_tree = _sfx_editor_get_visible_tree()
 
-        # Queue unscanned files for duration pre-scan (muted, one tick each)
-        global _sfx_editor__dur_scan_queue
-        for f in results:
-            if f not in _sfx_editor_audio_durations:
-                _sfx_editor__dur_scan_queue.append(f)
-
 
     def _sfx_editor_add_folder_to_pool(folder_path):
         """Recursively add all files under a folder prefix to the pool."""
@@ -727,9 +709,7 @@ init python:
 
     def _sfx_editor_play_sfx(filename):
         """Play an SFX on the next available dedicated channel.
-
-        Uses round-robin across 8 channels to allow overlapping sounds.
-        If all channels are busy, reuses the oldest channel.
+        Returns the channel name, or None on failure.
         """
         global _sfx_editor__sfx_channel_idx
 
@@ -747,29 +727,18 @@ init python:
                 break
 
         if target_ch is None:
-            # All busy: round-robin (oldest gets cut off)
             idx = _sfx_editor__sfx_channel_idx
             target_ch = "_sfx_{}".format(idx + 1)
             _sfx_editor__sfx_channel_idx = (idx + 1) % 8
         else:
-            # Update round-robin index past this channel
             ch_num = int(target_ch.split("_")[-1])
             _sfx_editor__sfx_channel_idx = ch_num % 8
 
         try:
             renpy.music.play(full_path, channel=target_ch, loop=False)
-            # Duration capture: defer to next tick (get_duration is channel-only
-            # and returns 0.0 if called right after play — audio loads async)
-            global _sfx_editor_audio_durations, _sfx_editor_last_sfx_duration
-            dur = _sfx_editor_audio_durations.get(filename)
-            if dur and dur > 0:
-                _sfx_editor_last_sfx_duration = dur
-            else:
-                global _sfx_editor__dur_pending_ch, _sfx_editor__dur_pending_file
-                _sfx_editor__dur_pending_ch = target_ch
-                _sfx_editor__dur_pending_file = filename
+            return target_ch
         except Exception:
-            pass
+            return None
 
 
     # --------------------------------------------------------------------------
@@ -935,30 +904,33 @@ init python:
 
     def _sfx_editor_clear_pool():
         """Remove all files from the pool."""
-        global _sfx_editor_pool_files, _sfx_editor_next_pool_time_video
-        global _sfx_editor_next_pool_time_dlg
+        global _sfx_editor_pool_files, _sfx_editor_pool_ready_at_video
+        global _sfx_editor_pool_ready_at_dlg, _sfx_editor_pool_state_video
+        global _sfx_editor_pool_state_dlg
         _sfx_editor_pool_files = []
-        _sfx_editor_next_pool_time_video = 0.0
-        _sfx_editor_next_pool_time_dlg = 0.0
+        _sfx_editor_pool_ready_at_video = 0.0
+        _sfx_editor_pool_ready_at_dlg = 0.0
+        _sfx_editor_pool_state_video = 0
+        _sfx_editor_pool_state_dlg = 0
         _sfx_editor_save_config()
 
 
     def _sfx_editor_get_pool_delay():
-        """Return a random delay based on the current pool frequency,
-        scaled proportionally by the last-played SFX duration.
+        """Return random breathing room (silence) between SFX.
+        This is the gap AFTER an SFX finishes before the next one starts.
 
-        Each adds (last_sfx_duration * 0.5) so longer sounds get more breathing room.
+        Fast:   0.5-1.0s
+        Normal: 1.7-2.7s
+        Slow:   3.0-5.0s
         """
         import random
         freq = _sfx_editor_pool_frequency
-        dur = _sfx_editor_last_sfx_duration
-        if freq == 2: # fast
-            base = 0.5
-        elif freq == 1: # normal
-            base = 1.5 + (dur * 0.5) + random.uniform(0, 1)
-        else: # slow
-            base = 3.0 + (dur * 0.5) + random.uniform(0, 2.0)
-        return dur + base
+        if freq == 2:
+            return 0.5 + random.uniform(0.0, 0.25)
+        elif freq == 1:
+            return 1.7 + random.uniform(0.0, 1.0)
+        else:
+            return 3.0 + random.uniform(0.0, 2.0)
 
     def _sfx_editor_set_pool_frequency(freq):
         """Set pool frequency. 0 = Slow, 1 = Normal, 2 = Fast."""
@@ -981,75 +953,9 @@ init python:
         _sfx_editor__tick_count = getattr(store, '_sfx_editor__tick_count', 0) + 1
         tick = _sfx_editor__tick_count
 
-        # Deferred duration capture (channel-based, after audio has loaded)
-        # Also handles startup pre-scan of unscanned files (muted, one tick each)
-        global _sfx_editor__dur_pending_ch, _sfx_editor__dur_pending_file
-        global _sfx_editor__dur_scan_queue, _sfx_editor__dur_scan_phase, _sfx_editor__dur_scan_ch
-        global _sfx_editor_audio_durations, _sfx_editor_last_sfx_duration
-
-        # Priority 1: normal pending capture (from a pool fire)
-        if _sfx_editor__dur_pending_ch is not None:
-            try:
-                pdur = renpy.music.get_duration(channel=_sfx_editor__dur_pending_ch)
-                if pdur and pdur > 0:
-                    _sfx_editor_audio_durations[_sfx_editor__dur_pending_file] = pdur
-                    _sfx_editor_last_sfx_duration = pdur
-                    _sfx_editor_log("TICK#{} DUR-CAPTURE file={} dur={:.1f}s".format(
-                        tick, _sfx_editor__dur_pending_file, pdur))
-                    _sfx_editor__dur_pending_ch = None
-                    _sfx_editor__dur_pending_file = None
-            except Exception:
-                pass
-
-        # Priority 2: startup duration pre-scan (muted, up to 5 parallel workers)
-        else:
-            # Phase 1: capture durations from channels that played last tick
-            done_chs = []
-            for scan_ch, scan_file in list(_sfx_editor__dur_scan_active.items()):
-                try:
-                    sdur = renpy.music.get_duration(channel=scan_ch)
-                    if sdur and sdur > 0:
-                        _sfx_editor_audio_durations[scan_file] = sdur
-                        _sfx_editor_log("TICK#{} DUR-SCAN file={} dur={:.1f}s queue={}".format(
-                            tick, scan_file, sdur, len(_sfx_editor__dur_scan_queue)))
-                    else:
-                        # No duration available (file may be too short / errored)
-                        _sfx_editor_log("TICK#{} DUR-SCAN failed file={} (no duration)".format(
-                            tick, scan_file))
-                except Exception:
-                    pass
-                try:
-                    renpy.music.stop(channel=scan_ch)
-                except Exception:
-                    pass
-                done_chs.append(scan_ch)
-
-            for scan_ch in done_chs:
-                del _sfx_editor__dur_scan_active[scan_ch]
-
-            # Phase 2: fill idle channels with next files from queue
-            idle = [c for c in _sfx_editor__dur_scan_channels if c not in _sfx_editor__dur_scan_active]
-            for scan_ch in idle:
-                if not _sfx_editor__dur_scan_queue:
-                    break
-                scan_file = _sfx_editor__dur_scan_queue.pop(0)
-                full = _sfx_editor_audio_dir.rstrip("/") + "/" + scan_file
-                try:
-                    renpy.music.play(full, channel=scan_ch, loop=False)
-                    renpy.music.set_volume(0.0, channel=scan_ch)
-                    _sfx_editor__dur_scan_active[scan_ch] = scan_file
-                    _sfx_editor_log("TICK#{} DUR-SCAN playing {} ch={} ({} remaining)".format(
-                        tick, scan_file, scan_ch, len(_sfx_editor__dur_scan_queue)))
-                except Exception:
-                    _sfx_editor_log("TICK#{} DUR-SCAN error playing {}".format(tick, scan_file))
-
-            # Restore volumes when all done
-            if not _sfx_editor__dur_scan_queue and not _sfx_editor__dur_scan_active:
-                for scan_ch in _sfx_editor__dur_scan_channels:
-                    try:
-                        renpy.music.set_volume(1.0, channel=scan_ch)
-                    except Exception:
-                        pass
+        # --- POOL STATE MACHINE HELPERS ---
+        # State 0: waiting for ready_at to arrive
+        # State 1: SFX playing, waiting for channel to go silent
 
         # --- VIDEO MODE triggers ---
         ch = _sfx_editor_active_channel
@@ -1080,46 +986,55 @@ init python:
                             _sfx_editor_play_sfx(marker["file"])
                             _sfx_editor_played_markers.add(idx)
 
-            # Video pool (wall-clock time, survives video loops)
+            # Video pool state machine
+            # State 0: waiting — check if ready to play
+            # State 1: playing — check if SFX finished
             if _sfx_editor_pool_files:
                 now = _time.time()
-                npt = _sfx_editor_next_pool_time_video
-                if npt == 0:
-                    delay = 0.5
-                    global _sfx_editor_next_pool_time_video
-                    _sfx_editor_next_pool_time_video = now + delay
-                    if tick % 10 == 0:
-                        _sfx_editor_log("TICK#{} VIDEO-POOL INIT now={:.2f} delay={:.2f} next={:.2f} files={}".format(
-                            tick, now, delay, _sfx_editor_next_pool_time_video, len(_sfx_editor_pool_files)))
-                elif now >= npt:
-                    global _sfx_editor_pool_last_played
-                    pool_size = len(_sfx_editor_pool_files)
-                    # No-repeat: require 2 different files before a repeat
-                    if pool_size >= 3:
-                        file = _random.choice(_sfx_editor_pool_files)
-                        tries = 0
-                        while file in _sfx_editor_pool_last_played and tries < 10:
+                global _sfx_editor_pool_state_video, _sfx_editor_pool_ch_video
+                global _sfx_editor_pool_ready_at_video, _sfx_editor_pool_play_start_video
+
+                if _sfx_editor_pool_state_video == 1:
+                    # Waiting for SFX to finish
+                    if not renpy.music.is_playing(channel=_sfx_editor_pool_ch_video):
+                        dur = now - _sfx_editor_pool_play_start_video
+                        breathing = _sfx_editor_get_pool_delay()
+                        _sfx_editor_pool_ready_at_video = now + breathing
+                        _sfx_editor_pool_state_video = 0
+                        _sfx_editor_log("TICK#{} POOL-DONE  file={} dur={:.2f}s breathing={:.2f}s next_in={:.2f}s".format(
+                            tick, _sfx_editor_pool_last_played[-1] if _sfx_editor_pool_last_played else "?",
+                            dur, breathing, breathing))
+
+                if _sfx_editor_pool_state_video == 0:
+                    # Waiting for next play time
+                    if _sfx_editor_pool_ready_at_video == 0:
+                        # First init: 500ms delay
+                        _sfx_editor_pool_ready_at_video = now + 0.5
+                    elif now >= _sfx_editor_pool_ready_at_video:
+                        # Pick file with no-repeat protection
+                        global _sfx_editor_pool_last_played
+                        pool_size = len(_sfx_editor_pool_files)
+                        if pool_size >= 3:
                             file = _random.choice(_sfx_editor_pool_files)
-                            tries += 1
-                    elif pool_size == 2:
-                        # Only 2 files — can't avoid repeat after both play
-                        file = _random.choice(_sfx_editor_pool_files)
-                    else:
-                        file = _sfx_editor_pool_files[0]
-                    # Track last 2 played
-                    if not isinstance(_sfx_editor_pool_last_played, list):
-                        _sfx_editor_pool_last_played = []
-                    _sfx_editor_pool_last_played.append(file)
-                    if len(_sfx_editor_pool_last_played) > 2:
-                        _sfx_editor_pool_last_played.pop(0)
-                    _sfx_editor_play_sfx(file)
-                    # Calculate delay based on the file we just played
-                    _sfx_editor_last_sfx_duration = _sfx_editor_audio_durations.get(file, 2.0)
-                    delay = _sfx_editor_get_pool_delay()
-                    global _sfx_editor_next_pool_time_video
-                    _sfx_editor_next_pool_time_video = now + delay
-                    _sfx_editor_log("TICK#{} VIDEO-POOL FIRE file={} dur={:.1f}s now={:.2f} next_delay={:.2f}".format(
-                        tick, file, _sfx_editor_audio_durations.get(file, 2.0), now, delay))
+                            tries = 0
+                            while file in _sfx_editor_pool_last_played and tries < 10:
+                                file = _random.choice(_sfx_editor_pool_files)
+                                tries += 1
+                        elif pool_size == 2:
+                            file = _random.choice(_sfx_editor_pool_files)
+                        else:
+                            file = _sfx_editor_pool_files[0]
+                        if not isinstance(_sfx_editor_pool_last_played, list):
+                            _sfx_editor_pool_last_played = []
+                        _sfx_editor_pool_last_played.append(file)
+                        if len(_sfx_editor_pool_last_played) > 2:
+                            _sfx_editor_pool_last_played.pop(0)
+                        ch = _sfx_editor_play_sfx(file)
+                        if ch:
+                            _sfx_editor_pool_state_video = 1
+                            _sfx_editor_pool_ch_video = ch
+                            _sfx_editor_pool_play_start_video = now
+                            _sfx_editor_log("TICK#{} POOL-PLAY  file={} ch={}".format(tick, file, ch))
 
             # Detect video loop (markers only, pool uses wall clock)
             if _sfx_editor__last_pos > 0 and elapsed < _sfx_editor__last_pos - 0.3:
@@ -1148,43 +1063,49 @@ init python:
                             and marker["dialogue"] == _sfx_editor_current_dialogue):
                         _sfx_editor_play_sfx(marker["file"])
 
-            # Dialogue pool
+            # Dialogue pool state machine
             if _sfx_editor_pool_files:
                 now = _time.time()
-                npt = _sfx_editor_next_pool_time_dlg
-                if npt == 0:
-                    delay = 0.5
-                    global _sfx_editor_next_pool_time_dlg
-                    _sfx_editor_next_pool_time_dlg = now + delay
-                    if tick % 10 == 0:
-                        _sfx_editor_log("TICK#{} DIALOGUE-POOL INIT now={:.2f} delay={:.2f} next={:.2f} dialogue={} files={}".format(
-                            tick, now, delay, _sfx_editor_next_pool_time_dlg,
-                            _sfx_editor_current_dialogue[:30] if _sfx_editor_current_dialogue else "", len(_sfx_editor_pool_files)))
-                elif now >= npt:
-                    global _sfx_editor_pool_last_played
-                    pool_size = len(_sfx_editor_pool_files)
-                    if pool_size >= 3:
-                        file = _random.choice(_sfx_editor_pool_files)
-                        tries = 0
-                        while file in _sfx_editor_pool_last_played and tries < 10:
+                global _sfx_editor_pool_state_dlg, _sfx_editor_pool_ch_dlg
+                global _sfx_editor_pool_ready_at_dlg, _sfx_editor_pool_play_start_dlg
+
+                if _sfx_editor_pool_state_dlg == 1:
+                    if not renpy.music.is_playing(channel=_sfx_editor_pool_ch_dlg):
+                        dur = now - _sfx_editor_pool_play_start_dlg
+                        breathing = _sfx_editor_get_pool_delay()
+                        _sfx_editor_pool_ready_at_dlg = now + breathing
+                        _sfx_editor_pool_state_dlg = 0
+                        _sfx_editor_log("TICK#{} POOL-DONE  file={} dur={:.2f}s breathing={:.2f}s".format(
+                            tick, _sfx_editor_pool_last_played[-1] if _sfx_editor_pool_last_played else "?",
+                            dur, breathing))
+
+                if _sfx_editor_pool_state_dlg == 0:
+                    if _sfx_editor_pool_ready_at_dlg == 0:
+                        _sfx_editor_pool_ready_at_dlg = now + 0.5
+                    elif now >= _sfx_editor_pool_ready_at_dlg:
+                        global _sfx_editor_pool_last_played
+                        pool_size = len(_sfx_editor_pool_files)
+                        if pool_size >= 3:
                             file = _random.choice(_sfx_editor_pool_files)
-                            tries += 1
-                    elif pool_size == 2:
-                        file = _random.choice(_sfx_editor_pool_files)
-                    else:
-                        file = _sfx_editor_pool_files[0]
-                    if not isinstance(_sfx_editor_pool_last_played, list):
-                        _sfx_editor_pool_last_played = []
-                    _sfx_editor_pool_last_played.append(file)
-                    if len(_sfx_editor_pool_last_played) > 2:
-                        _sfx_editor_pool_last_played.pop(0)
-                    _sfx_editor_play_sfx(file)
-                    _sfx_editor_last_sfx_duration = _sfx_editor_audio_durations.get(file, 2.0)
-                    delay = _sfx_editor_get_pool_delay()
-                    global _sfx_editor_next_pool_time_dlg
-                    _sfx_editor_next_pool_time_dlg = now + delay
-                    _sfx_editor_log("TICK#{} DIALOGUE-POOL FIRE file={} dur={:.1f}s now={:.2f} next_delay={:.2f}".format(
-                        tick, file, _sfx_editor_audio_durations.get(file, 2.0), now, delay))
+                            tries = 0
+                            while file in _sfx_editor_pool_last_played and tries < 10:
+                                file = _random.choice(_sfx_editor_pool_files)
+                                tries += 1
+                        elif pool_size == 2:
+                            file = _random.choice(_sfx_editor_pool_files)
+                        else:
+                            file = _sfx_editor_pool_files[0]
+                        if not isinstance(_sfx_editor_pool_last_played, list):
+                            _sfx_editor_pool_last_played = []
+                        _sfx_editor_pool_last_played.append(file)
+                        if len(_sfx_editor_pool_last_played) > 2:
+                            _sfx_editor_pool_last_played.pop(0)
+                        ch = _sfx_editor_play_sfx(file)
+                        if ch:
+                            _sfx_editor_pool_state_dlg = 1
+                            _sfx_editor_pool_ch_dlg = ch
+                            _sfx_editor_pool_play_start_dlg = now
+                            _sfx_editor_log("TICK#{} POOL-PLAY  file={} ch={}".format(tick, file, ch))
 
 
     def _sfx_editor_tick():
@@ -1283,7 +1204,6 @@ init python:
         existing["mode"] = _sfx_editor_mode
         existing["last_channel"] = _sfx_editor_active_channel
         existing["version"] = _sfx_editor_version
-        existing["audio_durations"] = dict(_sfx_editor_audio_durations)
 
         persistent._sfx_editor_config = existing
 
@@ -1330,12 +1250,10 @@ init python:
             return
 
         global _sfx_editor_audio_dir, _sfx_editor_mode, _sfx_editor_active_channel
-        global _sfx_editor_audio_durations
 
         _sfx_editor_audio_dir = config.get("audio_dir", "sfx_editor/audio")
         _sfx_editor_mode = config.get("mode", "manual")
         _sfx_editor_active_channel = config.get("last_channel", None)
-        _sfx_editor_audio_durations = config.get("audio_durations", {})
 
         # Load context-specific data
         _sfx_editor_load_context()
