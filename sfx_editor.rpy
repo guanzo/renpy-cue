@@ -69,6 +69,7 @@ init -999 python:
     # Audio file cache
     _sfx.available_files = []
     _sfx.audio_tree = []
+    _sfx.disabled_files = set()  # Set of full_path strings for unchecked files
 
     # Display
     _sfx.current_time_str = "--:--.--"
@@ -774,7 +775,7 @@ init python:
         entry = _sfx.markers.setdefault(pool_key, {"files": [], "frequency": 1})
         files = entry.setdefault("files", [])
         for f in _sfx.available_files:
-            if f.startswith(folder_path) and f not in files:
+            if f.startswith(folder_path) and f not in files and f not in _sfx.disabled_files:
                 files.append(f)
         _sfx_editor_save_markers()
 
@@ -786,7 +787,7 @@ init python:
         entry = _sfx.markers.setdefault(img_key, {"files": []})
         files = entry.setdefault("files", [])
         for f in _sfx.available_files:
-            if f.startswith(folder_path) and f not in files:
+            if f.startswith(folder_path) and f not in files and f not in _sfx.disabled_files:
                 files.append(f)
         _sfx_editor_save_markers()
 
@@ -798,7 +799,7 @@ init python:
         entry = _sfx.markers.setdefault(dlg_key, {"files": []})
         files = entry.setdefault("files", [])
         for f in _sfx.available_files:
-            if f.startswith(folder_path) and f not in files:
+            if f.startswith(folder_path) and f not in files and f not in _sfx.disabled_files:
                 files.append(f)
         _sfx_editor_save_markers()
 
@@ -849,6 +850,7 @@ init python:
                     "depth": depth,
                     "index": idx,
                     "in_pool": _sfx_editor_is_file_in_pool(full),
+                    "enabled": full not in _sfx.disabled_files,
                 })
 
 
@@ -859,6 +861,16 @@ init python:
             _sfx.audio_dir = new_path
             _sfx_editor_scan_audio()
             _sfx_editor_save_config()
+
+
+    def _sfx_editor_toggle_file_enabled(full_path):
+        """Toggle whether a file is enabled for marker addition."""
+        if full_path in _sfx.disabled_files:
+            _sfx.disabled_files.discard(full_path)
+        else:
+            _sfx.disabled_files.add(full_path)
+        _sfx.visible_tree = _sfx_editor_get_visible_tree()
+        renpy.restart_interaction()
 
 
     # --------------------------------------------------------------------------
@@ -978,6 +990,8 @@ init python:
         if elapsed is None or elapsed <= 0:
             return
         filename = _sfx.available_files[file_index]
+        if filename in _sfx.disabled_files:
+            return
         vid_key = "v:" + _sfx.current_file
         timestamps = _sfx.markers.setdefault(vid_key, [])
         timestamps.append({"time": elapsed, "files": [filename]})
@@ -1014,6 +1028,8 @@ init python:
         if not _sfx.current_file:
             return
         filename = _sfx.available_files[file_index]
+        if filename in _sfx.disabled_files:
+            return
         img_key = "i:" + _sfx.current_file
         _sfx_editor_marker_add_file(img_key, filename)
 
@@ -1040,6 +1056,8 @@ init python:
         if not _sfx.current_dialogue:
             return
         filename = _sfx.available_files[file_index]
+        if filename in _sfx.disabled_files:
+            return
         dlg_key = "d:{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
         _sfx_editor_marker_add_file(dlg_key, filename)
 
@@ -1063,6 +1081,8 @@ init python:
             if not _sfx.current_file:
                 return
             filename = _sfx.available_files[file_index]
+            if filename in _sfx.disabled_files:
+                return
             pool_key = "p:" + _sfx.current_file
             entry = _sfx.markers.setdefault(pool_key, {"files": [], "frequency": 1})
             files = entry.setdefault("files", [])
@@ -1171,9 +1191,9 @@ init python:
             with open(dump_path, "w") as f:
                 _json.dump({
                     "version": "2.0.2",
-                    "markers": dict(getattr(persistent, '_sfx_editor_config', None)),
+                    "markers": dict(_sfx.markers),
                 }, f, indent=2, sort_keys=True)
-            _sfx_editor_log("DUMP-MARKERS total_keys={} path=markers_dump.json".format(
+            _sfx_editor_log("DUMP-MARKERS total_keys={} path=markers.json".format(
                 len(_sfx.markers)))
         except Exception as e:
             _sfx_editor_log("DUMP-MARKERS-ERROR {}".format(str(e)))
@@ -1392,6 +1412,7 @@ init python:
         existing["audio_dir"] = _sfx.audio_dir
         existing["last_channel"] = _sfx.active_channel
         existing["version"] = _sfx.version
+        existing["disabled_files"] = sorted(_sfx.disabled_files)
         persistent._sfx_editor_config = existing
 
 
@@ -1402,6 +1423,7 @@ init python:
             return
         _sfx.audio_dir = config.get("audio_dir", "sfx_editor/audio")
         _sfx.active_channel = config.get("last_channel", None)
+        _sfx.disabled_files = set(config.get("disabled_files", []))
 
         # Load unified markers from new key
         _sfx_editor_load_markers()
@@ -1541,6 +1563,7 @@ screen sfx_editor_sidebar_content():
                 text_style "sfx_btn_icon_text"
                 action Function(_sfx_editor_paste_context)
                 tooltip "Paste context config"
+            null width 5
             textbutton "💾":
                 style "sfx_btn_icon"
                 text_style "sfx_btn_icon_text"
@@ -1551,6 +1574,7 @@ screen sfx_editor_sidebar_content():
                 text_style "sfx_btn_icon_text"
                 action Function(_sfx_editor_restore_markers_from_file)
                 tooltip "Restore markers from file"
+            null width 5
             textbutton "⟳":
                 style "sfx_btn_icon"
                 text_style "sfx_btn_icon_text"
@@ -1897,6 +1921,18 @@ screen sfx_editor_sidebar_content():
                                         text_style "sfx_help"
                                         action NullAction()
                                         tooltip "Already in SFX Pool"
+                                    if item.get("enabled", True):
+                                        textbutton "☑":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_toggle_file_enabled, item["full_path"])
+                                            tooltip "Click to exclude from markers"
+                                    else:
+                                        textbutton "☐":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_toggle_file_enabled, item["full_path"])
+                                            tooltip "Click to include in markers"
                                     text item["name"] style "sfx_help"
                                 else:
                                     textbutton "P":
@@ -1904,6 +1940,18 @@ screen sfx_editor_sidebar_content():
                                         text_style "sfx_btn_icon_text"
                                         action Function(_sfx_editor_add_to_pool, item["index"])
                                         tooltip "Add to SFX Pool"
+                                    if item.get("enabled", True):
+                                        textbutton "☑":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_toggle_file_enabled, item["full_path"])
+                                            tooltip "Click to exclude from markers"
+                                    else:
+                                        textbutton "☐":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_toggle_file_enabled, item["full_path"])
+                                            tooltip "Click to include in markers"
                                     text item["name"] style "sfx_txt" color "#ffcc00"
 
 
