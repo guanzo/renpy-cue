@@ -220,7 +220,7 @@ init python:
         t0 = time.time()
         _sfx.visible = True
         # Load persisted config
-        _sfx_editor_load_config()
+        _sfx_editor_load_markers()
         # Initialize string field from current values
         _sfx.manual_channel_input = (
             _sfx.active_channel if _sfx.active_channel else ""
@@ -243,8 +243,6 @@ init python:
 
     def _sfx_editor_hide():
         _sfx.visible = False
-        # Save config on close
-        _sfx_editor_save_config()
         _sfx_editor_save_markers()
         renpy.hide_screen("sfx_editor_overlay", layer="sfx_editor_layer")
 
@@ -913,7 +911,6 @@ init python:
         if new_path:
             _sfx.audio_dir = new_path
             _sfx_editor_scan_audio()
-            _sfx_editor_save_config()
 
 
     def _sfx_editor_toggle_file_enabled(full_path):
@@ -1860,31 +1857,39 @@ init python:
             pass  # Never let autosave break the editor
 
     def _sfx_editor_save_markers():
-        """Save unified markers to persistent storage.
+        """Save unified markers and disabled_files to persistent storage.
 
-        Refuses to overwrite existing persistent data with an empty dict.
+        Refuses to overwrite existing persistent marker data with an empty dict.
         This guards against auto-reload wiping markers: init -999 clears
         _sfx.markers in RAM, and if load fails for any reason (syntax error,
         split-file ordering, etc.), a subsequent save would otherwise persist
-        the empty state and destroy all marker data."""
+        the empty state and destroy all marker data.
+
+        disabled_files is always written regardless of the marker guard."""
+        data = {
+            "version": "2.2.0",
+            "disabled_files": sorted(_sfx.disabled_files),
+        }
+
         if not _sfx.markers:
             existing = getattr(persistent, '_sfx_editor_markers', None)
             if existing is not None and existing.get("markers"):
                 _sfx_log("SAVE-MARKERS: refusing to clobber {} existing keys with empty dict".format(
                     len(existing["markers"])))
-                return
-            
-        persistent._sfx_editor_markers = {
-            "version": "2.2.0",
-            "markers": dict(_sfx.markers),
-        }
+                data["markers"] = existing["markers"]
+            else:
+                data["markers"] = {}
+        else:
+            data["markers"] = dict(_sfx.markers)
+
+        persistent._sfx_editor_markers = data
 
         # Autosave backup to disk (throttled to once per 5 min)
         _sfx_editor_autosave_backup()
 
 
     def _sfx_editor_load_markers():
-        """Load all markers from persistent storage.
+        """Load markers and disabled_files from persistent storage.
         Unwraps Ren'Py RevertableDict/RevertableList via JSON round-trip
         so that isinstance checks work on the loaded data."""
         data = getattr(persistent, '_sfx_editor_markers', None)
@@ -1892,34 +1897,11 @@ init python:
             _sfx.markers = {}
             return
         _sfx.markers = _sfx_editor_unwrap_persistent(data.get("markers", {}))
+        _sfx.disabled_files = set(data.get("disabled_files", []))
         #_sfx_editor_normalize_all_markers()
         _sfx_log("LOAD-MARKERS total_keys={} keys={}".format(
             len(_sfx.markers), list(_sfx.markers.keys())[:20]))
 
-
-    def _sfx_editor_save_config():
-        """Save global settings (not markers) to old config key."""
-        existing = getattr(persistent, '_sfx_editor_config', {})
-        if existing is None:
-            existing = {}
-        existing["audio_dir"] = _sfx.audio_dir
-        existing["last_channel"] = _sfx.active_channel
-        existing["version"] = _sfx.version
-        existing["disabled_files"] = sorted(_sfx.disabled_files)
-
-        persistent._sfx_editor_config = existing
-
-
-    def _sfx_editor_load_config():
-        """Load global settings from old config key."""
-        config = getattr(persistent, '_sfx_editor_config', None)
-        if config is not None:
-            _sfx.audio_dir = config.get("audio_dir", "sfx_editor/audio")
-            _sfx.active_channel = config.get("last_channel", None)
-            _sfx.disabled_files = set(config.get("disabled_files", []))
-
-        # Always load markers — independent of config key existing
-        _sfx_editor_load_markers()
 
 
     # --------------------------------------------------------------------------
