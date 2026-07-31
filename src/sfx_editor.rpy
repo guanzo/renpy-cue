@@ -81,6 +81,9 @@ init -999 python:
     _sfx.dlg_target_pool = 0
     _sfx.vid_target_pool = 0
 
+    # Autosave backup throttle
+    _sfx._last_autosave_time = 0
+
     # Audio file cache
     _sfx.available_files = []
     _sfx.audio_tree = []
@@ -1806,6 +1809,56 @@ init python:
     # Persistence
     # --------------------------------------------------------------------------
 
+    def _sfx_editor_autosave_backup():
+        """Create a timestamped backup of markers in sfx_editor/backups/.
+
+        Throttled to once every 5 minutes. Maintains a max of 10 backups,
+        deleting the oldest when the limit is reached.
+
+        Called from _sfx_editor_save_markers() after every successful save.
+        All exceptions are swallowed — autosave must never break the editor."""
+        try:
+            import time as _time
+            import json as _json
+
+            # Throttle: skip if last autosave was within 5 minutes
+            _now = _time.time()
+            if _now - _sfx._last_autosave_time < 300:
+                return
+
+            backups_dir = os.path.join(renpy.config.gamedir, "sfx_editor", "backups")
+            if not os.path.isdir(backups_dir):
+                os.makedirs(backups_dir)
+
+            # List existing backups sorted by mtime (oldest first)
+            _files = [f for f in os.listdir(backups_dir)
+                      if f.startswith("sfx_editor_backup_") and f.endswith(".json")]
+            _files.sort(key=lambda f: os.path.getmtime(
+                os.path.join(backups_dir, f)))
+
+            # Rotate: delete oldest if at the max
+            MAX_BACKUPS = 10
+            while len(_files) >= MAX_BACKUPS:
+                _oldest = _files.pop(0)
+                try:
+                    os.remove(os.path.join(backups_dir, _oldest))
+                except Exception:
+                    pass
+
+            # Write backup with unix timestamp suffix
+            _ts = int(_now)
+            _name = "sfx_editor_backup_{}.json".format(_ts)
+            _path = os.path.join(backups_dir, _name)
+            with open(_path, "w") as f:
+                _json.dump(persistent._sfx_editor_markers, f,
+                           indent=2, sort_keys=True)
+
+            _sfx._last_autosave_time = _now
+            _sfx_log("AUTOSAVE-BACKUP path={} marker_keys={}".format(
+                _name, len(_sfx.markers)))
+        except Exception:
+            pass  # Never let autosave break the editor
+
     def _sfx_editor_save_markers():
         """Save unified markers to persistent storage.
 
@@ -1825,6 +1878,9 @@ init python:
             "version": "2.2.0",
             "markers": dict(_sfx.markers),
         }
+
+        # Autosave backup to disk (throttled to once per 5 min)
+        _sfx_editor_autosave_backup()
 
 
     def _sfx_editor_load_markers():
