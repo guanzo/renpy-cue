@@ -35,10 +35,16 @@ style sfx_btn_icon is empty:
 style sfx_btn_icon_text is empty:
     size 10
     color "#ffffff"
-    hover_color "#ffffff"
     font "DejaVuSans.ttf"
     xalign 0.5
     yalign 0.5
+    xanchor 0.5
+    yanchor 0.5
+    adjust_spacing False
+    hover_xoffset 0
+    hover_yoffset 0
+    hover_xalign 0.5
+    hover_yalign 0.5
     padding (0, 0)
 
 style sfx_txt is empty:
@@ -764,7 +770,7 @@ screen sfx_editor_sidebar_content():
                                     style "sfx_btn_icon"
                                     text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_add_to_pool, item["index"])
-                                    tooltip "Add to SFX Pool"
+                                    tooltip "Add to Autoplay SFX pool"
                                 if item.get("enabled", True):
                                     textbutton "☑":
                                         style "sfx_btn_icon"
