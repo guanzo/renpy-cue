@@ -72,9 +72,14 @@ init -999 python:
     _sfx.scan_error = None
     _sfx.__active_sfx = {}
 
-    # Multi-pool UI state: which pool the file-browser I/D buttons target
+    # Video timestamp editing state
+    _sfx.edit_video_ts_index = -1  # -1 = not editing; otherwise index into timestamps list
+    _sfx.edit_video_ts_text = ""   # text buffer for the editable input
+
+    # Multi-pool UI state: which pool the file-browser I/D/V buttons target
     _sfx.img_target_pool = 0
     _sfx.dlg_target_pool = 0
+    _sfx.vid_target_pool = 0
 
     # Audio file cache
     _sfx.available_files = []
@@ -279,6 +284,9 @@ init python:
 
         if _changed:
             _sfx_log("CTX-CHANGE{}".format(_changed))
+            # Rebuild visible tree so in_pool flags reflect new context
+            if _sfx.current_file != old_file:
+                _sfx.visible_tree = _sfx_editor_get_visible_tree()
             _sfx_editor_fire_context_triggers(_img_key, _dlg_key)
 
 
@@ -1173,7 +1181,8 @@ init python:
     # --- Video markers (v: prefix) ---
 
     def _sfx_editor_add_video_marker(file_index):
-        """Add a video timestamp entry at current elapsed time."""
+        """Add a file to the active timestamp pool. Creates a new timestamp
+        if no timestamps exist yet or the active target is out of range."""
         if not _sfx.available_files:
             return
         if file_index < 0 or file_index >= len(_sfx.available_files):
@@ -1190,28 +1199,176 @@ init python:
         vid_key = "v:" + _sfx.current_file
         entry = _sfx.markers.setdefault(vid_key, {"timestamps": []})
         timestamps = entry.setdefault("timestamps", [])
-        timestamps.append({"time": elapsed, "files": [filename]})
-        timestamps.sort(key=lambda e: e["time"])
+        target = _sfx.vid_target_pool
+        if timestamps and 0 <= target < len(timestamps):
+            # Add to existing active timestamp
+            files = timestamps[target].setdefault("files", [])
+            if filename not in files:
+                files.append(filename)
+        else:
+            # Create new timestamp at current time
+            timestamps.append({"time": elapsed, "files": [filename]})
+            timestamps.sort(key=lambda e: e["time"])
+            _sfx.vid_target_pool = len(timestamps) - 1
         _sfx_editor_save_markers()
-
-    def _sfx_editor_remove_video_marker(ts_index):
-        """Remove a video timestamp entry at the given index in the v: entry."""
-        vid_key = "v:" + _sfx.current_file
-        entry = _sfx.markers.get(vid_key, {})
-        timestamps = entry.get("timestamps", [])
-        if 0 <= ts_index < len(timestamps):
-            timestamps.pop(ts_index)
-            if not timestamps:
-                del _sfx.markers[vid_key]
-            _sfx.played_video_keys = set()  # reset on any removal
-            _sfx_editor_save_markers()
 
     def _sfx_editor_clear_video_markers():
         """Remove video markers for the current context."""
         vid_key = "v:" + _sfx.current_file
         _sfx.markers.pop(vid_key, None)
         _sfx.played_video_keys = set()
+        _sfx.vid_target_pool = 0
         _sfx_editor_save_markers()
+
+    def _sfx_editor_start_edit_video_ts():
+        """Begin editing the active video timestamp."""
+        index = _sfx.vid_target_pool
+        vid_key = "v:" + _sfx.current_file
+        entry = _sfx.markers.get(vid_key, {})
+        timestamps = entry.get("timestamps", [])
+        if 0 <= index < len(timestamps):
+            _sfx.edit_video_ts_index = index
+            _sfx.edit_video_ts_text = _sfx_editor_format_time(timestamps[index]["time"])
+            renpy.restart_interaction()
+
+    def _sfx_editor_commit_video_ts():
+        """Parse the edit text and update the active video timestamp.
+        Tracks the active tab after re-sort."""
+        index = _sfx.edit_video_ts_index
+        if index < 0:
+            return
+        vid_key = "v:" + _sfx.current_file
+        entry = _sfx.markers.get(vid_key, {})
+        timestamps = entry.get("timestamps", [])
+        if index >= len(timestamps):
+            _sfx.edit_video_ts_index = -1
+            return
+        new_time = _sfx_editor_parse_time(_sfx.edit_video_ts_text)
+        if new_time is not None and new_time >= 0:
+            edited_entry = timestamps[index]
+            edited_entry["time"] = new_time
+            timestamps.sort(key=lambda e: e["time"])
+            # Track the edited entry to its new position
+            try:
+                _sfx.vid_target_pool = timestamps.index(edited_entry)
+            except ValueError:
+                _sfx.vid_target_pool = min(index, len(timestamps) - 1)
+            _sfx.played_video_keys = set()
+            _sfx_editor_save_markers()
+        # Clear editing state regardless of success/failure
+        _sfx.edit_video_ts_index = -1
+        _sfx.edit_video_ts_text = ""
+        renpy.restart_interaction()
+
+    def _sfx_editor_cancel_edit_video_ts():
+        """Cancel editing the video timestamp."""
+        _sfx.edit_video_ts_index = -1
+        _sfx.edit_video_ts_text = ""
+        renpy.restart_interaction()
+
+    def _sfx_editor_start_edit_video_ts_by_index(index):
+        """Begin editing the video timestamp at the given index (for non-active tabs)."""
+        vid_key = "v:" + _sfx.current_file
+        entry = _sfx.markers.get(vid_key, {})
+        timestamps = entry.get("timestamps", [])
+        if 0 <= index < len(timestamps):
+            _sfx.edit_video_ts_index = index
+            _sfx.edit_video_ts_text = _sfx_editor_format_time(timestamps[index]["time"])
+            renpy.restart_interaction()
+
+    def _sfx_editor_set_vid_target_pool(pool_index):
+        """Set which timestamp pool tab is active."""
+        _sfx.vid_target_pool = int(pool_index)
+        renpy.restart_interaction()
+
+    def _sfx_editor_add_video_pool():
+        """Create a new empty timestamp at current elapsed time.
+        Auto-switches vid_target_pool to the new timestamp."""
+        ch = _sfx.active_channel
+        if not ch or not renpy.music.is_playing(channel=ch):
+            return
+        elapsed = _sfx_editor_get_elapsed()
+        if elapsed is None or elapsed <= 0:
+            return
+        vid_key = "v:" + _sfx.current_file
+        entry = _sfx.markers.setdefault(vid_key, {"timestamps": []})
+        timestamps = entry.setdefault("timestamps", [])
+        timestamps.append({"time": elapsed, "files": []})
+        timestamps.sort(key=lambda e: e["time"])
+        _sfx.vid_target_pool = len(timestamps) - 1
+        _sfx_editor_save_markers()
+        renpy.restart_interaction()
+
+    def _sfx_editor_remove_video_pool(ts_index):
+        """Delete a timestamp pool by index. Clamps vid_target_pool."""
+        vid_key = "v:" + _sfx.current_file
+        entry = _sfx.markers.get(vid_key, {})
+        timestamps = entry.get("timestamps", [])
+        if not (0 <= ts_index < len(timestamps)):
+            return
+        timestamps.pop(ts_index)
+        if not timestamps:
+            del _sfx.markers[vid_key]
+            _sfx.vid_target_pool = 0
+        else:
+            _sfx.vid_target_pool = min(_sfx.vid_target_pool, len(timestamps) - 1)
+        _sfx.played_video_keys = set()
+        _sfx_editor_save_markers()
+        renpy.restart_interaction()
+
+    def _sfx_editor_remove_video_file(ts_index, file_index):
+        """Remove a single file from a timestamp's files list.
+        Keeps the timestamp even if files becomes empty."""
+        vid_key = "v:" + _sfx.current_file
+        entry = _sfx.markers.get(vid_key, {})
+        timestamps = entry.get("timestamps", [])
+        if not (0 <= ts_index < len(timestamps)):
+            return
+        files = timestamps[ts_index].get("files", [])
+        if 0 <= file_index < len(files):
+            files.pop(file_index)
+            _sfx.played_video_keys = set()
+            _sfx_editor_save_markers()
+            renpy.restart_interaction()
+
+    def _sfx_editor_set_video_volume(value):
+        """Set volume on the active timestamp."""
+        vid_key = "v:" + _sfx.current_file
+        _sfx_editor_write_volume(vid_key, value, ts_index=_sfx.vid_target_pool)
+
+    def _sfx_editor_adjust_video_volume(delta):
+        """Adjust volume on the active timestamp."""
+        vid_key = "v:" + _sfx.current_file
+        entry = _sfx.markers.get(vid_key)
+        if entry is None:
+            return
+        current = _sfx_editor_get_volume(entry, vid_key, ts_index=_sfx.vid_target_pool)
+        _sfx_editor_write_volume(vid_key, current + delta, ts_index=_sfx.vid_target_pool)
+
+    def _sfx_editor_nudge_video_ts(delta):
+        """Nudge the active timestamp's time by delta seconds.
+        If currently editing, updates both the text buffer and the entry."""
+        vid_key = "v:" + _sfx.current_file
+        entry = _sfx.markers.get(vid_key, {})
+        timestamps = entry.get("timestamps", [])
+        index = _sfx.vid_target_pool
+        if not (0 <= index < len(timestamps)):
+            return
+        ts_entry = timestamps[index]
+        new_time = max(0.0, ts_entry["time"] + delta)
+        ts_entry["time"] = new_time
+        timestamps.sort(key=lambda e: e["time"])
+        # Track the entry to its new position after sort
+        try:
+            _sfx.vid_target_pool = timestamps.index(ts_entry)
+        except ValueError:
+            pass
+        # Keep edit buffer in sync if currently editing this timestamp
+        if _sfx.edit_video_ts_index == index:
+            _sfx.edit_video_ts_text = _sfx_editor_format_time(new_time)
+        _sfx.played_video_keys = set()
+        _sfx_editor_save_markers()
+        renpy.restart_interaction()
 
     # --- Image markers (i: prefix) ---
 
@@ -1437,13 +1594,18 @@ init python:
             renpy.restart_interaction()
 
 
-    def _sfx_editor_get_volume(entry, trigger_key=None, pool_index=None):
+    def _sfx_editor_get_volume(entry, trigger_key=None, pool_index=None, ts_index=None):
         """Current volume for the target: pool-level with entry-level fallback.
-        v: keys read the first timestamp. Returns _sfx.VOL_DEFAULT if unset."""
+        v: keys read the specified ts_index (falls back to first timestamp).
+        Returns _sfx.VOL_DEFAULT if unset."""
         if trigger_key is not None and trigger_key.startswith("v:"):
             timestamps = entry.get("timestamps", [])
             if timestamps:
-                return timestamps[0].get("volume", _sfx.VOL_DEFAULT)
+                idx = ts_index if ts_index is not None else 0
+                if 0 <= idx < len(timestamps):
+                    return timestamps[idx].get("volume", _sfx.VOL_DEFAULT)
+                if timestamps:
+                    return timestamps[0].get("volume", _sfx.VOL_DEFAULT)
         if pool_index is not None:
             pools = entry.get("pools")
             if isinstance(pools, list) and 0 <= pool_index < len(pools):
@@ -1451,11 +1613,11 @@ init python:
                     entry.get("volume", _sfx.VOL_DEFAULT))
         return entry.get("volume", _sfx.VOL_DEFAULT)
 
-    def _sfx_editor_write_volume(trigger_key, new_vol, pool_index=None):
+    def _sfx_editor_write_volume(trigger_key, new_vol, pool_index=None, ts_index=None):
         """Clamp and persist a volume, then save + refresh.
-        v: keys write all timestamps; i:/d: with pool_index write that pool
-        (falling back to entry-level when the pool cannot be resolved);
-        otherwise entry-level."""
+        v: keys with ts_index write that specific timestamp; without ts_index
+        broadcast to all timestamps (backward-compatible).
+        i:/d: with pool_index write that pool; otherwise entry-level."""
         entry = _sfx.markers.get(trigger_key)
         if entry is None:
             return
@@ -1464,8 +1626,11 @@ init python:
             timestamps = entry.get("timestamps", [])
             if not timestamps:
                 return
-            for ts_entry in timestamps:
-                ts_entry["volume"] = new_vol
+            if ts_index is not None and 0 <= ts_index < len(timestamps):
+                timestamps[ts_index]["volume"] = new_vol
+            else:
+                for ts_entry in timestamps:
+                    ts_entry["volume"] = new_vol
         else:
             target = None
             if pool_index is not None:
@@ -1717,6 +1882,57 @@ init python:
             )
 
 
+    def _sfx_editor_parse_time(time_str):
+        """Parse a time string back to float seconds.
+
+        Accepts:
+          - "MM:SS.cs"   (e.g. "01:23.45" -> 83.45)
+          - "HH:MM:SS.cs" (e.g. "01:02:03.45" -> 3723.45)
+          - Raw number as string (e.g. "90.5" -> 90.5)
+
+        Returns None if the string cannot be parsed.
+        """
+        if time_str is None:
+            return None
+        # Accept both str and unicode (Py2) / str (Py3)
+        try:
+            time_str = time_str.strip()
+        except AttributeError:
+            return None
+        if not time_str:
+            return None
+
+        # Try raw float
+        try:
+            val = float(time_str)
+            if val >= 0:
+                return val
+        except ValueError:
+            pass
+
+        # Try MM:SS.cs or HH:MM:SS.cs
+        parts = time_str.split(":")
+        if len(parts) < 2 or len(parts) > 3:
+            return None
+
+        try:
+            if len(parts) == 2:
+                # MM:SS.cs
+                minutes = int(parts[0])
+                sec_part = parts[1].replace(",", ".")  # accept both . and , as decimal
+                seconds = float(sec_part)
+                return minutes * 60.0 + seconds
+            else:
+                # HH:MM:SS.cs
+                hours = int(parts[0])
+                minutes = int(parts[1])
+                sec_part = parts[2].replace(",", ".")
+                seconds = float(sec_part)
+                return hours * 3600.0 + minutes * 60.0 + seconds
+        except (ValueError, IndexError):
+            return None
+
+
 ###############################################################################
 # SECTION 4: Styles (game-agnostic — all properties explicit, no inheritance)
 ###############################################################################
@@ -1784,7 +2000,9 @@ style sfx_input is empty:
     color "#ffffff"
     font "DejaVuSans.ttf"
     background "#333333"
-    xsize 80
+    xsize 72
+    padding (2, 2)
+    ypadding 2
 
 
 ###############################################################################
@@ -1798,7 +2016,7 @@ style sfx_input is empty:
 screen sfx_editor_key_listener():
     zorder 10000
     key "K_BACKQUOTE" action Function(_sfx_editor_toggle)
-    timer 0.05 repeat True action Function(_sfx_editor_tick_trigger)
+    timer 0.02 repeat True action Function(_sfx_editor_tick_trigger)
 
 
 # =============================================================================
@@ -1859,8 +2077,11 @@ screen sfx_editor_sidebar_content():
                 has vbox
                 $ _vid_name = _sfx.current_file if _sfx.current_file else "?"
                 text "Video: [_vid_name]" style "sfx_txt"
-                text "[_sfx.current_time_str] / [_sfx.total_time_str]" style "sfx_txt"
-                text "f: [_sfx.current_frame_str]/[_sfx.total_frame_str]" style "sfx_txt"
+                hbox:
+                    spacing 5
+                    text "[_sfx.current_time_str] / [_sfx.total_time_str]" style "sfx_txt"
+                    null width 2 height 300 background "#ffffff40"
+                    text "f: [_sfx.current_frame_str]/[_sfx.total_frame_str]" style "sfx_txt"
                 hbox:
                     spacing 5
                     if _sfx.paused:
@@ -1889,11 +2110,13 @@ screen sfx_editor_sidebar_content():
                         style "sfx_btn"
                         text_style "sfx_btn_text"
                         action Function(_sfx_editor_coarse_seek, 1.0)
-                # Video marker add + list
+                # Video marker tabs + active pool
                 $ _vid_key = "v:" + _sfx.current_file if _sfx.current_file else ""
                 $ _vid_entry = _sfx.markers.get(_vid_key, {})
                 $ _vid_entries = _vid_entry.get("timestamps", [])
                 $ _vid_count = len(_vid_entries)
+                $ _vid_target = _sfx.vid_target_pool
+                $ _vid_target = max(0, min(_vid_target, _vid_count - 1)) if _vid_entries else 0
                 null height 5
                 fixed:
                     xfill True
@@ -1912,50 +2135,134 @@ screen sfx_editor_sidebar_content():
                                 xsize 50
                                 action Function(_sfx_editor_clear_video_markers)
                 null height 5
-                if _vid_entries:
-                    $ _vid_vol = _vid_entries[0].get("volume", 1.0)
+                # Tab row: [+ Pool] [1] [2] ...
+                hbox:
+                    spacing 2
+                    textbutton "+ Pool":
+                        style "sfx_btn"
+                        text_style "sfx_btn_text"
+                        xsize 48
+                        action Function(_sfx_editor_add_video_pool)
+                        tooltip "Create a new empty timestamp at current time"
+                    for pi in range(_vid_count):
+                        $ _is_active = (pi == _vid_target)
+                        $ _tab_label = str(pi + 1)
+                        textbutton _tab_label:
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            if _is_active:
+                                background "#666699"
+                            else:
+                                background "#444444"
+                            action Function(_sfx_editor_set_vid_target_pool, pi)
+                            tooltip "Select timestamp pool — V button adds files here"
+                # Active pool display
+                if _vid_entries and 0 <= _vid_target < _vid_count:
+                    $ _active_ts = _vid_entries[_vid_target]
+                    $ _active_files = _active_ts.get("files", [])
+                    $ _active_vol = _active_ts.get("volume", _sfx.VOL_DEFAULT)
+                    $ _active_label = "Pool " + str(_vid_target + 1) + " (" + str(len(_active_files)) + " files)"
                     hbox:
                         spacing 3
-                        text "Vol: {:.1f}".format(_vid_vol) style "sfx_txt" size 11
+                        text _active_label style "sfx_txt" size 11
+                        textbutton "✕":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            action Function(_sfx_editor_remove_video_pool, _vid_target)
+                            tooltip "Delete this timestamp pool"
+                    # Editable timestamp + nudge buttons
+                    hbox:
+                        spacing 3
+                        text "Time:" style "sfx_txt" size 11
+                        if _sfx.edit_video_ts_index == _vid_target:
+                            input:
+                                style "sfx_input"
+                                value VariableInputValue("_sfx.edit_video_ts_text")
+                                default True
+                            textbutton "✓":
+                                style "sfx_btn_icon"
+                                text_style "sfx_btn_icon_text"
+                                action Function(_sfx_editor_commit_video_ts)
+                                tooltip "Confirm edit"
+                            textbutton "✕":
+                                style "sfx_btn_icon"
+                                text_style "sfx_btn_icon_text"
+                                xsize 18
+                                action Function(_sfx_editor_cancel_edit_video_ts)
+                                tooltip "Cancel edit"
+                        else:
+                            textbutton _sfx_editor_format_time(_active_ts["time"]):
+                                style "empty"
+                                text_style "sfx_txt"
+                                action Function(_sfx_editor_start_edit_video_ts)
+                                tooltip "Click to edit timestamp"
                         textbutton "--":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 22
-                            action Function(_sfx_editor_set_volume, _vid_key, 1.0)
-                            tooltip "Reset volume to 1.0"
+                            action Function(_sfx_editor_nudge_video_ts, -0.1)
+                            tooltip "Nudge back 100 ms"
                         textbutton "-":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 18
-                            action Function(_sfx_editor_adjust_volume, _vid_key, -0.1)
+                            action Function(_sfx_editor_nudge_video_ts, -0.01)
+                            tooltip "Nudge back 10 ms"
                         textbutton "+":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 18
-                            action Function(_sfx_editor_adjust_volume, _vid_key, 0.1)
+                            action Function(_sfx_editor_nudge_video_ts, 0.01)
+                            tooltip "Nudge forward 10 ms"
                         textbutton "++":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 22
-                            action Function(_sfx_editor_set_volume, _vid_key, 5.0)
+                            action Function(_sfx_editor_nudge_video_ts, 0.1)
+                            tooltip "Nudge forward 100 ms"
+                    # Volume controls
+                    hbox:
+                        spacing 3
+                        text "Vol: {:.1f}".format(_active_vol) style "sfx_txt" size 11
+                        textbutton "--":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            action Function(_sfx_editor_set_video_volume, 1.0)
+                            tooltip "Reset pool volume to 1.0"
+                        textbutton "-":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 18
+                            action Function(_sfx_editor_adjust_video_volume, -0.1)
+                        textbutton "+":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 18
+                            action Function(_sfx_editor_adjust_video_volume, 0.1)
+                        textbutton "++":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            action Function(_sfx_editor_set_video_volume, 5.0)
                             tooltip "Max volume (5.0)"
-                    null height 3
-                if _vid_entries:
-                    vbox:
-                        spacing 2
-                        for i, entry in enumerate(_vid_entries):
-                            for j, f in enumerate(entry["files"]):
+                    # File list
+                    if _active_files:
+                        vbox:
+                            spacing 2
+                            for fi, f in enumerate(_active_files):
                                 hbox:
                                     spacing 5
-                                    if j == 0:
-                                        textbutton "✕":
-                                            style "sfx_btn_icon"
-                                            text_style "sfx_btn_icon_text"
-                                            action Function(_sfx_editor_remove_video_marker, i)
-                                        text _sfx_editor_format_time(entry["time"]) style "sfx_txt"
-                                    else:
-                                        text "      " style "sfx_txt" size 1
-                                    text " " + f style "sfx_txt" color "#ffcc00" size 11
+                                    textbutton "✕":
+                                        style "sfx_btn_icon"
+                                        text_style "sfx_btn_icon_text"
+                                        action Function(_sfx_editor_remove_video_file, _vid_target, fi)
+                                    textbutton "▶":
+                                        style "sfx_btn_icon"
+                                        text_style "sfx_btn_icon_text"
+                                        action Function(_sfx_editor_preview_sfx, f, _active_vol)
+                                    text f style "sfx_txt" color "#ffcc00" size 11
 
 
         # --- Image UI ---
@@ -2353,12 +2660,12 @@ screen sfx_editor_sidebar_content():
                                     text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_preview_sfx, item["full_path"])
                                     tooltip "Preview audio"
-                                # Video marker (file only)
+                                # Video marker (adds to active timestamp pool)
                                 textbutton "V":
                                     style "sfx_btn_icon"
                                     text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_add_video_marker, item["index"])
-                                    tooltip "Add video marker at current time"
+                                    tooltip "Add file to active video timestamp pool"
                                 # Image SFX
                                 textbutton "I":
                                     style "sfx_btn_icon"
