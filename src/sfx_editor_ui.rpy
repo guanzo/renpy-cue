@@ -11,6 +11,7 @@ style sfx_frame is empty:
 style sfx_btn is empty:
     background "#444444"
     hover_background "#666666"
+    padding (2, 0)
     hover_sound None
     activate_sound None
 
@@ -21,6 +22,9 @@ style sfx_btn_text is empty:
     font "DejaVuSans.ttf"
     xalign 0.5
     yalign 0.5
+
+style sfx_btn_text_sm is sfx_btn_text:
+    size 10
 
 style sfx_btn_icon is empty:
     xysize (14, 14)
@@ -37,34 +41,23 @@ style sfx_btn_icon_text is empty:
     yalign 0.5
     padding (0, 0)
 
-style sfx_btn_sm_text is empty:
-    size 10
-    color "#ffffff"
-    hover_color "#ff8888"
-    font "DejaVuSans.ttf"
-    xalign 0.5
-    yalign 0.5
-
 style sfx_txt is empty:
-    size 13
+    size 12
     color "#cccccc"
     font "DejaVuSans.ttf"
 
-style sfx_hdr is empty:
+style sfx_hdr is sfx_txt:
     size 14
     color "#ffcc00"
     bold True
-    font "DejaVuSans.ttf"
 
-style sfx_help is empty:
+style sfx_help is sfx_txt:
     size 11
     color "#888888"
-    font "DejaVuSans.ttf"
 
-style sfx_input is empty:
+style sfx_input is sfx_txt:
     size 13
     color "#ffffff"
-    font "DejaVuSans.ttf"
     background "#333333"
     xsize 72
     padding (2, 2)
@@ -89,18 +82,16 @@ screen sfx_editor_sidebar_content():
             spacing 2
             if _sfx.triggers_active:
                 textbutton "☑ Active":
-                    style "sfx_btn_icon"
-                    text_style "sfx_btn_icon_text"
-                    xsize 58
+                    style "sfx_btn"
+                    text_style "sfx_btn_text_sm"
                     background "#446644"
                     hover_background "#558855"
                     action Function(_sfx_editor_toggle_active)
                     tooltip "SFX triggers are ON (F4 to toggle)"
             else:
                 textbutton "☐ Active":
-                    style "sfx_btn_icon"
-                    text_style "sfx_btn_icon_text"
-                    xsize 58
+                    style "sfx_btn"
+                    text_style "sfx_btn_text_sm"
                     background "#664444"
                     hover_background "#885555"
                     action Function(_sfx_editor_toggle_active)
@@ -226,9 +217,8 @@ screen sfx_editor_sidebar_content():
                         $ _is_active = (pi == _vid_target)
                         $ _tab_label = str(pi + 1)
                         textbutton _tab_label:
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 22
+                            style "sfx_btn"
+                            text_style "sfx_btn_text"
                             if _is_active:
                                 background "#666699"
                             else:
@@ -392,9 +382,8 @@ screen sfx_editor_sidebar_content():
                         $ _tab_label = str(pi + 1)
                         $ _tab_count = len(pool.get("files", []))
                         textbutton _tab_label:
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 22
+                            style "sfx_btn"
+                            text_style "sfx_btn_text"
                             if _is_active:
                                 background "#666699"
                             else:
@@ -504,8 +493,8 @@ screen sfx_editor_sidebar_content():
                         $ _tab_label = str(pi + 1)
                         $ _tab_count = len(pool.get("files", []))
                         textbutton _tab_label:
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
+                            style "sfx_btn"
+                            text_style "sfx_btn_text"
                             xsize 22
                             if _is_active:
                                 background "#666699"
@@ -600,36 +589,32 @@ screen sfx_editor_sidebar_content():
                     $ fast_selected = (_pool_freq == 2)
                     $ fastest_selected = (_pool_freq == 3)
                     textbutton "Slow":
-                        style "sfx_btn_icon"
-                        text_style "sfx_btn_icon_text"
-                        xsize 38
+                        style "sfx_btn"
+                        text_style "sfx_btn_text"
                         if slow_selected:
                             background "#666699"
                         else:
                             background "#444444"
                         action Function(_sfx_editor_set_pool_frequency, _pool_key, 0)
                     textbutton "Normal":
-                        style "sfx_btn_icon"
-                        text_style "sfx_btn_icon_text"
-                        xsize 50
+                        style "sfx_btn"
+                        text_style "sfx_btn_text"
                         if normal_selected:
                             background "#669966"
                         else:
                             background "#444444"
                         action Function(_sfx_editor_set_pool_frequency, _pool_key, 1)
                     textbutton "Fast":
-                        style "sfx_btn_icon"
-                        text_style "sfx_btn_icon_text"
-                        xsize 38
+                        style "sfx_btn"
+                        text_style "sfx_btn_text"
                         if fast_selected:
                             background "#996666"
                         else:
                             background "#444444"
                         action Function(_sfx_editor_set_pool_frequency, _pool_key, 2)
                     textbutton "Fastest":
-                        style "sfx_btn_icon"
-                        text_style "sfx_btn_icon_text"
-                        xsize 48
+                        style "sfx_btn"
+                        text_style "sfx_btn_text"
                         if fastest_selected:
                             background "#996699"
                         else:
@@ -745,9 +730,10 @@ screen sfx_editor_sidebar_content():
                                         tooltip "Add folder to SFX Pool"
                                 textbutton item["name"]:
                                     style "sfx_btn"
-                                    text_style "sfx_btn_text"
+                                    text_style "sfx_btn_text_sm"
                                     action Function(_sfx_editor_toggle_folder, item["full_path"])
                                     xsize None
+                                    ysize 14
                             else:
                                 # Play preview
                                 textbutton "▶":
@@ -773,44 +759,24 @@ screen sfx_editor_sidebar_content():
                                     text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_add_dialogue_marker, item["index"])
                                     tooltip "Add to Dialogue SFX pool"
-                                # SFX Pool
-                                if item["in_pool"]:
-                                    textbutton "A":
-                                        style "sfx_btn_icon"
-                                        text_style "sfx_help"
-                                        action NullAction()
-                                        tooltip "Already in SFX Pool"
-                                    if item.get("enabled", True):
-                                        textbutton "☑":
-                                            style "sfx_btn_icon"
-                                            text_style "sfx_btn_icon_text"
-                                            action Function(_sfx_editor_toggle_file_enabled, item["full_path"])
-                                            tooltip "Click to exclude from markers"
-                                    else:
-                                        textbutton "☐":
-                                            style "sfx_btn_icon"
-                                            text_style "sfx_btn_icon_text"
-                                            action Function(_sfx_editor_toggle_file_enabled, item["full_path"])
-                                            tooltip "Click to include in markers"
-                                    text item["name"] style "sfx_help"
-                                else:
-                                    textbutton "A":
+                                # Autoplay SFX
+                                textbutton "A":
+                                    style "sfx_btn_icon"
+                                    text_style "sfx_btn_icon_text"
+                                    action Function(_sfx_editor_add_to_pool, item["index"])
+                                    tooltip "Add to SFX Pool"
+                                if item.get("enabled", True):
+                                    textbutton "☑":
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_add_to_pool, item["index"])
-                                        tooltip "Add to SFX Pool"
-                                    if item.get("enabled", True):
-                                        textbutton "☑":
-                                            style "sfx_btn_icon"
-                                            text_style "sfx_btn_icon_text"
-                                            action Function(_sfx_editor_toggle_file_enabled, item["full_path"])
-                                            tooltip "Click to exclude from markers"
-                                    else:
-                                        textbutton "☐":
-                                            style "sfx_btn_icon"
-                                            text_style "sfx_btn_icon_text"
-                                            action Function(_sfx_editor_toggle_file_enabled, item["full_path"])
-                                            tooltip "Click to include in markers"
-                                    text item["name"] style "sfx_txt" color "#ffcc00"
+                                        action Function(_sfx_editor_toggle_file_enabled, item["full_path"])
+                                        tooltip "Click to exclude from markers"
+                                else:
+                                    textbutton "☐":
+                                        style "sfx_btn_icon"
+                                        text_style "sfx_btn_icon_text"
+                                        action Function(_sfx_editor_toggle_file_enabled, item["full_path"])
+                                        tooltip "Click to include in markers"
+                                text item["name"] style "sfx_txt" color "#ffcc00"
 
 
