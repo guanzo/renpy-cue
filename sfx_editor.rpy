@@ -1181,38 +1181,41 @@ init python:
         _sfx_editor_save_markers()
 
     def _sfx_editor_dump_markers():
-        """Dump full markers data to sfx_editor/markers_dump.json (next to debug.log)."""
+        """Dump entire persistent._sfx_editor_markers to sfx_editor/sfx_editor_config.json."""
         try:
             import json as _json
             dump_dir = os.path.join(renpy.config.gamedir, "sfx_editor")
             if not os.path.isdir(dump_dir):
                 os.makedirs(dump_dir)
-            dump_path = os.path.join(dump_dir, "markers_dump_old.json")
+            dump_path = os.path.join(dump_dir, "sfx_editor_config.json")
+            data = getattr(persistent, '_sfx_editor_markers', None)
+            if data is None:
+                # Ensure current state is saved before dumping
+                _sfx_editor_save_markers()
+                data = getattr(persistent, '_sfx_editor_markers', {})
             with open(dump_path, "w") as f:
-                _json.dump({
-                    "version": "2.0.2",
-                    "markers": dict(_sfx.markers),
-                }, f, indent=2, sort_keys=True)
-            _sfx_editor_log("DUMP-MARKERS total_keys={} path=markers.json".format(
+                _json.dump(data, f, indent=2, sort_keys=True)
+            _sfx_editor_log("DUMP-MARKERS total_keys={} path=sfx_editor_config.json".format(
                 len(_sfx.markers)))
         except Exception as e:
             _sfx_editor_log("DUMP-MARKERS-ERROR {}".format(str(e)))
 
     def _sfx_editor_restore_markers_from_file():
-        """Restore markers from sfx_editor/markers_dump.json, replacing all current markers."""
+        """Restore persistent._sfx_editor_markers from sfx_editor/sfx_editor_config.json."""
         try:
             import json as _json
-            dump_path = os.path.join(renpy.config.gamedir, "sfx_editor", "markers_dump.json")
+            dump_path = os.path.join(renpy.config.gamedir, "sfx_editor", "sfx_editor_config.json")
             if not os.path.isfile(dump_path):
-                _sfx_editor_log("RESTORE-MARKERS-NO-FILE path=markers_dump.json")
+                _sfx_editor_log("RESTORE-MARKERS-NO-FILE path=sfx_editor_config.json")
                 return
             with open(dump_path, "r") as f:
                 data = _json.load(f)
+            persistent._sfx_editor_markers = data
             _sfx.markers = dict(data.get("markers", {}))
             _sfx.played_video_keys = set()
             _sfx.pool_states = {}
             _sfx_editor_save_markers()
-            _sfx_editor_log("RESTORE-MARKERS total_keys={} path=markers_dump.json".format(
+            _sfx_editor_log("RESTORE-MARKERS total_keys={} path=sfx_editor_config.json".format(
                 len(_sfx.markers)))
         except Exception as e:
             _sfx_editor_log("RESTORE-MARKERS-ERROR {}".format(str(e)))
