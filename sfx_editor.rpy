@@ -22,10 +22,6 @@
 ###############################################################################
 
 init -999 python:
-    # --- Persistent config defaults (saved to persistent._sfx_editor_config) ---
-    if not hasattr(store, '_sfx_editor_config_defaults_set'):
-        store._sfx_editor_config_defaults_set = True
-
     # --- All runtime state on a single NoRollback object ---
     # Ren'Py skips rollback for NoRollback instances — no state gets corrupted
     # by Page Up. Never reassign _sfx itself; only mutate its attributes.
@@ -907,8 +903,7 @@ init python:
             if source.startswith("vid:"):
                 _vid_parts = source[4:].rsplit("@", 1)
                 _expected_vid = _vid_parts[0]
-                _cur_vpath = _sfx_editor_get_video_path()
-                _cur_vname = _cur_vpath.rsplit("/", 1)[-1] if _cur_vpath else ""
+                _cur_vname = _sfx.current_file or ""
                 if _expected_vid and _cur_vname and _expected_vid != _cur_vname:
                     _warn = "expected vid={} actual vid={}".format(_expected_vid, _cur_vname)
             elif source.startswith("img:"):
@@ -983,8 +978,7 @@ init python:
         if elapsed is None or elapsed <= 0:
             return
         filename = _sfx.available_files[file_index]
-        _vpath = _sfx_editor_get_video_path()
-        vid_key = "v:" + (_vpath if _vpath else "")
+        vid_key = "v:" + _sfx.current_file
         timestamps = _sfx.markers.setdefault(vid_key, [])
         timestamps.append({"time": elapsed, "files": [filename]})
         timestamps.sort(key=lambda e: e["time"])
@@ -992,8 +986,7 @@ init python:
 
     def _sfx_editor_remove_video_marker(ts_index):
         """Remove a video timestamp entry at the given index in the v: list."""
-        _vpath = _sfx_editor_get_video_path()
-        vid_key = "v:" + (_vpath if _vpath else "")
+        vid_key = "v:" + _sfx.current_file
         timestamps = _sfx.markers.get(vid_key, [])
         if 0 <= ts_index < len(timestamps):
             timestamps.pop(ts_index)
@@ -1101,15 +1094,10 @@ init python:
 
     def _sfx_editor_get_context_files():
         """Return a set of filenames that identify the current context.
-        Includes the image tag (if showing) and the video basename (if playing).
-        Used for p: pool lookups — a pool should match either context.
-        """
+        Used for p: pool lookups."""
         result = set()
         if _sfx.current_file:
             result.add(_sfx.current_file)
-        _vpath = _sfx_editor_get_video_path()
-        if _vpath:
-            result.add(_vpath.replace("\\", "/").rsplit("/", 1)[-1])
         return result
 
     def _sfx_editor_get_pool_entry():
@@ -1139,13 +1127,8 @@ init python:
                 copied[key] = dict(entry)
             elif key.startswith("d:") and key[2:].startswith(ctx_file + "|"):
                 copied[key] = dict(entry)
-            elif key.startswith("p:") and key[2:] == ctx_file:
+            elif key.startswith(("p:", "v:")) and key[2:] == ctx_file:
                 copied[key] = dict(entry)
-        _vpath = _sfx_editor_get_video_path()
-        if _vpath:
-            vid_key = "v:" + _vpath
-            if vid_key in _sfx.markers:
-                copied[vid_key] = list(_sfx.markers[vid_key])
         _sfx.clipboard = {
             "markers": copied,
             "source_file": ctx_file,
@@ -1166,10 +1149,8 @@ init python:
                 new_key = "i:" + ctx_file
             elif old_key.startswith("d:") and old_key[2:].startswith(old_file + "|"):
                 new_key = "d:" + ctx_file + "|" + ctx_dlg
-            elif old_key.startswith("p:") and old_key[2:] == old_file:
-                new_key = "p:" + ctx_file
-            elif old_key.startswith("v:"):
-                new_key = old_key  # video keys keep their path
+            elif old_key.startswith(("p:", "v:")) and old_key[2:] == old_file:
+                new_key = old_key[:2] + ctx_file
             if new_key not in _sfx.markers:
                 if isinstance(entry, list):
                     _sfx.markers[new_key] = list(entry)
@@ -1178,6 +1159,43 @@ init python:
         _sfx.played_video_keys = set()
         _sfx.pool_states = {}
         _sfx_editor_save_markers()
+
+    def _sfx_editor_dump_markers():
+        """Dump full markers data to sfx_editor/markers_dump.json (next to debug.log)."""
+        try:
+            import json as _json
+            dump_dir = os.path.join(renpy.config.gamedir, "sfx_editor")
+            if not os.path.isdir(dump_dir):
+                os.makedirs(dump_dir)
+            dump_path = os.path.join(dump_dir, "markers_dump_old.json")
+            with open(dump_path, "w") as f:
+                _json.dump({
+                    "version": "2.0.2",
+                    "markers": dict(getattr(persistent, '_sfx_editor_config', None)),
+                }, f, indent=2, sort_keys=True)
+            _sfx_editor_log("DUMP-MARKERS total_keys={} path=markers_dump.json".format(
+                len(_sfx.markers)))
+        except Exception as e:
+            _sfx_editor_log("DUMP-MARKERS-ERROR {}".format(str(e)))
+
+    def _sfx_editor_restore_markers_from_file():
+        """Restore markers from sfx_editor/markers_dump.json, replacing all current markers."""
+        try:
+            import json as _json
+            dump_path = os.path.join(renpy.config.gamedir, "sfx_editor", "markers_dump.json")
+            if not os.path.isfile(dump_path):
+                _sfx_editor_log("RESTORE-MARKERS-NO-FILE path=markers_dump.json")
+                return
+            with open(dump_path, "r") as f:
+                data = _json.load(f)
+            _sfx.markers = dict(data.get("markers", {}))
+            _sfx.played_video_keys = set()
+            _sfx.pool_states = {}
+            _sfx_editor_save_markers()
+            _sfx_editor_log("RESTORE-MARKERS total_keys={} path=markers_dump.json".format(
+                len(_sfx.markers)))
+        except Exception as e:
+            _sfx_editor_log("RESTORE-MARKERS-ERROR {}".format(str(e)))
 
 
     def _sfx_editor_get_pool_delay(frequency=1):
@@ -1275,21 +1293,20 @@ init python:
                 _sfx.__time_offset = 0.0
 
             # Video markers
-            _vpath = _sfx_editor_get_video_path()
-            vid_key = "v:" + (_vpath if _vpath else "")
-            timestamps = _sfx.markers.get(vid_key, [])
-            for idx, entry in enumerate(timestamps):
-                ts_key = "{}@{}".format(vid_key, idx)
-                if ts_key not in _sfx.played_video_keys:
-                    mt = entry["time"]
-                    if mt <= elapsed < mt + _sfx.__marker_tolerance:
-                        files = entry.get("files", [])
-                        if files:
-                            _vname = _vpath.rsplit("/", 1)[-1] if _vpath else "?"
-                            _vsrc = "vid:{}@{:.2f}".format(_vname, mt)
-                            f = _sfx_editor_pick_file(files, vid_key, avoid_repeats=False)
-                            _sfx_editor_play_sfx(f, _vsrc)
-                            _sfx.played_video_keys.add(ts_key)
+            if _sfx.current_file:
+                vid_key = "v:" + _sfx.current_file
+                timestamps = _sfx.markers.get(vid_key, [])
+                for idx, entry in enumerate(timestamps):
+                    ts_key = "{}@{}".format(vid_key, idx)
+                    if ts_key not in _sfx.played_video_keys:
+                        mt = entry["time"]
+                        if mt <= elapsed < mt + _sfx.__marker_tolerance:
+                            files = entry.get("files", [])
+                            if files:
+                                _vsrc = "vid:{}@{:.2f}".format(_sfx.current_file, mt)
+                                f = _sfx_editor_pick_file(files, vid_key, avoid_repeats=False)
+                                _sfx_editor_play_sfx(f, _vsrc)
+                                _sfx.played_video_keys.add(ts_key)
 
             # Detect video loop (markers only, pool uses wall clock)
             if _sfx.__last_pos > 0 and elapsed < _sfx.__last_pos - 0.3:
@@ -1348,102 +1365,6 @@ init python:
     # Persistence
     # --------------------------------------------------------------------------
 
-    def _sfx_editor_video_basename_to_tag(name):
-        """Convert a video basename to an image tag name.
-        'v2s14a_allison_pussy_1.webm' -> 'v2s14a_allison_pussy1'
-        Removes the extension and the last underscore before trailing digits.
-        """
-        video_exts = (".webm", ".mp4", ".mkv", ".avi", ".ogv", ".mpeg", ".mpg")
-        for ext in video_exts:
-            if name.lower().endswith(ext):
-                name = name[:-len(ext)]
-                break
-        import re
-        name = re.sub(r'_(?=\d+$)', '', name)
-        return name
-
-
-    def _sfx_editor_migrate_markers_v2():
-        """Migrate old persistent._sfx_editor_config markers to new
-        persistent._sfx_editor_markers format. Leaves old config untouched.
-        Re-runs if version doesn't match (handles partial/broken migrations).
-        """
-        existing = getattr(persistent, '_sfx_editor_markers', None)
-        if existing is not None and existing.get("version") == "2.0.2":
-            return  # Already fully migrated
-
-        old_config = getattr(persistent, '_sfx_editor_config', None)
-        if old_config is None:
-            # No old config; init empty
-            persistent._sfx_editor_markers = {"version": "2.0.2", "markers": {}}
-            return
-
-        markers = {}
-
-        # --- Video markers ---
-        for vid_key, old_list in old_config.get("markers_per_video", {}).items():
-            if not old_list:
-                continue
-            entries = []
-            for m in old_list:
-                entries.append({"time": m["time"], "files": [m["file"]]})
-            entries.sort(key=lambda e: e["time"])
-            markers["v:" + _sfx_editor_video_basename_to_tag(vid_key)] = entries
-
-        # --- Image markers ---
-        for img_key, old_list in old_config.get("image_markers_per_image", {}).items():
-            if not old_list:
-                continue
-            files = []
-            seen = set()
-            for m in old_list:
-                f = m["file"]
-                if f not in seen:
-                    files.append(f)
-                    seen.add(f)
-            if files:
-                markers["i:" + img_key] = {"files": files}
-
-        # --- Dialogue markers ---
-        for dlg_key, old_list in old_config.get("dialogue_markers_per_key", {}).items():
-            if not old_list:
-                continue
-            files = []
-            seen = set()
-            for m in old_list:
-                f = m["file"]
-                if f not in seen:
-                    files.append(f)
-                    seen.add(f)
-            if files:
-                markers["d:" + dlg_key] = {"files": files}
-
-        # --- Pool ---
-        for ctx_key, pool_data in old_config.get("pool_per_context", {}).items():
-            files = pool_data.get("files", [])
-            freq = pool_data.get("frequency", 1)
-            if not files:
-                continue
-            # Strip full path and convert video filename to image tag format
-            if ctx_key.endswith((".webm", ".mp4", ".mkv", ".avi", ".ogv", ".mpeg", ".mpg")):
-                name = _sfx_editor_video_basename_to_tag(
-                    ctx_key.replace("\\", "/").rsplit("/", 1)[-1]
-                )
-            else:
-                name = ctx_key
-            new_key = "p:" + name
-            if new_key not in markers:
-                markers[new_key] = {}
-            markers[new_key]["files"] = list(files)
-            markers[new_key]["frequency"] = freq
-
-        persistent._sfx_editor_markers = {
-            "version": "2.0.2",
-            "markers": markers,
-        }
-        _sfx_editor_log("MIGRATE: v1->v2  keys={}".format(len(markers)))
-
-
     def _sfx_editor_save_markers():
         """Save unified markers to persistent storage."""
         persistent._sfx_editor_markers = {
@@ -1453,8 +1374,7 @@ init python:
 
 
     def _sfx_editor_load_markers():
-        """Load all markers from persistent storage. Runs migration if needed."""
-        _sfx_editor_migrate_markers_v2()
+        """Load all markers from persistent storage."""
         data = getattr(persistent, '_sfx_editor_markers', None)
         if data is None:
             _sfx.markers = {}
@@ -1470,7 +1390,6 @@ init python:
         if existing is None:
             existing = {}
         existing["audio_dir"] = _sfx.audio_dir
-        existing["mode"] = _sfx.mode
         existing["last_channel"] = _sfx.active_channel
         existing["version"] = _sfx.version
         persistent._sfx_editor_config = existing
@@ -1482,7 +1401,6 @@ init python:
         if config is None:
             return
         _sfx.audio_dir = config.get("audio_dir", "sfx_editor/audio")
-        _sfx.mode = config.get("mode", "manual")
         _sfx.active_channel = config.get("last_channel", None)
 
         # Load unified markers from new key
@@ -1610,7 +1528,7 @@ screen sfx_editor_sidebar_content():
     vbox:
         spacing 4
 
-        # --- Top bar: copy + paste + refresh + close ---
+        # --- Top bar: copy + paste + dump + restore + refresh + close ---
         hbox:
             spacing 2
             textbutton "📋":
@@ -1623,6 +1541,16 @@ screen sfx_editor_sidebar_content():
                 text_style "sfx_btn_icon_text"
                 action Function(_sfx_editor_paste_context)
                 tooltip "Paste context config"
+            textbutton "💾":
+                style "sfx_btn_icon"
+                text_style "sfx_btn_icon_text"
+                action Function(_sfx_editor_dump_markers)
+                tooltip "Dump markers to file"
+            textbutton "📂":
+                style "sfx_btn_icon"
+                text_style "sfx_btn_icon_text"
+                action Function(_sfx_editor_restore_markers_from_file)
+                tooltip "Restore markers from file"
             textbutton "⟳":
                 style "sfx_btn_icon"
                 text_style "sfx_btn_icon_text"
@@ -1679,8 +1607,7 @@ screen sfx_editor_sidebar_content():
                         text_style "sfx_btn_text"
                         action Function(_sfx_editor_coarse_seek, 1.0)
                 # Video marker add + list
-                $ _vpath = _sfx_editor_get_video_path()
-                $ _vid_key = "v:" + (_vpath if _vpath else "")
+                $ _vid_key = "v:" + _sfx.current_file if _sfx.current_file else ""
                 $ _vid_entries = _sfx.markers.get(_vid_key, [])
                 $ _vid_count = len(_vid_entries)
                 null height 5
