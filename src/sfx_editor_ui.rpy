@@ -87,7 +87,7 @@ screen sfx_editor_sidebar_content():
         # --- Top bar: active checkbox + copy + paste + dump + restore + refresh + close ---
         hbox:
             spacing 2
-            if _sfx.active:
+            if _sfx.triggers_active:
                 textbutton "☑ Active":
                     style "sfx_btn_icon"
                     text_style "sfx_btn_icon_text"
@@ -95,7 +95,7 @@ screen sfx_editor_sidebar_content():
                     background "#446644"
                     hover_background "#558855"
                     action Function(_sfx_editor_toggle_active)
-                    tooltip "Triggers are ON (F4 to toggle)"
+                    tooltip "SFX triggers are ON (F4 to toggle)"
             else:
                 textbutton "☐ Active":
                     style "sfx_btn_icon"
@@ -104,29 +104,31 @@ screen sfx_editor_sidebar_content():
                     background "#664444"
                     hover_background "#885555"
                     action Function(_sfx_editor_toggle_active)
-                    tooltip "Triggers are OFF (F4 to toggle)"
+                    tooltip "SFX triggers are OFF (F4 to toggle)"
             null width 5
             textbutton "📋":
                 style "sfx_btn_icon"
                 text_style "sfx_btn_icon_text"
                 action Function(_sfx_editor_copy_context)
-                tooltip "Copy context config"
+                tooltip "Copy current context config"
             textbutton "📄":
                 style "sfx_btn_icon"
                 text_style "sfx_btn_icon_text"
                 action Function(_sfx_editor_paste_context)
                 tooltip "Paste context config"
             null width 5
+            $ _backup_tooltip = "Backup config to " + _sfx.config_filename
             textbutton "💾":
                 style "sfx_btn_icon"
                 text_style "sfx_btn_icon_text"
                 action Function(_sfx_editor_dump_markers)
-                tooltip "Dump markers to file"
+                tooltip _backup_tooltip
+            $ _restore_tooltip = "Restore config from " + _sfx.config_filename
             textbutton "📂":
                 style "sfx_btn_icon"
                 text_style "sfx_btn_icon_text"
                 action Function(_sfx_editor_restore_markers_from_file)
-                tooltip "Restore markers from file"
+                tooltip _restore_tooltip
             null width 5
             textbutton "⟳":
                 style "sfx_btn_icon"

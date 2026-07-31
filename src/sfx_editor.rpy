@@ -118,12 +118,18 @@ init 999 python:
     config.developer = True
     config.console = True
 
+    # Path constants
+    _sfx.base_dir = "sfx_editor"
+    _sfx.config_filename = "sfx_editor_config.json"
+    _sfx.config_path = os.path.join(renpy.config.gamedir, _sfx.base_dir, _sfx.config_filename)
+    _sfx.debug_log_filename = "debug.log"
+
     # Clear debug log for fresh session
     try:
-        log_dir = os.path.join(renpy.config.gamedir, "sfx_editor")
+        log_dir = os.path.join(renpy.config.gamedir, _sfx.base_dir)
         if not os.path.isdir(log_dir):
             os.makedirs(log_dir)
-        log_path = os.path.join(log_dir, "debug.log")
+        log_path = os.path.join(log_dir, _sfx.debug_log_filename)
         open(log_path, "w").close()
     except Exception:
         pass
@@ -196,10 +202,10 @@ init python:
         """Append a debug message to sfx_editor/debug.log."""
         try:
             import time as _logtime
-            log_dir = os.path.join(renpy.config.gamedir, "sfx_editor")
+            log_dir = os.path.join(renpy.config.gamedir, _sfx.base_dir)
             if not os.path.isdir(log_dir):
                 os.makedirs(log_dir)
-            log_path = os.path.join(log_dir, "debug.log")
+            log_path = os.path.join(log_dir, _sfx.debug_log_filename)
             with open(log_path, "a") as f:
                 _ts = _logtime.strftime("%H:%M:%S") + ".{:03d}".format(int(_logtime.time() * 1000) % 1000)
                 f.write("[{}] {}\n".format(_ts, msg))
@@ -1577,13 +1583,13 @@ init python:
         _sfx_editor_save_markers()
 
     def _sfx_editor_dump_markers():
-        """Dump entire persistent._sfx_editor_markers to sfx_editor/sfx_editor_config.json."""
+        """Dump entire persistent._sfx_editor_markers to sfx_editor/{}.""".format(_sfx.config_filename)
         try:
             import json as _json
-            dump_dir = os.path.join(renpy.config.gamedir, "sfx_editor")
+            dump_dir = os.path.join(renpy.config.gamedir, _sfx.base_dir)
             if not os.path.isdir(dump_dir):
                 os.makedirs(dump_dir)
-            dump_path = os.path.join(dump_dir, "sfx_editor_config.json")
+            dump_path = os.path.join(dump_dir, _sfx.config_filename)
             data = getattr(persistent, '_sfx_editor_markers', None)
             if data is None:
                 # Ensure current state is saved before dumping
@@ -1591,18 +1597,18 @@ init python:
                 data = getattr(persistent, '_sfx_editor_markers', {})
             with open(dump_path, "w") as f:
                 _json.dump(data, f, indent=2, sort_keys=True)
-            _sfx_log("DUMP-MARKERS total_keys={} path=sfx_editor_config.json".format(
-                len(_sfx.markers)))
+            _sfx_log("DUMP-MARKERS total_keys={} path={}".format(
+                len(_sfx.markers), _sfx.config_filename))
         except Exception as e:
             _sfx_log("DUMP-MARKERS-ERROR {}".format(str(e)))
 
     def _sfx_editor_restore_markers_from_file():
-        """Restore persistent._sfx_editor_markers from sfx_editor/sfx_editor_config.json."""
+        """Restore persistent._sfx_editor_markers from sfx_editor/{}.""".format(_sfx.config_filename)
         try:
             import json as _json
-            dump_path = os.path.join(renpy.config.gamedir, "sfx_editor", "sfx_editor_config.json")
+            dump_path = _sfx.config_path
             if not os.path.isfile(dump_path):
-                _sfx_log("RESTORE-MARKERS-NO-FILE path=sfx_editor_config.json")
+                _sfx_log("RESTORE-MARKERS-NO-FILE path={}".format(_sfx.config_filename))
                 return
             with open(dump_path, "r") as f:
                 data = _json.load(f)
@@ -1612,8 +1618,8 @@ init python:
             _sfx.pool_states = {}
             #_sfx_editor_normalize_all_markers()
             _sfx_editor_save_markers()
-            _sfx_log("RESTORE-MARKERS total_keys={} path=sfx_editor_config.json".format(
-                len(_sfx.markers)))
+            _sfx_log("RESTORE-MARKERS total_keys={} path={}".format(
+                len(_sfx.markers), _sfx.config_filename))
         except Exception as e:
             _sfx_log("RESTORE-MARKERS-ERROR {}".format(str(e)))
 
@@ -1869,7 +1875,7 @@ init python:
             if _now - _sfx._last_autosave_time < 300:
                 return
 
-            backups_dir = os.path.join(renpy.config.gamedir, "sfx_editor", "backups")
+            backups_dir = os.path.join(renpy.config.gamedir, _sfx.base_dir, "backups")
             if not os.path.isdir(backups_dir):
                 os.makedirs(backups_dir)
 
