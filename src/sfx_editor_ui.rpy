@@ -607,7 +607,7 @@ screen sfx_editor_sidebar_content():
                 textbutton "Fastest":
                     style "sfx_btn_icon"
                     text_style "sfx_btn_icon_text"
-                    xsize 30
+                    xsize 48
                     if fastest_selected:
                         background "#996699"
                     else:

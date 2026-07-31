@@ -172,6 +172,9 @@ init 999 python:
             _sfx_editor_refresh_detections()
         config.start_interact_callbacks.append(_sfx_editor_start_interact_callback)
 
+        # Load markers from persistent so SFX work immediately (before overlay is ever opened)
+        _sfx_editor_load_markers()
+
         _sfx_log("INIT: callbacks registered")
         _sfx.initialized = True
 
@@ -952,6 +955,7 @@ init python:
         else:
             _sfx.disabled_files.add(full_path)
         _sfx.visible_tree = _sfx_editor_get_visible_tree()
+        _sfx_editor_save_markers()
         renpy.restart_interaction()
 
 
