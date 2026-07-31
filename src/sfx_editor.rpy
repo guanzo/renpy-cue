@@ -1606,11 +1606,13 @@ init python:
     def _sfx_editor_get_pool_delay(frequency=1):
         """Return random breathing room (silence) between SFX.
         This is the gap AFTER an SFX finishes before the next one starts.
-        frequency: 0=Slow, 1=Normal, 2=Fast
+        frequency: 0=Slow, 1=Normal, 2=Fast, 3=Fastest
         """
         import random
         freq = frequency
-        if freq == 2:
+        if freq == 3:
+            return 0.15 + random.uniform(0.0, 0.05)
+        elif freq == 2:
             return 0.5 + random.uniform(0.0, 0.15)
         elif freq == 1:
             return 1.7 + random.uniform(0.0, .75)
@@ -1618,7 +1620,7 @@ init python:
             return 3.0 + random.uniform(0.0, 1.5)
 
     def _sfx_editor_set_pool_frequency(trigger_key, freq):
-        """Set pool frequency for a p: entry. 0 = Slow, 1 = Normal, 2 = Fast."""
+        """Set pool frequency for a p: entry. 0 = Slow, 1 = Normal, 2 = Fast, 3 = Fastest."""
         entry = _sfx.markers.get(trigger_key)
         if entry:
             entry["frequency"] = int(freq)

@@ -128,7 +128,7 @@ screen sfx_editor_sidebar_content():
         if _is_video:
             frame:
                 background "#222222"
-                padding (2, 2)
+                padding (4, 4)
                 xfill True
                 yminimum 0
                 has vbox
@@ -186,11 +186,13 @@ screen sfx_editor_sidebar_content():
                     hbox:
                         spacing 5
                         if _vid_entries:
-                            textbutton "Clear":
-                                style "sfx_btn_icon"
-                                text_style "sfx_btn_icon_text"
+                            textbutton "Delete":
+                                style "sfx_btn"
+                                text_style "sfx_btn_text"
                                 xsize 50
-                                action Function(_sfx_editor_clear_video_markers)
+                                action Confirm(
+                                    "Delete all video timestamp markers for the current video?\nThis cannot be undone.",
+                                    Function(_sfx_editor_clear_video_markers))
                 hbox:
                     spacing 2
                     textbutton "+ Pool":
@@ -330,28 +332,29 @@ screen sfx_editor_sidebar_content():
             $ _img_target = max(0, min(_img_target, len(_img_pools) - 1)) if _img_pools else 0
             frame:
                 background "#222222"
-                padding (2, 2)
+                padding (4, 4)
                 xfill True
                 yminimum 0
                 has vbox
+                spacing 5
                 text "Image SFX" style "sfx_hdr"
-                null height 5
                 fixed:
                     xfill True
                     ysize 1
                     add Solid("#555555")
-                null height 5
                 vbox:
                     spacing 5
                     text "Image: [_sfx.current_file]" style "sfx_txt"
                     hbox:
                         spacing 5
                         if _img_pools:
-                            textbutton "Clear":
-                                style "sfx_btn_icon"
-                                text_style "sfx_btn_icon_text"
+                            textbutton "Delete":
+                                style "sfx_btn"
+                                text_style "sfx_btn_text"
                                 xsize 50
-                                action Function(_sfx_editor_clear_image_markers)
+                                action Confirm(
+                                    "Delete all image SFX pools for the current image?\nThis cannot be undone.",
+                                    Function(_sfx_editor_clear_image_markers))
                                 tooltip "Remove all image SFX pools"
                 null height 5
                 # Tab row: [+ Pool] [1] [2] ...
@@ -441,38 +444,29 @@ screen sfx_editor_sidebar_content():
             $ _dlg_target = max(0, min(_dlg_target, len(_dlg_pools) - 1)) if _dlg_pools else 0
             frame:
                 background "#222222"
-                padding (2, 2)
+                padding (4, 4)
                 xfill True
                 yminimum 0
                 has vbox
-                hbox:
-                    text "Dialogue SFX" style "sfx_hdr"
-                    null xfill True
-                    if _dlg_pools:
-                        textbutton "Clear":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 50
-                            action Function(_sfx_editor_clear_dialogue_markers)
-                            tooltip "Remove all dialogue SFX pools"
-
-                null height 5
+                spacing 5
+                text "Dialogue SFX" style "sfx_hdr"
                 fixed:
                     xfill True
                     ysize 1
                     add Solid("#555555")
-                null height 5
                 vbox:
                     spacing 5
                     text "Dialogue: [_sfx.current_dialogue]" style "sfx_txt"
                     hbox:
                         spacing 5
                         if _dlg_pools:
-                            textbutton "Clear":
-                                style "sfx_btn_icon"
-                                text_style "sfx_btn_icon_text"
+                            textbutton "Delete":
+                                style "sfx_btn"
+                                text_style "sfx_btn_text"
                                 xsize 50
-                                action Function(_sfx_editor_clear_dialogue_markers)
+                                action Confirm(
+                                    "Delete all dialogue SFX pools for the current line?\nThis cannot be undone.",
+                                    Function(_sfx_editor_clear_dialogue_markers))
                                 tooltip "Remove all dialogue SFX pools"
                 null height 5
                 # Tab row: [+ Pool] [1] [2] ...
@@ -568,13 +562,13 @@ screen sfx_editor_sidebar_content():
         $ _pool_count = len(_pool_files)
         frame:
             background "#222222"
-            padding (3, 3)
+            padding (4, 4)
             xfill True
             yminimum 0
             has vbox
             spacing 5
 
-            text "SFX Pool" style "sfx_hdr"
+            text "Autoplay SFX" style "sfx_hdr"
 
             hbox:
                 spacing 5
@@ -582,6 +576,7 @@ screen sfx_editor_sidebar_content():
                 $ slow_selected = (_pool_freq == 0)
                 $ normal_selected = (_pool_freq == 1)
                 $ fast_selected = (_pool_freq == 2)
+                $ fastest_selected = (_pool_freq == 3)
                 textbutton "Slow":
                     style "sfx_btn_icon"
                     text_style "sfx_btn_icon_text"
@@ -609,6 +604,15 @@ screen sfx_editor_sidebar_content():
                     else:
                         background "#444444"
                     action Function(_sfx_editor_set_pool_frequency, _pool_key, 2)
+                textbutton "Fastest":
+                    style "sfx_btn_icon"
+                    text_style "sfx_btn_icon_text"
+                    xsize 30
+                    if fastest_selected:
+                        background "#996699"
+                    else:
+                        background "#444444"
+                    action Function(_sfx_editor_set_pool_frequency, _pool_key, 3)
 
             $ _pool_vol = _pool_entry.get("volume", 1.0)
             hbox:
@@ -640,11 +644,13 @@ screen sfx_editor_sidebar_content():
             # Pool file list
             if _pool_files:
                 text "Pool files:" style "sfx_txt"
-                textbutton "Clear":
+                textbutton "Delete":
                     style "sfx_btn"
                     text_style "sfx_btn_text"
                     xsize 50
-                    action Function(_sfx_editor_clear_pool)
+                    action Confirm(
+                        "Delete all files from the current auto-play pool?\nThis cannot be undone.",
+                        Function(_sfx_editor_clear_pool))
                 viewport:
                     xfill True
                     ymaximum 130
