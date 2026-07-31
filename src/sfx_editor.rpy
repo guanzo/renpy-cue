@@ -96,7 +96,6 @@ init -999 python:
     _sfx.total_frame_str = "---"
     _sfx.audio_count = 0
     _sfx.marker_count = 0
-    _sfx.pool_count = 0
 
     # Internal
     _sfx.__sfx_channel_idx = 0
@@ -852,6 +851,39 @@ init python:
         for f in _sfx.available_files:
             if f.startswith(folder_path) and f not in files and f not in _sfx.disabled_files:
                 files.append(f)
+        _sfx_editor_save_markers()
+
+    def _sfx_editor_add_folder_to_video_markers(folder_path):
+        """Add all files under a folder to the active video timestamp pool.
+        Creates a new timestamp pool when none exist (requires playing video)."""
+        if not _sfx.current_file:
+            return
+        vid_key = "v:" + _sfx.current_file
+        entry = _sfx.markers.setdefault(vid_key, {"timestamps": []})
+        timestamps = entry.setdefault("timestamps", [])
+        target = _sfx.vid_target_pool
+        if timestamps and 0 <= target < len(timestamps):
+            # Add to existing active timestamp pool
+            pool_files = timestamps[target].setdefault("files", [])
+            for f in _sfx.available_files:
+                if f.startswith(folder_path) and f not in pool_files and f not in _sfx.disabled_files:
+                    pool_files.append(f)
+        else:
+            # Create new timestamp at current time (requires playing video)
+            ch = _sfx.active_channel
+            if not ch or not renpy.music.is_playing(channel=ch):
+                return
+            elapsed = _sfx_editor_get_elapsed()
+            if elapsed is None or elapsed <= 0:
+                return
+            new_files = []
+            for f in _sfx.available_files:
+                if f.startswith(folder_path) and f not in _sfx.disabled_files:
+                    new_files.append(f)
+            if new_files:
+                timestamps.append({"time": elapsed, "files": new_files})
+                timestamps.sort(key=lambda e: e["time"])
+                _sfx.vid_target_pool = len(timestamps) - 1
         _sfx_editor_save_markers()
 
 
@@ -1667,6 +1699,8 @@ init python:
         import random as _random
         import time as _time
 
+        _sfx_editor_tick()
+
         _sfx.__tick_count = getattr(store, '_sfx.__tick_count', 0) + 1
         tick = _sfx.__tick_count
 
@@ -1756,22 +1790,14 @@ init python:
 
 
     def _sfx_editor_tick():
-        """Called ~10 times/sec by the overlay screen timer.
-
-        Updates time display, checks markers, and drives pool mode.
+        """Updates time display, checks markers, and drives pool mode.
         """
-
-        _sfx.audio_count = len(_sfx.available_files)
-        _sfx.marker_count = len(_sfx.markers)
-        # Count pool files across all p: entries
-        _pool_total = 0
-        for key, entry in _sfx.markers.items():
-            if key.startswith("p:"):
-                _pool_total += len(entry.get("files", []))
-        _sfx.pool_count = _pool_total
 
         if not _sfx.visible:
             return
+
+        _sfx.audio_count = len(_sfx.available_files)
+        _sfx.marker_count = len(_sfx.markers)
 
         # Detect current mode: video or image
         ch = _sfx.active_channel
@@ -1991,7 +2017,7 @@ init python:
 screen sfx_editor_key_listener():
     zorder 10000
     key "K_BACKQUOTE" action Function(_sfx_editor_toggle)
-    timer 0.02 repeat True action Function(_sfx_editor_tick_trigger)
+    timer 0.05 repeat True action Function(_sfx_editor_tick_trigger)
 
 # =============================================================================
 # MAIN OVERLAY SCREEN
@@ -2013,7 +2039,7 @@ screen sfx_editor_overlay():
     key "K_1" action Function(_sfx_editor_copy_context)
     key "K_2" action Function(_sfx_editor_paste_context)
     # Timer to drive the SFX trigger engine
-    timer 0.05 repeat True action Function(_sfx_editor_tick)
+    #timer 0.05 repeat True action Function(_sfx_editor_tick_trigger)
 
     button:
         xalign 0.0

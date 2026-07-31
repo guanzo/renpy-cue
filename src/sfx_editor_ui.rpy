@@ -574,7 +574,7 @@ screen sfx_editor_sidebar_content():
             has vbox
             spacing 5
 
-            text "SFX Pool ([_pool_count] / [_sfx.audio_count] files)" style "sfx_hdr"
+            text "SFX Pool" style "sfx_hdr"
 
             hbox:
                 spacing 5
@@ -689,14 +689,17 @@ screen sfx_editor_sidebar_content():
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
                                         action Function(_sfx_editor_toggle_folder, item["full_path"])
-                                        tooltip "Collapse folder"
                                 else:
                                     textbutton "▸":
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
                                         action Function(_sfx_editor_toggle_folder, item["full_path"])
-                                        tooltip "Expand folder"
                                 if item["has_files"]:
+                                    textbutton "V":
+                                        style "sfx_btn_icon"
+                                        text_style "sfx_btn_icon_text"
+                                        action Function(_sfx_editor_add_folder_to_video_markers, item["full_path"])
+                                        tooltip "Add folder to active video timestamp pool"
                                     textbutton "I":
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
