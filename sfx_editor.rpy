@@ -797,10 +797,13 @@ init python:
 
 
     def _sfx_editor_is_file_in_pool(full_path):
-        """Check if a file is in any p: entry."""
-        for key, entry in _sfx.markers.items():
-            if key.startswith("p:") and full_path in entry.get("files", []):
-                return True
+        """Check if a file is in the current context's p: entry."""
+        if not _sfx.current_file:
+            return False
+        pool_key = "p:" + _sfx.current_file
+        entry = _sfx.markers.get(pool_key)
+        if entry and full_path in entry.get("files", []):
+            return True
         return False
 
 
