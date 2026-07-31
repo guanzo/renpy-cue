@@ -41,26 +41,15 @@ init -999 python:
 
     # User configuration
     _sfx.audio_dir = "sfx_editor/audio"
-    _sfx.mode = "manual"
-    _sfx.markers = []
-    _sfx.image_markers = []
-    _sfx.dialogue_markers = []
-    _sfx.pool_files = []
-    _sfx.pool_frequency = 1
+    _sfx.markers = {}          # Unified markers: trigger_key -> entry
     _sfx.clipboard = None
 
     # Trigger tracking
-    _sfx.last_image_key = ""
-    _sfx.last_dialogue_key = ""
-    _sfx.played_markers = set()
+    _sfx.played_video_keys = set()
     _sfx.__last_pos = 0.0
 
-    # Pool state machine
-    _sfx.pool_state = 0
-    _sfx.pool_ch = None
-    _sfx.pool_ready_at = 0.0
-    _sfx.pool_play_start = 0.0
-    _sfx.pool_last_played = []
+    # Pool state machine (multi-instance: one per active p: key)
+    _sfx.pool_states = {}
 
     # Video seek/pause state
     _sfx.paused = False
@@ -233,134 +222,203 @@ init python:
         _sfx.visible = False
         # Save config on close
         _sfx_editor_save_config()
+        _sfx_editor_save_markers()
         renpy.hide_screen("sfx_editor_overlay", layer="sfx_editor_layer")
 
 
     def _sfx_editor_refresh_detections():
         """Re-detect video and image, and swap context when they change."""
 
-        old_image = _sfx.current_file
+        old_file = _sfx.current_file
         old_video = _sfx.active_channel
         old_dialogue = _sfx.current_dialogue
 
         # 1. Re-detect video channel
         _sfx_editor_refresh_channel()
 
-        # 2. Re-detect context: if image is showing on master layer, it wins over video
-        _img_on_screen = _sfx_editor_get_showing_image()
-        if _img_on_screen != old_image:
-            _sfx_editor_log("DETECT-IMG get_showing_tags={} old={}".format(repr(_img_on_screen), repr(old_image)))
-        if _img_on_screen:
-            _sfx.current_file = _img_on_screen
-        else:
-            is_video = _sfx.active_channel is not None and renpy.music.is_playing(channel=_sfx.active_channel)
-            if is_video:
-                _vpath = _sfx_editor_get_video_path()
-                _sfx.current_file = _vpath.rsplit("/", 1)[-1] if _vpath else ""
-            else:
-                _sfx.current_file = ""
+        # 2. Re-detect context: top displayable on master layer wins;
+        #    fall back to video channel when nothing is on the master layer.
+        _top_name, _top_type = _sfx_editor_get_top_layer()
+        if _top_name is None:
+            return
+        
+        _sfx.current_file = _top_name
+        _sfx.top_layer_type = _top_type  # cache for screen / other consumers
 
         # 3. Always log current context for debugging
         _sfx_editor_log_context()
 
-        # 4. If context changed, load new context (old was already saved on add/remove)
+        # 4. If context changed, build trigger keys and fire
         _changed = ""
-        if _sfx.current_file != old_image:
-            _changed += " file:{}->{}".format(old_image, _sfx.current_file)
+        _img_key = None
+        _dlg_key = None
+        if _sfx.current_file != old_file:
+            _changed += " file:{}->{}".format(old_file, _sfx.current_file)
+            _img_key = "i:" + _sfx.current_file if _sfx.current_file else None
         if _sfx.active_channel != old_video:
             _changed += " ch:{}->{}".format(old_video, _sfx.active_channel)
         if _sfx.current_dialogue != old_dialogue:
             _changed += " dlg:{}->{}".format(old_dialogue[:30] if old_dialogue else "",
                                              _sfx.current_dialogue[:30] if _sfx.current_dialogue else "")
+            if _sfx.current_dialogue:
+                _dlg_key = "d:{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
         if _changed:
             _sfx_editor_log("CTX-CHANGE{}".format(_changed))
-            _sfx_editor_load_context()
-            _sfx_editor_fire_context_triggers()
+            _sfx_editor_fire_context_triggers(_img_key, _dlg_key)
 
 
     def _sfx_editor_log_context():
         """Log current context state for debugging — even if nothing changed."""
         _vpath = _sfx_editor_get_video_path()
         _vname = _vpath.rsplit("/", 1)[-1] if _vpath else "(none)"
-        _sfx_editor_log("CTX-DUMP video={} ch={} img={} dlg=\"{}\"".format(
+        _playing = "?"
+        if _sfx.active_channel:
+            try:
+                _playing = "1" if renpy.music.is_playing(channel=_sfx.active_channel) else "0"
+            except Exception:
+                pass
+        # Determine primary context — top displayable on master layer wins;
+        # fall back to video channel when nothing is on the master layer.
+        _top_name, _top_type = _sfx_editor_get_top_layer()
+        if _top_type:
+            _ctx_type = _top_type  # 'image' or 'movie'
+        elif _sfx.active_channel is not None and _playing == "1":
+            _ctx_type = "video"
+        else:
+            _ctx_type = "none"
+        _sfx_editor_log("CTX-DUMP ctx={} type={} video={} ch={} playing={} dlg=\"{}\"".format(
+            _sfx.current_file or "(none)",
+            _ctx_type,
             _vname,
             _sfx.active_channel or "(none)",
-            _sfx.current_file or "(none)",
+            _playing,
             _sfx.current_dialogue[:60] if _sfx.current_dialogue else "(none)"))
 
 
-    def _sfx_editor_fire_context_triggers():
-        """Fire image and dialogue markers when context changes.
-        Called immediately from start_interact callback — no polling delay."""
+    def _sfx_editor_pick_file(files, pool_key, avoid_repeats=True):
+        """Pick a random file from a list.
+        If avoid_repeats is True, avoids files in the global last_played list.
+        Repeat avoidance is shared across all non-video contexts.
+        Video timestamps should pass avoid_repeats=False — they always fire.
+        """
         import random as _random
-
-        # Image markers
-        if _sfx.current_file and _sfx.current_file != _sfx.last_image_key:
-            _sfx.last_image_key = _sfx.current_file
-            matching = [m for m in _sfx.image_markers if m["image"] == _sfx.current_file]
-            _sfx_editor_log("IMG-TRIGGER file={} matching={}".format(_sfx.current_file, len(matching)))
-            if matching:
-                if not isinstance(_sfx.pool_last_played, list):
-                    _sfx.pool_last_played = []
-                _file = _random.choice(matching)["file"]
-                if len(matching) > 1:
-                    _tries = 0
-                    while _file in _sfx.pool_last_played and _tries < 10:
-                        _file = _random.choice(matching)["file"]
-                        _tries += 1
-                _sfx.pool_last_played.append(_file)
-                if len(_sfx.pool_last_played) > 2:
-                    _sfx.pool_last_played.pop(0)
-                _sfx_editor_play_sfx(_file, "img:" + _sfx.current_file)
-
-        # Dialogue markers
-        dlg_key = "{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
-        if dlg_key != _sfx.last_dialogue_key:
-            _sfx.last_dialogue_key = dlg_key
-            matching = [m for m in _sfx.dialogue_markers
-                        if m["image"] == _sfx.current_file
-                        and m["dialogue"] == _sfx.current_dialogue]
-            if matching:
-                if not isinstance(_sfx.pool_last_played, list):
-                    _sfx.pool_last_played = []
-                _file = _random.choice(matching)["file"]
-                if len(matching) > 1:
-                    _tries = 0
-                    while _file in _sfx.pool_last_played and _tries < 10:
-                        _file = _random.choice(matching)["file"]
-                        _tries += 1
-                _sfx.pool_last_played.append(_file)
-                if len(_sfx.pool_last_played) > 2:
-                    _sfx.pool_last_played.pop(0)
-                _dlg_src = _sfx.current_file + "|" + _sfx.current_dialogue[:40]
-                _sfx_editor_play_sfx(_file, "dlg:" + _dlg_src)
-            # else:
-            #     _sfx_editor_log("TRIGGER-NO-MATCH dlg={}|{} total_dlg_markers={}".format(
-            #         _sfx.current_file,
-            #         _sfx.current_dialogue[:30] if _sfx.current_dialogue else "",
-            #         len(_sfx.dialogue_markers)))
+        if not files:
+            return None
+        if len(files) == 1:
+            f = files[0]
+        elif avoid_repeats:
+            last = _sfx.pool_states.setdefault("__last_played__", [])
+            if not isinstance(last, list):
+                last = []
+                _sfx.pool_states["__last_played__"] = last
+            f = _random.choice(files)
+            tries = 0
+            while f in last and tries < 10:
+                f = _random.choice(files)
+                tries += 1
+            last.append(f)
+            if len(last) > 2:
+                last.pop(0)
+        else:
+            f = _random.choice(files)
+        return f
 
 
-    def _sfx_editor_redetect_dialogue():
-        """Manually re-detect current image and dialogue."""
-        _sfx.current_dialogue = getattr(store, '_last_say_what', '') or ''
-        _sfx.current_file = _sfx_editor_get_showing_image()
+    def _sfx_editor_fire_context_triggers(*keys):
+        """Fire markers for the given trigger keys.
+        refresh_detections passes the exact keys — this just does lookups.
+        """
+        import random as _random
+        for key in keys:
+            if not key:
+                continue
+            entry = _sfx.markers.get(key)
+            if entry:
+                files = entry.get("files", [])
+                if files:
+                    _sfx_editor_log("CTX-TRIGGER key={} files={}".format(key, len(files)))
+                    _file = _sfx_editor_pick_file(files, key)
+                    _sfx_editor_play_sfx(_file, key)
 
 
     # --------------------------------------------------------------------------
-    # Image Detection
+    # Image / Movie Detection (master layer scene list)
     # --------------------------------------------------------------------------
 
-    def _sfx_editor_get_showing_image():
-        """Get the currently shown image tag name."""
+    def _sfx_editor_top_name(name):
+        """Normalize a displayable name to a single string.
+        Image names are tuples like ('bg', 'forest') — use the tag ('bg')."""
+        if name is None:
+            return None
+        if isinstance(name, tuple) and name:
+            name = name[0]
+        name = str(name)
+        if not name:
+            return None
+        return name
+
+
+    def _sfx_editor_top_movie_name(movie):
+        """Context name for a Movie on the master layer.
+        Movie has no 'name' in Ren'Py 7/8 — fall back to the file basename
+        from its 'play' attribute (which may be a list of paths)."""
+        name = _sfx_editor_top_name(getattr(movie, "name", None))
+        if name:
+            return name
+        play = getattr(movie, "play", None)
+        if isinstance(play, list):
+            play = play[0] if play else None
+        if play:
+            return str(play).replace("\\", "/").rsplit("/", 1)[-1]
+        return None
+
+
+    def _sfx_editor_get_top_layer():
+        """Return (name, kind) for the topmost displayable on the master
+        layer — what the player actually sees (scene list order is z-order).
+
+        kind is 'image', 'movie', or None (nothing/unknown on the layer).
+        name is the image tag (e.g. 'bg') or movie basename (e.g.
+        'intro.webm'), or None. Callers fall back to the video channel
+        when name is None (channel movies are not on the master layer).
+        """
         try:
-            tags = renpy.get_showing_tags(layer="master")
-            if tags:
-                return list(tags)[0]
-        except Exception:
-            pass
-        return ""
+            layers = renpy.game.context().scene_lists.layers.get("master", [])
+            if not layers:
+                return None, None
 
+            d = layers[-1].displayable
+            unwrap = lambda f, x: (f(f, x.child) if x is not None and hasattr(x, "child") else x)
+            d = unwrap(unwrap, d)
+            if d is None:
+                return None, None
+
+            # The wrapper (ImageReference) always has .name; the underlying
+            # displayable (Image / Movie) may be d itself or d.target.
+            name = _sfx_editor_top_name(getattr(d, "name", None))
+
+            # Movie: check d first ('show expression Movie(...)'), then
+            # d.target ('image foo = Movie(...)' + 'show foo').
+            movie = d if isinstance(d, renpy.display.video.Movie) else getattr(d, "target", None)
+            if isinstance(movie, renpy.display.video.Movie):
+                if name is None:
+                    name = _sfx_editor_top_movie_name(movie)
+                return name, "movie"
+
+            # Image: check d first, then d.target (ImageReference wrapper).
+            img = d if isinstance(d, renpy.display.im.Image) else getattr(d, "target", None)
+            if isinstance(img, renpy.display.im.Image):
+                if name is None:
+                    name = _sfx_editor_top_name(getattr(img, "filename", None))
+                return name, "image"
+
+            # Unknown but named — treat as image context (matches old behavior).
+            if name:
+                return name, "image"
+            return None, None
+        except Exception as exc:
+            _sfx_editor_log("TOP-LAYER-ERR {}".format(repr(exc)))
+            return None, None
 
     # --------------------------------------------------------------------------
     # Channel Detection
@@ -426,7 +484,7 @@ init python:
             for ch in ["movie", "_movie_1", "_movie_2"]:
                 try:
                     path = renpy.music.get_playing(channel=ch)
-                    if path and path.lower().endswith(video_exts):
+                    if path and path.lower().endswith(video_exts) and renpy.music.is_playing(channel=ch):
                         _apply_channel(ch, None)
                         if old_ch is None:
                             renpy.restart_interaction()
@@ -455,8 +513,8 @@ init python:
 
     def _sfx_editor_reset_loop_tracking():
         """Reset played markers and loop detection when video changes."""
-        _sfx.played_markers = set()
-        _sfx.pool_ready_at = 0.0
+        _sfx.played_video_keys = set()
+        _sfx.pool_states = {}
         _sfx.__last_pos = 0.0
 
 
@@ -704,38 +762,49 @@ init python:
         _sfx.visible_tree = _sfx_editor_get_visible_tree()
 
 
+    def _sfx_editor_is_file_in_pool(full_path):
+        """Check if a file is in any p: entry."""
+        for key, entry in _sfx.markers.items():
+            if key.startswith("p:") and full_path in entry.get("files", []):
+                return True
+        return False
+
+
     def _sfx_editor_add_folder_to_pool(folder_path):
-        """Recursively add all files under a folder prefix to the pool."""
+        """Recursively add all files under a folder prefix to the p: pool."""
+        if not _sfx.current_file:
+            return
+        pool_key = "p:" + _sfx.current_file
+        entry = _sfx.markers.setdefault(pool_key, {"files": [], "frequency": 1})
+        files = entry.setdefault("files", [])
         for f in _sfx.available_files:
-            if f.startswith(folder_path) and f not in _sfx.pool_files:
-                _sfx.pool_files.append(f)
-        _sfx_editor_save_config()
+            if f.startswith(folder_path) and f not in files:
+                files.append(f)
+        _sfx_editor_save_markers()
 
     def _sfx_editor_add_folder_to_image_markers(folder_path):
         """Add all files under a folder as image markers for current image."""
         if not _sfx.current_file:
             return
+        img_key = "i:" + _sfx.current_file
+        entry = _sfx.markers.setdefault(img_key, {"files": []})
+        files = entry.setdefault("files", [])
         for f in _sfx.available_files:
-            if f.startswith(folder_path):
-                marker = {"image": _sfx.current_file, "file": f}
-                if marker not in _sfx.image_markers:
-                    _sfx.image_markers.append(marker)
-        _sfx_editor_save_config()
+            if f.startswith(folder_path) and f not in files:
+                files.append(f)
+        _sfx_editor_save_markers()
 
     def _sfx_editor_add_folder_to_dialogue_markers(folder_path):
         """Add all files under a folder as dialogue markers for current image+dialogue."""
         if not _sfx.current_dialogue:
             return
+        dlg_key = "d:{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
+        entry = _sfx.markers.setdefault(dlg_key, {"files": []})
+        files = entry.setdefault("files", [])
         for f in _sfx.available_files:
-            if f.startswith(folder_path):
-                marker = {
-                    "image": _sfx.current_file,
-                    "dialogue": _sfx.current_dialogue,
-                    "file": f,
-                }
-                if marker not in _sfx.dialogue_markers:
-                    _sfx.dialogue_markers.append(marker)
-        _sfx_editor_save_config()
+            if f.startswith(folder_path) and f not in files:
+                files.append(f)
+        _sfx_editor_save_markers()
 
 
     def _sfx_editor_toggle_folder(folder_path):
@@ -783,7 +852,7 @@ init python:
                     "full_path": full,
                     "depth": depth,
                     "index": idx,
-                    "in_pool": full in _sfx.pool_files,
+                    "in_pool": _sfx_editor_is_file_in_pool(full),
                 })
 
 
@@ -868,11 +937,41 @@ init python:
 
 
     # --------------------------------------------------------------------------
-    # Manual Marker Management
+    # Unified Marker CRUD
     # --------------------------------------------------------------------------
 
+    def _sfx_editor_marker_add_file(trigger_key, filename):
+        """Append a file to an entry's files list. Creates the entry if needed."""
+        entry = _sfx.markers.get(trigger_key)
+        if entry is None:
+            _sfx.markers[trigger_key] = {"files": [filename]}
+        else:
+            files = entry.setdefault("files", [])
+            if filename not in files:
+                files.append(filename)
+        _sfx_editor_save_markers()
+
+    def _sfx_editor_marker_remove_file(trigger_key, file_index):
+        """Remove a file from an entry's files list by index."""
+        entry = _sfx.markers.get(trigger_key)
+        if entry and "files" in entry:
+            files = entry["files"]
+            if 0 <= file_index < len(files):
+                files.pop(file_index)
+                if not files:
+                    del _sfx.markers[trigger_key]
+                _sfx_editor_save_markers()
+
+    def _sfx_editor_marker_remove_key(trigger_key):
+        """Remove an entire trigger key entry."""
+        if trigger_key in _sfx.markers:
+            del _sfx.markers[trigger_key]
+            _sfx_editor_save_markers()
+
+    # --- Video markers (v: prefix) ---
+
     def _sfx_editor_add_video_marker(file_index):
-        """Add a video marker at current elapsed time for the given file index."""
+        """Add a video timestamp entry at current elapsed time."""
         if not _sfx.available_files:
             return
         if file_index < 0 or file_index >= len(_sfx.available_files):
@@ -884,162 +983,210 @@ init python:
         if elapsed is None or elapsed <= 0:
             return
         filename = _sfx.available_files[file_index]
-        marker = {"time": elapsed, "file": filename}
-        _sfx.markers.append(marker)
-        _sfx.markers.sort(key=lambda m: m["time"])
-        _sfx_editor_save_config()
+        _vpath = _sfx_editor_get_video_path()
+        vid_key = "v:" + (_vpath if _vpath else "")
+        timestamps = _sfx.markers.setdefault(vid_key, [])
+        timestamps.append({"time": elapsed, "files": [filename]})
+        timestamps.sort(key=lambda e: e["time"])
+        _sfx_editor_save_markers()
 
-
-    def _sfx_editor_remove_marker(index):
-        """Remove a marker at the given list index."""
-        if 0 <= index < len(_sfx.markers):
-            _sfx.markers.pop(index)
-            _sfx.played_markers = set(
-                i if i < index else i - 1
-                for i in _sfx.played_markers
-                if i != index
-            )
-            _sfx_editor_save_config()
-
-
-    def _sfx_editor_clear_all_markers():
-        """Remove all markers (video + image + dialogue)."""
-        _sfx.markers = []
-        _sfx.played_markers = set()
-        _sfx.image_markers = []
-        _sfx.dialogue_markers = []
-        _sfx_editor_save_config()
+    def _sfx_editor_remove_video_marker(ts_index):
+        """Remove a video timestamp entry at the given index in the v: list."""
+        _vpath = _sfx_editor_get_video_path()
+        vid_key = "v:" + (_vpath if _vpath else "")
+        timestamps = _sfx.markers.get(vid_key, [])
+        if 0 <= ts_index < len(timestamps):
+            timestamps.pop(ts_index)
+            if not timestamps:
+                del _sfx.markers[vid_key]
+            _sfx.played_video_keys = set()  # reset on any removal
+            _sfx_editor_save_markers()
 
     def _sfx_editor_clear_video_markers():
-        _sfx.markers = []
-        _sfx.played_markers = set()
-        _sfx_editor_save_config()
+        """Remove all v: keys."""
+        for key in list(_sfx.markers.keys()):
+            if key.startswith("v:"):
+                del _sfx.markers[key]
+        _sfx.played_video_keys = set()
+        _sfx_editor_save_markers()
+
+    # --- Image markers (i: prefix) ---
+
+    def _sfx_editor_add_image_marker(file_index):
+        """Add a file to the i: entry for the current image."""
+        if not _sfx.available_files:
+            return
+        if file_index < 0 or file_index >= len(_sfx.available_files):
+            return
+        if not _sfx.current_file:
+            return
+        filename = _sfx.available_files[file_index]
+        img_key = "i:" + _sfx.current_file
+        _sfx_editor_marker_add_file(img_key, filename)
+
+    def _sfx_editor_remove_image_marker(file_index):
+        """Remove a file from the i: entry for the current image."""
+        img_key = "i:" + _sfx.current_file
+        _sfx_editor_marker_remove_file(img_key, file_index)
 
     def _sfx_editor_clear_image_markers():
-        _sfx.image_markers = []
-        _sfx_editor_save_config()
+        """Remove all i: keys."""
+        for key in list(_sfx.markers.keys()):
+            if key.startswith("i:"):
+                del _sfx.markers[key]
+        _sfx_editor_save_markers()
+
+    # --- Dialogue markers (d: prefix) ---
+
+    def _sfx_editor_add_dialogue_marker(file_index):
+        """Add a file to the d: entry for the current image + dialogue."""
+        if not _sfx.available_files:
+            return
+        if file_index < 0 or file_index >= len(_sfx.available_files):
+            return
+        if not _sfx.current_dialogue:
+            return
+        filename = _sfx.available_files[file_index]
+        dlg_key = "d:{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
+        _sfx_editor_marker_add_file(dlg_key, filename)
+
+    def _sfx_editor_remove_dialogue_marker(file_index):
+        """Remove a file from the d: entry for the current dialogue."""
+        dlg_key = "d:{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
+        _sfx_editor_marker_remove_file(dlg_key, file_index)
 
     def _sfx_editor_clear_dialogue_markers():
-        _sfx.dialogue_markers = []
-        _sfx_editor_save_config()
+        """Remove all d: keys."""
+        for key in list(_sfx.markers.keys()):
+            if key.startswith("d:"):
+                del _sfx.markers[key]
+        _sfx_editor_save_markers()
+
+    # --- Pool (p: prefix) ---
+
+    def _sfx_editor_add_to_pool(file_index):
+        """Add an audio file to the p: pool for the current context."""
+        if 0 <= file_index < len(_sfx.available_files):
+            if not _sfx.current_file:
+                return
+            filename = _sfx.available_files[file_index]
+            pool_key = "p:" + _sfx.current_file
+            entry = _sfx.markers.setdefault(pool_key, {"files": [], "frequency": 1})
+            files = entry.setdefault("files", [])
+            if filename not in files:
+                files.append(filename)
+            _sfx_editor_save_markers()
+
+    def _sfx_editor_remove_from_pool(file_index):
+        """Remove a file from the p: pool for the current context."""
+        pool_key = "p:" + _sfx.current_file
+        _sfx_editor_marker_remove_file(pool_key, file_index)
+
+    def _sfx_editor_clear_pool():
+        """Remove all p: keys."""
+        for key in list(_sfx.markers.keys()):
+            if key.startswith("p:"):
+                del _sfx.markers[key]
+        _sfx.pool_states = {}
+        _sfx_editor_save_markers()
+
+    # --- Bulk clear ---
+
+    def _sfx_editor_clear_all_markers():
+        """Remove all markers (all prefixes)."""
+        _sfx.markers = {}
+        _sfx.played_video_keys = set()
+        _sfx.pool_states = {}
+        _sfx_editor_save_markers()
+
+    def _sfx_editor_get_context_files():
+        """Return a set of filenames that identify the current context.
+        Includes the image tag (if showing) and the video basename (if playing).
+        Used for p: pool lookups — a pool should match either context.
+        """
+        result = set()
+        if _sfx.current_file:
+            result.add(_sfx.current_file)
+        _vpath = _sfx_editor_get_video_path()
+        if _vpath:
+            result.add(_vpath.replace("\\", "/").rsplit("/", 1)[-1])
+        return result
+
+    def _sfx_editor_get_pool_entry():
+        """Return the pool entry dict for the current context, or None.
+        Checks both image tag and video basename for a matching p: key.
+        Injects __key__ into the returned dict so the UI knows the key.
+        """
+        ctx_files = _sfx_editor_get_context_files()
+        for f in ctx_files:
+            key = "p:" + f
+            entry = _sfx.markers.get(key)
+            if entry:
+                result = dict(entry)
+                result["__key__"] = key
+                return result
+        return None
+
+    # --- Clipboard ---
 
     def _sfx_editor_copy_context():
-        """Copy current context's markers and pool to clipboard."""
+        """Copy markers for the current context to clipboard."""
+        ctx_file = _sfx.current_file or ""
+        ctx_dlg = _sfx.current_dialogue or ""
+        copied = {}
+        for key, entry in _sfx.markers.items():
+            if key.startswith("i:") and key[2:] == ctx_file:
+                copied[key] = dict(entry)
+            elif key.startswith("d:") and key[2:].startswith(ctx_file + "|"):
+                copied[key] = dict(entry)
+            elif key.startswith("p:") and key[2:] == ctx_file:
+                copied[key] = dict(entry)
+        _vpath = _sfx_editor_get_video_path()
+        if _vpath:
+            vid_key = "v:" + _vpath
+            if vid_key in _sfx.markers:
+                copied[vid_key] = list(_sfx.markers[vid_key])
         _sfx.clipboard = {
-            "markers": list(_sfx.markers),
-            "image_markers": list(_sfx.image_markers),
-            "dialogue_markers": list(_sfx.dialogue_markers),
-            "pool_files": list(_sfx.pool_files),
-            "pool_frequency": _sfx.pool_frequency,
+            "markers": copied,
+            "source_file": ctx_file,
+            "source_dialogue": ctx_dlg,
         }
 
     def _sfx_editor_paste_context():
-        """Paste clipboard config into current context, remapping keys."""
+        """Paste clipboard markers into current context, remapping keys."""
         if _sfx.clipboard is None:
             return
-        _sfx.markers = list(_sfx.clipboard["markers"])
-        # Remap image markers to current image
-        _sfx.image_markers = []
-        for m in _sfx.clipboard["image_markers"]:
-            _sfx.image_markers.append({"image": _sfx.current_file, "file": m["file"]})
-        # Remap dialogue markers to current image + dialogue
-        _sfx.dialogue_markers = []
-        for m in _sfx.clipboard["dialogue_markers"]:
-            _sfx.dialogue_markers.append({
-                "image": _sfx.current_file,
-                "dialogue": _sfx.current_dialogue,
-                "file": m["file"],
-            })
-        _sfx.pool_files = list(_sfx.clipboard["pool_files"])
-        _sfx.pool_frequency = _sfx.clipboard["pool_frequency"]
-        _sfx.played_markers = set()
-        _sfx.pool_ready_at = 0.0
-        _sfx_editor_save_config()
+        ctx_file = _sfx.current_file or ""
+        ctx_dlg = _sfx.current_dialogue or ""
+        old_file = _sfx.clipboard.get("source_file", "")
+        old_dlg = _sfx.clipboard.get("source_dialogue", "")
+        for old_key, entry in _sfx.clipboard.get("markers", {}).items():
+            new_key = old_key
+            if old_key.startswith("i:") and old_key[2:] == old_file:
+                new_key = "i:" + ctx_file
+            elif old_key.startswith("d:") and old_key[2:].startswith(old_file + "|"):
+                new_key = "d:" + ctx_file + "|" + ctx_dlg
+            elif old_key.startswith("p:") and old_key[2:] == old_file:
+                new_key = "p:" + ctx_file
+            elif old_key.startswith("v:"):
+                new_key = old_key  # video keys keep their path
+            if new_key not in _sfx.markers:
+                if isinstance(entry, list):
+                    _sfx.markers[new_key] = list(entry)
+                else:
+                    _sfx.markers[new_key] = dict(entry)
+        _sfx.played_video_keys = set()
+        _sfx.pool_states = {}
+        _sfx_editor_save_markers()
 
 
-    # --- Image markers (keyed by image filename only) ---
-
-    def _sfx_editor_add_image_marker(file_index):
-        """Add a marker for the current image using the given file."""
-        if not _sfx.available_files:
-            return
-        if file_index < 0 or file_index >= len(_sfx.available_files):
-            return
-        filename = _sfx.available_files[file_index]
-        marker = {
-            "image": _sfx.current_file,
-            "file": filename,
-        }
-        _sfx.image_markers.append(marker)
-        _sfx_editor_save_config()
-
-
-    def _sfx_editor_remove_image_marker(index):
-        """Remove an image marker at the given list index."""
-        if 0 <= index < len(_sfx.image_markers):
-            _sfx.image_markers.pop(index)
-            _sfx_editor_save_config()
-
-
-    # --- Dialogue markers (keyed by image + dialogue text) ---
-
-    def _sfx_editor_add_dialogue_marker(file_index):
-        """Add a marker for the current image + dialogue using the given file."""
-        if not _sfx.available_files:
-            return
-        if file_index < 0 or file_index >= len(_sfx.available_files):
-            return
-        filename = _sfx.available_files[file_index]
-        marker = {
-            "image": _sfx.current_file,
-            "dialogue": _sfx.current_dialogue,
-            "file": filename,
-        }
-        _sfx.dialogue_markers.append(marker)
-        _sfx_editor_save_config()
-
-
-    def _sfx_editor_remove_dialogue_marker(index):
-        """Remove a dialogue marker at the given list index."""
-        if 0 <= index < len(_sfx.dialogue_markers):
-            _sfx.dialogue_markers.pop(index)
-            _sfx_editor_save_config()
-
-
-    # --------------------------------------------------------------------------
-    # Pool Management
-    # --------------------------------------------------------------------------
-
-    def _sfx_editor_add_to_pool(file_index):
-        """Add an audio file to the SFX pool."""
-        if 0 <= file_index < len(_sfx.available_files):
-            filename = _sfx.available_files[file_index]
-            if filename not in _sfx.pool_files:
-                _sfx.pool_files.append(filename)
-                _sfx_editor_save_config()
-
-
-    def _sfx_editor_remove_from_pool(index):
-        """Remove a file from the pool by index."""
-        if 0 <= index < len(_sfx.pool_files):
-            _sfx.pool_files.pop(index)
-            _sfx_editor_save_config()
-
-    def _sfx_editor_clear_pool():
-        """Remove all files from the pool."""
-        _sfx.pool_files = []
-        _sfx.pool_ready_at = 0.0
-        _sfx.pool_state = 0
-        _sfx_editor_save_config()
-
-
-    def _sfx_editor_get_pool_delay():
+    def _sfx_editor_get_pool_delay(frequency=1):
         """Return random breathing room (silence) between SFX.
         This is the gap AFTER an SFX finishes before the next one starts.
-
+        frequency: 0=Slow, 1=Normal, 2=Fast
         """
         import random
-        freq = _sfx.pool_frequency
+        freq = frequency
         if freq == 2:
             return 0.5 + random.uniform(0.0, 0.15)
         elif freq == 1:
@@ -1047,11 +1194,13 @@ init python:
         else:
             return 3.0 + random.uniform(0.0, 1.5)
 
-    def _sfx_editor_set_pool_frequency(freq):
-        """Set pool frequency. 0 = Slow, 1 = Normal, 2 = Fast."""
-        _sfx.pool_frequency = int(freq)
-        _sfx_editor_save_config()
-        renpy.restart_interaction()
+    def _sfx_editor_set_pool_frequency(trigger_key, freq):
+        """Set pool frequency for a p: entry. 0 = Slow, 1 = Normal, 2 = Fast."""
+        entry = _sfx.markers.get(trigger_key)
+        if entry:
+            entry["frequency"] = int(freq)
+            _sfx_editor_save_markers()
+            renpy.restart_interaction()
 
 
     # --------------------------------------------------------------------------
@@ -1066,51 +1215,48 @@ init python:
         _sfx.__tick_count = getattr(store, '_sfx.__tick_count', 0) + 1
         tick = _sfx.__tick_count
 
-        # --- POOL STATE MACHINE HELPERS ---
-        # --- UNIFIED POOL state machine (one SFX at a time, any context) ---
-        # Pool runs when it has files AND (video is playing OR dialogue is present)
-        _pool_active = (_sfx.active_channel is not None and renpy.music.is_playing(channel=_sfx.active_channel)) or bool(_sfx.current_dialogue)
-        if _sfx.pool_files and _pool_active:
-            now = _time.time()
+        # --- POOL STATE MACHINE (p: keys) ---
+        now = _time.time()
+        pool_key = "p:" + (_sfx.current_file or "")
 
-            if _sfx.pool_state == 1:
-                if not renpy.music.is_playing(channel=_sfx.pool_ch):
-                    dur = now - _sfx.pool_play_start
-                    breathing = _sfx_editor_get_pool_delay()
-                    _sfx.pool_ready_at = now + breathing
-                    _sfx.pool_state = 0
-                    _sfx_editor_log("TICK#{} POOL-DONE  file={} dur={:.2f}s breathing={:.2f}s".format(
-                        tick, _sfx.pool_last_played[-1] if _sfx.pool_last_played else "?",
-                        dur, breathing))
+        entry = _sfx.markers.get(pool_key)
+        if entry:
+            files = entry.get("files", [])
+            freq = entry.get("frequency", 1)
+            if files:
+                # Init pool state if needed
+                if pool_key not in _sfx.pool_states:
+                    _sfx.pool_states[pool_key] = {
+                        "state": 0,
+                        "ch": None,
+                        "ready_at": 0.0,
+                        "play_start": 0.0,
+                    }
+                ps = _sfx.pool_states[pool_key]
 
-            if _sfx.pool_state == 0:
-                if _sfx.pool_ready_at == 0:
-                    _sfx.pool_ready_at = now + 0.5
-                elif now >= _sfx.pool_ready_at:
-                    pool_size = len(_sfx.pool_files)
-                    if pool_size >= 3:
-                        file = _random.choice(_sfx.pool_files)
-                        tries = 0
-                        while file in _sfx.pool_last_played and tries < 10:
-                            file = _random.choice(_sfx.pool_files)
-                            tries += 1
-                    elif pool_size == 2:
-                        file = _random.choice(_sfx.pool_files)
-                    else:
-                        file = _sfx.pool_files[0]
-                    if not isinstance(_sfx.pool_last_played, list):
-                        _sfx.pool_last_played = []
-                    _sfx.pool_last_played.append(file)
-                    if len(_sfx.pool_last_played) > 2:
-                        _sfx.pool_last_played.pop(0)
-                    ch_used = _sfx_editor_play_sfx(file, "pool")
-                    if ch_used:
-                        _sfx.pool_state = 1
-                        _sfx.pool_ch = ch_used
-                        _sfx.pool_play_start = now
-                        _sfx_editor_log("TICK#{} POOL-PLAY  file={} ch={}".format(tick, file, ch_used))
+                if ps["state"] == 1:
+                    if not renpy.music.is_playing(channel=ps["ch"]):
+                        dur = now - ps["play_start"]
+                        breathing = _sfx_editor_get_pool_delay(freq)
+                        ps["ready_at"] = now + breathing
+                        ps["state"] = 0
+                        _sfx_editor_log("TICK#{} POOL-DONE  key={} dur={:.2f}s breathing={:.2f}s".format(
+                            tick, pool_key, dur, breathing))
 
-        # --- VIDEO MODE triggers ---
+                if ps["state"] == 0:
+                    if ps["ready_at"] == 0:
+                        ps["ready_at"] = now + 0.5
+                    elif now >= ps["ready_at"]:
+                        f = _sfx_editor_pick_file(files, pool_key)
+                        ch_used = _sfx_editor_play_sfx(f, pool_key)
+                        if ch_used:
+                            ps["state"] = 1
+                            ps["ch"] = ch_used
+                            ps["play_start"] = now
+                            _sfx_editor_log("TICK#{} POOL-PLAY  key={} file={} ch={}".format(
+                                tick, pool_key, f, ch_used))
+
+        # --- VIDEO MODE triggers (v: keys) ---
         ch = _sfx.active_channel
         if ch and renpy.music.is_playing(channel=ch):
             elapsed = _sfx_editor_get_elapsed()
@@ -1129,21 +1275,25 @@ init python:
                 _sfx.__time_offset = 0.0
 
             # Video markers
-            if _sfx.mode == "manual":
-                for idx, marker in enumerate(_sfx.markers):
-                    if idx not in _sfx.played_markers:
-                        mt = marker["time"]
-                        if mt <= elapsed < mt + _sfx.__marker_tolerance:
-                            _vpath = _sfx_editor_get_video_path()
+            _vpath = _sfx_editor_get_video_path()
+            vid_key = "v:" + (_vpath if _vpath else "")
+            timestamps = _sfx.markers.get(vid_key, [])
+            for idx, entry in enumerate(timestamps):
+                ts_key = "{}@{}".format(vid_key, idx)
+                if ts_key not in _sfx.played_video_keys:
+                    mt = entry["time"]
+                    if mt <= elapsed < mt + _sfx.__marker_tolerance:
+                        files = entry.get("files", [])
+                        if files:
                             _vname = _vpath.rsplit("/", 1)[-1] if _vpath else "?"
-                            _vkey = "vid:{}@{:.2f}".format(_vname, marker["time"])
-                            _sfx_editor_play_sfx(marker["file"], _vkey)
-                            _sfx.played_markers.add(idx)
-
+                            _vsrc = "vid:{}@{:.2f}".format(_vname, mt)
+                            f = _sfx_editor_pick_file(files, vid_key, avoid_repeats=False)
+                            _sfx_editor_play_sfx(f, _vsrc)
+                            _sfx.played_video_keys.add(ts_key)
 
             # Detect video loop (markers only, pool uses wall clock)
             if _sfx.__last_pos > 0 and elapsed < _sfx.__last_pos - 0.3:
-                _sfx.played_markers.clear()
+                _sfx.played_video_keys.clear()
             _sfx.__last_pos = elapsed
 
 
@@ -1155,17 +1305,20 @@ init python:
 
         _sfx.audio_count = len(_sfx.available_files)
         _sfx.marker_count = len(_sfx.markers)
-        _sfx.pool_count = len(_sfx.pool_files)
+        # Count pool files across all p: entries
+        _pool_total = 0
+        for key, entry in _sfx.markers.items():
+            if key.startswith("p:"):
+                _pool_total += len(entry.get("files", []))
+        _sfx.pool_count = _pool_total
 
         if not _sfx.visible:
             return
 
         # Detect current mode: video or image
         ch = _sfx.active_channel
-        is_video = ch is not None and renpy.music.is_playing(channel=ch)
-        is_dialogue = bool(_sfx.current_dialogue)
 
-        if is_video:
+        if _sfx.top_layer_type == 'movie':
             # --- VIDEO MODE ---
             elapsed = _sfx_editor_get_elapsed()
             duration = _sfx_editor_get_duration()
@@ -1195,92 +1348,145 @@ init python:
     # Persistence
     # --------------------------------------------------------------------------
 
+    def _sfx_editor_video_basename_to_tag(name):
+        """Convert a video basename to an image tag name.
+        'v2s14a_allison_pussy_1.webm' -> 'v2s14a_allison_pussy1'
+        Removes the extension and the last underscore before trailing digits.
+        """
+        video_exts = (".webm", ".mp4", ".mkv", ".avi", ".ogv", ".mpeg", ".mpg")
+        for ext in video_exts:
+            if name.lower().endswith(ext):
+                name = name[:-len(ext)]
+                break
+        import re
+        name = re.sub(r'_(?=\d+$)', '', name)
+        return name
+
+
+    def _sfx_editor_migrate_markers_v2():
+        """Migrate old persistent._sfx_editor_config markers to new
+        persistent._sfx_editor_markers format. Leaves old config untouched.
+        Re-runs if version doesn't match (handles partial/broken migrations).
+        """
+        existing = getattr(persistent, '_sfx_editor_markers', None)
+        if existing is not None and existing.get("version") == "2.0.2":
+            return  # Already fully migrated
+
+        old_config = getattr(persistent, '_sfx_editor_config', None)
+        if old_config is None:
+            # No old config; init empty
+            persistent._sfx_editor_markers = {"version": "2.0.2", "markers": {}}
+            return
+
+        markers = {}
+
+        # --- Video markers ---
+        for vid_key, old_list in old_config.get("markers_per_video", {}).items():
+            if not old_list:
+                continue
+            entries = []
+            for m in old_list:
+                entries.append({"time": m["time"], "files": [m["file"]]})
+            entries.sort(key=lambda e: e["time"])
+            markers["v:" + _sfx_editor_video_basename_to_tag(vid_key)] = entries
+
+        # --- Image markers ---
+        for img_key, old_list in old_config.get("image_markers_per_image", {}).items():
+            if not old_list:
+                continue
+            files = []
+            seen = set()
+            for m in old_list:
+                f = m["file"]
+                if f not in seen:
+                    files.append(f)
+                    seen.add(f)
+            if files:
+                markers["i:" + img_key] = {"files": files}
+
+        # --- Dialogue markers ---
+        for dlg_key, old_list in old_config.get("dialogue_markers_per_key", {}).items():
+            if not old_list:
+                continue
+            files = []
+            seen = set()
+            for m in old_list:
+                f = m["file"]
+                if f not in seen:
+                    files.append(f)
+                    seen.add(f)
+            if files:
+                markers["d:" + dlg_key] = {"files": files}
+
+        # --- Pool ---
+        for ctx_key, pool_data in old_config.get("pool_per_context", {}).items():
+            files = pool_data.get("files", [])
+            freq = pool_data.get("frequency", 1)
+            if not files:
+                continue
+            # Strip full path and convert video filename to image tag format
+            if ctx_key.endswith((".webm", ".mp4", ".mkv", ".avi", ".ogv", ".mpeg", ".mpg")):
+                name = _sfx_editor_video_basename_to_tag(
+                    ctx_key.replace("\\", "/").rsplit("/", 1)[-1]
+                )
+            else:
+                name = ctx_key
+            new_key = "p:" + name
+            if new_key not in markers:
+                markers[new_key] = {}
+            markers[new_key]["files"] = list(files)
+            markers[new_key]["frequency"] = freq
+
+        persistent._sfx_editor_markers = {
+            "version": "2.0.2",
+            "markers": markers,
+        }
+        _sfx_editor_log("MIGRATE: v1->v2  keys={}".format(len(markers)))
+
+
+    def _sfx_editor_save_markers():
+        """Save unified markers to persistent storage."""
+        persistent._sfx_editor_markers = {
+            "version": "2.0.2",
+            "markers": dict(_sfx.markers),
+        }
+
+
+    def _sfx_editor_load_markers():
+        """Load all markers from persistent storage. Runs migration if needed."""
+        _sfx_editor_migrate_markers_v2()
+        data = getattr(persistent, '_sfx_editor_markers', None)
+        if data is None:
+            _sfx.markers = {}
+            return
+        _sfx.markers = dict(data.get("markers", {}))
+        _sfx_editor_log("LOAD-MARKERS total_keys={} keys={}".format(
+            len(_sfx.markers), list(_sfx.markers.keys())[:20]))
+
+
     def _sfx_editor_save_config():
-        """Save current configuration to persistent storage, scoped by context."""
+        """Save global settings (not markers) to old config key."""
         existing = getattr(persistent, '_sfx_editor_config', {})
         if existing is None:
             existing = {}
-
-        # --- Video markers (keyed by video path) ---
-        video_path = _sfx_editor_get_video_path()
-        video_key = video_path if video_path else "__no_video__"
-        vid_markers = existing.get("markers_per_video", {})
-        vid_markers[video_key] = list(_sfx.markers)
-        existing["markers_per_video"] = vid_markers
-
-        # --- Image markers (keyed by image name) ---
-        img_key = _sfx.current_file or "__no_image__"
-        img_markers = existing.get("image_markers_per_image", {})
-        img_markers[img_key] = list(_sfx.image_markers)
-        existing["image_markers_per_image"] = img_markers
-
-        # --- Dialogue markers (keyed by image + dialogue) ---
-        dlg_key = (_sfx.current_file or "__") + "|" + (_sfx.current_dialogue or "")
-        dlg_markers = existing.get("dialogue_markers_per_key", {})
-        dlg_markers[dlg_key] = list(_sfx.dialogue_markers)
-        existing["dialogue_markers_per_key"] = dlg_markers
-
-        # --- Pool (keyed by video or image) ---
-        pool_ctx = video_key if video_path else img_key
-        pool_dicts = existing.get("pool_per_context", {})
-        pool_dicts[pool_ctx] = {
-            "files": list(_sfx.pool_files),
-            "frequency": _sfx.pool_frequency,
-        }
-        existing["pool_per_context"] = pool_dicts
-
         existing["audio_dir"] = _sfx.audio_dir
         existing["mode"] = _sfx.mode
         existing["last_channel"] = _sfx.active_channel
         existing["version"] = _sfx.version
-
         persistent._sfx_editor_config = existing
 
 
-    def _sfx_editor_load_context():
-        """Load markers and pool for the current video/image/dialogue context."""
-        config = getattr(persistent, '_sfx_editor_config', None)
-        if config is None:
-            return
-
-
-        # Video markers
-        video_path = _sfx_editor_get_video_path()
-        video_key = video_path if video_path else "__no_video__"
-        markers_dict = config.get("markers_per_video", {})
-        _sfx.markers = list(markers_dict.get(video_key, []))
-
-        # Image markers
-        img_key = _sfx.current_file or "__no_image__"
-        img_dict = config.get("image_markers_per_image", {})
-        _sfx.image_markers = list(img_dict.get(img_key, []))
-
-        # Dialogue markers
-        dlg_key = (_sfx.current_file or "__") + "|" + (_sfx.current_dialogue or "")
-        dlg_dict = config.get("dialogue_markers_per_key", {})
-        _sfx.dialogue_markers = list(dlg_dict.get(dlg_key, []))
-
-        # Pool (keyed by video if video, else image)
-        pool_ctx = video_key if video_path else img_key
-        pool_dicts = config.get("pool_per_context", {})
-        pool_data = pool_dicts.get(pool_ctx, {})
-        _sfx.pool_files = list(pool_data.get("files", []))
-        _sfx.pool_frequency = pool_data.get("frequency", 1)
-
-
     def _sfx_editor_load_config():
-        """Load global config (not context-specific)."""
+        """Load global settings from old config key."""
         config = getattr(persistent, '_sfx_editor_config', None)
         if config is None:
             return
-
-
         _sfx.audio_dir = config.get("audio_dir", "sfx_editor/audio")
         _sfx.mode = config.get("mode", "manual")
         _sfx.active_channel = config.get("last_channel", None)
 
-        # Load context-specific data
-        _sfx_editor_load_context()
+        # Load unified markers from new key
+        _sfx_editor_load_markers()
 
 
     # --------------------------------------------------------------------------
@@ -1429,7 +1635,7 @@ screen sfx_editor_sidebar_content():
                 tooltip "Close overlay"
 
         # --- Mode detection ---
-        $ _is_video = _sfx.active_channel and renpy.music.is_playing(channel=_sfx.active_channel)
+        $ _is_video = _sfx.top_layer_type == 'movie'
         $ _is_dialogue = bool(_sfx.current_dialogue)
 
         # --- Video UI ---
@@ -1473,6 +1679,10 @@ screen sfx_editor_sidebar_content():
                         text_style "sfx_btn_text"
                         action Function(_sfx_editor_coarse_seek, 1.0)
                 # Video marker add + list
+                $ _vpath = _sfx_editor_get_video_path()
+                $ _vid_key = "v:" + (_vpath if _vpath else "")
+                $ _vid_entries = _sfx.markers.get(_vid_key, [])
+                $ _vid_count = len(_vid_entries)
                 null height 5
                 fixed:
                     xfill True
@@ -1481,33 +1691,39 @@ screen sfx_editor_sidebar_content():
                 null height 5
                 vbox:
                     spacing 5
-                    text "Video Markers ([_sfx.marker_count])" style "sfx_txt"
+                    text "Video Markers ([_vid_count])" style "sfx_txt"
                     hbox:
                         spacing 5
-                        if _sfx.markers:
+                        if _vid_entries:
                             textbutton "Clear":
                                 style "sfx_btn_icon"
                                 text_style "sfx_btn_icon_text"
                                 action Function(_sfx_editor_clear_video_markers)
                 null height 5
-                if _sfx.markers:
+                if _vid_entries:
                     vbox:
                         spacing 2
-                        for i, marker in enumerate(_sfx.markers):
-                            hbox:
-                                spacing 5
-                                textbutton "✕":
-                                        style "sfx_btn_icon"
-                                        text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_remove_marker, i)
-                                vbox:
-                                    text _sfx_editor_format_time(marker["time"]) style "sfx_txt"
-                                    text " " + marker["file"] style "sfx_txt" color "#ffcc00" size 11
+                        for i, entry in enumerate(_vid_entries):
+                            for j, f in enumerate(entry["files"]):
+                                hbox:
+                                    spacing 5
+                                    if j == 0:
+                                        textbutton "✕":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_remove_video_marker, i)
+                                        text _sfx_editor_format_time(entry["time"]) style "sfx_txt"
+                                    else:
+                                        text "      " style "sfx_txt" size 1
+                                    text " " + f style "sfx_txt" color "#ffcc00" size 11
                                 
 
         # --- Image UI ---
         $ _has_image = bool(_sfx.current_file) and not _is_video
         if _has_image:
+            $ _img_key = "i:" + _sfx.current_file
+            $ _img_entry = _sfx.markers.get(_img_key, {})
+            $ _img_files = _img_entry.get("files", [])
             frame:
                 background "#222222"
                 padding (2, 2)
@@ -1527,26 +1743,29 @@ screen sfx_editor_sidebar_content():
                     text "Image SFX" style "sfx_txt"
                     hbox:
                         spacing 5
-                        if _sfx.image_markers:
+                        if _img_files:
                             textbutton "Clear":
                                 style "sfx_btn_icon"
                                 text_style "sfx_btn_icon_text"
                                 action Function(_sfx_editor_clear_image_markers)
                 null height 5
-                if _sfx.image_markers:
+                if _img_files:
                     vbox:
                         spacing 2
-                        for i, marker in enumerate(_sfx.image_markers):
+                        for i, f in enumerate(_img_files):
                             hbox:
                                 spacing 5
                                 textbutton "✕":
                                     style "sfx_btn_icon"
                                     text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_remove_image_marker, i)
-                                text marker["file"] style "sfx_txt" color "#ffcc00" size 11
+                                text f style "sfx_txt" color "#ffcc00" size 11
 
         # --- Dialogue UI ---
         if _is_dialogue:
+            $ _dlg_key = "d:" + _sfx.current_file + "|" + _sfx.current_dialogue
+            $ _dlg_entry = _sfx.markers.get(_dlg_key, {})
+            $ _dlg_files = _dlg_entry.get("files", [])
             frame:
                 background "#222222"
                 padding (2, 2)
@@ -1566,23 +1785,23 @@ screen sfx_editor_sidebar_content():
                     text "Dialogue SFX" style "sfx_txt"
                     hbox:
                         spacing 5
-                        if _sfx.dialogue_markers:
+                        if _dlg_files:
                             textbutton "Clear":
                                 style "sfx_btn_icon"
                                 text_style "sfx_btn_icon_text"
                                 action Function(_sfx_editor_clear_dialogue_markers)
                 null height 5
-                if _sfx.dialogue_markers:
+                if _dlg_files:
                     vbox:
                         spacing 2
-                        for i, marker in enumerate(_sfx.dialogue_markers):
+                        for i, f in enumerate(_dlg_files):
                             hbox:
                                 spacing 5
                                 textbutton "✕":
                                     style "sfx_btn_icon"
                                     text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_remove_dialogue_marker, i)
-                                text marker["file"] style "sfx_txt" color "#ffcc00" size 11
+                                text f style "sfx_txt" color "#ffcc00" size 11
 
         if _sfx.scan_error:
             text "[_sfx.scan_error]" style "sfx_help" color "#ff6666"
@@ -1592,6 +1811,11 @@ screen sfx_editor_sidebar_content():
         # ================================================================
         # SFX POOL
         # ================================================================
+        $ _pool_key = "p:" + (_sfx.current_file or "")
+        $ _pool_entry = _sfx.markers.get(_pool_key, {})
+        $ _pool_files = _pool_entry.get("files", [])
+        $ _pool_freq = _pool_entry.get("frequency", 1)
+        $ _pool_count = len(_pool_files)
         frame:
             background "#222222"
             padding (3, 3)
@@ -1599,14 +1823,14 @@ screen sfx_editor_sidebar_content():
             yminimum 0
             has vbox
 
-            text "SFX Pool ([_sfx.pool_count] / [_sfx.audio_count] files)" style "sfx_hdr"
+            text "SFX Pool ([_pool_count] / [_sfx.audio_count] files)" style "sfx_hdr"
 
             hbox:
                 spacing 5
                 text "SFX Frequency" style "sfx_txt"
-                $ slow_selected = (_sfx.pool_frequency == 0)
-                $ normal_selected = (_sfx.pool_frequency == 1)
-                $ fast_selected = (_sfx.pool_frequency == 2)
+                $ slow_selected = (_pool_freq == 0)
+                $ normal_selected = (_pool_freq == 1)
+                $ fast_selected = (_pool_freq == 2)
                 textbutton "Slow":
                     style "sfx_btn_icon"
                     text_style "sfx_btn_icon_text"
@@ -1615,7 +1839,7 @@ screen sfx_editor_sidebar_content():
                         background "#666699"
                     else:
                         background "#444444"
-                    action Function(_sfx_editor_set_pool_frequency, 0)
+                    action Function(_sfx_editor_set_pool_frequency, _pool_key, 0)
                 textbutton "Normal":
                     style "sfx_btn_icon"
                     text_style "sfx_btn_icon_text"
@@ -1624,7 +1848,7 @@ screen sfx_editor_sidebar_content():
                         background "#669966"
                     else:
                         background "#444444"
-                    action Function(_sfx_editor_set_pool_frequency, 1)
+                    action Function(_sfx_editor_set_pool_frequency, _pool_key, 1)
                 textbutton "Fast":
                     style "sfx_btn_icon"
                     text_style "sfx_btn_icon_text"
@@ -1633,10 +1857,10 @@ screen sfx_editor_sidebar_content():
                         background "#996666"
                     else:
                         background "#444444"
-                    action Function(_sfx_editor_set_pool_frequency, 2)
+                    action Function(_sfx_editor_set_pool_frequency, _pool_key, 2)
 
             # Pool file list
-            if _sfx.pool_files:
+            if _pool_files:
                 text "Pool files:" style "sfx_txt"
                 textbutton "Clear":
                     style "sfx_btn"
@@ -1649,7 +1873,7 @@ screen sfx_editor_sidebar_content():
                     mousewheel True
                     vbox:
                         spacing 2
-                        for i, filename in enumerate(_sfx.pool_files):
+                        for i, filename in enumerate(_pool_files):
                             hbox:
                                 spacing 2
                                 textbutton "▶":
