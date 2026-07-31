@@ -1204,10 +1204,9 @@ init python:
             _sfx_editor_save_markers()
 
     def _sfx_editor_clear_video_markers():
-        """Remove all v: keys."""
-        for key in list(_sfx.markers.keys()):
-            if key.startswith("v:"):
-                del _sfx.markers[key]
+        """Remove video markers for the current context."""
+        vid_key = "v:" + _sfx.current_file
+        _sfx.markers.pop(vid_key, None)
         _sfx.played_video_keys = set()
         _sfx_editor_save_markers()
 
@@ -1233,10 +1232,9 @@ init python:
         _sfx_editor_marker_remove_file(img_key, file_index, pool_index)
 
     def _sfx_editor_clear_image_markers():
-        """Remove all i: keys."""
-        for key in list(_sfx.markers.keys()):
-            if key.startswith("i:"):
-                del _sfx.markers[key]
+        """Remove image markers for the current context."""
+        img_key = "i:" + _sfx.current_file
+        _sfx.markers.pop(img_key, None)
         _sfx_editor_save_markers()
 
     # --- Dialogue markers (d: prefix) ---
@@ -1261,10 +1259,9 @@ init python:
         _sfx_editor_marker_remove_file(dlg_key, file_index, pool_index)
 
     def _sfx_editor_clear_dialogue_markers():
-        """Remove all d: keys."""
-        for key in list(_sfx.markers.keys()):
-            if key.startswith("d:"):
-                del _sfx.markers[key]
+        """Remove dialogue markers for the current context."""
+        dlg_key = "d:{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
+        _sfx.markers.pop(dlg_key, None)
         _sfx_editor_save_markers()
 
     # --- Pool (p: prefix) ---
@@ -1290,11 +1287,10 @@ init python:
         _sfx_editor_marker_remove_file(pool_key, file_index)
 
     def _sfx_editor_clear_pool():
-        """Remove all p: keys."""
-        for key in list(_sfx.markers.keys()):
-            if key.startswith("p:"):
-                del _sfx.markers[key]
-        _sfx.pool_states = {}
+        """Remove pool markers for the current context."""
+        pool_key = "p:" + _sfx.current_file
+        _sfx.markers.pop(pool_key, None)
+        _sfx.pool_states.pop(pool_key, None)
         _sfx_editor_save_markers()
 
     # --- Bulk clear ---
