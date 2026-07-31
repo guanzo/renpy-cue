@@ -84,9 +84,28 @@ screen sfx_editor_sidebar_content():
     vbox:
         spacing 4
 
-        # --- Top bar: copy + paste + dump + restore + refresh + close ---
+        # --- Top bar: active checkbox + copy + paste + dump + restore + refresh + close ---
         hbox:
             spacing 2
+            if _sfx.active:
+                textbutton "☑ Active":
+                    style "sfx_btn_icon"
+                    text_style "sfx_btn_icon_text"
+                    xsize 58
+                    background "#446644"
+                    hover_background "#558855"
+                    action Function(_sfx_editor_toggle_active)
+                    tooltip "Triggers are ON (F4 to toggle)"
+            else:
+                textbutton "☐ Active":
+                    style "sfx_btn_icon"
+                    text_style "sfx_btn_icon_text"
+                    xsize 58
+                    background "#664444"
+                    hover_background "#885555"
+                    action Function(_sfx_editor_toggle_active)
+                    tooltip "Triggers are OFF (F4 to toggle)"
+            null width 5
             textbutton "📋":
                 style "sfx_btn_icon"
                 text_style "sfx_btn_icon_text"

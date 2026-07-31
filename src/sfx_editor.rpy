@@ -52,6 +52,8 @@ init -999 python:
 
     # Pool state machine (multi-instance: one per active p: key)
     _sfx.pool_states = {}
+    
+    _sfx.triggers_active = True
 
     # Video seek/pause state
     _sfx.paused = False
@@ -216,6 +218,13 @@ init python:
             _sfx_editor_show()
 
 
+    def _sfx_editor_toggle_active():
+        """Toggle active state — when False, no triggers fire.
+        Called from Ctrl+` key binding and the Active checkbox."""
+        _sfx.triggers_active = not _sfx.triggers_active
+        renpy.restart_interaction()
+
+
 
     def _sfx_editor_show():
         import time
@@ -356,6 +365,8 @@ init python:
         Dedupe guard: same file in two pools of the same trigger is re-picked
         up to 3 times, then skipped to avoid echo artifacts."""
         import random as _random
+        if not _sfx.triggers_active:
+            return
         for key in keys:
             if not key:
                 continue
@@ -1707,6 +1718,9 @@ init python:
 
         _sfx_editor_tick()
 
+        if not _sfx.triggers_active:
+            return
+
         _sfx.__tick_count = getattr(store, '_sfx.__tick_count', 0) + 1
         tick = _sfx.__tick_count
 
@@ -1754,7 +1768,7 @@ init python:
 
         # --- VIDEO MODE triggers (v: keys) ---
         ch = _sfx.active_channel
-        if ch and renpy.music.is_playing(channel=ch):
+        if ch and _sfx.top_layer_type == 'movie':
             elapsed = _sfx_editor_get_elapsed()
 
             # Auto-re-pause after seek
@@ -2023,6 +2037,7 @@ init python:
 screen sfx_editor_key_listener():
     zorder 10000
     key "K_BACKQUOTE" action Function(_sfx_editor_toggle)
+    key "K_F4" action Function(_sfx_editor_toggle_active)
     timer 0.05 repeat True action Function(_sfx_editor_tick_trigger)
 
 # =============================================================================
@@ -2036,16 +2051,9 @@ screen sfx_editor_overlay():
     tag sfx_editor
 
     # Screen-level key bindings
-    key "K_SPACE" action Function(_sfx_editor_toggle_pause)
-    key "K_LEFT" action Function(_sfx_editor_seek_frame, -1)
-    key "K_RIGHT" action Function(_sfx_editor_seek_frame, 1)
-    key "K_UP" action Function(_sfx_editor_coarse_seek, 1.0)
-    key "K_DOWN" action Function(_sfx_editor_coarse_seek, -1.0)
     key "K_BACKQUOTE" action Function(_sfx_editor_hide)
     key "K_1" action Function(_sfx_editor_copy_context)
     key "K_2" action Function(_sfx_editor_paste_context)
-    # Timer to drive the SFX trigger engine
-    #timer 0.05 repeat True action Function(_sfx_editor_tick_trigger)
 
     button:
         xalign 0.0
