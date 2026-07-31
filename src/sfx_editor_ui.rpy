@@ -591,79 +591,78 @@ screen sfx_editor_sidebar_content():
 
             text "Autoplay SFX" style "sfx_hdr"
 
-            hbox:
-                spacing 5
-                text "SFX Frequency" style "sfx_txt"
-                $ slow_selected = (_pool_freq == 0)
-                $ normal_selected = (_pool_freq == 1)
-                $ fast_selected = (_pool_freq == 2)
-                $ fastest_selected = (_pool_freq == 3)
-                textbutton "Slow":
-                    style "sfx_btn_icon"
-                    text_style "sfx_btn_icon_text"
-                    xsize 38
-                    if slow_selected:
-                        background "#666699"
-                    else:
-                        background "#444444"
-                    action Function(_sfx_editor_set_pool_frequency, _pool_key, 0)
-                textbutton "Normal":
-                    style "sfx_btn_icon"
-                    text_style "sfx_btn_icon_text"
-                    xsize 50
-                    if normal_selected:
-                        background "#669966"
-                    else:
-                        background "#444444"
-                    action Function(_sfx_editor_set_pool_frequency, _pool_key, 1)
-                textbutton "Fast":
-                    style "sfx_btn_icon"
-                    text_style "sfx_btn_icon_text"
-                    xsize 38
-                    if fast_selected:
-                        background "#996666"
-                    else:
-                        background "#444444"
-                    action Function(_sfx_editor_set_pool_frequency, _pool_key, 2)
-                textbutton "Fastest":
-                    style "sfx_btn_icon"
-                    text_style "sfx_btn_icon_text"
-                    xsize 48
-                    if fastest_selected:
-                        background "#996699"
-                    else:
-                        background "#444444"
-                    action Function(_sfx_editor_set_pool_frequency, _pool_key, 3)
-
-            $ _pool_vol = _pool_entry.get("volume", 1.0)
-            hbox:
-                spacing 3
-                text "Volume: {:.1f}".format(_pool_vol) style "sfx_txt" size 11
-                textbutton "--":
-                    style "sfx_btn_icon"
-                    text_style "sfx_btn_icon_text"
-                    xsize 22
-                    action Function(_sfx_editor_set_volume, _pool_key, 1.0)
-                    tooltip "Reset volume to 1.0"
-                textbutton "-":
-                    style "sfx_btn_icon"
-                    text_style "sfx_btn_icon_text"
-                    xsize 18
-                    action Function(_sfx_editor_adjust_volume, _pool_key, -0.1)
-                textbutton "+":
-                    style "sfx_btn_icon"
-                    text_style "sfx_btn_icon_text"
-                    xsize 18
-                    action Function(_sfx_editor_adjust_volume, _pool_key, 0.1)
-                textbutton "++":
-                    style "sfx_btn_icon"
-                    text_style "sfx_btn_icon_text"
-                    xsize 22
-                    action Function(_sfx_editor_set_volume, _pool_key, 5.0)
-                    tooltip "Max volume (5.0)"
-
-            # Pool file list
             if _pool_files:
+                hbox:
+                    spacing 5
+                    text "SFX Frequency" style "sfx_txt"
+                    $ slow_selected = (_pool_freq == 0)
+                    $ normal_selected = (_pool_freq == 1)
+                    $ fast_selected = (_pool_freq == 2)
+                    $ fastest_selected = (_pool_freq == 3)
+                    textbutton "Slow":
+                        style "sfx_btn_icon"
+                        text_style "sfx_btn_icon_text"
+                        xsize 38
+                        if slow_selected:
+                            background "#666699"
+                        else:
+                            background "#444444"
+                        action Function(_sfx_editor_set_pool_frequency, _pool_key, 0)
+                    textbutton "Normal":
+                        style "sfx_btn_icon"
+                        text_style "sfx_btn_icon_text"
+                        xsize 50
+                        if normal_selected:
+                            background "#669966"
+                        else:
+                            background "#444444"
+                        action Function(_sfx_editor_set_pool_frequency, _pool_key, 1)
+                    textbutton "Fast":
+                        style "sfx_btn_icon"
+                        text_style "sfx_btn_icon_text"
+                        xsize 38
+                        if fast_selected:
+                            background "#996666"
+                        else:
+                            background "#444444"
+                        action Function(_sfx_editor_set_pool_frequency, _pool_key, 2)
+                    textbutton "Fastest":
+                        style "sfx_btn_icon"
+                        text_style "sfx_btn_icon_text"
+                        xsize 48
+                        if fastest_selected:
+                            background "#996699"
+                        else:
+                            background "#444444"
+                        action Function(_sfx_editor_set_pool_frequency, _pool_key, 3)
+
+                $ _pool_vol = _pool_entry.get("volume", 1.0)
+                hbox:
+                    spacing 3
+                    text "Volume: {:.1f}".format(_pool_vol) style "sfx_txt" size 11
+                    textbutton "--":
+                        style "sfx_btn_icon"
+                        text_style "sfx_btn_icon_text"
+                        xsize 22
+                        action Function(_sfx_editor_set_volume, _pool_key, 1.0)
+                        tooltip "Reset volume to 1.0"
+                    textbutton "-":
+                        style "sfx_btn_icon"
+                        text_style "sfx_btn_icon_text"
+                        xsize 18
+                        action Function(_sfx_editor_adjust_volume, _pool_key, -0.1)
+                    textbutton "+":
+                        style "sfx_btn_icon"
+                        text_style "sfx_btn_icon_text"
+                        xsize 18
+                        action Function(_sfx_editor_adjust_volume, _pool_key, 0.1)
+                    textbutton "++":
+                        style "sfx_btn_icon"
+                        text_style "sfx_btn_icon_text"
+                        xsize 22
+                        action Function(_sfx_editor_set_volume, _pool_key, 5.0)
+                        tooltip "Max volume (5.0)"
+
                 text "Pool files:" style "sfx_txt"
                 textbutton "Delete":
                     style "sfx_btn"
@@ -691,6 +690,8 @@ screen sfx_editor_sidebar_content():
                                     text_style "sfx_btn_icon_text"
                                     action Function(_sfx_editor_preview_sfx, filename, _ppv)
                                 text filename style "sfx_txt" color "#ffcc00" size 11
+            else:
+                text "Click the A button in the \"Audio files\" section to add files" style "sfx_help"
 
         # Audio file browser
         if _sfx.audio_tree:
@@ -737,7 +738,7 @@ screen sfx_editor_sidebar_content():
                                         text_style "sfx_btn_icon_text"
                                         action Function(_sfx_editor_add_folder_to_dialogue_markers, item["full_path"])
                                         tooltip "Add folder to Dialogue SFX pool"
-                                    textbutton "P":
+                                    textbutton "A":
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
                                         action Function(_sfx_editor_add_folder_to_pool, item["full_path"])
@@ -774,7 +775,7 @@ screen sfx_editor_sidebar_content():
                                     tooltip "Add to Dialogue SFX pool"
                                 # SFX Pool
                                 if item["in_pool"]:
-                                    textbutton "P":
+                                    textbutton "A":
                                         style "sfx_btn_icon"
                                         text_style "sfx_help"
                                         action NullAction()
@@ -793,7 +794,7 @@ screen sfx_editor_sidebar_content():
                                             tooltip "Click to include in markers"
                                     text item["name"] style "sfx_help"
                                 else:
-                                    textbutton "P":
+                                    textbutton "A":
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
                                         action Function(_sfx_editor_add_to_pool, item["index"])
