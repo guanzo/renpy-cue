@@ -41,6 +41,11 @@ init -999 python:
     _sfx.markers = {}          # Unified markers: trigger_key -> entry
     _sfx.clipboard = None
 
+    # Volume constants (clamp range + UI quick-set targets)
+    _sfx.VOL_MIN = 0.0       # clamp floor
+    _sfx.VOL_DEFAULT = 1.0   # default volume; "--" reset target
+    _sfx.VOL_MAX = 5.0       # clamp ceiling; "++" target
+
     # Trigger tracking
     _sfx.played_video_keys = set()
     _sfx.__last_pos = 0.0
@@ -366,7 +371,8 @@ init python:
                 if _file in _picked:
                     continue
                 _picked.append(_file)
-                _sfx_editor_play_sfx(_file, key, volume=_vol)
+                _pool_vol = pool.get("volume", entry.get("volume", 1.0))
+                _sfx_editor_play_sfx(_file, key, volume=_pool_vol)
 
 
     # --------------------------------------------------------------------------
@@ -1055,7 +1061,10 @@ init python:
         entry = _sfx_editor_get_or_create_entry(trigger_key)
         pools = entry["pools"]
         if not pools:
-            pools.append({"files": []})
+            pools.append({
+                "files": [],
+                "volume": entry.get("volume", _sfx.VOL_DEFAULT),
+            })
         if pool_index < 0:
             pool_index = 0
         if pool_index >= len(pools):
@@ -1065,7 +1074,10 @@ init python:
     def _sfx_editor_add_pool(trigger_key, kind="img"):
         """Append a new empty pool and auto-switch target to it."""
         entry = _sfx_editor_get_or_create_entry(trigger_key)
-        entry["pools"].append({"files": []})
+        entry["pools"].append({
+            "files": [],
+            "volume": entry.get("volume", _sfx.VOL_DEFAULT),
+        })
         new_idx = len(entry["pools"]) - 1
         if kind == "dlg":
             _sfx.dlg_target_pool = new_idx
@@ -1426,29 +1438,60 @@ init python:
             renpy.restart_interaction()
 
 
-    def _sfx_editor_adjust_volume(trigger_key, delta):
-        """Adjust volume up/down by delta, clamped to [0.0, 5.0].
-        For v: keys, sets all timestamps to the same volume.
-        """
+    def _sfx_editor_get_volume(entry, trigger_key=None, pool_index=None):
+        """Current volume for the target: pool-level with entry-level fallback.
+        v: keys read the first timestamp. Returns _sfx.VOL_DEFAULT if unset."""
+        if trigger_key is not None and trigger_key.startswith("v:"):
+            timestamps = entry.get("timestamps", [])
+            if timestamps:
+                return timestamps[0].get("volume", _sfx.VOL_DEFAULT)
+        if pool_index is not None:
+            pools = entry.get("pools")
+            if isinstance(pools, list) and 0 <= pool_index < len(pools):
+                return pools[pool_index].get("volume",
+                    entry.get("volume", _sfx.VOL_DEFAULT))
+        return entry.get("volume", _sfx.VOL_DEFAULT)
+
+    def _sfx_editor_write_volume(trigger_key, new_vol, pool_index=None):
+        """Clamp and persist a volume, then save + refresh.
+        v: keys write all timestamps; i:/d: with pool_index write that pool
+        (falling back to entry-level when the pool cannot be resolved);
+        otherwise entry-level."""
         entry = _sfx.markers.get(trigger_key)
         if entry is None:
             return
+        new_vol = max(_sfx.VOL_MIN, min(_sfx.VOL_MAX, round(new_vol, 1)))
         if trigger_key.startswith("v:"):
-            # v: key — set volume on all timestamp entries
             timestamps = entry.get("timestamps", [])
             if not timestamps:
                 return
-            current = timestamps[0].get("volume", 1.0)
-            new_vol = max(0.0, min(5.0, round(current + delta, 1)))
             for ts_entry in timestamps:
                 ts_entry["volume"] = new_vol
         else:
-            # i:, d:, p: -- single dict
-            current = entry.get("volume", 1.0)
-            new_vol = max(0.0, min(5.0, round(current + delta, 1)))
-            entry["volume"] = new_vol
+            target = None
+            if pool_index is not None:
+                pools = entry.get("pools")
+                if isinstance(pools, list) and 0 <= pool_index < len(pools):
+                    target = pools[pool_index]
+            if target is None:
+                target = entry
+            target["volume"] = new_vol
         _sfx_editor_save_markers()
         renpy.restart_interaction()
+
+    def _sfx_editor_adjust_volume(trigger_key, delta, pool_index=None):
+        """Adjust volume up/down by delta, clamped to [VOL_MIN, VOL_MAX].
+        pool_index targets one pool for i:/d: entries; None = entry-level."""
+        entry = _sfx.markers.get(trigger_key)
+        if entry is None:
+            return
+        current = _sfx_editor_get_volume(entry, trigger_key, pool_index)
+        _sfx_editor_write_volume(trigger_key, current + delta, pool_index)
+
+    def _sfx_editor_set_volume(trigger_key, value, pool_index=None):
+        """Set volume to an absolute value, clamped.
+        -- = VOL_DEFAULT, ++ = VOL_MAX. pool_index same as adjust."""
+        _sfx_editor_write_volume(trigger_key, value, pool_index)
 
 
     # --------------------------------------------------------------------------
@@ -1602,7 +1645,7 @@ init python:
     def _sfx_editor_save_markers():
         """Save unified markers to persistent storage."""
         persistent._sfx_editor_markers = {
-            "version": "2.1.0",
+            "version": "2.2.0",
             "markers": dict(_sfx.markers),
         }
 
@@ -1875,6 +1918,12 @@ screen sfx_editor_sidebar_content():
                     hbox:
                         spacing 3
                         text "Vol: {:.1f}".format(_vid_vol) style "sfx_txt" size 11
+                        textbutton "--":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            action Function(_sfx_editor_set_volume, _vid_key, 1.0)
+                            tooltip "Reset volume to 1.0"
                         textbutton "-":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
@@ -1885,6 +1934,12 @@ screen sfx_editor_sidebar_content():
                             text_style "sfx_btn_icon_text"
                             xsize 18
                             action Function(_sfx_editor_adjust_volume, _vid_key, 0.1)
+                        textbutton "++":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            action Function(_sfx_editor_set_volume, _vid_key, 5.0)
+                            tooltip "Max volume (5.0)"
                     null height 3
                 if _vid_entries:
                     vbox:
@@ -1910,7 +1965,6 @@ screen sfx_editor_sidebar_content():
             $ _img_key = "i:" + _sfx.current_file
             $ _img_entry = _sfx.markers.get(_img_key, {})
             $ _img_pools = _sfx_editor_get_pools(_img_entry)
-            $ _img_vol = _img_entry.get("volume", 1.0)
             $ _img_target = _sfx.img_target_pool
             $ _img_target = max(0, min(_img_target, len(_img_pools) - 1)) if _img_pools else 0
             frame:
@@ -1939,20 +1993,6 @@ screen sfx_editor_sidebar_content():
                                 action Function(_sfx_editor_clear_image_markers)
                                 tooltip "Remove all image SFX pools"
                 null height 5
-                # Volume control (entry-level, shared by all pools)
-                hbox:
-                    spacing 3
-                    text "Vol: {:.1f}".format(_img_vol) style "sfx_txt" size 11
-                    textbutton "-":
-                        style "sfx_btn_icon"
-                        text_style "sfx_btn_icon_text"
-                        xsize 18
-                        action Function(_sfx_editor_adjust_volume, _img_key, -0.1)
-                    textbutton "+":
-                        style "sfx_btn_icon"
-                        text_style "sfx_btn_icon_text"
-                        xsize 18
-                        action Function(_sfx_editor_adjust_volume, _img_key, 0.1)
                 null height 3
                 # Tab row: [+ Pool] [1] [2] ...
                 hbox:
@@ -1981,6 +2021,7 @@ screen sfx_editor_sidebar_content():
                 if _img_pools and 0 <= _img_target < len(_img_pools):
                     $ _active_pool = _img_pools[_img_target]
                     $ _active_files = _active_pool.get("files", [])
+                    $ _active_vol = _active_pool.get("volume", _img_entry.get("volume", 1.0))
                     $ _active_label = "Pool " + str(_img_target + 1) + " (" + str(len(_active_files)) + " files)"
                     hbox:
                         spacing 3
@@ -1990,6 +2031,31 @@ screen sfx_editor_sidebar_content():
                             text_style "sfx_btn_icon_text"
                             action Function(_sfx_editor_remove_pool, _img_key, _img_target, "img")
                             tooltip "Delete this pool"
+                    hbox:
+                        spacing 3
+                        text "Vol: {:.1f}".format(_active_vol) style "sfx_txt" size 11
+                        textbutton "--":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            action Function(_sfx_editor_set_volume, _img_key, 1.0, _img_target)
+                            tooltip "Reset pool volume to 1.0"
+                        textbutton "-":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 18
+                            action Function(_sfx_editor_adjust_volume, _img_key, -0.1, _img_target)
+                        textbutton "+":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 18
+                            action Function(_sfx_editor_adjust_volume, _img_key, 0.1, _img_target)
+                        textbutton "++":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            action Function(_sfx_editor_set_volume, _img_key, 5.0, _img_target)
+                            tooltip "Max volume (5.0)"
                     if _active_files:
                         vbox:
                             spacing 2
@@ -2003,7 +2069,7 @@ screen sfx_editor_sidebar_content():
                                     textbutton "▶":
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_preview_sfx, f, _img_vol)
+                                        action Function(_sfx_editor_preview_sfx, f, _active_vol)
                                     text f style "sfx_txt" color "#ffcc00" size 11
 
         # --- Dialogue UI ---
@@ -2011,7 +2077,6 @@ screen sfx_editor_sidebar_content():
             $ _dlg_key = "d:" + _sfx.current_file + "|" + _sfx.current_dialogue
             $ _dlg_entry = _sfx.markers.get(_dlg_key, {})
             $ _dlg_pools = _sfx_editor_get_pools(_dlg_entry)
-            $ _dlg_vol = _dlg_entry.get("volume", 1.0)
             $ _dlg_target = _sfx.dlg_target_pool
             $ _dlg_target = max(0, min(_dlg_target, len(_dlg_pools) - 1)) if _dlg_pools else 0
             frame:
@@ -2040,20 +2105,6 @@ screen sfx_editor_sidebar_content():
                                 action Function(_sfx_editor_clear_dialogue_markers)
                                 tooltip "Remove all dialogue SFX pools"
                 null height 5
-                # Volume control (entry-level, shared by all pools)
-                hbox:
-                    spacing 3
-                    text "Vol: {:.1f}".format(_dlg_vol) style "sfx_txt" size 11
-                    textbutton "-":
-                        style "sfx_btn_icon"
-                        text_style "sfx_btn_icon_text"
-                        xsize 18
-                        action Function(_sfx_editor_adjust_volume, _dlg_key, -0.1)
-                    textbutton "+":
-                        style "sfx_btn_icon"
-                        text_style "sfx_btn_icon_text"
-                        xsize 18
-                        action Function(_sfx_editor_adjust_volume, _dlg_key, 0.1)
                 null height 3
                 # Tab row: [+ Pool] [1] [2] ...
                 hbox:
@@ -2082,6 +2133,7 @@ screen sfx_editor_sidebar_content():
                 if _dlg_pools and 0 <= _dlg_target < len(_dlg_pools):
                     $ _active_pool = _dlg_pools[_dlg_target]
                     $ _active_files = _active_pool.get("files", [])
+                    $ _active_vol = _active_pool.get("volume", _dlg_entry.get("volume", 1.0))
                     $ _active_label = "Pool " + str(_dlg_target + 1) + " (" + str(len(_active_files)) + " files)"
                     hbox:
                         spacing 3
@@ -2091,6 +2143,31 @@ screen sfx_editor_sidebar_content():
                             text_style "sfx_btn_icon_text"
                             action Function(_sfx_editor_remove_pool, _dlg_key, _dlg_target, "dlg")
                             tooltip "Delete this pool"
+                    hbox:
+                        spacing 3
+                        text "Vol: {:.1f}".format(_active_vol) style "sfx_txt" size 11
+                        textbutton "--":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            action Function(_sfx_editor_set_volume, _dlg_key, 1.0, _dlg_target)
+                            tooltip "Reset pool volume to 1.0"
+                        textbutton "-":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 18
+                            action Function(_sfx_editor_adjust_volume, _dlg_key, -0.1, _dlg_target)
+                        textbutton "+":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 18
+                            action Function(_sfx_editor_adjust_volume, _dlg_key, 0.1, _dlg_target)
+                        textbutton "++":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            action Function(_sfx_editor_set_volume, _dlg_key, 5.0, _dlg_target)
+                            tooltip "Max volume (5.0)"
                     if _active_files:
                         vbox:
                             spacing 2
@@ -2104,7 +2181,7 @@ screen sfx_editor_sidebar_content():
                                     textbutton "▶":
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_preview_sfx, f, _dlg_vol)
+                                        action Function(_sfx_editor_preview_sfx, f, _active_vol)
                                     text f style "sfx_txt" color "#ffcc00" size 11
 
         if _sfx.scan_error:
@@ -2167,6 +2244,12 @@ screen sfx_editor_sidebar_content():
             hbox:
                 spacing 3
                 text "Vol: {:.1f}".format(_pool_vol) style "sfx_txt" size 11
+                textbutton "--":
+                    style "sfx_btn_icon"
+                    text_style "sfx_btn_icon_text"
+                    xsize 22
+                    action Function(_sfx_editor_set_volume, _pool_key, 1.0)
+                    tooltip "Reset volume to 1.0"
                 textbutton "-":
                     style "sfx_btn_icon"
                     text_style "sfx_btn_icon_text"
@@ -2177,6 +2260,12 @@ screen sfx_editor_sidebar_content():
                     text_style "sfx_btn_icon_text"
                     xsize 18
                     action Function(_sfx_editor_adjust_volume, _pool_key, 0.1)
+                textbutton "++":
+                    style "sfx_btn_icon"
+                    text_style "sfx_btn_icon_text"
+                    xsize 22
+                    action Function(_sfx_editor_set_volume, _pool_key, 5.0)
+                    tooltip "Max volume (5.0)"
 
             # Pool file list
             if _pool_files:
