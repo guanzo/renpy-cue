@@ -312,7 +312,7 @@ screen sfx_editor_sidebar_content():
                         textbutton "Delete":
                             style "sfx_btn"
                             text_style "sfx_btn_text"
-                            action Function(_sfx_editor_remove_video_pool, _vid_target)
+                            action Confirm("Delete this timestamp pool?", Function(_sfx_editor_remove_video_pool, _vid_target))
                             tooltip "Delete this timestamp pool"
                     # Editable timestamp + nudge buttons
                     hbox:
