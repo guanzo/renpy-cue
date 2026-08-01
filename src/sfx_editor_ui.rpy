@@ -188,7 +188,7 @@ screen sfx_editor_sidebar_content():
                         text_style "sfx_btn_text"
                         action Function(_sfx_editor_coarse_seek, 1.0)
                 # Video marker tabs + active pool
-                $ _vid_key = "v:" + _sfx.current_file if _sfx.current_file else ""
+                $ _vid_key = _sfx.VID_KEY_PREFIX + _sfx.current_file if _sfx.current_file else ""
                 $ _vid_entry = _sfx.markers.get(_vid_key, {})
                 $ _vid_entries = _vid_entry.get("timestamps", [])
                 $ _vid_count = len(_vid_entries)
@@ -342,7 +342,7 @@ screen sfx_editor_sidebar_content():
         # --- Image UI ---
         $ _has_image = bool(_sfx.current_file) and not _is_video
         if _has_image:
-            $ _img_key = "i:" + _sfx.current_file
+            $ _img_key = _sfx.IMG_KEY_PREFIX + _sfx.current_file
             $ _img_entry = _sfx.markers.get(_img_key, {})
             $ _img_pools = _sfx_editor_get_pools(_img_entry)
             $ _img_target = _sfx.img_target_pool
@@ -453,7 +453,7 @@ screen sfx_editor_sidebar_content():
 
         # --- Dialogue UI ---
         if _is_dialogue:
-            $ _dlg_key = "d:" + _sfx.current_file + "|" + _sfx.current_dialogue
+            $ _dlg_key = _sfx.DLG_KEY_PREFIX + _sfx.current_file + "|" + _sfx.current_dialogue
             $ _dlg_entry = _sfx.markers.get(_dlg_key, {})
             $ _dlg_pools = _sfx_editor_get_pools(_dlg_entry)
             $ _dlg_target = _sfx.dlg_target_pool
@@ -571,7 +571,7 @@ screen sfx_editor_sidebar_content():
         # ================================================================
         # SFX POOL
         # ================================================================
-        $ _pool_key = "p:" + (_sfx.current_file or "")
+        $ _pool_key = _sfx.POOL_KEY_PREFIX + (_sfx.current_file or "")
         $ _pool_entry = _sfx.markers.get(_pool_key, {})
         $ _pool_files = _pool_entry.get("files", [])
         $ _pool_freq = _pool_entry.get("frequency", 1)

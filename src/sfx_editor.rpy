@@ -46,6 +46,12 @@ init -999 python:
     _sfx.VOL_DEFAULT = 1.0   # default volume; "--" reset target
     _sfx.VOL_MAX = 5.0       # clamp ceiling; "++" target
 
+    # Key prefix constants for _sfx.markers trigger keys
+    _sfx.IMG_KEY_PREFIX = "i:"
+    _sfx.POOL_KEY_PREFIX = "p:"
+    _sfx.DLG_KEY_PREFIX = "d:"
+    _sfx.VID_KEY_PREFIX = "v:"
+
     # Trigger tracking
     _sfx.played_video_keys = set()
     _sfx.__last_pos = 0.0
@@ -291,14 +297,14 @@ init python:
         _dlg_key = None
         if _sfx.current_file != old_file:
             _changed += " file:{}->{}".format(old_file, _sfx.current_file)
-            _img_key = "i:" + _sfx.current_file if _sfx.current_file else None
+            _img_key = _sfx.IMG_KEY_PREFIX + _sfx.current_file if _sfx.current_file else None
         if _sfx.active_channel != old_video:
             _changed += " ch:{}->{}".format(old_video, _sfx.active_channel)
         if _sfx.current_dialogue != _sfx.prev_dialogue:
             _changed += " dlg:{}->{}".format(_sfx.prev_dialogue[:30] if _sfx.prev_dialogue else "",
                 _sfx.current_dialogue[:30] if _sfx.current_dialogue else "")
         if _sfx.current_dialogue:
-            _dlg_key = "d:{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
+            _dlg_key = _sfx.DLG_KEY_PREFIX + "{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
 
         if _changed:
             _sfx_log("CTX-CHANGE{}".format(_changed))
@@ -828,7 +834,7 @@ init python:
         """Check if a file is in the current context's p: entry."""
         if not _sfx.current_file:
             return False
-        pool_key = "p:" + _sfx.current_file
+        pool_key = _sfx.POOL_KEY_PREFIX + _sfx.current_file
         entry = _sfx.markers.get(pool_key)
         if entry and full_path in entry.get("files", []):
             return True
@@ -839,7 +845,7 @@ init python:
         """Recursively add all files under a folder prefix to the p: pool."""
         if not _sfx.current_file:
             return
-        pool_key = "p:" + _sfx.current_file
+        pool_key = _sfx.POOL_KEY_PREFIX + _sfx.current_file
         entry = _sfx.markers.setdefault(pool_key, {"files": [], "frequency": 1})
         files = entry.setdefault("files", [])
         for f in _sfx.available_files:
@@ -852,7 +858,7 @@ init python:
         Adds to the currently targeted image pool."""
         if not _sfx.current_file:
             return
-        img_key = "i:" + _sfx.current_file
+        img_key = _sfx.IMG_KEY_PREFIX + _sfx.current_file
         pool = _sfx_editor_ensure_pool(img_key, _sfx.img_target_pool)
         files = pool.setdefault("files", [])
         for f in _sfx.available_files:
@@ -865,7 +871,7 @@ init python:
         Adds to the currently targeted dialogue pool."""
         if not _sfx.current_dialogue:
             return
-        dlg_key = "d:{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
+        dlg_key = _sfx.DLG_KEY_PREFIX + "{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
         pool = _sfx_editor_ensure_pool(dlg_key, _sfx.dlg_target_pool)
         files = pool.setdefault("files", [])
         for f in _sfx.available_files:
@@ -878,7 +884,7 @@ init python:
         Creates a new timestamp pool when none exist (requires playing video)."""
         if not _sfx.current_file:
             return
-        vid_key = "v:" + _sfx.current_file
+        vid_key = _sfx.VID_KEY_PREFIX + _sfx.current_file
         entry = _sfx.markers.setdefault(vid_key, {"timestamps": []})
         timestamps = entry.setdefault("timestamps", [])
         target = _sfx.vid_target_pool
@@ -1018,19 +1024,19 @@ init python:
         try:
             # Context mismatch warning: compare source context with current state
             _warn = None
-            if source.startswith("vid:"):
-                _vid_parts = source[4:].rsplit("@", 1)
+            if source.startswith(_sfx.VID_KEY_PREFIX):
+                _vid_parts = source[len(_sfx.IMG_KEY_PREFIX):].rsplit("@", 1)
                 _expected_vid = _vid_parts[0]
                 _cur_vname = _sfx.current_file or ""
                 if _expected_vid and _cur_vname and _expected_vid != _cur_vname:
                     _warn = "expected vid={} actual vid={}".format(_expected_vid, _cur_vname)
-            elif source.startswith("img:"):
-                _expected_img = source[4:]
+            elif source.startswith(_sfx.IMG_KEY_PREFIX):
+                _expected_img = source[len(_sfx.IMG_KEY_PREFIX):]
                 if _expected_img and _sfx.current_file and _expected_img != _sfx.current_file:
                     _warn = "expected img={} actual img={}".format(_expected_img, _sfx.current_file)
-            elif source.startswith("dlg:"):
+            elif source.startswith(_sfx.DLG_KEY_PREFIX):
                 # source: "dlg:image|dialogue"
-                _parts = source[4:].split("|", 1)
+                _parts = source[len(_sfx.IMG_KEY_PREFIX):].split("|", 1)
                 _expected_img = _parts[0]
                 _expected_dlg = _parts[1] if len(_parts) > 1 else ""
                 _cur_img = _sfx.current_file or ""
@@ -1089,7 +1095,7 @@ init python:
         """Migrate all legacy i: and d: entries to pools format and persist."""
         changed = False
         for key, entry in list(_sfx.markers.items()):
-            if key.startswith(("i:", "d:")):
+            if key.startswith((_sfx.IMG_KEY_PREFIX, _sfx.DLG_KEY_PREFIX)):
                 _sfx_editor_normalize_entry(entry)
                 changed = True
         return changed
@@ -1249,7 +1255,7 @@ init python:
         filename = _sfx.available_files[file_index]
         if filename in _sfx.disabled_files:
             return
-        vid_key = "v:" + _sfx.current_file
+        vid_key = _sfx.VID_KEY_PREFIX + _sfx.current_file
         entry = _sfx.markers.setdefault(vid_key, {"timestamps": []})
         timestamps = entry.setdefault("timestamps", [])
         target = _sfx.vid_target_pool
@@ -1267,7 +1273,7 @@ init python:
 
     def _sfx_editor_clear_video_markers():
         """Remove video markers for the current context."""
-        vid_key = "v:" + _sfx.current_file
+        vid_key = _sfx.VID_KEY_PREFIX + _sfx.current_file
         _sfx.markers.pop(vid_key, None)
         _sfx.played_video_keys = set()
         _sfx.vid_target_pool = 0
@@ -1276,7 +1282,7 @@ init python:
     def _sfx_editor_start_edit_video_ts():
         """Begin editing the active video timestamp."""
         index = _sfx.vid_target_pool
-        vid_key = "v:" + _sfx.current_file
+        vid_key = _sfx.VID_KEY_PREFIX + _sfx.current_file
         entry = _sfx.markers.get(vid_key, {})
         timestamps = entry.get("timestamps", [])
         if 0 <= index < len(timestamps):
@@ -1290,7 +1296,7 @@ init python:
         index = _sfx.edit_video_ts_index
         if index < 0:
             return
-        vid_key = "v:" + _sfx.current_file
+        vid_key = _sfx.VID_KEY_PREFIX + _sfx.current_file
         entry = _sfx.markers.get(vid_key, {})
         timestamps = entry.get("timestamps", [])
         if index >= len(timestamps):
@@ -1321,7 +1327,7 @@ init python:
 
     def _sfx_editor_start_edit_video_ts_by_index(index):
         """Begin editing the video timestamp at the given index (for non-active tabs)."""
-        vid_key = "v:" + _sfx.current_file
+        vid_key = _sfx.VID_KEY_PREFIX + _sfx.current_file
         entry = _sfx.markers.get(vid_key, {})
         timestamps = entry.get("timestamps", [])
         if 0 <= index < len(timestamps):
@@ -1343,7 +1349,7 @@ init python:
         elapsed = _sfx_editor_get_elapsed()
         if elapsed is None or elapsed <= 0:
             return
-        vid_key = "v:" + _sfx.current_file
+        vid_key = _sfx.VID_KEY_PREFIX + _sfx.current_file
         entry = _sfx.markers.setdefault(vid_key, {"timestamps": []})
         timestamps = entry.setdefault("timestamps", [])
         timestamps.append({"time": elapsed, "files": []})
@@ -1354,7 +1360,7 @@ init python:
 
     def _sfx_editor_remove_video_pool(ts_index):
         """Delete a timestamp pool by index. Clamps vid_target_pool."""
-        vid_key = "v:" + _sfx.current_file
+        vid_key = _sfx.VID_KEY_PREFIX + _sfx.current_file
         entry = _sfx.markers.get(vid_key, {})
         timestamps = entry.get("timestamps", [])
         if not (0 <= ts_index < len(timestamps)):
@@ -1372,7 +1378,7 @@ init python:
     def _sfx_editor_remove_video_file(ts_index, file_index):
         """Remove a single file from a timestamp's files list.
         Keeps the timestamp even if files becomes empty."""
-        vid_key = "v:" + _sfx.current_file
+        vid_key = _sfx.VID_KEY_PREFIX + _sfx.current_file
         entry = _sfx.markers.get(vid_key, {})
         timestamps = entry.get("timestamps", [])
         if not (0 <= ts_index < len(timestamps)):
@@ -1386,12 +1392,12 @@ init python:
 
     def _sfx_editor_set_video_volume(value):
         """Set volume on the active timestamp."""
-        vid_key = "v:" + _sfx.current_file
+        vid_key = _sfx.VID_KEY_PREFIX + _sfx.current_file
         _sfx_editor_write_volume(vid_key, value, ts_index=_sfx.vid_target_pool)
 
     def _sfx_editor_adjust_video_volume(delta):
         """Adjust volume on the active timestamp."""
-        vid_key = "v:" + _sfx.current_file
+        vid_key = _sfx.VID_KEY_PREFIX + _sfx.current_file
         entry = _sfx.markers.get(vid_key)
         if entry is None:
             return
@@ -1401,7 +1407,7 @@ init python:
     def _sfx_editor_nudge_video_ts(delta):
         """Nudge the active timestamp's time by delta seconds.
         If currently editing, updates both the text buffer and the entry."""
-        vid_key = "v:" + _sfx.current_file
+        vid_key = _sfx.VID_KEY_PREFIX + _sfx.current_file
         entry = _sfx.markers.get(vid_key, {})
         timestamps = entry.get("timestamps", [])
         index = _sfx.vid_target_pool
@@ -1436,17 +1442,17 @@ init python:
         filename = _sfx.available_files[file_index]
         if filename in _sfx.disabled_files:
             return
-        img_key = "i:" + _sfx.current_file
+        img_key = _sfx.IMG_KEY_PREFIX + _sfx.current_file
         _sfx_editor_marker_add_file(img_key, filename, _sfx.img_target_pool)
 
     def _sfx_editor_remove_image_marker(pool_index, file_index):
         """Remove a file from a specific pool in the i: entry."""
-        img_key = "i:" + _sfx.current_file
+        img_key = _sfx.IMG_KEY_PREFIX + _sfx.current_file
         _sfx_editor_marker_remove_file(img_key, file_index, pool_index)
 
     def _sfx_editor_clear_image_markers():
         """Remove image markers for the current context."""
-        img_key = "i:" + _sfx.current_file
+        img_key = _sfx.IMG_KEY_PREFIX + _sfx.current_file
         _sfx.markers.pop(img_key, None)
         _sfx_editor_save_markers()
 
@@ -1463,17 +1469,17 @@ init python:
         filename = _sfx.available_files[file_index]
         if filename in _sfx.disabled_files:
             return
-        dlg_key = "d:{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
+        dlg_key = _sfx.DLG_KEY_PREFIX + "{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
         _sfx_editor_marker_add_file(dlg_key, filename, _sfx.dlg_target_pool)
 
     def _sfx_editor_remove_dialogue_marker(pool_index, file_index):
         """Remove a file from a specific pool in the d: entry."""
-        dlg_key = "d:{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
+        dlg_key = _sfx.DLG_KEY_PREFIX + "{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
         _sfx_editor_marker_remove_file(dlg_key, file_index, pool_index)
 
     def _sfx_editor_clear_dialogue_markers():
         """Remove dialogue markers for the current context."""
-        dlg_key = "d:{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
+        dlg_key = _sfx.DLG_KEY_PREFIX + "{}|{}".format(_sfx.current_file, _sfx.current_dialogue)
         _sfx.markers.pop(dlg_key, None)
         _sfx_editor_save_markers()
 
@@ -1487,7 +1493,7 @@ init python:
             filename = _sfx.available_files[file_index]
             if filename in _sfx.disabled_files:
                 return
-            pool_key = "p:" + _sfx.current_file
+            pool_key = _sfx.POOL_KEY_PREFIX + _sfx.current_file
             entry = _sfx.markers.setdefault(pool_key, {"files": [], "frequency": 1})
             files = entry.setdefault("files", [])
             if filename not in files:
@@ -1496,12 +1502,12 @@ init python:
 
     def _sfx_editor_remove_from_pool(file_index):
         """Remove a file from the p: pool for the current context."""
-        pool_key = "p:" + _sfx.current_file
+        pool_key = _sfx.POOL_KEY_PREFIX + _sfx.current_file
         _sfx_editor_marker_remove_file(pool_key, file_index)
 
     def _sfx_editor_clear_pool():
         """Remove pool markers for the current context."""
-        pool_key = "p:" + _sfx.current_file
+        pool_key = _sfx.POOL_KEY_PREFIX + _sfx.current_file
         _sfx.markers.pop(pool_key, None)
         _sfx.pool_states.pop(pool_key, None)
         _sfx_editor_save_markers()
@@ -1530,7 +1536,7 @@ init python:
         """
         ctx_files = _sfx_editor_get_context_files()
         for f in ctx_files:
-            key = "p:" + f
+            key = _sfx.POOL_KEY_PREFIX + f
             entry = _sfx.markers.get(key)
             if entry:
                 result = dict(entry)
@@ -1547,11 +1553,11 @@ init python:
         ctx_dlg = _sfx.current_dialogue or ""
         copied = {}
         for key, entry in _sfx.markers.items():
-            if key.startswith("i:") and key[2:] == ctx_file:
+            if key.startswith(_sfx.IMG_KEY_PREFIX) and key[len(_sfx.IMG_KEY_PREFIX):] == ctx_file:
                 copied[key] = _copy.deepcopy(entry)
-            elif key.startswith("d:") and key[2:].startswith(ctx_file + "|"):
+            elif key.startswith(_sfx.DLG_KEY_PREFIX) and key[len(_sfx.IMG_KEY_PREFIX):].startswith(ctx_file + "|"):
                 copied[key] = _copy.deepcopy(entry)
-            elif key.startswith(("p:", "v:")) and key[2:] == ctx_file:
+            elif key.startswith((_sfx.POOL_KEY_PREFIX, _sfx.VID_KEY_PREFIX)) and key[len(_sfx.IMG_KEY_PREFIX):] == ctx_file:
                 copied[key] = _copy.deepcopy(entry)
         _sfx.clipboard = {
             "markers": copied,
@@ -1570,12 +1576,12 @@ init python:
         old_dlg = _sfx.clipboard.get("source_dialogue", "")
         for old_key, entry in _sfx.clipboard.get("markers", {}).items():
             new_key = old_key
-            if old_key.startswith("i:") and old_key[2:] == old_file:
-                new_key = "i:" + ctx_file
-            elif old_key.startswith("d:") and old_key[2:].startswith(old_file + "|"):
-                new_key = "d:" + ctx_file + "|" + ctx_dlg
-            elif old_key.startswith(("p:", "v:")) and old_key[2:] == old_file:
-                new_key = old_key[:2] + ctx_file
+            if old_key.startswith(_sfx.IMG_KEY_PREFIX) and old_key[len(_sfx.IMG_KEY_PREFIX):] == old_file:
+                new_key = _sfx.IMG_KEY_PREFIX + ctx_file
+            elif old_key.startswith(_sfx.DLG_KEY_PREFIX) and old_key[len(_sfx.IMG_KEY_PREFIX):].startswith(old_file + "|"):
+                new_key = _sfx.DLG_KEY_PREFIX + ctx_file + "|" + ctx_dlg
+            elif old_key.startswith((_sfx.POOL_KEY_PREFIX, _sfx.VID_KEY_PREFIX)) and old_key[len(_sfx.IMG_KEY_PREFIX):] == old_file:
+                new_key = old_key[:len(_sfx.IMG_KEY_PREFIX)] + ctx_file
             if new_key not in _sfx.markers:
                 _sfx.markers[new_key] = _copy.deepcopy(entry)
         _sfx.played_video_keys = set()
@@ -1653,7 +1659,7 @@ init python:
         """Current volume for the target: pool-level with entry-level fallback.
         v: keys read the specified ts_index (falls back to first timestamp).
         Returns _sfx.VOL_DEFAULT if unset."""
-        if trigger_key is not None and trigger_key.startswith("v:"):
+        if trigger_key is not None and trigger_key.startswith(_sfx.VID_KEY_PREFIX):
             timestamps = entry.get("timestamps", [])
             if timestamps:
                 idx = ts_index if ts_index is not None else 0
@@ -1677,7 +1683,7 @@ init python:
         if entry is None:
             return
         new_vol = max(_sfx.VOL_MIN, min(_sfx.VOL_MAX, round(new_vol, 1)))
-        if trigger_key.startswith("v:"):
+        if trigger_key.startswith(_sfx.VID_KEY_PREFIX):
             timestamps = entry.get("timestamps", [])
             if not timestamps:
                 return
@@ -1732,7 +1738,7 @@ init python:
 
         # --- POOL STATE MACHINE (p: keys) ---
         now = _time.time()
-        pool_key = "p:" + (_sfx.current_file or "")
+        pool_key = _sfx.POOL_KEY_PREFIX + (_sfx.current_file or "")
 
         entry = _sfx.markers.get(pool_key)
         if entry:
@@ -1792,7 +1798,7 @@ init python:
 
             # Video markers
             if _sfx.current_file:
-                vid_key = "v:" + _sfx.current_file
+                vid_key = _sfx.VID_KEY_PREFIX + _sfx.current_file
                 vid_entry = _sfx.markers.get(vid_key)
                 if vid_entry:
                     timestamps = vid_entry.get("timestamps", [])
@@ -1803,7 +1809,7 @@ init python:
                             if mt <= elapsed < mt + _sfx.__marker_tolerance:
                                 files = ts_entry.get("files", [])
                                 if files:
-                                    _vsrc = "vid:{}@{:.2f}".format(_sfx.current_file, mt)
+                                    _vsrc = _sfx.VID_KEY_PREFIX + "{}@{:.2f}".format(_sfx.current_file, mt)
                                     f = _sfx_editor_pick_file(files, vid_key, avoid_repeats=False)
                                     _vol = ts_entry.get("volume", 1.0)
                                     _sfx_editor_play_sfx(f, _vsrc, volume=_vol)
