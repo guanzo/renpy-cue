@@ -961,7 +961,7 @@ init python:
                 os.path.join(backups_dir, f)))
 
             # Rotate: delete oldest if at the max
-            MAX_BACKUPS = 100
+            MAX_BACKUPS = 25
             while len(_files) >= MAX_BACKUPS:
                 _oldest = _files.pop(0)
                 try:
