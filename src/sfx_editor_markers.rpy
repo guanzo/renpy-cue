@@ -1044,6 +1044,11 @@ init python:
                 return max(_sfx.VOL_MIN, min(_sfx.VOL_MAX, master * raw))
         return master
 
+    def _sfx_editor_on_volume_bar_changed():
+        """Called after any volume bar is dragged. Saves and refreshes the UI."""
+        _sfx_editor_save_markers()
+        renpy.restart_interaction()
+
 
     # --------------------------------------------------------------------------
     # Utility: Time Formatting

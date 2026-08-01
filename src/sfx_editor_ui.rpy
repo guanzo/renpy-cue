@@ -269,32 +269,30 @@ screen sfx_editor_sidebar_content():
                     text "Video Markers ([_vid_count])" style "sfx_txt"
                 null height 5
                 if _vid_entry:
+                    $ _vid_entry.setdefault("volume", 1.0)
                     $ _master_vol = _vid_entry.get("volume", 1.0)
                     hbox:
                         spacing 3
-                        text "Master Volume: {:.1f}".format(_master_vol) style "sfx_txt" size 11
-                        textbutton "--":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 22
-                            action Function(_sfx_editor_set_master_volume, _vid_key, 1.0)
-                            tooltip "Reset master volume to 1.0"
+                        text "Master: {:.1f}".format(_master_vol) style "sfx_txt" size 11
                         textbutton "-":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 18
                             action Function(_sfx_editor_adjust_master_volume, _vid_key, -0.1)
+                        bar:
+                            value DictValue(_vid_entry, "volume", range=5.0)
+                            xsize 80
+                            ysize 14
+                            left_bar Solid("#007AFF")
+                            right_bar Solid("#333333")
+                            thumb Solid("#cccccc")
+                            hover_thumb Solid("#ffffff")
+                            changed _sfx_editor_on_volume_bar_changed
                         textbutton "+":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 18
                             action Function(_sfx_editor_adjust_master_volume, _vid_key, 0.1)
-                        textbutton "++":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 22
-                            action Function(_sfx_editor_set_master_volume, _vid_key, 5.0)
-                            tooltip "Max master volume (5.0)"
                 hbox:
                     spacing 5
                     if _vid_entries:
@@ -394,31 +392,29 @@ screen sfx_editor_sidebar_content():
                             action Function(_sfx_editor_nudge_video_ts, 0.1)
                             tooltip "Nudge forward 100 ms"
                     # Volume controls
+                    $ _active_ts.setdefault("volume", 1.0)
                     hbox:
                         spacing 3
                         text "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff) style "sfx_txt" size 11
-                        textbutton "--":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 22
-                            action Function(_sfx_editor_set_video_volume, 1.0)
-                            tooltip "Reset pool volume to 1.0"
                         textbutton "-":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 18
                             action Function(_sfx_editor_adjust_video_volume, -0.1)
+                        bar:
+                            value DictValue(_active_ts, "volume", range=5.0)
+                            xsize 80
+                            ysize 14
+                            left_bar Solid("#007AFF")
+                            right_bar Solid("#333333")
+                            thumb Solid("#cccccc")
+                            hover_thumb Solid("#ffffff")
+                            changed _sfx_editor_on_volume_bar_changed
                         textbutton "+":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 18
                             action Function(_sfx_editor_adjust_video_volume, 0.1)
-                        textbutton "++":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 22
-                            action Function(_sfx_editor_set_video_volume, 5.0)
-                            tooltip "Max volume (5.0)"
                     # File list
                     if _active_files:
                         viewport:
@@ -471,32 +467,30 @@ screen sfx_editor_sidebar_content():
                     text "Image: [_sfx.current_file]" style "sfx_txt"
                 null height 5
                 if _img_entry:
+                    $ _img_entry.setdefault("volume", 1.0)
                     $ _master_vol = _img_entry.get("volume", 1.0)
                     hbox:
                         spacing 3
-                        text "Master Volume: {:.1f}".format(_master_vol) style "sfx_txt" size 11
-                        textbutton "--":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 22
-                            action Function(_sfx_editor_set_master_volume, _img_key, 1.0)
-                            tooltip "Reset master volume to 1.0"
+                        text "Master: {:.1f}".format(_master_vol) style "sfx_txt" size 11
                         textbutton "-":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 18
                             action Function(_sfx_editor_adjust_master_volume, _img_key, -0.1)
+                        bar:
+                            value DictValue(_img_entry, "volume", range=5.0)
+                            xsize 80
+                            ysize 14
+                            left_bar Solid("#007AFF")
+                            right_bar Solid("#333333")
+                            thumb Solid("#cccccc")
+                            hover_thumb Solid("#ffffff")
+                            changed _sfx_editor_on_volume_bar_changed
                         textbutton "+":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 18
                             action Function(_sfx_editor_adjust_master_volume, _img_key, 0.1)
-                        textbutton "++":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 22
-                            action Function(_sfx_editor_set_master_volume, _img_key, 5.0)
-                            tooltip "Max master volume (5.0)"
                 # Tab row: [+ Pool] [1] [2] ...
                 hbox:
                     spacing 5
@@ -543,31 +537,29 @@ screen sfx_editor_sidebar_content():
                             text_style "sfx_btn_icon_text"
                             action Function(_sfx_editor_remove_pool, _img_key, _img_target, "img")
                             tooltip "Delete this pool"
+                    $ _active_pool.setdefault("volume", 1.0)
                     hbox:
                         spacing 3
                         text "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff) style "sfx_txt" size 11
-                        textbutton "--":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 22
-                            action Function(_sfx_editor_set_volume, _img_key, 1.0, _img_target)
-                            tooltip "Reset pool volume to 1.0"
                         textbutton "-":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 18
                             action Function(_sfx_editor_adjust_volume, _img_key, -0.1, _img_target)
+                        bar:
+                            value DictValue(_active_pool, "volume", range=5.0)
+                            xsize 80
+                            ysize 14
+                            left_bar Solid("#007AFF")
+                            right_bar Solid("#333333")
+                            thumb Solid("#cccccc")
+                            hover_thumb Solid("#ffffff")
+                            changed _sfx_editor_on_volume_bar_changed
                         textbutton "+":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 18
                             action Function(_sfx_editor_adjust_volume, _img_key, 0.1, _img_target)
-                        textbutton "++":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 22
-                            action Function(_sfx_editor_set_volume, _img_key, 5.0, _img_target)
-                            tooltip "Max volume (5.0)"
                     if _active_pool.get("trigger_on_shake", False):
                         textbutton "☑ Trigger on screen shake":
                             style "sfx_btn"
@@ -622,32 +614,30 @@ screen sfx_editor_sidebar_content():
                     text "Dialogue: [_sfx.current_dialogue]" style "sfx_txt"
                 null height 5
                 if _dlg_entry:
+                    $ _dlg_entry.setdefault("volume", 1.0)
                     $ _master_vol = _dlg_entry.get("volume", 1.0)
                     hbox:
                         spacing 3
-                        text "Master Volume: {:.1f}".format(_master_vol) style "sfx_txt" size 11
-                        textbutton "--":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 22
-                            action Function(_sfx_editor_set_master_volume, _dlg_key, 1.0)
-                            tooltip "Reset master volume to 1.0"
+                        text "Master: {:.1f}".format(_master_vol) style "sfx_txt" size 11
                         textbutton "-":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 18
                             action Function(_sfx_editor_adjust_master_volume, _dlg_key, -0.1)
+                        bar:
+                            value DictValue(_dlg_entry, "volume", range=5.0)
+                            xsize 80
+                            ysize 14
+                            left_bar Solid("#007AFF")
+                            right_bar Solid("#333333")
+                            thumb Solid("#cccccc")
+                            hover_thumb Solid("#ffffff")
+                            changed _sfx_editor_on_volume_bar_changed
                         textbutton "+":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 18
                             action Function(_sfx_editor_adjust_master_volume, _dlg_key, 0.1)
-                        textbutton "++":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 22
-                            action Function(_sfx_editor_set_master_volume, _dlg_key, 5.0)
-                            tooltip "Max master volume (5.0)"
                 # Tab row: [+ Pool] [1] [2] ...
                 hbox:
                     spacing 5
@@ -694,31 +684,29 @@ screen sfx_editor_sidebar_content():
                             text_style "sfx_btn_icon_text"
                             action Function(_sfx_editor_remove_pool, _dlg_key, _dlg_target, "dlg")
                             tooltip "Delete this pool"
+                    $ _active_pool.setdefault("volume", 1.0)
                     hbox:
                         spacing 3
                         text "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff) style "sfx_txt" size 11
-                        textbutton "--":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 22
-                            action Function(_sfx_editor_set_volume, _dlg_key, 1.0, _dlg_target)
-                            tooltip "Reset pool volume to 1.0"
                         textbutton "-":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 18
                             action Function(_sfx_editor_adjust_volume, _dlg_key, -0.1, _dlg_target)
+                        bar:
+                            value DictValue(_active_pool, "volume", range=5.0)
+                            xsize 80
+                            ysize 14
+                            left_bar Solid("#007AFF")
+                            right_bar Solid("#333333")
+                            thumb Solid("#cccccc")
+                            hover_thumb Solid("#ffffff")
+                            changed _sfx_editor_on_volume_bar_changed
                         textbutton "+":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
                             xsize 18
                             action Function(_sfx_editor_adjust_volume, _dlg_key, 0.1, _dlg_target)
-                        textbutton "++":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
-                            xsize 22
-                            action Function(_sfx_editor_set_volume, _dlg_key, 5.0, _dlg_target)
-                            tooltip "Max volume (5.0)"
                     if _active_files:
                         viewport:
                             xfill True
@@ -806,32 +794,30 @@ screen sfx_editor_sidebar_content():
                             background "#444444"
                         action Function(_sfx_editor_set_autoplay_frequency, _autoplay_key, 3)
 
+                $ _autoplay_entry.setdefault("volume", 1.0)
                 $ _pool_vol = _autoplay_entry.get("volume", 1.0)
                 hbox:
                     spacing 3
                     text "Volume: {:.1f}".format(_pool_vol) style "sfx_txt" size 11
-                    textbutton "--":
-                        style "sfx_btn_icon"
-                        text_style "sfx_btn_icon_text"
-                        xsize 22
-                        action Function(_sfx_editor_set_volume, _autoplay_key, 1.0)
-                        tooltip "Reset volume to 1.0"
                     textbutton "-":
                         style "sfx_btn_icon"
                         text_style "sfx_btn_icon_text"
                         xsize 18
                         action Function(_sfx_editor_adjust_volume, _autoplay_key, -0.1)
+                    bar:
+                        value DictValue(_autoplay_entry, "volume", range=5.0)
+                        xsize 80
+                        ysize 14
+                        left_bar Solid("#007AFF")
+                        right_bar Solid("#333333")
+                        thumb Solid("#cccccc")
+                        hover_thumb Solid("#ffffff")
+                        changed _sfx_editor_on_volume_bar_changed
                     textbutton "+":
                         style "sfx_btn_icon"
                         text_style "sfx_btn_icon_text"
                         xsize 18
                         action Function(_sfx_editor_adjust_volume, _autoplay_key, 0.1)
-                    textbutton "++":
-                        style "sfx_btn_icon"
-                        text_style "sfx_btn_icon_text"
-                        xsize 22
-                        action Function(_sfx_editor_set_volume, _autoplay_key, 5.0)
-                        tooltip "Max volume (5.0)"
 
                 hbox:
                     spacing 5
