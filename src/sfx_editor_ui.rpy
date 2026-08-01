@@ -241,7 +241,7 @@ screen sfx_editor_sidebar_content():
                                     action Function(_sfx_editor_set_vid_target_pool, pi)
                                     tooltip _tip
                     # Shared drag bar for the active pool
-                    if 0 <= _vid_target < _vid_count:
+                    if 0 <= _vid_target < _vid_count and _vid_entries[_vid_target].get("time"):
                         vbox:
                             spacing 5
                             ysize 12

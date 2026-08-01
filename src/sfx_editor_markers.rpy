@@ -452,6 +452,29 @@ init python:
 
     # --- Video markers (v: prefix) ---
 
+    def _sfx_editor_sanitize_video_timestamps():
+        """Strip non-dict entries and entries missing 'time' from all video
+        timestamp lists. Returns the number of entries stripped so callers can
+        decide whether to log."""
+        total_stripped = 0
+        for key, entry in list(_sfx.markers.items()):
+            if not is_vid_key(key):
+                continue
+            timestamps = entry.get("timestamps")
+            if not isinstance(timestamps, list):
+                continue
+            stripped = 0
+            clean = []
+            for ts in timestamps:
+                if isinstance(ts, dict) and ts.get("time") is not None:
+                    clean.append(ts)
+                else:
+                    stripped += 1
+            if stripped:
+                entry["timestamps"] = clean
+                total_stripped += stripped
+        return total_stripped
+
     def _sfx_editor_add_video_marker(file_index):
         """Add a file to the active timestamp pool. Creates a new timestamp
         if no timestamps exist yet or the active target is out of range."""

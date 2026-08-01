@@ -907,6 +907,8 @@ init python:
                     for idx, ts_entry in enumerate(timestamps):
                         ts_key = "{}@{}".format(vid_key, idx)
                         if ts_key not in _sfx.played_video_keys:
+                            if "time" not in ts_entry:
+                                _sfx_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(ts_entry))
                             mt = ts_entry["time"]
                             if mt <= elapsed < mt + _sfx.__marker_tolerance:
                                 files = ts_entry.get("files", [])
@@ -955,7 +957,7 @@ init python:
                 os.path.join(backups_dir, f)))
 
             # Rotate: delete oldest if at the max
-            MAX_BACKUPS = 10
+            MAX_BACKUPS = 100
             while len(_files) >= MAX_BACKUPS:
                 _oldest = _files.pop(0)
                 try:
@@ -1001,6 +1003,10 @@ init python:
             else:
                 data["markers"] = {}
         else:
+            # Strip malformed entries before persisting (empty dicts, missing "time")
+            stripped = _sfx_editor_sanitize_video_timestamps()
+            if stripped:
+                _sfx_log("SAVE-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
             data["markers"] = dict(_sfx.markers)
 
         persistent._sfx_editor_markers = data
@@ -1020,6 +1026,9 @@ init python:
         _sfx.markers = _sfx_editor_unwrap_persistent(data.get("markers", {}))
         _sfx.disabled_files = set(data.get("disabled_files", []))
         #_sfx_editor_normalize_all_markers()
+        stripped = _sfx_editor_sanitize_video_timestamps()
+        if stripped:
+            _sfx_log("LOAD-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
         _sfx_log("LOAD-MARKERS total_keys={} keys={}".format(
             len(_sfx.markers), list(_sfx.markers.keys())[:20]))
 
