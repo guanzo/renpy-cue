@@ -16,7 +16,7 @@ style sfx_btn is empty:
     activate_sound None
 
 style sfx_btn_text is empty:
-    size 13
+    size 12
     color "#ffffff"
     hover_color "#ffffff"
     font "DejaVuSans.ttf"
@@ -62,7 +62,7 @@ style sfx_help is sfx_txt:
     color "#888888"
 
 style sfx_input is sfx_txt:
-    size 13
+    size 12
     color "#ffffff"
     background "#333333"
     xsize 72
@@ -201,18 +201,16 @@ screen sfx_editor_sidebar_content():
                 vbox:
                     spacing 5
                     text "Video Markers ([_vid_count])" style "sfx_txt"
-                    hbox:
-                        spacing 5
-                        if _vid_entries:
-                            textbutton "Delete":
-                                style "sfx_btn"
-                                text_style "sfx_btn_text"
-                                xsize 50
-                                action Confirm(
-                                    "Delete all video timestamp markers for the current video?\nThis cannot be undone.",
-                                    Function(_sfx_editor_clear_video_markers))
                 hbox:
                     spacing 2
+                    if _vid_entries:
+                        textbutton "Delete":
+                            style "sfx_btn"
+                            text_style "sfx_btn_text"
+                            action Confirm(
+                                "Delete all video timestamp markers for the current video?",
+                                Function(_sfx_editor_clear_video_markers))
+                            tooltip "Delete all video SFX for the current video"
                     textbutton "+ Pool":
                         style "sfx_btn"
                         text_style "sfx_btn_text"
@@ -362,21 +360,19 @@ screen sfx_editor_sidebar_content():
                 vbox:
                     spacing 5
                     text "Image: [_sfx.current_file]" style "sfx_txt"
-                    hbox:
-                        spacing 5
-                        if _img_pools:
-                            textbutton "Delete":
-                                style "sfx_btn"
-                                text_style "sfx_btn_text"
-                                xsize 50
-                                action Confirm(
-                                    "Delete all image SFX pools for the current image?\nThis cannot be undone.",
-                                    Function(_sfx_editor_clear_image_markers))
-                                tooltip "Remove all image SFX pools"
                 null height 5
                 # Tab row: [+ Pool] [1] [2] ...
                 hbox:
                     spacing 5
+                    if _img_pools:
+                        textbutton "Delete":
+                            style "sfx_btn"
+                            text_style "sfx_btn_text"
+                            xsize 50
+                            action Confirm(
+                                "Delete all image SFX for the current image?",
+                                Function(_sfx_editor_clear_image_markers))
+                            tooltip "Delete all image SFX for the current image"
                     textbutton "+ Pool":
                         style "sfx_btn"
                         text_style "sfx_btn_text"
@@ -473,21 +469,18 @@ screen sfx_editor_sidebar_content():
                 vbox:
                     spacing 5
                     text "Dialogue: [_sfx.current_dialogue]" style "sfx_txt"
-                    hbox:
-                        spacing 5
-                        if _dlg_pools:
-                            textbutton "Delete":
-                                style "sfx_btn"
-                                text_style "sfx_btn_text"
-                                xsize 50
-                                action Confirm(
-                                    "Delete all dialogue SFX pools for the current line?\nThis cannot be undone.",
-                                    Function(_sfx_editor_clear_dialogue_markers))
-                                tooltip "Remove all dialogue SFX pools"
                 null height 5
                 # Tab row: [+ Pool] [1] [2] ...
                 hbox:
                     spacing 2
+                    if _dlg_pools:
+                        textbutton "Delete":
+                            style "sfx_btn"
+                            text_style "sfx_btn_text"
+                            action Confirm(
+                                "Delete all dialogue SFX for the current dialogue?",
+                                Function(_sfx_editor_clear_dialogue_markers))
+                            tooltip "Delete all dialogue SFX for the current dialogue"
                     textbutton "+ Pool":
                         style "sfx_btn"
                         text_style "sfx_btn_text"
@@ -654,14 +647,16 @@ screen sfx_editor_sidebar_content():
                         action Function(_sfx_editor_set_volume, _autoplay_key, 5.0)
                         tooltip "Max volume (5.0)"
 
-                text "Pool files:" style "sfx_txt"
-                textbutton "Delete":
-                    style "sfx_btn"
-                    text_style "sfx_btn_text"
-                    xsize 50
-                    action Confirm(
-                        "Delete all files from the current auto-play pool?\nThis cannot be undone.",
-                        Function(_sfx_editor_clear_autoplay_pool))
+                hbox:
+                    spacing 5
+                    text "Pool files:" style "sfx_txt"
+                    textbutton "Delete":
+                        style "sfx_btn"
+                        text_style "sfx_btn_text"
+                        action Confirm(
+                            "Delete all files from the current Autoplay pool?",
+                            Function(_sfx_editor_clear_autoplay_pool))
+                        tooltip "Delete all files from the current Autoplay pool"
                 viewport:
                     xfill True
                     ymaximum 130
