@@ -267,6 +267,34 @@ screen sfx_editor_sidebar_content():
                 vbox:
                     spacing 5
                     text "Video Markers ([_vid_count])" style "sfx_txt"
+                null height 5
+                if _vid_entry:
+                    $ _master_vol = _vid_entry.get("volume", 1.0)
+                    hbox:
+                        spacing 3
+                        text "Master Volume: {:.1f}".format(_master_vol) style "sfx_txt" size 11
+                        textbutton "--":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            action Function(_sfx_editor_set_master_volume, _vid_key, 1.0)
+                            tooltip "Reset master volume to 1.0"
+                        textbutton "-":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 18
+                            action Function(_sfx_editor_adjust_master_volume, _vid_key, -0.1)
+                        textbutton "+":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 18
+                            action Function(_sfx_editor_adjust_master_volume, _vid_key, 0.1)
+                        textbutton "++":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            action Function(_sfx_editor_set_master_volume, _vid_key, 5.0)
+                            tooltip "Max master volume (5.0)"
                 hbox:
                     spacing 5
                     if _vid_entries:
@@ -300,6 +328,7 @@ screen sfx_editor_sidebar_content():
                     $ _active_ts = _vid_entries[_vid_target]
                     $ _active_files = _active_ts.get("files", [])
                     $ _active_vol = _active_ts.get("volume", _sfx.VOL_DEFAULT)
+                    $ _active_eff = _sfx_editor_get_effective_volume(_vid_entry, _vid_key, ts_index=_vid_target)
                     $ _active_label = "Pool " + str(_vid_target + 1) + " (" + str(len(_active_files)) + " files)"
                     hbox:
                         spacing 3
@@ -367,7 +396,7 @@ screen sfx_editor_sidebar_content():
                     # Volume controls
                     hbox:
                         spacing 3
-                        text "Volume: {:.1f}".format(_active_vol) style "sfx_txt" size 11
+                        text "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff) style "sfx_txt" size 11
                         textbutton "--":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
@@ -411,7 +440,7 @@ screen sfx_editor_sidebar_content():
                                         textbutton "▶":
                                             style "sfx_btn_icon"
                                             text_style "sfx_btn_icon_text"
-                                            action Function(_sfx_editor_preview_sfx, f, _active_vol)
+                                            action Function(_sfx_editor_preview_sfx, f, _active_eff)
                                         text f style "sfx_txt" color "#ffcc00" size 11
                 else:
                     text "Click the V button in the SFX Library to add files" style "sfx_help"
@@ -441,6 +470,33 @@ screen sfx_editor_sidebar_content():
                     spacing 5
                     text "Image: [_sfx.current_file]" style "sfx_txt"
                 null height 5
+                if _img_entry:
+                    $ _master_vol = _img_entry.get("volume", 1.0)
+                    hbox:
+                        spacing 3
+                        text "Master Volume: {:.1f}".format(_master_vol) style "sfx_txt" size 11
+                        textbutton "--":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            action Function(_sfx_editor_set_master_volume, _img_key, 1.0)
+                            tooltip "Reset master volume to 1.0"
+                        textbutton "-":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 18
+                            action Function(_sfx_editor_adjust_master_volume, _img_key, -0.1)
+                        textbutton "+":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 18
+                            action Function(_sfx_editor_adjust_master_volume, _img_key, 0.1)
+                        textbutton "++":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            action Function(_sfx_editor_set_master_volume, _img_key, 5.0)
+                            tooltip "Max master volume (5.0)"
                 # Tab row: [+ Pool] [1] [2] ...
                 hbox:
                     spacing 5
@@ -476,7 +532,8 @@ screen sfx_editor_sidebar_content():
                 if _img_pools and 0 <= _img_target < len(_img_pools):
                     $ _active_pool = _img_pools[_img_target]
                     $ _active_files = _active_pool.get("files", [])
-                    $ _active_vol = _active_pool.get("volume", _img_entry.get("volume", 1.0))
+                    $ _active_vol = _active_pool.get("volume", 1.0)
+                    $ _active_eff = _sfx_editor_get_effective_volume(_img_entry, _img_key, pool_index=_img_target)
                     $ _active_label = "Pool " + str(_img_target + 1) + " (" + str(len(_active_files)) + " files)"
                     hbox:
                         spacing 3
@@ -488,7 +545,7 @@ screen sfx_editor_sidebar_content():
                             tooltip "Delete this pool"
                     hbox:
                         spacing 3
-                        text "Volume: {:.1f}".format(_active_vol) style "sfx_txt" size 11
+                        text "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff) style "sfx_txt" size 11
                         textbutton "--":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
@@ -536,7 +593,7 @@ screen sfx_editor_sidebar_content():
                                     textbutton "▶":
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_preview_sfx, f, _active_vol)
+                                        action Function(_sfx_editor_preview_sfx, f, _active_eff)
                                     text f style "sfx_txt" color "#ffcc00" size 11
                 else:
                     text "Click the I button in the SFX Library to add files" style "sfx_help"
@@ -564,6 +621,33 @@ screen sfx_editor_sidebar_content():
                     spacing 5
                     text "Dialogue: [_sfx.current_dialogue]" style "sfx_txt"
                 null height 5
+                if _dlg_entry:
+                    $ _master_vol = _dlg_entry.get("volume", 1.0)
+                    hbox:
+                        spacing 3
+                        text "Master Volume: {:.1f}".format(_master_vol) style "sfx_txt" size 11
+                        textbutton "--":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            action Function(_sfx_editor_set_master_volume, _dlg_key, 1.0)
+                            tooltip "Reset master volume to 1.0"
+                        textbutton "-":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 18
+                            action Function(_sfx_editor_adjust_master_volume, _dlg_key, -0.1)
+                        textbutton "+":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 18
+                            action Function(_sfx_editor_adjust_master_volume, _dlg_key, 0.1)
+                        textbutton "++":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            xsize 22
+                            action Function(_sfx_editor_set_master_volume, _dlg_key, 5.0)
+                            tooltip "Max master volume (5.0)"
                 # Tab row: [+ Pool] [1] [2] ...
                 hbox:
                     spacing 5
@@ -599,7 +683,8 @@ screen sfx_editor_sidebar_content():
                 if _dlg_pools and 0 <= _dlg_target < len(_dlg_pools):
                     $ _active_pool = _dlg_pools[_dlg_target]
                     $ _active_files = _active_pool.get("files", [])
-                    $ _active_vol = _active_pool.get("volume", _dlg_entry.get("volume", 1.0))
+                    $ _active_vol = _active_pool.get("volume", 1.0)
+                    $ _active_eff = _sfx_editor_get_effective_volume(_dlg_entry, _dlg_key, pool_index=_dlg_target)
                     $ _active_label = "Pool " + str(_dlg_target + 1) + " (" + str(len(_active_files)) + " files)"
                     hbox:
                         spacing 3
@@ -611,7 +696,7 @@ screen sfx_editor_sidebar_content():
                             tooltip "Delete this pool"
                     hbox:
                         spacing 3
-                        text "Volume: {:.1f}".format(_active_vol) style "sfx_txt" size 11
+                        text "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff) style "sfx_txt" size 11
                         textbutton "--":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
@@ -654,7 +739,7 @@ screen sfx_editor_sidebar_content():
                                         textbutton "▶":
                                             style "sfx_btn_icon"
                                             text_style "sfx_btn_icon_text"
-                                            action Function(_sfx_editor_preview_sfx, f, _active_vol)
+                                            action Function(_sfx_editor_preview_sfx, f, _active_eff)
                                         text f style "sfx_txt" color "#ffcc00" size 11
                 else:
                     text "Click the D button in the SFX Library to add files" style "sfx_help"

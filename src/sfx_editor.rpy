@@ -434,7 +434,7 @@ init python:
             _sfx_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(
                 key, len(pools), _total, _vol))
             _picked = []
-            for pool in pools:
+            for pi, pool in enumerate(pools):
                 if only_shake_pools and not pool.get("trigger_on_shake", False):
                     continue
                 files = pool.get("files", [])
@@ -448,7 +448,7 @@ init python:
                 if _file in _picked:
                     continue
                 _picked.append(_file)
-                _pool_vol = pool.get("volume", entry.get("volume", 1.0))
+                _pool_vol = _sfx_editor_get_effective_volume(entry, key, pool_index=pi)
                 _sfx_editor_play_sfx(_file, key, volume=_pool_vol)
 
 
@@ -919,7 +919,7 @@ init python:
                                 if files:
                                     _vsrc = _sfx.VID_KEY_PREFIX + "{}@{:.2f}".format(_sfx.current_file, mt)
                                     f = _sfx_editor_pick_file(files, avoid_repeats=False)
-                                    _vol = ts_entry.get("volume", 1.0)
+                                    _vol = _sfx_editor_get_effective_volume(vid_entry, vid_key, ts_index=idx)
                                     _sfx_editor_play_sfx(f, _vsrc, volume=_vol)
                                     _sfx.played_video_keys.add(ts_key)
 

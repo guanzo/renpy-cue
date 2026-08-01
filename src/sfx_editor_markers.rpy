@@ -355,7 +355,7 @@ init python:
         if not pools:
             pools.append({
                 "files": [],
-                "volume": entry.get("volume", _sfx.VOL_DEFAULT),
+                "volume": _sfx.VOL_DEFAULT,
             })
         if pool_index < 0:
             pool_index = 0
@@ -368,7 +368,7 @@ init python:
         entry = _sfx_editor_get_or_create_entry(trigger_key)
         entry["pools"].append({
             "files": [],
-            "volume": entry.get("volume", _sfx.VOL_DEFAULT),
+            "volume": _sfx.VOL_DEFAULT,
         })
         new_idx = len(entry["pools"]) - 1
         if kind == "dlg":
@@ -934,9 +934,10 @@ init python:
     
 
     def _sfx_editor_get_volume(entry, trigger_key=None, pool_index=None, ts_index=None):
-        """Current volume for the target: pool-level with entry-level fallback.
-        v: keys read the specified ts_index (falls back to first timestamp).
-        Returns _sfx.VOL_DEFAULT if unset."""
+        """Raw stored volume for the target (pool, timestamp, or entry).
+        Pool/timestamp volumes default to VOL_DEFAULT (1.0 identity) so
+        they multiply correctly with the master (entry-level) volume.
+        v: keys read the specified ts_index (falls back to first timestamp)."""
         if trigger_key is not None and is_vid_key(trigger_key):
             timestamps = entry.get("timestamps", [])
             if timestamps:
@@ -948,8 +949,7 @@ init python:
         if pool_index is not None:
             pools = entry.get("pools")
             if isinstance(pools, list) and 0 <= pool_index < len(pools):
-                return pools[pool_index].get("volume",
-                    entry.get("volume", _sfx.VOL_DEFAULT))
+                return pools[pool_index].get("volume", _sfx.VOL_DEFAULT)
         return entry.get("volume", _sfx.VOL_DEFAULT)
 
     def _sfx_editor_write_volume(trigger_key, new_vol, pool_index=None, ts_index=None):
@@ -996,6 +996,53 @@ init python:
         -- = VOL_DEFAULT, ++ = VOL_MAX. pool_index same as adjust."""
         _sfx_editor_write_volume(trigger_key, value, pool_index)
 
+    # --------------------------------------------------------------------------
+    # Master Volume (entry-level multiplier)
+    # --------------------------------------------------------------------------
+
+    def _sfx_editor_get_master_volume(trigger_key):
+        """Entry-level master volume for a key. Returns VOL_DEFAULT if unset."""
+        entry = _sfx.markers.get(trigger_key)
+        if not isinstance(entry, dict):
+            return _sfx.VOL_DEFAULT
+        return entry.get("volume", _sfx.VOL_DEFAULT)
+
+    def _sfx_editor_set_master_volume(trigger_key, value):
+        """Set entry-level master volume (clamped, persisted).
+        Writes entry["volume"] directly so it works for all key types."""
+        entry = _sfx.markers.get(trigger_key)
+        if entry is None:
+            return
+        new_vol = max(_sfx.VOL_MIN, min(_sfx.VOL_MAX, round(value, 1)))
+        entry["volume"] = new_vol
+        _sfx_editor_save_markers()
+        renpy.restart_interaction()
+
+    def _sfx_editor_adjust_master_volume(trigger_key, delta):
+        """Adjust master volume by delta (reads raw master, not effective)."""
+        _sfx_editor_set_master_volume(trigger_key,
+            _sfx_editor_get_master_volume(trigger_key) + delta)
+
+    def _sfx_editor_get_effective_volume(entry, trigger_key=None, pool_index=None, ts_index=None):
+        """Effective playback volume = master (entry-level) x target volume, clamped.
+        Pool/timestamp volumes default to VOL_DEFAULT (1.0 identity) so master
+        is never double-counted. For entry-only queries returns master alone."""
+        master = entry.get("volume", _sfx.VOL_DEFAULT) if isinstance(entry, dict) else _sfx.VOL_DEFAULT
+        if trigger_key is not None and is_vid_key(trigger_key):
+            timestamps = entry.get("timestamps", [])
+            if timestamps:
+                idx = ts_index if ts_index is not None else 0
+                if 0 <= idx < len(timestamps):
+                    raw = timestamps[idx].get("volume", _sfx.VOL_DEFAULT)
+                else:
+                    raw = timestamps[0].get("volume", _sfx.VOL_DEFAULT)
+                return max(_sfx.VOL_MIN, min(_sfx.VOL_MAX, master * raw))
+        if pool_index is not None:
+            pools = entry.get("pools")
+            if isinstance(pools, list) and 0 <= pool_index < len(pools):
+                raw = pools[pool_index].get("volume", _sfx.VOL_DEFAULT)
+                return max(_sfx.VOL_MIN, min(_sfx.VOL_MAX, master * raw))
+        return master
 
 
     # --------------------------------------------------------------------------
