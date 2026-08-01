@@ -569,13 +569,13 @@ screen sfx_editor_sidebar_content():
         null height 6
 
         # ================================================================
-        # SFX POOL
+        # Autoplay SFX
         # ================================================================
-        $ _pool_key = create_pool_key(_sfx.current_file or "")
-        $ _pool_entry = _sfx.markers.get(_pool_key, {})
-        $ _pool_files = _pool_entry.get("files", [])
-        $ _pool_freq = _pool_entry.get("frequency", 1)
-        $ _pool_count = len(_pool_files)
+        $ _autoplay_key = create_autoplay_key(_sfx.current_file or "")
+        $ _autoplay_entry = _sfx.markers.get(_autoplay_key, {})
+        $ _autoplay_files = _autoplay_entry.get("files", [])
+        $ _autoplay_freq = _autoplay_entry.get("frequency", 1)
+        $ _autoplay_count = len(_autoplay_files)
         frame:
             background "#222222"
             padding (4, 4)
@@ -586,14 +586,14 @@ screen sfx_editor_sidebar_content():
 
             text "Autoplay SFX" style "sfx_hdr"
 
-            if _pool_files:
+            if _autoplay_files:
                 hbox:
                     spacing 5
                     text "SFX Frequency" style "sfx_txt"
-                    $ slow_selected = (_pool_freq == 0)
-                    $ normal_selected = (_pool_freq == 1)
-                    $ fast_selected = (_pool_freq == 2)
-                    $ fastest_selected = (_pool_freq == 3)
+                    $ slow_selected = (_autoplay_freq == 0)
+                    $ normal_selected = (_autoplay_freq == 1)
+                    $ fast_selected = (_autoplay_freq == 2)
+                    $ fastest_selected = (_autoplay_freq == 3)
                     textbutton "Slow":
                         style "sfx_btn"
                         text_style "sfx_btn_text"
@@ -601,7 +601,7 @@ screen sfx_editor_sidebar_content():
                             background "#666699"
                         else:
                             background "#444444"
-                        action Function(_sfx_editor_set_pool_frequency, _pool_key, 0)
+                        action Function(_sfx_editor_set_autoplay_frequency, _autoplay_key, 0)
                     textbutton "Normal":
                         style "sfx_btn"
                         text_style "sfx_btn_text"
@@ -609,7 +609,7 @@ screen sfx_editor_sidebar_content():
                             background "#669966"
                         else:
                             background "#444444"
-                        action Function(_sfx_editor_set_pool_frequency, _pool_key, 1)
+                        action Function(_sfx_editor_set_autoplay_frequency, _autoplay_key, 1)
                     textbutton "Fast":
                         style "sfx_btn"
                         text_style "sfx_btn_text"
@@ -617,7 +617,7 @@ screen sfx_editor_sidebar_content():
                             background "#996666"
                         else:
                             background "#444444"
-                        action Function(_sfx_editor_set_pool_frequency, _pool_key, 2)
+                        action Function(_sfx_editor_set_autoplay_frequency, _autoplay_key, 2)
                     textbutton "Fastest":
                         style "sfx_btn"
                         text_style "sfx_btn_text"
@@ -625,9 +625,9 @@ screen sfx_editor_sidebar_content():
                             background "#996699"
                         else:
                             background "#444444"
-                        action Function(_sfx_editor_set_pool_frequency, _pool_key, 3)
+                        action Function(_sfx_editor_set_autoplay_frequency, _autoplay_key, 3)
 
-                $ _pool_vol = _pool_entry.get("volume", 1.0)
+                $ _pool_vol = _autoplay_entry.get("volume", 1.0)
                 hbox:
                     spacing 3
                     text "Volume: {:.1f}".format(_pool_vol) style "sfx_txt" size 11
@@ -635,23 +635,23 @@ screen sfx_editor_sidebar_content():
                         style "sfx_btn_icon"
                         text_style "sfx_btn_icon_text"
                         xsize 22
-                        action Function(_sfx_editor_set_volume, _pool_key, 1.0)
+                        action Function(_sfx_editor_set_volume, _autoplay_key, 1.0)
                         tooltip "Reset volume to 1.0"
                     textbutton "-":
                         style "sfx_btn_icon"
                         text_style "sfx_btn_icon_text"
                         xsize 18
-                        action Function(_sfx_editor_adjust_volume, _pool_key, -0.1)
+                        action Function(_sfx_editor_adjust_volume, _autoplay_key, -0.1)
                     textbutton "+":
                         style "sfx_btn_icon"
                         text_style "sfx_btn_icon_text"
                         xsize 18
-                        action Function(_sfx_editor_adjust_volume, _pool_key, 0.1)
+                        action Function(_sfx_editor_adjust_volume, _autoplay_key, 0.1)
                     textbutton "++":
                         style "sfx_btn_icon"
                         text_style "sfx_btn_icon_text"
                         xsize 22
-                        action Function(_sfx_editor_set_volume, _pool_key, 5.0)
+                        action Function(_sfx_editor_set_volume, _autoplay_key, 5.0)
                         tooltip "Max volume (5.0)"
 
                 text "Pool files:" style "sfx_txt"
@@ -661,21 +661,21 @@ screen sfx_editor_sidebar_content():
                     xsize 50
                     action Confirm(
                         "Delete all files from the current auto-play pool?\nThis cannot be undone.",
-                        Function(_sfx_editor_clear_pool))
+                        Function(_sfx_editor_clear_autoplay_pool))
                 viewport:
                     xfill True
                     ymaximum 130
                     mousewheel True
                     vbox:
                         spacing 2
-                        for i, filename in enumerate(_pool_files):
-                            $ _ppv = _pool_entry.get("volume", 1.0)
+                        for i, filename in enumerate(_autoplay_files):
+                            $ _ppv = _autoplay_entry.get("volume", 1.0)
                             hbox:
                                 spacing 2
                                 textbutton "✕":
                                     style "sfx_btn_icon"
                                     text_style "sfx_btn_icon_text"
-                                    action Function(_sfx_editor_remove_from_pool, i)
+                                    action Function(_sfx_editor_remove_from_autoplay_pool, i)
                                 textbutton "▶":
                                     style "sfx_btn_icon"
                                     text_style "sfx_btn_icon_text"
@@ -732,8 +732,8 @@ screen sfx_editor_sidebar_content():
                                     textbutton "A":
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_add_folder_to_pool, item["full_path"])
-                                        tooltip "Add folder to SFX Pool"
+                                        action Function(_sfx_editor_add_folder_to_autoplay_pool, item["full_path"])
+                                        tooltip "Add folder to Autoplay SFX Pool"
                                 textbutton item["name"]:
                                     style "sfx_btn"
                                     text_style "sfx_btn_text_sm"
@@ -769,7 +769,7 @@ screen sfx_editor_sidebar_content():
                                 textbutton "A":
                                     style "sfx_btn_icon"
                                     text_style "sfx_btn_icon_text"
-                                    action Function(_sfx_editor_add_to_pool, item["index"])
+                                    action Function(_sfx_editor_add_to_autoplay_pool, item["index"])
                                     tooltip "Add to Autoplay SFX pool"
                                 if item.get("enabled", True):
                                     textbutton "☑":

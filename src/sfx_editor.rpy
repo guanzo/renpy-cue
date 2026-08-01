@@ -48,7 +48,7 @@ init -999 python:
 
     # Key prefix constants for _sfx.markers trigger keys
     _sfx.IMG_KEY_PREFIX = "i:"
-    _sfx.POOL_KEY_PREFIX = "a:"
+    _sfx.AUTOPLAY_KEY_PREFIX = "a:"
     _sfx.DLG_KEY_PREFIX = "d:"
     _sfx.VID_KEY_PREFIX = "v:"
 
@@ -56,7 +56,7 @@ init -999 python:
     _sfx.played_video_keys = set()
     _sfx.__last_pos = 0.0
 
-    # Pool state machine (multi-instance: one per active p: key)
+    # Pool state machine (multi-instance: one per active a: key)
     _sfx.pool_states = {}
     
     _sfx.triggers_active = True
@@ -212,9 +212,9 @@ init python:
         """Build a video trigger key: 'v:<file>'."""
         return _sfx.VID_KEY_PREFIX + file
 
-    def create_pool_key(file):
-        """Build a pool trigger key: 'p:<file>'. file may be '' for global pool."""
-        return _sfx.POOL_KEY_PREFIX + file
+    def create_autoplay_key(file):
+        """Build a autoplay trigger key: 'a:<file>'. file may be '' for global pool."""
+        return _sfx.AUTOPLAY_KEY_PREFIX + file
 
     def create_dlg_key(dlg_pair):
         """Build a dialogue trigger key from a (file, dialogue) pair.
@@ -234,9 +234,9 @@ init python:
         """Check if key is a dialogue trigger key."""
         return key.startswith(_sfx.DLG_KEY_PREFIX)
 
-    def is_pool_key(key):
-        """Check if key is a pool trigger key."""
-        return key.startswith(_sfx.POOL_KEY_PREFIX)
+    def is_autoplay_key(key):
+        """Check if key is a autoplay trigger key."""
+        return key.startswith(_sfx.AUTOPLAY_KEY_PREFIX)
 
     def get_key_file(key):
         """Strip the 2-char prefix from any key, returning the file portion.
@@ -245,7 +245,7 @@ init python:
         return key[len(_sfx.IMG_KEY_PREFIX):]
 
     def get_key_prefix(key):
-        """Return the 2-char prefix of a key ('i:', 'v:', 'd:', or 'p:')."""
+        """Return the 2-char prefix of a key ('i:', 'v:', 'd:', or 'a:')."""
         return key[:len(_sfx.IMG_KEY_PREFIX)]
 
     # --------------------------------------------------------------------------
@@ -390,7 +390,7 @@ init python:
             _sfx.current_dialogue[:60] if _sfx.current_dialogue else "(none)"))
 
 
-    def _sfx_editor_pick_file(files, pool_key, avoid_repeats=True):
+    def _sfx_editor_pick_file(files, avoid_repeats=True):
         """Pick a random file from a list.
         If avoid_repeats is True, avoids files in the global last_played list.
         Repeat avoidance is shared across all non-video contexts.
@@ -445,10 +445,10 @@ init python:
                 files = pool.get("files", [])
                 if not files:
                     continue
-                _file = _sfx_editor_pick_file(files, key)
+                _file = _sfx_editor_pick_file(files)
                 _tries = 0
                 while _file in _picked and len(files) > 1 and _tries < 3:
-                    _file = _sfx_editor_pick_file(files, key)
+                    _file = _sfx_editor_pick_file(files)
                     _tries += 1
                 if _file in _picked:
                     continue
@@ -878,23 +878,23 @@ init python:
         _sfx.visible_tree = _sfx_editor_get_visible_tree()
 
 
-    def _sfx_editor_is_file_in_pool(full_path):
-        """Check if a file is in the current context's p: entry."""
+    def _sfx_editor_is_file_in_autoplay_pool(full_path):
+        """Check if a file is in the current context's a: entry."""
         if not _sfx.current_file:
             return False
-        pool_key = create_pool_key(_sfx.current_file)
-        entry = _sfx.markers.get(pool_key)
+        autoplay_key = create_autoplay_key(_sfx.current_file)
+        entry = _sfx.markers.get(autoplay_key)
         if entry and full_path in entry.get("files", []):
             return True
         return False
 
 
-    def _sfx_editor_add_folder_to_pool(folder_path):
-        """Recursively add all files under a folder prefix to the p: pool."""
+    def _sfx_editor_add_folder_to_autoplay_pool(folder_path):
+        """Recursively add all files under a folder prefix to the a: pool."""
         if not _sfx.current_file:
             return
-        pool_key = create_pool_key(_sfx.current_file)
-        entry = _sfx.markers.setdefault(pool_key, {"files": [], "frequency": 1})
+        autoplay_key = create_autoplay_key(_sfx.current_file)
+        entry = _sfx.markers.setdefault(autoplay_key, {"files": [], "frequency": 1})
         files = entry.setdefault("files", [])
         for f in _sfx.available_files:
             if f.startswith(folder_path) and f not in files and f not in _sfx.disabled_files:
@@ -1006,7 +1006,7 @@ init python:
                     "full_path": full,
                     "depth": depth,
                     "index": idx,
-                    "in_pool": _sfx_editor_is_file_in_pool(full),
+                    "in_pool": _sfx_editor_is_file_in_autoplay_pool(full),
                     "enabled": full not in _sfx.disabled_files,
                 })
 
@@ -1253,7 +1253,7 @@ init python:
 
     def _sfx_editor_marker_remove_file(trigger_key, file_index, pool_index=0):
         """Remove a file from a pool. Prunes pool when empty and entry when
-        last pool is gone. Legacy entries (p: callers) use the files branch."""
+        last pool is gone. Legacy entries (a: callers) use the files branch."""
         entry = _sfx.markers.get(trigger_key)
         if not isinstance(entry, dict):
             return
@@ -1271,7 +1271,7 @@ init python:
                 del _sfx.markers[trigger_key]
             _sfx_editor_save_markers()
         elif "files" in entry:
-            # Legacy path — p: entries and any un-migrated entries
+            # Legacy path — a: entries and any un-migrated entries
             files = entry["files"]
             if 0 <= file_index < len(files):
                 files.pop(file_index)
@@ -1531,33 +1531,33 @@ init python:
         _sfx.markers.pop(dlg_key, None)
         _sfx_editor_save_markers()
 
-    # --- Pool (p: prefix) ---
+    # --- Autoplay (a: prefix) ---
 
-    def _sfx_editor_add_to_pool(file_index):
-        """Add an audio file to the p: pool for the current context."""
+    def _sfx_editor_add_to_autoplay_pool(file_index):
+        """Add an audio file to the a: pool for the current context."""
         if 0 <= file_index < len(_sfx.available_files):
             if not _sfx.current_file:
                 return
             filename = _sfx.available_files[file_index]
             if filename in _sfx.disabled_files:
                 return
-            pool_key = create_pool_key(_sfx.current_file)
-            entry = _sfx.markers.setdefault(pool_key, {"files": [], "frequency": 1})
+            autoplay_key = create_autoplay_key(_sfx.current_file)
+            entry = _sfx.markers.setdefault(autoplay_key, {"files": [], "frequency": 1})
             files = entry.setdefault("files", [])
             if filename not in files:
                 files.append(filename)
             _sfx_editor_save_markers()
 
-    def _sfx_editor_remove_from_pool(file_index):
-        """Remove a file from the p: pool for the current context."""
-        pool_key = create_pool_key(_sfx.current_file)
-        _sfx_editor_marker_remove_file(pool_key, file_index)
+    def _sfx_editor_remove_from_autoplay_pool(file_index):
+        """Remove a file from the a: pool for the current context."""
+        autoplay_key = create_autoplay_key(_sfx.current_file)
+        _sfx_editor_marker_remove_file(autoplay_key, file_index)
 
-    def _sfx_editor_clear_pool():
+    def _sfx_editor_clear_autoplay_pool():
         """Remove pool markers for the current context."""
-        pool_key = create_pool_key(_sfx.current_file)
-        _sfx.markers.pop(pool_key, None)
-        _sfx.pool_states.pop(pool_key, None)
+        autoplay_key = create_autoplay_key(_sfx.current_file)
+        _sfx.markers.pop(autoplay_key, None)
+        _sfx.pool_states.pop(autoplay_key, None)
         _sfx_editor_save_markers()
 
     # --- Bulk clear ---
@@ -1571,20 +1571,20 @@ init python:
 
     def _sfx_editor_get_context_files():
         """Return a set of filenames that identify the current context.
-        Used for p: pool lookups."""
+        Used for a: pool lookups."""
         result = set()
         if _sfx.current_file:
             result.add(_sfx.current_file)
         return result
 
-    def _sfx_editor_get_pool_entry():
+    def _sfx_editor_get_autoplay_pool_entry():
         """Return the pool entry dict for the current context, or None.
-        Checks both image tag and video basename for a matching p: key.
+        Checks both image tag and video basename for a matching a: key.
         Injects __key__ into the returned dict so the UI knows the key.
         """
         ctx_files = _sfx_editor_get_context_files()
         for f in ctx_files:
-            key = create_pool_key(f)
+            key = create_autoplay_key(f)
             entry = _sfx.markers.get(key)
             if entry:
                 result = dict(entry)
@@ -1605,7 +1605,7 @@ init python:
                 copied[key] = _copy.deepcopy(entry)
             elif is_dlg_key(key) and get_key_file(key).startswith(ctx_file + "|"):
                 copied[key] = _copy.deepcopy(entry)
-            elif is_pool_key(key) or is_vid_key(key) and get_key_file(key) == ctx_file:
+            elif is_autoplay_key(key) or is_vid_key(key) and get_key_file(key) == ctx_file:
                 copied[key] = _copy.deepcopy(entry)
         _sfx.clipboard = {
             "markers": copied,
@@ -1628,7 +1628,7 @@ init python:
                 new_key = create_img_key(ctx_file)
             elif is_dlg_key(old_key) and get_key_file(old_key).startswith(old_file + "|"):
                 new_key = create_dlg_key((ctx_file, ctx_dlg))
-            elif is_pool_key(old_key) or is_vid_key(old_key) and get_key_file(old_key) == old_file:
+            elif is_autoplay_key(old_key) or is_vid_key(old_key) and get_key_file(old_key) == old_file:
                 new_key = get_key_prefix(old_key) + ctx_file
             if new_key not in _sfx.markers:
                 _sfx.markers[new_key] = _copy.deepcopy(entry)
@@ -1678,7 +1678,7 @@ init python:
             _sfx_log("RESTORE-MARKERS-ERROR {}".format(str(e)))
 
 
-    def _sfx_editor_get_pool_delay(frequency=1):
+    def _sfx_editor_get_autoplay_delay(frequency=1):
         """Return random breathing room (silence) between SFX.
         This is the gap AFTER an SFX finishes before the next one starts.
         frequency: 0=Slow, 1=Normal, 2=Fast, 3=Fastest
@@ -1694,8 +1694,8 @@ init python:
         else:
             return 3.0 + random.uniform(0.0, 1.5)
 
-    def _sfx_editor_set_pool_frequency(trigger_key, freq):
-        """Set pool frequency for a p: entry. 0 = Slow, 1 = Normal, 2 = Fast, 3 = Fastest."""
+    def _sfx_editor_set_autoplay_frequency(trigger_key, freq):
+        """Set autoplay frequency for a a: entry. 0 = Slow, 1 = Normal, 2 = Fast, 3 = Fastest."""
         entry = _sfx.markers.get(trigger_key)
         if entry:
             entry["frequency"] = int(freq)
@@ -1784,47 +1784,47 @@ init python:
         _sfx.__tick_count = getattr(store, '_sfx.__tick_count', 0) + 1
         tick = _sfx.__tick_count
 
-        # --- POOL STATE MACHINE (p: keys) ---
+        # --- AUTOPLAY STATE MACHINE (a: keys) ---
         now = _time.time()
-        pool_key = create_pool_key(_sfx.current_file or "")
+        autoplay_key = create_autoplay_key(_sfx.current_file or "")
 
-        entry = _sfx.markers.get(pool_key)
+        entry = _sfx.markers.get(autoplay_key)
         if entry:
             files = entry.get("files", [])
             freq = entry.get("frequency", 1)
             if files:
                 # Init pool state if needed
-                if pool_key not in _sfx.pool_states:
-                    _sfx.pool_states[pool_key] = {
+                if autoplay_key not in _sfx.pool_states:
+                    _sfx.pool_states[autoplay_key] = {
                         "state": 0,
                         "ch": None,
                         "ready_at": 0.0,
                         "play_start": 0.0,
                     }
-                ps = _sfx.pool_states[pool_key]
+                ps = _sfx.pool_states[autoplay_key]
 
                 if ps["state"] == 1:
                     if not renpy.music.is_playing(channel=ps["ch"]):
                         dur = now - ps["play_start"]
-                        breathing = _sfx_editor_get_pool_delay(freq)
+                        breathing = _sfx_editor_get_autoplay_delay(freq)
                         ps["ready_at"] = now + breathing
                         ps["state"] = 0
                         _sfx_log("TICK#{} POOL-DONE  key={} dur={:.2f}s next_in={:.2f}s".format(
-                            tick, pool_key, dur, breathing))
+                            tick, autoplay_key, dur, breathing))
 
                 if ps["state"] == 0:
                     if ps["ready_at"] == 0:
                         ps["ready_at"] = now + 0.5
                     elif now >= ps["ready_at"]:
-                        f = _sfx_editor_pick_file(files, pool_key)
+                        f = _sfx_editor_pick_file(files)
                         _vol = entry.get("volume", 1.0)
-                        ch_used = _sfx_editor_play_sfx(f, pool_key, volume=_vol)
+                        ch_used = _sfx_editor_play_sfx(f, autoplay_key, volume=_vol)
                         if ch_used:
                             ps["state"] = 1
                             ps["ch"] = ch_used
                             ps["play_start"] = now
                             _sfx_log("TICK#{} POOL-PLAY  key={} file={} ch={}".format(
-                                tick, pool_key, f, ch_used))
+                                tick, autoplay_key, f, ch_used))
 
         # --- VIDEO MODE triggers (v: keys) ---
         ch = _sfx.active_channel
@@ -1858,7 +1858,7 @@ init python:
                                 files = ts_entry.get("files", [])
                                 if files:
                                     _vsrc = _sfx.VID_KEY_PREFIX + "{}@{:.2f}".format(_sfx.current_file, mt)
-                                    f = _sfx_editor_pick_file(files, vid_key, avoid_repeats=False)
+                                    f = _sfx_editor_pick_file(files, avoid_repeats=False)
                                     _vol = ts_entry.get("volume", 1.0)
                                     _sfx_editor_play_sfx(f, _vsrc, volume=_vol)
                                     _sfx.played_video_keys.add(ts_key)
