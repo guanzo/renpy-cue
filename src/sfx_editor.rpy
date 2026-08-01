@@ -97,14 +97,6 @@ init -999 python:
     _sfx.audio_tree = []
     _sfx.disabled_files = set()  # Set of full_path strings for unchecked files
 
-    # Display
-    _sfx.current_time_str = "--:--.--"
-    _sfx.total_time_str = "--:--.--"
-    _sfx.current_frame_str = "---"
-    _sfx.total_frame_str = "---"
-    _sfx.audio_count = 0
-    _sfx.marker_count = 0
-
     # Internal
     _sfx.__sfx_channel_idx = 0
     _sfx.__fallback_start = 0.0
@@ -325,7 +317,6 @@ init python:
         """Toggle active state — when False, no triggers fire.
         Called from Ctrl+` key binding and the Active checkbox."""
         _sfx.triggers_active = not _sfx.triggers_active
-        renpy.restart_interaction()
 
 
     def _sfx_editor_toggle_shake_trigger():
@@ -337,7 +328,6 @@ init python:
         _pool = _sfx_editor_ensure_pool(_shake_key, _sfx.img_target_pool)
         _pool["trigger_on_shake"] = not _pool.get("trigger_on_shake", False)
         _sfx_editor_save_markers()
-        renpy.restart_interaction()
 
 
     def _sfx_editor_show():
@@ -664,8 +654,6 @@ init python:
                             dur = renpy.music.get_duration(channel=ch_name)
                             if path and dur > 0:
                                 _apply_channel(ch_name, ch)
-                                if old_ch is None:
-                                    renpy.restart_interaction()
                                 _sfx.__refreshing = False
                                 return
                     except Exception:
@@ -678,8 +666,6 @@ init python:
                     path = renpy.music.get_playing(channel=ch)
                     if path and path.lower().endswith(video_exts) and renpy.music.is_playing(channel=ch):
                         _apply_channel(ch, None)
-                        if old_ch is None:
-                            renpy.restart_interaction()
                         _sfx.__refreshing = False
                         return
                 except Exception:
@@ -689,18 +675,6 @@ init python:
             _sfx.channel_status = "No video detected"
         finally:
             _sfx.__refreshing = False
-
-
-    def _sfx_editor_set_channel_manual(ch_name):
-        """Manually set the active channel."""
-        ch_name = ch_name.strip()
-        if ch_name and renpy.music.channel_defined(ch_name):
-            _sfx.active_channel = ch_name
-            _sfx.channel_status = ch_name
-            _sfx.manual_channel_input = ch_name
-            _sfx_editor_reset_loop_tracking()
-        elif ch_name:
-            _sfx.channel_status = "Channel '{}' not found".format(ch_name)
 
 
     def _sfx_editor_reset_loop_tracking():
@@ -1044,7 +1018,6 @@ init python:
         else:
             _sfx.expanded_folders[folder_path] = True
         _sfx.visible_tree = _sfx_editor_get_visible_tree()
-        renpy.restart_interaction()
 
 
     def _sfx_editor_get_visible_tree():
@@ -1103,7 +1076,6 @@ init python:
             _sfx.disabled_files.add(full_path)
         _sfx.visible_tree = _sfx_editor_get_visible_tree()
         _sfx_editor_save_markers()
-        renpy.restart_interaction()
 
 
     # --------------------------------------------------------------------------
@@ -1115,7 +1087,6 @@ init python:
         volume: 0.0-5.0, applied to the channel after play starts.
         """
         _sfx_editor_play_sfx(filename, "preview", volume=volume)
-        renpy.restart_interaction()
 
     def _sfx_editor_play_sfx(filename, source="", volume=1.0):
         """Play an SFX on the next available dedicated channel.
@@ -1276,7 +1247,6 @@ init python:
         else:
             _sfx.img_target_pool = new_idx
         _sfx_editor_save_markers()
-        renpy.restart_interaction()
 
     def _sfx_editor_remove_pool(trigger_key, pool_index, kind="img"):
         """Delete a pool; delete the entry when no pools remain.
@@ -1303,7 +1273,6 @@ init python:
             else:
                 _sfx.img_target_pool = 0
         _sfx_editor_save_markers()
-        renpy.restart_interaction()
 
     def _sfx_editor_set_target_pool(kind, pool_index):
         """Set which pool the file-browser I/D buttons add to."""
@@ -1311,7 +1280,6 @@ init python:
             _sfx.dlg_target_pool = int(pool_index)
         else:
             _sfx.img_target_pool = int(pool_index)
-        renpy.restart_interaction()
 
     # --------------------------------------------------------------------------
     # Unified Marker CRUD
@@ -1410,8 +1378,7 @@ init python:
         if 0 <= index < len(timestamps):
             _sfx.edit_video_ts_index = index
             _sfx.edit_video_ts_text = _sfx_editor_format_time(timestamps[index]["time"])
-            renpy.restart_interaction()
-
+    
     def _sfx_editor_commit_video_ts():
         """Parse the edit text and update the active video timestamp.
         Tracks the active tab after re-sort."""
@@ -1439,13 +1406,11 @@ init python:
         # Clear editing state regardless of success/failure
         _sfx.edit_video_ts_index = -1
         _sfx.edit_video_ts_text = ""
-        renpy.restart_interaction()
 
     def _sfx_editor_cancel_edit_video_ts():
         """Cancel editing the video timestamp."""
         _sfx.edit_video_ts_index = -1
         _sfx.edit_video_ts_text = ""
-        renpy.restart_interaction()
 
     def _sfx_editor_start_edit_video_ts_by_index(index):
         """Begin editing the video timestamp at the given index (for non-active tabs)."""
@@ -1455,12 +1420,10 @@ init python:
         if 0 <= index < len(timestamps):
             _sfx.edit_video_ts_index = index
             _sfx.edit_video_ts_text = _sfx_editor_format_time(timestamps[index]["time"])
-            renpy.restart_interaction()
-
+    
     def _sfx_editor_set_vid_target_pool(pool_index):
         """Set which timestamp pool tab is active."""
         _sfx.vid_target_pool = int(pool_index)
-        renpy.restart_interaction()
 
     def _sfx_editor_add_video_pool():
         """Create a new empty timestamp at current elapsed time.
@@ -1478,7 +1441,6 @@ init python:
         timestamps.sort(key=lambda e: e["time"])
         _sfx.vid_target_pool = len(timestamps) - 1
         _sfx_editor_save_markers()
-        renpy.restart_interaction()
 
     def _sfx_editor_remove_video_pool(ts_index):
         """Delete a timestamp pool by index. Clamps vid_target_pool."""
@@ -1495,7 +1457,6 @@ init python:
             _sfx.vid_target_pool = min(_sfx.vid_target_pool, len(timestamps) - 1)
         _sfx.played_video_keys = set()
         _sfx_editor_save_markers()
-        renpy.restart_interaction()
 
     def _sfx_editor_duplicate_video_pool(ts_index):
         """Duplicate a timestamp pool with all settings (time, volume, file list).
@@ -1516,7 +1477,6 @@ init python:
         timestamps.sort(key=lambda e: e["time"])
         _sfx.vid_target_pool = timestamps.index(clone)
         _sfx_editor_save_markers()
-        renpy.restart_interaction()
 
     def _sfx_editor_remove_video_file(ts_index, file_index):
         """Remove a single file from a timestamp's files list.
@@ -1531,8 +1491,7 @@ init python:
             files.pop(file_index)
             _sfx.played_video_keys = set()
             _sfx_editor_save_markers()
-            renpy.restart_interaction()
-
+    
     def _sfx_editor_set_video_volume(value):
         """Set volume on the active timestamp."""
         vid_key = create_vid_key(_sfx.current_file)
@@ -1570,7 +1529,6 @@ init python:
             _sfx.edit_video_ts_text = _sfx_editor_format_time(new_time)
         _sfx.played_video_keys = set()
         _sfx_editor_save_markers()
-        renpy.restart_interaction()
 
     # --- Image markers (i: prefix) ---
 
@@ -1810,8 +1768,7 @@ init python:
         if entry:
             entry["frequency"] = int(freq)
             _sfx_editor_save_markers()
-            renpy.restart_interaction()
-
+    
 
     def _sfx_editor_get_volume(entry, trigger_key=None, pool_index=None, ts_index=None):
         """Current volume for the target: pool-level with entry-level fallback.
@@ -1886,7 +1843,15 @@ init python:
         import random as _random
         import time as _time
 
-        _sfx_editor_tick()
+        # Re-detect the active channel each tick so the CDD time display
+        # recovers after rollback (Page Up), which resets active_channel.
+        _sfx_editor_refresh_channel()
+
+        # Keep paused state in sync (referenced by the UI for play/pause buttons)
+        try:
+            _sfx.paused = renpy.music.get_pause(channel=_sfx.active_channel)
+        except Exception:
+            pass
 
         if not _sfx.triggers_active:
             return
@@ -1977,45 +1942,6 @@ init python:
             if _sfx.__last_pos > 0 and elapsed < _sfx.__last_pos - 0.3:
                 _sfx.played_video_keys.clear()
             _sfx.__last_pos = elapsed
-
-
-    def _sfx_editor_tick():
-        """Updates time display, checks markers, and drives pool mode.
-        """
-
-        if not _sfx.visible:
-            return
-
-        _sfx.audio_count = len(_sfx.available_files)
-        _sfx.marker_count = len(_sfx.markers)
-
-        # Detect current mode: video or image
-        ch = _sfx.active_channel
-
-        if _sfx.top_layer_type == 'movie':
-            # --- VIDEO MODE ---
-            elapsed = _sfx_editor_get_elapsed()
-            duration = _sfx_editor_get_duration()
-
-            _sfx.current_time_str = _sfx_editor_format_time(elapsed)
-            _sfx.total_time_str = _sfx_editor_format_time(duration)
-            fps = max(1, _sfx.fps)
-            _sfx.current_frame_str = str(int(elapsed * fps))
-            _sfx.total_frame_str = str(int(duration * fps))
-
-            try:
-                _sfx.paused = renpy.music.get_pause(channel=ch)
-            except Exception:
-                pass
-
-            # (loop detection and triggers handled by _sfx_editor_tick_trigger)
-
-        else:
-            _sfx.current_time_str = "--:--.--"
-            _sfx.total_time_str = "--:--.--"
-            _sfx.current_frame_str = "---"
-            _sfx.total_frame_str = "---"
-
 
 
     # --------------------------------------------------------------------------
@@ -2201,6 +2127,61 @@ init python:
 
 
 # =============================================================================
+# CDD: Self-updating label — redraws itself on a timer without restarting
+# interaction, so the time display stays live without jitter or input focus loss.
+# =============================================================================
+
+init python:
+    class SelfUpdatingLabel(renpy.Displayable):
+        """A text label that calls renpy.redraw() to update itself periodically.
+
+        `getter` is a zero-argument function that returns a string.
+        `style` is the Ren'Py text style to apply.
+        `interval` is the redraw interval in seconds (default 0.05 = 20 Hz)."""
+
+        def __init__(self, getter, style="default", interval=0.05, **properties):
+            # Let the base class resolve the string to a proper style object
+            # (so per_interact doesn't crash on self.style.prefix).
+            super(SelfUpdatingLabel, self).__init__(style=style, **properties)
+            self._text_style = style  # raw string for child Text creation
+            self.getter = getter
+            self.interval = interval
+
+        def render(self, width, height, st, at):
+            from renpy.text.text import Text as Txt
+            text = self.getter()
+            t = Txt(text, style=self._text_style)
+            cr = renpy.render(t, width, height, st, at)
+            cw, ch = cr.get_size()
+            r = renpy.Render(cw, ch)
+            r.blit(cr, (0, 0))
+            renpy.redraw(self, self.interval)
+            return r
+
+    def _sfx_editor_time_label_getter():
+        """Return 'elapsed / duration' formatted for the live time display."""
+        if _sfx.top_layer_type != 'movie':
+            _sfx_log("not movie? " + _sfx.top_layer_type + " " + _sfx.current_file)
+            return "--:--.-- / --:--.--"
+        e = _sfx_editor_get_elapsed()
+        d = _sfx_editor_get_duration()
+        return "{} / {}".format(
+            _sfx_editor_format_time(e),
+            _sfx_editor_format_time(d),
+        )
+
+    def _sfx_editor_frame_label_getter():
+        """Return 'frame / total' formatted for the live frame display."""
+        if _sfx.top_layer_type != 'movie':
+            _sfx_log("not movie? " + _sfx.top_layer_type + " " + _sfx.current_file)
+            return "---/---"
+        e = _sfx_editor_get_elapsed()
+        d = _sfx_editor_get_duration()
+        fps = max(1, _sfx.fps)
+        return "{}/{}".format(int(e * fps), int(d * fps))
+
+
+# =============================================================================
 # KEY-LISTENER SCREEN: Always-visible invisible screen that catches backtick
 # =============================================================================
 
@@ -2209,7 +2190,7 @@ screen sfx_editor_key_listener():
     key "K_BACKQUOTE" action Function(_sfx_editor_toggle)
     key "K_F3" action Function(renpy.invoke_in_new_context, renpy.pause)
     key "K_F4" action Function(_sfx_editor_toggle_active)
-    timer 0.05 repeat True action Function(_sfx_editor_tick_trigger)
+    timer 0.05 repeat True action Function(_sfx_editor_tick_trigger, _update_screens=False)
 
 # =============================================================================
 # MAIN OVERLAY SCREEN
@@ -2223,8 +2204,8 @@ screen sfx_editor_overlay():
 
     # Screen-level key bindings
     key "K_BACKQUOTE" action Function(_sfx_editor_hide)
-    key "K_1" action Function(_sfx_editor_copy_context)
-    key "K_2" action Function(_sfx_editor_paste_context)
+    key "shift_K_1" action Function(_sfx_editor_copy_context)
+    key "shift_K_2" action Function(_sfx_editor_paste_context)
 
     button:
         xalign 0.0

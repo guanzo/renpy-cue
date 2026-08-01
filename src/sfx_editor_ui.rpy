@@ -167,9 +167,15 @@ screen sfx_editor_sidebar_content():
                 text "Video: [_vid_name]" style "sfx_txt"
                 hbox:
                     spacing 5
-                    text "Time: [_sfx.current_time_str] / [_sfx.total_time_str]" style "sfx_txt"
+                    hbox:
+                        spacing 0
+                        text "Time: " style "sfx_txt"
+                        add SelfUpdatingLabel(_sfx_editor_time_label_getter, style="sfx_txt")
                     add Solid("#555555") xsize 2 ysize 15
-                    text "Frames: [_sfx.current_frame_str]/[_sfx.total_frame_str]" style "sfx_txt"
+                    hbox:
+                        spacing 0
+                        text "Frames: " style "sfx_txt"
+                        add SelfUpdatingLabel(_sfx_editor_frame_label_getter, style="sfx_txt")
                 hbox:
                     spacing 5
                     if _sfx.paused:
