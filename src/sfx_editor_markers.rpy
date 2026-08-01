@@ -582,6 +582,57 @@ init python:
             new_index = timestamps.index(ts_entry)
             _sfx.vid_target_pool = new_index
         _sfx_editor_save_markers()
+        # Keep tooltip live during drag
+        _sfx._tooltip_text = "Pool {} ({})".format(
+            _sfx.vid_target_pool + 1, _sfx_editor_format_time(new_value))
+
+    def _sfx_editor_mtl_get_markers():
+        """Get the list of timestamp dicts for the current video."""
+        vid_key = create_vid_key(_sfx.current_file) if _sfx.current_file else ""
+        if not vid_key:
+            return []
+        return _sfx.markers.get(vid_key, {}).get("timestamps", [])
+
+    def _sfx_editor_mtl_get_active():
+        """Get the active pool index."""
+        return _sfx.vid_target_pool
+
+    def _sfx_editor_mtl_set_active(idx):
+        """Set the active pool index."""
+        _sfx.vid_target_pool = int(idx)
+
+    def _sfx_editor_mtl_get_dur():
+        """Get video duration, floored at 0.001."""
+        return max(0.001, _sfx_editor_get_duration())
+
+    def _sfx_editor_mtl_set_time(idx, new_time):
+        """Write a marker timestamp during drag — no sort/save (done on release)."""
+        vid_key = create_vid_key(_sfx.current_file) if _sfx.current_file else ""
+        if not vid_key:
+            return
+        entry = _sfx.markers.get(vid_key, {})
+        timestamps = entry.get("timestamps", [])
+        dur = _sfx_editor_get_duration()
+        new_time = max(0.0, min(new_time, dur - 0.05)) if dur > 0 else max(0.0, new_time)
+        if 0 <= idx < len(timestamps):
+            timestamps[idx]["time"] = new_time
+
+    def _sfx_editor_mtl_finalize():
+        """Sort timestamps and save after a drag ends."""
+        vid_key = create_vid_key(_sfx.current_file) if _sfx.current_file else ""
+        if not vid_key:
+            return
+        entry = _sfx.markers.get(vid_key, {})
+        timestamps = entry.get("timestamps", [])
+        if not timestamps:
+            return
+        pi = _sfx.vid_target_pool
+        if 0 <= pi < len(timestamps):
+            ts_entry = timestamps[pi]
+            timestamps.sort(key=lambda ts: ts.get("time", 0))
+            new_index = timestamps.index(ts_entry)
+            _sfx.vid_target_pool = new_index
+        _sfx_editor_save_markers()
 
     def _sfx_editor_set_video_marker_time(pool_index, new_time):
         """Update the timestamp of a video marker pool.

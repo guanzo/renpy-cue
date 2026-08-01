@@ -294,56 +294,15 @@ screen sfx_editor_sidebar_content():
                 $ _vid_count = len(_vid_entries)
                 $ _vid_target = _sfx.vid_target_pool
                 $ _vid_target = max(0, min(_vid_target, _vid_count - 1)) if _vid_entries else 0
-                # --- Video marker lines + drag bar ---
+                # --- Draggable video marker timeline ---
                 if _vid_entries:
-                    # Vertical lines + numbered buttons
-                    fixed:
-                        xfill True
-                        ysize 20
-                        for pi in range(_vid_count):
-                            $ _mt = _vid_entries[pi].get("time", 0)
-                            $ _dur = _sfx_editor_get_duration()
-                            $ _frac = _mt / max(0.001, _dur)
-                            $ _is_active = (pi == _vid_target)
-                            $ _line_color = "#ffcc00" if _is_active else "#666666"
-                            $ _btn_bg = "#669966" if _is_active else "#444444"
-                            $ _btn_hover = "#7777cc" if _is_active else "#666666"
-                            $ _tab_label = str(pi + 1)
-                            $ _tip = "Pool " + _tab_label + " (" + _sfx_editor_format_time(_mt) + ")"
-                            vbox:
-                                xpos _frac
-                                xanchor 0.5
-                                spacing 0
-                                xsize 24
-                                add Solid(_line_color) xsize 2 ysize 10 yoffset -2 xalign 0.5
-                                textbutton _tab_label:
-                                    style "sfx_btn"
-                                    text_style "sfx_btn_text"
-                                    xalign 0.5
-                                    background _btn_bg
-                                    hover_background _btn_hover
-                                    action Function(_sfx_editor_set_vid_target_pool, pi)
-                                    tooltip _tip
-                    # Shared drag bar for the active pool
-                    if 0 <= _vid_target < _vid_count and _vid_entries[_vid_target].get("time"):
-                        vbox:
-                            spacing 5
-                            ysize 12
-                            bar:
-                                value DictValue(_vid_entries[_vid_target], "time", range=max(0.001, _dur))
-                                xfill True
-                                ysize 12
-                                left_bar Solid("#222222")
-                                right_bar Solid("#222222")
-                                thumb Transform(Solid("#007AFF"), xsize=12, ysize=12)
-                                hover_thumb Transform(Solid("#3e9bff"), xsize=12, ysize=12)
-                                thumb_offset 6
-                                changed Function(_sfx_editor_on_bar_changed)
-
-                            text "Click a marker and drag the blue box to adjust timestamp":
-                                xalign 0.5 
-                                yalign 0.5 
-                                style "sfx_txt"
+                    add _VideoMarkerTimeline(
+                        get_markers=_sfx_editor_mtl_get_markers,
+                        get_active=_sfx_editor_mtl_get_active,
+                        set_active=_sfx_editor_mtl_set_active,
+                        set_time=_sfx_editor_mtl_set_time,
+                        get_dur=_sfx_editor_mtl_get_dur,
+                    )
                 fixed:
                     xfill True
                     ysize 1
