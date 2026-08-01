@@ -113,12 +113,12 @@ screen sfx_editor_sidebar_content():
                 style "sfx_btn_icon"
                 text_style "sfx_btn_icon_text"
                 action Function(_sfx_editor_copy_context)
-                tooltip "Copy current context config"
+                tooltip "Copy current context config (Shift + 1)"
             textbutton "📄":
                 style "sfx_btn_icon"
                 text_style "sfx_btn_icon_text"
                 action Function(_sfx_editor_paste_context)
-                tooltip "Paste context config"
+                tooltip "Paste context config (Shift + 2)"
             null width 5
             $ _backup_tooltip = "Backup config to " + _sfx.config_filename
             textbutton "💾":
@@ -188,22 +188,21 @@ screen sfx_editor_sidebar_content():
                             style "sfx_btn"
                             text_style "sfx_btn_text"
                             action Function(_sfx_editor_toggle_pause)
-                    textbutton "⏮":
-                        style "sfx_btn"
-                        text_style "sfx_btn_text"
-                        action Function(_sfx_editor_coarse_seek, -1.0)
                     textbutton "-1f":
                         style "sfx_btn"
                         text_style "sfx_btn_text"
                         action Function(_sfx_editor_seek_frame, -1)
+                        tooltip "Seek backwards 1 frame (inaccurate and requires restarting video)"
                     textbutton "+1f":
                         style "sfx_btn"
                         text_style "sfx_btn_text"
                         action Function(_sfx_editor_seek_frame, 1)
-                    textbutton "⏭":
-                        style "sfx_btn"
-                        text_style "sfx_btn_text"
-                        action Function(_sfx_editor_coarse_seek, 1.0)
+                        tooltip "Seek forward 1 frame (inaccurate)"
+                # --- Timeline visualizer ---
+                fixed:
+                    xfill True
+                    ysize 18
+                    add VideoTimeline()
                 # Video marker tabs + active pool
                 $ _vid_key = create_vid_key(_sfx.current_file) if _sfx.current_file else ""
                 $ _vid_entry = _sfx.markers.get(_vid_key, {})
@@ -211,6 +210,56 @@ screen sfx_editor_sidebar_content():
                 $ _vid_count = len(_vid_entries)
                 $ _vid_target = _sfx.vid_target_pool
                 $ _vid_target = max(0, min(_vid_target, _vid_count - 1)) if _vid_entries else 0
+                # --- Video marker lines + drag bar ---
+                if _vid_entries:
+                    # Vertical lines + numbered buttons
+                    fixed:
+                        xfill True
+                        ysize 20
+                        for pi in range(_vid_count):
+                            $ _mt = _vid_entries[pi].get("time", 0)
+                            $ _dur = _sfx_editor_get_duration()
+                            $ _frac = _mt / max(0.001, _dur)
+                            $ _is_active = (pi == _vid_target)
+                            $ _line_color = "#ffcc00" if _is_active else "#666666"
+                            $ _btn_bg = "#669966" if _is_active else "#444444"
+                            $ _btn_hover = "#7777cc" if _is_active else "#666666"
+                            $ _tab_label = str(pi + 1)
+                            $ _tip = "Pool " + _tab_label + " (" + _sfx_editor_format_time(_mt) + ")"
+                            vbox:
+                                xpos _frac
+                                xanchor 0.5
+                                spacing 0
+                                xsize 24
+                                add Solid(_line_color) xsize 2 ysize 10 yoffset -2 xalign 0.5
+                                textbutton _tab_label:
+                                    style "sfx_btn"
+                                    text_style "sfx_btn_text"
+                                    xalign 0.5
+                                    background _btn_bg
+                                    hover_background _btn_hover
+                                    action Function(_sfx_editor_set_vid_target_pool, pi)
+                                    tooltip _tip
+                    # Shared drag bar for the active pool
+                    if 0 <= _vid_target < _vid_count:
+                        vbox:
+                            spacing 5
+                            ysize 12
+                            bar:
+                                value DictValue(_vid_entries[_vid_target], "time", range=max(0.001, _dur))
+                                xfill True
+                                ysize 12
+                                left_bar Solid("#222222")
+                                right_bar Solid("#222222")
+                                thumb Transform(Solid("#007AFF"), xsize=12, ysize=12)
+                                hover_thumb Transform(Solid("#3e9bff"), xsize=12, ysize=12)
+                                thumb_offset 6
+                                changed Function(_sfx_editor_on_bar_changed)
+
+                            text "Click a marker and drag the blue box to adjust timestamp":
+                                xalign 0.5 
+                                yalign 0.5 
+                                style "sfx_txt"
                 fixed:
                     xfill True
                     ysize 1
@@ -219,7 +268,7 @@ screen sfx_editor_sidebar_content():
                     spacing 5
                     text "Video Markers ([_vid_count])" style "sfx_txt"
                 hbox:
-                    spacing 2
+                    spacing 5
                     if _vid_entries:
                         textbutton "Delete":
                             style "sfx_btn"
@@ -241,7 +290,7 @@ screen sfx_editor_sidebar_content():
                             style "sfx_btn"
                             text_style "sfx_btn_text"
                             if _is_active:
-                                background "#666699"
+                                background "#669966"
                             else:
                                 background "#444444"
                             action Function(_sfx_editor_set_vid_target_pool, pi)
@@ -418,7 +467,7 @@ screen sfx_editor_sidebar_content():
                             style "sfx_btn"
                             text_style "sfx_btn_text"
                             if _is_active:
-                                background "#666699"
+                                background "#669966"
                             else:
                                 background "#444444"
                             action Function(_sfx_editor_set_target_pool, "img", pi)
@@ -517,7 +566,7 @@ screen sfx_editor_sidebar_content():
                 null height 5
                 # Tab row: [+ Pool] [1] [2] ...
                 hbox:
-                    spacing 2
+                    spacing 5
                     if _dlg_pools:
                         textbutton "Delete":
                             style "sfx_btn"
@@ -541,7 +590,7 @@ screen sfx_editor_sidebar_content():
                             text_style "sfx_btn_text"
                             xsize 22
                             if _is_active:
-                                background "#666699"
+                                background "#669966"
                             else:
                                 background "#444444"
                             action Function(_sfx_editor_set_target_pool, "dlg", pi)

@@ -791,46 +791,6 @@ init python:
                 renpy.music.stop(channel=ch, fadeout=0)
                 renpy.music.play(filepath, channel=ch, loop=True)
 
-
-    def _sfx_editor_coarse_seek(delta_seconds):
-        """Jump forward/backward. Auto-pauses if playing."""
-        ch = _sfx.active_channel
-        if not ch:
-            return
-
-        # Auto-pause if playing
-        if not _sfx.paused:
-            renpy.music.set_pause(True, channel=ch)
-            _sfx.paused = True
-            _sfx.__pause_origin = renpy.music.get_pos(channel=ch) or 0.0
-            _sfx.__total_offset = 0.0
-            _sfx.__time_offset = 0.0
-
-        if delta_seconds > 0:
-            pos = renpy.music.get_pos(channel=ch) or 0.0
-            _sfx.__step_target = pos + delta_seconds
-            _sfx_log("+coarse step_target={:.3f}".format(_sfx.__step_target))
-            renpy.music.set_pause(False, channel=ch)
-        else:
-            _sfx.__total_offset += delta_seconds
-            dur = renpy.music.get_duration(channel=ch) or 0.0
-            origin = _sfx.__pause_origin
-            target = origin + _sfx.__total_offset
-            if target < 0:
-                target = dur + target
-            target = max(0.0, min(target, dur - 0.05))
-
-            filepath = renpy.music.get_playing(channel=ch)
-            _sfx_log(
-                "-coarse origin={:.3f} total_offset={:.3f} target={:.3f}"
-                .format(origin, _sfx.__total_offset, target)
-            )
-            if filepath and dur > 0:
-                _sfx.__pause_target = target
-                renpy.music.stop(channel=ch, fadeout=0)
-                renpy.music.play(filepath, channel=ch, loop=True)
-
-
     # --------------------------------------------------------------------------
     # Audio File Scanning
     # --------------------------------------------------------------------------
@@ -1382,6 +1342,42 @@ init python:
     def _sfx_editor_set_vid_target_pool(pool_index):
         """Set which timestamp pool tab is active."""
         _sfx.vid_target_pool = int(pool_index)
+
+    def _sfx_editor_on_bar_changed(new_value):
+        """Called when the drag bar adjusts a marker's timestamp.
+        DictValue already wrote the value — just re-sort and save."""
+        vid_key = create_vid_key(_sfx.current_file) if _sfx.current_file else ""
+        if not vid_key:
+            return
+        entry = _sfx.markers.get(vid_key, {})
+        timestamps = entry.get("timestamps", [])
+        if not timestamps:
+            return
+        pi = _sfx.vid_target_pool
+        if 0 <= pi < len(timestamps):
+            ts_entry = timestamps[pi]
+            timestamps.sort(key=lambda ts: ts.get("time", 0))
+            new_index = timestamps.index(ts_entry)
+            _sfx.vid_target_pool = new_index
+        _sfx_editor_save_markers()
+
+    def _sfx_editor_set_video_marker_time(pool_index, new_time):
+        """Update the timestamp of a video marker pool.
+        Clamps to [0, duration] and auto-saves."""
+        vid_key = create_vid_key(_sfx.current_file) if _sfx.current_file else ""
+        if not vid_key:
+            return
+        entry = _sfx.markers.get(vid_key, {})
+        timestamps = entry.get("timestamps", [])
+        if 0 <= pool_index < len(timestamps):
+            dur = _sfx_editor_get_duration()
+            new_time = max(0.0, min(new_time, dur - 0.05)) if dur > 0 else max(0.0, new_time)
+            ts_entry = timestamps[pool_index]
+            ts_entry["time"] = new_time
+            timestamps.sort(key=lambda ts: ts.get("time", 0))
+            new_index = timestamps.index(ts_entry)
+            _sfx.vid_target_pool = new_index
+            _sfx_editor_save_markers()
 
     def _sfx_editor_add_video_pool():
         """Create a new empty timestamp at current elapsed time.
@@ -2085,6 +2081,51 @@ init python:
             r.blit(cr, (0, 0))
             renpy.redraw(self, self.interval)
             return r
+
+
+    class VideoTimeline(renpy.Displayable):
+        """Video-editor-style timeline bar with a playhead line.
+        Redraws at ~60 Hz (16 ms) for smooth playhead movement."""
+
+        BAR_H = 16  # bar height in pixels
+
+        def __init__(self, interval=0.016, **properties):
+            super(VideoTimeline, self).__init__(**properties)
+            self.interval = interval
+
+        def render(self, width, height, st, at):
+            r = renpy.Render(width, height)
+
+            dur = _sfx_editor_get_duration()
+            elapsed = _sfx_editor_get_elapsed()
+            paused = _sfx.paused
+
+            # Determine hover state for subtle brightness change
+            hovered = False
+            try:
+                hovered = self in renpy.get_hovered()
+            except Exception:
+                pass
+
+            bar_y = max(0, (height - self.BAR_H) // 2)
+
+            # Bar background (slightly brighter on hover)
+            bg = "#3a3a3a" if hovered else "#333333"
+            canvas = r.canvas()
+            canvas.rect(bg, (0, bar_y, width, self.BAR_H))
+
+            # Playhead line (inside the bar)
+            if dur > 0 and width > 0:
+                frac = max(0.0, min(1.0, elapsed / float(dur)))
+                px = int(frac * width)
+                px = max(0, min(px, width - 1))
+
+                ph_color = "#ffaa00" if paused else "#ffffff"
+                canvas.rect(ph_color, (px, bar_y, 2, self.BAR_H))
+
+            renpy.redraw(self, self.interval)
+            return r
+
 
     def _sfx_editor_time_label_getter():
         """Return 'elapsed / duration' formatted for the live time display."""
