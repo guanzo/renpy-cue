@@ -701,7 +701,8 @@ init python:
     def _sfx_editor_seek_frame(delta_frames):
         """Step forward/backward.
         Forward: briefly unpause, auto-re-pause via tick timer.
-        Backward: restart from 0, auto-pause at origin + accumulated offset."""
+        Backward: restart from 0, auto-pause at origin + accumulated offset.
+        Does not wrap around — clamps at 0 and duration."""
         ch = _sfx.active_channel
         if not ch:
             return
@@ -716,20 +717,25 @@ init python:
             _sfx.__total_offset = 0.0
             _sfx.__time_offset = 0.0
 
+        dur = renpy.music.get_duration(channel=ch) or 0.0
+
         if delta_frames > 0:
             pos = renpy.music.get_pos(channel=ch) or 0.0
-            _sfx.__step_target = pos + delta_frames * frame_seconds
+            target = pos + delta_frames * frame_seconds
+            if dur > 0:
+                target = min(target, dur - 0.05)
+            _sfx.__step_target = max(0.001, target)
             _sfx_log("+f step_target={:.3f}".format(_sfx.__step_target))
             renpy.music.set_pause(False, channel=ch)
 
         else:  # delta_frames < 0
             _sfx.__total_offset += delta_frames * frame_seconds
-            dur = renpy.music.get_duration(channel=ch) or 0.0
             origin = _sfx.__pause_origin
             target = origin + _sfx.__total_offset
-            if target < 0:
-                target = dur + target
-            target = max(0.0, min(target, dur - 0.05))
+            if dur > 0:
+                target = max(0.0, min(target, dur - 0.05))
+            else:
+                target = max(0.0, target)
 
             filepath = renpy.music.get_playing(channel=ch)
             _sfx_log(
@@ -737,9 +743,50 @@ init python:
                 .format(origin, _sfx.__total_offset, target, dur)
             )
             if filepath and dur > 0:
-                _sfx.__pause_target = target
+                _sfx.__pause_target = max(0.001, target)
                 renpy.music.stop(channel=ch, fadeout=0)
                 renpy.music.play(filepath, channel=ch, loop=True)
+
+
+    def _sfx_editor_seek_to(target_time):
+        """Seek to an absolute timestamp and pause there.
+
+        Forward (target >= current pos): pause, set __step_target, unpause.
+        The tick auto-pauses when pos reaches the target — no restart needed.
+        Backward (target < current pos): restart from 0 with __pause_target."""
+        ch = _sfx.active_channel
+        if not ch:
+            return
+
+        dur = renpy.music.get_duration(channel=ch) or 0.0
+        if dur <= 0:
+            return
+
+        target = max(0.0, min(target_time, dur - 0.05))
+        current_pos = renpy.music.get_pos(channel=ch) or 0.0
+
+        # Reset offset tracking for the absolute target
+        _sfx.__pause_origin = target
+        _sfx.__total_offset = 0.0
+        _sfx.__time_offset = 0.0
+        _sfx.__pause_target = 0.0
+
+        if target >= current_pos:
+            # Forward seek: pause, set step target, unpause (same as +1f)
+            if not _sfx.paused:
+                renpy.music.set_pause(True, channel=ch)
+                _sfx.paused = True
+            _sfx.__step_target = max(0.001, target)
+            renpy.music.set_pause(False, channel=ch)
+        else:
+            # Backward seek: restart from 0 (same as -1f)
+            filepath = renpy.music.get_playing(channel=ch)
+            if not filepath:
+                return
+            _sfx.__step_target = 0.0
+            _sfx.__pause_target = max(0.001, target)
+            renpy.music.stop(channel=ch, fadeout=0)
+            renpy.music.play(filepath, channel=ch, loop=True)
 
 
     # --------------------------------------------------------------------------
@@ -837,6 +884,21 @@ init python:
         except Exception:
             pass
 
+        # --- Auto-re-pause after seek (runs regardless of SFX Active) ---
+        ch = _sfx.active_channel
+        if ch and _sfx.top_layer_type == 'movie':
+            pos = renpy.music.get_pos(channel=ch)
+            if _sfx.__pause_target > 0 and pos is not None and pos >= _sfx.__pause_target:
+                renpy.music.set_pause(True, channel=ch)
+                _sfx.__pause_target = 0.0
+                _sfx.paused = True
+                _sfx.__time_offset = 0.0
+            if _sfx.__step_target > 0 and pos is not None and pos >= _sfx.__step_target:
+                renpy.music.set_pause(True, channel=ch)
+                _sfx.__step_target = 0.0
+                _sfx.paused = True
+                _sfx.__time_offset = 0.0
+
         if not _sfx.triggers_active:
             return
 
@@ -889,19 +951,6 @@ init python:
         ch = _sfx.active_channel
         if ch and _sfx.top_layer_type == 'movie':
             elapsed = _sfx_editor_get_elapsed()
-
-            # Auto-re-pause after seek
-            pos = renpy.music.get_pos(channel=ch)
-            if _sfx.__pause_target > 0 and pos is not None and pos >= _sfx.__pause_target:
-                renpy.music.set_pause(True, channel=ch)
-                _sfx.__pause_target = 0.0
-                _sfx.paused = True
-                _sfx.__time_offset = 0.0
-            if _sfx.__step_target > 0 and pos is not None and pos >= _sfx.__step_target:
-                renpy.music.set_pause(True, channel=ch)
-                _sfx.__step_target = 0.0
-                _sfx.paused = True
-                _sfx.__time_offset = 0.0
 
             # Video markers
             if _sfx.current_file:

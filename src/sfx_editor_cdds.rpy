@@ -32,15 +32,20 @@ init python:
 
     class VideoTimeline(renpy.Displayable):
         """Video-editor-style timeline bar with a playhead line.
-        Redraws at ~60 Hz (16 ms) for smooth playhead movement."""
+        Redraws at ~60 Hz (16 ms) for smooth playhead movement.
+        Click on the bar to seek the video to that position and pause."""
 
         BAR_H = 16  # bar height in pixels
+        TIP_H = 18  # tooltip height
 
         def __init__(self, interval=0.016, **properties):
             super(VideoTimeline, self).__init__(**properties)
             self.interval = interval
+            self._w = 1
+            self._bar_y = 0
 
         def render(self, width, height, st, at):
+            self._w = width
             r = renpy.Render(width, height)
 
             dur = _sfx_editor_get_duration()
@@ -54,7 +59,8 @@ init python:
             except Exception:
                 pass
 
-            bar_y = max(0, (height - self.BAR_H) // 2)
+            self._bar_y = max(0, (height - self.BAR_H) // 2)
+            bar_y = self._bar_y
 
             # Bar background (slightly brighter on hover)
             bg = "#3a3a3a" if hovered else "#333333"
@@ -70,8 +76,55 @@ init python:
                 ph_color = "#ffaa00" if paused else "#ffffff"
                 canvas.rect(ph_color, (px, bar_y, 2, self.BAR_H))
 
+            # --- Hover seek-preview tooltip ---
+            if dur > 0 and _sfx.active_channel:
+                mx, my = renpy.get_mouse_pos()
+                bx = getattr(_sfx, '_vtl_screen_x', -999)
+                by = getattr(_sfx, '_vtl_screen_y', -999)
+                rx, ry = mx - bx, my - by
+                if 0 <= rx <= width and bar_y <= ry <= bar_y + self.BAR_H:
+                    frac = max(0.0, min(1.0, rx / float(max(1, width))))
+                    t = min(frac * dur, max(0.0, dur - 0.05))
+                    tip_text = "Seek: " + _sfx_editor_format_time(t)
+                    tip_widget = Text(tip_text, style="sfx_txt", size=11,
+                                      color="#cccccc", italic=True, substitute=False)
+                    tip_render = renpy.render(tip_widget, 300, self.TIP_H, st, at)
+                    tw, _ = tip_render.get_size()
+                    fw = min(tw + 8, 300)
+                    fh = self.TIP_H - 2
+                    tip = renpy.Render(fw, fh)
+                    tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))
+                    tip.blit(tip_render, (4, 1))
+                    tx = rx + 12
+                    ty = bar_y - 20
+                    tx = max(0, min(tx, width - fw))
+                    r.blit(tip, (tx, ty))
+
             renpy.redraw(self, self.interval)
             return r
+
+        def event(self, ev, x, y, st):
+            import pygame
+            if ev.type == pygame.MOUSEMOTION:
+                mx, my = renpy.get_mouse_pos()
+                _sfx._vtl_screen_x = mx - x
+                _sfx._vtl_screen_y = my - y
+                renpy.redraw(self, 0)
+                return None
+            if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                # Only handle clicks within the visible bar area
+                bar_y = getattr(self, '_bar_y', 0)
+                if bar_y <= y <= bar_y + self.BAR_H:
+                    dur = _sfx_editor_get_duration()
+                    if dur > 0 and _sfx.active_channel:
+                        w = getattr(self, '_w', 1)
+                        if w > 0:
+                            frac = max(0.0, min(1.0, x / float(w)))
+                            _sfx_editor_seek_to(frac * dur)
+                            renpy.redraw(self, 0)
+                            raise renpy.display.core.IgnoreEvent()
+                return None
+            return None
 
 
     class _VideoMarkerTimeline(renpy.Displayable):
