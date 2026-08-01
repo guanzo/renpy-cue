@@ -132,15 +132,14 @@ screen sfx_icon_button(text, action, tt, xsize):
 # delete_xsize/tab_xsize override the default button width (pass None for default).
 screen sfx_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                      delete_tt, add_action, add_tt, tab_action_fn, tab_action_args,
-                     tab_tt, delete_xsize, tab_xsize):
+                     tab_tt):
     hbox:
         spacing 5
         if show_delete:
             textbutton "Delete All":
                 style "sfx_btn"
                 text_style "sfx_btn_text"
-                if delete_xsize is not None:
-                    xsize delete_xsize
+                xsize 70
                 action Confirm(delete_confirm, delete_action)
                 tooltip delete_tt
         textbutton "+ Pool":
@@ -154,8 +153,7 @@ screen sfx_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
             textbutton str(pi + 1):
                 style "sfx_btn"
                 text_style "sfx_btn_text"
-                if tab_xsize is not None:
-                    xsize tab_xsize
+                xsize 14
                 if _is_active:
                     background "#669966"
                 else:
@@ -214,7 +212,7 @@ screen sfx_editor_sidebar_content():
         hbox:
             spacing 2
             if _sfx.triggers_active:
-                textbutton "☑ Active":
+                textbutton "☑ SFX Active":
                     style "sfx_btn"
                     text_style "sfx_btn_text_sm"
                     background "#446644"
@@ -222,7 +220,7 @@ screen sfx_editor_sidebar_content():
                     action Function(_sfx_editor_toggle_active)
                     tooltip "SFX triggers are ON (F4 to toggle)"
             else:
-                textbutton "☐ Active":
+                textbutton "☐ SFX Active":
                     style "sfx_btn"
                     text_style "sfx_btn_text_sm"
                     background "#664444"
@@ -364,8 +362,7 @@ screen sfx_editor_sidebar_content():
                     "Delete all video timestamp markers for the current video?",
                     Function(_sfx_editor_clear_video_markers), "Delete all video SFX for the current video",
                     Function(_sfx_editor_add_video_pool), "Create a new empty timestamp at current time",
-                    _sfx_editor_set_vid_target_pool, (), "Select timestamp pool — V button adds files here",
-                    None, None)
+                    _sfx_editor_set_vid_target_pool, (), "Select timestamp pool — V button adds files here")
                 # Active pool display
                 if _vid_entries and 0 <= _vid_target < _vid_count:
                     $ _active_ts = _vid_entries[_vid_target]
@@ -448,8 +445,7 @@ screen sfx_editor_sidebar_content():
                     "Delete all image SFX for the current image?",
                     Function(_sfx_editor_clear_image_markers), "Delete all image SFX for the current image",
                     Function(_sfx_editor_add_pool, _img_key, "img"), "Add a new pool",
-                    _sfx_editor_set_target_pool, ("img",), "Select Image SFX target pool — targets I button",
-                    50, None)
+                    _sfx_editor_set_target_pool, ("img",), "Select Image SFX target pool — targets I button")
                 # Active pool display
                 if _img_pools and 0 <= _img_target < len(_img_pools):
                     $ _active_pool = _img_pools[_img_target]
@@ -510,8 +506,7 @@ screen sfx_editor_sidebar_content():
                     "Delete all dialogue SFX for the current dialogue?",
                     Function(_sfx_editor_clear_dialogue_markers), "Delete all dialogue SFX for the current dialogue",
                     Function(_sfx_editor_add_pool, _dlg_key, "dlg"), "Add a new pool",
-                    _sfx_editor_set_target_pool, ("dlg",), "Select Dialogue SFX target pool — targets D button",
-                    None, 22)
+                    _sfx_editor_set_target_pool, ("dlg",), "Select Dialogue SFX target pool — targets D button")
                 # Active pool display
                 if _dlg_pools and 0 <= _dlg_target < len(_dlg_pools):
                     $ _active_pool = _dlg_pools[_dlg_target]
