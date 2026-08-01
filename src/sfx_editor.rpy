@@ -1102,8 +1102,10 @@ init python:
             else:
                 renpy.music.play(full_path, channel=target_ch, loop=False)
                 renpy.music.set_volume(volume, delay=0, channel=target_ch)
-                _sfx_log("PLAY-SFX file={} src={} ch={} vol={:.2f}".format(
-                    filename.rsplit("/", 1)[-1], source, target_ch, volume))
+
+            _sfx_log("PLAY-SFX file={} src={} ch={} vol={:.2f}".format(
+                filename.rsplit("/", 1)[-1], source, target_ch, volume))
+
             return target_ch
         except Exception:
             return None
@@ -1622,7 +1624,6 @@ init python:
         ctx_file = _sfx.current_file
         ctx_dlg = _sfx.current_dialogue
         copied = {}
-        _sfx_log(f"_sfx_editor_copy_context {ctx_file=} {ctx_dlg=}")
 
         all_keys = [
             create_vid_key(ctx_file),
@@ -1641,15 +1642,10 @@ init python:
             "source_file": ctx_file,
             "source_dialogue": ctx_dlg,
         }
-        _sfx_log("copy clipboard")
-        _sfx_log(str(_sfx.clipboard))
 
     def _sfx_editor_paste_context():
         """Paste clipboard markers into current context, remapping keys."""
         
-        _sfx_log("paste clipboard")
-        _sfx_log(str(_sfx.clipboard))
-
         import copy as _copy
         if _sfx.clipboard is None:
             return
