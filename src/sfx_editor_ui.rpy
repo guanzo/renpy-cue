@@ -260,9 +260,9 @@ screen sfx_editor_sidebar_content():
                             text_style "sfx_btn_text"
                             action Function(_sfx_editor_duplicate_video_pool, _vid_target)
                             tooltip "Duplicate this timestamp pool"
-                        textbutton "✕":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
+                        textbutton "Delete":
+                            style "sfx_btn"
+                            text_style "sfx_btn_text"
                             action Function(_sfx_editor_remove_video_pool, _vid_target)
                             tooltip "Delete this timestamp pool"
                     # Editable timestamp + nudge buttons
