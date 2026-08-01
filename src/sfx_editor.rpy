@@ -251,9 +251,10 @@ init python:
 
 
     def _sfx_editor_toggle_active():
-        """Toggle active state — when False, no triggers fire.
+        """Toggle active state — when False, no triggers fire. Persisted.
         Called from Ctrl+` key binding and the Active checkbox."""
         _sfx.triggers_active = not _sfx.triggers_active
+        _sfx_editor_save_markers()
 
 
     def _sfx_editor_toggle_shake_trigger():
@@ -996,6 +997,7 @@ init python:
         data = {
             "version": "2.2.0",
             "disabled_files": sorted(_sfx.disabled_files),
+            "triggers_active": _sfx.triggers_active,
         }
 
         if not _sfx.markers:
@@ -1029,6 +1031,7 @@ init python:
             return
         _sfx.markers = _sfx_editor_unwrap_persistent(data.get("markers", {}))
         _sfx.disabled_files = set(data.get("disabled_files", []))
+        _sfx.triggers_active = data.get("triggers_active", True)
         #_sfx_editor_normalize_all_markers()
         stripped = _sfx_editor_sanitize_video_timestamps()
         if stripped:
