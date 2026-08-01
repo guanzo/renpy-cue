@@ -415,7 +415,7 @@ screen sfx_editor_sidebar_content():
                     hbox:
                         spacing 3
                         text _active_label style "sfx_txt" size 11
-                        use sfx_icon_button("Delete", Function(_sfx_editor_remove_pool, _img_key, _img_target, "img"), "Delete this pool", None)
+                        use sfx_icon_button("✕", Confirm("Delete this pool?", Function(_sfx_editor_remove_pool, _img_key, _img_target, "img")), "Delete this pool", None)
                     $ _active_pool.setdefault("volume", 1.0)
                     $ _dec = Function(_sfx_editor_adjust_volume, _img_key, -0.1, _img_target)
                     $ _inc = Function(_sfx_editor_adjust_volume, _img_key, 0.1, _img_target)
@@ -476,7 +476,7 @@ screen sfx_editor_sidebar_content():
                     hbox:
                         spacing 3
                         text _active_label style "sfx_txt" size 11
-                        use sfx_icon_button("✕", Function(_sfx_editor_remove_pool, _dlg_key, _dlg_target, "dlg"), "Delete this pool", None)
+                        use sfx_icon_button("✕", Confirm("Delete this pool?", Function(_sfx_editor_remove_pool, _dlg_key, _dlg_target, "dlg")), "Delete this pool", None)
                     $ _active_pool.setdefault("volume", 1.0)
                     $ _dec = Function(_sfx_editor_adjust_volume, _dlg_key, -0.1, _dlg_target)
                     $ _inc = Function(_sfx_editor_adjust_volume, _dlg_key, 0.1, _dlg_target)
