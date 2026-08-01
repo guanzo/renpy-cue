@@ -69,6 +69,12 @@ style sfx_input is sfx_txt:
     padding (2, 2)
     ypadding 2
 
+style sfx_vscrollbar:
+    xsize 4
+    base_bar Solid("#1a1a1a")
+    thumb Solid("#555555")
+    hover_thumb Solid("#888888")
+
 
 ###############################################################################
 # SECTION 5: Overlay Screen
@@ -238,6 +244,11 @@ screen sfx_editor_sidebar_content():
                     hbox:
                         spacing 3
                         text _active_label style "sfx_txt" size 11
+                        textbutton "⧉":
+                            style "sfx_btn_icon"
+                            text_style "sfx_btn_icon_text"
+                            action Function(_sfx_editor_duplicate_video_pool, _vid_target)
+                            tooltip "Duplicate this timestamp pool"
                         textbutton "✕":
                             style "sfx_btn_icon"
                             text_style "sfx_btn_icon_text"
@@ -321,20 +332,29 @@ screen sfx_editor_sidebar_content():
                             tooltip "Max volume (5.0)"
                     # File list
                     if _active_files:
-                        vbox:
-                            spacing 2
-                            for fi, f in enumerate(_active_files):
-                                hbox:
-                                    spacing 5
-                                    textbutton "✕":
-                                        style "sfx_btn_icon"
-                                        text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_remove_video_file, _vid_target, fi)
-                                    textbutton "▶":
-                                        style "sfx_btn_icon"
-                                        text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_preview_sfx, f, _active_vol)
-                                    text f style "sfx_txt" color "#ffcc00" size 11
+                        viewport:
+                            xfill True
+                            ymaximum 120
+                            mousewheel True
+                            scrollbars "vertical"
+                            style_group "sfx"
+                            vscrollbar_unscrollable "hide"
+                            vbox:
+                                spacing 2
+                                for fi, f in enumerate(_active_files):
+                                    hbox:
+                                        spacing 5
+                                        textbutton "✕":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_remove_video_file, _vid_target, fi)
+                                        textbutton "▶":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_preview_sfx, f, _active_vol)
+                                        text f style "sfx_txt" color "#ffcc00" size 11
+                else:
+                    text "Click the V button in the SFX Library to add files" style "sfx_help"
 
 
         # --- Image UI ---
@@ -446,6 +466,8 @@ screen sfx_editor_sidebar_content():
                                         text_style "sfx_btn_icon_text"
                                         action Function(_sfx_editor_preview_sfx, f, _active_vol)
                                     text f style "sfx_txt" color "#ffcc00" size 11
+                else:
+                    text "Click the I button in the SFX Library to add files" style "sfx_help"
 
         # --- Dialogue UI ---
         if _is_dialogue:
@@ -541,25 +563,32 @@ screen sfx_editor_sidebar_content():
                             action Function(_sfx_editor_set_volume, _dlg_key, 5.0, _dlg_target)
                             tooltip "Max volume (5.0)"
                     if _active_files:
-                        vbox:
-                            spacing 2
-                            for fi, f in enumerate(_active_files):
-                                hbox:
-                                    spacing 5
-                                    textbutton "✕":
-                                        style "sfx_btn_icon"
-                                        text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_remove_dialogue_marker, _dlg_target, fi)
-                                    textbutton "▶":
-                                        style "sfx_btn_icon"
-                                        text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_preview_sfx, f, _active_vol)
-                                    text f style "sfx_txt" color "#ffcc00" size 11
+                        viewport:
+                            xfill True
+                            ymaximum 120
+                            mousewheel True
+                            scrollbars "vertical"
+                            style_group "sfx"
+                            vscrollbar_unscrollable "hide"
+                            vbox:
+                                spacing 2
+                                for fi, f in enumerate(_active_files):
+                                    hbox:
+                                        spacing 5
+                                        textbutton "✕":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_remove_dialogue_marker, _dlg_target, fi)
+                                        textbutton "▶":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_preview_sfx, f, _active_vol)
+                                        text f style "sfx_txt" color "#ffcc00" size 11
+                else:
+                    text "Click the D button in the SFX Library to add files" style "sfx_help"
 
         if _sfx.scan_error:
             text "[_sfx.scan_error]" style "sfx_help" color "#ff6666"
-
-        null height 6
 
         # ================================================================
         # Autoplay SFX
@@ -659,8 +688,11 @@ screen sfx_editor_sidebar_content():
                         tooltip "Delete all files from the current Autoplay pool"
                 viewport:
                     xfill True
-                    ymaximum 130
+                    ymaximum 120
                     mousewheel True
+                    scrollbars "vertical"
+                    style_group "sfx"
+                    vscrollbar_unscrollable "hide"
                     vbox:
                         spacing 2
                         for i, filename in enumerate(_autoplay_files):
@@ -677,107 +709,112 @@ screen sfx_editor_sidebar_content():
                                     action Function(_sfx_editor_preview_sfx, filename, _ppv)
                                 text filename style "sfx_txt" color "#ffcc00" size 11
             else:
-                text "Click the A button in the \"Audio files\" section to add files" style "sfx_help"
+                text "Click the A button in the SFX Library to add files" style "sfx_help"
 
         # Audio file browser
         if _sfx.audio_tree:
-            text "Audio files:" style "sfx_txt"
-            viewport:
-                xfill True
-                yfill True
-                mousewheel True
-                scrollbars "vertical"
-                vscrollbar_xsize 6
-                vscrollbar_unscrollable "hide"
-                vbox:
-                    spacing 2
-                    for item in _sfx.visible_tree:
-                        hbox:
-                            spacing 2
-                            # Indent
-                            if item["depth"] > 0:
-                                text " " * item["depth"] style "sfx_txt"
-                            if item["type"] == "folder":
-                                if item["expanded"]:
-                                    textbutton "▾":
-                                        style "sfx_btn_icon"
-                                        text_style "sfx_btn_icon_text"
+            frame:
+                background "#222222"
+                padding (4, 4)
+                has vbox
+                spacing 5
+                text "SFX Library" style "sfx_hdr"
+                viewport:
+                    xfill True
+                    yfill True
+                    mousewheel True
+                    scrollbars "vertical"
+                    style_group "sfx"
+                    vscrollbar_unscrollable "hide"
+                    vbox:
+                        spacing 2
+                        for item in _sfx.visible_tree:
+                            hbox:
+                                spacing 2
+                                # Indent
+                                if item["depth"] > 0:
+                                    text " " * item["depth"] style "sfx_txt"
+                                if item["type"] == "folder":
+                                    if item["expanded"]:
+                                        textbutton "▾":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_toggle_folder, item["full_path"])
+                                    else:
+                                        textbutton "▸":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_toggle_folder, item["full_path"])
+                                    if item["has_files"]:
+                                        textbutton "V":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_add_folder_to_video_markers, item["full_path"])
+                                            tooltip "Add folder to active video timestamp pool"
+                                        textbutton "I":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_add_folder_to_image_markers, item["full_path"])
+                                            tooltip "Add folder to Image SFX pool"
+                                        textbutton "D":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_add_folder_to_dialogue_markers, item["full_path"])
+                                            tooltip "Add folder to Dialogue SFX pool"
+                                        textbutton "A":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_add_folder_to_autoplay_pool, item["full_path"])
+                                            tooltip "Add folder to Autoplay SFX Pool"
+                                    textbutton item["name"]:
+                                        style "sfx_btn"
+                                        text_style "sfx_btn_text_sm"
                                         action Function(_sfx_editor_toggle_folder, item["full_path"])
+                                        xsize None
+                                        ysize 14
                                 else:
-                                    textbutton "▸":
+                                    # Play preview
+                                    textbutton "▶":
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_toggle_folder, item["full_path"])
-                                if item["has_files"]:
+                                        action Function(_sfx_editor_preview_sfx, item["full_path"])
+                                        tooltip "Preview audio"
+                                    # Video marker (adds to active timestamp pool)
                                     textbutton "V":
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_add_folder_to_video_markers, item["full_path"])
-                                        tooltip "Add folder to active video timestamp pool"
+                                        action Function(_sfx_editor_add_video_marker, item["index"])
+                                        tooltip "Add file to active video timestamp pool"
+                                    # Image SFX
                                     textbutton "I":
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_add_folder_to_image_markers, item["full_path"])
-                                        tooltip "Add folder to Image SFX pool"
+                                        action Function(_sfx_editor_add_image_marker, item["index"])
+                                        tooltip "Add to Image SFX pool"
+                                    # Dialogue SFX
                                     textbutton "D":
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_add_folder_to_dialogue_markers, item["full_path"])
-                                        tooltip "Add folder to Dialogue SFX pool"
+                                        action Function(_sfx_editor_add_dialogue_marker, item["index"])
+                                        tooltip "Add to Dialogue SFX pool"
+                                    # Autoplay SFX
                                     textbutton "A":
                                         style "sfx_btn_icon"
                                         text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_add_folder_to_autoplay_pool, item["full_path"])
-                                        tooltip "Add folder to Autoplay SFX Pool"
-                                textbutton item["name"]:
-                                    style "sfx_btn"
-                                    text_style "sfx_btn_text_sm"
-                                    action Function(_sfx_editor_toggle_folder, item["full_path"])
-                                    xsize None
-                                    ysize 14
-                            else:
-                                # Play preview
-                                textbutton "▶":
-                                    style "sfx_btn_icon"
-                                    text_style "sfx_btn_icon_text"
-                                    action Function(_sfx_editor_preview_sfx, item["full_path"])
-                                    tooltip "Preview audio"
-                                # Video marker (adds to active timestamp pool)
-                                textbutton "V":
-                                    style "sfx_btn_icon"
-                                    text_style "sfx_btn_icon_text"
-                                    action Function(_sfx_editor_add_video_marker, item["index"])
-                                    tooltip "Add file to active video timestamp pool"
-                                # Image SFX
-                                textbutton "I":
-                                    style "sfx_btn_icon"
-                                    text_style "sfx_btn_icon_text"
-                                    action Function(_sfx_editor_add_image_marker, item["index"])
-                                    tooltip "Add to Image SFX pool"
-                                # Dialogue SFX
-                                textbutton "D":
-                                    style "sfx_btn_icon"
-                                    text_style "sfx_btn_icon_text"
-                                    action Function(_sfx_editor_add_dialogue_marker, item["index"])
-                                    tooltip "Add to Dialogue SFX pool"
-                                # Autoplay SFX
-                                textbutton "A":
-                                    style "sfx_btn_icon"
-                                    text_style "sfx_btn_icon_text"
-                                    action Function(_sfx_editor_add_to_autoplay_pool, item["index"])
-                                    tooltip "Add to Autoplay SFX pool"
-                                if item.get("enabled", True):
-                                    textbutton "☑":
-                                        style "sfx_btn_icon"
-                                        text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_toggle_file_enabled, item["full_path"])
-                                        tooltip "Click to exclude from markers"
-                                else:
-                                    textbutton "☐":
-                                        style "sfx_btn_icon"
-                                        text_style "sfx_btn_icon_text"
-                                        action Function(_sfx_editor_toggle_file_enabled, item["full_path"])
-                                        tooltip "Click to include in markers"
-                                text item["name"] style "sfx_txt" color "#ffcc00"
+                                        action Function(_sfx_editor_add_to_autoplay_pool, item["index"])
+                                        tooltip "Add to Autoplay SFX pool"
+                                    if item.get("enabled", True):
+                                        textbutton "☑":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_toggle_file_enabled, item["full_path"])
+                                            tooltip "Click to exclude from markers"
+                                    else:
+                                        textbutton "☐":
+                                            style "sfx_btn_icon"
+                                            text_style "sfx_btn_icon_text"
+                                            action Function(_sfx_editor_toggle_file_enabled, item["full_path"])
+                                            tooltip "Click to include in markers"
+                                    text item["name"] style "sfx_txt" color "#ffcc00"
 
 

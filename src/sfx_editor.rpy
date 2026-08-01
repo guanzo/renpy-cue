@@ -1423,6 +1423,27 @@ init python:
         _sfx_editor_save_markers()
         renpy.restart_interaction()
 
+    def _sfx_editor_duplicate_video_pool(ts_index):
+        """Duplicate a timestamp pool with all settings (time, volume, file list).
+        Appends the clone, sorts by time, and switches to the new pool."""
+        vid_key = create_vid_key(_sfx.current_file)
+        entry = _sfx.markers.get(vid_key, {})
+        timestamps = entry.get("timestamps", [])
+        if not (0 <= ts_index < len(timestamps)):
+            return
+        original = timestamps[ts_index]
+        # Deep-copy files list so the clone is independent
+        clone = {
+            "time": original["time"],
+            "volume": original.get("volume", _sfx.VOL_DEFAULT),
+            "files": list(original.get("files", [])),
+        }
+        timestamps.append(clone)
+        timestamps.sort(key=lambda e: e["time"])
+        _sfx.vid_target_pool = timestamps.index(clone)
+        _sfx_editor_save_markers()
+        renpy.restart_interaction()
+
     def _sfx_editor_remove_video_file(ts_index, file_index):
         """Remove a single file from a timestamp's files list.
         Keeps the timestamp even if files becomes empty."""
