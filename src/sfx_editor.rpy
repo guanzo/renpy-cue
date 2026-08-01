@@ -113,6 +113,7 @@ init -999 python:
     _sfx.__refreshing = False
     _sfx.__last_mismatch = ""
     _sfx.__force_redetect = 0
+    _sfx._shake_just_happened = False
 
 
 ###############################################################################
@@ -129,6 +130,40 @@ init 999 python:
     _sfx.config_filename = "sfx_editor_config.json"
     _sfx.config_path = os.path.join(renpy.config.gamedir, _sfx.base_dir, _sfx.config_filename)
     _sfx.debug_log_filename = "debug.log"
+
+    # monkeypatch renpy.with_statement
+    _original_with_statement = renpy.with_statement
+
+    def _sfx_editor_with_hook(trans, always=False, paired=None, clear=True):
+        if _is_screenshake(trans):
+            _sfx._shake_just_happened = True
+        return _original_with_statement(trans, always=always, paired=paired, clear=clear)
+
+    renpy.with_statement = _sfx_editor_with_hook
+    # monkeypatch renpy.with_statement
+
+    def _is_screenshake(trans):
+        import functools
+        try:
+            if trans is None:
+                return False
+
+            if not isinstance(trans, functools.partial):
+                return False
+
+            func_name = getattr(trans.func, "__name__", "")
+            if func_name != "Move":
+                return False
+
+            kw = trans.keywords or {}
+            return (
+                kw.get("bounce", False) == True
+                and kw.get("repeat", False) == True
+                and kw.get("delay") is not None
+                and kw.get("delay") < 0.5
+            )
+        except Exception:
+            return False
 
     # Clear debug log for fresh session
     try:
@@ -245,6 +280,13 @@ init python:
             file_part = file_part.split("|", 1)[0]
         return file_part
 
+    def get_key_dialogue(key):
+        file_part = key[len(_sfx.DLG_KEY_PREFIX):]
+        parts = file_part.split("|", 1)
+        if len(parts) < 2:
+            return ""
+        return parts[1]
+
     def get_key_prefix(key):
         """Return the 2-char prefix of a key ('i:', 'v:', 'd:', or 'a:')."""
         return key[:len(_sfx.IMG_KEY_PREFIX)]
@@ -285,6 +327,17 @@ init python:
         _sfx.triggers_active = not _sfx.triggers_active
         renpy.restart_interaction()
 
+
+    def _sfx_editor_toggle_shake_trigger():
+        """Toggle trigger_on_shake for the active pool of the current image.
+        When enabled, screen shake transitions play SFX from this pool."""
+        if not _sfx.current_file:
+            return
+        _shake_key = create_img_key(_sfx.current_file)
+        _pool = _sfx_editor_ensure_pool(_shake_key, _sfx.img_target_pool)
+        _pool["trigger_on_shake"] = not _pool.get("trigger_on_shake", False)
+        _sfx_editor_save_markers()
+        renpy.restart_interaction()
 
 
     def _sfx_editor_show():
@@ -344,6 +397,8 @@ init python:
         _changed = ""
         _img_key = None
         _dlg_key = None
+        just_shaked = _sfx._shake_just_happened
+
         if _sfx.current_file != old_file:
             _changed += " file:{}->{}".format(old_file, _sfx.current_file)
             _img_key = create_img_key(_sfx.current_file) if _sfx.current_file else None
@@ -357,10 +412,24 @@ init python:
 
         if _changed:
             _sfx_log("CTX-CHANGE{}".format(_changed))
-            # Rebuild visible tree so in_pool flags reflect new context
             if _sfx.current_file != old_file:
                 _sfx.visible_tree = _sfx_editor_get_visible_tree()
             _sfx_editor_fire_context_triggers(_img_key, _dlg_key)
+
+        # 5. Screenshake trigger — fires independently of context changes,
+        #    but only for pools that opted in via trigger_on_shake.
+        #    
+        #    Dedupe: when the image changed this interaction, _img_key already
+        #    fired above (hitting all pools for the new image), so skip the
+        #    shake call for the same key to avoid double-firing.
+        #    When screen shakes on existing img, _img_key will be None since there
+        #    was no img change, and the shake pools will trigger.
+        if _sfx._shake_just_happened:
+            _sfx._shake_just_happened = False
+            if _sfx.current_file:
+                _shake_key = create_img_key(_sfx.current_file)
+                if _shake_key != _img_key:
+                    _sfx_editor_fire_context_triggers(_shake_key, only_shake_pools=True)
 
 
     def _sfx_log_context():
@@ -420,11 +489,15 @@ init python:
         return f
 
 
-    def _sfx_editor_fire_context_triggers(*keys):
+    def _sfx_editor_fire_context_triggers(*keys, only_shake_pools=False):
         """Fire markers for the given trigger keys.
         Multi-pool entries play one random file from EACH pool concurrently.
         Dedupe guard: same file in two pools of the same trigger is re-picked
-        up to 3 times, then skipped to avoid echo artifacts."""
+        up to 3 times, then skipped to avoid echo artifacts.
+
+        When only_shake_pools is True, pool without the trigger_on_shake flag
+        are skipped — used by screenshake triggers so each pool independently
+        opts in to firing on shake."""
         import random as _random
         if not _sfx.triggers_active:
             return
@@ -443,6 +516,8 @@ init python:
                 key, len(pools), _total, _vol))
             _picked = []
             for pool in pools:
+                if only_shake_pools and not pool.get("trigger_on_shake", False):
+                    continue
                 files = pool.get("files", [])
                 if not files:
                     continue
@@ -1072,27 +1147,23 @@ init python:
 
         try:
             # Context mismatch warning: compare source context with current state
+            curr_file = _sfx.current_file
             _warn = None
             if is_vid_key(source):
-                _vid_parts = get_key_file(source).rsplit("@", 1)
-                _expected_vid = _vid_parts[0]
-                _cur_vname = _sfx.current_file or ""
-                if _expected_vid and _cur_vname and _expected_vid != _cur_vname:
-                    _warn = "expected vid={} actual vid={}".format(_expected_vid, _cur_vname)
+                _expected_vid = get_key_file(source)
+                if _expected_vid and curr_file and _expected_vid != curr_file:
+                    _warn = "expected vid={} actual vid={}".format(_expected_vid, curr_file)
             elif is_img_key(source):
                 _expected_img = get_key_file(source)
-                if _expected_img and _sfx.current_file and _expected_img != _sfx.current_file:
-                    _warn = "expected img={} actual img={}".format(_expected_img, _sfx.current_file)
+                if _expected_img and curr_file and _expected_img != curr_file:
+                    _warn = "expected img={} actual img={}".format(_expected_img, curr_file)
             elif is_dlg_key(source):
-                # source: "dlg:image|dialogue"
-                _parts = get_key_file(source).split("|", 1)
-                _expected_img = _parts[0]
-                _expected_dlg = _parts[1] if len(_parts) > 1 else ""
-                _cur_img = _sfx.current_file or ""
+                _expected_img = get_key_file(source)
+                _expected_dlg = get_key_dialogue(source)
                 _cur_dlg = (_sfx.current_dialogue or "")[:40]
-                if _expected_img != _cur_img or _expected_dlg != _cur_dlg:
+                if _expected_img != curr_file or _expected_dlg != _cur_dlg:
                     _warn = "expected img={}|{} actual img={}|{}".format(
-                        _expected_img, _expected_dlg, _cur_img, _cur_dlg)
+                        _expected_img, _expected_dlg, curr_file, _cur_dlg)
             if _warn:
                 _sfx_log("WARN CTX-MISMATCH file={} src={} {}".format(
                     filename.rsplit("/", 1)[-1], source, _warn))
@@ -2136,6 +2207,7 @@ init python:
 screen sfx_editor_key_listener():
     zorder 10000
     key "K_BACKQUOTE" action Function(_sfx_editor_toggle)
+    key "K_F3" action Function(renpy.invoke_in_new_context, renpy.pause)
     key "K_F4" action Function(_sfx_editor_toggle_active)
     timer 0.05 repeat True action Function(_sfx_editor_tick_trigger)
 

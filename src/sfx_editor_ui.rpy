@@ -133,11 +133,16 @@ screen sfx_editor_sidebar_content():
                 action Function(_sfx_editor_restore_markers_from_file)
                 tooltip _restore_tooltip
             null width 5
+            textbutton "⏸":
+                style "sfx_btn_icon"
+                text_style "sfx_btn_icon_text"
+                action Function(renpy.invoke_in_new_context, renpy.pause)
+                tooltip "Pause game (F3)"
             textbutton "⟳":
                 style "sfx_btn_icon"
                 text_style "sfx_btn_icon_text"
                 action [Function(_sfx_editor_refresh_detections), Function(_sfx_editor_scan_audio)]
-                tooltip "Refresh detections"
+                tooltip "Refresh overlay"
             textbutton "✕":
                 style "sfx_btn_icon"
                 text_style "sfx_btn_icon_text"
@@ -451,6 +456,18 @@ screen sfx_editor_sidebar_content():
                             xsize 22
                             action Function(_sfx_editor_set_volume, _img_key, 5.0, _img_target)
                             tooltip "Max volume (5.0)"
+                    if _active_pool.get("trigger_on_shake", False):
+                        textbutton "☑ Trigger on screen shake":
+                            style "sfx_btn"
+                            text_style "sfx_btn_text_sm"
+                            action Function(_sfx_editor_toggle_shake_trigger)
+                            tooltip "Play SFX when a screen shake occurs"
+                    else:
+                        textbutton "☐ Trigger on screen shake":
+                            style "sfx_btn"
+                            text_style "sfx_btn_text_sm"
+                            action Function(_sfx_editor_toggle_shake_trigger)
+                            tooltip "Play SFX when a screen shake occurs"
                     if _active_files:
                         vbox:
                             spacing 2
