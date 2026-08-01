@@ -67,6 +67,7 @@ init -999 python:
     _sfx.__pause_target = 0.0
     _sfx.__pause_origin = 0.0
     _sfx.__total_offset = 0.0
+    _sfx.__cached_dur = 0.0
 
     # UI state
     _sfx.visible = False
@@ -629,17 +630,20 @@ init python:
 
 
     def _sfx_editor_get_duration():
-        """Get total duration of the current video in seconds."""
+        """Get total duration of the current video in seconds.
+        Caches the last valid duration so transient dropouts during seek
+        (stop/play restart) don't return 0 and blow up marker x-positions."""
         ch = _sfx.active_channel
         if not ch:
-            return 0.0
+            return _sfx.__cached_dur
         try:
             dur = renpy.music.get_duration(channel=ch)
             if dur is not None and dur > 0:
+                _sfx.__cached_dur = dur
                 return dur
         except Exception:
             pass
-        return 0.0
+        return _sfx.__cached_dur
 
 
     def _sfx_editor_get_video_path():
