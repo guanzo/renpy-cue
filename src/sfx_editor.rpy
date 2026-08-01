@@ -27,14 +27,11 @@ init -999 python:
     # by Page Up. Never reassign _sfx itself; only mutate its attributes.
     _sfx = renpy.python.NoRollback()
 
-    _sfx.version = "1.1.0"
-
     # Context tracking
     _sfx.active_channel = None
     _sfx.current_file = ""
     _sfx.current_dialogue = ""
     _sfx.prev_dialogue = ""
-    _sfx.channel_status = "No video"
 
     # User configuration
     _sfx.audio_dir = "sfx_editor/audio"
@@ -74,11 +71,9 @@ init -999 python:
     # UI state
     _sfx.visible = False
     _sfx.initialized = False
-    _sfx.manual_channel_input = ""
     _sfx.visible_tree = []
     _sfx.expanded_folders = {}
     _sfx.scan_error = None
-    _sfx.__active_sfx = {}
 
     # Video timestamp editing state
     _sfx.edit_video_ts_index = -1  # -1 = not editing; otherwise index into timestamps list
@@ -99,12 +94,8 @@ init -999 python:
 
     # Internal
     _sfx.__sfx_channel_idx = 0
-    _sfx.__fallback_start = 0.0
-    _sfx.__using_fallback = False
     _sfx.__marker_tolerance = 0.08
     _sfx.__refreshing = False
-    _sfx.__last_mismatch = ""
-    _sfx.__force_redetect = 0
     _sfx._shake_just_happened = False
 
 
@@ -336,10 +327,6 @@ init python:
         _sfx.visible = True
         # Load persisted config
         _sfx_editor_load_markers()
-        # Initialize string field from current values
-        _sfx.manual_channel_input = (
-            _sfx.active_channel if _sfx.active_channel else ""
-        )
         # Scan audio on first open (cached thereafter)
         if not _sfx.available_files:
             _sfx_editor_scan_audio()
@@ -347,10 +334,6 @@ init python:
         _sfx.visible_tree = _sfx_editor_get_visible_tree()
         # Auto-detect everything
         _sfx_editor_refresh_detections()
-        # Update channel input after detection
-        _sfx.manual_channel_input = (
-            _sfx.active_channel if _sfx.active_channel else ""
-        )
         # Show the overlay screen
         renpy.show_screen("sfx_editor_overlay", _layer="sfx_editor_layer")
         renpy.restart_interaction()
@@ -638,7 +621,6 @@ init python:
                 _sfx.__frame_time = 1.0 / fps
 
                 _sfx.active_channel = ch_name
-                _sfx.channel_status = "{} | {} ({}fps)".format(ch_name, fname, fps)
                 if old_ch != ch_name:
                     _sfx_editor_reset_loop_tracking()
 
@@ -672,7 +654,6 @@ init python:
                     pass
 
             _sfx.active_channel = None
-            _sfx.channel_status = "No video detected"
         finally:
             _sfx.__refreshing = False
 
@@ -1060,14 +1041,6 @@ init python:
                 })
 
 
-    def _sfx_editor_change_audio_dir(new_path):
-        """Change the audio directory and rescan."""
-        new_path = new_path.strip()
-        if new_path:
-            _sfx.audio_dir = new_path
-            _sfx_editor_scan_audio()
-
-
     def _sfx_editor_toggle_file_enabled(full_path):
         """Toggle whether a file is enabled for marker addition."""
         if full_path in _sfx.disabled_files:
@@ -1321,12 +1294,6 @@ init python:
                     del _sfx.markers[trigger_key]
                 _sfx_editor_save_markers()
 
-    def _sfx_editor_marker_remove_key(trigger_key):
-        """Remove an entire trigger key entry."""
-        if trigger_key in _sfx.markers:
-            del _sfx.markers[trigger_key]
-            _sfx_editor_save_markers()
-
     # --- Video markers (v: prefix) ---
 
     def _sfx_editor_add_video_marker(file_index):
@@ -1412,15 +1379,6 @@ init python:
         _sfx.edit_video_ts_index = -1
         _sfx.edit_video_ts_text = ""
 
-    def _sfx_editor_start_edit_video_ts_by_index(index):
-        """Begin editing the video timestamp at the given index (for non-active tabs)."""
-        vid_key = create_vid_key(_sfx.current_file)
-        entry = _sfx.markers.get(vid_key, {})
-        timestamps = entry.get("timestamps", [])
-        if 0 <= index < len(timestamps):
-            _sfx.edit_video_ts_index = index
-            _sfx.edit_video_ts_text = _sfx_editor_format_time(timestamps[index]["time"])
-    
     def _sfx_editor_set_vid_target_pool(pool_index):
         """Set which timestamp pool tab is active."""
         _sfx.vid_target_pool = int(pool_index)
@@ -1614,36 +1572,6 @@ init python:
         _sfx_editor_save_markers()
 
     # --- Bulk clear ---
-
-    def _sfx_editor_clear_all_markers():
-        """Remove all markers (all prefixes)."""
-        _sfx.markers = {}
-        _sfx.played_video_keys = set()
-        _sfx.pool_states = {}
-        _sfx_editor_save_markers()
-
-    def _sfx_editor_get_context_files():
-        """Return a set of filenames that identify the current context.
-        Used for a: pool lookups."""
-        result = set()
-        if _sfx.current_file:
-            result.add(_sfx.current_file)
-        return result
-
-    def _sfx_editor_get_autoplay_pool_entry():
-        """Return the pool entry dict for the current context, or None.
-        Checks both image tag and video basename for a matching a: key.
-        Injects __key__ into the returned dict so the UI knows the key.
-        """
-        ctx_files = _sfx_editor_get_context_files()
-        for f in ctx_files:
-            key = create_autoplay_key(f)
-            entry = _sfx.markers.get(key)
-            if entry:
-                result = dict(entry)
-                result["__key__"] = key
-                return result
-        return None
 
     # --- Clipboard ---
 
@@ -2190,7 +2118,7 @@ screen sfx_editor_key_listener():
     key "K_BACKQUOTE" action Function(_sfx_editor_toggle)
     key "K_F3" action Function(renpy.invoke_in_new_context, renpy.pause)
     key "K_F4" action Function(_sfx_editor_toggle_active)
-    timer 0.05 repeat True action Function(_sfx_editor_tick_trigger, _update_screens=False)
+    timer 0.025 repeat True action Function(_sfx_editor_tick_trigger, _update_screens=False)
 
 # =============================================================================
 # MAIN OVERLAY SCREEN
