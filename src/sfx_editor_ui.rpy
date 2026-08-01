@@ -244,9 +244,9 @@ screen sfx_editor_sidebar_content():
                     hbox:
                         spacing 3
                         text _active_label style "sfx_txt" size 11
-                        textbutton "⧉":
-                            style "sfx_btn_icon"
-                            text_style "sfx_btn_icon_text"
+                        textbutton "Duplicate":
+                            style "sfx_btn"
+                            text_style "sfx_btn_text"
                             action Function(_sfx_editor_duplicate_video_pool, _vid_target)
                             tooltip "Duplicate this timestamp pool"
                         textbutton "✕":

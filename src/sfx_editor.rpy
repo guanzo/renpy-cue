@@ -239,10 +239,11 @@ init python:
         return key.startswith(_sfx.AUTOPLAY_KEY_PREFIX)
 
     def get_key_file(key):
-        """Strip the 2-char prefix from any key, returning the file portion.
-        For dlg keys this returns 'file|dialogue'; for vid keys with @timestamp
-        it returns 'file@timestamp'."""
-        return key[len(_sfx.IMG_KEY_PREFIX):]
+        """Strip the 2-char prefix from any key, returning the file portion."""
+        file_part = key[len(_sfx.IMG_KEY_PREFIX):]
+        if key.startswith("d:"):
+            file_part = file_part.split("|", 1)[0]
+        return file_part
 
     def get_key_prefix(key):
         """Return the 2-char prefix of a key ('i:', 'v:', 'd:', or 'a:')."""
@@ -1618,41 +1619,62 @@ init python:
     def _sfx_editor_copy_context():
         """Copy markers for the current context to clipboard."""
         import copy as _copy
-        ctx_file = _sfx.current_file or ""
-        ctx_dlg = _sfx.current_dialogue or ""
+        ctx_file = _sfx.current_file
+        ctx_dlg = _sfx.current_dialogue
         copied = {}
-        for key, entry in _sfx.markers.items():
-            if is_img_key(key) and get_key_file(key) == ctx_file:
+        _sfx_log(f"_sfx_editor_copy_context {ctx_file=} {ctx_dlg=}")
+
+        all_keys = [
+            create_vid_key(ctx_file),
+            create_img_key(ctx_file),
+            create_dlg_key((ctx_file, ctx_dlg)),
+            create_autoplay_key(ctx_file),
+        ]
+
+        for key in all_keys:
+            entry = _sfx.markers.get(key)
+            if entry:
                 copied[key] = _copy.deepcopy(entry)
-            elif is_dlg_key(key) and get_key_file(key).startswith(ctx_file + "|"):
-                copied[key] = _copy.deepcopy(entry)
-            elif is_autoplay_key(key) or is_vid_key(key) and get_key_file(key) == ctx_file:
-                copied[key] = _copy.deepcopy(entry)
+
         _sfx.clipboard = {
             "markers": copied,
             "source_file": ctx_file,
             "source_dialogue": ctx_dlg,
         }
+        _sfx_log("copy clipboard")
+        _sfx_log(str(_sfx.clipboard))
 
     def _sfx_editor_paste_context():
         """Paste clipboard markers into current context, remapping keys."""
+        
+        _sfx_log("paste clipboard")
+        _sfx_log(str(_sfx.clipboard))
+
         import copy as _copy
         if _sfx.clipboard is None:
             return
-        ctx_file = _sfx.current_file or ""
-        ctx_dlg = _sfx.current_dialogue or ""
-        old_file = _sfx.clipboard.get("source_file", "")
-        old_dlg = _sfx.clipboard.get("source_dialogue", "")
-        for old_key, entry in _sfx.clipboard.get("markers", {}).items():
-            new_key = old_key
-            if is_img_key(old_key) and get_key_file(old_key) == old_file:
+        ctx_file = _sfx.current_file
+        ctx_dlg = _sfx.current_dialogue
+        source_file = _sfx.clipboard.get("source_file", "")
+
+        for source_key, entry in _sfx.clipboard.get("markers", {}).items():
+            if get_key_file(source_key) != source_file:
+                continue
+
+            new_key = source_key
+
+            if is_vid_key(source_key):
+                new_key = create_vid_key(ctx_file)
+            elif is_img_key(source_key):
                 new_key = create_img_key(ctx_file)
-            elif is_dlg_key(old_key) and get_key_file(old_key).startswith(old_file + "|"):
+            elif is_dlg_key(source_key):
                 new_key = create_dlg_key((ctx_file, ctx_dlg))
-            elif is_autoplay_key(old_key) or is_vid_key(old_key) and get_key_file(old_key) == old_file:
-                new_key = get_key_prefix(old_key) + ctx_file
-            if new_key not in _sfx.markers:
-                _sfx.markers[new_key] = _copy.deepcopy(entry)
+            elif is_autoplay_key(source_key):
+                new_key = create_autoplay_key(ctx_file)
+            
+            # Overwrites existing
+            _sfx.markers[new_key] = _copy.deepcopy(entry)
+
         _sfx.played_video_keys = set()
         _sfx.pool_states = {}
         _sfx_editor_save_markers()
