@@ -1156,20 +1156,8 @@ screen sfx_editor_overlay():
             yfill True
             use sfx_editor_sidebar_content()
 
-    # --- Floating tooltip near mouse ---
+    # --- Floating tooltip near mouse (auto-sizes to fit text) ---
     $ _tt = GetTooltip()
     if _tt:
-        $ _mx, _my = renpy.get_mouse_pos()
-        frame:
-            background "#2a2a2a"
-            padding (4, 2)
-            xpos (_mx + 12)
-            ypos (_my - 8)
-            xmaximum 300
-            ysize 22
-            text _tt substitute False:
-                style "sfx_txt"
-                size 11
-                color "#cccccc"
-                italic True
+        add _Tooltip(_tt)
 

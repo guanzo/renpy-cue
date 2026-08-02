@@ -472,3 +472,32 @@ init python:
             renpy.redraw(self, 0.05)
             return r
 
+
+    class _Tooltip(renpy.Displayable):
+        """Hover tooltip that auto-sizes to fit text (single or multi-line)."""
+
+        def __init__(self, text, **properties):
+            super(_Tooltip, self).__init__(**properties)
+            self._text = text
+
+        def render(self, width, height, st, at):
+            text_widget = Text(
+                self._text, style="sfx_txt", size=11, color="#cccccc",
+                italic=True, substitute=False,
+            )
+            text_render = renpy.render(text_widget, 300, 100, st, at)
+            tw, th = text_render.get_size()
+
+            pad_x, pad_y = 4, 2
+            fw = tw + pad_x * 2
+            fh = th + pad_y * 2
+
+            mx, my = renpy.get_mouse_pos()
+
+            r = renpy.Render(1, 1)
+            tip = renpy.Render(fw, fh)
+            tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))
+            tip.blit(text_render, (pad_x, pad_y))
+            r.blit(tip, (mx + 12, my - 8))
+            return r
+

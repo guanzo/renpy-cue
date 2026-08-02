@@ -282,6 +282,12 @@ screen sfx_editor_sidebar_content():
                         text_style "sfx_btn_text"
                         action Function(_sfx_editor_seek_frame, 1)
                         tooltip "Seek forward 1 frame (inaccurate)"
+                    null xfill True
+                    textbutton "?":
+                        style "sfx_btn"
+                        text_style "sfx_btn_text"
+                        action NullAction()
+                        tooltip "• Timestamp markers are draggable\n• Alt + Click or Shift + Click to create a selection group"
                 # --- Timeline visualizer ---
                 fixed:
                     xfill True
