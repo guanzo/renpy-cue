@@ -505,6 +505,7 @@ init python:
             timestamps.append({"time": elapsed, "files": [filename]})
             timestamps.sort(key=lambda e: e["time"])
             _sfx.vid_target_pool = len(timestamps) - 1
+            _sfx.mtl_selected = set()
         _sfx_editor_save_markers()
 
     def _sfx_editor_clear_video_markers():
@@ -513,6 +514,7 @@ init python:
         _sfx.markers.pop(vid_key, None)
         _sfx.played_video_keys = set()
         _sfx.vid_target_pool = 0
+        _sfx.mtl_selected = set()
         _sfx_editor_save_markers()
 
     def _sfx_editor_start_edit_video_ts():
@@ -551,6 +553,7 @@ init python:
             except ValueError:
                 _sfx.vid_target_pool = min(index, len(timestamps) - 1)
             _sfx.played_video_keys = set()
+            _sfx.mtl_selected = set()
             _sfx_editor_save_markers()
         # Clear editing state regardless of success/failure
         _sfx.edit_video_ts_index = -1
@@ -562,8 +565,10 @@ init python:
         _sfx.edit_video_ts_text = ""
 
     def _sfx_editor_set_vid_target_pool(pool_index):
-        """Set which timestamp pool tab is active."""
+        """Set which timestamp pool tab is active.
+        Clears multi-selection since this is an explicit single-pool operation."""
         _sfx.vid_target_pool = int(pool_index)
+        _sfx.mtl_selected = set()
 
     def _sfx_editor_on_bar_changed(new_value):
         """Called when the drag bar adjusts a marker's timestamp.
@@ -585,6 +590,19 @@ init python:
         # Keep tooltip live during drag
         _sfx._tooltip_text = "Pool {} ({})".format(
             _sfx.vid_target_pool + 1, _sfx_editor_format_time(new_value))
+
+    def _sfx_editor_mtl_get_selected():
+        """Get the set of selected marker indices for multi-selection.
+        Returns a set of int indices, or empty set if no multi-selection."""
+        return getattr(_sfx, 'mtl_selected', set())
+
+    def _sfx_editor_mtl_clear_selection():
+        """Clear multi-selection on the video marker timeline.
+        Skips clearing if the CDD just handled a modifier-click (suppress flag)."""
+        if getattr(_sfx, '_mtl_suppress_clear', False):
+            _sfx._mtl_suppress_clear = False
+            return
+        _sfx.mtl_selected = set()
 
     def _sfx_editor_mtl_get_markers():
         """Get the list of timestamp dicts for the current video."""
@@ -618,7 +636,9 @@ init python:
             timestamps[idx]["time"] = new_time
 
     def _sfx_editor_mtl_finalize():
-        """Sort timestamps and save after a drag ends."""
+        """Sort timestamps and save after a drag ends.
+        Rebuilds multi-selection indices after re-sort since marker
+        positions may change."""
         vid_key = create_vid_key(_sfx.current_file) if _sfx.current_file else ""
         if not vid_key:
             return
@@ -626,17 +646,38 @@ init python:
         timestamps = entry.get("timestamps", [])
         if not timestamps:
             return
+
+        # Capture selected timestamp identities before sorting so we can
+        # rebuild the selection set after indices shift.
+        sel = getattr(_sfx, 'mtl_selected', set())
+        sel_objects = set()
+        for idx in sel:
+            if 0 <= idx < len(timestamps):
+                sel_objects.add(id(timestamps[idx]))
+
         pi = _sfx.vid_target_pool
         if 0 <= pi < len(timestamps):
             ts_entry = timestamps[pi]
             timestamps.sort(key=lambda ts: ts.get("time", 0))
             new_index = timestamps.index(ts_entry)
             _sfx.vid_target_pool = new_index
+
+        # Rebuild selection set from new indices after sort
+        if sel_objects:
+            new_sel = set()
+            for i, ts in enumerate(timestamps):
+                if id(ts) in sel_objects:
+                    new_sel.add(i)
+            _sfx.mtl_selected = new_sel
+            # Keep active as the first selected marker
+            if new_sel:
+                _sfx.vid_target_pool = min(new_sel)
+
         _sfx_editor_save_markers()
 
     def _sfx_editor_set_video_marker_time(pool_index, new_time):
         """Update the timestamp of a video marker pool.
-        Clamps to [0, duration] and auto-saves."""
+        Clamps to [0, duration], clears multi-selection, and auto-saves."""
         vid_key = create_vid_key(_sfx.current_file) if _sfx.current_file else ""
         if not vid_key:
             return
@@ -650,6 +691,7 @@ init python:
             timestamps.sort(key=lambda ts: ts.get("time", 0))
             new_index = timestamps.index(ts_entry)
             _sfx.vid_target_pool = new_index
+            _sfx.mtl_selected = set()
             _sfx_editor_save_markers()
 
     def _sfx_editor_add_video_pool():
@@ -667,6 +709,7 @@ init python:
         timestamps.append({"time": elapsed, "files": []})
         timestamps.sort(key=lambda e: e["time"])
         _sfx.vid_target_pool = len(timestamps) - 1
+        _sfx.mtl_selected = set()
         _sfx_editor_save_markers()
 
     def _sfx_editor_remove_video_pool(ts_index):
@@ -683,6 +726,7 @@ init python:
         else:
             _sfx.vid_target_pool = min(_sfx.vid_target_pool, len(timestamps) - 1)
         _sfx.played_video_keys = set()
+        _sfx.mtl_selected = set()
         _sfx_editor_save_markers()
 
     def _sfx_editor_duplicate_video_pool(ts_index):
@@ -703,6 +747,7 @@ init python:
         timestamps.append(clone)
         timestamps.sort(key=lambda e: e["time"])
         _sfx.vid_target_pool = timestamps.index(clone)
+        _sfx.mtl_selected = set()
         _sfx_editor_save_markers()
 
     def _sfx_editor_remove_video_file(ts_index, file_index):
@@ -760,6 +805,7 @@ init python:
         if _sfx.edit_video_ts_index == index:
             _sfx.edit_video_ts_text = _sfx_editor_format_time(new_time)
         _sfx.played_video_keys = set()
+        _sfx.mtl_selected = set()
         _sfx_editor_save_markers()
 
     # --- Image markers (i: prefix) ---
