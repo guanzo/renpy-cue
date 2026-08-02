@@ -90,6 +90,7 @@ init -999 python:
     _sfx.repeat_pattern_anchor = 0.0
     _sfx.repeat_pattern_offsets = []
     _sfx.repeat_pattern_sel_count = 0
+    _sfx.repeat_dialog_visible = False
 
     # Autosave backup throttle
     _sfx._last_autosave_time = 0

@@ -36,7 +36,7 @@ init python:
         Click on the bar to seek the video to that position and pause."""
 
         BAR_H = 16  # bar height in pixels
-        TIP_H = 18  # tooltip height
+
 
         def __init__(self, interval=0.016, **properties):
             super(VideoTimeline, self).__init__(**properties)
@@ -88,15 +88,15 @@ init python:
                     tip_text = "Click to seek to: " + _sfx_editor_format_time(t)
                     tip_widget = Text(tip_text, style="sfx_txt", size=11,
                                       color="#cccccc", italic=True, substitute=False)
-                    tip_render = renpy.render(tip_widget, 300, self.TIP_H, st, at)
-                    tw, _ = tip_render.get_size()
+                    tip_render = renpy.render(tip_widget, 300, 100, st, at)
+                    tw, th = tip_render.get_size()
                     fw = min(tw + 8, 300)
-                    fh = self.TIP_H - 2
+                    fh = th + 4
                     tip = renpy.Render(fw, fh)
                     tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))
-                    tip.blit(tip_render, (4, 1))
+                    tip.blit(tip_render, (4, 2))
                     tx = rx + 12
-                    ty = bar_y - 20
+                    ty = bar_y - fh - 2
                     tx = max(0, min(tx, width - fw))
                     r.blit(tip, (tx, ty))
 
@@ -139,7 +139,7 @@ init python:
         LINE_H = 8
         TAB_W = 14
         DRAG_THRESH = 4
-        TIP_H = 22  # height of the floating tooltip
+
 
         # Selection highlight colour (blue tint for selected-but-not-active)
         SEL_BG = "#446688"
@@ -240,18 +240,32 @@ init python:
                 tw, _ = tr.get_size()
                 r.blit(tr, (bx_pos + (self.TAB_W - tw) // 2, by_pos))
 
+            # --- Ghost marker preview (repeat-pattern dialog) ---
+            ghost_times = _sfx_editor_compute_ghost_times()
+            for gtime in ghost_times:
+                gfrac = max(0.0, min(1.0, gtime / dur))
+                gpx = int(gfrac * width)
+                c.rect("#3a5060", (gpx - 1, 0, 2, self.TRACK_H + self.LINE_H))
+                gbx = gpx - self.TAB_W // 2
+                gby = self.TRACK_H - 2
+                c.rect("#2a3a44", (gbx, gby, self.TAB_W, self.TAB_H))
+                gtxt = Text("?", style="sfx_btn_text", size=12, color="#888888")
+                gtr = renpy.render(gtxt, self.TAB_W, self.TAB_H, st, at)
+                gtw, _ = gtr.get_size()
+                r.blit(gtr, (gbx + (self.TAB_W - gtw) // 2, gby))
+
             # Render tooltip if there's text (set by event())
             if self._tip_text:
                 tip_widget = Text(self._tip_text, style="sfx_txt", size=11,
                                   color="#cccccc", italic=True, substitute=False)
-                tip_render = renpy.render(tip_widget, 300, self.TIP_H, st, at)
-                tw, _ = tip_render.get_size()
+                tip_render = renpy.render(tip_widget, 300, 100, st, at)
+                tw, th = tip_render.get_size()
                 fw = min(tw + 8, 300)
-                fh = self.TIP_H - 2
+                fh = th + 4
 
                 tip = renpy.Render(fw, fh)
                 tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))
-                tip.blit(tip_render, (4, 1))
+                tip.blit(tip_render, (4, 2))
 
                 # Position tooltip to right of the cursor
                 tx = self._tip_x + 10
@@ -323,6 +337,14 @@ init python:
                     else:
                         self._tip_text = "Pool {} ({})".format(
                             hit_idx + 1, _sfx_editor_format_time(t))
+                        # Show offset from nearest selected (or active) marker
+                        refs = sel if sel else {self.get_active()}
+                        if hit_idx not in refs:
+                            ref_idx = min(refs, key=lambda s: abs(markers[s]["time"] - t))
+                            offset = t - markers[ref_idx]["time"]
+                            sign = "+" if offset >= 0 else "-"
+                            self._tip_text += "\nOffset from Pool {}: {}{}".format(
+                                ref_idx + 1, sign, _sfx_editor_format_time(abs(offset)))
                     self._tip_x = x
                     self._tip_y = y
                     self._hover_idx = hit_idx
@@ -459,12 +481,12 @@ init python:
                 tt, style="sfx_txt", size=11, color="#cccccc",
                 italic=True, substitute=False,
             )
-            text_render = renpy.render(text_widget, 300, 22, st, at)
+            text_render = renpy.render(text_widget, 300, 100, st, at)
             tw, th = text_render.get_size()
 
             pad_x, pad_y = 4, 2
             fw = min(tw + pad_x * 2, 300)
-            fh = 22
+            fh = th + pad_y * 2
 
             tip = renpy.Render(fw, fh)
             tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))

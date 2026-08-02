@@ -565,24 +565,34 @@ init python:
             _sfx.repeat_interval_text = "1.00"
         renpy.restart_interaction()
 
+    def _sfx_editor_nudge_repeat_interval(delta):
+        """Nudge the repeat interval by delta seconds, clamping to >= 0.01."""
+        try:
+            val = float(_sfx.repeat_interval_text)
+        except (ValueError, TypeError):
+            val = 1.0
+        val = max(0.01, val + delta)
+        _sfx.repeat_interval_text = "{:.2f}".format(val)
+        renpy.restart_interaction()
+
     def _sfx_editor_nudge_repeat_count(delta):
-        """Nudge the repeat count by delta, clamping to >= 1."""
+        """Nudge the repeat count by delta, clamping to >= 0."""
         try:
             val = int(_sfx.repeat_count_text)
         except (ValueError, TypeError):
-            val = 1
-        val = max(1, val + delta)
+            val = 0
+        val = max(0, val + delta)
         _sfx.repeat_count_text = str(val)
         renpy.restart_interaction()
 
     def _sfx_editor_commit_repeat_count():
-        """Commit the repeat count. On invalid text, resets to 1."""
+        """Commit the repeat count. On invalid text, resets to 0."""
         try:
             val = int(_sfx.repeat_count_text)
-            if val < 1:
-                _sfx.repeat_count_text = "1"
+            if val < 0:
+                _sfx.repeat_count_text = "0"
         except (ValueError, TypeError):
-            _sfx.repeat_count_text = "1"
+            _sfx.repeat_count_text = "0"
         renpy.restart_interaction()
 
     def _sfx_editor_set_vid_target_pool(pool_index):
@@ -840,29 +850,35 @@ init python:
         _sfx.repeat_pattern_offsets = offsets
         _sfx.repeat_pattern_sel_count = len(sorted_sel)
 
-        # Default interval: gap between first two selected, or 1.0s
-        if len(sorted_sel) >= 2:
-            default_interval = timestamps[sorted_sel[1]]["time"] - anchor_time
+        # Default interval:
+        # - 2 markers: gap between them
+        # - 3+ markers: span × 2 (next beat starts one beat-span after last marker)
+        # - Single marker: anchor time (distance from 0 to the marker)
+        max_offset = max(o["offset"] for o in offsets)
+        if len(sorted_sel) == 2:
+            default_interval = max_offset
+        elif len(sorted_sel) >= 3 and max_offset > 0:
+            default_interval = max_offset * 2.0
         else:
-            default_interval = 1.0
+            default_interval = anchor_time if anchor_time > 0 else 1.0
         if default_interval <= 0:
             default_interval = 1.0
 
         _sfx.repeat_interval_text = "{:.2f}".format(default_interval)
 
-        # Max count that fits in video duration
+        # Max repeats that fit in video duration
         dur = _sfx_editor_get_duration()
-        max_offset = max(o["offset"] for o in offsets)
         if dur > 0 and default_interval > 0:
-            max_count = int((dur - 0.05 - anchor_time - max_offset) / default_interval) + 1
-            if max_count < 1:
-                max_count = 1
+            max_count = int((dur - 0.05 - anchor_time - max_offset) / default_interval)
+            if max_count < 0:
+                max_count = 0
         else:
-            max_count = 1
+            max_count = 0
         _sfx.repeat_count_text = str(max_count)
 
         # Suppress selection clear triggered by interaction restart
         _sfx._mtl_suppress_clear = True
+        _sfx.repeat_dialog_visible = True
         renpy.show_screen("sfx_repeat_pattern_dialog", _layer="sfx_editor_layer")
 
     def _sfx_editor_do_repeat_pattern():
@@ -889,7 +905,7 @@ init python:
         dur = _sfx_editor_get_duration()
 
         new_count = 0
-        for beat_idx in range(1, count):
+        for beat_idx in range(1, count + 1):
             beat_anchor = anchor + interval * beat_idx
             for o in offsets:
                 new_time = beat_anchor + o["offset"]
@@ -912,19 +928,45 @@ init python:
 
     def _sfx_editor_hide_repeat_dialog():
         """Hide the repeat pattern dialog from the sfx_editor_layer."""
+        _sfx.repeat_dialog_visible = False
         renpy.hide_screen("sfx_repeat_pattern_dialog", layer="sfx_editor_layer")
+
+    def _sfx_editor_compute_ghost_times():
+        """Return a sorted list of ghost marker times for the repeat-pattern preview.
+        Called by _VideoMarkerTimeline.render() every 50ms while the dialog is visible."""
+        if not getattr(_sfx, 'repeat_dialog_visible', False):
+            return []
+        try:
+            interval = float(_sfx.repeat_interval_text)
+            count = int(_sfx.repeat_count_text)
+        except (ValueError, TypeError):
+            return []
+        if interval <= 0 or count < 1:
+            return []
+        anchor = _sfx.repeat_pattern_anchor
+        offsets = _sfx.repeat_pattern_offsets
+        if not offsets:
+            return []
+        dur = _sfx_editor_get_duration()
+        ghost = []
+        for beat_idx in range(1, count + 1):
+            beat_anchor = anchor + interval * beat_idx
+            for o in offsets:
+                t = beat_anchor + o["offset"]
+                if dur > 0 and t > dur - 0.05:
+                    continue
+                if t < 0:
+                    continue
+                ghost.append(t)
+        ghost.sort()
+        return ghost
 
     def _sfx_editor_repeat_preview_text():
         """Return a preview string for the repeat pattern dialog,
         e.g. 'Creates 12 new marker(s)' or 'No new markers to create'."""
-        try:
-            interval = float(_sfx.repeat_interval_text)
-            count = int(_sfx.repeat_count_text)
-            new_markers = max(0, (count - 1) * len(_sfx.repeat_pattern_offsets))
-            if new_markers > 0:
-                return "Creates {} new marker(s)".format(new_markers)
-        except (ValueError, TypeError):
-            pass
+        new_markers = len(_sfx_editor_compute_ghost_times())
+        if new_markers > 0:
+            return "Creates {} new marker(s)".format(new_markers)
         return "No new markers to create"
 
     def _sfx_editor_remove_video_file(ts_index, file_index):

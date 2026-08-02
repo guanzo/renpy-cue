@@ -373,13 +373,6 @@ screen sfx_editor_sidebar_content():
                         set_time=_sfx_editor_mtl_set_time,
                         get_dur=_sfx_editor_mtl_get_dur,
                     )
-                fixed:
-                    xfill True
-                    ysize 1
-                    add Solid("#555555")
-                vbox:
-                    spacing 5
-                    text "Video Markers ([_vid_count])" style "sfx_txt"
                 null height 5
                 if _vid_entry:
                     $ _vid_entry.setdefault("volume", 1.0)
@@ -683,13 +676,6 @@ screen sfx_repeat_pattern_dialog():
     $ offsets = _sfx.repeat_pattern_offsets
     $ sel_count = _sfx.repeat_pattern_sel_count
 
-    # Build pattern preview string
-    $ pattern_parts = []
-    python:
-        for o in offsets:
-            pattern_parts.append(_sfx_editor_format_time(o["offset"]))
-    $ pattern_str = "  ".join(pattern_parts)
-
     button:
         xpos 500
         ypos 8
@@ -713,21 +699,17 @@ screen sfx_repeat_pattern_dialog():
                     text "Anchor:" style "sfx_txt"
                     text _sfx_editor_format_time(anchor) style "sfx_txt" color "#ffcc00"
 
-                if len(offsets) > 1:
-                    hbox:
-                        spacing 5
-                        text "Offsets:" style "sfx_txt"
-                        text pattern_str style "sfx_txt" color "#ffcc00"
-
                 null height 5
 
                 hbox:
-                    spacing 5
+                    spacing 3
                     xalign 0.0
                     text "Interval (s):" style "sfx_txt" size 12
                     $ _commit = Function(_sfx_editor_commit_repeat_interval)
                     $ _display = _sfx.repeat_interval_text
+                    use sfx_icon_button("-", Function(_sfx_editor_nudge_repeat_interval, -0.1), "Nudge back 100 ms", 18)
                     use sfx_float_input("_sfx.repeat_interval_text", _commit, _display)
+                    use sfx_icon_button("+", Function(_sfx_editor_nudge_repeat_interval, 0.1), "Nudge forward 100 ms", 18)
 
                 hbox:
                     spacing 3
