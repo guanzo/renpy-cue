@@ -32,6 +32,7 @@ init -999 python:
     _sfx.current_file = ""
     _sfx.current_dialogue = ""
     _sfx.prev_dialogue = ""
+    _sfx.top_layer_type = None
 
     # User configuration
     _sfx.audio_dir = "sfx_editor/audio"
@@ -276,8 +277,6 @@ init python:
 
 
     def _sfx_editor_show():
-        import time
-        t0 = time.time()
         _sfx.visible = True
         # Load persisted config
         _sfx_editor_load_markers()
@@ -325,7 +324,6 @@ init python:
         _changed = ""
         _img_key = None
         _dlg_key = None
-        just_shaked = _sfx._shake_just_happened
 
         if _sfx.current_file != old_file:
             _changed += " file:{}->{}".format(old_file, _sfx.current_file)
@@ -424,7 +422,6 @@ init python:
         When only_shake_pools is True, pool without the trigger_on_shake flag
         are skipped — used by screenshake triggers so each pool independently
         opts in to firing on shake."""
-        import random as _random
         if not _sfx.triggers_active:
             return
         for key in keys:
@@ -554,9 +551,6 @@ init python:
             old_ch = _sfx.active_channel
 
             def _apply_channel(ch_name, ch_obj=None):
-                path = renpy.music.get_playing(channel=ch_name)
-                dur = renpy.music.get_duration(channel=ch_name)
-                fname = path.replace("\\", "/").rsplit("/", 1)[-1]
 
                 fps = 30
                 if ch_obj is not None:
@@ -589,7 +583,6 @@ init python:
                             dur = renpy.music.get_duration(channel=ch_name)
                             if path and dur > 0:
                                 _apply_channel(ch_name, ch)
-                                _sfx.__refreshing = False
                                 return
                     except Exception:
                         pass
@@ -601,7 +594,6 @@ init python:
                     path = renpy.music.get_playing(channel=ch)
                     if path and path.lower().endswith(video_exts) and renpy.music.is_playing(channel=ch):
                         _apply_channel(ch, None)
-                        _sfx.__refreshing = False
                         return
                 except Exception:
                     pass
@@ -877,7 +869,6 @@ init python:
 
     def _sfx_editor_tick_trigger():
         """SFX trigger engine — runs always (even when overlay is hidden)."""
-        import random as _random
         import time as _time
 
         # Re-detect the active channel each tick so the CDD time display
@@ -908,7 +899,7 @@ init python:
         if not _sfx.triggers_active:
             return
 
-        _sfx.__tick_count = getattr(store, '_sfx.__tick_count', 0) + 1
+        _sfx.__tick_count = getattr(_sfx, '__tick_count', 0) + 1
         tick = _sfx.__tick_count
 
         # --- AUTOPLAY STATE MACHINE (a: keys) ---
@@ -1088,7 +1079,6 @@ init python:
         _sfx.markers = _sfx_editor_unwrap_persistent(data.get("markers", {}))
         _sfx.disabled_files = set(data.get("disabled_files", []))
         _sfx.triggers_active = data.get("triggers_active", True)
-        #_sfx_editor_normalize_all_markers()
         stripped = _sfx_editor_sanitize_video_timestamps()
         if stripped:
             _sfx_log("LOAD-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
