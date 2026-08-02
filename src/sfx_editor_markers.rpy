@@ -1035,7 +1035,7 @@ init python:
         """Remove pool markers for the current context."""
         autoplay_key = create_autoplay_key(_sfx.current_file)
         _sfx.markers.pop(autoplay_key, None)
-        _sfx.pool_states.pop(autoplay_key, None)
+        _sfx.autoplay_states.pop(autoplay_key, None)
         _sfx_editor_save_markers()
 
     # --- Bulk clear ---
@@ -1109,7 +1109,7 @@ init python:
                     ts_entry["time"] = t
 
         _sfx.played_video_keys = set()
-        _sfx.pool_states = {}
+        _sfx.autoplay_states = {}
         _sfx_editor_save_markers()
 
     def _sfx_editor_dump_markers():
@@ -1146,7 +1146,7 @@ init python:
             _sfx.markers = python_dict(data.get("markers", {}))
             
             _sfx.played_video_keys = set()
-            _sfx.pool_states = {}
+            _sfx.autoplay_states = {}
             #_sfx_editor_normalize_all_markers()
             _sfx_editor_save_markers()
             _sfx_log("RESTORE-MARKERS total_keys={} path={}".format(

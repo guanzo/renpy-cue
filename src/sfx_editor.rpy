@@ -55,7 +55,8 @@ init -999 python:
     _sfx.__last_pos = 0.0
 
     # Pool state machine (multi-instance: one per active a: key)
-    _sfx.pool_states = {}
+    _sfx.autoplay_states = {}
+    _sfx.autoplay_current = None   # {key, ch} of currently-playing autoplay SFX
     _sfx.last_played = []
 
     _sfx.triggers_active = True
@@ -332,6 +333,7 @@ init python:
         if _sfx.current_file != old_file:
             _changed += " file:{}->{}".format(old_file, _sfx.current_file)
             _img_key = create_img_key(_sfx.current_file) if _sfx.current_file else None
+            _sfx.autoplay_states = {} # clean up stale data
         if _sfx.active_channel != old_video:
             _changed += " ch:{}->{}".format(old_video, _sfx.active_channel)
         if _sfx.current_dialogue != _sfx.prev_dialogue:
@@ -609,7 +611,6 @@ init python:
     def _sfx_editor_reset_loop_tracking():
         """Reset played markers and loop detection when video changes."""
         _sfx.played_video_keys = set()
-        _sfx.pool_states = {}
         _sfx.__last_pos = 0.0
 
 
@@ -908,32 +909,33 @@ init python:
 
         _sfx.__tick_count = getattr(_sfx, '__tick_count', 0) + 1
         tick = _sfx.__tick_count
-
+``
         # --- AUTOPLAY STATE MACHINE (a: keys) ---
         now = _time.time()
         autoplay_key = create_autoplay_key(_sfx.current_file or "")
-
+        
         entry = _sfx.markers.get(autoplay_key)
         if entry:
             files = entry.get("files", [])
             freq = entry.get("frequency", 1)
             if files:
                 # Init pool state if needed
-                if autoplay_key not in _sfx.pool_states:
-                    _sfx.pool_states[autoplay_key] = {
+                if autoplay_key not in _sfx.autoplay_states:
+                    _sfx.autoplay_states[autoplay_key] = {
                         "state": 0,
                         "ch": None,
                         "ready_at": 0.0,
                         "play_start": 0.0,
                     }
-                ps = _sfx.pool_states[autoplay_key]
-
+                ps = _sfx.autoplay_states[autoplay_key]
+                
                 if ps["state"] == 1:
                     if not renpy.music.is_playing(channel=ps["ch"]):
                         dur = now - ps["play_start"]
                         breathing = _sfx_editor_get_autoplay_delay(freq)
                         ps["ready_at"] = now + breathing
                         ps["state"] = 0
+                        _sfx.autoplay_current = None
                         _sfx_log("TICK#{} POOL-DONE  key={} dur={:.2f}s next_in={:.2f}s".format(
                             tick, autoplay_key, dur, breathing))
 
@@ -941,15 +943,22 @@ init python:
                     if ps["ready_at"] == 0:
                         ps["ready_at"] = now + 0.5
                     elif now >= ps["ready_at"]:
-                        f = _sfx_editor_pick_file(files)
-                        _vol = entry.get("volume", 1.0)
-                        ch_used = _sfx_editor_play_sfx(f, autoplay_key, volume=_vol)
-                        if ch_used:
-                            ps["state"] = 1
-                            ps["ch"] = ch_used
-                            ps["play_start"] = now
-                            _sfx_log("TICK#{} POOL-PLAY  key={} file={} ch={}".format(
-                                tick, autoplay_key, f, ch_used))
+                        # --- Cross-context overlap gate ---
+                        _block = _sfx.autoplay_current
+                        if _block and _block["key"] != autoplay_key and renpy.music.is_playing(channel=_block["ch"]):
+                            # Another autoplay SFX is still playing -- defer
+                            ps["ready_at"] = now + 0.1
+                        else:
+                            f = _sfx_editor_pick_file(files)
+                            _vol = entry.get("volume", 1.0)
+                            ch_used = _sfx_editor_play_sfx(f, autoplay_key, volume=_vol)
+                            if ch_used:
+                                ps["state"] = 1
+                                ps["ch"] = ch_used
+                                ps["play_start"] = now
+                                _sfx.autoplay_current = {"key": autoplay_key, "ch": ch_used}
+                                _sfx_log("TICK#{} POOL-PLAY  key={} file={} ch={}".format(
+                                    tick, autoplay_key, f, ch_used))
 
         # --- VIDEO MODE triggers (v: keys) ---
         ch = _sfx.active_channel
