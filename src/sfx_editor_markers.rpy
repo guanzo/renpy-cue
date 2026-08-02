@@ -308,9 +308,9 @@ init python:
         except NameError:
             pass
         if hasattr(data, "items") and hasattr(data, "keys"):
-            return {k: _sfx_editor_unwrap_persistent(v) for k, v in data.items()}
+            return python_dict((k, _sfx_editor_unwrap_persistent(v)) for k, v in data.items())
         if hasattr(data, "__iter__"):
-            return [_sfx_editor_unwrap_persistent(v) for v in data]
+            return python_list(_sfx_editor_unwrap_persistent(v) for v in data)
         return data
 
     def _sfx_editor_normalize_all_markers():

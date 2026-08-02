@@ -965,10 +965,9 @@ init python:
                             if mt <= elapsed < mt + _sfx.__marker_tolerance:
                                 files = ts_entry.get("files", [])
                                 if files:
-                                    _vsrc = _sfx.VID_KEY_PREFIX + "{}@{:.2f}".format(_sfx.current_file, mt)
                                     f = _sfx_editor_pick_file(files, avoid_repeats=False)
                                     _vol = _sfx_editor_get_effective_volume(vid_entry, vid_key, ts_index=idx)
-                                    _sfx_editor_play_sfx(f, _vsrc, volume=_vol)
+                                    _sfx_editor_play_sfx(f, vid_key, volume=_vol)
                                     _sfx.played_video_keys.add(ts_key)
 
             # Detect video loop (markers only, pool uses wall clock)
