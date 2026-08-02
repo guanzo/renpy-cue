@@ -56,7 +56,8 @@ init -999 python:
 
     # Pool state machine (multi-instance: one per active a: key)
     _sfx.pool_states = {}
-    
+    _sfx.last_played = []
+
     _sfx.triggers_active = True
 
     # Video seek/pause state
@@ -399,10 +400,7 @@ init python:
         if len(files) == 1:
             f = files[0]
         elif avoid_repeats:
-            last = _sfx.pool_states.setdefault("__last_played__", [])
-            if not hasattr(last, "append"):
-                last = []
-                _sfx.pool_states["__last_played__"] = last
+            last = _sfx.last_played
             f = _random.choice(files)
             tries = 0
             while f in last and tries < 10:
@@ -438,8 +436,10 @@ init python:
                 continue
             _vol = entry.get("volume", 1.0)
             _total = sum(len(p.get("files", [])) for p in pools)
+            
             _sfx_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(
                 key, len(pools), _total, _vol))
+
             _picked = []
             for pi, pool in enumerate(pools):
                 if only_shake_pools and not pool.get("trigger_on_shake", False):
