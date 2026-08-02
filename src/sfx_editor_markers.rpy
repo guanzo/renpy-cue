@@ -1143,7 +1143,8 @@ init python:
             with open(dump_path, "r") as f:
                 data = _json.load(f)
             persistent._sfx_editor_markers = data
-            _sfx.markers = dict(data.get("markers", {}))
+            _sfx.markers = python_dict(data.get("markers", {}))
+            
             _sfx.played_video_keys = set()
             _sfx.pool_states = {}
             #_sfx_editor_normalize_all_markers()

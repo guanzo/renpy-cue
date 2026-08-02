@@ -1066,7 +1066,7 @@ init python:
             stripped = _sfx_editor_sanitize_video_timestamps()
             if stripped:
                 _sfx_log("SAVE-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
-            data["markers"] = dict(_sfx.markers)
+            data["markers"] = python_dict(_sfx.markers)
 
         persistent._sfx_editor_markers = data
 
