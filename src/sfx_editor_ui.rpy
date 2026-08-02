@@ -332,6 +332,16 @@ screen sfx_editor_sidebar_content():
                         text_style "sfx_btn_text"
                         action Function(_sfx_editor_seek_frame, 1)
                         tooltip "Seek forward 1 frame (inaccurate)"
+                    
+                    fixed:
+                        ysize 14
+                        xsize 2
+                        add Solid("#555555")
+                    textbutton "Repeat":
+                        style "sfx_btn"
+                        text_style "sfx_btn_text"
+                        action Function(_sfx_editor_open_repeat_dialog)
+                        tooltip "Repeat selected markers at regular intervals across the video"
                     textbutton "Delete":
                         style "sfx_btn"
                         text_style "sfx_btn_text"
@@ -664,3 +674,89 @@ screen sfx_editor_sidebar_content():
                                     text item["name"] style "sfx_txt" color "#ffcc00"
 
 
+###############################################################################
+# SECTION 6: Repeat Pattern Dialog
+###############################################################################
+
+screen sfx_repeat_pattern_dialog():
+    $ anchor = _sfx.repeat_pattern_anchor
+    $ offsets = _sfx.repeat_pattern_offsets
+    $ sel_count = _sfx.repeat_pattern_sel_count
+
+    # Build pattern preview string
+    $ pattern_parts = []
+    python:
+        for o in offsets:
+            pattern_parts.append(_sfx_editor_format_time(o["offset"]))
+    $ pattern_str = "  ".join(pattern_parts)
+
+    button:
+        xpos 500
+        ypos 8
+        padding (16, 8)
+        background "#2a2a2a"
+        hover_background "#2a2a2a"
+        xmaximum 400
+        action NullAction()
+
+        vbox:
+                spacing 8
+                text "Repeat Pattern" style "sfx_hdr"
+
+                hbox:
+                    spacing 5
+                    text "Selected:" style "sfx_txt"
+                    text "{} marker(s)".format(sel_count) style "sfx_txt" color "#ffcc00"
+
+                hbox:
+                    spacing 5
+                    text "Anchor:" style "sfx_txt"
+                    text _sfx_editor_format_time(anchor) style "sfx_txt" color "#ffcc00"
+
+                if len(offsets) > 1:
+                    hbox:
+                        spacing 5
+                        text "Offsets:" style "sfx_txt"
+                        text pattern_str style "sfx_txt" color "#ffcc00"
+
+                null height 5
+
+                hbox:
+                    spacing 5
+                    xalign 0.0
+                    text "Interval (s):" style "sfx_txt" size 12
+                    $ _commit = Function(_sfx_editor_commit_repeat_interval)
+                    $ _display = _sfx.repeat_interval_text
+                    use sfx_float_input("_sfx.repeat_interval_text", _commit, _display)
+
+                hbox:
+                    spacing 3
+                    xalign 0.0
+                    text "Repeat:" style "sfx_txt" size 12
+                    $ _dec = Function(_sfx_editor_nudge_repeat_count, -1)
+                    $ _inc = Function(_sfx_editor_nudge_repeat_count, 1)
+                    $ _commit = Function(_sfx_editor_commit_repeat_count)
+                    $ _display = _sfx.repeat_count_text
+                    use sfx_icon_button("-", _dec, "Decrement by 1", 18)
+                    use sfx_float_input("_sfx.repeat_count_text", _commit, _display)
+                    use sfx_icon_button("+", _inc, "Increment by 1", 18)
+
+                $ _preview_label = _sfx_editor_repeat_preview_text()
+                text _preview_label style "sfx_help"
+
+                null height 5
+
+                hbox:
+                    spacing 8
+                    xalign 1.0
+                    textbutton "Cancel":
+                        style "sfx_btn"
+                        text_style "sfx_btn_text"
+                        action Function(_sfx_editor_hide_repeat_dialog)
+                    textbutton "Apply":
+                        style "sfx_btn"
+                        text_style "sfx_btn_text"
+                        action [
+                            Function(_sfx_editor_do_repeat_pattern),
+                            Function(_sfx_editor_hide_repeat_dialog),
+                        ]

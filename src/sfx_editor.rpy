@@ -77,13 +77,19 @@ init -999 python:
     _sfx.scan_error = None
 
     # Video timestamp editing state
-    _sfx.edit_video_ts_index = -1  # -1 = not editing; otherwise index into timestamps list
-    _sfx.edit_video_ts_text = ""   # text buffer for the editable input
+    _sfx.edit_video_ts_text = ""   # text buffer for the editable input — always reflects active pool
 
     # Multi-pool UI state: which pool the file-browser I/D/V buttons target
     _sfx.img_target_pool = 0
     _sfx.dlg_target_pool = 0
     _sfx.vid_target_pool = 0
+
+    # Repeat pattern dialog state
+    _sfx.repeat_interval_text = ""
+    _sfx.repeat_count_text = ""
+    _sfx.repeat_pattern_anchor = 0.0
+    _sfx.repeat_pattern_offsets = []
+    _sfx.repeat_pattern_sel_count = 0
 
     # Autosave backup throttle
     _sfx._last_autosave_time = 0
@@ -300,6 +306,7 @@ init python:
 
         # 1. Re-detect video channel
         _sfx_editor_refresh_channel()
+        _sfx.visible_tree = _sfx_editor_get_visible_tree()
 
         # 2. Re-detect context: top displayable on master layer wins;
         #    fall back to video channel when nothing is on the master layer.
@@ -332,8 +339,6 @@ init python:
 
         if _changed:
             _sfx_log("CTX-CHANGE{}".format(_changed))
-            if _sfx.current_file != old_file:
-                _sfx.visible_tree = _sfx_editor_get_visible_tree()
             _sfx_editor_fire_context_triggers(_img_key, _dlg_key)
 
         # 5. Screenshake trigger — fires independently of context changes,
@@ -963,6 +968,7 @@ init python:
                         if ts_key not in _sfx.played_video_keys:
                             if "time" not in ts_entry:
                                 _sfx_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(ts_entry))
+                                continue
                             mt = ts_entry["time"]
                             if mt <= elapsed < mt + _sfx.__marker_tolerance:
                                 files = ts_entry.get("files", [])
@@ -1085,8 +1091,7 @@ init python:
         stripped = _sfx_editor_sanitize_video_timestamps()
         if stripped:
             _sfx_log("LOAD-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
-        _sfx_log("LOAD-MARKERS total_keys={} keys={}".format(
-            len(_sfx.markers), list(_sfx.markers.keys())[:20]))
+        _sfx_log("LOAD-MARKERS total_keys={}".format(len(_sfx.markers)))
 
 
 

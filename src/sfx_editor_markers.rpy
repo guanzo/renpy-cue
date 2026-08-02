@@ -517,27 +517,24 @@ init python:
         _sfx.mtl_selected = set()
         _sfx_editor_save_markers()
 
-    def _sfx_editor_start_edit_video_ts():
-        """Begin editing the active video timestamp."""
-        index = _sfx.vid_target_pool
+    def _sfx_editor_sync_video_ts_text():
+        """Sync the edit buffer to the active pool's timestamp value."""
         vid_key = create_vid_key(_sfx.current_file)
         entry = _sfx.markers.get(vid_key, {})
         timestamps = entry.get("timestamps", [])
+        index = _sfx.vid_target_pool
         if 0 <= index < len(timestamps):
-            _sfx.edit_video_ts_index = index
             _sfx.edit_video_ts_text = _sfx_editor_format_time(timestamps[index]["time"])
-    
+
     def _sfx_editor_commit_video_ts():
         """Parse the edit text and update the active video timestamp.
-        Tracks the active tab after re-sort."""
-        index = _sfx.edit_video_ts_index
-        if index < 0:
-            return
+        Tracks the active tab after re-sort. No-ops when the repeat dialog is open
+        (Enter key events propagate cross-screen and should not commit the wrong field)."""
         vid_key = create_vid_key(_sfx.current_file)
         entry = _sfx.markers.get(vid_key, {})
         timestamps = entry.get("timestamps", [])
-        if index >= len(timestamps):
-            _sfx.edit_video_ts_index = -1
+        index = _sfx.vid_target_pool
+        if not (0 <= index < len(timestamps)):
             return
         new_time = _sfx_editor_parse_time(_sfx.edit_video_ts_text)
         if new_time is not None and new_time >= 0:
@@ -555,9 +552,8 @@ init python:
             _sfx.played_video_keys = set()
             _sfx.mtl_selected = set()
             _sfx_editor_save_markers()
-        # Clear editing state regardless of success/failure
-        _sfx.edit_video_ts_index = -1
-        _sfx.edit_video_ts_text = ""
+        # Reformat buffer to reflect current value (error feedback on parse failure)
+        _sfx.edit_video_ts_text = _sfx_editor_format_time(timestamps[index]["time"])
 
     def _sfx_editor_commit_repeat_interval():
         """Commit the repeat interval. On invalid text, resets to 1.00."""
@@ -569,11 +565,32 @@ init python:
             _sfx.repeat_interval_text = "1.00"
         renpy.restart_interaction()
 
+    def _sfx_editor_nudge_repeat_count(delta):
+        """Nudge the repeat count by delta, clamping to >= 1."""
+        try:
+            val = int(_sfx.repeat_count_text)
+        except (ValueError, TypeError):
+            val = 1
+        val = max(1, val + delta)
+        _sfx.repeat_count_text = str(val)
+        renpy.restart_interaction()
+
+    def _sfx_editor_commit_repeat_count():
+        """Commit the repeat count. On invalid text, resets to 1."""
+        try:
+            val = int(_sfx.repeat_count_text)
+            if val < 1:
+                _sfx.repeat_count_text = "1"
+        except (ValueError, TypeError):
+            _sfx.repeat_count_text = "1"
+        renpy.restart_interaction()
+
     def _sfx_editor_set_vid_target_pool(pool_index):
         """Set which timestamp pool tab is active.
         Clears multi-selection since this is an explicit single-pool operation."""
         _sfx.vid_target_pool = int(pool_index)
         _sfx.mtl_selected = set()
+        _sfx_editor_sync_video_ts_text()
 
     def _sfx_editor_on_bar_changed(new_value):
         """Called when the drag bar adjusts a marker's timestamp.
@@ -789,6 +806,127 @@ init python:
         _sfx.mtl_selected = set()
         _sfx_editor_save_markers()
 
+    def _sfx_editor_open_repeat_dialog():
+        """Open the Repeat Pattern dialog for the current video marker selection.
+        Works with single or multi-selection. Falls back to the active pool
+        if nothing is selected."""
+        timestamps = _sfx_editor_mtl_get_markers()
+        if not timestamps:
+            return
+
+        sel = _sfx_editor_mtl_get_selected()
+        if not sel:
+            # Fall back to active pool as single-marker selection
+            active = _sfx.vid_target_pool
+            if 0 <= active < len(timestamps):
+                sel = {active}
+            else:
+                return
+
+        # Sort selected indices and compute pattern relative to anchor
+        sorted_sel = sorted(sel)
+        anchor_time = timestamps[sorted_sel[0]]["time"]
+
+        offsets = []
+        for idx in sorted_sel:
+            ts = timestamps[idx]
+            offsets.append({
+                "offset": ts["time"] - anchor_time,
+                "files": list(ts.get("files", [])),
+                "volume": ts.get("volume", _sfx.VOL_DEFAULT),
+            })
+
+        _sfx.repeat_pattern_anchor = anchor_time
+        _sfx.repeat_pattern_offsets = offsets
+        _sfx.repeat_pattern_sel_count = len(sorted_sel)
+
+        # Default interval: gap between first two selected, or 1.0s
+        if len(sorted_sel) >= 2:
+            default_interval = timestamps[sorted_sel[1]]["time"] - anchor_time
+        else:
+            default_interval = 1.0
+        if default_interval <= 0:
+            default_interval = 1.0
+
+        _sfx.repeat_interval_text = "{:.2f}".format(default_interval)
+
+        # Max count that fits in video duration
+        dur = _sfx_editor_get_duration()
+        max_offset = max(o["offset"] for o in offsets)
+        if dur > 0 and default_interval > 0:
+            max_count = int((dur - 0.05 - anchor_time - max_offset) / default_interval) + 1
+            if max_count < 1:
+                max_count = 1
+        else:
+            max_count = 1
+        _sfx.repeat_count_text = str(max_count)
+
+        # Suppress selection clear triggered by interaction restart
+        _sfx._mtl_suppress_clear = True
+        renpy.show_screen("sfx_repeat_pattern_dialog", _layer="sfx_editor_layer")
+
+    def _sfx_editor_do_repeat_pattern():
+        """Apply the repeat pattern: create timestamp copies for each beat
+        beyond the first, using the interval and count from the dialog."""
+        try:
+            interval = float(_sfx.repeat_interval_text)
+            count = int(_sfx.repeat_count_text)
+        except (ValueError, TypeError):
+            return
+
+        if interval <= 0 or count < 1:
+            return
+
+        vid_key = create_vid_key(_sfx.current_file) if _sfx.current_file else ""
+        if not vid_key:
+            return
+
+        entry = _sfx.markers.setdefault(vid_key, {"timestamps": []})
+        timestamps = entry.setdefault("timestamps", [])
+
+        anchor = _sfx.repeat_pattern_anchor
+        offsets = _sfx.repeat_pattern_offsets
+        dur = _sfx_editor_get_duration()
+
+        new_count = 0
+        for beat_idx in range(1, count):
+            beat_anchor = anchor + interval * beat_idx
+            for o in offsets:
+                new_time = beat_anchor + o["offset"]
+                if dur > 0 and new_time > dur - 0.05:
+                    continue
+                if new_time < 0:
+                    continue
+                clone = {
+                    "time": new_time,
+                    "files": list(o["files"]),
+                    "volume": o["volume"],
+                }
+                timestamps.append(clone)
+                new_count += 1
+
+        if new_count > 0:
+            timestamps.sort(key=lambda e: e["time"])
+        _sfx.mtl_selected = set()
+        _sfx_editor_save_markers()
+
+    def _sfx_editor_hide_repeat_dialog():
+        """Hide the repeat pattern dialog from the sfx_editor_layer."""
+        renpy.hide_screen("sfx_repeat_pattern_dialog", layer="sfx_editor_layer")
+
+    def _sfx_editor_repeat_preview_text():
+        """Return a preview string for the repeat pattern dialog,
+        e.g. 'Creates 12 new marker(s)' or 'No new markers to create'."""
+        try:
+            interval = float(_sfx.repeat_interval_text)
+            count = int(_sfx.repeat_count_text)
+            new_markers = max(0, (count - 1) * len(_sfx.repeat_pattern_offsets))
+            if new_markers > 0:
+                return "Creates {} new marker(s)".format(new_markers)
+        except (ValueError, TypeError):
+            pass
+        return "No new markers to create"
+
     def _sfx_editor_remove_video_file(ts_index, file_index):
         """Remove a single file from a timestamp's files list.
         Keeps the timestamp even if files becomes empty."""
@@ -840,9 +978,8 @@ init python:
             _sfx.vid_target_pool = timestamps.index(ts_entry)
         except ValueError:
             pass
-        # Keep edit buffer in sync if currently editing this timestamp
-        if _sfx.edit_video_ts_index == index:
-            _sfx.edit_video_ts_text = _sfx_editor_format_time(new_time)
+        # Keep edit buffer in sync with the nudged value
+        _sfx.edit_video_ts_text = _sfx_editor_format_time(new_time)
         _sfx.played_video_keys = set()
         _sfx.mtl_selected = set()
         _sfx_editor_save_markers()
