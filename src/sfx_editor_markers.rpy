@@ -851,13 +851,10 @@ init python:
         _sfx.repeat_pattern_sel_count = len(sorted_sel)
 
         # Default interval:
-        # - 2 markers: gap between them
-        # - 3+ markers: span × 2 (next beat starts one beat-span after last marker)
+        # - 2+ markers: span × 2 (next beat starts one beat-span after last marker)
         # - Single marker: anchor time (distance from 0 to the marker)
         max_offset = max(o["offset"] for o in offsets)
-        if len(sorted_sel) == 2:
-            default_interval = max_offset
-        elif len(sorted_sel) >= 3 and max_offset > 0:
+        if len(sorted_sel) >= 2 and max_offset > 0:
             default_interval = max_offset * 2.0
         else:
             default_interval = anchor_time if anchor_time > 0 else 1.0

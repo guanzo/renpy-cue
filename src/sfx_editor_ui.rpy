@@ -31,6 +31,8 @@ style sfx_btn_icon is empty:
     padding (0, 0)
     background "#444444"
     hover_background "#666666"
+    hover_sound None
+    activate_sound None
 
 style sfx_btn_icon_text is empty:
     size 10

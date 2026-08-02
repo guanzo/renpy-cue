@@ -401,16 +401,22 @@ init python:
 
                 elif shift_held:
                     # Shift+Click: select all markers whose time falls between
-                    # the click position and the nearest already-selected marker
+                    # the click and the nearest already-selected marker
                     # (or the active marker if nothing is selected).
+                    # When clicking on a marker, use its actual time so the
+                    # clicked marker is always included in the range.
                     _sfx._mtl_suppress_clear = True
                     if sel:
                         nearest_idx = min(sel, key=lambda si: abs(markers[si]["time"] - click_time))
                         ref_time = markers[nearest_idx]["time"]
                     else:
                         ref_time = markers[self.get_active()]["time"]
-                    lo = min(click_time, ref_time)
-                    hi = max(click_time, ref_time)
+                    if hit_idx >= 0:
+                        target_time = markers[hit_idx]["time"]
+                    else:
+                        target_time = click_time
+                    lo = min(target_time, ref_time)
+                    hi = max(target_time, ref_time)
                     for i, m in enumerate(markers):
                         if lo <= m["time"] <= hi:
                             sel.add(i)
