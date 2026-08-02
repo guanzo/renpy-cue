@@ -343,13 +343,17 @@ init python:
                 click_frac = x / float(max(1, w))
                 click_time = click_frac * dur
 
+                # Ignore clicks outside this displayable's bounds (e.g. on
+                # buttons above the timeline) — they shouldn't clear selection.
+                if not (0 <= x < w and 0 <= y < self._total_h()):
+                    return None
+
                 if hit_idx < 0:
-                    # Click on empty space
+                    # Click on empty space within the timeline area
                     if shift_held and markers:
                         # Fall through to shift logic below
                         pass
                     else:
-                        # Plain click or alt+click on empty space — clear
                         _sfx.mtl_selected = set()
                         return None
 

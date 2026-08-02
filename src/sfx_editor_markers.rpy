@@ -729,6 +729,40 @@ init python:
         _sfx.mtl_selected = set()
         _sfx_editor_save_markers()
 
+    def _sfx_editor_get_delete_confirm_message():
+        """Build the confirmation message listing which markers will be deleted."""
+        sel = getattr(_sfx, 'mtl_selected', set())
+        if len(sel) > 1:
+            nums = ", ".join(str(i + 1) for i in sorted(sel))
+            return "Delete markers {}?".format(nums)
+        else:
+            return "Delete marker {}?".format(_sfx.vid_target_pool + 1)
+
+    def _sfx_editor_remove_selected_markers():
+        """Delete selected markers (multi-selection) or active pool (single).
+        Removes indices in descending order to avoid index-shift bugs.
+        Falls back to active pool if no multi-selection is active."""
+        sel = getattr(_sfx, 'mtl_selected', set())
+        if len(sel) > 1:
+            vid_key = create_vid_key(_sfx.current_file)
+            entry = _sfx.markers.get(vid_key, {})
+            timestamps = entry.get("timestamps", [])
+            if timestamps:
+                for idx in sorted(sel, reverse=True):
+                    if 0 <= idx < len(timestamps):
+                        timestamps.pop(idx)
+                if not timestamps:
+                    del _sfx.markers[vid_key]
+                    _sfx.vid_target_pool = 0
+                else:
+                    _sfx.vid_target_pool = min(_sfx.vid_target_pool, len(timestamps) - 1)
+            _sfx.played_video_keys = set()
+            _sfx.mtl_selected = set()
+            _sfx_editor_save_markers()
+        else:
+            # Single marker — delegate to existing per-pool delete
+            _sfx_editor_remove_video_pool(_sfx.vid_target_pool)
+
     def _sfx_editor_duplicate_video_pool(ts_index):
         """Duplicate a timestamp pool with all settings (time, volume, file list).
         Appends the clone, sorts by time, and switches to the new pool."""

@@ -282,12 +282,16 @@ screen sfx_editor_sidebar_content():
                         text_style "sfx_btn_text"
                         action Function(_sfx_editor_seek_frame, 1)
                         tooltip "Seek forward 1 frame (inaccurate)"
-                    null xfill True
+                    textbutton "Delete":
+                        style "sfx_btn"
+                        text_style "sfx_btn_text"
+                        action Confirm(_sfx_editor_get_delete_confirm_message(), Function(_sfx_editor_remove_selected_markers))
+                        tooltip "Delete selected markers"
                     textbutton "?":
                         style "sfx_btn"
                         text_style "sfx_btn_text"
                         action NullAction()
-                        tooltip "• Timestamp markers are draggable\n• Alt + Click or Shift + Click to create a selection group"
+                        tooltip "• Timestamp markers are draggable\n• Alt + Click or Shift + Click to create a selection group\n• Select markers and use Repeat to copy them at intervals"
                 # --- Timeline visualizer ---
                 fixed:
                     xfill True
