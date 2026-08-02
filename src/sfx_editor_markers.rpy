@@ -587,39 +587,10 @@ init python:
         _sfx.mtl_selected = set()
         _sfx_editor_sync_video_ts_text()
 
-    def _sfx_editor_on_bar_changed(new_value):
-        """Called when the drag bar adjusts a marker's timestamp.
-        DictValue already wrote the value — just re-sort and save."""
-        vid_key = create_vid_key(_sfx.current_file) if _sfx.current_file else ""
-        if not vid_key:
-            return
-        entry = _sfx.markers.get(vid_key, {})
-        timestamps = entry.get("timestamps", [])
-        if not timestamps:
-            return
-        pi = _sfx.vid_target_pool
-        if 0 <= pi < len(timestamps):
-            ts_entry = timestamps[pi]
-            timestamps.sort(key=lambda ts: ts.get("time", 0))
-            new_index = timestamps.index(ts_entry)
-            _sfx.vid_target_pool = new_index
-        _sfx_editor_save_markers()
-        # Keep tooltip live during drag
-        _sfx._tooltip_text = "Pool {} ({})".format(
-            _sfx.vid_target_pool + 1, _sfx_editor_format_time(new_value))
-
     def _sfx_editor_mtl_get_selected():
         """Get the set of selected marker indices for multi-selection.
         Returns a set of int indices, or empty set if no multi-selection."""
         return getattr(_sfx, 'mtl_selected', set())
-
-    def _sfx_editor_mtl_clear_selection():
-        """Clear multi-selection on the video marker timeline.
-        Skips clearing if the CDD just handled a modifier-click (suppress flag)."""
-        if getattr(_sfx, '_mtl_suppress_clear', False):
-            _sfx._mtl_suppress_clear = False
-            return
-        _sfx.mtl_selected = set()
 
     def _sfx_editor_mtl_get_markers():
         """Get the list of timestamp dicts for the current video."""
@@ -691,25 +662,6 @@ init python:
                 _sfx.vid_target_pool = min(new_sel)
 
         _sfx_editor_save_markers()
-
-    def _sfx_editor_set_video_marker_time(pool_index, new_time):
-        """Update the timestamp of a video marker pool.
-        Clamps to [0, duration], clears multi-selection, and auto-saves."""
-        vid_key = create_vid_key(_sfx.current_file) if _sfx.current_file else ""
-        if not vid_key:
-            return
-        entry = _sfx.markers.get(vid_key, {})
-        timestamps = entry.get("timestamps", [])
-        if 0 <= pool_index < len(timestamps):
-            dur = _sfx_editor_get_duration()
-            new_time = max(0.0, min(new_time, dur - 0.05)) if dur > 0 else max(0.0, new_time)
-            ts_entry = timestamps[pool_index]
-            ts_entry["time"] = new_time
-            timestamps.sort(key=lambda ts: ts.get("time", 0))
-            new_index = timestamps.index(ts_entry)
-            _sfx.vid_target_pool = new_index
-            _sfx.mtl_selected = set()
-            _sfx_editor_save_markers()
 
     def _sfx_editor_add_video_pool():
         """Create a new empty timestamp at current elapsed time.
@@ -965,11 +917,6 @@ init python:
             _sfx.played_video_keys = set()
             _sfx_editor_save_markers()
     
-    def _sfx_editor_set_video_volume(value):
-        """Set volume on the active timestamp."""
-        vid_key = create_vid_key(_sfx.current_file)
-        _sfx_editor_write_volume(vid_key, value, ts_index=_sfx.vid_target_pool)
-
     def _sfx_editor_adjust_video_volume(delta):
         """Adjust volume on the active timestamp."""
         vid_key = create_vid_key(_sfx.current_file)
@@ -1288,11 +1235,6 @@ init python:
             return
         current = _sfx_editor_get_volume(entry, trigger_key, pool_index)
         _sfx_editor_write_volume(trigger_key, current + delta, pool_index)
-
-    def _sfx_editor_set_volume(trigger_key, value, pool_index=None):
-        """Set volume to an absolute value, clamped.
-        -- = VOL_DEFAULT, ++ = VOL_MAX. pool_index same as adjust."""
-        _sfx_editor_write_volume(trigger_key, value, pool_index)
 
     # --------------------------------------------------------------------------
     # Master Volume (entry-level multiplier)
