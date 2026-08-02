@@ -430,7 +430,7 @@ init python:
             entry = _sfx.markers.get(key)
             if not entry:
                 continue
-            pools = _sfx_editor_get_pools(entry)
+            pools = entry.get("pools", [])
             if not pools:
                 continue
             _vol = entry.get("volume", 1.0)
@@ -481,7 +481,7 @@ init python:
         if name:
             return name
         play = getattr(movie, "play", None)
-        if hasattr(play, "__iter__") and not isinstance(play, (str, bytes)):
+        if isinstance(play, list):
             play = play[0] if play else None
         if play:
             return str(play).replace("\\", "/").rsplit("/", 1)[-1]

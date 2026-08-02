@@ -322,18 +322,6 @@ init python:
                 changed = True
         return changed
 
-    def _sfx_editor_get_pools(entry):
-        """Return the list of pool dicts for an entry.
-        New format: entry['pools'] is a list of {'files': [...]} dicts.
-        Legacy format: entry['files'] is wrapped as one pool by reference."""
-        pools = entry.get("pools")
-        if pools:
-            return [p for p in pools if p.get("files")]
-        files = entry.get("files")
-        if files:
-            return [{"files": files}]
-        return []
-
     def _sfx_editor_get_or_create_entry(trigger_key):
         """Get the entry dict for trigger_key, creating it in pools format if
         needed. Migrates legacy {'files': [...]} entries in place."""

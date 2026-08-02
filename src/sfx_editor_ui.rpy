@@ -428,6 +428,8 @@ screen sfx_editor_sidebar_content():
                     # File list
                     if _active_files:
                         use sfx_file_list(_active_files, _sfx_editor_remove_video_file, (_vid_target,), _active_eff, 5)
+                    else:
+                        text "Click the V button in the SFX Library to add files to this pool." style "sfx_help"
                 else:
                     text "Click the V button in the SFX Library to create a new pool or add to the active pool." style "sfx_help"
 
@@ -437,7 +439,7 @@ screen sfx_editor_sidebar_content():
         if _has_image:
             $ _img_key = create_img_key(_sfx.current_file)
             $ _img_entry = _sfx.markers.get(_img_key, {})
-            $ _img_pools = _sfx_editor_get_pools(_img_entry)
+            $ _img_pools = _img_entry.get("pools", [])
             $ _img_target = _sfx.img_target_pool
             $ _img_target = max(0, min(_img_target, len(_img_pools) - 1)) if _img_pools else 0
             use sfx_section_frame("Image SFX"):
@@ -491,14 +493,16 @@ screen sfx_editor_sidebar_content():
                             tooltip "Play SFX when a screen shake occurs"
                     if _active_files:
                         use sfx_file_list(_active_files, _sfx_editor_remove_image_marker, (_img_target,), _active_eff, 5)
+                    else:
+                        text "Click the I button in the SFX Library to add files to this pool." style "sfx_help"
                 else:
-                    text "Click the I button in the SFX Library to create a new pool or add to the active pool." style "sfx_help"
+                    text "Click the I button in the SFX Library to create a new pool or add files to the active pool." style "sfx_help"
 
         # --- Dialogue UI ---
         if _is_dialogue:
             $ _dlg_key = create_dlg_key((_sfx.current_file, _sfx.current_dialogue))
             $ _dlg_entry = _sfx.markers.get(_dlg_key, {})
-            $ _dlg_pools = _sfx_editor_get_pools(_dlg_entry)
+            $ _dlg_pools = _dlg_entry.get("pools", [])
             $ _dlg_target = _sfx.dlg_target_pool
             $ _dlg_target = max(0, min(_dlg_target, len(_dlg_pools) - 1)) if _dlg_pools else 0
             use sfx_section_frame("Dialogue SFX"):
@@ -540,6 +544,8 @@ screen sfx_editor_sidebar_content():
                     use sfx_vol_row(_vol_label, _dec, _active_pool, _inc)
                     if _active_files:
                         use sfx_file_list(_active_files, _sfx_editor_remove_dialogue_marker, (_dlg_target,), _active_eff, 5)
+                    else:
+                        text "Click the D button in the SFX Library to add files to this pool." style "sfx_help"
                 else:
                     text "Click the D button in the SFX Library to create a new pool or add to the active pool." style "sfx_help"
 
@@ -615,7 +621,7 @@ screen sfx_editor_sidebar_content():
                         tooltip "Delete all files from the current Autoplay pool"
                 use sfx_file_list(_autoplay_files, _sfx_editor_remove_from_autoplay_pool, (), _autoplay_entry.get("volume", 1.0), 2)
             else:
-                text "Click the A button in the SFX Library to create a new pool or add to the active pool." style "sfx_help"
+                text "Click the A button in the SFX Library to add files." style "sfx_help"
 
         # Audio file browser
         if _sfx.audio_tree:
