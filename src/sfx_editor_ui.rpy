@@ -127,6 +127,56 @@ screen sfx_icon_button(text, action, tt, xsize):
             tooltip tt
         action action
 
+# Float input: textbutton that becomes an input on click, Enter to confirm.
+# field_name: string for VariableInputValue
+# commit_action: Function() called on Enter — must return True (valid) or False (invalid)
+# display_text: the label shown on the textbutton
+screen sfx_float_input(field_name, commit_action, display_text):
+    default editing = False
+    key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
+    key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
+    if editing:
+        input:
+            style "sfx_input"
+            value VariableInputValue(field_name)
+            default True
+            xsize 80
+    else:
+        textbutton display_text:
+            style "sfx_btn"
+            text_style "sfx_btn_text"
+            action SetLocalVariable("editing", True)
+            tooltip "Click to edit. Press Enter to confirm."
+
+# Reusable time input: -- - [textbutton | input] + ++ with nudge buttons and Enter-to-commit.
+# field_name: string for VariableInputValue (e.g. "_sfx.edit_video_ts_text")
+# commit_action: Function() called on Enter to confirm
+# dec100/dec10/inc10/inc100_action: Function() called by nudge buttons
+screen sfx_time_input(field_name, commit_action, dec100_action, dec10_action,
+                      inc10_action, inc100_action, display_text):
+    default editing = False
+    key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
+    key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
+    hbox:
+        spacing 3
+        use sfx_icon_button("--", dec100_action, "Nudge back 100 ms", 22)
+        use sfx_icon_button("-", dec10_action, "Nudge back 10 ms", 18)
+
+        if editing:
+            input:
+                style "sfx_input"
+                value VariableInputValue(field_name)
+                default True
+        else:
+            textbutton display_text:
+                style "sfx_btn"
+                text_style "sfx_btn_text"
+                action [SetLocalVariable("editing", True), Function(_sfx_editor_sync_video_ts_text)]
+                tooltip "Click to edit. Press Enter to confirm."
+
+        use sfx_icon_button("+", inc10_action, "Nudge forward 10 ms", 18)
+        use sfx_icon_button("++", inc100_action, "Nudge forward 100 ms", 22)
+
 # Pool tab row: optional Delete button, + Pool button, numbered tabs [1][2]...
 # tab_action_fn(tab_action_args..., pi) is called when tab pi is clicked.
 # delete_xsize/tab_xsize override the default button width (pass None for default).
@@ -356,23 +406,14 @@ screen sfx_editor_sidebar_content():
                     hbox:
                         spacing 3
                         text "Time:" style "sfx_txt" size 11
-                        if _sfx.edit_video_ts_index == _vid_target:
-                            input:
-                                style "sfx_input"
-                                value VariableInputValue("_sfx.edit_video_ts_text")
-                                default True
-                            use sfx_icon_button("✓", Function(_sfx_editor_commit_video_ts), "Confirm edit", None)
-                            use sfx_icon_button("✕", Function(_sfx_editor_cancel_edit_video_ts), "Cancel edit", 18)
-                        else:
-                            textbutton _sfx_editor_format_time(_active_ts["time"]):
-                                style "empty"
-                                text_style "sfx_txt"
-                                action Function(_sfx_editor_start_edit_video_ts)
-                                tooltip "Click to edit timestamp"
-                        use sfx_icon_button("--", Function(_sfx_editor_nudge_video_ts, -0.1), "Nudge back 100 ms", 22)
-                        use sfx_icon_button("-", Function(_sfx_editor_nudge_video_ts, -0.01), "Nudge back 10 ms", 18)
-                        use sfx_icon_button("+", Function(_sfx_editor_nudge_video_ts, 0.01), "Nudge forward 10 ms", 18)
-                        use sfx_icon_button("++", Function(_sfx_editor_nudge_video_ts, 0.1), "Nudge forward 100 ms", 22)
+                        $ _dec10 = Function(_sfx_editor_nudge_video_ts, -0.01)
+                        $ _dec100 = Function(_sfx_editor_nudge_video_ts, -0.1)
+                        $ _inc10 = Function(_sfx_editor_nudge_video_ts, 0.01)
+                        $ _inc100 = Function(_sfx_editor_nudge_video_ts, 0.1)
+                        $ _commit = Function(_sfx_editor_commit_video_ts)
+                        $ _display = _sfx_editor_format_time(_active_ts["time"])
+                        use sfx_time_input("_sfx.edit_video_ts_text", _commit, _dec100, _dec10,
+                                           _inc10, _inc100, _display)
                     # Volume controls
                     $ _active_ts.setdefault("volume", 1.0)
                     $ _dec = Function(_sfx_editor_adjust_video_volume, -0.1)
@@ -383,7 +424,7 @@ screen sfx_editor_sidebar_content():
                     if _active_files:
                         use sfx_file_list(_active_files, _sfx_editor_remove_video_file, (_vid_target,), _active_eff, 5)
                 else:
-                    text "Click the V button in the SFX Library to add files" style "sfx_help"
+                    text "Click the V button in the SFX Library to create a new pool or add to the active pool." style "sfx_help"
 
 
         # --- Image UI ---
@@ -446,7 +487,7 @@ screen sfx_editor_sidebar_content():
                     if _active_files:
                         use sfx_file_list(_active_files, _sfx_editor_remove_image_marker, (_img_target,), _active_eff, 5)
                 else:
-                    text "Click the I button in the SFX Library to add files" style "sfx_help"
+                    text "Click the I button in the SFX Library to create a new pool or add to the active pool." style "sfx_help"
 
         # --- Dialogue UI ---
         if _is_dialogue:
@@ -495,7 +536,7 @@ screen sfx_editor_sidebar_content():
                     if _active_files:
                         use sfx_file_list(_active_files, _sfx_editor_remove_dialogue_marker, (_dlg_target,), _active_eff, 5)
                 else:
-                    text "Click the D button in the SFX Library to add files" style "sfx_help"
+                    text "Click the D button in the SFX Library to create a new pool or add to the active pool." style "sfx_help"
 
         if _sfx.scan_error:
             text "[_sfx.scan_error]" style "sfx_help" color "#ff6666"
@@ -569,7 +610,7 @@ screen sfx_editor_sidebar_content():
                         tooltip "Delete all files from the current Autoplay pool"
                 use sfx_file_list(_autoplay_files, _sfx_editor_remove_from_autoplay_pool, (), _autoplay_entry.get("volume", 1.0), 2)
             else:
-                text "Click the A button in the SFX Library to add files" style "sfx_help"
+                text "Click the A button in the SFX Library to create a new pool or add to the active pool." style "sfx_help"
 
         # Audio file browser
         if _sfx.audio_tree:

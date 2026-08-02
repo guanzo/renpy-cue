@@ -559,10 +559,15 @@ init python:
         _sfx.edit_video_ts_index = -1
         _sfx.edit_video_ts_text = ""
 
-    def _sfx_editor_cancel_edit_video_ts():
-        """Cancel editing the video timestamp."""
-        _sfx.edit_video_ts_index = -1
-        _sfx.edit_video_ts_text = ""
+    def _sfx_editor_commit_repeat_interval():
+        """Commit the repeat interval. On invalid text, resets to 1.00."""
+        try:
+            val = float(_sfx.repeat_interval_text)
+            if val <= 0:
+                _sfx.repeat_interval_text = "1.00"
+        except (ValueError, TypeError):
+            _sfx.repeat_interval_text = "1.00"
+        renpy.restart_interaction()
 
     def _sfx_editor_set_vid_target_pool(pool_index):
         """Set which timestamp pool tab is active.
