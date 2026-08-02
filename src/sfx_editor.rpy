@@ -397,7 +397,7 @@ init python:
             f = files[0]
         elif avoid_repeats:
             last = _sfx.pool_states.setdefault("__last_played__", [])
-            if not isinstance(last, list):
+            if not hasattr(last, "append"):
                 last = []
                 _sfx.pool_states["__last_played__"] = last
             f = _random.choice(files)
@@ -481,7 +481,7 @@ init python:
         if name:
             return name
         play = getattr(movie, "play", None)
-        if isinstance(play, list):
+        if hasattr(play, "__iter__") and not isinstance(play, (str, bytes)):
             play = play[0] if play else None
         if play:
             return str(play).replace("\\", "/").rsplit("/", 1)[-1]

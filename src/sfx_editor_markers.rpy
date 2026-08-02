@@ -289,7 +289,7 @@ init python:
     def _sfx_editor_normalize_entry(entry):
         """Migrate legacy {'files': [...]} to {'pools': [{'files': [...]}]} in place.
         Preserves entry-level keys (volume, frequency, etc.)."""
-        if not isinstance(entry, dict):
+        if entry is None:
             return entry
         if "pools" not in entry:
             entry["pools"] = [{"files": entry.pop("files", [])}]
@@ -325,15 +325,12 @@ init python:
     def _sfx_editor_get_pools(entry):
         """Return the list of pool dicts for an entry.
         New format: entry['pools'] is a list of {'files': [...]} dicts.
-        Legacy format: entry['files'] is wrapped as one pool by reference.
-        Returns [] for non-dict entries and empty dicts."""
-        if not isinstance(entry, dict):
-            return []
+        Legacy format: entry['files'] is wrapped as one pool by reference."""
         pools = entry.get("pools")
-        if isinstance(pools, list):
-            return [p for p in pools if isinstance(p, dict)]
+        if pools:
+            return [p for p in pools if p.get("files")]
         files = entry.get("files")
-        if isinstance(files, list):
+        if files:
             return [{"files": files}]
         return []
 
@@ -381,10 +378,10 @@ init python:
         """Delete a pool; delete the entry when no pools remain.
         Clamps target-pool index so the highlight stays valid."""
         entry = _sfx.markers.get(trigger_key)
-        if not isinstance(entry, dict):
+        if entry is None:
             return
         pools = entry.get("pools")
-        if not isinstance(pools, list) or not (0 <= pool_index < len(pools)):
+        if not pools or not (0 <= pool_index < len(pools)):
             return
         pools.pop(pool_index)
         if not pools:
@@ -426,10 +423,10 @@ init python:
         """Remove a file from a pool. Prunes pool when empty and entry when
         last pool is gone. Legacy entries (a: callers) use the files branch."""
         entry = _sfx.markers.get(trigger_key)
-        if not isinstance(entry, dict):
+        if entry is None:
             return
         pools = entry.get("pools")
-        if isinstance(pools, list):
+        if pools:
             if not (0 <= pool_index < len(pools)):
                 return
             pool = pools[pool_index]
@@ -461,12 +458,12 @@ init python:
             if not is_vid_key(key):
                 continue
             timestamps = entry.get("timestamps")
-            if not isinstance(timestamps, list):
+            if not timestamps:
                 continue
             stripped = 0
             clean = []
             for ts in timestamps:
-                if isinstance(ts, dict) and ts.get("time") is not None:
+                if ts.get("time") is not None:
                     clean.append(ts)
                 else:
                     stripped += 1
@@ -1162,6 +1159,7 @@ init python:
             
             # Overwrites existing
             _sfx.markers[new_key] = _copy.deepcopy(entry)
+            _sfx_log(f"{new_key} {str(entry)}")
 
             # Clamp video timestamps to current video duration
             if is_vid_key(source_key):
@@ -1260,7 +1258,7 @@ init python:
                     return timestamps[0].get("volume", _sfx.VOL_DEFAULT)
         if pool_index is not None:
             pools = entry.get("pools")
-            if isinstance(pools, list) and 0 <= pool_index < len(pools):
+            if pools and 0 <= pool_index < len(pools):
                 return pools[pool_index].get("volume", _sfx.VOL_DEFAULT)
         return entry.get("volume", _sfx.VOL_DEFAULT)
 
@@ -1286,7 +1284,7 @@ init python:
             target = None
             if pool_index is not None:
                 pools = entry.get("pools")
-                if isinstance(pools, list) and 0 <= pool_index < len(pools):
+                if pools and 0 <= pool_index < len(pools):
                     target = pools[pool_index]
             if target is None:
                 target = entry
@@ -1315,7 +1313,7 @@ init python:
     def _sfx_editor_get_master_volume(trigger_key):
         """Entry-level master volume for a key. Returns VOL_DEFAULT if unset."""
         entry = _sfx.markers.get(trigger_key)
-        if not isinstance(entry, dict):
+        if entry is None:
             return _sfx.VOL_DEFAULT
         return entry.get("volume", _sfx.VOL_DEFAULT)
 
@@ -1339,7 +1337,7 @@ init python:
         """Effective playback volume = master (entry-level) x target volume, clamped.
         Pool/timestamp volumes default to VOL_DEFAULT (1.0 identity) so master
         is never double-counted. For entry-only queries returns master alone."""
-        master = entry.get("volume", _sfx.VOL_DEFAULT) if isinstance(entry, dict) else _sfx.VOL_DEFAULT
+        master = entry.get("volume", _sfx.VOL_DEFAULT) if entry is not None else _sfx.VOL_DEFAULT
         if trigger_key is not None and is_vid_key(trigger_key):
             timestamps = entry.get("timestamps", [])
             if timestamps:
@@ -1351,7 +1349,7 @@ init python:
                 return max(_sfx.VOL_MIN, min(_sfx.VOL_MAX, master * raw))
         if pool_index is not None:
             pools = entry.get("pools")
-            if isinstance(pools, list) and 0 <= pool_index < len(pools):
+            if pools and 0 <= pool_index < len(pools):
                 raw = pools[pool_index].get("volume", _sfx.VOL_DEFAULT)
                 return max(_sfx.VOL_MIN, min(_sfx.VOL_MAX, master * raw))
         return master
