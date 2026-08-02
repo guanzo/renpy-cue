@@ -107,6 +107,9 @@ init -999 python:
     _sfx.__refreshing = False
     _sfx._shake_just_happened = False
 
+    # Preview state: channel the last user preview played on (None if none)
+    _sfx._preview_channel = None
+
 
 ###############################################################################
 # SECTION 2: Init Block (init 999 python)
@@ -795,7 +798,11 @@ init python:
         """Play a preview of an SFX file. Restarts interaction to consume click.
         volume: 0.0-5.0, applied to the channel after play starts.
         """
-        _sfx_editor_play_sfx(filename, "preview", volume=volume)
+        # Stop the previous user preview before starting a new one
+        _prev_ch = _sfx._preview_channel
+        if _prev_ch is not None and renpy.music.is_playing(channel=_prev_ch):
+            renpy.music.stop(channel=_prev_ch, fadeout=0)
+        _sfx._preview_channel = _sfx_editor_play_sfx(filename, "preview", volume=volume)
 
     def _sfx_editor_play_sfx(filename, source="", volume=1.0):
         """Play an SFX on the next available dedicated channel.
