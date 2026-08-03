@@ -1,0 +1,201 @@
+###############################################################################
+# CueBeatManager — repeat-pattern dialog for video marker timestamps.
+# Instantiated once at _cue.beat, lives on the NoRollback _cue object.
+###############################################################################
+
+init -999 python:
+
+    class CueBeatManager:
+        """Dialog state machine for repeating video marker patterns.
+
+        Opens over the selected video markers, lets the user set an interval
+        and repeat count, then clones the pattern N times at that spacing."""
+
+        def __init__(self):
+            self.anchor = 0.0
+            self.offsets = []
+            self.sel_count = 0
+            self.interval_text = ""
+            self.count_text = ""
+            self.dialog_visible = False
+
+        def open(self):
+            """Open the Repeat Pattern dialog for the current selection.
+            Falls back to the active pool if nothing is selected."""
+            timestamps = _cue_mtl_get_markers()
+            if not timestamps:
+                return
+
+            sel = _cue_mtl_get_selected()
+            if not sel:
+                active = _cue.vid_target_pool
+                if 0 <= active < len(timestamps):
+                    sel = {active}
+                else:
+                    return
+
+            sorted_sel = sorted(sel)
+            anchor_time = timestamps[sorted_sel[0]]["time"]
+
+            offsets = []
+            for idx in sorted_sel:
+                ts = timestamps[idx]
+                offsets.append({
+                    "offset": ts["time"] - anchor_time,
+                    "files": list(ts.get("files", [])),
+                    "volume": ts.get("volume", _cue.volume.VOL_DEFAULT),
+                })
+
+            self.anchor = anchor_time
+            self.offsets = offsets
+            self.sel_count = len(sorted_sel)
+
+            # Default interval:
+            # - 2+ markers: span * 2
+            # - Single marker: anchor time (distance from 0)
+            max_offset = max(o["offset"] for o in offsets)
+            if len(sorted_sel) >= 2 and max_offset > 0:
+                default_interval = max_offset * 2.0
+            else:
+                default_interval = anchor_time if anchor_time > 0 else 1.0
+            if default_interval <= 0:
+                default_interval = 1.0
+
+            self.interval_text = "{:.2f}".format(default_interval)
+
+            # Max repeats that fit in video duration
+            dur = _cue.vid_manager.get_duration()
+            if dur > 0 and default_interval > 0:
+                max_count = int((dur - 0.05 - anchor_time - max_offset) / default_interval)
+                if max_count < 0:
+                    max_count = 0
+            else:
+                max_count = 0
+            self.count_text = str(max_count)
+
+            _cue._mtl_suppress_clear = True
+            self.dialog_visible = True
+            renpy.show_screen("cue_repeat_pattern_dialog", _layer="cue_editor_layer")
+
+        def apply(self):
+            """Apply the repeat pattern: clone markers for each beat beyond
+            the first, using the interval and count from the dialog."""
+            try:
+                interval = float(self.interval_text)
+                count = int(self.count_text)
+            except (ValueError, TypeError):
+                return
+
+            if interval <= 0 or count < 1:
+                return
+
+            vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
+            if not vid_key:
+                return
+
+            entry = _cue.markers.setdefault(vid_key, {"timestamps": []})
+            timestamps = entry.setdefault("timestamps", [])
+
+            dur = _cue.vid_manager.get_duration()
+
+            new_count = 0
+            for beat_idx in range(1, count + 1):
+                beat_anchor = self.anchor + interval * beat_idx
+                for o in self.offsets:
+                    new_time = beat_anchor + o["offset"]
+                    if dur > 0 and new_time > dur - 0.05:
+                        continue
+                    if new_time < 0:
+                        continue
+                    clone = {
+                        "time": new_time,
+                        "files": list(o["files"]),
+                        "volume": o["volume"],
+                    }
+                    timestamps.append(clone)
+                    new_count += 1
+
+            if new_count > 0:
+                timestamps.sort(key=lambda e: e["time"])
+            _cue.mtl_selected = set()
+            _cue_save_markers()
+
+        def hide(self):
+            """Hide the repeat pattern dialog."""
+            self.dialog_visible = False
+            renpy.hide_screen("cue_repeat_pattern_dialog", layer="cue_editor_layer")
+
+        def compute_ghost_times(self):
+            """Return sorted list of ghost marker times for the preview overlay.
+            Called by _VideoMarkerTimeline.render() while dialog is visible."""
+            if not self.dialog_visible:
+                return []
+            try:
+                interval = float(self.interval_text)
+                count = int(self.count_text)
+            except (ValueError, TypeError):
+                return []
+            if interval <= 0 or count < 1:
+                return []
+            if not self.offsets:
+                return []
+            dur = _cue.vid_manager.get_duration()
+            ghost = []
+            for beat_idx in range(1, count + 1):
+                beat_anchor = self.anchor + interval * beat_idx
+                for o in self.offsets:
+                    t = beat_anchor + o["offset"]
+                    if dur > 0 and t > dur - 0.05:
+                        continue
+                    if t < 0:
+                        continue
+                    ghost.append(t)
+            ghost.sort()
+            return ghost
+
+        def preview_text(self):
+            """Return a preview string for the repeat pattern dialog."""
+            new_markers = len(self.compute_ghost_times())
+            if new_markers > 0:
+                return "Creates {} new marker(s)".format(new_markers)
+            return "No new markers to create"
+
+        def commit_interval(self):
+            """Commit interval text; resets to 1.00 on invalid input."""
+            try:
+                val = float(self.interval_text)
+                if val <= 0:
+                    self.interval_text = "1.00"
+            except (ValueError, TypeError):
+                self.interval_text = "1.00"
+            renpy.restart_interaction()
+
+        def nudge_interval(self, delta):
+            """Nudge interval by delta seconds, clamped to >= 0.01."""
+            try:
+                val = float(self.interval_text)
+            except (ValueError, TypeError):
+                val = 1.0
+            val = max(0.01, val + delta)
+            self.interval_text = "{:.2f}".format(val)
+            renpy.restart_interaction()
+
+        def nudge_count(self, delta):
+            """Nudge repeat count by delta, clamped to >= 0."""
+            try:
+                val = int(self.count_text)
+            except (ValueError, TypeError):
+                val = 0
+            val = max(0, val + delta)
+            self.count_text = str(val)
+            renpy.restart_interaction()
+
+        def commit_count(self):
+            """Commit count text; resets to 0 on invalid input."""
+            try:
+                val = int(self.count_text)
+                if val < 0:
+                    self.count_text = "0"
+            except (ValueError, TypeError):
+                self.count_text = "0"
+            renpy.restart_interaction()

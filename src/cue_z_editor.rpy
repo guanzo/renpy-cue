@@ -64,15 +64,9 @@ init -999 python:
     _cue.dlg_target_pool = 0
     _cue.vid_target_pool = 0
 
-    # Repeat pattern dialog state
-    _cue.repeat_interval_text = ""
-    _cue.repeat_count_text = ""
-    _cue.repeat_pattern_anchor = 0.0
-    _cue.repeat_pattern_offsets = []
-    _cue.repeat_pattern_sel_count = 0
-    _cue.repeat_dialog_visible = False
 
-    # Autosave backup throttle
+    # Repeat pattern dialog state
+    _cue.beat = CueBeatManager()
     _cue._last_autosave_time = 0
 
     # Audio file cache

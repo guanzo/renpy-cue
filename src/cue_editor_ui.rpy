@@ -342,7 +342,7 @@ screen cue_editor_sidebar_content():
                     textbutton "Repeat":
                         style "cue_btn"
                         text_style "cue_btn_text"
-                        action Function(_cue_open_repeat_dialog)
+                        action Function(_cue.beat.open)
                         tooltip "Repeat selected markers at regular intervals across the video"
                     textbutton "Delete":
                         style "cue_btn"
@@ -680,9 +680,9 @@ screen cue_editor_sidebar_content():
 ###############################################################################
 
 screen cue_repeat_pattern_dialog():
-    $ anchor = _cue.repeat_pattern_anchor
-    $ offsets = _cue.repeat_pattern_offsets
-    $ sel_count = _cue.repeat_pattern_sel_count
+    $ anchor = _cue.beat.anchor
+    $ offsets = _cue.beat.offsets
+    $ sel_count = _cue.beat.sel_count
 
     button:
         xpos 500
@@ -713,25 +713,25 @@ screen cue_repeat_pattern_dialog():
                     spacing 3
                     xalign 0.0
                     text "Interval (s):" style "cue_txt" size 12
-                    $ _commit = Function(_cue_commit_repeat_interval)
-                    $ _display = _cue.repeat_interval_text
-                    use cue_icon_button("-", Function(_cue_nudge_repeat_interval, -0.1), "Nudge back 100 ms", 18)
-                    use cue_float_input("_cue.repeat_interval_text", _commit, _display)
-                    use cue_icon_button("+", Function(_cue_nudge_repeat_interval, 0.1), "Nudge forward 100 ms", 18)
+                    $ _commit = Function(_cue.beat.commit_interval)
+                    $ _display = _cue.beat.interval_text
+                    use cue_icon_button("-", Function(_cue.beat.nudge_interval, -0.1), "Nudge back 100 ms", 18)
+                    use cue_float_input("_cue.beat.interval_text", _commit, _display)
+                    use cue_icon_button("+", Function(_cue.beat.nudge_interval, 0.1), "Nudge forward 100 ms", 18)
 
                 hbox:
                     spacing 3
                     xalign 0.0
                     text "Repeat:" style "cue_txt" size 12
-                    $ _dec = Function(_cue_nudge_repeat_count, -1)
-                    $ _inc = Function(_cue_nudge_repeat_count, 1)
-                    $ _commit = Function(_cue_commit_repeat_count)
-                    $ _display = _cue.repeat_count_text
+                    $ _dec = Function(_cue.beat.nudge_count, -1)
+                    $ _inc = Function(_cue.beat.nudge_count, 1)
+                    $ _commit = Function(_cue.beat.commit_count)
+                    $ _display = _cue.beat.count_text
                     use cue_icon_button("-", _dec, "Decrement by 1", 18)
-                    use cue_float_input("_cue.repeat_count_text", _commit, _display)
+                    use cue_float_input("_cue.beat.count_text", _commit, _display)
                     use cue_icon_button("+", _inc, "Increment by 1", 18)
 
-                $ _preview_label = _cue_repeat_preview_text()
+                $ _preview_label = _cue.beat.preview_text()
                 text _preview_label style "cue_help"
 
                 null height 5
@@ -742,11 +742,11 @@ screen cue_repeat_pattern_dialog():
                     textbutton "Cancel":
                         style "cue_btn"
                         text_style "cue_btn_text"
-                        action Function(_cue_hide_repeat_dialog)
+                        action Function(_cue.beat.hide)
                     textbutton "Apply":
                         style "cue_btn"
                         text_style "cue_btn_text"
                         action [
-                            Function(_cue_do_repeat_pattern),
-                            Function(_cue_hide_repeat_dialog),
+                            Function(_cue.beat.apply),
+                            Function(_cue.beat.hide),
                         ]

@@ -243,7 +243,7 @@ init python:
                 r.blit(tr, (bx_pos + (self.TAB_W - tw) // 2, by_pos))
 
             # --- Ghost marker preview (repeat-pattern dialog) ---
-            ghost_times = _cue_compute_ghost_times()
+            ghost_times = _cue.beat.compute_ghost_times()
             for gtime in ghost_times:
                 gfrac = max(0.0, min(1.0, gtime / dur))
                 gpx = int(gfrac * width)
