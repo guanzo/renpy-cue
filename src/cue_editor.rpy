@@ -22,6 +22,10 @@
 ###############################################################################
 
 init -999 python:
+    # Enable dev tools for this mod (Shift+R reload, Shift+O console)
+    config.developer = True
+    config.console = True
+
     # --- All runtime state on a single NoRollback object ---
     # Ren'Py skips rollback for NoRollback instances — no state gets corrupted
     # by Page Up. Never reassign _sfx itself; only mutate its attributes.
@@ -34,8 +38,12 @@ init -999 python:
     _sfx.prev_dialogue = ""
     _sfx.top_layer_type = None
 
-    # User configuration
-    _sfx.audio_dir = "sfx_editor/audio"
+    # Path constants
+    _sfx.audio_dir = "renpy_cue/audio"
+    _sfx.base_dir = "renpy_cue"
+    _sfx.config_filename = "cue_editor_config.json"
+    _sfx.config_path = os.path.join(renpy.config.gamedir, _sfx.base_dir, _sfx.config_filename)
+    _sfx.debug_log_filename = "debug.log"
     _sfx.markers = {}          # Unified markers: trigger_key -> entry
     _sfx.clipboard = None
 
@@ -50,10 +58,6 @@ init -999 python:
     _sfx.DLG_KEY_PREFIX = "d:"
     _sfx.VID_KEY_PREFIX = "v:"
 
-    # Trigger tracking
-    _sfx.played_video_keys = set()
-    _sfx.__last_pos = 0.0
-
     # Pool state machine (multi-instance: one per active a: key)
     _sfx.autoplay_states = {}
     _sfx.autoplay_current = None   # {key, ch} of currently-playing autoplay SFX
@@ -61,9 +65,11 @@ init -999 python:
 
     _sfx.triggers_active = True
 
-    # Video seek/pause state
+    # Video state
+    _sfx.played_video_keys = set()
     _sfx.paused = False
     _sfx.fps = 30
+    _sfx.__last_elapsed = 0.0
     _sfx.__frame_time = 1.0 / 30.0
     _sfx.__time_offset = 0.0
     _sfx.__step_target = 0.0
@@ -118,15 +124,6 @@ init -999 python:
 ###############################################################################
 
 init 999 python:
-    # Enable dev tools for this mod (Shift+R reload, Shift+O console)
-    config.developer = True
-    config.console = True
-
-    # Path constants
-    _sfx.base_dir = "sfx_editor"
-    _sfx.config_filename = "sfx_editor_config.json"
-    _sfx.config_path = os.path.join(renpy.config.gamedir, _sfx.base_dir, _sfx.config_filename)
-    _sfx.debug_log_filename = "debug.log"
 
     # monkeypatch renpy.with_statement
     _original_with_statement = renpy.with_statement
@@ -611,7 +608,7 @@ init python:
     def _sfx_editor_reset_loop_tracking():
         """Reset played markers and loop detection when video changes."""
         _sfx.played_video_keys = set()
-        _sfx.__last_pos = 0.0
+        _sfx.__last_elapsed = 0.0
 
 
     # --------------------------------------------------------------------------
@@ -909,7 +906,7 @@ init python:
 
         _sfx.__tick_count = getattr(_sfx, '__tick_count', 0) + 1
         tick = _sfx.__tick_count
-``
+
         # --- AUTOPLAY STATE MACHINE (a: keys) ---
         now = _time.time()
         autoplay_key = create_autoplay_key(_sfx.current_file or "")
@@ -987,9 +984,9 @@ init python:
                                     _sfx.played_video_keys.add(ts_key)
 
             # Detect video loop (markers only, pool uses wall clock)
-            if _sfx.__last_pos > 0 and elapsed < _sfx.__last_pos - 0.3:
+            if _sfx.__last_elapsed > 0 and elapsed < _sfx.__last_elapsed - 0.3:
                 _sfx.played_video_keys.clear()
-            _sfx.__last_pos = elapsed
+            _sfx.__last_elapsed = elapsed
 
 
     # --------------------------------------------------------------------------
@@ -1037,7 +1034,7 @@ init python:
             _name = "sfx_editor_backup_{}.json".format(_ts)
             _path = os.path.join(backups_dir, _name)
             with open(_path, "w") as f:
-                _json.dump(persistent._sfx_editor_markers, f,
+                _json.dump(persistent._cue_markers, f,
                            indent=2, sort_keys=True)
 
             _sfx._last_autosave_time = _now
@@ -1063,7 +1060,7 @@ init python:
         }
 
         if not _sfx.markers:
-            existing = getattr(persistent, '_sfx_editor_markers', None)
+            existing = getattr(persistent, '_cue_markers', None)
             if existing is not None and existing.get("markers"):
                 _sfx_log("SAVE-MARKERS: refusing to clobber {} existing keys with empty dict".format(
                     len(existing["markers"])))
@@ -1077,7 +1074,7 @@ init python:
                 _sfx_log("SAVE-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
             data["markers"] = python_dict(_sfx.markers)
 
-        persistent._sfx_editor_markers = data
+        persistent._cue_markers = data
 
         # Autosave backup to disk (throttled to once per 5 min)
         _sfx_editor_autosave_backup()
@@ -1087,7 +1084,7 @@ init python:
         """Load markers and disabled_files from persistent storage.
         Unwraps Ren'Py RevertableDict/RevertableList via JSON round-trip
         so that isinstance checks work on the loaded data."""
-        data = getattr(persistent, '_sfx_editor_markers', None)
+        data = getattr(persistent, '_cue_markers', None)
         if data is None:
             _sfx.markers = {}
             return

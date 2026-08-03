@@ -1,6 +1,6 @@
 # Renpy scene editor
 
-### useful commands
+### Useful commands
 
 Run in debug.log dir for color coded logs.
 

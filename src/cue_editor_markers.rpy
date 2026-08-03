@@ -1113,18 +1113,18 @@ init python:
         _sfx_editor_save_markers()
 
     def _sfx_editor_dump_markers():
-        """Dump entire persistent._sfx_editor_markers to sfx_editor/{}.""".format(_sfx.config_filename)
+        """Dump entire persistent._cue_markers to sfx_editor/{}.""".format(_sfx.config_filename)
         try:
             import json as _json
             dump_dir = os.path.join(renpy.config.gamedir, _sfx.base_dir)
             if not os.path.isdir(dump_dir):
                 os.makedirs(dump_dir)
             dump_path = os.path.join(dump_dir, _sfx.config_filename)
-            data = getattr(persistent, '_sfx_editor_markers', None)
+            data = getattr(persistent, '_cue_markers', None)
             if data is None:
                 # Ensure current state is saved before dumping
                 _sfx_editor_save_markers()
-                data = getattr(persistent, '_sfx_editor_markers', {})
+                data = getattr(persistent, '_cue_markers', {})
             with open(dump_path, "w") as f:
                 _json.dump(data, f, indent=2, sort_keys=True)
             _sfx_log("DUMP-MARKERS total_keys={} path={}".format(
@@ -1133,7 +1133,7 @@ init python:
             _sfx_log("DUMP-MARKERS-ERROR {}".format(str(e)))
 
     def _sfx_editor_restore_markers_from_file():
-        """Restore persistent._sfx_editor_markers from sfx_editor/{}.""".format(_sfx.config_filename)
+        """Restore persistent._cue_markers from sfx_editor/{}.""".format(_sfx.config_filename)
         try:
             import json as _json
             dump_path = _sfx.config_path
@@ -1142,7 +1142,7 @@ init python:
                 return
             with open(dump_path, "r") as f:
                 data = _json.load(f)
-            persistent._sfx_editor_markers = data
+            persistent._cue_markers = data
             _sfx.markers = python_dict(data.get("markers", {}))
             
             _sfx.played_video_keys = set()
