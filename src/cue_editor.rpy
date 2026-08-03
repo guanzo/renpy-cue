@@ -47,7 +47,7 @@ init -999 python:
     _cue.vid_manager = CueVideoManager()
 
     # UI state
-    _cue.visible = False
+    _cue.is_overlay_visible = False
     _cue.initialized = False
     _cue.visible_tree = []
     _cue.expanded_folders = {}
@@ -164,8 +164,8 @@ init 999 python:
 
         # Register after_load callback
         def _cue_after_load():
-            if _cue.visible:
-                _cue.visible = False
+            if _cue.is_overlay_visible:
+                _cue.is_overlay_visible = False
                 _cue.vid_manager.reset_pause()
         config.after_load_callbacks.append(_cue_after_load)
 
@@ -183,7 +183,7 @@ init 999 python:
         # start_interact callback — detects context changes at interaction
         # boundaries (replaces the old 500ms poll in _cue_tick).
         def _cue_start_interact_callback(*args, **kwargs):
-            _cue_refresh_detections()
+            _cue_refresh_context()
         config.start_interact_callbacks.append(_cue_start_interact_callback)
 
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
@@ -223,12 +223,12 @@ init python:
     # Visibility
     # --------------------------------------------------------------------------
 
-    def _cue_toggle():
+    def _cue_toggle_overlay():
         """Toggle the overlay on/off. Called from the key-listener screen."""
-        if _cue.visible:
-            _cue_hide()
+        if _cue.is_overlay_visible:
+            _cue_hide_overlay()
         else:
-            _cue_show()
+            _cue_show_overlay()
 
 
     def _cue_toggle_active():
@@ -249,8 +249,8 @@ init python:
         _cue_save_markers()
 
 
-    def _cue_show():
-        _cue.visible = True
+    def _cue_show_overlay():
+        _cue.is_overlay_visible = True
         # Load persisted config
         _cue_load_markers()
         # Scan audio on first open (cached thereafter)
@@ -259,19 +259,19 @@ init python:
         # Rebuild visible tree
         _cue.visible_tree = _cue_get_visible_tree()
         # Auto-detect everything
-        _cue_refresh_detections()
+        _cue_refresh_context()
         # Show the overlay screen
         renpy.show_screen("cue_editor_overlay", _layer="cue_editor_layer")
         renpy.restart_interaction()
 
 
-    def _cue_hide():
-        _cue.visible = False
+    def _cue_hide_overlay():
+        _cue.is_overlay_visible = False
         _cue_save_markers()
         renpy.hide_screen("cue_editor_overlay", layer="cue_editor_layer")
 
 
-    def _cue_refresh_detections():
+    def _cue_refresh_context():
         """Re-detect video and image, and swap context when they change."""
 
         old_file = _cue.current_file
@@ -426,14 +426,14 @@ init python:
                     continue
                 _picked.append(_file)
                 _pool_vol = _cue_get_effective_volume(entry, key, pool_index=pi)
-                _cue_play_cue(_file, key, volume=_pool_vol)
+                _cue_play_sfx(_file, key, volume=_pool_vol)
 
 
     # --------------------------------------------------------------------------
     # Image / Movie Detection (master layer scene list)
     # --------------------------------------------------------------------------
 
-    def _cue_top_name(name):
+    def _cue_top_layer_name(name):
         """Normalize a displayable name to a single string.
         Image names are tuples like ('bg', 'forest') — use the tag ('bg')."""
         if name is None:
@@ -450,7 +450,7 @@ init python:
         """Context name for a Movie on the master layer.
         Movie has no 'name' in Ren'Py 7/8 — fall back to the file basename
         from its 'play' attribute (which may be a list of paths)."""
-        name = _cue_top_name(getattr(movie, "name", None))
+        name = _cue_top_layer_name(getattr(movie, "name", None))
         if name:
             return name
         play = getattr(movie, "play", None)
@@ -483,7 +483,7 @@ init python:
 
             # The wrapper (ImageReference) always has .name; the underlying
             # displayable (Image / Movie) may be d itself or d.target.
-            name = _cue_top_name(getattr(d, "name", None))
+            name = _cue_top_layer_name(getattr(d, "name", None))
 
             # Movie: check d first ('show expression Movie(...)'), then
             # d.target ('image foo = Movie(...)' + 'show foo').
@@ -497,7 +497,7 @@ init python:
             img = d if isinstance(d, renpy.display.im.Image) else getattr(d, "target", None)
             if isinstance(img, renpy.display.im.Image):
                 if name is None:
-                    name = _cue_top_name(getattr(img, "filename", None))
+                    name = _cue_top_layer_name(getattr(img, "filename", None))
                 return name, "image"
 
             # Unknown but named — treat as image context (matches old behavior).
@@ -582,7 +582,7 @@ init python:
     # SFX Playback
     # --------------------------------------------------------------------------
 
-    def _cue_preview_cue(filename, volume=1.0):
+    def _cue_preview_sfx(filename, volume=1.0):
         """Play a preview of an SFX file. Restarts interaction to consume click.
         volume: 0.0-5.0, applied to the channel after play starts.
         """
@@ -590,9 +590,9 @@ init python:
         _prev_ch = _cue._preview_channel
         if _prev_ch is not None and renpy.music.is_playing(channel=_prev_ch):
             renpy.music.stop(channel=_prev_ch, fadeout=0)
-        _cue._preview_channel = _cue_play_cue(filename, "preview", volume=volume)
+        _cue._preview_channel = _cue_play_sfx(filename, "preview", volume=volume)
 
-    def _cue_play_cue(filename, source="", volume=1.0):
+    def _cue_play_sfx(filename, source="", volume=1.0):
         """Play an SFX on the next available dedicated channel.
         source: descriptive key for logging (video, image, dialogue, or pool)
         volume: 0.0-1.0, applied to the channel after play starts
@@ -723,7 +723,7 @@ init python:
                         else:
                             f = _cue_pick_file(files)
                             _vol = entry.get("volume", 1.0)
-                            ch_used = _cue_play_cue(f, autoplay_key, volume=_vol)
+                            ch_used = _cue_play_sfx(f, autoplay_key, volume=_vol)
                             if ch_used:
                                 ps["state"] = 1
                                 ps["ch"] = ch_used
@@ -755,7 +755,7 @@ init python:
                                 if files:
                                     f = _cue_pick_file(files, avoid_repeats=False)
                                     _vol = _cue_get_effective_volume(vid_entry, vid_key, ts_index=idx)
-                                    _cue_play_cue(f, vid_key, volume=_vol)
+                                    _cue_play_sfx(f, vid_key, volume=_vol)
                                     _cue.vid_manager.played_video_keys.add(ts_key)
 
             # Detect video loop (markers only, pool uses wall clock)
@@ -883,7 +883,7 @@ init python:
 
 screen cue_editor_key_listener():
     zorder 10000
-    key "K_BACKQUOTE" action Function(_cue_toggle)
+    key "K_BACKQUOTE" action Function(_cue_toggle_overlay)
     key "K_F3" action Function(renpy.invoke_in_new_context, renpy.pause)
     key "K_F4" action Function(_cue_toggle_active)
     timer 0.025 repeat True action Function(_cue_tick_trigger, _update_screens=False)
@@ -899,7 +899,7 @@ screen cue_editor_overlay():
     tag cue_editor
 
     # Screen-level key bindings
-    key "K_BACKQUOTE" action Function(_cue_hide)
+    key "K_BACKQUOTE" action Function(_cue_hide_overlay)
     key "shift_K_1" action Function(_cue_copy_context)
     key "shift_K_2" action Function(_cue_paste_context)
 

@@ -215,7 +215,7 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
 
 # Scrollable file list: ✕ remove + ▶ preview per row.
 # remove_fn(remove_args..., fi) is called for row fi.
-# preview_vol is the effective volume passed to _cue_preview_cue.
+# preview_vol is the effective volume passed to _cue_preview_sfx.
 # row_spacing controls horizontal gap in each row (5 for most, 2 for autoplay).
 screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing):
     viewport:
@@ -231,7 +231,7 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing):
                 hbox:
                     spacing row_spacing
                     use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), None, None)
-                    use cue_icon_button("▶", Function(_cue_preview_cue, f, preview_vol), None, None)
+                    use cue_icon_button("▶", Function(_cue_preview_sfx, f, preview_vol), None, None)
                     text f style "cue_txt" color "#ffcc00" size 11
 
 # Section frame: styled frame + header, with transclude for child content.
@@ -289,8 +289,8 @@ screen cue_editor_sidebar_content():
             use cue_icon_button("📂", Function(_cue_restore_markers_from_file), _restore_tooltip, None)
             null width 5
             use cue_icon_button("⏸", Function(renpy.invoke_in_new_context, renpy.pause), "Pause game (F3)", None)
-            use cue_icon_button("⟳", [Function(_cue_refresh_detections), Function(_cue_scan_audio)], "Refresh overlay", None)
-            use cue_icon_button("✕", Function(_cue_hide), "Close overlay", None)
+            use cue_icon_button("⟳", [Function(_cue_refresh_context), Function(_cue_scan_audio)], "Refresh overlay", None)
+            use cue_icon_button("✕", Function(_cue_hide_overlay), "Close overlay", None)
 
         # --- Mode detection ---
         $ _is_video = _cue.top_layer_type == 'movie'
@@ -659,7 +659,7 @@ screen cue_editor_sidebar_content():
                                         ysize 14
                                 else:
                                     # Play preview
-                                    use cue_icon_button("▶", Function(_cue_preview_cue, item["full_path"]), "Preview audio", None)
+                                    use cue_icon_button("▶", Function(_cue_preview_sfx, item["full_path"]), "Preview audio", None)
                                     # Video marker (adds to active timestamp pool)
                                     use cue_icon_button("V", Function(_cue_add_video_marker, item["index"]), "Add file to active video timestamp pool", None)
                                     # Image SFX
