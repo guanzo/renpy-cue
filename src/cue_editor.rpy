@@ -22,101 +22,97 @@
 ###############################################################################
 
 init -999 python:
-    # Enable dev tools for this mod (Shift+R reload, Shift+O console)
-    config.developer = True
-    config.console = True
-
     # --- All runtime state on a single NoRollback object ---
     # Ren'Py skips rollback for NoRollback instances — no state gets corrupted
-    # by Page Up. Never reassign _sfx itself; only mutate its attributes.
-    _sfx = renpy.python.NoRollback()
+    # by Page Up. Never reassign _cue itself; only mutate its attributes.
+    _cue = renpy.python.NoRollback()
 
     # Context tracking
-    _sfx.active_channel = None
-    _sfx.current_file = ""
-    _sfx.current_dialogue = ""
-    _sfx.prev_dialogue = ""
-    _sfx.top_layer_type = None
+    _cue.active_channel = None
+    _cue.current_file = ""
+    _cue.current_dialogue = ""
+    _cue.prev_dialogue = ""
+    _cue.top_layer_type = None
 
     # Path constants
-    _sfx.audio_dir = "renpy_cue/audio"
-    _sfx.base_dir = "renpy_cue"
-    _sfx.config_filename = "cue_editor_config.json"
-    _sfx.config_path = os.path.join(renpy.config.gamedir, _sfx.base_dir, _sfx.config_filename)
-    _sfx.debug_log_filename = "debug.log"
-    _sfx.markers = {}          # Unified markers: trigger_key -> entry
-    _sfx.clipboard = None
+    _cue.audio_dir = "renpy_cue/audio"
+    _cue.base_dir = "renpy_cue"
+    _cue.config_filename = "cue_editor_config.json"
+    _cue.config_path = os.path.join(renpy.config.gamedir, _cue.base_dir, _cue.config_filename)
+    _cue.debug_log_filename = "debug.log"
+    _cue.markers = {}          # Unified markers: trigger_key -> entry
+    _cue.clipboard = None
 
     # Volume constants (clamp range + UI quick-set targets)
-    _sfx.VOL_MIN = 0.0       # clamp floor
-    _sfx.VOL_DEFAULT = 1.0   # default volume; "--" reset target
-    _sfx.VOL_MAX = 5.0       # clamp ceiling; "++" target
+    _cue.VOL_MIN = 0.0       # clamp floor
+    _cue.VOL_DEFAULT = 1.0   # default volume; "--" reset target
+    _cue.VOL_MAX = 5.0       # clamp ceiling; "++" target
 
-    # Key prefix constants for _sfx.markers trigger keys
-    _sfx.IMG_KEY_PREFIX = "i:"
-    _sfx.AUTOPLAY_KEY_PREFIX = "a:"
-    _sfx.DLG_KEY_PREFIX = "d:"
-    _sfx.VID_KEY_PREFIX = "v:"
+    # Key prefix constants for _cue.markers trigger keys
+    _cue.IMG_KEY_PREFIX = "i:"
+    _cue.AUTOPLAY_KEY_PREFIX = "a:"
+    _cue.DLG_KEY_PREFIX = "d:"
+    _cue.VID_KEY_PREFIX = "v:"
 
     # Pool state machine (multi-instance: one per active a: key)
-    _sfx.autoplay_states = {}
-    _sfx.autoplay_current = None   # {key, ch} of currently-playing autoplay SFX
-    _sfx.last_played = []
+    _cue.autoplay_states = {}
+    _cue.autoplay_current = None   # {key, ch} of currently-playing autoplay SFX
+    _cue.last_played = []
 
-    _sfx.triggers_active = True
+    _cue.triggers_active = True
 
     # Video state
-    _sfx.played_video_keys = set()
-    _sfx.paused = False
-    _sfx.fps = 30
-    _sfx.__last_elapsed = 0.0
-    _sfx.__frame_time = 1.0 / 30.0
-    _sfx.__time_offset = 0.0
-    _sfx.__step_target = 0.0
-    _sfx.__pause_target = 0.0
-    _sfx.__pause_origin = 0.0
-    _sfx.__total_offset = 0.0
-    _sfx.__cached_dur = 0.0
+    _cue.played_video_keys = set()
+    _cue.paused = False
+    _cue.fps = 30
+    _cue.__last_elapsed = 0.0
+    _cue.__frame_time = 1.0 / 30.0
+    _cue.__time_offset = 0.0
+    _cue.__step_target = 0.0
+    _cue.__pause_target = 0.0
+    _cue.__pause_origin = 0.0
+    _cue.__total_offset = 0.0
+    _cue.__cached_dur = 0.0
 
     # UI state
-    _sfx.visible = False
-    _sfx.initialized = False
-    _sfx.visible_tree = []
-    _sfx.expanded_folders = {}
-    _sfx.scan_error = None
+    _cue.visible = False
+    _cue.initialized = False
+    _cue.visible_tree = []
+    _cue.expanded_folders = {}
+    _cue.scan_error = None
 
     # Video timestamp editing state
-    _sfx.edit_video_ts_text = ""   # text buffer for the editable input — always reflects active pool
+    _cue.edit_video_ts_text = ""   # text buffer for the editable input — always reflects active pool
 
     # Multi-pool UI state: which pool the file-browser I/D/V buttons target
-    _sfx.img_target_pool = 0
-    _sfx.dlg_target_pool = 0
-    _sfx.vid_target_pool = 0
+    _cue.img_target_pool = 0
+    _cue.dlg_target_pool = 0
+    _cue.vid_target_pool = 0
 
     # Repeat pattern dialog state
-    _sfx.repeat_interval_text = ""
-    _sfx.repeat_count_text = ""
-    _sfx.repeat_pattern_anchor = 0.0
-    _sfx.repeat_pattern_offsets = []
-    _sfx.repeat_pattern_sel_count = 0
-    _sfx.repeat_dialog_visible = False
+    _cue.repeat_interval_text = ""
+    _cue.repeat_count_text = ""
+    _cue.repeat_pattern_anchor = 0.0
+    _cue.repeat_pattern_offsets = []
+    _cue.repeat_pattern_sel_count = 0
+    _cue.repeat_dialog_visible = False
 
     # Autosave backup throttle
-    _sfx._last_autosave_time = 0
+    _cue._last_autosave_time = 0
 
     # Audio file cache
-    _sfx.available_files = []
-    _sfx.audio_tree = []
-    _sfx.disabled_files = set()  # Set of full_path strings for unchecked files
+    _cue.available_files = []
+    _cue.audio_tree = []
+    _cue.disabled_files = set()  # Set of full_path strings for unchecked files
 
     # Internal
-    _sfx.__sfx_channel_idx = 0
-    _sfx.__marker_tolerance = 0.08
-    _sfx.__refreshing = False
-    _sfx._shake_just_happened = False
+    _cue.__cue_channel_idx = 0
+    _cue.__marker_tolerance = 0.08
+    _cue.__refreshing = False
+    _cue._shake_just_happened = False
 
     # Preview state: channel the last user preview played on (None if none)
-    _sfx._preview_channel = None
+    _cue._preview_channel = None
 
 
 ###############################################################################
@@ -124,16 +120,19 @@ init -999 python:
 ###############################################################################
 
 init 999 python:
+    # Enable dev tools for this mod (Shift+R reload, Shift+O console)
+    config.developer = True
+    config.console = True
 
     # monkeypatch renpy.with_statement
     _original_with_statement = renpy.with_statement
 
-    def _sfx_editor_with_hook(trans, always=False, paired=None, clear=True):
+    def _cue_editor_with_hook(trans, always=False, paired=None, clear=True):
         if _is_screenshake(trans):
-            _sfx._shake_just_happened = True
+            _cue._shake_just_happened = True
         return _original_with_statement(trans, always=always, paired=paired, clear=clear)
 
-    renpy.with_statement = _sfx_editor_with_hook
+    renpy.with_statement = _cue_editor_with_hook
     # monkeypatch renpy.with_statement
 
     def _is_screenshake(trans):
@@ -161,24 +160,24 @@ init 999 python:
 
     # Clear debug log for fresh session
     try:
-        log_dir = os.path.join(renpy.config.gamedir, _sfx.base_dir)
+        log_dir = os.path.join(renpy.config.gamedir, _cue.base_dir)
         if not os.path.isdir(log_dir):
             os.makedirs(log_dir)
-        log_path = os.path.join(log_dir, _sfx.debug_log_filename)
+        log_path = os.path.join(log_dir, _cue.debug_log_filename)
         open(log_path, "w").close()
     except Exception:
         pass
 
-    if not _sfx.initialized:
+    if not _cue.initialized:
         # Detect Ren'Py version for relative_volume support (added in 7.5)
         _v = getattr(renpy, 'version_tuple', (0, 0, 0))
-        _sfx._has_relative_volume = (_v >= (7, 5, 0))
-        _sfx_log("INIT: renpy_version={} relative_volume={}".format(
-            ".".join(str(x) for x in _v), _sfx._has_relative_volume))
+        _cue._has_relative_volume = (_v >= (7, 5, 0))
+        _cue_log("INIT: renpy_version={} relative_volume={}".format(
+            ".".join(str(x) for x in _v), _cue._has_relative_volume))
 
         # Register 8 dedicated SFX channels on the "sfx" mixer
         for i in range(1, 9):
-            ch_name = "_sfx_{}".format(i)
+            ch_name = "_cue_{}".format(i)
             if not renpy.music.channel_defined(ch_name):
                 renpy.music.register_channel(
                     ch_name, "sfx", loop=False, stop_on_mute=True, tight=False
@@ -189,37 +188,37 @@ init 999 python:
 
         # Use config.overlay_screens for a persistent key-listener
         config.overlay_screens.append("sfx_editor_key_listener")
-        _sfx_log("INIT: overlay_screens key listener registered")
+        _cue_log("INIT: overlay_screens key listener registered")
 
         # Register after_load callback
-        def _sfx_editor_after_load():
-            if _sfx.visible:
-                _sfx.visible = False
-                _sfx.paused = False
-        config.after_load_callbacks.append(_sfx_editor_after_load)
+        def _cue_editor_after_load():
+            if _cue.visible:
+                _cue.visible = False
+                _cue.paused = False
+        config.after_load_callbacks.append(_cue_editor_after_load)
 
         # Character callback — updates dialogue text only (context change
         # detection now lives in start_interact_callbacks below).
-        def _sfx_editor_char_callback(event, interact=True, **kwargs):
+        def _cue_editor_char_callback(event, interact=True, **kwargs):
             if event == "show":
-                _sfx.prev_dialogue = _sfx.current_dialogue
-                _sfx.current_dialogue = getattr(store, '_last_say_what', '') or ''
+                _cue.prev_dialogue = _cue.current_dialogue
+                _cue.current_dialogue = getattr(store, '_last_say_what', '') or ''
             elif event == "end":
-                _sfx.prev_dialogue = _sfx.current_dialogue
-                _sfx.current_dialogue = ""
-        config.all_character_callbacks.append(_sfx_editor_char_callback)
+                _cue.prev_dialogue = _cue.current_dialogue
+                _cue.current_dialogue = ""
+        config.all_character_callbacks.append(_cue_editor_char_callback)
 
         # start_interact callback — detects context changes at interaction
-        # boundaries (replaces the old 500ms poll in _sfx_editor_tick).
-        def _sfx_editor_start_interact_callback(*args, **kwargs):
-            _sfx_editor_refresh_detections()
-        config.start_interact_callbacks.append(_sfx_editor_start_interact_callback)
+        # boundaries (replaces the old 500ms poll in _cue_editor_tick).
+        def _cue_editor_start_interact_callback(*args, **kwargs):
+            _cue_editor_refresh_detections()
+        config.start_interact_callbacks.append(_cue_editor_start_interact_callback)
 
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
-        _sfx_editor_load_markers()
+        _cue_editor_load_markers()
 
-        _sfx_log("INIT: callbacks registered")
-        _sfx.initialized = True
+        _cue_log("INIT: callbacks registered")
+        _cue.initialized = True
 
 
 ###############################################################################
@@ -234,14 +233,14 @@ init python:
     # Debug Logging
     # --------------------------------------------------------------------------
 
-    def _sfx_log(msg):
+    def _cue_log(msg):
         """Append a debug message to sfx_editor/debug.log."""
         try:
             import time as _logtime
-            log_dir = os.path.join(renpy.config.gamedir, _sfx.base_dir)
+            log_dir = os.path.join(renpy.config.gamedir, _cue.base_dir)
             if not os.path.isdir(log_dir):
                 os.makedirs(log_dir)
-            log_path = os.path.join(log_dir, _sfx.debug_log_filename)
+            log_path = os.path.join(log_dir, _cue.debug_log_filename)
             with open(log_path, "a") as f:
                 _ts = _logtime.strftime("%H:%M:%S") + ".{:03d}".format(int(_logtime.time() * 1000) % 1000)
                 f.write("[{}] {}\n".format(_ts, msg))
@@ -252,96 +251,96 @@ init python:
     # Visibility
     # --------------------------------------------------------------------------
 
-    def _sfx_editor_toggle():
+    def _cue_editor_toggle():
         """Toggle the overlay on/off. Called from the key-listener screen."""
-        if _sfx.visible:
-            _sfx_editor_hide()
+        if _cue.visible:
+            _cue_editor_hide()
         else:
-            _sfx_editor_show()
+            _cue_editor_show()
 
 
-    def _sfx_editor_toggle_active():
+    def _cue_editor_toggle_active():
         """Toggle active state — when False, no triggers fire. Persisted.
         Called from Ctrl+` key binding and the Active checkbox."""
-        _sfx.triggers_active = not _sfx.triggers_active
-        _sfx_editor_save_markers()
+        _cue.triggers_active = not _cue.triggers_active
+        _cue_editor_save_markers()
 
 
-    def _sfx_editor_toggle_shake_trigger():
+    def _cue_editor_toggle_shake_trigger():
         """Toggle trigger_on_shake for the active pool of the current image.
         When enabled, screen shake transitions play SFX from this pool."""
-        if not _sfx.current_file:
+        if not _cue.current_file:
             return
-        _shake_key = create_img_key(_sfx.current_file)
-        _pool = _sfx_editor_ensure_pool(_shake_key, _sfx.img_target_pool)
+        _shake_key = create_img_key(_cue.current_file)
+        _pool = _cue_editor_ensure_pool(_shake_key, _cue.img_target_pool)
         _pool["trigger_on_shake"] = not _pool.get("trigger_on_shake", False)
-        _sfx_editor_save_markers()
+        _cue_editor_save_markers()
 
 
-    def _sfx_editor_show():
-        _sfx.visible = True
+    def _cue_editor_show():
+        _cue.visible = True
         # Load persisted config
-        _sfx_editor_load_markers()
+        _cue_editor_load_markers()
         # Scan audio on first open (cached thereafter)
-        if not _sfx.available_files:
-            _sfx_editor_scan_audio()
+        if not _cue.available_files:
+            _cue_editor_scan_audio()
         # Rebuild visible tree
-        _sfx.visible_tree = _sfx_editor_get_visible_tree()
+        _cue.visible_tree = _cue_editor_get_visible_tree()
         # Auto-detect everything
-        _sfx_editor_refresh_detections()
+        _cue_editor_refresh_detections()
         # Show the overlay screen
         renpy.show_screen("sfx_editor_overlay", _layer="sfx_editor_layer")
         renpy.restart_interaction()
 
 
-    def _sfx_editor_hide():
-        _sfx.visible = False
-        _sfx_editor_save_markers()
+    def _cue_editor_hide():
+        _cue.visible = False
+        _cue_editor_save_markers()
         renpy.hide_screen("sfx_editor_overlay", layer="sfx_editor_layer")
 
 
-    def _sfx_editor_refresh_detections():
+    def _cue_editor_refresh_detections():
         """Re-detect video and image, and swap context when they change."""
 
-        old_file = _sfx.current_file
-        old_video = _sfx.active_channel
+        old_file = _cue.current_file
+        old_video = _cue.active_channel
 
         # 1. Re-detect video channel
-        _sfx_editor_refresh_channel()
-        _sfx.visible_tree = _sfx_editor_get_visible_tree()
+        _cue_editor_refresh_channel()
+        _cue.visible_tree = _cue_editor_get_visible_tree()
 
         # 2. Re-detect context: top displayable on master layer wins;
         #    fall back to video channel when nothing is on the master layer.
-        _top_name, _top_type = _sfx_editor_get_top_layer()
+        _top_name, _top_type = _cue_editor_get_top_layer()
         if _top_name is None:
             return
         
-        _sfx.current_file = _top_name
-        _sfx.top_layer_type = _top_type  # cache for screen / other consumers
+        _cue.current_file = _top_name
+        _cue.top_layer_type = _top_type  # cache for screen / other consumers
 
         # 3. Always log current context for debugging
-        _sfx_log_context()
+        _cue_log_context()
 
         # 4. If context changed, build trigger keys and fire
         _changed = ""
         _img_key = None
         _dlg_key = None
 
-        if _sfx.current_file != old_file:
-            _changed += " file:{}->{}".format(old_file, _sfx.current_file)
-            _img_key = create_img_key(_sfx.current_file) if _sfx.current_file else None
-            _sfx.autoplay_states = {} # clean up stale data
-        if _sfx.active_channel != old_video:
-            _changed += " ch:{}->{}".format(old_video, _sfx.active_channel)
-        if _sfx.current_dialogue != _sfx.prev_dialogue:
-            _changed += " dlg:{}->{}".format(_sfx.prev_dialogue[:30] if _sfx.prev_dialogue else "",
-                _sfx.current_dialogue[:30] if _sfx.current_dialogue else "")
-        if _sfx.current_dialogue:
-            _dlg_key = create_dlg_key((_sfx.current_file, _sfx.current_dialogue))
+        if _cue.current_file != old_file:
+            _changed += " file:{}->{}".format(old_file, _cue.current_file)
+            _img_key = create_img_key(_cue.current_file) if _cue.current_file else None
+            _cue.autoplay_states = {} # clean up stale data
+        if _cue.active_channel != old_video:
+            _changed += " ch:{}->{}".format(old_video, _cue.active_channel)
+        if _cue.current_dialogue != _cue.prev_dialogue:
+            _changed += " dlg:{}->{}".format(_cue.prev_dialogue[:30] if _cue.prev_dialogue else "",
+                _cue.current_dialogue[:30] if _cue.current_dialogue else "")
+        if _cue.current_dialogue:
+            _dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
 
         if _changed:
-            _sfx_log("CTX-CHANGE{}".format(_changed))
-            _sfx_editor_fire_context_triggers(_img_key, _dlg_key)
+            _cue_log("CTX-CHANGE{}".format(_changed))
+            _cue_editor_fire_context_triggers(_img_key, _dlg_key)
 
         # 5. Screenshake trigger — fires independently of context changes,
         #    but only for pools that opted in via trigger_on_shake.
@@ -351,43 +350,43 @@ init python:
         #    shake call for the same key to avoid double-firing.
         #    When screen shakes on existing img, _img_key will be None since there
         #    was no img change, and the shake pools will trigger.
-        if _sfx._shake_just_happened:
-            _sfx._shake_just_happened = False
-            if _sfx.current_file:
-                _shake_key = create_img_key(_sfx.current_file)
+        if _cue._shake_just_happened:
+            _cue._shake_just_happened = False
+            if _cue.current_file:
+                _shake_key = create_img_key(_cue.current_file)
                 if _shake_key != _img_key:
-                    _sfx_editor_fire_context_triggers(_shake_key, only_shake_pools=True)
+                    _cue_editor_fire_context_triggers(_shake_key, only_shake_pools=True)
 
 
-    def _sfx_log_context():
+    def _cue_log_context():
         """Log current context state for debugging — even if nothing changed."""
-        _vpath = _sfx_editor_get_video_path()
+        _vpath = _cue_editor_get_video_path()
         _vname = _vpath.rsplit("/", 1)[-1] if _vpath else "(none)"
         _playing = "?"
-        if _sfx.active_channel:
+        if _cue.active_channel:
             try:
-                _playing = "1" if renpy.music.is_playing(channel=_sfx.active_channel) else "0"
+                _playing = "1" if renpy.music.is_playing(channel=_cue.active_channel) else "0"
             except Exception:
                 pass
         # Determine primary context — top displayable on master layer wins;
         # fall back to video channel when nothing is on the master layer.
-        _top_name, _top_type = _sfx_editor_get_top_layer()
+        _top_name, _top_type = _cue_editor_get_top_layer()
         if _top_type:
             _ctx_type = _top_type  # 'image' or 'movie'
-        elif _sfx.active_channel is not None and _playing == "1":
+        elif _cue.active_channel is not None and _playing == "1":
             _ctx_type = "video"
         else:
             _ctx_type = "none"
-        _sfx_log("CTX-DUMP ctx={} type={} video={} ch={} playing={} dlg=\"{}\"".format(
-            _sfx.current_file or "(none)",
+        _cue_log("CTX-DUMP ctx={} type={} video={} ch={} playing={} dlg=\"{}\"".format(
+            _cue.current_file or "(none)",
             _ctx_type,
             _vname,
-            _sfx.active_channel or "(none)",
+            _cue.active_channel or "(none)",
             _playing,
-            _sfx.current_dialogue[:60] if _sfx.current_dialogue else "(none)"))
+            _cue.current_dialogue[:60] if _cue.current_dialogue else "(none)"))
 
 
-    def _sfx_editor_pick_file(files, avoid_repeats=True):
+    def _cue_editor_pick_file(files, avoid_repeats=True):
         """Pick a random file from a list.
         If avoid_repeats is True, avoids files in the global last_played list.
         Repeat avoidance is shared across all non-video contexts.
@@ -399,7 +398,7 @@ init python:
         if len(files) == 1:
             f = files[0]
         elif avoid_repeats:
-            last = _sfx.last_played
+            last = _cue.last_played
             f = _random.choice(files)
             tries = 0
             while f in last and tries < 10:
@@ -413,7 +412,7 @@ init python:
         return f
 
 
-    def _sfx_editor_fire_context_triggers(*keys, only_shake_pools=False):
+    def _cue_editor_fire_context_triggers(*keys, only_shake_pools=False):
         """Fire markers for the given trigger keys.
         Multi-pool entries play one random file from EACH pool concurrently.
         Dedupe guard: same file in two pools of the same trigger is re-picked
@@ -422,12 +421,12 @@ init python:
         When only_shake_pools is True, pool without the trigger_on_shake flag
         are skipped — used by screenshake triggers so each pool independently
         opts in to firing on shake."""
-        if not _sfx.triggers_active:
+        if not _cue.triggers_active:
             return
         for key in keys:
             if not key:
                 continue
-            entry = _sfx.markers.get(key)
+            entry = _cue.markers.get(key)
             if not entry:
                 continue
             pools = entry.get("pools", [])
@@ -436,7 +435,7 @@ init python:
             _vol = entry.get("volume", 1.0)
             _total = sum(len(p.get("files", [])) for p in pools)
             
-            _sfx_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(
+            _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(
                 key, len(pools), _total, _vol))
 
             _picked = []
@@ -446,23 +445,23 @@ init python:
                 files = pool.get("files", [])
                 if not files:
                     continue
-                _file = _sfx_editor_pick_file(files)
+                _file = _cue_editor_pick_file(files)
                 _tries = 0
                 while _file in _picked and len(files) > 1 and _tries < 3:
-                    _file = _sfx_editor_pick_file(files)
+                    _file = _cue_editor_pick_file(files)
                     _tries += 1
                 if _file in _picked:
                     continue
                 _picked.append(_file)
-                _pool_vol = _sfx_editor_get_effective_volume(entry, key, pool_index=pi)
-                _sfx_editor_play_sfx(_file, key, volume=_pool_vol)
+                _pool_vol = _cue_editor_get_effective_volume(entry, key, pool_index=pi)
+                _cue_editor_play_cue(_file, key, volume=_pool_vol)
 
 
     # --------------------------------------------------------------------------
     # Image / Movie Detection (master layer scene list)
     # --------------------------------------------------------------------------
 
-    def _sfx_editor_top_name(name):
+    def _cue_editor_top_name(name):
         """Normalize a displayable name to a single string.
         Image names are tuples like ('bg', 'forest') — use the tag ('bg')."""
         if name is None:
@@ -475,11 +474,11 @@ init python:
         return name
 
 
-    def _sfx_editor_top_movie_name(movie):
+    def _cue_editor_top_movie_name(movie):
         """Context name for a Movie on the master layer.
         Movie has no 'name' in Ren'Py 7/8 — fall back to the file basename
         from its 'play' attribute (which may be a list of paths)."""
-        name = _sfx_editor_top_name(getattr(movie, "name", None))
+        name = _cue_editor_top_name(getattr(movie, "name", None))
         if name:
             return name
         play = getattr(movie, "play", None)
@@ -490,7 +489,7 @@ init python:
         return None
 
 
-    def _sfx_editor_get_top_layer():
+    def _cue_editor_get_top_layer():
         """Return (name, kind) for the topmost displayable on the master
         layer — what the player actually sees (scene list order is z-order).
 
@@ -512,21 +511,21 @@ init python:
 
             # The wrapper (ImageReference) always has .name; the underlying
             # displayable (Image / Movie) may be d itself or d.target.
-            name = _sfx_editor_top_name(getattr(d, "name", None))
+            name = _cue_editor_top_name(getattr(d, "name", None))
 
             # Movie: check d first ('show expression Movie(...)'), then
             # d.target ('image foo = Movie(...)' + 'show foo').
             movie = d if isinstance(d, renpy.display.video.Movie) else getattr(d, "target", None)
             if isinstance(movie, renpy.display.video.Movie):
                 if name is None:
-                    name = _sfx_editor_top_movie_name(movie)
+                    name = _cue_editor_top_movie_name(movie)
                 return name, "movie"
 
             # Image: check d first, then d.target (ImageReference wrapper).
             img = d if isinstance(d, renpy.display.im.Image) else getattr(d, "target", None)
             if isinstance(img, renpy.display.im.Image):
                 if name is None:
-                    name = _sfx_editor_top_name(getattr(img, "filename", None))
+                    name = _cue_editor_top_name(getattr(img, "filename", None))
                 return name, "image"
 
             # Unknown but named — treat as image context (matches old behavior).
@@ -534,23 +533,23 @@ init python:
                 return name, "image"
             return None, None
         except Exception as exc:
-            _sfx_log("TOP-LAYER-ERR {}".format(repr(exc)))
+            _cue_log("TOP-LAYER-ERR {}".format(repr(exc)))
             return None, None
 
     # --------------------------------------------------------------------------
     # Channel Detection
     # --------------------------------------------------------------------------
 
-    def _sfx_editor_refresh_channel():
+    def _cue_editor_refresh_channel():
         """Auto-detect the active movie channel. Only finds video (movie) channels."""
 
-        if _sfx.__refreshing:
+        if _cue.__refreshing:
             return
-        _sfx.__refreshing = True
+        _cue.__refreshing = True
 
         try:
             video_exts = (".webm", ".mp4", ".mkv", ".avi", ".ogv", ".mpeg", ".mpg")
-            old_ch = _sfx.active_channel
+            old_ch = _cue.active_channel
 
             def _apply_channel(ch_name, ch_obj=None):
 
@@ -566,12 +565,12 @@ init python:
                                 break
                         except Exception:
                             pass
-                _sfx.fps = fps
-                _sfx.__frame_time = 1.0 / fps
+                _cue.fps = fps
+                _cue.__frame_time = 1.0 / fps
 
-                _sfx.active_channel = ch_name
+                _cue.active_channel = ch_name
                 if old_ch != ch_name:
-                    _sfx_editor_reset_loop_tracking()
+                    _cue_editor_reset_loop_tracking()
 
             try:
                 import renpy.audio.audio as aaudio
@@ -600,55 +599,55 @@ init python:
                 except Exception:
                     pass
 
-            _sfx.active_channel = None
+            _cue.active_channel = None
         finally:
-            _sfx.__refreshing = False
+            _cue.__refreshing = False
 
 
-    def _sfx_editor_reset_loop_tracking():
+    def _cue_editor_reset_loop_tracking():
         """Reset played markers and loop detection when video changes."""
-        _sfx.played_video_keys = set()
-        _sfx.__last_elapsed = 0.0
+        _cue.played_video_keys = set()
+        _cue.__last_elapsed = 0.0
 
 
     # --------------------------------------------------------------------------
     # Video Metadata
     # --------------------------------------------------------------------------
 
-    def _sfx_editor_get_elapsed():
+    def _cue_editor_get_elapsed():
         """Get current playback position (real pos + virtual offset)."""
-        ch = _sfx.active_channel
+        ch = _cue.active_channel
         if not ch:
             return 0.0
         try:
             pos = renpy.music.get_pos(channel=ch)
             if pos is not None:
-                return max(0.0, pos + _sfx.__time_offset)
+                return max(0.0, pos + _cue.__time_offset)
         except Exception:
             pass
         return 0.0
 
 
-    def _sfx_editor_get_duration():
+    def _cue_editor_get_duration():
         """Get total duration of the current video in seconds.
         Caches the last valid duration so transient dropouts during seek
         (stop/play restart) don't return 0 and blow up marker x-positions."""
-        ch = _sfx.active_channel
+        ch = _cue.active_channel
         if not ch:
-            return _sfx.__cached_dur
+            return _cue.__cached_dur
         try:
             dur = renpy.music.get_duration(channel=ch)
             if dur is not None and dur > 0:
-                _sfx.__cached_dur = dur
+                _cue.__cached_dur = dur
                 return dur
         except Exception:
             pass
-        return _sfx.__cached_dur
+        return _cue.__cached_dur
 
 
-    def _sfx_editor_get_video_path():
+    def _cue_editor_get_video_path():
         """Get the filepath of the currently playing video."""
-        ch = _sfx.active_channel
+        ch = _cue.active_channel
         if not ch:
             return None
         try:
@@ -661,35 +660,35 @@ init python:
     # Video Control: Pause
     # --------------------------------------------------------------------------
 
-    def _sfx_editor_toggle_pause():
+    def _cue_editor_toggle_pause():
         """Toggle pause on the active video channel."""
-        ch = _sfx.active_channel
+        ch = _cue.active_channel
         if not ch:
             return
 
-        _sfx.__time_offset = 0.0
+        _cue.__time_offset = 0.0
 
         try:
             currently_paused = renpy.music.get_pause(channel=ch)
             new_state = not currently_paused
             renpy.music.set_pause(new_state, channel=ch)
-            _sfx.paused = new_state
+            _cue.paused = new_state
 
             if new_state:  # Just paused — save origin
-                _sfx.__pause_origin = renpy.music.get_pos(channel=ch) or 0.0
-                _sfx.__total_offset = 0.0
-                _sfx_log("pause: origin={:.3f}".format(_sfx.__pause_origin))
+                _cue.__pause_origin = renpy.music.get_pos(channel=ch) or 0.0
+                _cue.__total_offset = 0.0
+                _cue_log("pause: origin={:.3f}".format(_cue.__pause_origin))
             else:  # Just unpaused
-                _sfx.__total_offset = 0.0
-                _sfx_log("unpause: reset offset")
+                _cue.__total_offset = 0.0
+                _cue_log("unpause: reset offset")
         except Exception:
             # Fallback: use volume as pseudo-pause
-            if not _sfx.paused:
+            if not _cue.paused:
                 renpy.music.set_volume(0.0, delay=0, channel=ch)
-                _sfx.paused = True
+                _cue.paused = True
             else:
                 renpy.music.set_volume(1.0, delay=0, channel=ch)
-                _sfx.paused = False
+                _cue.paused = False
 
 
     # --------------------------------------------------------------------------
@@ -697,24 +696,24 @@ init python:
     # Ren'Py movie channels, so we use a time offset for display/markers)
     # --------------------------------------------------------------------------
 
-    def _sfx_editor_seek_frame(delta_frames):
+    def _cue_editor_seek_frame(delta_frames):
         """Step forward/backward.
         Forward: briefly unpause, auto-re-pause via tick timer.
         Backward: restart from 0, auto-pause at origin + accumulated offset.
         Does not wrap around — clamps at 0 and duration."""
-        ch = _sfx.active_channel
+        ch = _cue.active_channel
         if not ch:
             return
 
-        frame_seconds = _sfx.__frame_time
+        frame_seconds = _cue.__frame_time
 
         # Auto-pause if video is playing
-        if not _sfx.paused:
+        if not _cue.paused:
             renpy.music.set_pause(True, channel=ch)
-            _sfx.paused = True
-            _sfx.__pause_origin = renpy.music.get_pos(channel=ch) or 0.0
-            _sfx.__total_offset = 0.0
-            _sfx.__time_offset = 0.0
+            _cue.paused = True
+            _cue.__pause_origin = renpy.music.get_pos(channel=ch) or 0.0
+            _cue.__total_offset = 0.0
+            _cue.__time_offset = 0.0
 
         dur = renpy.music.get_duration(channel=ch) or 0.0
 
@@ -723,37 +722,37 @@ init python:
             target = pos + delta_frames * frame_seconds
             if dur > 0:
                 target = min(target, dur - 0.05)
-            _sfx.__step_target = max(0.001, target)
-            _sfx_log("+f step_target={:.3f}".format(_sfx.__step_target))
+            _cue.__step_target = max(0.001, target)
+            _cue_log("+f step_target={:.3f}".format(_cue.__step_target))
             renpy.music.set_pause(False, channel=ch)
 
         else:  # delta_frames < 0
-            _sfx.__total_offset += delta_frames * frame_seconds
-            origin = _sfx.__pause_origin
-            target = origin + _sfx.__total_offset
+            _cue.__total_offset += delta_frames * frame_seconds
+            origin = _cue.__pause_origin
+            target = origin + _cue.__total_offset
             if dur > 0:
                 target = max(0.0, min(target, dur - 0.05))
             else:
                 target = max(0.0, target)
 
             filepath = renpy.music.get_playing(channel=ch)
-            _sfx_log(
+            _cue_log(
                 "-f origin={:.3f} total_offset={:.3f} target={:.3f} dur={:.3f}"
-                .format(origin, _sfx.__total_offset, target, dur)
+                .format(origin, _cue.__total_offset, target, dur)
             )
             if filepath and dur > 0:
-                _sfx.__pause_target = max(0.001, target)
+                _cue.__pause_target = max(0.001, target)
                 renpy.music.stop(channel=ch, fadeout=0)
                 renpy.music.play(filepath, channel=ch, loop=True)
 
 
-    def _sfx_editor_seek_to(target_time):
+    def _cue_editor_seek_to(target_time):
         """Seek to an absolute timestamp and pause there.
 
         Forward (target >= current pos): pause, set __step_target, unpause.
         The tick auto-pauses when pos reaches the target — no restart needed.
         Backward (target < current pos): restart from 0 with __pause_target."""
-        ch = _sfx.active_channel
+        ch = _cue.active_channel
         if not ch:
             return
 
@@ -765,25 +764,25 @@ init python:
         current_pos = renpy.music.get_pos(channel=ch) or 0.0
 
         # Reset offset tracking for the absolute target
-        _sfx.__pause_origin = target
-        _sfx.__total_offset = 0.0
-        _sfx.__time_offset = 0.0
-        _sfx.__pause_target = 0.0
+        _cue.__pause_origin = target
+        _cue.__total_offset = 0.0
+        _cue.__time_offset = 0.0
+        _cue.__pause_target = 0.0
 
         if target >= current_pos:
             # Forward seek: pause, set step target, unpause (same as +1f)
-            if not _sfx.paused:
+            if not _cue.paused:
                 renpy.music.set_pause(True, channel=ch)
-                _sfx.paused = True
-            _sfx.__step_target = max(0.001, target)
+                _cue.paused = True
+            _cue.__step_target = max(0.001, target)
             renpy.music.set_pause(False, channel=ch)
         else:
             # Backward seek: restart from 0 (same as -1f)
             filepath = renpy.music.get_playing(channel=ch)
             if not filepath:
                 return
-            _sfx.__step_target = 0.0
-            _sfx.__pause_target = max(0.001, target)
+            _cue.__step_target = 0.0
+            _cue.__pause_target = max(0.001, target)
             renpy.music.stop(channel=ch, fadeout=0)
             renpy.music.play(filepath, channel=ch, loop=True)
 
@@ -792,24 +791,24 @@ init python:
     # SFX Playback
     # --------------------------------------------------------------------------
 
-    def _sfx_editor_preview_sfx(filename, volume=1.0):
+    def _cue_editor_preview_cue(filename, volume=1.0):
         """Play a preview of an SFX file. Restarts interaction to consume click.
         volume: 0.0-5.0, applied to the channel after play starts.
         """
         # Stop the previous user preview before starting a new one
-        _prev_ch = _sfx._preview_channel
+        _prev_ch = _cue._preview_channel
         if _prev_ch is not None and renpy.music.is_playing(channel=_prev_ch):
             renpy.music.stop(channel=_prev_ch, fadeout=0)
-        _sfx._preview_channel = _sfx_editor_play_sfx(filename, "preview", volume=volume)
+        _cue._preview_channel = _cue_editor_play_cue(filename, "preview", volume=volume)
 
-    def _sfx_editor_play_sfx(filename, source="", volume=1.0):
+    def _cue_editor_play_cue(filename, source="", volume=1.0):
         """Play an SFX on the next available dedicated channel.
         source: descriptive key for logging (video, image, dialogue, or pool)
         volume: 0.0-1.0, applied to the channel after play starts
         Returns the channel name, or None on failure.
         """
 
-        base_dir = _sfx.audio_dir
+        base_dir = _cue.audio_dir
         if not base_dir.endswith("/"):
             base_dir = base_dir + "/"
         full_path = base_dir + filename
@@ -817,22 +816,22 @@ init python:
         # Find first idle channel
         target_ch = None
         for i in range(1, 9):
-            ch_name = "_sfx_{}".format(i)
+            ch_name = "_cue_{}".format(i)
             if not renpy.music.is_playing(channel=ch_name):
                 target_ch = ch_name
                 break
 
         if target_ch is None:
-            idx = _sfx.__sfx_channel_idx
-            target_ch = "_sfx_{}".format(idx + 1)
-            _sfx.__sfx_channel_idx = (idx + 1) % 8
+            idx = _cue.__cue_channel_idx
+            target_ch = "_cue_{}".format(idx + 1)
+            _cue.__cue_channel_idx = (idx + 1) % 8
         else:
             ch_num = int(target_ch.split("_")[-1])
-            _sfx.__sfx_channel_idx = ch_num % 8
+            _cue.__cue_channel_idx = ch_num % 8
 
         try:
             # Context mismatch warning: compare source context with current state
-            curr_file = _sfx.current_file
+            curr_file = _cue.current_file
             _warn = None
             if is_vid_key(source):
                 _expected_vid = get_key_file(source)
@@ -845,21 +844,21 @@ init python:
             elif is_dlg_key(source):
                 _expected_img = get_key_file(source)
                 _expected_dlg = get_key_dialogue(source)
-                _cur_dlg = (_sfx.current_dialogue or "")[:40]
+                _cur_dlg = (_cue.current_dialogue or "")[:40]
                 if _expected_img != curr_file or _expected_dlg != _cur_dlg:
                     _warn = "expected img={}|{} actual img={}|{}".format(
                         _expected_img, _expected_dlg, curr_file, _cur_dlg)
             if _warn:
-                _sfx_log("WARN CTX-MISMATCH file={} src={} {}".format(
+                _cue_log("WARN CTX-MISMATCH file={} src={} {}".format(
                     filename.rsplit("/", 1)[-1], source, _warn))
 
-            if _sfx._has_relative_volume:
+            if _cue._has_relative_volume:
                 renpy.music.play(full_path, channel=target_ch, loop=False, relative_volume=volume)
             else:
                 renpy.music.play(full_path, channel=target_ch, loop=False)
                 renpy.music.set_volume(volume, delay=0, channel=target_ch)
 
-            _sfx_log("PLAY-SFX file={} src={} ch={} vol={:.2f}".format(
+            _cue_log("PLAY-SFX file={} src={} ch={} vol={:.2f}".format(
                 filename.rsplit("/", 1)[-1], source, target_ch, volume))
 
             return target_ch
@@ -872,68 +871,68 @@ init python:
     # SFX Trigger Engine (Tick)
     # --------------------------------------------------------------------------
 
-    def _sfx_editor_tick_trigger():
+    def _cue_editor_tick_trigger():
         """SFX trigger engine — runs always (even when overlay is hidden)."""
         import time as _time
 
         # Re-detect the active channel each tick so the CDD time display
         # recovers after rollback (Page Up), which resets active_channel.
-        _sfx_editor_refresh_channel()
+        _cue_editor_refresh_channel()
 
         # Keep paused state in sync (referenced by the UI for play/pause buttons)
         try:
-            _sfx.paused = renpy.music.get_pause(channel=_sfx.active_channel)
+            _cue.paused = renpy.music.get_pause(channel=_cue.active_channel)
         except Exception:
             pass
 
         # --- Auto-re-pause after seek (runs regardless of SFX Active) ---
-        ch = _sfx.active_channel
-        if ch and _sfx.top_layer_type == 'movie':
+        ch = _cue.active_channel
+        if ch and _cue.top_layer_type == 'movie':
             pos = renpy.music.get_pos(channel=ch)
-            if _sfx.__pause_target > 0 and pos is not None and pos >= _sfx.__pause_target:
+            if _cue.__pause_target > 0 and pos is not None and pos >= _cue.__pause_target:
                 renpy.music.set_pause(True, channel=ch)
-                _sfx.__pause_target = 0.0
-                _sfx.paused = True
-                _sfx.__time_offset = 0.0
-            if _sfx.__step_target > 0 and pos is not None and pos >= _sfx.__step_target:
+                _cue.__pause_target = 0.0
+                _cue.paused = True
+                _cue.__time_offset = 0.0
+            if _cue.__step_target > 0 and pos is not None and pos >= _cue.__step_target:
                 renpy.music.set_pause(True, channel=ch)
-                _sfx.__step_target = 0.0
-                _sfx.paused = True
-                _sfx.__time_offset = 0.0
+                _cue.__step_target = 0.0
+                _cue.paused = True
+                _cue.__time_offset = 0.0
 
-        if not _sfx.triggers_active:
+        if not _cue.triggers_active:
             return
 
-        _sfx.__tick_count = getattr(_sfx, '__tick_count', 0) + 1
-        tick = _sfx.__tick_count
+        _cue.__tick_count = getattr(_cue, '__tick_count', 0) + 1
+        tick = _cue.__tick_count
 
         # --- AUTOPLAY STATE MACHINE (a: keys) ---
         now = _time.time()
-        autoplay_key = create_autoplay_key(_sfx.current_file or "")
+        autoplay_key = create_autoplay_key(_cue.current_file or "")
         
-        entry = _sfx.markers.get(autoplay_key)
+        entry = _cue.markers.get(autoplay_key)
         if entry:
             files = entry.get("files", [])
             freq = entry.get("frequency", 1)
             if files:
                 # Init pool state if needed
-                if autoplay_key not in _sfx.autoplay_states:
-                    _sfx.autoplay_states[autoplay_key] = {
+                if autoplay_key not in _cue.autoplay_states:
+                    _cue.autoplay_states[autoplay_key] = {
                         "state": 0,
                         "ch": None,
                         "ready_at": 0.0,
                         "play_start": 0.0,
                     }
-                ps = _sfx.autoplay_states[autoplay_key]
+                ps = _cue.autoplay_states[autoplay_key]
                 
                 if ps["state"] == 1:
                     if not renpy.music.is_playing(channel=ps["ch"]):
                         dur = now - ps["play_start"]
-                        breathing = _sfx_editor_get_autoplay_delay(freq)
+                        breathing = _cue_editor_get_autoplay_delay(freq)
                         ps["ready_at"] = now + breathing
                         ps["state"] = 0
-                        _sfx.autoplay_current = None
-                        _sfx_log("TICK#{} POOL-DONE  key={} dur={:.2f}s next_in={:.2f}s".format(
+                        _cue.autoplay_current = None
+                        _cue_log("TICK#{} POOL-DONE  key={} dur={:.2f}s next_in={:.2f}s".format(
                             tick, autoplay_key, dur, breathing))
 
                 if ps["state"] == 0:
@@ -941,65 +940,65 @@ init python:
                         ps["ready_at"] = now + 0.5
                     elif now >= ps["ready_at"]:
                         # --- Cross-context overlap gate ---
-                        _block = _sfx.autoplay_current
+                        _block = _cue.autoplay_current
                         if _block and _block["key"] != autoplay_key and renpy.music.is_playing(channel=_block["ch"]):
                             # Another autoplay SFX is still playing -- defer
                             ps["ready_at"] = now + 0.1
                         else:
-                            f = _sfx_editor_pick_file(files)
+                            f = _cue_editor_pick_file(files)
                             _vol = entry.get("volume", 1.0)
-                            ch_used = _sfx_editor_play_sfx(f, autoplay_key, volume=_vol)
+                            ch_used = _cue_editor_play_cue(f, autoplay_key, volume=_vol)
                             if ch_used:
                                 ps["state"] = 1
                                 ps["ch"] = ch_used
                                 ps["play_start"] = now
-                                _sfx.autoplay_current = {"key": autoplay_key, "ch": ch_used}
-                                _sfx_log("TICK#{} POOL-PLAY  key={} file={} ch={}".format(
+                                _cue.autoplay_current = {"key": autoplay_key, "ch": ch_used}
+                                _cue_log("TICK#{} POOL-PLAY  key={} file={} ch={}".format(
                                     tick, autoplay_key, f, ch_used))
 
         # --- VIDEO MODE triggers (v: keys) ---
-        ch = _sfx.active_channel
-        if ch and _sfx.top_layer_type == 'movie':
-            elapsed = _sfx_editor_get_elapsed()
+        ch = _cue.active_channel
+        if ch and _cue.top_layer_type == 'movie':
+            elapsed = _cue_editor_get_elapsed()
 
             # Video markers
-            if _sfx.current_file:
-                vid_key = create_vid_key(_sfx.current_file)
-                vid_entry = _sfx.markers.get(vid_key)
+            if _cue.current_file:
+                vid_key = create_vid_key(_cue.current_file)
+                vid_entry = _cue.markers.get(vid_key)
                 if vid_entry:
                     timestamps = vid_entry.get("timestamps", [])
                     for idx, ts_entry in enumerate(timestamps):
                         ts_key = "{}@{}".format(vid_key, idx)
-                        if ts_key not in _sfx.played_video_keys:
+                        if ts_key not in _cue.played_video_keys:
                             if "time" not in ts_entry:
-                                _sfx_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(ts_entry))
+                                _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(ts_entry))
                                 continue
                             mt = ts_entry["time"]
-                            if mt <= elapsed < mt + _sfx.__marker_tolerance:
+                            if mt <= elapsed < mt + _cue.__marker_tolerance:
                                 files = ts_entry.get("files", [])
                                 if files:
-                                    f = _sfx_editor_pick_file(files, avoid_repeats=False)
-                                    _vol = _sfx_editor_get_effective_volume(vid_entry, vid_key, ts_index=idx)
-                                    _sfx_editor_play_sfx(f, vid_key, volume=_vol)
-                                    _sfx.played_video_keys.add(ts_key)
+                                    f = _cue_editor_pick_file(files, avoid_repeats=False)
+                                    _vol = _cue_editor_get_effective_volume(vid_entry, vid_key, ts_index=idx)
+                                    _cue_editor_play_cue(f, vid_key, volume=_vol)
+                                    _cue.played_video_keys.add(ts_key)
 
             # Detect video loop (markers only, pool uses wall clock)
-            if _sfx.__last_elapsed > 0 and elapsed < _sfx.__last_elapsed - 0.3:
-                _sfx.played_video_keys.clear()
-            _sfx.__last_elapsed = elapsed
+            if _cue.__last_elapsed > 0 and elapsed < _cue.__last_elapsed - 0.3:
+                _cue.played_video_keys.clear()
+            _cue.__last_elapsed = elapsed
 
 
     # --------------------------------------------------------------------------
     # Persistence
     # --------------------------------------------------------------------------
 
-    def _sfx_editor_autosave_backup():
+    def _cue_editor_autosave_backup():
         """Create a timestamped backup of markers in sfx_editor/backups/.
 
         Throttled to once every 5 minutes. Maintains a max of 10 backups,
         deleting the oldest when the limit is reached.
 
-        Called from _sfx_editor_save_markers() after every successful save.
+        Called from _cue_editor_save_markers() after every successful save.
         All exceptions are swallowed — autosave must never break the editor."""
         try:
             import time as _time
@@ -1007,10 +1006,10 @@ init python:
 
             # Throttle: skip if last autosave was within 5 minutes
             _now = _time.time()
-            if _now - _sfx._last_autosave_time < 300:
+            if _now - _cue._last_autosave_time < 300:
                 return
 
-            backups_dir = os.path.join(renpy.config.gamedir, _sfx.base_dir, "backups")
+            backups_dir = os.path.join(renpy.config.gamedir, _cue.base_dir, "backups")
             if not os.path.isdir(backups_dir):
                 os.makedirs(backups_dir)
 
@@ -1037,90 +1036,90 @@ init python:
                 _json.dump(persistent._cue_markers, f,
                            indent=2, sort_keys=True)
 
-            _sfx._last_autosave_time = _now
-            _sfx_log("AUTOSAVE-BACKUP path={} marker_keys={}".format(
-                _name, len(_sfx.markers)))
+            _cue._last_autosave_time = _now
+            _cue_log("AUTOSAVE-BACKUP path={} marker_keys={}".format(
+                _name, len(_cue.markers)))
         except Exception:
             pass  # Never let autosave break the editor
 
-    def _sfx_editor_save_markers():
+    def _cue_editor_save_markers():
         """Save unified markers and disabled_files to persistent storage.
 
         Refuses to overwrite existing persistent marker data with an empty dict.
         This guards against auto-reload wiping markers: init -999 clears
-        _sfx.markers in RAM, and if load fails for any reason (syntax error,
+        _cue.markers in RAM, and if load fails for any reason (syntax error,
         split-file ordering, etc.), a subsequent save would otherwise persist
         the empty state and destroy all marker data.
 
         disabled_files is always written regardless of the marker guard."""
         data = {
             "version": "2.2.0",
-            "disabled_files": sorted(_sfx.disabled_files),
-            "triggers_active": _sfx.triggers_active,
+            "disabled_files": sorted(_cue.disabled_files),
+            "triggers_active": _cue.triggers_active,
         }
 
-        if not _sfx.markers:
+        if not _cue.markers:
             existing = getattr(persistent, '_cue_markers', None)
             if existing is not None and existing.get("markers"):
-                _sfx_log("SAVE-MARKERS: refusing to clobber {} existing keys with empty dict".format(
+                _cue_log("SAVE-MARKERS: refusing to clobber {} existing keys with empty dict".format(
                     len(existing["markers"])))
                 data["markers"] = existing["markers"]
             else:
                 data["markers"] = {}
         else:
             # Strip malformed entries before persisting (empty dicts, missing "time")
-            stripped = _sfx_editor_sanitize_video_timestamps()
+            stripped = _cue_editor_sanitize_video_timestamps()
             if stripped:
-                _sfx_log("SAVE-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
-            data["markers"] = python_dict(_sfx.markers)
+                _cue_log("SAVE-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
+            data["markers"] = python_dict(_cue.markers)
 
         persistent._cue_markers = data
 
         # Autosave backup to disk (throttled to once per 5 min)
-        _sfx_editor_autosave_backup()
+        _cue_editor_autosave_backup()
 
 
-    def _sfx_editor_load_markers():
+    def _cue_editor_load_markers():
         """Load markers and disabled_files from persistent storage.
         Unwraps Ren'Py RevertableDict/RevertableList via JSON round-trip
         so that isinstance checks work on the loaded data."""
         data = getattr(persistent, '_cue_markers', None)
         if data is None:
-            _sfx.markers = {}
+            _cue.markers = {}
             return
-        _sfx.markers = _sfx_editor_unwrap_persistent(data.get("markers", {}))
-        _sfx.disabled_files = set(data.get("disabled_files", []))
-        _sfx.triggers_active = data.get("triggers_active", True)
-        stripped = _sfx_editor_sanitize_video_timestamps()
+        _cue.markers = _cue_editor_unwrap_persistent(data.get("markers", {}))
+        _cue.disabled_files = set(data.get("disabled_files", []))
+        _cue.triggers_active = data.get("triggers_active", True)
+        stripped = _cue_editor_sanitize_video_timestamps()
         if stripped:
-            _sfx_log("LOAD-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
-        _sfx_log("LOAD-MARKERS total_keys={}".format(len(_sfx.markers)))
+            _cue_log("LOAD-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
+        _cue_log("LOAD-MARKERS total_keys={}".format(len(_cue.markers)))
 
 
 
 # =============================================================================
 
 init python:
-    def _sfx_editor_time_label_getter():
+    def _cue_editor_time_label_getter():
         """Return 'elapsed / duration' formatted for the live time display."""
-        if _sfx.top_layer_type != 'movie':
-            _sfx_log("not movie? " + _sfx.top_layer_type + " " + _sfx.current_file)
+        if _cue.top_layer_type != 'movie':
+            _cue_log("not movie? " + _cue.top_layer_type + " " + _cue.current_file)
             return "--:--.-- / --:--.--"
-        e = _sfx_editor_get_elapsed()
-        d = _sfx_editor_get_duration()
+        e = _cue_editor_get_elapsed()
+        d = _cue_editor_get_duration()
         return "{} / {}".format(
-            _sfx_editor_format_time(e),
-            _sfx_editor_format_time(d),
+            _cue_editor_format_time(e),
+            _cue_editor_format_time(d),
         )
 
-    def _sfx_editor_frame_label_getter():
+    def _cue_editor_frame_label_getter():
         """Return 'frame / total' formatted for the live frame display."""
-        if _sfx.top_layer_type != 'movie':
-            _sfx_log("not movie? " + _sfx.top_layer_type + " " + _sfx.current_file)
+        if _cue.top_layer_type != 'movie':
+            _cue_log("not movie? " + _cue.top_layer_type + " " + _cue.current_file)
             return "---/---"
-        e = _sfx_editor_get_elapsed()
-        d = _sfx_editor_get_duration()
-        fps = max(1, _sfx.fps)
+        e = _cue_editor_get_elapsed()
+        d = _cue_editor_get_duration()
+        fps = max(1, _cue.fps)
         return "{}/{}".format(int(e * fps), int(d * fps))
 
 
@@ -1130,10 +1129,10 @@ init python:
 
 screen sfx_editor_key_listener():
     zorder 10000
-    key "K_BACKQUOTE" action Function(_sfx_editor_toggle)
+    key "K_BACKQUOTE" action Function(_cue_editor_toggle)
     key "K_F3" action Function(renpy.invoke_in_new_context, renpy.pause)
-    key "K_F4" action Function(_sfx_editor_toggle_active)
-    timer 0.025 repeat True action Function(_sfx_editor_tick_trigger, _update_screens=False)
+    key "K_F4" action Function(_cue_editor_toggle_active)
+    timer 0.025 repeat True action Function(_cue_editor_tick_trigger, _update_screens=False)
 
 # =============================================================================
 # MAIN OVERLAY SCREEN
@@ -1146,9 +1145,9 @@ screen sfx_editor_overlay():
     tag sfx_editor
 
     # Screen-level key bindings
-    key "K_BACKQUOTE" action Function(_sfx_editor_hide)
-    key "shift_K_1" action Function(_sfx_editor_copy_context)
-    key "shift_K_2" action Function(_sfx_editor_paste_context)
+    key "K_BACKQUOTE" action Function(_cue_editor_hide)
+    key "shift_K_1" action Function(_cue_editor_copy_context)
+    key "shift_K_2" action Function(_cue_editor_paste_context)
 
     button:
         xalign 0.0

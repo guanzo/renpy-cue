@@ -48,9 +48,9 @@ init python:
             self._w = width
             r = renpy.Render(width, height)
 
-            dur = _sfx_editor_get_duration()
-            elapsed = _sfx_editor_get_elapsed()
-            paused = _sfx.paused
+            dur = _cue_editor_get_duration()
+            elapsed = _cue_editor_get_elapsed()
+            paused = _cue.paused
 
             # Determine hover state for subtle brightness change
             hovered = False
@@ -77,15 +77,15 @@ init python:
                 canvas.rect(ph_color, (px, bar_y, 2, self.BAR_H))
 
             # --- Hover seek-preview tooltip ---
-            if dur > 0 and _sfx.active_channel:
+            if dur > 0 and _cue.active_channel:
                 mx, my = renpy.get_mouse_pos()
-                bx = getattr(_sfx, '_vtl_screen_x', -999)
-                by = getattr(_sfx, '_vtl_screen_y', -999)
+                bx = getattr(_cue, '_vtl_screen_x', -999)
+                by = getattr(_cue, '_vtl_screen_y', -999)
                 rx, ry = mx - bx, my - by
                 if 0 <= rx <= width and bar_y <= ry <= bar_y + self.BAR_H:
                     frac = max(0.0, min(1.0, rx / float(max(1, width))))
                     t = min(frac * dur, max(0.0, dur - 0.05))
-                    tip_text = "Click to seek to: " + _sfx_editor_format_time(t)
+                    tip_text = "Click to seek to: " + _cue_editor_format_time(t)
                     tip_widget = Text(tip_text, style="sfx_txt", size=11,
                                       color="#cccccc", italic=True, substitute=False)
                     tip_render = renpy.render(tip_widget, 300, 100, st, at)
@@ -107,20 +107,20 @@ init python:
             import pygame
             if ev.type == pygame.MOUSEMOTION:
                 mx, my = renpy.get_mouse_pos()
-                _sfx._vtl_screen_x = mx - x
-                _sfx._vtl_screen_y = my - y
+                _cue._vtl_screen_x = mx - x
+                _cue._vtl_screen_y = my - y
                 renpy.redraw(self, 0)
                 return None
             if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                 # Only handle clicks within the visible bar area
                 bar_y = getattr(self, '_bar_y', 0)
                 if bar_y <= y <= bar_y + self.BAR_H:
-                    dur = _sfx_editor_get_duration()
-                    if dur > 0 and _sfx.active_channel:
+                    dur = _cue_editor_get_duration()
+                    if dur > 0 and _cue.active_channel:
                         w = getattr(self, '_w', 1)
                         if w > 0:
                             frac = max(0.0, min(1.0, x / float(w)))
-                            _sfx_editor_seek_to(frac * dur)
+                            _cue_editor_seek_to(frac * dur)
                             renpy.redraw(self, 0)
                             raise renpy.display.core.IgnoreEvent()
                 return None
@@ -152,9 +152,9 @@ init python:
             self.set_active = set_active
             self.set_time = set_time
             self.get_dur = get_dur
-            self._drag_idx = getattr(_sfx, '_mtl_drag_idx', -1)
-            self._drag_on = getattr(_sfx, '_mtl_drag_on', False)
-            self._drag_start_x = getattr(_sfx, '_mtl_drag_start_x', 0)
+            self._drag_idx = getattr(_cue, '_mtl_drag_idx', -1)
+            self._drag_on = getattr(_cue, '_mtl_drag_on', False)
+            self._drag_start_x = getattr(_cue, '_mtl_drag_start_x', 0)
             self._drag_orig_times = {}  # {idx: original_time} for multi-drag delta
             self._drag_group_min = 0.0  # min orig time in the group (for boundary blocking)
             self._drag_group_max = 0.0  # max orig time in the group
@@ -173,7 +173,7 @@ init python:
 
         def _get_selected(self):
             """Return the current set of selected marker indices."""
-            return getattr(_sfx, 'mtl_selected', set())
+            return getattr(_cue, 'mtl_selected', set())
 
         def _hit_test(self, markers, dur, w, x, y):
             """Return the index of the marker tab under (x,y), or -1."""
@@ -241,7 +241,7 @@ init python:
                 r.blit(tr, (bx_pos + (self.TAB_W - tw) // 2, by_pos))
 
             # --- Ghost marker preview (repeat-pattern dialog) ---
-            ghost_times = _sfx_editor_compute_ghost_times()
+            ghost_times = _cue_editor_compute_ghost_times()
             for gtime in ghost_times:
                 gfrac = max(0.0, min(1.0, gtime / dur))
                 gpx = int(gfrac * width)
@@ -285,7 +285,7 @@ init python:
                 if self._drag_idx >= 0:
                     if not self._drag_on and abs(x - self._drag_start_x) > self.DRAG_THRESH:
                         self._drag_on = True
-                        _sfx._mtl_drag_on = True
+                        _cue._mtl_drag_on = True
                         # Snapshot original times + group bounds for multi-drag
                         sel = self._get_selected()
                         if len(sel) > 1 and self._drag_idx in sel:
@@ -313,14 +313,14 @@ init python:
                             drag_orig = self._drag_orig_times.get(self._drag_idx, 0)
                             cur_time = drag_orig + delta_time
                             self._tip_text = "Pool {} ({}) ({} selected)".format(
-                                self._drag_idx + 1, _sfx_editor_format_time(cur_time),
+                                self._drag_idx + 1, _cue_editor_format_time(cur_time),
                                 len(self._drag_orig_times))
                         else:
                             # Single drag
                             f = max(0.0, min(1.0, x / float(max(1, w))))
                             self.set_time(self._drag_idx, f * dur)
                             self._tip_text = "Pool {} ({})".format(
-                                self._drag_idx + 1, _sfx_editor_format_time(f * dur))
+                                self._drag_idx + 1, _cue_editor_format_time(f * dur))
                         self._tip_x = x
                         self._tip_y = y
                     renpy.redraw(self, 0)
@@ -333,10 +333,10 @@ init python:
                     sel = self._get_selected()
                     if len(sel) > 1 and hit_idx in sel:
                         self._tip_text = "Pool {} ({}) [{} selected]".format(
-                            hit_idx + 1, _sfx_editor_format_time(t), len(sel))
+                            hit_idx + 1, _cue_editor_format_time(t), len(sel))
                     else:
                         self._tip_text = "Pool {} ({})".format(
-                            hit_idx + 1, _sfx_editor_format_time(t))
+                            hit_idx + 1, _cue_editor_format_time(t))
                         # Show offset from nearest selected (or active) marker
                         refs = sel if sel else {self.get_active()}
                         if hit_idx not in refs:
@@ -344,7 +344,7 @@ init python:
                             offset = t - markers[ref_idx]["time"]
                             sign = "+" if offset >= 0 else "-"
                             self._tip_text += "\nOffset from Pool {}: {}{}".format(
-                                ref_idx + 1, sign, _sfx_editor_format_time(abs(offset)))
+                                ref_idx + 1, sign, _cue_editor_format_time(abs(offset)))
                     self._tip_x = x
                     self._tip_y = y
                     self._hover_idx = hit_idx
@@ -376,14 +376,14 @@ init python:
                         # Fall through to shift logic below
                         pass
                     else:
-                        _sfx.mtl_selected = set()
+                        _cue.mtl_selected = set()
                         return None
 
                 if alt_held and hit_idx >= 0:
                     # Alt+Click: toggle marker in/out of selection.
                     # If nothing is selected yet, seed with the currently
                     # active marker so the first alt+click forms a group.
-                    _sfx._mtl_suppress_clear = True
+                    _cue._mtl_suppress_clear = True
                     if not sel:
                         active = self.get_active()
                         if active != hit_idx and 0 <= active < len(markers):
@@ -392,7 +392,7 @@ init python:
                         sel.discard(hit_idx)
                     else:
                         sel.add(hit_idx)
-                    _sfx.mtl_selected = sel
+                    _cue.mtl_selected = sel
                     if sel:
                         self.set_active(min(sel))
                     renpy.redraw(self, 0)
@@ -405,7 +405,7 @@ init python:
                     # (or the active marker if nothing is selected).
                     # When clicking on a marker, use its actual time so the
                     # clicked marker is always included in the range.
-                    _sfx._mtl_suppress_clear = True
+                    _cue._mtl_suppress_clear = True
                     if sel:
                         nearest_idx = min(sel, key=lambda si: abs(markers[si]["time"] - click_time))
                         ref_time = markers[nearest_idx]["time"]
@@ -420,7 +420,7 @@ init python:
                     for i, m in enumerate(markers):
                         if lo <= m["time"] <= hi:
                             sel.add(i)
-                    _sfx.mtl_selected = sel
+                    _cue.mtl_selected = sel
                     if sel:
                         self.set_active(min(sel))
                     renpy.redraw(self, 0)
@@ -429,19 +429,19 @@ init python:
 
                 elif hit_idx >= 0:
                     # Plain left click on a marker
-                    _sfx._mtl_suppress_clear = True
+                    _cue._mtl_suppress_clear = True
                     if hit_idx not in sel:
                         # Clicking an unselected marker → reset selection
-                        _sfx.mtl_selected = set()
+                        _cue.mtl_selected = set()
                     # Arm drag (preserve selection if marker was in group —
                     # reset to single happens on MOUSEBUTTONUP if no drag)
                     self._drag_idx = hit_idx
                     self._drag_start_x = x
                     self._drag_on = False
                     self._reset_drag_state()
-                    _sfx._mtl_drag_idx = hit_idx
-                    _sfx._mtl_drag_on = False
-                    _sfx._mtl_drag_start_x = x
+                    _cue._mtl_drag_idx = hit_idx
+                    _cue._mtl_drag_on = False
+                    _cue._mtl_drag_start_x = x
                     self.set_active(hit_idx)
                     renpy.redraw(self, 0)
                     raise renpy.display.core.IgnoreEvent()
@@ -453,16 +453,16 @@ init python:
                     self._drag_idx = -1
                     self._drag_on = False
                     self._reset_drag_state()
-                    _sfx._mtl_drag_idx = -1
-                    _sfx._mtl_drag_on = False
+                    _cue._mtl_drag_idx = -1
+                    _cue._mtl_drag_on = False
                     if was_drag:
-                        _sfx_editor_mtl_finalize()
+                        _cue_editor_mtl_finalize()
                     else:
                         # Click (no drag) on a marker in multi-selection
                         # resets to single selection on that marker
                         sel = self._get_selected()
                         if len(sel) > 1 and clicked_idx in sel:
-                            _sfx.mtl_selected = set()
+                            _cue.mtl_selected = set()
                     renpy.redraw(self, 0)
                     renpy.restart_interaction()
                     raise renpy.display.core.IgnoreEvent()
@@ -477,7 +477,7 @@ init python:
             super(_MouseFollowerTooltip, self).__init__(**properties)
 
         def render(self, width, height, st, at):
-            tt = getattr(_sfx, '_tooltip_text', None) or ""
+            tt = getattr(_cue, '_tooltip_text', None) or ""
             if not tt:
                 return renpy.Render(1, 1)
 
