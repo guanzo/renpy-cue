@@ -61,6 +61,7 @@ init -999 python:
     _cue._presets_expanded = False  # expand/collapse for Presets/ folder in SFX Library
     _cue._expanded_presets = {}     # per-preset expand/collapse, keyed by preset name
     _cue._collapsed_sections = {}   # per-section expand/collapse for cue_section_frame
+    _cue._marker_tip_text = ""     # marker timeline tooltip (rendered by _MarkerTooltipOverlay)
     _cue.scan_error = None
 
     class CuePresetDialog:
@@ -965,4 +966,7 @@ screen cue_overlay():
     $ _tt = GetTooltip()
     if _tt:
         add _Tooltip(_tt)
+
+    # --- Marker timeline tooltip (rendered last so it's always on top) ---
+    add _MarkerTooltipOverlay()
 

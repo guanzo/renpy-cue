@@ -164,6 +164,8 @@ init python:
             self._tip_x = 0
             self._tip_y = 0
             self._hover_idx = -1
+            self._screen_x = 0  # screen-space offset of this CDD
+            self._screen_y = 0
 
         def _reset_drag_state(self):
             self._drag_orig_times = {}
@@ -256,23 +258,13 @@ init python:
                 gtw, _ = gtr.get_size()
                 r.blit(gtr, (gbx + (self.TAB_W - gtw) // 2, gby))
 
-            # Render tooltip if there's text (set by event())
+            # Store marker tooltip state for the overlay to render on top
             if self._tip_text:
-                tip_widget = Text(self._tip_text, style="cue_txt", size=11,
-                                  color="#cccccc", italic=True, substitute=False)
-                tip_render = renpy.render(tip_widget, 300, 100, st, at)
-                tw, th = tip_render.get_size()
-                fw = min(tw + 8, 300)
-                fh = th + 4
-
-                tip = renpy.Render(fw, fh)
-                tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))
-                tip.blit(tip_render, (4, 2))
-
-                # Position tooltip to right of the cursor
-                tx = self._tip_x + 10
-                ty = self._tip_y
-                r.blit(tip, (tx, ty))
+                _cue._marker_tip_text = self._tip_text
+                _cue._marker_tip_x = self._screen_x + self._tip_x + 10
+                _cue._marker_tip_y = self._screen_y + self._tip_y
+            else:
+                _cue._marker_tip_text = ""
 
             renpy.redraw(self, 0.05)
             return r
@@ -283,6 +275,10 @@ init python:
             w = getattr(self, '_w', 1)
 
             import pygame
+            if ev.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP):
+                mx, my = renpy.get_mouse_pos()
+                self._screen_x = mx - x
+                self._screen_y = my - y
             if ev.type == pygame.MOUSEMOTION:
                 if self._drag_idx >= 0:
                     if not self._drag_on and abs(x - self._drag_start_x) > self.DRAG_THRESH:
@@ -394,9 +390,9 @@ init python:
                         sel.discard(hit_idx)
                     else:
                         sel.add(hit_idx)
-                    _cue.markers.video.selected = sel
                     if sel:
                         self.set_active(min(sel))
+                    _cue.markers.video.selected = sel
                     renpy.redraw(self, 0)
                     renpy.restart_interaction()
                     raise renpy.display.core.IgnoreEvent()
@@ -422,9 +418,9 @@ init python:
                     for i, m in enumerate(markers):
                         if lo <= m["time"] <= hi:
                             sel.add(i)
-                    _cue.markers.video.selected = sel
                     if sel:
                         self.set_active(min(sel))
+                    _cue.markers.video.selected = sel
                     renpy.redraw(self, 0)
                     renpy.restart_interaction()
                     raise renpy.display.core.IgnoreEvent()
@@ -513,8 +509,8 @@ init python:
 
         def render(self, width, height, st, at):
             text_widget = Text(
-                self._text, style="cue_txt", size=11, color="#cccccc",
-                italic=True, substitute=False,
+                self._text, style="cue_txt", size=12, color="#cccccc",
+                italic=False, substitute=False,
             )
             text_render = renpy.render(text_widget, 300, 100, st, at)
             tw, th = text_render.get_size()
@@ -530,5 +526,37 @@ init python:
             tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))
             tip.blit(text_render, (pad_x, pad_y))
             r.blit(tip, (mx + 12, my - 8))
+            return r
+
+
+    class _MarkerTooltipOverlay(renpy.Displayable):
+        """Renders the marker timeline tooltip on top of all other UI.
+        Reads state set by CueVideoMarkerTimeline.render()."""
+
+        def __init__(self, **properties):
+            super(_MarkerTooltipOverlay, self).__init__(**properties)
+
+        def render(self, width, height, st, at):
+            renpy.redraw(self, 0.05)
+            text = getattr(_cue, '_marker_tip_text', None) or ""
+            if not text:
+                return renpy.Render(1, 1)
+
+            tip_widget = Text(text, style="cue_txt", size=12,
+                              color="#cccccc", italic=False, substitute=False)
+            tip_render = renpy.render(tip_widget, 300, 100, st, at)
+            tw, th = tip_render.get_size()
+            fw = min(tw + 8, 300)
+            fh = th + 4
+
+            tip = renpy.Render(fw, fh)
+            tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))
+            tip.blit(tip_render, (4, 2))
+
+            tx = getattr(_cue, '_marker_tip_x', 0)
+            ty = getattr(_cue, '_marker_tip_y', 0)
+
+            r = renpy.Render(1, 1)
+            r.blit(tip, (tx, ty))
             return r
 

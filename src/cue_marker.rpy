@@ -398,11 +398,15 @@ init -999 python:
                 return "Delete marker {}?".format(self.target_pool + 1)
 
         def set_active(self, pool_index):
-            """Set which timestamp pool tab is active.
-            Clears multi-selection since this is an explicit single-pool switch."""
+            """Set which timestamp pool tab is active (no-op on selection)."""
             self.target_pool = int(pool_index)
-            self.selected = set()
             self.sync_text()
+
+        def select_tab(self, pool_index):
+            """Switch active pool tab and clear multi-selection.
+            Called when the user explicitly clicks a pool tab button."""
+            self.selected = set()
+            self.set_active(pool_index)
 
         # -- timestamp editing --
 

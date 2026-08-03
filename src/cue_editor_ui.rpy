@@ -481,16 +481,15 @@ screen cue_overlay_content():
                         text_style "cue_btn_text"
                         action Function(_cue.beat.open)
                         tooltip "Repeat selected markers at regular intervals across the video"
-                    textbutton "Delete":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        action Function(_cue.confirm_dialog.show, _cue.markers.video.get_delete_message(), Function(_cue.markers.video.remove_selected))
-                        tooltip "Delete selected markers"
+                    use cue_icon_button("✕", Function(_cue.confirm_dialog.show, _cue.markers.video.get_delete_message(), Function(_cue.markers.video.remove_selected)), "Delete selected markers", None)
                     textbutton "?":
                         style "cue_btn"
                         text_style "cue_btn_text"
                         action NullAction()
-                        tooltip "• Timestamp markers are draggable\n• Alt + Click or Shift + Click to create a selection group\n• Select markers and use Repeat to copy them at intervals"
+                        tooltip ("• Markers and marker groups are draggable.\n"
++ "• (Alt + Click) or (Shift + Click) to create a marker group.\n"
++ "• Use Repeat to copy selected markers at an interval.\n"
++ "• Get your markers timed to the first 'beat', find the interval to the next 'beat', then use Repeat to finish.")
                 # --- Timeline visualizer ---
                 fixed:
                     xfill True
@@ -511,7 +510,7 @@ screen cue_overlay_content():
                         set_active=_cue.markers.video.set_active,
                         set_time=_cue.markers.video.set_time,
                         get_dur=_cue.markers.video.get_duration,
-                    )
+                    ) yoffset -8
                 if _vid_entry:
                     $ _vid_entry.setdefault("volume", 1.0)
                     $ _master_vol = _vid_entry.get("volume", 1.0)
@@ -522,7 +521,7 @@ screen cue_overlay_content():
                     "Delete all video timestamp markers for the current video?",
                     Function(_cue.markers.video.clear), "Delete all video SFX for the current video",
                     Function(_cue.markers.video.add_pool), "Create a new empty timestamp at current time",
-                    _cue.markers.video.set_active, (), "Select timestamp pool — V button adds files here")
+                    _cue.markers.video.select_tab, (), "Select timestamp pool — V button adds files here")
 
                 # Active pool display
                 if _vid_entries and 0 <= _vid_target < _vid_count:
@@ -602,7 +601,7 @@ screen cue_overlay_content():
             $ _freq = _cue._pool_ui.get("freq", 1)
             hbox:
                 spacing 5
-                text "Freq" style "cue_txt" size 11
+                text "Interval" style "cue_txt" size 11
                 $ slow_selected = (_freq == 0)
                 $ normal_selected = (_freq == 1)
                 $ fast_selected = (_freq == 2)
@@ -611,7 +610,7 @@ screen cue_overlay_content():
                     style "cue_btn"
                     text_style "cue_btn_text"
                     if slow_selected:
-                        background "#666699"
+                        background "#669966"
                     else:
                         background "#444444"
                     action Function(_cue.markers.autoplay.set_frequency, 0)
@@ -627,7 +626,7 @@ screen cue_overlay_content():
                     style "cue_btn"
                     text_style "cue_btn_text"
                     if fast_selected:
-                        background "#996666"
+                        background "#669966"
                     else:
                         background "#444444"
                     action Function(_cue.markers.autoplay.set_frequency, 2)
@@ -635,7 +634,7 @@ screen cue_overlay_content():
                     style "cue_btn"
                     text_style "cue_btn_text"
                     if fastest_selected:
-                        background "#996699"
+                        background "#669966"
                     else:
                         background "#444444"
                     action Function(_cue.markers.autoplay.set_frequency, 3)
