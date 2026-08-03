@@ -442,8 +442,6 @@ init python:
                     self._drag_on = False
                     self._reset_drag_state()
                     
-                    
-                    
                     self.set_active(hit_idx)
                     renpy.redraw(self, 0)
                     raise renpy.display.core.IgnoreEvent()
@@ -455,7 +453,6 @@ init python:
                     self._drag_idx = -1
                     self._drag_on = False
                     self._reset_drag_state()
-                    
                     
                     if was_drag:
                         _cue.markers.video.finalize_drag()

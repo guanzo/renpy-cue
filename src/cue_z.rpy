@@ -37,7 +37,7 @@ init -999 python:
 
     # Pool state machine (multi-instance: one per active a: key)
     _cue.autoplay_states = {}
-    _cue.autoplay_current = None   # {key, ch} of currently-playing autoplay SFX
+    _cue.autoplay_current = None   # {key, channels} of currently-playing autoplay SFX
     _cue.last_played = []
 
     _cue.triggers_active = True
@@ -651,6 +651,18 @@ init python:
     # SFX Trigger Engine (Tick)
     # --------------------------------------------------------------------------
 
+    def _cue_autoplay_still_playing(channels):
+        """True if any channel in the list is currently playing.
+        Unknown/unregistered channels are treated as silent."""
+        for _c in channels:
+            try:
+                if renpy.music.is_playing(channel=_c):
+                    return True
+            except Exception:
+                pass
+        return False
+
+
     def _cue_tick_trigger():
         """SFX trigger engine — runs always (even when overlay is hidden)."""
         import time as _time
@@ -674,27 +686,30 @@ init python:
         # --- AUTOPLAY STATE MACHINE (a: keys) ---
         now = _time.time()
         autoplay_key = create_autoplay_key(_cue.current_file or "")
-        
+
         entry = _cue.markers.get(autoplay_key)
         if entry:
-            files = entry.get("files", [])
-            freq = entry.get("frequency", 1)
-            if files:
+            pools = entry.get("pools", [])
+            # Collect frequencies from all pools with files, default 1
+            _freqs = [p.get("frequency", 1) for p in pools if p.get("files")]
+            if _freqs:
+                freq = int(round(sum(_freqs) / float(len(_freqs))))
                 # Init pool state if needed
                 if autoplay_key not in _cue.autoplay_states:
                     _cue.autoplay_states[autoplay_key] = {
                         "state": 0,
-                        "ch": None,
+                        "channels": [],
                         "ready_at": 0.0,
                         "play_start": 0.0,
                     }
                 ps = _cue.autoplay_states[autoplay_key]
-                
+
                 if ps["state"] == 1:
-                    if not renpy.music.is_playing(channel=ps["ch"]):
+                    if not _cue_autoplay_still_playing(ps.get("channels", [])):
                         dur = now - ps["play_start"]
                         breathing = _cue.markers.autoplay.get_delay(freq)
                         ps["ready_at"] = now + breathing
+                        ps["channels"] = []
                         ps["state"] = 0
                         _cue.autoplay_current = None
                         _cue_log("TICK#{} POOL-DONE  key={} dur={:.2f}s next_in={:.2f}s".format(
@@ -706,20 +721,45 @@ init python:
                     elif now >= ps["ready_at"]:
                         # --- Cross-context overlap gate ---
                         _block = _cue.autoplay_current
-                        if _block and _block["key"] != autoplay_key and renpy.music.is_playing(channel=_block["ch"]):
-                            # Another autoplay SFX is still playing -- defer
+                        _blocking = False
+                        if _block and _block.get("key") != autoplay_key:
+                            if _cue_autoplay_still_playing(_block.get("channels", [])):
+                                _blocking = True
+                            else:
+                                _cue.autoplay_current = None  # stale
+                        if _blocking:
                             ps["ready_at"] = now + 0.1
                         else:
-                            f = _cue_pick_file(files)
-                            _vol = entry.get("volume", 1.0)
-                            ch_used = _cue_play_sfx(f, autoplay_key, volume=_vol)
-                            if ch_used:
+                            _channels = []
+                            _picked = []
+                            for pi, pool in enumerate(pools):
+                                files = pool.get("files", [])
+                                if not files:
+                                    continue
+                                _f = _cue_pick_file(files)
+                                _tries = 0
+                                while _f in _picked and len(files) > 1 and _tries < 3:
+                                    _f = _cue_pick_file(files)
+                                    _tries += 1
+                                if _f in _picked:
+                                    continue
+                                _picked.append(_f)
+                                _pool_vol = _cue.volume.get_effective(entry, autoplay_key, pool_index=pi)
+                                _ch_used = _cue_play_sfx(_f, autoplay_key, volume=_pool_vol)
+                                if _ch_used:
+                                    _channels.append(_ch_used)
+                            if _channels:
                                 ps["state"] = 1
-                                ps["ch"] = ch_used
+                                ps["channels"] = _channels
                                 ps["play_start"] = now
-                                _cue.autoplay_current = {"key": autoplay_key, "ch": ch_used}
-                                _cue_log("TICK#{} POOL-PLAY  key={} file={} ch={}".format(
-                                    tick, autoplay_key, f, ch_used))
+                                _cue.autoplay_current = {
+                                    "key": autoplay_key,
+                                    "channels": list(_channels),
+                                }
+                                _cue_log("TICK#{} POOL-PLAY  key={} files={} chs={}".format(
+                                    tick, autoplay_key, len(_channels), ",".join(_channels)))
+                            else:
+                                ps["ready_at"] = now + 0.5
 
         # --- VIDEO MODE triggers (v: keys) ---
         ch = _cue.active_channel
@@ -772,6 +812,7 @@ init python:
             _cue.markers._data = {}
             return
         _cue.markers._data = _cue_unwrap_persistent(data.get("markers", {}))
+        _cue.markers._normalize_all()
         _cue.disabled_files = set(data.get("disabled_files", []))
         _cue.triggers_active = data.get("triggers_active", True)
         stripped = _cue.markers._sanitize_video_timestamps()

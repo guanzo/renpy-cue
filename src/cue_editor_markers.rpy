@@ -164,13 +164,15 @@ init python:
 
 
     def _cue_is_file_in_autoplay_pool(full_path):
-        """Check if a file is in the current context's a: entry."""
+        """Check if a file is in any pool of the current context's a: entry."""
         if not _cue.current_file:
             return False
         autoplay_key = create_autoplay_key(_cue.current_file)
         entry = _cue.markers.get(autoplay_key)
-        if entry and full_path in entry.get("files", []):
-            return True
+        if entry:
+            for _pool in entry.get("pools", []):
+                if full_path in _pool.get("files", []):
+                    return True
         return False
 
 

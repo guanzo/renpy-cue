@@ -6,7 +6,7 @@
 #   _cue.markers.image.add_file(idx)          Pool-based (i: prefix)
 #   _cue.markers.dialogue.add_file(idx)       Pool-based (d: prefix)
 #   _cue.markers.video.add_file(idx)          Timestamp-based (v: prefix)
-#   _cue.markers.autoplay.add_file(idx)       Flat file list (a: prefix)
+#   _cue.markers.autoplay.add_file(idx)       Pool-based (a: prefix)
 #
 #   _cue.markers[key] / .get(key) / .items()  Dict-like access (backward compat)
 #   _cue.markers.save() / .dump() / .restore()  Persistence
@@ -479,18 +479,19 @@ init -999 python:
             return max(0.001, _cue.vid_manager.get_duration())
 
     # =========================================================================
-    # CueAutoplayContext — flat file list (a: prefix)
+    # CueAutoplayContext — pool-based (a: prefix), mirrors image/dialogue
     # =========================================================================
 
-    class CueAutoplayContext:
-        """Manage autoplay markers — a flat list of SFX files + frequency.
+    class CueAutoplayContext(CueMarkerContext):
+        """Manage autoplay markers — pool-based, mirrors image/dialogue.
 
         An autoplay entry looks like:
-            {"files": ["moan1.ogg", "moan2.ogg"], "frequency": 1}
+            {"pools": [{"files": [...], "volume": 1.0, "frequency": 1}, ...],
+             "volume": 1.0}
         """
 
         def __init__(self, manager):
-            self._mgr = manager
+            super(CueAutoplayContext, self).__init__(manager, "auto")
 
         def _key(self):
             """Build the a: key for the current context."""
@@ -498,28 +499,25 @@ init -999 python:
                 return None
             return create_autoplay_key(_cue.current_file)
 
-        def add_file(self, file_index):
-            """Add an audio file to the autoplay pool."""
-            if not (0 <= file_index < len(_cue.available_files)):
-                return
-            key = self._key()
-            if key is None:
-                return
-            filename = _cue.available_files[file_index]
-            if filename in _cue.disabled_files:
-                return
-            entry = self._mgr.setdefault(key, {"files": [], "frequency": 1})
-            files = entry.setdefault("files", [])
-            if filename not in files:
-                files.append(filename)
-            self._mgr.save()
+        def _get_target(self):
+            return self._mgr._autoplay_target
 
-        def remove_file(self, file_index):
-            """Remove a file from the autoplay pool."""
+        def _set_target(self, value):
+            self._mgr._autoplay_target = int(value)
+
+        def add_pool(self):
+            """Append a new empty pool (with frequency) and auto-switch to it."""
             key = self._key()
             if key is None:
                 return
-            self._mgr._remove_file_from_pool(key, file_index)
+            entry = self._mgr._get_or_create_entry(key)
+            entry["pools"].append({
+                "files": [],
+                "volume": _cue.VOL_DEFAULT,
+                "frequency": 1,
+            })
+            self._set_target(len(entry["pools"]) - 1)
+            self._mgr.save()
 
         def clear(self):
             """Remove autoplay markers for the current context."""
@@ -530,27 +528,18 @@ init -999 python:
             _cue.autoplay_states.pop(key, None)
             self._mgr.save()
 
-        def add_folder(self, folder_path):
-            """Add all files under a folder prefix to the autoplay pool."""
-            key = self._key()
-            if key is None:
-                return
-            entry = self._mgr.setdefault(key, {"files": [], "frequency": 1})
-            files = entry.setdefault("files", [])
-            for f in _cue.available_files:
-                if f.startswith(folder_path) and f not in files and f not in _cue.disabled_files:
-                    files.append(f)
-            self._mgr.save()
-
         def set_frequency(self, freq):
-            """Set autoplay frequency. 0=Slow, 1=Normal, 2=Fast, 3=Fastest."""
+            """Set autoplay frequency for the active pool. 0=Slow, 1=Normal, 2=Fast, 3=Fastest."""
             key = self._key()
             if key is None:
                 return
             entry = self._mgr.get(key)
             if entry:
-                entry["frequency"] = int(freq)
-                self._mgr.save()
+                pools = entry.get("pools", [])
+                target = self.get_active()
+                if pools and 0 <= target < len(pools):
+                    pools[target]["frequency"] = int(freq)
+                    self._mgr.save()
 
         @staticmethod
         def get_delay(frequency=1):
@@ -584,6 +573,7 @@ init -999 python:
             self._data = {}
             self._img_target = 0
             self._dlg_target = 0
+            self._autoplay_target = 0
             self.image = CueMarkerContext(self, "img")
             self.dialogue = CueMarkerContext(self, "dlg")
             self.video = CueVideoContext(self)
@@ -693,11 +683,20 @@ init -999 python:
                     self.save()
 
         def _normalize_all(self):
-            """Migrate all legacy i: and d: entries to pools format. Persist if changed."""
+            """Migrate all legacy i:, d:, and a: entries to pools format.
+            Also moves entry-level frequency into each autoplay pool.
+            Returns True if any entry was changed."""
             changed = False
             for key, entry in list(self._data.items()):
-                if is_img_key(key) or is_dlg_key(key):
-                    self._normalize_entry(entry)
+                if is_img_key(key) or is_dlg_key(key) or is_autoplay_key(key):
+                    if "pools" not in entry:
+                        self._normalize_entry(entry)
+                        changed = True
+                # Migrate entry-level frequency into each autoplay pool
+                if is_autoplay_key(key) and "frequency" in entry:
+                    freq = entry.pop("frequency")
+                    for pool in entry.get("pools", []):
+                        pool.setdefault("frequency", freq)
                     changed = True
             return changed
 
@@ -796,6 +795,7 @@ init -999 python:
                     data = _json.load(f)
                 persistent._cue_markers = data
                 self._data = _cue_unwrap_persistent(data.get("markers", {}))
+                self._normalize_all()
                 _cue.played_video_keys.clear()
                 _cue.autoplay_states = {}
                 self.save()
