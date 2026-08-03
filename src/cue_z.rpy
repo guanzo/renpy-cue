@@ -57,7 +57,47 @@ init -999 python:
     _cue.initialized = False
     _cue.visible_tree = []
     _cue.expanded_folders = {}
+    _cue.expanded_file_refs = {}  # tracks expanded folder refs in pool file lists
+    _cue._presets_expanded = False  # expand/collapse for Presets/ folder in SFX Library
+    _cue._expanded_presets = {}     # per-preset expand/collapse, keyed by preset name
     _cue.scan_error = None
+
+    class CuePresetDialog:
+        """Self-contained state for the Save Preset popup."""
+        def __init__(self):
+            self.trigger_key = None
+            self.pool_idx = 0
+            self.name = ""
+
+        def open(self, trigger_key, pool_idx):
+            entry = _cue.markers.get(trigger_key)
+            if entry is None:
+                return
+            pools = entry.get("pools", [])
+            if pool_idx >= len(pools):
+                return
+            _cue.markers._detach_pool(trigger_key, pool_idx)
+            self.trigger_key = trigger_key
+            self.pool_idx = pool_idx
+            self.name = ""
+            renpy.show_screen("cue_save_preset_dialog", _layer="cue_layer")
+
+        def commit(self):
+            name = self.name.strip()
+            if name:
+                entry = _cue.markers.get(self.trigger_key)
+                if entry:
+                    pools = entry.get("pools", [])
+                    if self.pool_idx < len(pools):
+                        _cue.markers.create_preset(name, pools[self.pool_idx])
+            self.trigger_key = None
+            renpy.hide_screen("cue_save_preset_dialog", layer="cue_layer")
+
+        def cancel(self):
+            self.trigger_key = None
+            renpy.hide_screen("cue_save_preset_dialog", layer="cue_layer")
+
+    _cue.preset_dialog = CuePresetDialog()
 
 
     _cue._last_autosave_time = 0
@@ -347,6 +387,20 @@ init python:
             _cue.current_dialogue[:60] if _cue.current_dialogue else "(none)"))
 
 
+    def _cue_resolve_files(files):
+        """Resolve a files list: expand folder refs (trailing '/') to matching
+        available files, skip disabled files, pass through direct references."""
+        result = []
+        for item in files:
+            if item.endswith("/"):
+                # Folder reference — expand to all matching available files
+                for f in _cue.available_files:
+                    if f.startswith(item) and f not in _cue.disabled_files and f not in result:
+                        result.append(f)
+            elif item not in _cue.disabled_files and item not in result:
+                result.append(item)
+        return result
+
     def _cue_pick_file(files, avoid_repeats=True):
         """Pick a random file from a list.
         If avoid_repeats is True, avoids files in the global last_played list.
@@ -394,16 +448,17 @@ init python:
             if not pools:
                 continue
             _vol = entry.get("volume", 1.0)
-            _total = sum(len(p.get("files", [])) for p in pools)
-            
+            _total = sum(len(_cue.markers.resolve_pool(p).files) for p in pools)
+
             _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(
                 key, len(pools), _total, _vol))
 
             _picked = []
             for pi, pool in enumerate(pools):
-                if only_shake_pools and not pool.get("trigger_on_shake", False):
+                _r = _cue.markers.resolve_pool(pool)
+                if only_shake_pools and not _r.trigger_on_shake:
                     continue
-                files = pool.get("files", [])
+                files = _cue_resolve_files(_r.files)
                 if not files:
                     continue
                 _file = _cue_pick_file(files)
@@ -690,8 +745,12 @@ init python:
         entry = _cue.markers.get(autoplay_key)
         if entry:
             pools = entry.get("pools", [])
-            # Collect frequencies from all pools with files, default 1
-            _freqs = [p.get("frequency", 1) for p in pools if p.get("files")]
+            # Collect frequencies from resolved pools with files, default 1
+            _freqs = []
+            for p in pools:
+                _r = _cue.markers.resolve_pool(p)
+                if _r.files:
+                    _freqs.append(_r.frequency)
             if _freqs:
                 freq = int(round(sum(_freqs) / float(len(_freqs))))
                 # Init pool state if needed
@@ -733,7 +792,8 @@ init python:
                             _channels = []
                             _picked = []
                             for pi, pool in enumerate(pools):
-                                files = pool.get("files", [])
+                                _r = _cue.markers.resolve_pool(pool)
+                                files = _cue_resolve_files(_r.files)
                                 if not files:
                                     continue
                                 _f = _cue_pick_file(files)
@@ -782,7 +842,7 @@ init python:
                                 continue
                             mt = ts_entry["time"]
                             if mt <= elapsed < mt + marker_tolerance:
-                                files = ts_entry.get("files", [])
+                                files = _cue_resolve_files(ts_entry.get("files", []))
                                 if files:
                                     f = _cue_pick_file(files, avoid_repeats=False)
                                     _vol = _cue.volume.get_effective(vid_entry, vid_key, ts_index=idx)
@@ -812,14 +872,30 @@ init python:
             _cue.markers._data = {}
             return
         _cue.markers._data = _cue_unwrap_persistent(data.get("markers", {}))
+        _cue.markers._presets = _cue_unwrap_persistent(data.get("presets", {}))
         _cue.markers._normalize_all()
         _cue.disabled_files = set(data.get("disabled_files", []))
-        _cue.triggers_active = data.get("triggers_active", True)
+        _triggers = data.get("triggers_active", True)
+        # Unwrap nested lists from old corrupted saves
+        while isinstance(_triggers, list) and len(_triggers) > 0:
+            _triggers = _triggers[0]
+        _cue.triggers_active = bool(_triggers)
         stripped = _cue.markers._sanitize_video_timestamps()
         if stripped:
             _cue_log("LOAD-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
         _cue_log("LOAD-MARKERS total_keys={}".format(len(_cue.markers._data)))
 
+
+    def _cue_preview_preset(preset_name):
+        """Preview a random file from a preset. Resolves folder refs first."""
+        preset = _cue.markers.get_preset(preset_name)
+        if preset is None:
+            return
+        files = _cue_resolve_files(preset.get("files", []))
+        if files:
+            import random as _random
+            f = _random.choice(files)
+            _cue_preview_sfx(f)
 
 
 # =============================================================================

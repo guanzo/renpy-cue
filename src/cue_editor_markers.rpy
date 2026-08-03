@@ -189,7 +189,7 @@ init python:
         entry = _cue.markers.get(autoplay_key)
         if entry:
             for _pool in entry.get("pools", []):
-                if full_path in _pool.get("files", []):
+                if full_path in _cue.markers.resolve_pool(_pool).files:
                     return True
         return False
 
@@ -251,6 +251,27 @@ init python:
             _cue.disabled_files.add(full_path)
         _cue.visible_tree = _cue_get_visible_tree()
         _cue_save_markers()
+
+
+    def _cue_toggle_file_ref_expand(folder_ref):
+        """Toggle expand/collapse for a folder ref in a pool file list."""
+        if folder_ref in _cue.expanded_file_refs:
+            _cue.expanded_file_refs[folder_ref] = not _cue.expanded_file_refs[folder_ref]
+        else:
+            _cue.expanded_file_refs[folder_ref] = True
+
+
+    def _cue_toggle_presets_expand():
+        """Toggle expand/collapse for the Presets/ folder in the SFX Library."""
+        _cue._presets_expanded = not _cue._presets_expanded
+
+
+    def _cue_toggle_preset_expand(preset_name):
+        """Toggle expand/collapse for a single preset in the SFX Library."""
+        if preset_name in _cue._expanded_presets:
+            _cue._expanded_presets[preset_name] = not _cue._expanded_presets[preset_name]
+        else:
+            _cue._expanded_presets[preset_name] = True
 
 
     # --------------------------------------------------------------------------

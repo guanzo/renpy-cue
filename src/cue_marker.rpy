@@ -20,7 +20,7 @@ init -999 python:
     # =========================================================================
 
     class CueMarkerContext:
-        """Manage marker pools for a single context kind (image or dialogue).
+        """Abstract base for pool-based marker contexts.
 
         An "entry" is the dict stored at a trigger key like "i:bg_room.png":
             {"pools": [{"files": [...], "volume": 1.0}, ...]}
@@ -28,34 +28,29 @@ init -999 python:
         Each pool is a group of SFX files that play together when the context
         is triggered. The "active" pool is the tab the UI has selected — the
         next add_file() call targets it.
+
+        Subclasses must override _key(), _get_target(), _set_target().
         """
 
-        def __init__(self, manager, kind):
+        def __init__(self, manager):
             self._mgr = manager
-            self._kind = kind  # "img" or "dlg"
 
-        # -- internal helpers --
+        # -- internal helpers (override in subclasses) --
 
         def _key(self):
-            """Build the trigger key for the current scene context."""
-            if self._kind == "img":
-                return create_img_key(_cue.current_file)
-            elif self._kind == "dlg":
-                if not _cue.current_dialogue:
-                    return None
-                return create_dlg_key((_cue.current_file, _cue.current_dialogue))
-            return None
+            """Build the trigger key for the current scene context.
+            Subclasses must override."""
+            raise NotImplementedError("_key must be overridden")
 
         def _get_target(self):
-            if self._kind == "img":
-                return self._mgr._img_target
-            return self._mgr._dlg_target
+            """Return the active pool index for this context.
+            Subclasses must override."""
+            raise NotImplementedError("_get_target must be overridden")
 
         def _set_target(self, value):
-            if self._kind == "img":
-                self._mgr._img_target = int(value)
-            else:
-                self._mgr._dlg_target = int(value)
+            """Set the active pool index for this context.
+            Subclasses must override."""
+            raise NotImplementedError("_set_target must be overridden")
 
         # -- public API --
 
@@ -66,8 +61,6 @@ init -999 python:
             if file_index < 0 or file_index >= len(_cue.available_files):
                 return
             key = self._key()
-            if key is None:
-                return
             filename = _cue.available_files[file_index]
             if filename in _cue.disabled_files:
                 return
@@ -76,23 +69,17 @@ init -999 python:
         def remove_file(self, pool_index, file_index):
             """Remove a file from a specific pool."""
             key = self._key()
-            if key is None:
-                return
             self._mgr._remove_file_from_pool(key, file_index, pool_index)
 
         def clear(self):
             """Remove all pools for the current context."""
             key = self._key()
-            if key is None:
-                return
             self._mgr.pop(key, None)
             self._mgr.save()
 
         def add_pool(self):
             """Append a new empty pool and auto-switch to it."""
             key = self._key()
-            if key is None:
-                return
             entry = self._mgr._get_or_create_entry(key)
             entry["pools"].append({
                 "files": [],
@@ -105,8 +92,6 @@ init -999 python:
             """Delete a pool. Removes the entry when no pools remain.
             Clamps the active index so the UI highlight stays valid."""
             key = self._key()
-            if key is None:
-                return
             entry = self._mgr.get(key)
             if entry is None:
                 return
@@ -131,17 +116,67 @@ init -999 python:
             """Set which pool new files are added to."""
             self._set_target(pool_index)
 
-        def add_folder(self, folder_path):
-            """Add all files under a folder prefix to the active pool."""
+        def apply_preset(self, preset_name):
+            """Replace the active pool with a preset reference."""
             key = self._key()
-            if key is None:
-                return
+            self._mgr._stamp_preset(key, preset_name, self.get_active())
+
+        def add_folder(self, folder_path):
+            """Add a folder reference to the active pool.
+            Stores the folder path (with trailing '/') instead of expanding to
+            individual files. Files are resolved at trigger time."""
+            key = self._key()
+            folder_ref = folder_path.rstrip("/") + "/"
+            self._mgr._detach_pool(key, self.get_active())
             pool = self._mgr._ensure_pool(key, self.get_active())
             files = pool.setdefault("files", [])
-            for f in _cue.available_files:
-                if f.startswith(folder_path) and f not in files and f not in _cue.disabled_files:
-                    files.append(f)
+            if folder_ref not in files:
+                files.append(folder_ref)
             self._mgr.save()
+
+
+    class ResolvedPool:
+        """Immutable snapshot of a resolved pool. Fields:
+        files, volume, frequency, trigger_on_shake."""
+        def __init__(self, files, volume, frequency, trigger_on_shake):
+            self.files = files
+            self.volume = volume
+            self.frequency = frequency
+            self.trigger_on_shake = trigger_on_shake
+
+
+    # =========================================================================
+    # CueImageContext — pool-based, i: prefix
+    # =========================================================================
+
+    class CueImageContext(CueMarkerContext):
+        """Manage image-triggered SFX pools (i: prefix)."""
+
+        def _key(self):
+            return create_img_key(_cue.current_file)
+
+        def _get_target(self):
+            return self._mgr._img_target
+
+        def _set_target(self, value):
+            self._mgr._img_target = int(value)
+
+
+    # =========================================================================
+    # CueDialogueContext — pool-based, d: prefix
+    # =========================================================================
+
+    class CueDialogueContext(CueMarkerContext):
+        """Manage dialogue-triggered SFX pools (d: prefix)."""
+
+        def _key(self):
+            return create_dlg_key((_cue.current_file, _cue.current_dialogue or ""))
+
+        def _get_target(self):
+            return self._mgr._dlg_target
+
+        def _set_target(self, value):
+            self._mgr._dlg_target = int(value)
 
 
     # =========================================================================
@@ -162,7 +197,7 @@ init -999 python:
         """
 
         def __init__(self, manager):
-            super(CueVideoContext, self).__init__(manager, "vid")
+            super(CueVideoContext, self).__init__(manager)
             self.target_pool = 0     # active timestamp index
             self.selected = set()    # multi-selection indices
             self.edit_text = ""      # time-edit input buffer
@@ -245,19 +280,20 @@ init -999 python:
                 self._mgr.save()
 
         def add_folder(self, folder_path):
-            """Add all files under a folder prefix to the active timestamp pool.
+            """Add a folder reference to the active timestamp pool.
+            Stores the folder path (with trailing '/') instead of expanding.
             Creates a new timestamp when none exist (requires playing video)."""
             if not _cue.current_file:
                 return
+            folder_ref = folder_path.rstrip("/") + "/"
             vid_key = self._key()
             entry = self._mgr.setdefault(vid_key, {"timestamps": []})
             timestamps = entry.setdefault("timestamps", [])
             if timestamps and 0 <= self.target_pool < len(timestamps):
                 # Add to existing active timestamp
                 pool_files = timestamps[self.target_pool].setdefault("files", [])
-                for f in _cue.available_files:
-                    if f.startswith(folder_path) and f not in pool_files and f not in _cue.disabled_files:
-                        pool_files.append(f)
+                if folder_ref not in pool_files:
+                    pool_files.append(folder_ref)
             else:
                 # Create new timestamp at current video position
                 ch = _cue.active_channel
@@ -266,14 +302,9 @@ init -999 python:
                 elapsed = _cue.vid_manager.get_elapsed()
                 if elapsed is None or elapsed <= 0:
                     return
-                new_files = []
-                for f in _cue.available_files:
-                    if f.startswith(folder_path) and f not in _cue.disabled_files:
-                        new_files.append(f)
-                if new_files:
-                    timestamps.append({"time": elapsed, "files": new_files})
-                    timestamps.sort(key=lambda e: e["time"])
-                    self.target_pool = len(timestamps) - 1
+                timestamps.append({"time": elapsed, "files": [folder_ref]})
+                timestamps.sort(key=lambda e: e["time"])
+                self.target_pool = len(timestamps) - 1
             self._mgr.save()
 
         def clear(self):
@@ -491,13 +522,11 @@ init -999 python:
         """
 
         def __init__(self, manager):
-            super(CueAutoplayContext, self).__init__(manager, "auto")
+            super(CueAutoplayContext, self).__init__(manager)
 
         def _key(self):
             """Build the a: key for the current context."""
-            if not _cue.current_file:
-                return None
-            return create_autoplay_key(_cue.current_file)
+            return create_autoplay_key(_cue.current_file or "")
 
         def _get_target(self):
             return self._mgr._autoplay_target
@@ -508,8 +537,6 @@ init -999 python:
         def add_pool(self):
             """Append a new empty pool (with frequency) and auto-switch to it."""
             key = self._key()
-            if key is None:
-                return
             entry = self._mgr._get_or_create_entry(key)
             entry["pools"].append({
                 "files": [],
@@ -522,21 +549,18 @@ init -999 python:
         def clear(self):
             """Remove autoplay markers for the current context."""
             key = self._key()
-            if key is None:
-                return
             self._mgr.pop(key, None)
             _cue.autoplay_states.pop(key, None)
             self._mgr.save()
 
         def set_frequency(self, freq):
-            """Set autoplay frequency for the active pool. 0=Slow, 1=Normal, 2=Fast, 3=Fastest."""
+            """Set autoplay frequency for the active pool. 0=Slow, 1=Normal, 2=Fast, 3=Fastest.
+            Pool-level override on preset-backed pools (no detach needed)."""
             key = self._key()
-            if key is None:
-                return
+            target = self.get_active()
             entry = self._mgr.get(key)
             if entry:
                 pools = entry.get("pools", [])
-                target = self.get_active()
                 if pools and 0 <= target < len(pools):
                     pools[target]["frequency"] = int(freq)
                     self._mgr.save()
@@ -571,11 +595,12 @@ init -999 python:
 
         def __init__(self):
             self._data = {}
+            self._presets = {}  # name -> {"files": [...], "volume": 1.0, ...}
             self._img_target = 0
             self._dlg_target = 0
             self._autoplay_target = 0
-            self.image = CueMarkerContext(self, "img")
-            self.dialogue = CueMarkerContext(self, "dlg")
+            self.image = CueImageContext(self)
+            self.dialogue = CueDialogueContext(self)
             self.video = CueVideoContext(self)
             self.autoplay = CueAutoplayContext(self)
             self.clipboard = None
@@ -611,6 +636,150 @@ init -999 python:
 
         def __len__(self):
             return len(self._data)
+
+        # -- presets --
+
+        def create_preset(self, name, pool_dict):
+            """Save a pool dict as a named preset. Overwrites if name exists."""
+            import copy as _copy
+            self._presets[name] = _copy.deepcopy(pool_dict)
+            self.save()
+            _cue_log("CREATE-PRESET name={} files={} vol={:.1f}".format(
+                name, len(pool_dict.get("files", [])), pool_dict.get("volume", _cue.VOL_DEFAULT)))
+
+        def delete_preset(self, name):
+            """Delete a preset by name. Markers referencing it will resolve to empty."""
+            if name in self._presets:
+                del self._presets[name]
+                self.save()
+                _cue_log("DELETE-PRESET name={}".format(name))
+
+        def preset_remove_file(self, name, file_path):
+            """Remove a file from a preset. If the file is in a folder ref,
+            detaches the folder ref to an explicit list minus the removed file."""
+            preset = self._presets.get(name)
+            if preset is None:
+                return
+            files = preset.get("files", [])
+            # Direct file removal
+            if file_path in files:
+                files.remove(file_path)
+                self.save()
+                return
+            # Check folder refs — detach if the file is inside one
+            for fi, f in enumerate(files):
+                if f.endswith("/") and file_path.startswith(f):
+                    resolved = []
+                    for rf in _cue.available_files:
+                        if rf.startswith(f) and rf not in _cue.disabled_files and rf not in resolved:
+                            resolved.append(rf)
+                    if file_path in resolved:
+                        resolved.remove(file_path)
+                    files[fi:fi + 1] = resolved
+                    self.save()
+                    return
+
+        def get_preset(self, name):
+            """Return preset dict or None."""
+            return self._presets.get(name)
+
+        def list_presets(self):
+            """Return sorted list of preset names."""
+            return sorted(self._presets.keys())
+
+        def resolve_pool(self, pool):
+            """Resolve a pool dict to a ResolvedPool object.
+
+            If pool is preset-backed (has 'preset' key), merges preset defaults
+            with pool-level overrides. Otherwise returns the pool's own values.
+
+            Pool-level keys take precedence over preset keys, so users can
+            tweak volume/frequency/shake on a preset-backed pool without
+            detaching. Only file mutations (add/remove) trigger a detach.
+            """
+            if "preset" in pool:
+                preset = self._presets.get(pool["preset"], {})
+                files = pool.get("files", preset.get("files", []))
+                volume = pool.get("volume", preset.get("volume", _cue.VOL_DEFAULT))
+                frequency = pool.get("frequency", preset.get("frequency", 1))
+                trigger_on_shake = pool.get("trigger_on_shake", preset.get("trigger_on_shake", False))
+                return ResolvedPool(list(files), volume, frequency, trigger_on_shake)
+            files = pool.get("files", [])
+            volume = pool.get("volume", _cue.VOL_DEFAULT)
+            frequency = pool.get("frequency", 1)
+            trigger_on_shake = pool.get("trigger_on_shake", False)
+            return ResolvedPool(files, volume, frequency, trigger_on_shake)
+
+        def _detach_pool(self, trigger_key, pool_index):
+            """If the pool at pool_index is preset-backed, resolve it to explicit
+            values and drop the 'preset' key. Saves after detaching.
+            Returns True if a detach occurred."""
+            entry = self._data.get(trigger_key)
+            if entry is None:
+                return False
+            pools = entry.get("pools")
+            if not pools or pool_index >= len(pools):
+                return False
+            pool = pools[pool_index]
+            if "preset" not in pool:
+                return False
+            preset_name = pool["preset"]
+            preset = self._presets.get(preset_name, {})
+            r = self.resolve_pool(pool)
+            del pool["preset"]
+            pool["files"] = r.files
+            pool["volume"] = r.volume
+            if "frequency" in preset:
+                pool["frequency"] = r.frequency
+            if "trigger_on_shake" in preset:
+                pool["trigger_on_shake"] = r.trigger_on_shake
+            self.save()
+            _cue_log("DETACH-POOL key={} pi={} preset={} files={}".format(
+                trigger_key, pool_index, preset_name, len(r.files)))
+            return True
+
+        def _stamp_preset(self, trigger_key, preset_name, pool_index=0):
+            """Replace a pool with a preset reference. Creates entry/pool if needed."""
+            entry = self._get_or_create_entry(trigger_key)
+            pools = entry["pools"]
+            # Ensure pool exists at index
+            while len(pools) <= pool_index:
+                pools.append({"files": [], "volume": _cue.VOL_DEFAULT})
+            pools[pool_index] = {"preset": preset_name}
+            self.save()
+            _cue_log("STAMP-PRESET key={} pi={} preset={}".format(
+                trigger_key, pool_index, preset_name))
+
+        def _remove_file_from_folder_ref(self, trigger_key, pool_index, file_index, child_file):
+            """Remove a specific child file from a folder ref at file_index.
+            Detaches the folder ref to an explicit list minus the child.
+            This is the '✕ on an expanded folder child' operation."""
+            self._detach_pool(trigger_key, pool_index)
+            entry = self._data.get(trigger_key)
+            if entry is None:
+                return
+            pools = entry.get("pools")
+            if not pools or pool_index >= len(pools):
+                return
+            pool = pools[pool_index]
+            files = pool.get("files", [])
+            if file_index >= len(files):
+                return
+            folder_ref = files[file_index]
+            if not folder_ref.endswith("/"):
+                return
+            # Resolve folder ref, excluding the child file
+            resolved = []
+            for f in _cue.available_files:
+                if f.startswith(folder_ref) and f not in _cue.disabled_files and f not in resolved:
+                    resolved.append(f)
+            if child_file in resolved:
+                resolved.remove(child_file)
+            # Replace folder ref with resolved list (minus child)
+            files[file_index:file_index + 1] = resolved
+            self.save()
+            _cue_log("DETACH-FOLDER-REMOVE key={} pi={} folder={} child={} remaining={}".format(
+                trigger_key, pool_index, folder_ref, child_file, len(resolved)))
 
         # -- internal helpers (used by context accessors) --
 
@@ -648,7 +817,9 @@ init -999 python:
             return pools[pool_index]
 
         def _add_file_to_pool(self, trigger_key, filename, pool_index=0):
-            """Append a file to a specific pool. Creates entry/pool if needed."""
+            """Append a file to a specific pool. Creates entry/pool if needed.
+            Detaches preset-backed pools before mutating."""
+            self._detach_pool(trigger_key, pool_index)
             pool = self._ensure_pool(trigger_key, pool_index)
             files = pool.setdefault("files", [])
             if filename not in files:
@@ -656,7 +827,9 @@ init -999 python:
             self.save()
 
         def _remove_file_from_pool(self, trigger_key, file_index, pool_index=0):
-            """Remove a file from a pool. Prunes empty pools and entries."""
+            """Remove a file from a pool. Prunes empty pools and entries.
+            Detaches preset-backed pools before mutating."""
+            self._detach_pool(trigger_key, pool_index)
             entry = self._data.get(trigger_key)
             if entry is None:
                 return
@@ -734,8 +907,9 @@ init -999 python:
 
             data = python_dict({
                 "markers": python_dict(self._data),
+                "presets": python_dict(self._presets),
                 "disabled_files": python_list(_cue.disabled_files),
-                "triggers_active": python_list([_cue.triggers_active]),
+                "triggers_active": _cue.triggers_active,
             })
             persistent._cue_markers = data
 
@@ -809,9 +983,12 @@ init -999 python:
                     data = _json.load(f)
                 persistent._cue_markers = data
                 self._data = _cue_unwrap_persistent(data.get("markers", {}))
+                self._presets = _cue_unwrap_persistent(data.get("presets", {}))
+                _cue_log("disabled___" + str(data.get("disabled_files")))
+                
+                _cue.disabled_files = set(data.get("disabled_files", []))
+                _cue.triggers_active = data.get("triggers_active", True)
                 self._normalize_all()
-                _cue.played_video_keys.clear()
-                _cue.autoplay_states = {}
                 self.save()
                 _cue_log("RESTORE-MARKERS total_keys={} path={}".format(
                     len(self._data), _cue.config_filename))

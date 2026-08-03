@@ -217,7 +217,11 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
 # remove_fn(remove_args..., fi) is called for row fi.
 # preview_vol is the effective volume passed to _cue_preview_sfx.
 # row_spacing controls horizontal gap in each row (5 for most, 2 for autoplay).
-screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing):
+# folder_child_remove_fn(trigger_key, pool_index, fi, child_file) is called when
+#   removing a single file from an expanded folder ref (detach operation).
+#   Pass None to hide ✕ on folder children (e.g. for video timestamps).
+screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
+                     trigger_key=None, pool_index=None, folder_child_remove_fn=None):
     viewport:
         xfill True
         ymaximum 120
@@ -228,11 +232,41 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing):
         vbox:
             spacing 2
             for fi, f in enumerate(files):
-                hbox:
-                    spacing row_spacing
-                    use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), None, None)
-                    use cue_icon_button("▶", Function(_cue_preview_sfx, f, preview_vol), None, None)
-                    text f style "cue_txt" color "#ffcc00" size 11
+                if f.endswith("/"):
+                    # --- Folder ref: expandable (matches SFX Library folder UI) ---
+                    $ _is_expanded = _cue.expanded_file_refs.get(f, False)
+                    hbox:
+                        spacing row_spacing
+                        if _is_expanded:
+                            use cue_icon_button("▾", Function(_cue_toggle_file_ref_expand, f), None, None)
+                        else:
+                            use cue_icon_button("▸", Function(_cue_toggle_file_ref_expand, f), None, None)
+                        use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder ref", None)
+                        use cue_icon_button("▶", Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol), "Preview random file from folder", None)
+                        textbutton f:
+                            style "cue_btn"
+                            text_style "cue_btn_text_sm"
+                            action Function(_cue_toggle_file_ref_expand, f)
+                            xsize None
+                            ysize 14
+                    if _is_expanded:
+                        for _child in _cue_resolve_files([f]):
+                            hbox:
+                                spacing row_spacing
+                                text "    " style "cue_txt"  # indent
+                                if folder_child_remove_fn is not None:
+                                    use cue_icon_button("✕",
+                                        Function(folder_child_remove_fn, trigger_key, pool_index, fi, _child),
+                                        "Remove this file from the folder ref", None)
+                                use cue_icon_button("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
+                                text _child style "cue_txt" color "#ffcc00" size 11
+                else:
+                    # --- Regular file ---
+                    hbox:
+                        spacing row_spacing
+                        use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), None, None)
+                        use cue_icon_button("▶", Function(_cue_preview_sfx, f, preview_vol), None, None)
+                        text f style "cue_txt" color "#ffcc00" size 11
 
 # Section frame: styled frame + header, with transclude for child content.
 # Usage: use cue_section_frame("Title"):  ...children...
@@ -284,23 +318,30 @@ screen cue_pool_section(section_title, ctx, vol_key, subtitle, subject, btn_lett
             ctx.set_active, (), "Select {} target pool — targets {} button".format(section_title, btn_letter))
         if _pools and 0 <= _target < len(_pools):
             $ _active_pool = _pools[_target]
-            $ _active_files = _active_pool.get("files", [])
-            $ _active_vol = _active_pool.get("volume", 1.0)
+            $ _r = _cue.markers.resolve_pool(_active_pool)
+            $ _is_preset_pool = "preset" in _active_pool
+            $ _active_pool.setdefault("volume", _r.volume)
+            $ _active_vol = _r.volume
             $ _active_eff = _cue.volume.get_effective(_entry, vol_key, pool_index=_target)
-            $ _active_label = "Pool " + str(_target + 1) + " (" + str(len(_active_files)) + " files)"
-            $ _cue._pool_ui = {"pool": _active_pool, "files": _active_files, "target": _target}
+            if _is_preset_pool:
+                $ _active_label = "Pool " + str(_target + 1) + " (Preset: " + _active_pool["preset"] + ")"
+            else:
+                $ _active_label = "Pool " + str(_target + 1) + " (" + str(len(_r.files)) + " files)"
+            $ _cue._pool_ui = {"pool": _active_pool, "files": _r.files, "target": _target, "freq": _r.frequency}
             hbox:
                 spacing 3
                 text _active_label style "cue_txt" size 11
+                use cue_icon_button("💾", Function(_cue.preset_dialog.open, vol_key, _target), "Save this pool as a preset", None)
                 use cue_icon_button("✕", Confirm("Delete this pool?", Function(ctx.remove_pool, _target)), "Delete this pool", None)
             transclude
-            $ _active_pool.setdefault("volume", 1.0)
             $ _dec = Function(_cue.volume.adjust, vol_key, -0.1, _target)
             $ _inc = Function(_cue.volume.adjust, vol_key, 0.1, _target)
             $ _vol_label = "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff)
             use cue_vol_row(_vol_label, _dec, _active_pool, _inc)
-            if _active_files:
-                use cue_file_list(_active_files, ctx.remove_file, (_target,), _active_eff, 5)
+            if _r.files:
+                use cue_file_list(_r.files, ctx.remove_file, (_target,), _active_eff, 5,
+                    trigger_key=vol_key, pool_index=_target,
+                    folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
             else:
                 text "Click the {} button in the SFX Library to add files to this pool.".format(btn_letter) style "cue_help"
         else:
@@ -500,7 +541,8 @@ screen cue_overlay_content():
                     use cue_vol_row(_vol_label, _dec, _active_ts, _inc)
                     # File list
                     if _active_files:
-                        use cue_file_list(_active_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 5)
+                        use cue_file_list(_active_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 5,
+                            trigger_key=_vid_key, pool_index=_vid_target)
                     else:
                         text "Click the V button in the SFX Library to add files to this pool." style "cue_help"
                 else:
@@ -533,9 +575,7 @@ screen cue_overlay_content():
         $ _autoplay_key = create_autoplay_key(_cue.current_file or "")
         use cue_pool_section("Autoplay SFX", _cue.markers.autoplay, _autoplay_key,
             None, "file", "A"):
-            $ _p = _cue._pool_ui["pool"]
-            $ _p.setdefault("frequency", 1)
-            $ _freq = _p.get("frequency", 1)
+            $ _freq = _cue._pool_ui.get("freq", 1)
             hbox:
                 spacing 5
                 text "Freq" style "cue_txt" size 11
@@ -588,6 +628,53 @@ screen cue_overlay_content():
                     vscrollbar_unscrollable "hide"
                     vbox:
                         spacing 2
+                        # --- Presets folder (matches audio tree folder UI) ---
+                        hbox:
+                            spacing 2
+                            if _cue._presets_expanded:
+                                use cue_icon_button("▾", Function(_cue_toggle_presets_expand), None, None)
+                            else:
+                                use cue_icon_button("▸", Function(_cue_toggle_presets_expand), None, None)
+                            $ _preset_names = _cue.markers.list_presets()
+                            textbutton "Presets/":
+                                style "cue_btn"
+                                text_style "cue_btn_text_sm"
+                                action Function(_cue_toggle_presets_expand)
+                                xsize None
+                                ysize 14
+                        if _cue._presets_expanded:
+                            for _pname in _preset_names:
+                                $ _pdata = _cue.markers.get_preset(_pname)
+                                $ _p_expanded = _cue._expanded_presets.get(_pname, False)
+                                $ _p_files = _cue_resolve_files(_pdata.get("files", [])) if _pdata else []
+                                $ _pfile_count = len(_p_files)
+                                hbox:
+                                    spacing 2
+                                    text "  " style "cue_txt"  # indent under Presets/
+                                    if _p_expanded:
+                                        use cue_icon_button("▾", Function(_cue_toggle_preset_expand, _pname), None, None)
+                                    else:
+                                        use cue_icon_button("▸", Function(_cue_toggle_preset_expand, _pname), None, None)
+                                    use cue_icon_button("▶", Function(_cue_preview_preset, _pname), "Preview random file from preset", None)
+                                    use cue_icon_button("I", Function(_cue.markers.image.apply_preset, _pname), "Apply preset to active Image SFX pool", None)
+                                    use cue_icon_button("D", Function(_cue.markers.dialogue.apply_preset, _pname), "Apply preset to active Dialogue SFX pool", None)
+                                    use cue_icon_button("A", Function(_cue.markers.autoplay.apply_preset, _pname), "Apply preset to active Autoplay SFX pool", None)
+                                    use cue_icon_button("✕", Function(_cue.markers.delete_preset, _pname), "Delete preset", None)
+                                    textbutton _pname:
+                                        style "cue_btn"
+                                        text_style "cue_btn_text_sm"
+                                        action Function(_cue_toggle_preset_expand, _pname)
+                                        xsize None
+                                        ysize 14
+                                if _p_expanded:
+                                    for _child in _p_files:
+                                        hbox:
+                                            spacing 2
+                                            text "    " style "cue_txt"  # double indent
+                                            use cue_icon_button("▶", Function(_cue_preview_sfx, _child), "Preview file", None)
+                                            use cue_icon_button("✕", Function(_cue.markers.preset_remove_file, _pname, _child), "Remove file from preset", None)
+                                            text _child style "cue_txt" color "#ffcc00" size 11
+                        # --- Folder/file tree ---
                         for item in _cue.visible_tree:
                             hbox:
                                 spacing 2
@@ -703,3 +790,70 @@ screen cue_repeat_pattern_dialog():
                             Function(_cue.beat.apply),
                             Function(_cue.beat.hide),
                         ]
+
+
+###############################################################################
+# SECTION 7: Save Preset Dialog
+###############################################################################
+
+screen cue_save_preset_dialog():
+    $ _d = _cue.preset_dialog
+    $ _entry = _cue.markers.get(_d.trigger_key) if _d.trigger_key else None
+    $ _pools = _entry.get("pools", []) if _entry else []
+    $ _pool = _pools[_d.pool_idx] if _pools and _d.pool_idx < len(_pools) else {}
+    $ _r = _cue.markers.resolve_pool(_pool)
+    $ _file_count = len(_r.files)
+    key "K_RETURN" action Function(_d.commit)
+    key "K_KP_ENTER" action Function(_d.commit)
+    key "K_ESCAPE" action Function(_d.cancel)
+
+    button:
+        xpos 500
+        ypos 8
+        padding (16, 8)
+        background "#2a2a2a"
+        hover_background "#2a2a2a"
+        xmaximum 400
+        action NullAction()
+
+        vbox:
+            spacing 8
+            text "Save Preset" style "cue_hdr"
+
+            hbox:
+                spacing 5
+                text "Files:" style "cue_txt"
+                text "{} file(s)".format(_file_count) style "cue_txt" color "#ffcc00"
+
+            hbox:
+                spacing 5
+                text "Volume:" style "cue_txt"
+                text "{:.1f}".format(_r.volume) style "cue_txt" color "#ffcc00"
+
+            null height 5
+
+            hbox:
+                spacing 5
+                text "Name:" style "cue_txt" size 12
+                input:
+                    style "cue_input"
+                    value VariableInputValue("_cue.preset_dialog.name")
+                    default True
+                    xsize 200
+                    copypaste True
+
+            null height 5
+
+            hbox:
+                spacing 8
+                xalign 1.0
+                textbutton "Cancel":
+                    style "cue_btn"
+                    text_style "cue_btn_text"
+                    action Function(_d.cancel)
+                textbutton "Save":
+                    style "cue_btn"
+                    text_style "cue_btn_text"
+                    action [
+                        Function(_d.commit),
+                    ]

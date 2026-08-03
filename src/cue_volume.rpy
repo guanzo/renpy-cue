@@ -32,7 +32,8 @@ init -999 python:
             if pool_index is not None:
                 pools = entry.get("pools")
                 if pools and 0 <= pool_index < len(pools):
-                    return pools[pool_index].get("volume", self.VOL_DEFAULT)
+                    _r = _cue.markers.resolve_pool(pools[pool_index])
+                    return _r.volume
             return entry.get("volume", self.VOL_DEFAULT)
 
         def write(self, trigger_key, new_vol, pool_index=None, ts_index=None):
@@ -118,8 +119,9 @@ init -999 python:
             if pool_index is not None:
                 pools = entry.get("pools")
                 if pools and 0 <= pool_index < len(pools):
-                    raw = pools[pool_index].get("volume", self.VOL_DEFAULT)
-                    return max(self.VOL_MIN, min(self.VOL_MAX, master * raw))
+                    _pool = pools[pool_index]
+                    _r = _cue.markers.resolve_pool(_pool)
+                    return max(self.VOL_MIN, min(self.VOL_MAX, master * _r.volume))
             return master
 
         # --- Convenience: video timestamp volume ---

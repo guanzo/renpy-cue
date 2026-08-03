@@ -42,6 +42,13 @@ E:\Porn\pGames\Dreamland-v0.6.0p-pc
 - `renpy.restart_interaction()`
 - `renpy.add_layer()`
 
+## Code Organization
+
+- **Encapsulate features as classes.** When adding a new UI component, dialog, or feature, create a dedicated class that owns its state, logic, and screen hooks. Prefer `_cue.thing = ThingManager()` over scattered `_cue._thing_var1`, `_cue._thing_var2` and global `_cue_do_thing()` functions.
+- **One class, one file** (in `src/`) when the class is substantial enough to stand alone (e.g. `cue_beat.rpy` for `CueBeatManager`, `cue_volume.rpy` for `CueVolumeManager`).
+- **Screen code in `cue_editor_ui.rpy`** reads from the class instance; the class handles `renpy.show_screen`/`hide_screen` and provides callable methods for `Function()` screen actions.
+- **Ren'Py constraint**: `Function()` in screen actions can only reference module-level Python objects (no lambdas/closures), so the class instance must be reachable at a stable path — typically as an attribute of `_cue` (the `NoRollback` singleton).
+
 ## Ren'Py Rollback Rules
 
 - `_cue` is a `NoRollback()` instance. Never reassign `_cue` itself — only mutate its attributes.
