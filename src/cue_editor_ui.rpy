@@ -109,7 +109,7 @@ screen cue_vol_row(label_text, dec_action, entry_dict, inc_action):
             right_bar Solid("#333333")
             thumb Solid("#cccccc")
             hover_thumb Solid("#ffffff")
-            changed _cue_on_volume_bar_changed
+            changed _cue.volume.on_bar_changed
         textbutton "+":
             style "cue_btn_icon"
             text_style "cue_btn_icon_text"
@@ -379,8 +379,8 @@ screen cue_editor_sidebar_content():
                 if _vid_entry:
                     $ _vid_entry.setdefault("volume", 1.0)
                     $ _master_vol = _vid_entry.get("volume", 1.0)
-                    $ _dec = Function(_cue_adjust_master_volume, _vid_key, -0.1)
-                    $ _inc = Function(_cue_adjust_master_volume, _vid_key, 0.1)
+                    $ _dec = Function(_cue.volume.adjust_master, _vid_key, -0.1)
+                    $ _inc = Function(_cue.volume.adjust_master, _vid_key, 0.1)
                     use cue_vol_row("Master: {:.1f}".format(_master_vol), _dec, _vid_entry, _inc)
                 use cue_pool_tabs(_vid_count, _vid_target, bool(_vid_entries),
                     "Delete all video timestamp markers for the current video?",
@@ -392,7 +392,7 @@ screen cue_editor_sidebar_content():
                     $ _active_ts = _vid_entries[_vid_target]
                     $ _active_files = _active_ts.get("files", [])
                     $ _active_vol = _active_ts.get("volume", _cue.VOL_DEFAULT)
-                    $ _active_eff = _cue_get_effective_volume(_vid_entry, _vid_key, ts_index=_vid_target)
+                    $ _active_eff = _cue.volume.get_effective(_vid_entry, _vid_key, ts_index=_vid_target)
                     $ _active_label = "Pool " + str(_vid_target + 1) + " (" + str(len(_active_files)) + " files)"
                     hbox:
                         spacing 3
@@ -421,8 +421,8 @@ screen cue_editor_sidebar_content():
                                            _inc10, _inc100, _display)
                     # Volume controls
                     $ _active_ts.setdefault("volume", 1.0)
-                    $ _dec = Function(_cue_adjust_video_volume, -0.1)
-                    $ _inc = Function(_cue_adjust_video_volume, 0.1)
+                    $ _dec = Function(_cue.volume.adjust_video, -0.1)
+                    $ _inc = Function(_cue.volume.adjust_video, 0.1)
                     $ _vol_label = "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff)
                     use cue_vol_row(_vol_label, _dec, _active_ts, _inc)
                     # File list
@@ -454,8 +454,8 @@ screen cue_editor_sidebar_content():
                 if _img_entry:
                     $ _img_entry.setdefault("volume", 1.0)
                     $ _master_vol = _img_entry.get("volume", 1.0)
-                    $ _dec = Function(_cue_adjust_master_volume, _img_key, -0.1)
-                    $ _inc = Function(_cue_adjust_master_volume, _img_key, 0.1)
+                    $ _dec = Function(_cue.volume.adjust_master, _img_key, -0.1)
+                    $ _inc = Function(_cue.volume.adjust_master, _img_key, 0.1)
                     use cue_vol_row("Master: {:.1f}".format(_master_vol), _dec, _img_entry, _inc)
                 # Tab row: [+ Pool] [1] [2] ...
                 use cue_pool_tabs(len(_img_pools), _img_target, bool(_img_pools),
@@ -468,15 +468,15 @@ screen cue_editor_sidebar_content():
                     $ _active_pool = _img_pools[_img_target]
                     $ _active_files = _active_pool.get("files", [])
                     $ _active_vol = _active_pool.get("volume", 1.0)
-                    $ _active_eff = _cue_get_effective_volume(_img_entry, _img_key, pool_index=_img_target)
+                    $ _active_eff = _cue.volume.get_effective(_img_entry, _img_key, pool_index=_img_target)
                     $ _active_label = "Pool " + str(_img_target + 1) + " (" + str(len(_active_files)) + " files)"
                     hbox:
                         spacing 3
                         text _active_label style "cue_txt" size 11
                         use cue_icon_button("✕", Confirm("Delete this pool?", Function(_cue_remove_pool, _img_key, _img_target, "img")), "Delete this pool", None)
                     $ _active_pool.setdefault("volume", 1.0)
-                    $ _dec = Function(_cue_adjust_volume, _img_key, -0.1, _img_target)
-                    $ _inc = Function(_cue_adjust_volume, _img_key, 0.1, _img_target)
+                    $ _dec = Function(_cue.volume.adjust, _img_key, -0.1, _img_target)
+                    $ _inc = Function(_cue.volume.adjust, _img_key, 0.1, _img_target)
                     $ _vol_label = "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff)
                     use cue_vol_row(_vol_label, _dec, _active_pool, _inc)
                     if _active_pool.get("trigger_on_shake", False):
@@ -517,8 +517,8 @@ screen cue_editor_sidebar_content():
                 if _dlg_entry:
                     $ _dlg_entry.setdefault("volume", 1.0)
                     $ _master_vol = _dlg_entry.get("volume", 1.0)
-                    $ _dec = Function(_cue_adjust_master_volume, _dlg_key, -0.1)
-                    $ _inc = Function(_cue_adjust_master_volume, _dlg_key, 0.1)
+                    $ _dec = Function(_cue.volume.adjust_master, _dlg_key, -0.1)
+                    $ _inc = Function(_cue.volume.adjust_master, _dlg_key, 0.1)
                     use cue_vol_row("Master: {:.1f}".format(_master_vol), _dec, _dlg_entry, _inc)
                 # Tab row: [+ Pool] [1] [2] ...
                 use cue_pool_tabs(len(_dlg_pools), _dlg_target, bool(_dlg_pools),
@@ -531,15 +531,15 @@ screen cue_editor_sidebar_content():
                     $ _active_pool = _dlg_pools[_dlg_target]
                     $ _active_files = _active_pool.get("files", [])
                     $ _active_vol = _active_pool.get("volume", 1.0)
-                    $ _active_eff = _cue_get_effective_volume(_dlg_entry, _dlg_key, pool_index=_dlg_target)
+                    $ _active_eff = _cue.volume.get_effective(_dlg_entry, _dlg_key, pool_index=_dlg_target)
                     $ _active_label = "Pool " + str(_dlg_target + 1) + " (" + str(len(_active_files)) + " files)"
                     hbox:
                         spacing 3
                         text _active_label style "cue_txt" size 11
                         use cue_icon_button("✕", Confirm("Delete this pool?", Function(_cue_remove_pool, _dlg_key, _dlg_target, "dlg")), "Delete this pool", None)
                     $ _active_pool.setdefault("volume", 1.0)
-                    $ _dec = Function(_cue_adjust_volume, _dlg_key, -0.1, _dlg_target)
-                    $ _inc = Function(_cue_adjust_volume, _dlg_key, 0.1, _dlg_target)
+                    $ _dec = Function(_cue.volume.adjust, _dlg_key, -0.1, _dlg_target)
+                    $ _inc = Function(_cue.volume.adjust, _dlg_key, 0.1, _dlg_target)
                     $ _vol_label = "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff)
                     use cue_vol_row(_vol_label, _dec, _active_pool, _inc)
                     if _active_files:
@@ -605,8 +605,8 @@ screen cue_editor_sidebar_content():
 
                 $ _autoplay_entry.setdefault("volume", 1.0)
                 $ _pool_vol = _autoplay_entry.get("volume", 1.0)
-                $ _dec = Function(_cue_adjust_volume, _autoplay_key, -0.1)
-                $ _inc = Function(_cue_adjust_volume, _autoplay_key, 0.1)
+                $ _dec = Function(_cue.volume.adjust, _autoplay_key, -0.1)
+                $ _inc = Function(_cue.volume.adjust, _autoplay_key, 0.1)
                 use cue_vol_row("Volume: {:.1f}".format(_pool_vol), _dec, _autoplay_entry, _inc)
 
                 hbox:

@@ -917,14 +917,6 @@ init python:
             _cue.vid_manager.played_video_keys.clear()
             _cue_save_markers()
     
-    def _cue_adjust_video_volume(delta):
-        """Adjust volume on the active timestamp."""
-        vid_key = create_vid_key(_cue.current_file)
-        entry = _cue.markers.get(vid_key)
-        if entry is None:
-            return
-        current = _cue_get_volume(entry, vid_key, ts_index=_cue.vid_target_pool)
-        _cue_write_volume(vid_key, current + delta, ts_index=_cue.vid_target_pool)
 
     def _cue_nudge_video_ts(delta):
         """Nudge the active timestamp's time by delta seconds.
@@ -1179,116 +1171,7 @@ init python:
             _cue_save_markers()
     
 
-    def _cue_get_volume(entry, trigger_key=None, pool_index=None, ts_index=None):
-        """Raw stored volume for the target (pool, timestamp, or entry).
-        Pool/timestamp volumes default to VOL_DEFAULT (1.0 identity) so
-        they multiply correctly with the master (entry-level) volume.
-        v: keys read the specified ts_index (falls back to first timestamp)."""
-        if trigger_key is not None and is_vid_key(trigger_key):
-            timestamps = entry.get("timestamps", [])
-            if timestamps:
-                idx = ts_index if ts_index is not None else 0
-                if 0 <= idx < len(timestamps):
-                    return timestamps[idx].get("volume", _cue.VOL_DEFAULT)
-                if timestamps:
-                    return timestamps[0].get("volume", _cue.VOL_DEFAULT)
-        if pool_index is not None:
-            pools = entry.get("pools")
-            if pools and 0 <= pool_index < len(pools):
-                return pools[pool_index].get("volume", _cue.VOL_DEFAULT)
-        return entry.get("volume", _cue.VOL_DEFAULT)
 
-    def _cue_write_volume(trigger_key, new_vol, pool_index=None, ts_index=None):
-        """Clamp and persist a volume, then save + refresh.
-        v: keys with ts_index write that specific timestamp; without ts_index
-        broadcast to all timestamps (backward-compatible).
-        i:/d: with pool_index write that pool; otherwise entry-level."""
-        entry = _cue.markers.get(trigger_key)
-        if entry is None:
-            return
-        new_vol = max(_cue.VOL_MIN, min(_cue.VOL_MAX, round(new_vol, 1)))
-        if is_vid_key(trigger_key):
-            timestamps = entry.get("timestamps", [])
-            if not timestamps:
-                return
-            if ts_index is not None and 0 <= ts_index < len(timestamps):
-                timestamps[ts_index]["volume"] = new_vol
-            else:
-                for ts_entry in timestamps:
-                    ts_entry["volume"] = new_vol
-        else:
-            target = None
-            if pool_index is not None:
-                pools = entry.get("pools")
-                if pools and 0 <= pool_index < len(pools):
-                    target = pools[pool_index]
-            if target is None:
-                target = entry
-            target["volume"] = new_vol
-        _cue_save_markers()
-        renpy.restart_interaction()
-
-    def _cue_adjust_volume(trigger_key, delta, pool_index=None):
-        """Adjust volume up/down by delta, clamped to [VOL_MIN, VOL_MAX].
-        pool_index targets one pool for i:/d: entries; None = entry-level."""
-        entry = _cue.markers.get(trigger_key)
-        if entry is None:
-            return
-        current = _cue_get_volume(entry, trigger_key, pool_index)
-        _cue_write_volume(trigger_key, current + delta, pool_index)
-
-    # --------------------------------------------------------------------------
-    # Master Volume (entry-level multiplier)
-    # --------------------------------------------------------------------------
-
-    def _cue_get_master_volume(trigger_key):
-        """Entry-level master volume for a key. Returns VOL_DEFAULT if unset."""
-        entry = _cue.markers.get(trigger_key)
-        if entry is None:
-            return _cue.VOL_DEFAULT
-        return entry.get("volume", _cue.VOL_DEFAULT)
-
-    def _cue_set_master_volume(trigger_key, value):
-        """Set entry-level master volume (clamped, persisted).
-        Writes entry["volume"] directly so it works for all key types."""
-        entry = _cue.markers.get(trigger_key)
-        if entry is None:
-            return
-        new_vol = max(_cue.VOL_MIN, min(_cue.VOL_MAX, round(value, 1)))
-        entry["volume"] = new_vol
-        _cue_save_markers()
-        renpy.restart_interaction()
-
-    def _cue_adjust_master_volume(trigger_key, delta):
-        """Adjust master volume by delta (reads raw master, not effective)."""
-        _cue_set_master_volume(trigger_key,
-            _cue_get_master_volume(trigger_key) + delta)
-
-    def _cue_get_effective_volume(entry, trigger_key=None, pool_index=None, ts_index=None):
-        """Effective playback volume = master (entry-level) x target volume, clamped.
-        Pool/timestamp volumes default to VOL_DEFAULT (1.0 identity) so master
-        is never double-counted. For entry-only queries returns master alone."""
-        master = entry.get("volume", _cue.VOL_DEFAULT) if entry is not None else _cue.VOL_DEFAULT
-        if trigger_key is not None and is_vid_key(trigger_key):
-            timestamps = entry.get("timestamps", [])
-            if timestamps:
-                idx = ts_index if ts_index is not None else 0
-                if 0 <= idx < len(timestamps):
-                    raw = timestamps[idx].get("volume", _cue.VOL_DEFAULT)
-                else:
-                    raw = timestamps[0].get("volume", _cue.VOL_DEFAULT)
-                return max(_cue.VOL_MIN, min(_cue.VOL_MAX, master * raw))
-        if pool_index is not None:
-            pools = entry.get("pools")
-            if pools and 0 <= pool_index < len(pools):
-                raw = pools[pool_index].get("volume", _cue.VOL_DEFAULT)
-                return max(_cue.VOL_MIN, min(_cue.VOL_MAX, master * raw))
-        return master
-
-    def _cue_on_volume_bar_changed():
-        """Called after any volume bar is dragged. Saves and refreshes the UI."""
-        _cue_save_markers()
-        renpy.restart_interaction()
 
 
     # --------------------------------------------------------------------------

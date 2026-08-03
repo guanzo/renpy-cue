@@ -46,6 +46,9 @@ init -999 python:
     # Video state (per-video playback tracking)
     _cue.vid_manager = CueVideoManager()
 
+    # Volume manager (per-entry volume read/write)
+    _cue.volume = CueVolumeManager()
+
     # UI state
     _cue.is_overlay_visible = False
     _cue.initialized = False
@@ -425,7 +428,7 @@ init python:
                 if _file in _picked:
                     continue
                 _picked.append(_file)
-                _pool_vol = _cue_get_effective_volume(entry, key, pool_index=pi)
+                _pool_vol = _cue.volume.get_effective(entry, key, pool_index=pi)
                 _cue_play_sfx(_file, key, volume=_pool_vol)
 
 
@@ -754,7 +757,7 @@ init python:
                                 files = ts_entry.get("files", [])
                                 if files:
                                     f = _cue_pick_file(files, avoid_repeats=False)
-                                    _vol = _cue_get_effective_volume(vid_entry, vid_key, ts_index=idx)
+                                    _vol = _cue.volume.get_effective(vid_entry, vid_key, ts_index=idx)
                                     _cue_play_sfx(f, vid_key, volume=_vol)
                                     _cue.vid_manager.played_video_keys.add(ts_key)
 
