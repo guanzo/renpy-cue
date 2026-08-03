@@ -306,33 +306,33 @@ screen cue_editor_sidebar_content():
                     hbox:
                         spacing 0
                         text "Time: " style "cue_txt"
-                        add SelfUpdatingLabel(_cue_time_label_getter, style="cue_txt")
+                        add SelfUpdatingLabel(_cue.vid_manager.time_label, style="cue_txt")
                     add Solid("#555555") xsize 2 ysize 15
                     hbox:
                         spacing 0
                         text "Frames: " style "cue_txt"
-                        add SelfUpdatingLabel(_cue_frame_label_getter, style="cue_txt")
+                        add SelfUpdatingLabel(_cue.vid_manager.frame_label, style="cue_txt")
                 hbox:
                     spacing 5
-                    if _cue.curr_vid_state.paused:
+                    if _cue.vid_manager.paused:
                         textbutton "▶":
                             style "cue_btn"
                             text_style "cue_btn_text"
-                            action Function(_cue_toggle_pause)
+                            action Function(_cue.vid_manager.toggle_pause)
                     else:
                         textbutton "⏸":
                             style "cue_btn"
                             text_style "cue_btn_text"
-                            action Function(_cue_toggle_pause)
+                            action Function(_cue.vid_manager.toggle_pause)
                     textbutton "-1f":
                         style "cue_btn"
                         text_style "cue_btn_text"
-                        action Function(_cue_seek_frame, -1)
+                        action Function(_cue.vid_manager.seek_frame, -1)
                         tooltip "Seek backwards 1 frame (inaccurate and requires restarting video)"
                     textbutton "+1f":
                         style "cue_btn"
                         text_style "cue_btn_text"
-                        action Function(_cue_seek_frame, 1)
+                        action Function(_cue.vid_manager.seek_frame, 1)
                         tooltip "Seek forward 1 frame (inaccurate)"
                     
                     fixed:

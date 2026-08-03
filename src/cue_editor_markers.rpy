@@ -209,7 +209,7 @@ init python:
             ch = _cue.active_channel
             if not ch or not renpy.music.is_playing(channel=ch):
                 return
-            elapsed = _cue_get_elapsed()
+            elapsed = _cue.vid_manager.get_elapsed()
             if elapsed is None or elapsed <= 0:
                 return
             new_files = []
@@ -470,7 +470,7 @@ init python:
         ch = _cue.active_channel
         if not ch or not renpy.music.is_playing(channel=ch):
             return
-        elapsed = _cue_get_elapsed()
+        elapsed = _cue.vid_manager.get_elapsed()
         if elapsed is None or elapsed <= 0:
             return
         filename = _cue.available_files[file_index]
@@ -497,7 +497,7 @@ init python:
         """Remove video markers for the current context."""
         vid_key = create_vid_key(_cue.current_file)
         _cue.markers.pop(vid_key, None)
-        _cue.curr_vid_state.played_video_keys = set()
+        _cue.vid_manager.played_video_keys.clear()
         _cue.vid_target_pool = 0
         _cue.mtl_selected = set()
         _cue_save_markers()
@@ -524,7 +524,7 @@ init python:
         new_time = _cue_parse_time(_cue.edit_video_ts_text)
         if new_time is not None and new_time >= 0:
             edited_entry = timestamps[index]
-            dur = _cue_get_duration()
+            dur = _cue.vid_manager.get_duration()
             if dur > 0:
                 new_time = max(0.0, min(new_time, dur - 0.05))
             edited_entry["time"] = new_time
@@ -534,7 +534,7 @@ init python:
                 _cue.vid_target_pool = timestamps.index(edited_entry)
             except ValueError:
                 _cue.vid_target_pool = min(index, len(timestamps) - 1)
-            _cue.curr_vid_state.played_video_keys = set()
+            _cue.vid_manager.played_video_keys.clear()
             _cue.mtl_selected = set()
             _cue_save_markers()
         # Reformat buffer to reflect current value (error feedback on parse failure)
@@ -609,7 +609,7 @@ init python:
 
     def _cue_mtl_get_dur():
         """Get video duration, floored at 0.001."""
-        return max(0.001, _cue_get_duration())
+        return max(0.001, _cue.vid_manager.get_duration())
 
     def _cue_mtl_set_time(idx, new_time):
         """Write a marker timestamp during drag — no sort/save (done on release)."""
@@ -618,7 +618,7 @@ init python:
             return
         entry = _cue.markers.get(vid_key, {})
         timestamps = entry.get("timestamps", [])
-        dur = _cue_get_duration()
+        dur = _cue.vid_manager.get_duration()
         new_time = max(0.0, min(new_time, dur - 0.05)) if dur > 0 else max(0.0, new_time)
         if 0 <= idx < len(timestamps):
             timestamps[idx]["time"] = new_time
@@ -669,7 +669,7 @@ init python:
         ch = _cue.active_channel
         if not ch or not renpy.music.is_playing(channel=ch):
             return
-        elapsed = _cue_get_elapsed()
+        elapsed = _cue.vid_manager.get_elapsed()
         if elapsed is None or elapsed <= 0:
             return
         vid_key = create_vid_key(_cue.current_file)
@@ -694,7 +694,7 @@ init python:
             _cue.vid_target_pool = 0
         else:
             _cue.vid_target_pool = min(_cue.vid_target_pool, len(timestamps) - 1)
-        _cue.curr_vid_state.played_video_keys = set()
+        _cue.vid_manager.played_video_keys.clear()
         _cue.mtl_selected = set()
         _cue_save_markers()
 
@@ -725,7 +725,7 @@ init python:
                     _cue.vid_target_pool = 0
                 else:
                     _cue.vid_target_pool = min(_cue.vid_target_pool, len(timestamps) - 1)
-            _cue.curr_vid_state.played_video_keys = set()
+            _cue.vid_manager.played_video_keys.clear()
             _cue.mtl_selected = set()
             _cue_save_markers()
         else:
@@ -801,7 +801,7 @@ init python:
         _cue.repeat_interval_text = "{:.2f}".format(default_interval)
 
         # Max repeats that fit in video duration
-        dur = _cue_get_duration()
+        dur = _cue.vid_manager.get_duration()
         if dur > 0 and default_interval > 0:
             max_count = int((dur - 0.05 - anchor_time - max_offset) / default_interval)
             if max_count < 0:
@@ -836,7 +836,7 @@ init python:
 
         anchor = _cue.repeat_pattern_anchor
         offsets = _cue.repeat_pattern_offsets
-        dur = _cue_get_duration()
+        dur = _cue.vid_manager.get_duration()
 
         new_count = 0
         for beat_idx in range(1, count + 1):
@@ -881,7 +881,7 @@ init python:
         offsets = _cue.repeat_pattern_offsets
         if not offsets:
             return []
-        dur = _cue_get_duration()
+        dur = _cue.vid_manager.get_duration()
         ghost = []
         for beat_idx in range(1, count + 1):
             beat_anchor = anchor + interval * beat_idx
@@ -914,7 +914,7 @@ init python:
         files = timestamps[ts_index].get("files", [])
         if 0 <= file_index < len(files):
             files.pop(file_index)
-            _cue.curr_vid_state.played_video_keys = set()
+            _cue.vid_manager.played_video_keys.clear()
             _cue_save_markers()
     
     def _cue_adjust_video_volume(delta):
@@ -936,7 +936,7 @@ init python:
         if not (0 <= index < len(timestamps)):
             return
         ts_entry = timestamps[index]
-        dur = _cue_get_duration()
+        dur = _cue.vid_manager.get_duration()
         new_time = ts_entry["time"] + delta
         if dur > 0:
             new_time = max(0.0, min(new_time, dur - 0.05))
@@ -951,7 +951,7 @@ init python:
             pass
         # Keep edit buffer in sync with the nudged value
         _cue.edit_video_ts_text = _cue_format_time(new_time)
-        _cue.curr_vid_state.played_video_keys = set()
+        _cue.vid_manager.played_video_keys.clear()
         _cue.mtl_selected = set()
         _cue_save_markers()
 
@@ -1098,7 +1098,7 @@ init python:
 
             # Clamp video timestamps to current video duration
             if is_vid_key(source_key):
-                dur = _cue_get_duration()
+                dur = _cue.vid_manager.get_duration()
                 pasted_entry = _cue.markers[new_key]
                 for ts_entry in pasted_entry.get("timestamps", []):
                     t = ts_entry.get("time", 0)
@@ -1108,7 +1108,7 @@ init python:
                         t = max(0.0, t)
                     ts_entry["time"] = t
 
-        _cue.curr_vid_state.played_video_keys = set()
+        _cue.vid_manager.played_video_keys.clear()
         _cue.autoplay_states = {}
         _cue_save_markers()
 
@@ -1145,7 +1145,7 @@ init python:
             persistent._cue_markers = data
             _cue.markers = python_dict(data.get("markers", {}))
             
-            _cue.curr_vid_state.played_video_keys = set()
+            _cue.vid_manager.played_video_keys.clear()
             _cue.autoplay_states = {}
             #_cue_normalize_all_markers()
             _cue_save_markers()

@@ -4,9 +4,21 @@
 
 init -999 python:
 
-    class CueVideoState:
-        """Per-video playback state so it resets cleanly on video change."""
-        def __init__(self):
+    class CueVideoManager:
+        """Per-video playback state and control.
+        Methods act on self.channel (the movie channel this state tracks);
+        _cue.active_channel is kept in sync by _cue_refresh_channel."""
+
+        def __init__(self, channel=None):
+            self.reset(channel)
+
+        # --- Playback control ---
+
+        def reset(self, channel=None):
+            """Reinitialize playback state (video changed).
+            Keeps the current channel unless a new one is given."""
+            if channel is not None:
+                self.channel = channel
             self.played_video_keys = set()
             self.paused = False
             self.fps = 30
@@ -18,6 +30,207 @@ init -999 python:
             self.pause_origin = 0.0
             self.total_offset = 0.0
             self.cached_dur = 0.0
+
+        def set_fps(self, fps):
+            """Apply the detected video framerate."""
+            self.fps = fps
+            self.frame_time = 1.0 / fps
+
+        def reset_pause(self):
+            """Clear the paused flag without touching playback (after load)."""
+            self.paused = False
+
+        def get_elapsed(self):
+            """Get current playback position (real pos + virtual offset)."""
+            if not self.channel:
+                return 0.0
+            try:
+                pos = renpy.music.get_pos(channel=self.channel)
+                if pos is not None:
+                    return max(0.0, pos + self.time_offset)
+            except Exception:
+                pass
+            return 0.0
+
+        def get_duration(self):
+            """Get total duration of the current video in seconds.
+            Caches the last valid duration so transient dropouts during seek
+            (stop/play restart) don't return 0 and blow up marker x-positions."""
+            if not self.channel:
+                return self.cached_dur
+            try:
+                dur = renpy.music.get_duration(channel=self.channel)
+                if dur is not None and dur > 0:
+                    self.cached_dur = dur
+                    return dur
+            except Exception:
+                pass
+            return self.cached_dur
+
+        def get_video_path(self):
+            """Get the filepath of the currently playing video."""
+            if not self.channel:
+                return None
+            try:
+                return renpy.music.get_playing(channel=self.channel)
+            except Exception:
+                return None
+
+        def toggle_pause(self):
+            """Toggle pause on the active video channel."""
+            if not self.channel:
+                return
+            self.time_offset = 0.0
+            try:
+                currently_paused = renpy.music.get_pause(channel=self.channel)
+                new_state = not currently_paused
+                renpy.music.set_pause(new_state, channel=self.channel)
+                self.paused = new_state
+                if new_state:  # Just paused — save origin
+                    self.pause_origin = renpy.music.get_pos(channel=self.channel) or 0.0
+                    self.total_offset = 0.0
+                    _cue_log("pause: origin={:.3f}".format(self.pause_origin))
+                else:  # Just unpaused
+                    self.total_offset = 0.0
+                    _cue_log("unpause: reset offset")
+            except Exception:
+                # Fallback: use volume as pseudo-pause
+                if not self.paused:
+                    renpy.music.set_volume(0.0, delay=0, channel=self.channel)
+                    self.paused = True
+                else:
+                    renpy.music.set_volume(1.0, delay=0, channel=self.channel)
+                    self.paused = False
+
+        def seek_frame(self, delta_frames):
+            """Step forward/backward.
+            Forward: briefly unpause, auto-re-pause via tick timer.
+            Backward: restart from 0, auto-pause at origin + accumulated offset.
+            Does not wrap around — clamps at 0 and duration."""
+            if not self.channel:
+                return
+            frame_seconds = self.frame_time
+            # Auto-pause if video is playing
+            if not self.paused:
+                renpy.music.set_pause(True, channel=self.channel)
+                self.paused = True
+                self.pause_origin = renpy.music.get_pos(channel=self.channel) or 0.0
+                self.total_offset = 0.0
+                self.time_offset = 0.0
+            dur = renpy.music.get_duration(channel=self.channel) or 0.0
+            if delta_frames > 0:
+                pos = renpy.music.get_pos(channel=self.channel) or 0.0
+                target = pos + delta_frames * frame_seconds
+                if dur > 0:
+                    target = min(target, dur - 0.05)
+                self.step_target = max(0.001, target)
+                _cue_log("+f step_target={:.3f}".format(self.step_target))
+                renpy.music.set_pause(False, channel=self.channel)
+            else:  # delta_frames < 0
+                self.total_offset += delta_frames * frame_seconds
+                origin = self.pause_origin
+                target = origin + self.total_offset
+                if dur > 0:
+                    target = max(0.0, min(target, dur - 0.05))
+                else:
+                    target = max(0.0, target)
+                filepath = renpy.music.get_playing(channel=self.channel)
+                _cue_log(
+                    "-f origin={:.3f} total_offset={:.3f} target={:.3f} dur={:.3f}"
+                    .format(origin, self.total_offset, target, dur)
+                )
+                if filepath and dur > 0:
+                    self.pause_target = max(0.001, target)
+                    renpy.music.stop(channel=self.channel, fadeout=0)
+                    renpy.music.play(filepath, channel=self.channel, loop=True)
+
+        def seek_to(self, target_time):
+            """Seek to an absolute timestamp and pause there.
+            Forward (target >= current pos): pause, set step_target, unpause.
+            The tick auto-pauses when pos reaches the target — no restart.
+            Backward (target < current pos): restart from 0 with pause_target."""
+            if not self.channel:
+                return
+            dur = renpy.music.get_duration(channel=self.channel) or 0.0
+            if dur <= 0:
+                return
+            target = max(0.0, min(target_time, dur - 0.05))
+            current_pos = renpy.music.get_pos(channel=self.channel) or 0.0
+            # Reset offset tracking for the absolute target
+            self.pause_origin = target
+            self.total_offset = 0.0
+            self.time_offset = 0.0
+            self.pause_target = 0.0
+            if target >= current_pos:
+                # Forward seek: pause, set step target, unpause (same as +1f)
+                if not self.paused:
+                    renpy.music.set_pause(True, channel=self.channel)
+                    self.paused = True
+                self.step_target = max(0.001, target)
+                renpy.music.set_pause(False, channel=self.channel)
+            else:
+                # Backward seek: restart from 0 (same as -1f)
+                filepath = renpy.music.get_playing(channel=self.channel)
+                if not filepath:
+                    return
+                self.step_target = 0.0
+                self.pause_target = max(0.001, target)
+                renpy.music.stop(channel=self.channel, fadeout=0)
+                renpy.music.play(filepath, channel=self.channel, loop=True)
+
+        # --- Tick hooks ---
+
+        def poll_autopause(self):
+            """Tick hook: auto-re-pause when a seek target is reached."""
+            if not self.channel or _cue.top_layer_type != 'movie':
+                return
+            try:
+                pos = renpy.music.get_pos(channel=self.channel)
+            except Exception:
+                return
+            if self.pause_target > 0 and pos is not None and pos >= self.pause_target:
+                renpy.music.set_pause(True, channel=self.channel)
+                self.pause_target = 0.0
+                self.paused = True
+                self.time_offset = 0.0
+            if self.step_target > 0 and pos is not None and pos >= self.step_target:
+                renpy.music.set_pause(True, channel=self.channel)
+                self.step_target = 0.0
+                self.paused = True
+                self.time_offset = 0.0
+
+        def sync_paused(self):
+            """Mirror the channel's real pause state (UI play/pause buttons)."""
+            if not self.channel:
+                return
+            try:
+                self.paused = renpy.music.get_pause(channel=self.channel)
+            except Exception:
+                pass
+
+        # --- Label getters (zero-arg callables for SelfUpdatingLabel) ---
+
+        def time_label(self):
+            """Return 'elapsed / duration' formatted for the live time display."""
+            if _cue.top_layer_type != 'movie':
+                _cue_log("not movie? " + str(_cue.top_layer_type) + " " + str(_cue.current_file))
+                return "--:--.-- / --:--.--"
+            e = self.get_elapsed()
+            d = self.get_duration()
+            return "{} / {}".format(
+                _cue_format_time(e),
+                _cue_format_time(d),
+            )
+
+        def frame_label(self):
+            """Return 'frame / total' formatted for the live frame display."""
+            if _cue.top_layer_type != 'movie':
+                _cue_log("not movie? " + str(_cue.top_layer_type) + " " + str(_cue.current_file))
+                return "---/---"
+            e = self.get_elapsed()
+            d = self.get_duration()
+            fps = max(1, self.fps)
+            return "{}/{}".format(int(e * fps), int(d * fps))
 
     # --- All runtime state on a single NoRollback object ---
     # Ren'Py skips rollback for NoRollback instances — no state gets corrupted
@@ -59,7 +272,7 @@ init -999 python:
     _cue.triggers_active = True
 
     # Video state (per-video playback tracking)
-    _cue.curr_vid_state = CueVideoState()
+    _cue.vid_manager = CueVideoManager()
 
     # UI state
     _cue.visible = False
@@ -181,7 +394,7 @@ init 999 python:
         def _cue_after_load():
             if _cue.visible:
                 _cue.visible = False
-                _cue.curr_vid_state.paused = False
+                _cue.vid_manager.reset_pause()
         config.after_load_callbacks.append(_cue_after_load)
 
         # Character callback — updates dialogue text only (context change
@@ -347,7 +560,7 @@ init python:
 
     def _cue_log_context():
         """Log current context state for debugging — even if nothing changed."""
-        _vpath = _cue_get_video_path()
+        _vpath = _cue.vid_manager.get_video_path()
         _vname = _vpath.rsplit("/", 1)[-1] if _vpath else "(none)"
         _playing = "?"
         if _cue.active_channel:
@@ -552,12 +765,11 @@ init python:
                                 break
                         except Exception:
                             pass
-                _cue.curr_vid_state.fps = fps
-                _cue.curr_vid_state.frame_time = 1.0 / fps
-
                 _cue.active_channel = ch_name
+                _cue.vid_manager.channel = ch_name
                 if old_ch != ch_name:
-                    _cue_reset_loop_tracking()
+                    _cue.vid_manager.reset(ch_name)
+                _cue.vid_manager.set_fps(fps)
 
             try:
                 import renpy.audio.audio as aaudio
@@ -587,190 +799,11 @@ init python:
                     pass
 
             _cue.active_channel = None
+            _cue.vid_manager.channel = None
         finally:
             _cue.__refreshing = False
 
 
-    def _cue_reset_loop_tracking():
-        """Reset all video state when the video changes."""
-        _cue.curr_vid_state = CueVideoState()
-
-
-    # --------------------------------------------------------------------------
-    # Video Metadata
-    # --------------------------------------------------------------------------
-
-    def _cue_get_elapsed():
-        """Get current playback position (real pos + virtual offset)."""
-        ch = _cue.active_channel
-        if not ch:
-            return 0.0
-        try:
-            pos = renpy.music.get_pos(channel=ch)
-            if pos is not None:
-                return max(0.0, pos + _cue.curr_vid_state.time_offset)
-        except Exception:
-            pass
-        return 0.0
-
-
-    def _cue_get_duration():
-        """Get total duration of the current video in seconds.
-        Caches the last valid duration so transient dropouts during seek
-        (stop/play restart) don't return 0 and blow up marker x-positions."""
-        ch = _cue.active_channel
-        if not ch:
-            return _cue.curr_vid_state.cached_dur
-        try:
-            dur = renpy.music.get_duration(channel=ch)
-            if dur is not None and dur > 0:
-                _cue.curr_vid_state.cached_dur = dur
-                return dur
-        except Exception:
-            pass
-        return _cue.curr_vid_state.cached_dur
-
-
-    def _cue_get_video_path():
-        """Get the filepath of the currently playing video."""
-        ch = _cue.active_channel
-        if not ch:
-            return None
-        try:
-            return renpy.music.get_playing(channel=ch)
-        except Exception:
-            return None
-
-
-    # --------------------------------------------------------------------------
-    # Video Control: Pause
-    # --------------------------------------------------------------------------
-
-    def _cue_toggle_pause():
-        """Toggle pause on the active video channel."""
-        ch = _cue.active_channel
-        if not ch:
-            return
-
-        _cue.curr_vid_state.time_offset = 0.0
-
-        try:
-            currently_paused = renpy.music.get_pause(channel=ch)
-            new_state = not currently_paused
-            renpy.music.set_pause(new_state, channel=ch)
-            _cue.curr_vid_state.paused = new_state
-
-            if new_state:  # Just paused — save origin
-                _cue.curr_vid_state.pause_origin = renpy.music.get_pos(channel=ch) or 0.0
-                _cue.curr_vid_state.total_offset = 0.0
-                _cue_log("pause: origin={:.3f}".format(_cue.curr_vid_state.pause_origin))
-            else:  # Just unpaused
-                _cue.curr_vid_state.total_offset = 0.0
-                _cue_log("unpause: reset offset")
-        except Exception:
-            # Fallback: use volume as pseudo-pause
-            if not _cue.curr_vid_state.paused:
-                renpy.music.set_volume(0.0, delay=0, channel=ch)
-                _cue.curr_vid_state.paused = True
-            else:
-                renpy.music.set_volume(1.0, delay=0, channel=ch)
-                _cue.curr_vid_state.paused = False
-
-
-    # --------------------------------------------------------------------------
-    # Video Control: Frame Step (virtual offset — seeking doesn't work on
-    # Ren'Py movie channels, so we use a time offset for display/markers)
-    # --------------------------------------------------------------------------
-
-    def _cue_seek_frame(delta_frames):
-        """Step forward/backward.
-        Forward: briefly unpause, auto-re-pause via tick timer.
-        Backward: restart from 0, auto-pause at origin + accumulated offset.
-        Does not wrap around — clamps at 0 and duration."""
-        ch = _cue.active_channel
-        if not ch:
-            return
-
-        frame_seconds = _cue.curr_vid_state.frame_time
-
-        # Auto-pause if video is playing
-        if not _cue.curr_vid_state.paused:
-            renpy.music.set_pause(True, channel=ch)
-            _cue.curr_vid_state.paused = True
-            _cue.curr_vid_state.pause_origin = renpy.music.get_pos(channel=ch) or 0.0
-            _cue.curr_vid_state.total_offset = 0.0
-            _cue.curr_vid_state.time_offset = 0.0
-
-        dur = renpy.music.get_duration(channel=ch) or 0.0
-
-        if delta_frames > 0:
-            pos = renpy.music.get_pos(channel=ch) or 0.0
-            target = pos + delta_frames * frame_seconds
-            if dur > 0:
-                target = min(target, dur - 0.05)
-            _cue.curr_vid_state.step_target = max(0.001, target)
-            _cue_log("+f step_target={:.3f}".format(_cue.curr_vid_state.step_target))
-            renpy.music.set_pause(False, channel=ch)
-
-        else:  # delta_frames < 0
-            _cue.curr_vid_state.total_offset += delta_frames * frame_seconds
-            origin = _cue.curr_vid_state.pause_origin
-            target = origin + _cue.curr_vid_state.total_offset
-            if dur > 0:
-                target = max(0.0, min(target, dur - 0.05))
-            else:
-                target = max(0.0, target)
-
-            filepath = renpy.music.get_playing(channel=ch)
-            _cue_log(
-                "-f origin={:.3f} total_offset={:.3f} target={:.3f} dur={:.3f}"
-                .format(origin, _cue.curr_vid_state.total_offset, target, dur)
-            )
-            if filepath and dur > 0:
-                _cue.curr_vid_state.pause_target = max(0.001, target)
-                renpy.music.stop(channel=ch, fadeout=0)
-                renpy.music.play(filepath, channel=ch, loop=True)
-
-
-    def _cue_seek_to(target_time):
-        """Seek to an absolute timestamp and pause there.
-
-        Forward (target >= current pos): pause, set __step_target, unpause.
-        The tick auto-pauses when pos reaches the target — no restart needed.
-        Backward (target < current pos): restart from 0 with __pause_target."""
-        ch = _cue.active_channel
-        if not ch:
-            return
-
-        dur = renpy.music.get_duration(channel=ch) or 0.0
-        if dur <= 0:
-            return
-
-        target = max(0.0, min(target_time, dur - 0.05))
-        current_pos = renpy.music.get_pos(channel=ch) or 0.0
-
-        # Reset offset tracking for the absolute target
-        _cue.curr_vid_state.pause_origin = target
-        _cue.curr_vid_state.total_offset = 0.0
-        _cue.curr_vid_state.time_offset = 0.0
-        _cue.curr_vid_state.pause_target = 0.0
-
-        if target >= current_pos:
-            # Forward seek: pause, set step target, unpause (same as +1f)
-            if not _cue.curr_vid_state.paused:
-                renpy.music.set_pause(True, channel=ch)
-                _cue.curr_vid_state.paused = True
-            _cue.curr_vid_state.step_target = max(0.001, target)
-            renpy.music.set_pause(False, channel=ch)
-        else:
-            # Backward seek: restart from 0 (same as -1f)
-            filepath = renpy.music.get_playing(channel=ch)
-            if not filepath:
-                return
-            _cue.curr_vid_state.step_target = 0.0
-            _cue.curr_vid_state.pause_target = max(0.001, target)
-            renpy.music.stop(channel=ch, fadeout=0)
-            renpy.music.play(filepath, channel=ch, loop=True)
 
 
     # --------------------------------------------------------------------------
@@ -866,25 +899,10 @@ init python:
         _cue_refresh_channel()
 
         # Keep paused state in sync (referenced by the UI for play/pause buttons)
-        try:
-            _cue.curr_vid_state.paused = renpy.music.get_pause(channel=_cue.active_channel)
-        except Exception:
-            pass
+        _cue.vid_manager.sync_paused()
 
         # --- Auto-re-pause after seek (runs regardless of SFX Active) ---
-        ch = _cue.active_channel
-        if ch and _cue.top_layer_type == 'movie':
-            pos = renpy.music.get_pos(channel=ch)
-            if _cue.curr_vid_state.pause_target > 0 and pos is not None and pos >= _cue.curr_vid_state.pause_target:
-                renpy.music.set_pause(True, channel=ch)
-                _cue.curr_vid_state.pause_target = 0.0
-                _cue.curr_vid_state.paused = True
-                _cue.curr_vid_state.time_offset = 0.0
-            if _cue.curr_vid_state.step_target > 0 and pos is not None and pos >= _cue.curr_vid_state.step_target:
-                renpy.music.set_pause(True, channel=ch)
-                _cue.curr_vid_state.step_target = 0.0
-                _cue.curr_vid_state.paused = True
-                _cue.curr_vid_state.time_offset = 0.0
+        _cue.vid_manager.poll_autopause()
 
         if not _cue.triggers_active:
             return
@@ -945,7 +963,7 @@ init python:
         # --- VIDEO MODE triggers (v: keys) ---
         ch = _cue.active_channel
         if ch and _cue.top_layer_type == 'movie':
-            elapsed = _cue_get_elapsed()
+            elapsed = _cue.vid_manager.get_elapsed()
 
             # Video markers
             if _cue.current_file:
@@ -955,7 +973,7 @@ init python:
                     timestamps = vid_entry.get("timestamps", [])
                     for idx, ts_entry in enumerate(timestamps):
                         ts_key = "{}@{}".format(vid_key, idx)
-                        if ts_key not in _cue.curr_vid_state.played_video_keys:
+                        if ts_key not in _cue.vid_manager.played_video_keys:
                             if "time" not in ts_entry:
                                 _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(ts_entry))
                                 continue
@@ -966,12 +984,12 @@ init python:
                                     f = _cue_pick_file(files, avoid_repeats=False)
                                     _vol = _cue_get_effective_volume(vid_entry, vid_key, ts_index=idx)
                                     _cue_play_cue(f, vid_key, volume=_vol)
-                                    _cue.curr_vid_state.played_video_keys.add(ts_key)
+                                    _cue.vid_manager.played_video_keys.add(ts_key)
 
             # Detect video loop (markers only, pool uses wall clock)
-            if _cue.curr_vid_state.last_elapsed > 0 and elapsed < _cue.curr_vid_state.last_elapsed - 0.3:
-                _cue.curr_vid_state.played_video_keys.clear()
-            _cue.curr_vid_state.last_elapsed = elapsed
+            if _cue.vid_manager.last_elapsed > 0 and elapsed < _cue.vid_manager.last_elapsed - 0.3:
+                _cue.vid_manager.played_video_keys.clear()
+            _cue.vid_manager.last_elapsed = elapsed
 
 
     # --------------------------------------------------------------------------
@@ -1085,28 +1103,6 @@ init python:
 
 # =============================================================================
 
-init python:
-    def _cue_time_label_getter():
-        """Return 'elapsed / duration' formatted for the live time display."""
-        if _cue.top_layer_type != 'movie':
-            _cue_log("not movie? " + _cue.top_layer_type + " " + _cue.current_file)
-            return "--:--.-- / --:--.--"
-        e = _cue_get_elapsed()
-        d = _cue_get_duration()
-        return "{} / {}".format(
-            _cue_format_time(e),
-            _cue_format_time(d),
-        )
-
-    def _cue_frame_label_getter():
-        """Return 'frame / total' formatted for the live frame display."""
-        if _cue.top_layer_type != 'movie':
-            _cue_log("not movie? " + _cue.top_layer_type + " " + _cue.current_file)
-            return "---/---"
-        e = _cue_get_elapsed()
-        d = _cue_get_duration()
-        fps = max(1, _cue.curr_vid_state.fps)
-        return "{}/{}".format(int(e * fps), int(d * fps))
 
 
 # =============================================================================

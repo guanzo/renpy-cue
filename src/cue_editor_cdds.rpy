@@ -48,9 +48,10 @@ init python:
             self._w = width
             r = renpy.Render(width, height)
 
-            dur = _cue_get_duration()
-            elapsed = _cue_get_elapsed()
-            paused = _cue.curr_vid_state.paused
+            vs = _cue.vid_manager
+            dur = vs.get_duration()
+            elapsed = vs.get_elapsed()
+            paused = vs.paused
 
             # Determine hover state for subtle brightness change
             hovered = False
@@ -115,12 +116,13 @@ init python:
                 # Only handle clicks within the visible bar area
                 bar_y = getattr(self, '_bar_y', 0)
                 if bar_y <= y <= bar_y + self.BAR_H:
-                    dur = _cue_get_duration()
+                    vs = _cue.vid_manager
+                    dur = vs.get_duration()
                     if dur > 0 and _cue.active_channel:
                         w = getattr(self, '_w', 1)
                         if w > 0:
                             frac = max(0.0, min(1.0, x / float(w)))
-                            _cue_seek_to(frac * dur)
+                            vs.seek_to(frac * dur)
                             renpy.redraw(self, 0)
                             raise renpy.display.core.IgnoreEvent()
                 return None
