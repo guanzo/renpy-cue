@@ -60,8 +60,8 @@ style cue_hdr is cue_txt:
     bold True
 
 style cue_help is cue_txt:
-    size 11
-    color "#888888"
+    size 12
+    color "#aaaaaa"
 
 style cue_input is cue_txt:
     size 12
@@ -304,7 +304,7 @@ screen cue_section_frame(header_text):
 # vol_key: trigger key for volume/marker lookups
 # subtitle: optional "Label: value" text below header (None to skip)
 # subject: noun for confirm messages ("dialogue", "image", "file")
-# btn_letter: "D", "I", or "A" for hint messages
+# btn_letter: "D", "I", or "L" for hint messages
 # Transclude: extra UI between pool label and volume row (shake toggle,
 #             frequency selector). Reads _cue._pool_ui["pool"].
 screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_letter):
@@ -597,7 +597,7 @@ screen cue_overlay_content():
         # Loop SFX
         $ _loop_key = create_loop_key(_cue.current_file or "")
         use cue_context_section("Loop SFX", _cue.markers.loop, _loop_key,
-            None, "file", "A"):
+            None, "file", "L"):
             $ _freq = _cue._pool_ui.get("freq", 1)
             hbox:
                 spacing 5
@@ -683,7 +683,7 @@ screen cue_overlay_content():
                                     use cue_icon_button("▶", Function(_cue_preview_preset, _pname), "Preview random file from preset", None)
                                     use cue_icon_button("I", Function(_cue.markers.image.apply_preset, _pname), "Apply preset to active Image SFX pool", None)
                                     use cue_icon_button("D", Function(_cue.markers.dialogue.apply_preset, _pname), "Apply preset to active Dialogue SFX pool", None)
-                                    use cue_icon_button("A", Function(_cue.markers.loop.apply_preset, _pname), "Apply preset to active Loop SFX pool", None)
+                                    use cue_icon_button("L", Function(_cue.markers.loop.apply_preset, _pname), "Apply preset to active Loop SFX pool", None)
                                     use cue_icon_button("✕", Function(_cue_confirm_delete_preset, _pname), "Delete preset", None)
                                     textbutton _pname:
                                         style "cue_btn"
@@ -715,7 +715,7 @@ screen cue_overlay_content():
                                         use cue_icon_button("V", Function(_cue.markers.video.add_folder, item["full_path"]), "Add folder to active video timestamp pool", None)
                                         use cue_icon_button("I", Function(_cue.markers.image.add_folder, item["full_path"]), "Add folder to Image SFX pool", None)
                                         use cue_icon_button("D", Function(_cue.markers.dialogue.add_folder, item["full_path"]), "Add folder to Dialogue SFX pool", None)
-                                        use cue_icon_button("A", Function(_cue.markers.loop.add_folder, item["full_path"]), "Add folder to Loop SFX Pool", None)
+                                        use cue_icon_button("L", Function(_cue.markers.loop.add_folder, item["full_path"]), "Add folder to Loop SFX Pool", None)
                                     textbutton item["name"]:
                                         style "cue_btn"
                                         text_style "cue_btn_text_sm"
@@ -732,7 +732,7 @@ screen cue_overlay_content():
                                     # Dialogue SFX
                                     use cue_icon_button("D", Function(_cue.markers.dialogue.add_file, item["index"]), "Add to Dialogue SFX pool", None)
                                     # Loop SFX
-                                    use cue_icon_button("A", Function(_cue.markers.loop.add_file, item["index"]), "Add to Loop SFX pool", None)
+                                    use cue_icon_button("L", Function(_cue.markers.loop.add_file, item["index"]), "Add to Loop SFX pool", None)
                                     if item.get("enabled", True):
                                         use cue_icon_button("☑", Function(_cue_toggle_file_enabled, item["full_path"]), "Click to disable globally", None)
                                     else:
