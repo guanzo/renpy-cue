@@ -51,7 +51,9 @@ Ren'Py concatenates all `.rpy` files into a single flat namespace. To avoid coll
 - **Module-level singleton**: `_cue` (the `NoRollback` instance)
 - **`init python:` block imports**: `import foo as _foo` — keeps the import local to the block
 
-Function-local variables do NOT need underscores — they're scoped to their function and can't collide. Use normal Python names: `vol`, `total`, `picked`, `tries`, `channels`, not `_vol`, `_total`, `_picked`, `_tries`, `_channels`.
+Function-local variables do NOT need underscores — they're scoped to their function and can't collide.
+
+**Boolean naming**: use a prefix — `is_`, `has_`, `can_`, `did_`, `was_`, `should_`, `will_`. Not bare adjectives: `paused`, `visible`, `initialized`.
 
 ## Code Organization
 
