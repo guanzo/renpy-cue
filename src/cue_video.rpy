@@ -20,7 +20,6 @@ init -999 python:
             Keeps the current channel unless a new one is given."""
             if channel is not None:
                 self.channel = channel
-            self.played_video_keys = set()
             self.paused = False
             self.fps = 30
             self.last_elapsed = 0.0

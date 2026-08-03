@@ -45,6 +45,7 @@ init -999 python:
 
     # Video state (per-video playback tracking)
     _cue.vid_manager = CueVideoManager()
+    _cue.played_video_keys = set()  # tracks which v: markers have already fired this playback
 
     # Volume manager (per-entry volume read/write)
     _cue.volume = CueVolumeManager()
@@ -744,7 +745,7 @@ init python:
                     timestamps = vid_entry.get("timestamps", [])
                     for idx, ts_entry in enumerate(timestamps):
                         ts_key = "{}@{}".format(vid_key, idx)
-                        if ts_key not in _cue.vid_manager.played_video_keys:
+                        if ts_key not in _cue.played_video_keys:
                             if "time" not in ts_entry:
                                 _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(ts_entry))
                                 continue
@@ -755,11 +756,11 @@ init python:
                                     f = _cue_pick_file(files, avoid_repeats=False)
                                     _vol = _cue.volume.get_effective(vid_entry, vid_key, ts_index=idx)
                                     _cue_play_sfx(f, vid_key, volume=_vol)
-                                    _cue.vid_manager.played_video_keys.add(ts_key)
+                                    _cue.played_video_keys.add(ts_key)
 
             # Detect video loop (markers only, pool uses wall clock)
             if _cue.vid_manager.last_elapsed > 0 and elapsed < _cue.vid_manager.last_elapsed - 0.3:
-                _cue.vid_manager.played_video_keys.clear()
+                _cue.played_video_keys.clear()
             _cue.vid_manager.last_elapsed = elapsed
 
 
