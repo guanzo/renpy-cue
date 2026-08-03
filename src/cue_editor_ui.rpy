@@ -91,7 +91,7 @@ init -990 python:
 
 # Volume row: label + - button + slider bar + + button
 # dec_action/inc_action are pre-built Function() objects — call sites differ
-# in which adjust function they use (master vs pool vs video-pool vs autoplay).
+# in which adjust function they use (master vs pool vs video-pool vs loop).
 screen cue_vol_row(label_text, dec_action, entry_dict, inc_action):
     hbox:
         spacing 3
@@ -211,7 +211,7 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
 # Scrollable file list: ✕ remove + ▶ preview per row.
 # remove_fn(remove_args..., fi) is called for row fi.
 # preview_vol is the effective volume passed to _cue_preview_sfx.
-# row_spacing controls horizontal gap in each row (5 for most, 2 for autoplay).
+# row_spacing controls horizontal gap in each row (5 for most, 2 for loop).
 # folder_child_remove_fn(trigger_key, pool_index, fi, child_file) is called when
 #   removing a single file from an expanded folder ref (detach operation).
 #   Pass None to hide ✕ on folder children (e.g. for video timestamps).
@@ -298,7 +298,7 @@ screen cue_section_frame(header_text):
             if not _collapsed:
                 transclude
 
-# Generic context section: shared by dialogue, image, and autoplay SFX.
+# Generic context section: shared by dialogue, image, and loop SFX.
 # ctx: marker context with add_pool, remove_pool, clear, set_active,
 #      get_active, remove_file (e.g. _cue.markers.dialogue)
 # vol_key: trigger key for volume/marker lookups
@@ -594,9 +594,9 @@ screen cue_overlay_content():
         if _cue.scan_error:
             text "[_cue.scan_error]" style "cue_help" color "#ff6666"
 
-        # Autoplay SFX
-        $ _autoplay_key = create_autoplay_key(_cue.current_file or "")
-        use cue_context_section("Autoplay SFX", _cue.markers.autoplay, _autoplay_key,
+        # Loop SFX
+        $ _loop_key = create_loop_key(_cue.current_file or "")
+        use cue_context_section("Loop SFX", _cue.markers.loop, _loop_key,
             None, "file", "A"):
             $ _freq = _cue._pool_ui.get("freq", 1)
             hbox:
@@ -613,7 +613,7 @@ screen cue_overlay_content():
                         background "#669966"
                     else:
                         background "#444444"
-                    action Function(_cue.markers.autoplay.set_frequency, 0)
+                    action Function(_cue.markers.loop.set_frequency, 0)
                 textbutton "Normal":
                     style "cue_btn"
                     text_style "cue_btn_text"
@@ -621,7 +621,7 @@ screen cue_overlay_content():
                         background "#669966"
                     else:
                         background "#444444"
-                    action Function(_cue.markers.autoplay.set_frequency, 1)
+                    action Function(_cue.markers.loop.set_frequency, 1)
                 textbutton "Fast":
                     style "cue_btn"
                     text_style "cue_btn_text"
@@ -629,7 +629,7 @@ screen cue_overlay_content():
                         background "#669966"
                     else:
                         background "#444444"
-                    action Function(_cue.markers.autoplay.set_frequency, 2)
+                    action Function(_cue.markers.loop.set_frequency, 2)
                 textbutton "Fastest":
                     style "cue_btn"
                     text_style "cue_btn_text"
@@ -637,7 +637,7 @@ screen cue_overlay_content():
                         background "#669966"
                     else:
                         background "#444444"
-                    action Function(_cue.markers.autoplay.set_frequency, 3)
+                    action Function(_cue.markers.loop.set_frequency, 3)
 
         # Audio file browser
         if _cue.audio_tree:
@@ -681,7 +681,7 @@ screen cue_overlay_content():
                                     use cue_icon_button("▶", Function(_cue_preview_preset, _pname), "Preview random file from preset", None)
                                     use cue_icon_button("I", Function(_cue.markers.image.apply_preset, _pname), "Apply preset to active Image SFX pool", None)
                                     use cue_icon_button("D", Function(_cue.markers.dialogue.apply_preset, _pname), "Apply preset to active Dialogue SFX pool", None)
-                                    use cue_icon_button("A", Function(_cue.markers.autoplay.apply_preset, _pname), "Apply preset to active Autoplay SFX pool", None)
+                                    use cue_icon_button("A", Function(_cue.markers.loop.apply_preset, _pname), "Apply preset to active Loop SFX pool", None)
                                     use cue_icon_button("✕", Function(_cue_confirm_delete_preset, _pname), "Delete preset", None)
                                     textbutton _pname:
                                         style "cue_btn"
@@ -713,7 +713,7 @@ screen cue_overlay_content():
                                         use cue_icon_button("V", Function(_cue.markers.video.add_folder, item["full_path"]), "Add folder to active video timestamp pool", None)
                                         use cue_icon_button("I", Function(_cue.markers.image.add_folder, item["full_path"]), "Add folder to Image SFX pool", None)
                                         use cue_icon_button("D", Function(_cue.markers.dialogue.add_folder, item["full_path"]), "Add folder to Dialogue SFX pool", None)
-                                        use cue_icon_button("A", Function(_cue.markers.autoplay.add_folder, item["full_path"]), "Add folder to Autoplay SFX Pool", None)
+                                        use cue_icon_button("A", Function(_cue.markers.loop.add_folder, item["full_path"]), "Add folder to Loop SFX Pool", None)
                                     textbutton item["name"]:
                                         style "cue_btn"
                                         text_style "cue_btn_text_sm"
@@ -729,8 +729,8 @@ screen cue_overlay_content():
                                     use cue_icon_button("I", Function(_cue.markers.image.add_file, item["index"]), "Add to Image SFX pool", None)
                                     # Dialogue SFX
                                     use cue_icon_button("D", Function(_cue.markers.dialogue.add_file, item["index"]), "Add to Dialogue SFX pool", None)
-                                    # Autoplay SFX
-                                    use cue_icon_button("A", Function(_cue.markers.autoplay.add_file, item["index"]), "Add to Autoplay SFX pool", None)
+                                    # Loop SFX
+                                    use cue_icon_button("A", Function(_cue.markers.loop.add_file, item["index"]), "Add to Loop SFX pool", None)
                                     if item.get("enabled", True):
                                         use cue_icon_button("☑", Function(_cue_toggle_file_enabled, item["full_path"]), "Click to disable globally", None)
                                     else:

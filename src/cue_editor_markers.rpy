@@ -17,9 +17,9 @@ init python:
         """Build a video trigger key: 'v:<file>'."""
         return _cue.VID_KEY_PREFIX + file
 
-    def create_autoplay_key(file):
-        """Build a autoplay trigger key: 'a:<file>'. file may be '' for global pool."""
-        return _cue.AUTOPLAY_KEY_PREFIX + file
+    def create_loop_key(file):
+        """Build a loop trigger key: 'l:<file>'. file may be '' for global pool."""
+        return _cue.LOOP_KEY_PREFIX + file
 
     def create_dlg_key(dlg_pair):
         """Build a dialogue trigger key from a (file, dialogue) pair.
@@ -39,9 +39,9 @@ init python:
         """Check if key is a dialogue trigger key."""
         return key.startswith(_cue.DLG_KEY_PREFIX)
 
-    def is_autoplay_key(key):
-        """Check if key is a autoplay trigger key."""
-        return key.startswith(_cue.AUTOPLAY_KEY_PREFIX)
+    def is_loop_key(key):
+        """Check if key is a loop trigger key."""
+        return key.startswith(_cue.LOOP_KEY_PREFIX)
 
     def get_key_file(key):
         """Strip the 2-char prefix from any key, returning the file portion."""
@@ -58,7 +58,7 @@ init python:
         return parts[1]
 
     def get_key_prefix(key):
-        """Return the 2-char prefix of a key ('i:', 'v:', 'd:', or 'a:')."""
+        """Return the 2-char prefix of a key ('i:', 'v:', 'd:', or 'l:')."""
         return key[:len(_cue.IMG_KEY_PREFIX)]
 
 
@@ -181,12 +181,12 @@ init python:
         _cue.visible_tree = _cue_get_visible_tree()
 
 
-    def _cue_is_file_in_autoplay_pool(full_path):
-        """Check if a file is in any pool of the current context's a: entry."""
+    def _cue_is_file_in_loop_pool(full_path):
+        """Check if a file is in any pool of the current context's l: entry."""
         if not _cue.current_file:
             return False
-        autoplay_key = create_autoplay_key(_cue.current_file)
-        entry = _cue.markers.get(autoplay_key)
+        loop_key = create_loop_key(_cue.current_file)
+        entry = _cue.markers.get(loop_key)
         if entry:
             for _pool in entry.get("pools", []):
                 if full_path in _cue.markers.resolve_pool(_pool).files:
@@ -238,7 +238,7 @@ init python:
                     "full_path": full,
                     "depth": depth,
                     "index": idx,
-                    "in_pool": _cue_is_file_in_autoplay_pool(full),
+                    "in_pool": _cue_is_file_in_loop_pool(full),
                     "enabled": full not in _cue.disabled_files,
                 })
 

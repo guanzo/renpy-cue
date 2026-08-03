@@ -6,7 +6,7 @@
 #   _cue.markers.image.add_file(idx)          Pool-based (i: prefix)
 #   _cue.markers.dialogue.add_file(idx)       Pool-based (d: prefix)
 #   _cue.markers.video.add_file(idx)          Timestamp-based (v: prefix)
-#   _cue.markers.autoplay.add_file(idx)       Pool-based (a: prefix)
+#   _cue.markers.loop.add_file(idx)       Pool-based (l: prefix)
 #
 #   _cue.markers[key] / .get(key) / .items()  Dict-like access (backward compat)
 #   _cue.markers.save() / .dump() / .restore()  Persistence
@@ -514,29 +514,29 @@ init -999 python:
             return max(0.001, _cue.vid_manager.get_duration())
 
     # =========================================================================
-    # CueAutoplayContext — pool-based (a: prefix), mirrors image/dialogue
+    # CueLoopContext — pool-based (l: prefix), mirrors image/dialogue
     # =========================================================================
 
-    class CueAutoplayContext(CueMarkerContext):
-        """Manage autoplay markers — pool-based, mirrors image/dialogue.
+    class CueLoopContext(CueMarkerContext):
+        """Manage loop markers — pool-based, mirrors image/dialogue.
 
-        An autoplay entry looks like:
+        An loop entry looks like:
             {"pools": [{"files": [...], "volume": 1.0, "frequency": 1}, ...],
              "volume": 1.0}
         """
 
         def __init__(self, manager):
-            super(CueAutoplayContext, self).__init__(manager)
+            super(CueLoopContext, self).__init__(manager)
 
         def _key(self):
-            """Build the a: key for the current context."""
-            return create_autoplay_key(_cue.current_file or "")
+            """Build the l: key for the current context."""
+            return create_loop_key(_cue.current_file or "")
 
         def _get_target(self):
-            return self._mgr._autoplay_target
+            return self._mgr._loop_target
 
         def _set_target(self, value):
-            self._mgr._autoplay_target = int(value)
+            self._mgr._loop_target = int(value)
 
         def add_pool(self):
             """Append a new empty pool (with frequency) and auto-switch to it."""
@@ -551,14 +551,14 @@ init -999 python:
             self._mgr.save()
 
         def clear(self):
-            """Remove autoplay markers for the current context."""
+            """Remove loop markers for the current context."""
             key = self._key()
             self._mgr.pop(key, None)
-            _cue.autoplay_states.pop(key, None)
+            _cue.loop_states.pop(key, None)
             self._mgr.save()
 
         def set_frequency(self, freq):
-            """Set autoplay frequency for the active pool. 0=Slow, 1=Normal, 2=Fast, 3=Fastest.
+            """Set loop frequency for the active pool. 0=Slow, 1=Normal, 2=Fast, 3=Fastest.
             Pool-level override on preset-backed pools (no detach needed)."""
             key = self._key()
             target = self.get_active()
@@ -602,11 +602,11 @@ init -999 python:
             self._presets = {}  # name -> {"files": [...], "volume": 1.0, ...}
             self._img_target = 0
             self._dlg_target = 0
-            self._autoplay_target = 0
+            self._loop_target = 0
             self.image = CueImageContext(self)
             self.dialogue = CueDialogueContext(self)
             self.video = CueVideoContext(self)
-            self.autoplay = CueAutoplayContext(self)
+            self.loop = CueLoopContext(self)
             self.clipboard = None
 
         # -- dict-like interface (backward compat) --
@@ -851,7 +851,7 @@ init -999 python:
                     del self._data[trigger_key]
                 self.save()
             elif "files" in entry:
-                # Legacy path — a: entries and un-migrated entries
+                # Legacy path — l: entries and un-migrated entries
                 files = entry["files"]
                 if 0 <= file_index < len(files):
                     files.pop(file_index)
@@ -860,17 +860,17 @@ init -999 python:
                     self.save()
 
         def _normalize_all(self):
-            """Migrate all legacy i:, d:, and a: entries to pools format.
-            Also moves entry-level frequency into each autoplay pool.
+            """Migrate all legacy i:, d:, and l: entries to pools format.
+            Also moves entry-level frequency into each loop pool.
             Returns True if any entry was changed."""
             changed = False
             for key, entry in list(self._data.items()):
-                if is_img_key(key) or is_dlg_key(key) or is_autoplay_key(key):
+                if is_img_key(key) or is_dlg_key(key) or is_loop_key(key):
                     if "pools" not in entry:
                         self._normalize_entry(entry)
                         changed = True
-                # Migrate entry-level frequency into each autoplay pool
-                if is_autoplay_key(key) and "frequency" in entry:
+                # Migrate entry-level frequency into each loop pool
+                if is_loop_key(key) and "frequency" in entry:
                     freq = entry.pop("frequency")
                     for pool in entry.get("pools", []):
                         pool.setdefault("frequency", freq)
@@ -1012,7 +1012,7 @@ init -999 python:
                 create_vid_key(ctx_file),
                 create_img_key(ctx_file),
                 create_dlg_key((ctx_file, ctx_dlg)),
-                create_autoplay_key(ctx_file),
+                create_loop_key(ctx_file),
             ]
 
             for key in all_keys:
@@ -1047,8 +1047,8 @@ init -999 python:
                     new_key = create_img_key(ctx_file)
                 elif is_dlg_key(source_key):
                     new_key = create_dlg_key((ctx_file, ctx_dlg))
-                elif is_autoplay_key(source_key):
-                    new_key = create_autoplay_key(ctx_file)
+                elif is_loop_key(source_key):
+                    new_key = create_loop_key(ctx_file)
 
                 self._data[new_key] = _copy.deepcopy(entry)
                 _cue_log("{} {}".format(new_key, str(entry)))
@@ -1066,5 +1066,5 @@ init -999 python:
                         ts_entry["time"] = t
 
             _cue.played_video_keys.clear()
-            _cue.autoplay_states = {}
+            _cue.loop_states = {}
             self.save()

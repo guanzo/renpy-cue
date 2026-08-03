@@ -31,13 +31,13 @@ init -999 python:
 
     # Key prefix constants for _cue.markers trigger keys
     _cue.IMG_KEY_PREFIX = "i:"
-    _cue.AUTOPLAY_KEY_PREFIX = "a:"
+    _cue.LOOP_KEY_PREFIX = "l:"
     _cue.DLG_KEY_PREFIX = "d:"
     _cue.VID_KEY_PREFIX = "v:"
 
-    # Pool state machine (multi-instance: one per active a: key)
-    _cue.autoplay_states = {}
-    _cue.autoplay_current = None   # {key, channels} of currently-playing autoplay SFX
+    # Pool state machine (multi-instance: one per active l: key)
+    _cue.loop_states = {}
+    _cue.loop_current = None   # {key, channels} of currently-playing loop SFX
     _cue.last_played = []
 
     _cue.triggers_active = True
@@ -350,7 +350,7 @@ init python:
         if _cue.current_file != old_file:
             _changed += " file:{}->{}".format(old_file, _cue.current_file)
             _img_key = create_img_key(_cue.current_file) if _cue.current_file else None
-            _cue.autoplay_states = {} # clean up stale data
+            _cue.loop_states = {} # clean up stale data
         if _cue.active_channel != old_video:
             _changed += " ch:{}->{}".format(old_video, _cue.active_channel)
         if _cue.current_dialogue != _cue.prev_dialogue:
@@ -726,7 +726,7 @@ init python:
     # SFX Trigger Engine (Tick)
     # --------------------------------------------------------------------------
 
-    def _cue_autoplay_still_playing(channels):
+    def _cue_loop_still_playing(channels):
         """True if any channel in the list is currently playing.
         Unknown/unregistered channels are treated as silent."""
         for _c in channels:
@@ -758,11 +758,11 @@ init python:
         _cue.__tick_count = getattr(_cue, '__tick_count', 0) + 1
         tick = _cue.__tick_count
 
-        # --- AUTOPLAY STATE MACHINE (a: keys) ---
+        # --- LOOP STATE MACHINE (l: keys) ---
         now = _time.time()
-        autoplay_key = create_autoplay_key(_cue.current_file or "")
+        loop_key = create_loop_key(_cue.current_file or "")
 
-        entry = _cue.markers.get(autoplay_key)
+        entry = _cue.markers.get(loop_key)
         if entry:
             pools = entry.get("pools", [])
             # Collect frequencies from resolved pools with files, default 1
@@ -774,38 +774,38 @@ init python:
             if _freqs:
                 freq = int(round(sum(_freqs) / float(len(_freqs))))
                 # Init pool state if needed
-                if autoplay_key not in _cue.autoplay_states:
-                    _cue.autoplay_states[autoplay_key] = {
+                if loop_key not in _cue.loop_states:
+                    _cue.loop_states[loop_key] = {
                         "state": 0,
                         "channels": [],
                         "ready_at": 0.0,
                         "play_start": 0.0,
                     }
-                ps = _cue.autoplay_states[autoplay_key]
+                ps = _cue.loop_states[loop_key]
 
                 if ps["state"] == 1:
-                    if not _cue_autoplay_still_playing(ps.get("channels", [])):
+                    if not _cue_loop_still_playing(ps.get("channels", [])):
                         dur = now - ps["play_start"]
-                        breathing = _cue.markers.autoplay.get_delay(freq)
+                        breathing = _cue.markers.loop.get_delay(freq)
                         ps["ready_at"] = now + breathing
                         ps["channels"] = []
                         ps["state"] = 0
-                        _cue.autoplay_current = None
+                        _cue.loop_current = None
                         _cue_log("TICK#{} POOL-DONE  key={} dur={:.2f}s next_in={:.2f}s".format(
-                            tick, autoplay_key, dur, breathing))
+                            tick, loop_key, dur, breathing))
 
                 if ps["state"] == 0:
                     if ps["ready_at"] == 0:
                         ps["ready_at"] = now + 0.5
                     elif now >= ps["ready_at"]:
                         # --- Cross-context overlap gate ---
-                        _block = _cue.autoplay_current
+                        _block = _cue.loop_current
                         _blocking = False
-                        if _block and _block.get("key") != autoplay_key:
-                            if _cue_autoplay_still_playing(_block.get("channels", [])):
+                        if _block and _block.get("key") != loop_key:
+                            if _cue_loop_still_playing(_block.get("channels", [])):
                                 _blocking = True
                             else:
-                                _cue.autoplay_current = None  # stale
+                                _cue.loop_current = None  # stale
                         if _blocking:
                             ps["ready_at"] = now + 0.1
                         else:
@@ -824,20 +824,20 @@ init python:
                                 if _f in _picked:
                                     continue
                                 _picked.append(_f)
-                                _pool_vol = _cue.volume.get_effective(entry, autoplay_key, pool_index=pi)
-                                _ch_used = _cue_play_sfx(_f, autoplay_key, volume=_pool_vol)
+                                _pool_vol = _cue.volume.get_effective(entry, loop_key, pool_index=pi)
+                                _ch_used = _cue_play_sfx(_f, loop_key, volume=_pool_vol)
                                 if _ch_used:
                                     _channels.append(_ch_used)
                             if _channels:
                                 ps["state"] = 1
                                 ps["channels"] = _channels
                                 ps["play_start"] = now
-                                _cue.autoplay_current = {
-                                    "key": autoplay_key,
+                                _cue.loop_current = {
+                                    "key": loop_key,
                                     "channels": list(_channels),
                                 }
                                 _cue_log("TICK#{} POOL-PLAY  key={} files={} chs={}".format(
-                                    tick, autoplay_key, len(_channels), ",".join(_channels)))
+                                    tick, loop_key, len(_channels), ",".join(_channels)))
                             else:
                                 ps["ready_at"] = now + 0.5
 
