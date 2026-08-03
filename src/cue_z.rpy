@@ -60,6 +60,8 @@ init -999 python:
     _cue.expanded_file_refs = {}  # tracks expanded folder refs in pool file lists
     _cue._presets_expanded = False  # expand/collapse for Presets/ folder in SFX Library
     _cue._expanded_presets = {}     # per-preset expand/collapse, keyed by preset name
+    _cue._video_presets_expanded = False  # expand/collapse for Video Presets/ folder
+    _cue._expanded_video_presets = {}     # per-video-preset expand/collapse, keyed by preset name
     _cue._collapsed_sections = {}   # per-section expand/collapse for cue_section_frame
     _cue._marker_tip_text = ""     # marker timeline tooltip (rendered by _MarkerTooltipOverlay)
     _cue.scan_error = None
@@ -100,6 +102,41 @@ init -999 python:
             renpy.hide_screen("cue_save_preset_dialog", layer="cue_layer")
 
     _cue.preset_dialog = CuePresetDialog()
+
+    class CueVideoPresetDialog:
+        """Self-contained state for the Save Video Preset popup."""
+        def __init__(self):
+            self.name = ""
+
+        def open(self):
+            """Open the save dialog for the current video's timestamps."""
+            vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
+            if not vid_key:
+                return
+            entry = _cue.markers.get(vid_key)
+            if entry is None:
+                return
+            timestamps = entry.get("timestamps", [])
+            if not timestamps:
+                return
+            self.name = ""
+            renpy.show_screen("cue_save_video_preset_dialog", _layer="cue_layer")
+
+        def commit(self):
+            """Create a video preset from the current video's timestamps."""
+            name = self.name.strip()
+            if name:
+                vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
+                if vid_key:
+                    entry = _cue.markers.get(vid_key)
+                    if entry:
+                        _cue.markers.create_video_preset(name, entry)
+            renpy.hide_screen("cue_save_video_preset_dialog", layer="cue_layer")
+
+        def cancel(self):
+            renpy.hide_screen("cue_save_video_preset_dialog", layer="cue_layer")
+
+    _cue.video_preset_dialog = CueVideoPresetDialog()
 
     class CueConfirmDialog:
         """Reusable confirmation popup matching the overlay UI style."""
@@ -896,9 +933,12 @@ init python:
         data = getattr(persistent, '_cue_markers', None)
         if data is None:
             _cue.markers._data = {}
+            _cue.markers._video_presets = {}
             return
         _cue.markers._data = _cue_unwrap_persistent(data.get("markers", {}))
         _cue.markers._presets = _cue_unwrap_persistent(data.get("presets", {}))
+        _cue.markers._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
+        _cue.markers._sanitize_video_presets()
         _cue.markers._normalize_all()
         _cue.disabled_files = set(data.get("disabled_files", []))
         _triggers = data.get("triggers_active", True)

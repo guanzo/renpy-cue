@@ -274,6 +274,19 @@ init python:
             _cue._expanded_presets[preset_name] = True
 
 
+    def _cue_toggle_video_presets_expand():
+        """Toggle expand/collapse for the Video Presets/ folder in the SFX Library."""
+        _cue._video_presets_expanded = not _cue._video_presets_expanded
+
+
+    def _cue_toggle_video_preset_expand(preset_name):
+        """Toggle expand/collapse for a single video preset in the SFX Library."""
+        if preset_name in _cue._expanded_video_presets:
+            _cue._expanded_video_presets[preset_name] = not _cue._expanded_video_presets[preset_name]
+        else:
+            _cue._expanded_video_presets[preset_name] = True
+
+
     # --------------------------------------------------------------------------
     # Utility: Time Formatting
     # --------------------------------------------------------------------------

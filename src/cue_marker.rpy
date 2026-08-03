@@ -209,7 +209,9 @@ init -999 python:
             return create_vid_key(_cue.current_file) if _cue.current_file else ""
 
         def _entry_and_timestamps(self):
-            """Return (entry, timestamps) for the current video, or (None, [])."""
+            """Return (entry, timestamps) for the current video, or (None, []).
+            Returns raw timestamps — callers that display data should use
+            _mgr._resolve_video_timestamps(entry) for preset resolution."""
             vid_key = self._key()
             if not vid_key:
                 return None, []
@@ -254,6 +256,7 @@ init -999 python:
             timestamps = entry.setdefault("timestamps", [])
             if timestamps and 0 <= self.target_pool < len(timestamps):
                 # Add to existing active timestamp
+                self._mgr._detach_video_timestamp(entry, self.target_pool)
                 files = timestamps[self.target_pool].setdefault("files", [])
                 if filename not in files:
                     files.append(filename)
@@ -273,6 +276,7 @@ init -999 python:
             timestamps = entry.get("timestamps", [])
             if not (0 <= ts_index < len(timestamps)):
                 return
+            self._mgr._detach_video_timestamp(entry, ts_index)
             files = timestamps[ts_index].get("files", [])
             if 0 <= file_index < len(files):
                 files.pop(file_index)
@@ -291,6 +295,7 @@ init -999 python:
             timestamps = entry.setdefault("timestamps", [])
             if timestamps and 0 <= self.target_pool < len(timestamps):
                 # Add to existing active timestamp
+                self._mgr._detach_video_timestamp(entry, self.target_pool)
                 pool_files = timestamps[self.target_pool].setdefault("files", [])
                 if folder_ref not in pool_files:
                     pool_files.append(folder_ref)
@@ -333,6 +338,33 @@ init -999 python:
             self.selected = set()
             self._mgr.save()
 
+        def apply_preset(self, preset_name):
+            """Stamp a pool preset reference onto a new timestamp at the
+            current playhead position. The timestamp carries a 'preset' key
+            that is resolved at read time, matching the other context types."""
+            ch = _cue.active_channel
+            if not ch or not renpy.music.is_playing(channel=ch):
+                return
+            elapsed = _cue.vid_manager.get_elapsed()
+            if elapsed is None or elapsed <= 0:
+                return
+            if not _cue.current_file:
+                return
+            # Verify preset exists and resolves to something
+            r = self._mgr.resolve_pool({"preset": preset_name})
+            if not r.files:
+                return
+            vid_key = self._key()
+            entry = self._mgr.setdefault(vid_key, {"timestamps": []})
+            timestamps = entry.setdefault("timestamps", [])
+            timestamps.append({"time": elapsed, "preset": preset_name})
+            timestamps.sort(key=lambda e: e["time"])
+            self.target_pool = len(timestamps) - 1
+            self.selected = set()
+            self.sync_text()
+            _cue.played_video_keys.clear()
+            self._mgr.save()
+
         def remove_pool(self, ts_index):
             """Delete a timestamp pool by index. Clamps target_pool."""
             entry, timestamps = self._entry_and_timestamps()
@@ -371,7 +403,9 @@ init -999 python:
         def remove_selected(self):
             """Delete selected markers (multi-selection) or the active pool
             (single). Removes in descending order to avoid index-shift bugs."""
-            if len(self.selected) > 1:
+            if not self.has_markers():
+                return
+            if len(self.selected) >= 1:
                 entry, timestamps = self._entry_and_timestamps()
                 if timestamps:
                     for idx in sorted(self.selected, reverse=True):
@@ -386,15 +420,25 @@ init -999 python:
                 self.selected = set()
                 self._mgr.save()
             else:
-                # Single — delegate to per-pool delete
+                # No selection — delegate to per-pool delete
                 self.remove_pool(self.target_pool)
+
+        def has_markers(self):
+            """Return True if the current video has at least one timestamp."""
+            _, timestamps = self._entry_and_timestamps()
+            return bool(timestamps)
 
         def get_delete_message(self):
             """Build the confirmation message for marker deletion."""
             if len(self.selected) > 1:
                 nums = ", ".join(str(i + 1) for i in sorted(self.selected))
                 return "Delete markers {}?".format(nums)
+            elif len(self.selected) == 1:
+                return "Delete marker {}?".format(next(iter(self.selected)) + 1)
             else:
+                # No selection — deleting the active pool
+                if not self.has_markers():
+                    return ""
                 return "Delete marker {}?".format(self.target_pool + 1)
 
         def set_active(self, pool_index):
@@ -497,9 +541,12 @@ init -999 python:
         # -- CDD callback interface (injected into _VideoMarkerTimeline) --
 
         def get_markers(self):
-            """Return the list of timestamp dicts for the current video."""
-            _, timestamps = self._entry_and_timestamps()
-            return timestamps
+            """Return the list of timestamp dicts for the current video.
+            Preset-backed timestamps are transparently resolved."""
+            entry, _ = self._entry_and_timestamps()
+            if entry is None:
+                return []
+            return self._mgr._resolve_video_timestamps(entry)
 
         def get_active(self):
             """Return the active timestamp index."""
@@ -600,6 +647,7 @@ init -999 python:
         def __init__(self):
             self._data = {}
             self._presets = {}  # name -> {"files": [...], "volume": 1.0, ...}
+            self._video_presets = {}  # name -> {"timestamps": [...], "volume": 1.0, ...}
             self._img_target = 0
             self._dlg_target = 0
             self._loop_target = 0
@@ -690,6 +738,196 @@ init -999 python:
         def list_presets(self):
             """Return sorted list of preset names."""
             return sorted(self._presets.keys())
+
+        # -- video presets --
+
+        def create_video_preset(self, name, entry):
+            """Save video timestamps as a named preset. Overwrites if name exists."""
+            import copy as _copy
+            timestamps = entry.get("timestamps", [])
+            if not timestamps:
+                return
+            clean = []
+            for ts in timestamps:
+                if ts.get("time") is not None:
+                    clean.append({
+                        "time": ts["time"],
+                        "files": python_list(ts.get("files", [])),
+                        "volume": ts.get("volume", _cue.VOL_DEFAULT),
+                    })
+            if not clean:
+                return
+            clean.sort(key=lambda e: e["time"])
+            source_dur = _cue.vid_manager.get_duration() if hasattr(_cue, 'vid_manager') else 0.0
+            self._video_presets[name] = {
+                "timestamps": clean,
+                "volume": entry.get("volume", _cue.VOL_DEFAULT),
+                "source_duration": max(source_dur, 0.0),
+            }
+            self.save()
+            _cue_log("CREATE-VIDEO-PRESET name={} markers={} dur={:.1f}".format(
+                name, len(clean), source_dur))
+
+        def delete_video_preset(self, name):
+            """Delete a video preset by name."""
+            if name in self._video_presets:
+                del self._video_presets[name]
+                self.save()
+                _cue_log("DELETE-VIDEO-PRESET name={}".format(name))
+
+        def get_video_preset(self, name):
+            """Return video preset dict or None."""
+            return self._video_presets.get(name)
+
+        def list_video_presets(self):
+            """Return sorted list of video preset names."""
+            return sorted(self._video_presets.keys())
+
+        def video_preset_out_of_range(self, name):
+            """Return how many timestamps in a preset exceed the current
+            video's duration. Returns 0 when duration is unknown (dur <= 0)."""
+            preset = self._video_presets.get(name)
+            if preset is None:
+                return 0
+            dur = _cue.vid_manager.get_duration()
+            if dur is None or dur <= 0:
+                return 0
+            out = 0
+            for ts in preset.get("timestamps", []):
+                t = ts.get("time")
+                if t is not None and t > dur - 0.05:
+                    out += 1
+            return out
+
+        def apply_video_preset(self, name):
+            """Copy a video preset's timestamps into the current video entry.
+            Silently drops markers that don't fit the target video duration.
+            Resets UI state so the timeline re-renders correctly."""
+            import copy as _copy
+            preset = self._video_presets.get(name)
+            if preset is None:
+                return
+            if not _cue.current_file:
+                return
+            vid_key = create_vid_key(_cue.current_file)
+            dur = _cue.vid_manager.get_duration()
+            new_timestamps = []
+            dropped = 0
+            for ts in preset.get("timestamps", []):
+                t = ts.get("time")
+                if t is None:
+                    dropped += 1
+                    continue
+                if dur and dur > 0 and t > dur - 0.05:
+                    dropped += 1
+                    continue
+                new_timestamps.append({
+                    "time": t,
+                    "files": python_list(ts.get("files", [])),
+                    "volume": ts.get("volume", _cue.VOL_DEFAULT),
+                })
+            new_timestamps.sort(key=lambda e: e["time"])
+            entry = self.setdefault(vid_key, {})
+            entry["timestamps"] = new_timestamps
+            entry["volume"] = preset.get("volume", _cue.VOL_DEFAULT)
+            self.video.target_pool = 0
+            self.video.selected = set()
+            self.video.sync_text()
+            _cue.played_video_keys.clear()
+            self.save()
+            _cue_log("APPLY-VIDEO-PRESET key={} preset={} markers={} dropped={}".format(
+                vid_key, name, len(new_timestamps), dropped))
+
+        def _sanitize_video_presets(self):
+            """Strip entries missing 'time' from all video preset timestamp lists.
+            Returns the number of entries stripped."""
+            total_stripped = 0
+            for name, preset in list(self._video_presets.items()):
+                timestamps = preset.get("timestamps")
+                if not timestamps:
+                    continue
+                stripped = 0
+                clean = []
+                for ts in timestamps:
+                    if ts.get("time") is not None:
+                        clean.append(ts)
+                    else:
+                        stripped += 1
+                if stripped:
+                    preset["timestamps"] = clean
+                    total_stripped += stripped
+            return total_stripped
+
+        # -- timestamp-level preset resolution (for video entries) --
+
+        def _resolve_video_timestamps(self, entry):
+            """Return a resolved list of timestamp dicts from entry, expanding
+            any preset references (stamped by CueVideoContext.apply_preset).
+            The original entry is not modified. List length matches the raw list
+            so that trigger-tick indices stay consistent for volume lookup."""
+            raw = entry.get("timestamps", [])
+            resolved = []
+            for ts in raw:
+                if "preset" in ts:
+                    r = self.resolve_pool(ts)
+                    resolved.append({
+                        "time": ts["time"],
+                        "files": python_list(r.files),
+                        "volume": r.volume,
+                    })
+                else:
+                    resolved.append(ts)
+            return resolved
+
+        def _detach_video_timestamp(self, entry, ts_index):
+            """If the timestamp at ts_index is preset-backed, resolve it to
+            concrete values in place. Returns True if a detach occurred."""
+            timestamps = entry.get("timestamps", [])
+            if ts_index < 0 or ts_index >= len(timestamps):
+                return False
+            ts = timestamps[ts_index]
+            if "preset" not in ts:
+                return False
+            r = self.resolve_pool(ts)
+            preset_name = ts["preset"]
+            del ts["preset"]
+            ts["files"] = python_list(r.files)
+            ts.setdefault("volume", r.volume)
+            _cue_log("DETACH-VIDEO-TS key={} idx={} preset={} files={}".format(
+                "?", ts_index, preset_name, len(r.files)))
+            return True
+
+        def _remove_file_from_preset_pool(self, trigger_key, pool_index, _dummy_fi, child_file):
+            """Detach a preset-backed pool then remove a specific file by path.
+            Signature matches folder_child_remove_fn for cue_file_list."""
+            self._detach_pool(trigger_key, pool_index)
+            entry = self._data.get(trigger_key)
+            if entry is None:
+                return
+            pools = entry.get("pools")
+            if pools and 0 <= pool_index < len(pools):
+                files = pools[pool_index].get("files", [])
+                if child_file in files:
+                    files.remove(child_file)
+            self.save()
+
+        def _remove_file_from_preset_ts(self, trigger_key, pool_index, _dummy_fi, child_file):
+            """Detach the active video timestamp then remove a specific file by
+            path. Signature matches folder_child_remove_fn for cue_file_list."""
+            vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
+            if not vid_key:
+                return
+            entry = self._data.get(vid_key)
+            if entry is None:
+                return
+            self._detach_video_timestamp(entry, self.video.target_pool)
+            timestamps = entry.get("timestamps", [])
+            ts_idx = self.video.target_pool
+            if 0 <= ts_idx < len(timestamps):
+                files = timestamps[ts_idx].get("files", [])
+                if child_file in files:
+                    files.remove(child_file)
+            self.save()
 
         def resolve_pool(self, pool):
             """Resolve a pool dict to a ResolvedPool object.
@@ -782,8 +1020,33 @@ init -999 python:
             # Replace folder ref with resolved list (minus child)
             files[file_index:file_index + 1] = resolved
             self.save()
-            _cue_log("DETACH-FOLDER-REMOVE key={} pi={} folder={} child={} remaining={}".format(
-                trigger_key, pool_index, folder_ref, child_file, len(resolved)))
+
+        def _remove_file_from_video_folder_ref(self, trigger_key, ts_index, file_index, child_file):
+            """Remove a child file from a folder ref inside a video timestamp.
+            Detaches the folder ref to an explicit list minus the child.
+            Signature matches folder_child_remove_fn for cue_file_list
+            (pool_index = ts_index for video)."""
+            entry = self._data.get(trigger_key)
+            if entry is None:
+                return
+            timestamps = entry.get("timestamps")
+            if not timestamps or ts_index >= len(timestamps):
+                return
+            ts = timestamps[ts_index]
+            files = ts.get("files", [])
+            if file_index >= len(files):
+                return
+            folder_ref = files[file_index]
+            if not folder_ref.endswith("/"):
+                return
+            resolved = []
+            for f in _cue.available_files:
+                if f.startswith(folder_ref) and f not in _cue.disabled_files and f not in resolved:
+                    resolved.append(f)
+            if child_file in resolved:
+                resolved.remove(child_file)
+            files[file_index:file_index + 1] = resolved
+            self.save()
 
         # -- internal helpers (used by context accessors) --
 
@@ -912,6 +1175,7 @@ init -999 python:
             data = python_dict({
                 "markers": python_dict(self._data),
                 "presets": python_dict(self._presets),
+                "video_presets": python_dict(self._video_presets),
                 "disabled_files": python_list(_cue.disabled_files),
                 "triggers_active": _cue.triggers_active,
             })
@@ -988,6 +1252,8 @@ init -999 python:
                 persistent._cue_markers = data
                 self._data = _cue_unwrap_persistent(data.get("markers", {}))
                 self._presets = _cue_unwrap_persistent(data.get("presets", {}))
+                self._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
+                self._sanitize_video_presets()
                 _cue_log("disabled___" + str(data.get("disabled_files")))
                 
                 _cue.disabled_files = set(data.get("disabled_files", []))
