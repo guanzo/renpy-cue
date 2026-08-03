@@ -247,8 +247,7 @@ init -999 python:
         def _append_timestamp(self, entry, timestamps, ts_dict):
             """Append a timestamp dict, re-sort, and update target_pool + selected."""
             timestamps.append(ts_dict)
-            timestamps.sort(key=lambda e: e["time"])
-            self.target_pool = len(timestamps) - 1
+            self._sort_and_track(timestamps, ts_dict)
             self.selected = set()
 
         # -- public API (extends CueMarkerContext) --
