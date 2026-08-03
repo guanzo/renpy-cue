@@ -154,9 +154,9 @@ init python:
             self.set_active = set_active
             self.set_time = set_time
             self.get_dur = get_dur
-            self._drag_idx = getattr(_cue, '_mtl_drag_idx', -1)
-            self._drag_on = getattr(_cue, '_mtl_drag_on', False)
-            self._drag_start_x = getattr(_cue, '_mtl_drag_start_x', 0)
+            self._drag_idx = -1
+            self._drag_on = False
+            self._drag_start_x = 0
             self._drag_orig_times = {}  # {idx: original_time} for multi-drag delta
             self._drag_group_min = 0.0  # min orig time in the group (for boundary blocking)
             self._drag_group_max = 0.0  # max orig time in the group
@@ -175,7 +175,7 @@ init python:
 
         def _get_selected(self):
             """Return the current set of selected marker indices."""
-            return getattr(_cue, 'mtl_selected', set())
+            return _cue.markers.video.get_selected()
 
         def _hit_test(self, markers, dur, w, x, y):
             """Return the index of the marker tab under (x,y), or -1."""
@@ -287,7 +287,7 @@ init python:
                 if self._drag_idx >= 0:
                     if not self._drag_on and abs(x - self._drag_start_x) > self.DRAG_THRESH:
                         self._drag_on = True
-                        _cue._mtl_drag_on = True
+                        
                         # Snapshot original times + group bounds for multi-drag
                         sel = self._get_selected()
                         if len(sel) > 1 and self._drag_idx in sel:
@@ -378,14 +378,14 @@ init python:
                         # Fall through to shift logic below
                         pass
                     else:
-                        _cue.mtl_selected = set()
+                        _cue.markers.video.selected = set()
                         return None
 
                 if alt_held and hit_idx >= 0:
                     # Alt+Click: toggle marker in/out of selection.
                     # If nothing is selected yet, seed with the currently
                     # active marker so the first alt+click forms a group.
-                    _cue._mtl_suppress_clear = True
+                    
                     if not sel:
                         active = self.get_active()
                         if active != hit_idx and 0 <= active < len(markers):
@@ -394,7 +394,7 @@ init python:
                         sel.discard(hit_idx)
                     else:
                         sel.add(hit_idx)
-                    _cue.mtl_selected = sel
+                    _cue.markers.video.selected = sel
                     if sel:
                         self.set_active(min(sel))
                     renpy.redraw(self, 0)
@@ -407,7 +407,7 @@ init python:
                     # (or the active marker if nothing is selected).
                     # When clicking on a marker, use its actual time so the
                     # clicked marker is always included in the range.
-                    _cue._mtl_suppress_clear = True
+                    
                     if sel:
                         nearest_idx = min(sel, key=lambda si: abs(markers[si]["time"] - click_time))
                         ref_time = markers[nearest_idx]["time"]
@@ -422,7 +422,7 @@ init python:
                     for i, m in enumerate(markers):
                         if lo <= m["time"] <= hi:
                             sel.add(i)
-                    _cue.mtl_selected = sel
+                    _cue.markers.video.selected = sel
                     if sel:
                         self.set_active(min(sel))
                     renpy.redraw(self, 0)
@@ -431,19 +431,19 @@ init python:
 
                 elif hit_idx >= 0:
                     # Plain left click on a marker
-                    _cue._mtl_suppress_clear = True
+                    
                     if hit_idx not in sel:
                         # Clicking an unselected marker → reset selection
-                        _cue.mtl_selected = set()
+                        _cue.markers.video.selected = set()
                     # Arm drag (preserve selection if marker was in group —
                     # reset to single happens on MOUSEBUTTONUP if no drag)
                     self._drag_idx = hit_idx
                     self._drag_start_x = x
                     self._drag_on = False
                     self._reset_drag_state()
-                    _cue._mtl_drag_idx = hit_idx
-                    _cue._mtl_drag_on = False
-                    _cue._mtl_drag_start_x = x
+                    
+                    
+                    
                     self.set_active(hit_idx)
                     renpy.redraw(self, 0)
                     raise renpy.display.core.IgnoreEvent()
@@ -455,16 +455,16 @@ init python:
                     self._drag_idx = -1
                     self._drag_on = False
                     self._reset_drag_state()
-                    _cue._mtl_drag_idx = -1
-                    _cue._mtl_drag_on = False
+                    
+                    
                     if was_drag:
-                        _cue_mtl_finalize()
+                        _cue.markers.video.finalize_drag()
                     else:
                         # Click (no drag) on a marker in multi-selection
                         # resets to single selection on that marker
                         sel = self._get_selected()
                         if len(sel) > 1 and clicked_idx in sel:
-                            _cue.mtl_selected = set()
+                            _cue.markers.video.selected = set()
                     renpy.redraw(self, 0)
                     renpy.restart_interaction()
                     raise renpy.display.core.IgnoreEvent()

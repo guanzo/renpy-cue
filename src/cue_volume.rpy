@@ -130,8 +130,8 @@ init -999 python:
             entry = _cue.markers.get(vid_key)
             if entry is None:
                 return
-            current = self.get(entry, vid_key, ts_index=_cue.vid_target_pool)
-            self.write(vid_key, current + delta, ts_index=_cue.vid_target_pool)
+            current = self.get(entry, vid_key, ts_index=_cue.markers.video.target_pool)
+            self.write(vid_key, current + delta, ts_index=_cue.markers.video.target_pool)
 
         # --- Bar changed callback ---
 

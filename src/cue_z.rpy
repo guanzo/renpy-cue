@@ -22,8 +22,7 @@ init -999 python:
     _cue.config_filename = "cue_config.json"
     _cue.config_path = os.path.join(renpy.config.gamedir, _cue.base_dir, _cue.config_filename)
     _cue.debug_log_filename = "debug.log"
-    _cue.markers = {}          # Unified markers: trigger_key -> entry
-    _cue.clipboard = None
+    _cue.markers = CueMarkerManager()  # Unified marker CRUD with typed accessors
 
     # Volume constants (clamp range + UI quick-set targets)
     _cue.VOL_MIN = 0.0       # clamp floor
@@ -59,14 +58,6 @@ init -999 python:
     _cue.visible_tree = []
     _cue.expanded_folders = {}
     _cue.scan_error = None
-
-    # Video timestamp editing state
-    _cue.edit_video_ts_text = ""   # text buffer for the editable input — always reflects active pool
-
-    # Multi-pool UI state: which pool the file-browser I/D/V buttons target
-    _cue.img_target_pool = 0
-    _cue.dlg_target_pool = 0
-    _cue.vid_target_pool = 0
 
 
     _cue._last_autosave_time = 0
@@ -242,7 +233,7 @@ init python:
         if not _cue.current_file:
             return
         _shake_key = create_img_key(_cue.current_file)
-        _pool = _cue_ensure_pool(_shake_key, _cue.img_target_pool)
+        _pool = _cue.markers._ensure_pool(_shake_key, _cue.markers._img_target)
         _pool["trigger_on_shake"] = not _pool.get("trigger_on_shake", False)
         _cue_save_markers()
 
@@ -702,7 +693,7 @@ init python:
                 if ps["state"] == 1:
                     if not renpy.music.is_playing(channel=ps["ch"]):
                         dur = now - ps["play_start"]
-                        breathing = _cue_get_autoplay_delay(freq)
+                        breathing = _cue.markers.autoplay.get_delay(freq)
                         ps["ready_at"] = now + breathing
                         ps["state"] = 0
                         _cue.autoplay_current = None
@@ -740,9 +731,9 @@ init python:
             # Video markers
             if _cue.current_file:
                 vid_key = create_vid_key(_cue.current_file)
-                vid_entry = _cue.markers.get(vid_key)
-                if vid_entry:
-                    timestamps = vid_entry.get("timestamps", [])
+                timestamps = _cue.markers.video.get_markers()
+                if timestamps:
+                    vid_entry = _cue.markers.get(vid_key)
                     for idx, ts_entry in enumerate(timestamps):
                         ts_key = "{}@{}".format(vid_key, idx)
                         if ts_key not in _cue.played_video_keys:
@@ -768,108 +759,25 @@ init python:
     # Persistence
     # --------------------------------------------------------------------------
 
-    def _cue_autosave_backup():
-        """Create a timestamped backup of markers in cue_editor/backups/.
-
-        Throttled to once every 5 minutes. Maintains a max of 10 backups,
-        deleting the oldest when the limit is reached.
-
-        Called from _cue_save_markers() after every successful save.
-        All exceptions are swallowed — autosave must never break the editor."""
-        try:
-            import time as _time
-            import json as _json
-
-            # Throttle: skip if last autosave was within 5 minutes
-            _now = _time.time()
-            if _now - _cue._last_autosave_time < 300:
-                return
-
-            backups_dir = os.path.join(renpy.config.gamedir, _cue.base_dir, "backups")
-            if not os.path.isdir(backups_dir):
-                os.makedirs(backups_dir)
-
-            # List existing backups sorted by mtime (oldest first)
-            _files = [f for f in os.listdir(backups_dir)
-                      if f.startswith("cue_backup_") and f.endswith(".json")]
-            _files.sort(key=lambda f: os.path.getmtime(
-                os.path.join(backups_dir, f)))
-
-            # Rotate: delete oldest if at the max
-            MAX_BACKUPS = 25
-            while len(_files) >= MAX_BACKUPS:
-                _oldest = _files.pop(0)
-                try:
-                    os.remove(os.path.join(backups_dir, _oldest))
-                except Exception:
-                    pass
-
-            # Write backup with unix timestamp suffix
-            _ts = int(_now)
-            _name = "cue_backup_{}.json".format(_ts)
-            _path = os.path.join(backups_dir, _name)
-            with open(_path, "w") as f:
-                _json.dump(persistent._cue_markers, f,
-                           indent=2, sort_keys=True)
-
-            _cue._last_autosave_time = _now
-            _cue_log("AUTOSAVE-BACKUP path={} marker_keys={}".format(
-                _name, len(_cue.markers)))
-        except Exception:
-            pass  # Never let autosave break the editor
-
     def _cue_save_markers():
-        """Save unified markers and disabled_files to persistent storage.
-
-        Refuses to overwrite existing persistent marker data with an empty dict.
-        This guards against auto-reload wiping markers: init -999 clears
-        _cue.markers in RAM, and if load fails for any reason (syntax error,
-        split-file ordering, etc.), a subsequent save would otherwise persist
-        the empty state and destroy all marker data.
-
-        disabled_files is always written regardless of the marker guard."""
-        data = {
-            "version": "2.2.0",
-            "disabled_files": sorted(_cue.disabled_files),
-            "triggers_active": _cue.triggers_active,
-        }
-
-        if not _cue.markers:
-            existing = getattr(persistent, '_cue_markers', None)
-            if existing is not None and existing.get("markers"):
-                _cue_log("SAVE-MARKERS: refusing to clobber {} existing keys with empty dict".format(
-                    len(existing["markers"])))
-                data["markers"] = existing["markers"]
-            else:
-                data["markers"] = {}
-        else:
-            # Strip malformed entries before persisting (empty dicts, missing "time")
-            stripped = _cue_sanitize_video_timestamps()
-            if stripped:
-                _cue_log("SAVE-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
-            data["markers"] = python_dict(_cue.markers)
-
-        persistent._cue_markers = data
-
-        # Autosave backup to disk (throttled to once per 5 min)
-        _cue_autosave_backup()
+        """Persist markers to Ren'Py persistent storage. Delegates to the manager."""
+        _cue.markers.save()
 
 
     def _cue_load_markers():
         """Load markers and disabled_files from persistent storage.
-        Unwraps Ren'Py RevertableDict/RevertableList via JSON round-trip
-        so that isinstance checks work on the loaded data."""
+        Populates the CueMarkerManager with unwrapped plain Python dicts."""
         data = getattr(persistent, '_cue_markers', None)
         if data is None:
-            _cue.markers = {}
+            _cue.markers._data = {}
             return
-        _cue.markers = _cue_unwrap_persistent(data.get("markers", {}))
+        _cue.markers._data = _cue_unwrap_persistent(data.get("markers", {}))
         _cue.disabled_files = set(data.get("disabled_files", []))
         _cue.triggers_active = data.get("triggers_active", True)
-        stripped = _cue_sanitize_video_timestamps()
+        stripped = _cue.markers._sanitize_video_timestamps()
         if stripped:
             _cue_log("LOAD-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
-        _cue_log("LOAD-MARKERS total_keys={}".format(len(_cue.markers)))
+        _cue_log("LOAD-MARKERS total_keys={}".format(len(_cue.markers._data)))
 
 
 
@@ -900,8 +808,8 @@ screen cue_overlay():
 
     # Screen-level key bindings
     key "K_BACKQUOTE" action Function(_cue_hide_overlay)
-    key "shift_K_1" action Function(_cue_copy_context)
-    key "shift_K_2" action Function(_cue_paste_context)
+    key "shift_K_1" action Function(_cue.markers.copy_context)
+    key "shift_K_2" action Function(_cue.markers.paste_context)
 
     button:
         xalign 0.0

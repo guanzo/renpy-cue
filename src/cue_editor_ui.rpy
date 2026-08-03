@@ -151,7 +151,7 @@ screen cue_float_input(field_name, commit_action, display_text):
             tooltip "Click to edit. Press Enter to confirm."
 
 # Reusable time input: -- - [textbutton | input] + ++ with nudge buttons and Enter-to-commit.
-# field_name: string for VariableInputValue (e.g. "_cue.edit_video_ts_text")
+# field_name: string for VariableInputValue (e.g. "_cue.markers.video.edit_text")
 # commit_action: Function() called on Enter to confirm
 # dec100/dec10/inc10/inc100_action: Function() called by nudge buttons
 screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
@@ -173,7 +173,7 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
             textbutton display_text:
                 style "cue_btn"
                 text_style "cue_btn_text"
-                action [SetLocalVariable("editing", True), Function(_cue_sync_video_ts_text)]
+                action [SetLocalVariable("editing", True), Function(_cue.markers.video.sync_text)]
                 tooltip "Click to edit. Press Enter to confirm."
 
         use cue_icon_button("+", inc10_action, "Nudge forward 10 ms", 18)
@@ -280,13 +280,13 @@ screen cue_overlay_content():
                     action Function(_cue_toggle_active)
                     tooltip "SFX triggers are OFF (F4 to toggle)"
             null width 5
-            use cue_icon_button("📋", Function(_cue_copy_context), "Copy current context config (Shift + 1)", None)
-            use cue_icon_button("📄", Function(_cue_paste_context), "Paste context config (Shift + 2)", None)
+            use cue_icon_button("📋", Function(_cue.markers.copy_context), "Copy current context config (Shift + 1)", None)
+            use cue_icon_button("📄", Function(_cue.markers.paste_context), "Paste context config (Shift + 2)", None)
             null width 5
             $ _backup_tooltip = "Backup config to " + _cue.config_filename
-            use cue_icon_button("💾", Function(_cue_dump_markers), _backup_tooltip, None)
+            use cue_icon_button("💾", Function(_cue.markers.dump), _backup_tooltip, None)
             $ _restore_tooltip = "Restore config from " + _cue.config_filename
-            use cue_icon_button("📂", Function(_cue_restore_markers_from_file), _restore_tooltip, None)
+            use cue_icon_button("📂", Function(_cue.markers.restore), _restore_tooltip, None)
             null width 5
             use cue_icon_button("⏸", Function(renpy.invoke_in_new_context, renpy.pause), "Pause game (F3)", None)
             use cue_icon_button("⟳", [Function(_cue_refresh_context), Function(_cue_scan_audio)], "Refresh overlay", None)
@@ -347,7 +347,7 @@ screen cue_overlay_content():
                     textbutton "Delete":
                         style "cue_btn"
                         text_style "cue_btn_text"
-                        action Confirm(_cue_get_delete_confirm_message(), Function(_cue_remove_selected_markers))
+                        action Confirm(_cue.markers.video.get_delete_message(), Function(_cue.markers.video.remove_selected))
                         tooltip "Delete selected markers"
                     textbutton "?":
                         style "cue_btn"
@@ -364,16 +364,16 @@ screen cue_overlay_content():
                 $ _vid_entry = _cue.markers.get(_vid_key, {})
                 $ _vid_entries = _vid_entry.get("timestamps", [])
                 $ _vid_count = len(_vid_entries)
-                $ _vid_target = _cue.vid_target_pool
+                $ _vid_target = _cue.markers.video.target_pool
                 $ _vid_target = max(0, min(_vid_target, _vid_count - 1)) if _vid_entries else 0
                 # --- Draggable video marker timeline ---
                 if _vid_entries:
                     add CueVideoMarkerTimeline(
-                        get_markers=_cue_mtl_get_markers,
-                        get_active=_cue_mtl_get_active,
-                        set_active=_cue_mtl_set_active,
-                        set_time=_cue_mtl_set_time,
-                        get_dur=_cue_mtl_get_dur,
+                        get_markers=_cue.markers.video.get_markers,
+                        get_active=_cue.markers.video.get_active,
+                        set_active=_cue.markers.video.set_active,
+                        set_time=_cue.markers.video.set_time,
+                        get_dur=_cue.markers.video.get_duration,
                     )
                 null height 5
                 if _vid_entry:
@@ -384,9 +384,9 @@ screen cue_overlay_content():
                     use cue_vol_row("Master: {:.1f}".format(_master_vol), _dec, _vid_entry, _inc)
                 use cue_pool_tabs(_vid_count, _vid_target, bool(_vid_entries),
                     "Delete all video timestamp markers for the current video?",
-                    Function(_cue_clear_video_markers), "Delete all video SFX for the current video",
-                    Function(_cue_add_video_pool), "Create a new empty timestamp at current time",
-                    _cue_set_vid_target_pool, (), "Select timestamp pool — V button adds files here")
+                    Function(_cue.markers.video.clear), "Delete all video SFX for the current video",
+                    Function(_cue.markers.video.add_pool), "Create a new empty timestamp at current time",
+                    _cue.markers.video.set_active, (), "Select timestamp pool — V button adds files here")
                 # Active pool display
                 if _vid_entries and 0 <= _vid_target < _vid_count:
                     $ _active_ts = _vid_entries[_vid_target]
@@ -400,24 +400,24 @@ screen cue_overlay_content():
                         textbutton "Duplicate":
                             style "cue_btn"
                             text_style "cue_btn_text"
-                            action Function(_cue_duplicate_video_pool, _vid_target)
+                            action Function(_cue.markers.video.duplicate_pool, _vid_target)
                             tooltip "Duplicate this timestamp pool"
                         textbutton "Delete":
                             style "cue_btn"
                             text_style "cue_btn_text"
-                            action Confirm("Delete this timestamp pool?", Function(_cue_remove_video_pool, _vid_target))
+                            action Confirm("Delete this timestamp pool?", Function(_cue.markers.video.remove_pool, _vid_target))
                             tooltip "Delete this timestamp pool"
                     # Editable timestamp + nudge buttons
                     hbox:
                         spacing 3
                         text "Time:" style "cue_txt" size 11
-                        $ _dec10 = Function(_cue_nudge_video_ts, -0.01)
-                        $ _dec100 = Function(_cue_nudge_video_ts, -0.1)
-                        $ _inc10 = Function(_cue_nudge_video_ts, 0.01)
-                        $ _inc100 = Function(_cue_nudge_video_ts, 0.1)
-                        $ _commit = Function(_cue_commit_video_ts)
+                        $ _dec10 = Function(_cue.markers.video.nudge, -0.01)
+                        $ _dec100 = Function(_cue.markers.video.nudge, -0.1)
+                        $ _inc10 = Function(_cue.markers.video.nudge, 0.01)
+                        $ _inc100 = Function(_cue.markers.video.nudge, 0.1)
+                        $ _commit = Function(_cue.markers.video.commit_text)
                         $ _display = _cue_format_time(_active_ts["time"])
-                        use cue_time_input("_cue.edit_video_ts_text", _commit, _dec100, _dec10,
+                        use cue_time_input("_cue.markers.video.edit_text", _commit, _dec100, _dec10,
                                            _inc10, _inc100, _display)
                     # Volume controls
                     $ _active_ts.setdefault("volume", 1.0)
@@ -427,7 +427,7 @@ screen cue_overlay_content():
                     use cue_vol_row(_vol_label, _dec, _active_ts, _inc)
                     # File list
                     if _active_files:
-                        use cue_file_list(_active_files, _cue_remove_video_file, (_vid_target,), _active_eff, 5)
+                        use cue_file_list(_active_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 5)
                     else:
                         text "Click the V button in the SFX Library to add files to this pool." style "cue_help"
                 else:
@@ -440,7 +440,7 @@ screen cue_overlay_content():
             $ _img_key = create_img_key(_cue.current_file)
             $ _img_entry = _cue.markers.get(_img_key, {})
             $ _img_pools = _img_entry.get("pools", [])
-            $ _img_target = _cue.img_target_pool
+            $ _img_target = _cue.markers.image.get_active()
             $ _img_target = max(0, min(_img_target, len(_img_pools) - 1)) if _img_pools else 0
             use cue_section_frame("Image SFX"):
                 fixed:
@@ -460,9 +460,9 @@ screen cue_overlay_content():
                 # Tab row: [+ Pool] [1] [2] ...
                 use cue_pool_tabs(len(_img_pools), _img_target, bool(_img_pools),
                     "Delete all image SFX for the current image?",
-                    Function(_cue_clear_image_markers), "Delete all image SFX for the current image",
-                    Function(_cue_add_pool, _img_key, "img"), "Add a new pool",
-                    _cue_set_target_pool, ("img",), "Select Image SFX target pool — targets I button")
+                    Function(_cue.markers.image.clear), "Delete all image SFX for the current image",
+                    Function(_cue.markers.image.add_pool), "Add a new pool",
+                    _cue.markers.image.set_active, (), "Select Image SFX target pool — targets I button")
                 # Active pool display
                 if _img_pools and 0 <= _img_target < len(_img_pools):
                     $ _active_pool = _img_pools[_img_target]
@@ -473,7 +473,7 @@ screen cue_overlay_content():
                     hbox:
                         spacing 3
                         text _active_label style "cue_txt" size 11
-                        use cue_icon_button("✕", Confirm("Delete this pool?", Function(_cue_remove_pool, _img_key, _img_target, "img")), "Delete this pool", None)
+                        use cue_icon_button("✕", Confirm("Delete this pool?", Function(_cue.markers.image.remove_pool, _img_target)), "Delete this pool", None)
                     $ _active_pool.setdefault("volume", 1.0)
                     $ _dec = Function(_cue.volume.adjust, _img_key, -0.1, _img_target)
                     $ _inc = Function(_cue.volume.adjust, _img_key, 0.1, _img_target)
@@ -503,7 +503,7 @@ screen cue_overlay_content():
             $ _dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
             $ _dlg_entry = _cue.markers.get(_dlg_key, {})
             $ _dlg_pools = _dlg_entry.get("pools", [])
-            $ _dlg_target = _cue.dlg_target_pool
+            $ _dlg_target = _cue.markers.dialogue.get_active()
             $ _dlg_target = max(0, min(_dlg_target, len(_dlg_pools) - 1)) if _dlg_pools else 0
             use cue_section_frame("Dialogue SFX"):
                 fixed:
@@ -523,9 +523,9 @@ screen cue_overlay_content():
                 # Tab row: [+ Pool] [1] [2] ...
                 use cue_pool_tabs(len(_dlg_pools), _dlg_target, bool(_dlg_pools),
                     "Delete all dialogue SFX for the current dialogue?",
-                    Function(_cue_clear_dialogue_markers), "Delete all dialogue SFX for the current dialogue",
-                    Function(_cue_add_pool, _dlg_key, "dlg"), "Add a new pool",
-                    _cue_set_target_pool, ("dlg",), "Select Dialogue SFX target pool — targets D button")
+                    Function(_cue.markers.dialogue.clear), "Delete all dialogue SFX for the current dialogue",
+                    Function(_cue.markers.dialogue.add_pool), "Add a new pool",
+                    _cue.markers.dialogue.set_active, (), "Select Dialogue SFX target pool — targets D button")
                 # Active pool display
                 if _dlg_pools and 0 <= _dlg_target < len(_dlg_pools):
                     $ _active_pool = _dlg_pools[_dlg_target]
@@ -536,7 +536,7 @@ screen cue_overlay_content():
                     hbox:
                         spacing 3
                         text _active_label style "cue_txt" size 11
-                        use cue_icon_button("✕", Confirm("Delete this pool?", Function(_cue_remove_pool, _dlg_key, _dlg_target, "dlg")), "Delete this pool", None)
+                        use cue_icon_button("✕", Confirm("Delete this pool?", Function(_cue.markers.dialogue.remove_pool, _dlg_target)), "Delete this pool", None)
                     $ _active_pool.setdefault("volume", 1.0)
                     $ _dec = Function(_cue.volume.adjust, _dlg_key, -0.1, _dlg_target)
                     $ _inc = Function(_cue.volume.adjust, _dlg_key, 0.1, _dlg_target)
@@ -577,7 +577,7 @@ screen cue_overlay_content():
                             background "#666699"
                         else:
                             background "#444444"
-                        action Function(_cue_set_autoplay_frequency, _autoplay_key, 0)
+                        action Function(_cue.markers.autoplay.set_frequency, 0)
                     textbutton "Normal":
                         style "cue_btn"
                         text_style "cue_btn_text"
@@ -585,7 +585,7 @@ screen cue_overlay_content():
                             background "#669966"
                         else:
                             background "#444444"
-                        action Function(_cue_set_autoplay_frequency, _autoplay_key, 1)
+                        action Function(_cue.markers.autoplay.set_frequency, 1)
                     textbutton "Fast":
                         style "cue_btn"
                         text_style "cue_btn_text"
@@ -593,7 +593,7 @@ screen cue_overlay_content():
                             background "#996666"
                         else:
                             background "#444444"
-                        action Function(_cue_set_autoplay_frequency, _autoplay_key, 2)
+                        action Function(_cue.markers.autoplay.set_frequency, 2)
                     textbutton "Fastest":
                         style "cue_btn"
                         text_style "cue_btn_text"
@@ -601,7 +601,7 @@ screen cue_overlay_content():
                             background "#996699"
                         else:
                             background "#444444"
-                        action Function(_cue_set_autoplay_frequency, _autoplay_key, 3)
+                        action Function(_cue.markers.autoplay.set_frequency, 3)
 
                 $ _autoplay_entry.setdefault("volume", 1.0)
                 $ _pool_vol = _autoplay_entry.get("volume", 1.0)
@@ -617,9 +617,9 @@ screen cue_overlay_content():
                         text_style "cue_btn_text"
                         action Confirm(
                             "Delete all files from the current Autoplay pool?",
-                            Function(_cue_clear_autoplay_pool))
+                            Function(_cue.markers.autoplay.clear))
                         tooltip "Delete all files from the current Autoplay pool"
-                use cue_file_list(_autoplay_files, _cue_remove_from_autoplay_pool, (), _autoplay_entry.get("volume", 1.0), 2)
+                use cue_file_list(_autoplay_files, _cue.markers.autoplay.remove_file, (), _autoplay_entry.get("volume", 1.0), 2)
             else:
                 text "Click the A button in the SFX Library to add files." style "cue_help"
 
@@ -647,10 +647,10 @@ screen cue_overlay_content():
                                     else:
                                         use cue_icon_button("▸", Function(_cue_toggle_folder, item["full_path"]), None, None)
                                     if item["has_files"]:
-                                        use cue_icon_button("V", Function(_cue_add_folder_to_video_markers, item["full_path"]), "Add folder to active video timestamp pool", None)
-                                        use cue_icon_button("I", Function(_cue_add_folder_to_image_markers, item["full_path"]), "Add folder to Image SFX pool", None)
-                                        use cue_icon_button("D", Function(_cue_add_folder_to_dialogue_markers, item["full_path"]), "Add folder to Dialogue SFX pool", None)
-                                        use cue_icon_button("A", Function(_cue_add_folder_to_autoplay_pool, item["full_path"]), "Add folder to Autoplay SFX Pool", None)
+                                        use cue_icon_button("V", Function(_cue.markers.video.add_folder, item["full_path"]), "Add folder to active video timestamp pool", None)
+                                        use cue_icon_button("I", Function(_cue.markers.image.add_folder, item["full_path"]), "Add folder to Image SFX pool", None)
+                                        use cue_icon_button("D", Function(_cue.markers.dialogue.add_folder, item["full_path"]), "Add folder to Dialogue SFX pool", None)
+                                        use cue_icon_button("A", Function(_cue.markers.autoplay.add_folder, item["full_path"]), "Add folder to Autoplay SFX Pool", None)
                                     textbutton item["name"]:
                                         style "cue_btn"
                                         text_style "cue_btn_text_sm"
@@ -661,13 +661,13 @@ screen cue_overlay_content():
                                     # Play preview
                                     use cue_icon_button("▶", Function(_cue_preview_sfx, item["full_path"]), "Preview audio", None)
                                     # Video marker (adds to active timestamp pool)
-                                    use cue_icon_button("V", Function(_cue_add_video_marker, item["index"]), "Add file to active video timestamp pool", None)
+                                    use cue_icon_button("V", Function(_cue.markers.video.add_file, item["index"]), "Add file to active video timestamp pool", None)
                                     # Image SFX
-                                    use cue_icon_button("I", Function(_cue_add_image_marker, item["index"]), "Add to Image SFX pool", None)
+                                    use cue_icon_button("I", Function(_cue.markers.image.add_file, item["index"]), "Add to Image SFX pool", None)
                                     # Dialogue SFX
-                                    use cue_icon_button("D", Function(_cue_add_dialogue_marker, item["index"]), "Add to Dialogue SFX pool", None)
+                                    use cue_icon_button("D", Function(_cue.markers.dialogue.add_file, item["index"]), "Add to Dialogue SFX pool", None)
                                     # Autoplay SFX
-                                    use cue_icon_button("A", Function(_cue_add_to_autoplay_pool, item["index"]), "Add to Autoplay SFX pool", None)
+                                    use cue_icon_button("A", Function(_cue.markers.autoplay.add_file, item["index"]), "Add to Autoplay SFX pool", None)
                                     if item.get("enabled", True):
                                         use cue_icon_button("☑", Function(_cue_toggle_file_enabled, item["full_path"]), "Click to exclude from markers", None)
                                     else:

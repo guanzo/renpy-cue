@@ -22,13 +22,13 @@ init -999 python:
         def open(self):
             """Open the Repeat Pattern dialog for the current selection.
             Falls back to the active pool if nothing is selected."""
-            timestamps = _cue_mtl_get_markers()
+            timestamps = _cue.markers.video.get_markers()
             if not timestamps:
                 return
 
-            sel = _cue_mtl_get_selected()
+            sel = _cue.markers.video.get_selected()
             if not sel:
-                active = _cue.vid_target_pool
+                active = _cue.markers.video.target_pool
                 if 0 <= active < len(timestamps):
                     sel = {active}
                 else:
@@ -73,7 +73,7 @@ init -999 python:
                 max_count = 0
             self.count_text = str(max_count)
 
-            _cue._mtl_suppress_clear = True
+            
             self.dialog_visible = True
             renpy.show_screen("cue_repeat_pattern_dialog", _layer="cue_layer")
 
@@ -117,7 +117,7 @@ init -999 python:
 
             if new_count > 0:
                 timestamps.sort(key=lambda e: e["time"])
-            _cue.mtl_selected = set()
+            _cue.markers.video.selected = set()
             _cue_save_markers()
 
         def hide(self):
