@@ -330,6 +330,11 @@ init python:
         _cue_refresh_channel()
         _cue.visible_tree = _cue_get_visible_tree()
 
+        # Character callbacks don't trigger on rollback, need to clear stale dialogue here.
+        if renpy.get_screen("say") is None:
+            _cue.current_dialogue = ""
+            _cue.prev_dialogue = ""
+
         # 2. Re-detect context: top displayable on master layer wins;
         #    fall back to video channel when nothing is on the master layer.
         _top_name, _top_type = _cue_get_top_layer()
@@ -350,7 +355,8 @@ init python:
         if _cue.current_file != old_file:
             _changed += " file:{}->{}".format(old_file, _cue.current_file)
             _img_key = create_img_key(_cue.current_file) if _cue.current_file else None
-            _cue.loop_states = {} # clean up stale data
+
+            _cue.loop_states = {} # Clean up stale data
         if _cue.active_channel != old_video:
             _changed += " ch:{}->{}".format(old_video, _cue.active_channel)
         if _cue.current_dialogue != _cue.prev_dialogue:
