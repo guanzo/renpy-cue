@@ -659,7 +659,7 @@ screen cue_overlay_content():
                                     use cue_icon_button("I", Function(_cue.markers.image.apply_preset, _pname), "Apply preset to active Image SFX pool", None)
                                     use cue_icon_button("D", Function(_cue.markers.dialogue.apply_preset, _pname), "Apply preset to active Dialogue SFX pool", None)
                                     use cue_icon_button("A", Function(_cue.markers.autoplay.apply_preset, _pname), "Apply preset to active Autoplay SFX pool", None)
-                                    use cue_icon_button("✕", Function(_cue.markers.delete_preset, _pname), "Delete preset", None)
+                                    use cue_icon_button("✕", Confirm("Delete preset '{}'?".format(_pname), Function(_cue.markers.delete_preset, _pname)), "Delete preset", None)
                                     textbutton _pname:
                                         style "cue_btn"
                                         text_style "cue_btn_text_sm"
