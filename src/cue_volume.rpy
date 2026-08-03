@@ -49,8 +49,9 @@ init -999 python:
                 timestamps = entry.get("timestamps", [])
                 if not timestamps:
                     return
-                if ts_index is not None and 0 <= ts_index < len(timestamps):
-                    timestamps[ts_index]["volume"] = new_vol
+                if ts_index is not None:
+                    if 0 <= ts_index < len(timestamps):
+                        timestamps[ts_index]["volume"] = new_vol
                 else:
                     for ts_entry in timestamps:
                         ts_entry["volume"] = new_vol
