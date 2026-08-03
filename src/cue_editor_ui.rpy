@@ -247,6 +247,65 @@ screen cue_section_frame(header_text):
         text header_text style "cue_hdr"
         transclude
 
+# Generic pool section: shared by dialogue, image, and autoplay SFX.
+# ctx: marker context with add_pool, remove_pool, clear, set_active,
+#      get_active, remove_file (e.g. _cue.markers.dialogue)
+# vol_key: trigger key for volume/marker lookups
+# subtitle: optional "Label: value" text below header (None to skip)
+# subject: noun for confirm messages ("dialogue", "image", "file")
+# btn_letter: "D", "I", or "A" for hint messages
+# Transclude: extra UI between pool label and volume row (shake toggle,
+#             frequency selector). Reads _cue._pool_ui["pool"].
+screen cue_pool_section(section_title, ctx, vol_key, subtitle, subject, btn_letter):
+    $ _entry = _cue.markers.get(vol_key, {})
+    $ _pools = _entry.get("pools", [])
+    $ _target = ctx.get_active()
+    $ _target = max(0, min(_target, len(_pools) - 1)) if _pools else 0
+    use cue_section_frame(section_title):
+        if subtitle is not None:
+            fixed:
+                xfill True
+                ysize 1
+                add Solid("#555555")
+            vbox:
+                spacing 5
+                text subtitle style "cue_txt"
+            null height 5
+        if _entry:
+            $ _entry.setdefault("volume", 1.0)
+            $ _master_vol = _entry.get("volume", 1.0)
+            $ _dec = Function(_cue.volume.adjust_master, vol_key, -0.1)
+            $ _inc = Function(_cue.volume.adjust_master, vol_key, 0.1)
+            use cue_vol_row("Master: {:.1f}".format(_master_vol), _dec, _entry, _inc)
+        use cue_pool_tabs(len(_pools), _target, bool(_pools),
+            "Delete all {} for the current {}?".format(section_title.lower(), subject),
+            Function(ctx.clear), "Delete all {} for the current {}".format(section_title.lower(), subject),
+            Function(ctx.add_pool), "Add a new pool",
+            ctx.set_active, (), "Select {} target pool — targets {} button".format(section_title, btn_letter))
+        if _pools and 0 <= _target < len(_pools):
+            $ _active_pool = _pools[_target]
+            $ _active_files = _active_pool.get("files", [])
+            $ _active_vol = _active_pool.get("volume", 1.0)
+            $ _active_eff = _cue.volume.get_effective(_entry, vol_key, pool_index=_target)
+            $ _active_label = "Pool " + str(_target + 1) + " (" + str(len(_active_files)) + " files)"
+            $ _cue._pool_ui = {"pool": _active_pool, "files": _active_files, "target": _target}
+            hbox:
+                spacing 3
+                text _active_label style "cue_txt" size 11
+                use cue_icon_button("✕", Confirm("Delete this pool?", Function(ctx.remove_pool, _target)), "Delete this pool", None)
+            transclude
+            $ _active_pool.setdefault("volume", 1.0)
+            $ _dec = Function(_cue.volume.adjust, vol_key, -0.1, _target)
+            $ _inc = Function(_cue.volume.adjust, vol_key, 0.1, _target)
+            $ _vol_label = "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff)
+            use cue_vol_row(_vol_label, _dec, _active_pool, _inc)
+            if _active_files:
+                use cue_file_list(_active_files, ctx.remove_file, (_target,), _active_eff, 5)
+            else:
+                text "Click the {} button in the SFX Library to add files to this pool.".format(btn_letter) style "cue_help"
+        else:
+            text "Click the {} button in the SFX Library to create a new pool or add files to the active pool.".format(btn_letter) style "cue_help"
+
 ###############################################################################
 # SECTION 5: Overlay Screen
 ###############################################################################
@@ -438,205 +497,77 @@ screen cue_overlay_content():
         $ _has_image = bool(_cue.current_file) and not _is_video
         if _has_image:
             $ _img_key = create_img_key(_cue.current_file)
-            $ _img_entry = _cue.markers.get(_img_key, {})
-            $ _img_pools = _img_entry.get("pools", [])
-            $ _img_target = _cue.markers.image.get_active()
-            $ _img_target = max(0, min(_img_target, len(_img_pools) - 1)) if _img_pools else 0
-            use cue_section_frame("Image SFX"):
-                fixed:
-                    xfill True
-                    ysize 1
-                    add Solid("#555555")
-                vbox:
-                    spacing 5
-                    text "Image: [_cue.current_file]" style "cue_txt"
-                null height 5
-                if _img_entry:
-                    $ _img_entry.setdefault("volume", 1.0)
-                    $ _master_vol = _img_entry.get("volume", 1.0)
-                    $ _dec = Function(_cue.volume.adjust_master, _img_key, -0.1)
-                    $ _inc = Function(_cue.volume.adjust_master, _img_key, 0.1)
-                    use cue_vol_row("Master: {:.1f}".format(_master_vol), _dec, _img_entry, _inc)
-                # Tab row: [+ Pool] [1] [2] ...
-                use cue_pool_tabs(len(_img_pools), _img_target, bool(_img_pools),
-                    "Delete all image SFX for the current image?",
-                    Function(_cue.markers.image.clear), "Delete all image SFX for the current image",
-                    Function(_cue.markers.image.add_pool), "Add a new pool",
-                    _cue.markers.image.set_active, (), "Select Image SFX target pool — targets I button")
-                # Active pool display
-                if _img_pools and 0 <= _img_target < len(_img_pools):
-                    $ _active_pool = _img_pools[_img_target]
-                    $ _active_files = _active_pool.get("files", [])
-                    $ _active_vol = _active_pool.get("volume", 1.0)
-                    $ _active_eff = _cue.volume.get_effective(_img_entry, _img_key, pool_index=_img_target)
-                    $ _active_label = "Pool " + str(_img_target + 1) + " (" + str(len(_active_files)) + " files)"
-                    hbox:
-                        spacing 3
-                        text _active_label style "cue_txt" size 11
-                        use cue_icon_button("✕", Confirm("Delete this pool?", Function(_cue.markers.image.remove_pool, _img_target)), "Delete this pool", None)
-                    $ _active_pool.setdefault("volume", 1.0)
-                    $ _dec = Function(_cue.volume.adjust, _img_key, -0.1, _img_target)
-                    $ _inc = Function(_cue.volume.adjust, _img_key, 0.1, _img_target)
-                    $ _vol_label = "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff)
-                    use cue_vol_row(_vol_label, _dec, _active_pool, _inc)
-                    if _active_pool.get("trigger_on_shake", False):
-                        textbutton "☑ Trigger on screen shake":
-                            style "cue_btn"
-                            text_style "cue_btn_text_sm"
-                            action Function(_cue_toggle_shake_trigger)
-                            tooltip "Play SFX when a screen shake occurs"
-                    else:
-                        textbutton "☐ Trigger on screen shake":
-                            style "cue_btn"
-                            text_style "cue_btn_text_sm"
-                            action Function(_cue_toggle_shake_trigger)
-                            tooltip "Play SFX when a screen shake occurs"
-                    if _active_files:
-                        use cue_file_list(_active_files, _cue.markers.image.remove_file, (_img_target,), _active_eff, 5)
-                    else:
-                        text "Click the I button in the SFX Library to add files to this pool." style "cue_help"
+            use cue_pool_section("Image SFX", _cue.markers.image, _img_key,
+                "Image: " + _cue.current_file, "image", "I"):
+                $ _p = _cue._pool_ui["pool"]
+                if _p.get("trigger_on_shake", False):
+                    textbutton "☑ Trigger on screen shake":
+                        style "cue_btn"
+                        text_style "cue_btn_text_sm"
+                        action Function(_cue_toggle_shake_trigger)
+                        tooltip "Play SFX when a screen shake occurs"
                 else:
-                    text "Click the I button in the SFX Library to create a new pool or add files to the active pool." style "cue_help"
+                    textbutton "☐ Trigger on screen shake":
+                        style "cue_btn"
+                        text_style "cue_btn_text_sm"
+                        action Function(_cue_toggle_shake_trigger)
+                        tooltip "Play SFX when a screen shake occurs"
 
         # --- Dialogue UI ---
         if _is_dialogue:
             $ _dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
-            $ _dlg_entry = _cue.markers.get(_dlg_key, {})
-            $ _dlg_pools = _dlg_entry.get("pools", [])
-            $ _dlg_target = _cue.markers.dialogue.get_active()
-            $ _dlg_target = max(0, min(_dlg_target, len(_dlg_pools) - 1)) if _dlg_pools else 0
-            use cue_section_frame("Dialogue SFX"):
-                fixed:
-                    xfill True
-                    ysize 1
-                    add Solid("#555555")
-                vbox:
-                    spacing 5
-                    text "Dialogue: [_cue.current_dialogue]" style "cue_txt"
-                null height 5
-                if _dlg_entry:
-                    $ _dlg_entry.setdefault("volume", 1.0)
-                    $ _master_vol = _dlg_entry.get("volume", 1.0)
-                    $ _dec = Function(_cue.volume.adjust_master, _dlg_key, -0.1)
-                    $ _inc = Function(_cue.volume.adjust_master, _dlg_key, 0.1)
-                    use cue_vol_row("Master: {:.1f}".format(_master_vol), _dec, _dlg_entry, _inc)
-                # Tab row: [+ Pool] [1] [2] ...
-                use cue_pool_tabs(len(_dlg_pools), _dlg_target, bool(_dlg_pools),
-                    "Delete all dialogue SFX for the current dialogue?",
-                    Function(_cue.markers.dialogue.clear), "Delete all dialogue SFX for the current dialogue",
-                    Function(_cue.markers.dialogue.add_pool), "Add a new pool",
-                    _cue.markers.dialogue.set_active, (), "Select Dialogue SFX target pool — targets D button")
-                # Active pool display
-                if _dlg_pools and 0 <= _dlg_target < len(_dlg_pools):
-                    $ _active_pool = _dlg_pools[_dlg_target]
-                    $ _active_files = _active_pool.get("files", [])
-                    $ _active_vol = _active_pool.get("volume", 1.0)
-                    $ _active_eff = _cue.volume.get_effective(_dlg_entry, _dlg_key, pool_index=_dlg_target)
-                    $ _active_label = "Pool " + str(_dlg_target + 1) + " (" + str(len(_active_files)) + " files)"
-                    hbox:
-                        spacing 3
-                        text _active_label style "cue_txt" size 11
-                        use cue_icon_button("✕", Confirm("Delete this pool?", Function(_cue.markers.dialogue.remove_pool, _dlg_target)), "Delete this pool", None)
-                    $ _active_pool.setdefault("volume", 1.0)
-                    $ _dec = Function(_cue.volume.adjust, _dlg_key, -0.1, _dlg_target)
-                    $ _inc = Function(_cue.volume.adjust, _dlg_key, 0.1, _dlg_target)
-                    $ _vol_label = "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff)
-                    use cue_vol_row(_vol_label, _dec, _active_pool, _inc)
-                    if _active_files:
-                        use cue_file_list(_active_files, _cue.markers.dialogue.remove_file, (_dlg_target,), _active_eff, 5)
-                    else:
-                        text "Click the D button in the SFX Library to add files to this pool." style "cue_help"
-                else:
-                    text "Click the D button in the SFX Library to create a new pool or add to the active pool." style "cue_help"
+            use cue_pool_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
+                "Dialogue: " + _cue.current_dialogue, "dialogue", "D")
 
         if _cue.scan_error:
             text "[_cue.scan_error]" style "cue_help" color "#ff6666"
 
-        # ================================================================
         # Autoplay SFX
-        # ================================================================
         $ _autoplay_key = create_autoplay_key(_cue.current_file or "")
-        $ _autoplay_entry = _cue.markers.get(_autoplay_key, {})
-        $ _autoplay_pools = _autoplay_entry.get("pools", [])
-        $ _autoplay_target = _cue.markers.autoplay.get_active()
-        $ _autoplay_target = max(0, min(_autoplay_target, len(_autoplay_pools) - 1)) if _autoplay_pools else 0
-        use cue_section_frame("Autoplay SFX"):
-
-            if _autoplay_entry:
-                $ _autoplay_entry.setdefault("volume", 1.0)
-                $ _master_vol = _autoplay_entry.get("volume", 1.0)
-                $ _dec = Function(_cue.volume.adjust, _autoplay_key, -0.1)
-                $ _inc = Function(_cue.volume.adjust, _autoplay_key, 0.1)
-                use cue_vol_row("Master: {:.1f}".format(_master_vol), _dec, _autoplay_entry, _inc)
-            # Tab row: [+ Pool] [1] [2] ...
-            use cue_pool_tabs(len(_autoplay_pools), _autoplay_target, bool(_autoplay_pools),
-                "Delete all autoplay SFX for the current file?",
-                Function(_cue.markers.autoplay.clear), "Delete all autoplay SFX for the current file",
-                Function(_cue.markers.autoplay.add_pool), "Add a new pool",
-                _cue.markers.autoplay.set_active, (), "Select Autoplay SFX target pool — targets A button")
-            # Active pool display
-            if _autoplay_pools and 0 <= _autoplay_target < len(_autoplay_pools):
-                $ _active_pool = _autoplay_pools[_autoplay_target]
-                $ _active_files = _active_pool.get("files", [])
-                $ _active_vol = _active_pool.get("volume", 1.0)
-                $ _active_eff = _cue.volume.get_effective(_autoplay_entry, _autoplay_key, pool_index=_autoplay_target)
-                $ _active_label = "Pool " + str(_autoplay_target + 1) + " (" + str(len(_active_files)) + " files)"
-                hbox:
-                    spacing 3
-                    text _active_label style "cue_txt" size 11
-                    use cue_icon_button("✕", Confirm("Delete this pool?", Function(_cue.markers.autoplay.remove_pool, _autoplay_target)), "Delete this pool", None)
-                $ _active_pool.setdefault("frequency", 1)
-                $ _active_freq = _active_pool.get("frequency", 1)
-                hbox:
-                    spacing 5
-                    text "Freq" style "cue_txt" size 11
-                    $ slow_selected = (_active_freq == 0)
-                    $ normal_selected = (_active_freq == 1)
-                    $ fast_selected = (_active_freq == 2)
-                    $ fastest_selected = (_active_freq == 3)
-                    textbutton "Slow":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        if slow_selected:
-                            background "#666699"
-                        else:
-                            background "#444444"
-                        action Function(_cue.markers.autoplay.set_frequency, 0)
-                    textbutton "Normal":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        if normal_selected:
-                            background "#669966"
-                        else:
-                            background "#444444"
-                        action Function(_cue.markers.autoplay.set_frequency, 1)
-                    textbutton "Fast":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        if fast_selected:
-                            background "#996666"
-                        else:
-                            background "#444444"
-                        action Function(_cue.markers.autoplay.set_frequency, 2)
-                    textbutton "Fastest":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        if fastest_selected:
-                            background "#996699"
-                        else:
-                            background "#444444"
-                        action Function(_cue.markers.autoplay.set_frequency, 3)
-                $ _active_pool.setdefault("volume", 1.0)
-                $ _dec = Function(_cue.volume.adjust, _autoplay_key, -0.1, _autoplay_target)
-                $ _inc = Function(_cue.volume.adjust, _autoplay_key, 0.1, _autoplay_target)
-                $ _vol_label = "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff)
-                use cue_vol_row(_vol_label, _dec, _active_pool, _inc)
-                if _active_files:
-                    use cue_file_list(_active_files, _cue.markers.autoplay.remove_file, (_autoplay_target,), _active_eff, 5)
-                else:
-                    text "Click the A button in the SFX Library to add files to this pool." style "cue_help"
-            else:
-                text "Click the A button in the SFX Library to create a new pool or add files to the active pool." style "cue_help"
+        use cue_pool_section("Autoplay SFX", _cue.markers.autoplay, _autoplay_key,
+            None, "file", "A"):
+            $ _p = _cue._pool_ui["pool"]
+            $ _p.setdefault("frequency", 1)
+            $ _freq = _p.get("frequency", 1)
+            hbox:
+                spacing 5
+                text "Freq" style "cue_txt" size 11
+                $ slow_selected = (_freq == 0)
+                $ normal_selected = (_freq == 1)
+                $ fast_selected = (_freq == 2)
+                $ fastest_selected = (_freq == 3)
+                textbutton "Slow":
+                    style "cue_btn"
+                    text_style "cue_btn_text"
+                    if slow_selected:
+                        background "#666699"
+                    else:
+                        background "#444444"
+                    action Function(_cue.markers.autoplay.set_frequency, 0)
+                textbutton "Normal":
+                    style "cue_btn"
+                    text_style "cue_btn_text"
+                    if normal_selected:
+                        background "#669966"
+                    else:
+                        background "#444444"
+                    action Function(_cue.markers.autoplay.set_frequency, 1)
+                textbutton "Fast":
+                    style "cue_btn"
+                    text_style "cue_btn_text"
+                    if fast_selected:
+                        background "#996666"
+                    else:
+                        background "#444444"
+                    action Function(_cue.markers.autoplay.set_frequency, 2)
+                textbutton "Fastest":
+                    style "cue_btn"
+                    text_style "cue_btn_text"
+                    if fastest_selected:
+                        background "#996699"
+                    else:
+                        background "#444444"
+                    action Function(_cue.markers.autoplay.set_frequency, 3)
 
         # Audio file browser
         if _cue.audio_tree:
