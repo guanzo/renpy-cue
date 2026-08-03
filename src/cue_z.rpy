@@ -19,7 +19,7 @@ init -999 python:
     # Path constants
     _cue.base_dir = "renpy_cue"
     _cue.audio_dir = _cue.base_dir + "/audio"
-    _cue.config_filename = "cue_editor_config.json"
+    _cue.config_filename = "cue_config.json"
     _cue.config_path = os.path.join(renpy.config.gamedir, _cue.base_dir, _cue.config_filename)
     _cue.debug_log_filename = "debug.log"
     _cue.markers = {}          # Unified markers: trigger_key -> entry
