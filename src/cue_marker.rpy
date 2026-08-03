@@ -992,10 +992,23 @@ init -999 python:
             _cue_log("STAMP-PRESET key={} pi={} preset={}".format(
                 trigger_key, pool_index, preset_name))
 
+        def _detach_folder_ref_in_files(self, files, file_index, child_file):
+            """Replace a folder ref at file_index with its resolved file list
+            minus child_file. Modifies files in place. Does not save."""
+            folder_ref = files[file_index]
+            if not folder_ref.endswith("/"):
+                return
+            resolved = []
+            for f in _cue.available_files:
+                if f.startswith(folder_ref) and f not in _cue.disabled_files and f not in resolved:
+                    resolved.append(f)
+            if child_file in resolved:
+                resolved.remove(child_file)
+            files[file_index:file_index + 1] = resolved
+
         def _remove_file_from_folder_ref(self, trigger_key, pool_index, file_index, child_file):
-            """Remove a specific child file from a folder ref at file_index.
-            Detaches the folder ref to an explicit list minus the child.
-            This is the '✕ on an expanded folder child' operation."""
+            """Remove a child file from a folder ref in a pool.
+            Detaches the pool's preset if needed, then detaches the folder ref."""
             self._detach_pool(trigger_key, pool_index)
             entry = self._data.get(trigger_key)
             if entry is None:
@@ -1003,49 +1016,24 @@ init -999 python:
             pools = entry.get("pools")
             if not pools or pool_index >= len(pools):
                 return
-            pool = pools[pool_index]
-            files = pool.get("files", [])
+            files = pools[pool_index].get("files", [])
             if file_index >= len(files):
                 return
-            folder_ref = files[file_index]
-            if not folder_ref.endswith("/"):
-                return
-            # Resolve folder ref, excluding the child file
-            resolved = []
-            for f in _cue.available_files:
-                if f.startswith(folder_ref) and f not in _cue.disabled_files and f not in resolved:
-                    resolved.append(f)
-            if child_file in resolved:
-                resolved.remove(child_file)
-            # Replace folder ref with resolved list (minus child)
-            files[file_index:file_index + 1] = resolved
+            self._detach_folder_ref_in_files(files, file_index, child_file)
             self.save()
 
         def _remove_file_from_video_folder_ref(self, trigger_key, ts_index, file_index, child_file):
-            """Remove a child file from a folder ref inside a video timestamp.
-            Detaches the folder ref to an explicit list minus the child.
-            Signature matches folder_child_remove_fn for cue_file_list
-            (pool_index = ts_index for video)."""
+            """Remove a child file from a folder ref in a video timestamp."""
             entry = self._data.get(trigger_key)
             if entry is None:
                 return
             timestamps = entry.get("timestamps")
             if not timestamps or ts_index >= len(timestamps):
                 return
-            ts = timestamps[ts_index]
-            files = ts.get("files", [])
+            files = timestamps[ts_index].get("files", [])
             if file_index >= len(files):
                 return
-            folder_ref = files[file_index]
-            if not folder_ref.endswith("/"):
-                return
-            resolved = []
-            for f in _cue.available_files:
-                if f.startswith(folder_ref) and f not in _cue.disabled_files and f not in resolved:
-                    resolved.append(f)
-            if child_file in resolved:
-                resolved.remove(child_file)
-            files[file_index:file_index + 1] = resolved
+            self._detach_folder_ref_in_files(files, file_index, child_file)
             self.save()
 
         # -- internal helpers (used by context accessors) --
