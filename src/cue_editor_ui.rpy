@@ -256,7 +256,7 @@ screen cue_section_frame(header_text):
 # SUB-SCREEN: Sidebar content (shared between normal and fullscreen frames)
 # =============================================================================
 
-screen cue_editor_sidebar_content():
+screen cue_overlay_content():
     vbox:
         spacing 4
 

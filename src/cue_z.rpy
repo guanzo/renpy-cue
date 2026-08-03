@@ -49,6 +49,9 @@ init -999 python:
     # Volume manager (per-entry volume read/write)
     _cue.volume = CueVolumeManager()
 
+    # Repeat pattern dialog state
+    _cue.beat = CueBeatManager()
+
     # UI state
     _cue.is_overlay_visible = False
     _cue.initialized = False
@@ -65,8 +68,6 @@ init -999 python:
     _cue.vid_target_pool = 0
 
 
-    # Repeat pattern dialog state
-    _cue.beat = CueBeatManager()
     _cue._last_autosave_time = 0
 
     # Audio file cache
@@ -76,8 +77,7 @@ init -999 python:
 
     # Internal
     _cue.__cue_channel_idx = 0
-    _cue.__marker_tolerance = 0.08
-    _cue.__refreshing = False
+    _cue.__refreshing_channel = False
     _cue._shake_just_happened = False
 
     # Preview state: channel the last user preview played on (None if none)
@@ -153,10 +153,10 @@ init 999 python:
                 )
 
         # Create a layer above screens for the overlay
-        renpy.add_layer("cue_editor_layer", above="screens")
+        renpy.add_layer("cue_layer", above="screens")
 
         # Use config.overlay_screens for a persistent key-listener
-        config.overlay_screens.append("cue_editor_key_listener")
+        config.overlay_screens.append("cue_key_listener")
         _cue_log("INIT: overlay_screens key listener registered")
 
         # Register after_load callback
@@ -258,14 +258,14 @@ init python:
         # Auto-detect everything
         _cue_refresh_context()
         # Show the overlay screen
-        renpy.show_screen("cue_editor_overlay", _layer="cue_editor_layer")
+        renpy.show_screen("cue_overlay", _layer="cue_layer")
         renpy.restart_interaction()
 
 
     def _cue_hide_overlay():
         _cue.is_overlay_visible = False
         _cue_save_markers()
-        renpy.hide_screen("cue_editor_overlay", layer="cue_editor_layer")
+        renpy.hide_screen("cue_overlay", layer="cue_layer")
 
 
     def _cue_refresh_context():
@@ -512,9 +512,9 @@ init python:
     def _cue_refresh_channel():
         """Auto-detect the active movie channel. Only finds video (movie) channels."""
 
-        if _cue.__refreshing:
+        if _cue.__refreshing_channel:
             return
-        _cue.__refreshing = True
+        _cue.__refreshing_channel = True
 
         try:
             video_exts = (".webm", ".mp4", ".mkv", ".avi", ".ogv", ".mpeg", ".mpg")
@@ -570,7 +570,7 @@ init python:
             _cue.active_channel = None
             _cue.vid_manager.channel = None
         finally:
-            _cue.__refreshing = False
+            _cue.__refreshing_channel = False
 
 
 
@@ -731,6 +731,8 @@ init python:
 
         # --- VIDEO MODE triggers (v: keys) ---
         ch = _cue.active_channel
+        marker_tolerance = 0.08
+
         if ch and _cue.top_layer_type == 'movie':
             elapsed = _cue.vid_manager.get_elapsed()
 
@@ -747,7 +749,7 @@ init python:
                                 _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(ts_entry))
                                 continue
                             mt = ts_entry["time"]
-                            if mt <= elapsed < mt + _cue.__marker_tolerance:
+                            if mt <= elapsed < mt + marker_tolerance:
                                 files = ts_entry.get("files", [])
                                 if files:
                                     f = _cue_pick_file(files, avoid_repeats=False)
@@ -788,7 +790,7 @@ init python:
 
             # List existing backups sorted by mtime (oldest first)
             _files = [f for f in os.listdir(backups_dir)
-                      if f.startswith("cue_editor_backup_") and f.endswith(".json")]
+                      if f.startswith("cue_backup_") and f.endswith(".json")]
             _files.sort(key=lambda f: os.path.getmtime(
                 os.path.join(backups_dir, f)))
 
@@ -803,7 +805,7 @@ init python:
 
             # Write backup with unix timestamp suffix
             _ts = int(_now)
-            _name = "cue_editor_backup_{}.json".format(_ts)
+            _name = "cue_backup_{}.json".format(_ts)
             _path = os.path.join(backups_dir, _name)
             with open(_path, "w") as f:
                 _json.dump(persistent._cue_markers, f,
@@ -878,7 +880,7 @@ init python:
 # KEY-LISTENER SCREEN: Always-visible invisible screen that catches backtick
 # =============================================================================
 
-screen cue_editor_key_listener():
+screen cue_key_listener():
     zorder 10000
     key "K_BACKQUOTE" action Function(_cue_toggle_overlay)
     key "K_F3" action Function(renpy.invoke_in_new_context, renpy.pause)
@@ -889,7 +891,7 @@ screen cue_editor_key_listener():
 # MAIN OVERLAY SCREEN
 # =============================================================================
 
-screen cue_editor_overlay():
+screen cue_overlay():
 
     zorder 9999
     modal False
@@ -912,7 +914,7 @@ screen cue_editor_overlay():
             style "cue_frame"
             xfill True
             yfill True
-            use cue_editor_sidebar_content()
+            use cue_overlay_content()
 
     # --- Floating tooltip near mouse (auto-sizes to fit text) ---
     $ _tt = GetTooltip()

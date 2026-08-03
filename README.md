@@ -1,4 +1,4 @@
-# Renpy scene editor
+# Renpy Cue
 
 ### Useful commands
 

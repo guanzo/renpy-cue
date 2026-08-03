@@ -75,7 +75,7 @@ init -999 python:
 
             _cue._mtl_suppress_clear = True
             self.dialog_visible = True
-            renpy.show_screen("cue_repeat_pattern_dialog", _layer="cue_editor_layer")
+            renpy.show_screen("cue_repeat_pattern_dialog", _layer="cue_layer")
 
         def apply(self):
             """Apply the repeat pattern: clone markers for each beat beyond
@@ -123,7 +123,7 @@ init -999 python:
         def hide(self):
             """Hide the repeat pattern dialog."""
             self.dialog_visible = False
-            renpy.hide_screen("cue_repeat_pattern_dialog", layer="cue_editor_layer")
+            renpy.hide_screen("cue_repeat_pattern_dialog", layer="cue_layer")
 
         def compute_ghost_times(self):
             """Return sorted list of ghost marker times for the preview overlay.
