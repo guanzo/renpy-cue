@@ -62,7 +62,7 @@ init -999 python:
                 return
             key = self._key()
             filename = _cue.available_files[file_index]
-            if filename in _cue.disabled_files:
+            if filename in _cue.file_tree.disabled_files:
                 return
             self._mgr._add_file_to_pool(key, filename, self.get_active())
 
@@ -249,7 +249,7 @@ init -999 python:
             if elapsed is None or elapsed <= 0:
                 return
             filename = _cue.available_files[file_index]
-            if filename in _cue.disabled_files:
+            if filename in _cue.file_tree.disabled_files:
                 return
             vid_key = self._key()
             entry = self._mgr.setdefault(vid_key, {"timestamps": []})
@@ -723,7 +723,7 @@ init -999 python:
                 if f.endswith("/") and file_path.startswith(f):
                     resolved = []
                     for rf in _cue.available_files:
-                        if rf.startswith(f) and rf not in _cue.disabled_files and rf not in resolved:
+                        if rf.startswith(f) and rf not in _cue.file_tree.disabled_files and rf not in resolved:
                             resolved.append(rf)
                     if file_path in resolved:
                         resolved.remove(file_path)
@@ -1000,7 +1000,7 @@ init -999 python:
                 return
             resolved = []
             for f in _cue.available_files:
-                if f.startswith(folder_ref) and f not in _cue.disabled_files and f not in resolved:
+                if f.startswith(folder_ref) and f not in _cue.file_tree.disabled_files and f not in resolved:
                     resolved.append(f)
             if child_file in resolved:
                 resolved.remove(child_file)
@@ -1164,7 +1164,7 @@ init -999 python:
                 "markers": python_dict(self._data),
                 "presets": python_dict(self._presets),
                 "video_presets": python_dict(self._video_presets),
-                "disabled_files": python_list(_cue.disabled_files),
+                "disabled_files": python_list(_cue.file_tree.disabled_files),
                 "triggers_active": _cue.triggers_active,
             })
             persistent._cue_markers = data
@@ -1244,7 +1244,7 @@ init -999 python:
                 self._sanitize_video_presets()
                 _cue_log("disabled___" + str(data.get("disabled_files")))
                 
-                _cue.disabled_files = set(data.get("disabled_files", []))
+                _cue.file_tree.disabled_files = set(data.get("disabled_files", []))
                 _cue.triggers_active = data.get("triggers_active", True)
                 self._normalize_all()
                 self.save()

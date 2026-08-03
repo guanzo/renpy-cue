@@ -229,20 +229,20 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
             spacing 2
             if folder_label is not None:
                 # --- Virtual folder (e.g. preset-backed pool / timestamp) ---
-                $ _is_expanded = _cue.expanded_file_refs.get(folder_label, False)
+                $ _is_expanded = _cue.file_tree.expanded_file_refs.get(folder_label, False)
                 $ _count = len(folder_children) if folder_children else 0
                 hbox:
                     spacing row_spacing
                     if _is_expanded:
-                        use cue_icon_button("▾", Function(_cue_toggle_file_ref_expand, folder_label), None, None)
+                        use cue_icon_button("▾", Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
                     else:
-                        use cue_icon_button("▸", Function(_cue_toggle_file_ref_expand, folder_label), None, None)
+                        use cue_icon_button("▸", Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
                     use cue_icon_button("✕", Function(remove_fn, *remove_args), "Remove preset", None)
                     use cue_icon_button("▶", Function(_cue_preview_sfx, (folder_children or [""])[0], preview_vol), "Preview random file from preset", None)
                     textbutton folder_label:
                         style "cue_btn"
                         text_style "cue_btn_text_sm"
-                        action Function(_cue_toggle_file_ref_expand, folder_label)
+                        action Function(_cue.file_tree.toggle_file_ref_expand, folder_label)
                         xsize None
                         ysize 14
                     text "({} files)".format(_count) style "cue_txt" color "#888888" size 10
@@ -260,20 +260,20 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
             for fi, f in enumerate(files):
                 if f.endswith("/"):
                     # --- Folder ref: expandable (matches SFX Library folder UI) ---
-                    $ _is_expanded = _cue.expanded_file_refs.get(f, False)
+                    $ _is_expanded = _cue.file_tree.expanded_file_refs.get(f, False)
                     $ _count = len(_cue_resolve_files([f]))
                     hbox:
                         spacing row_spacing
                         if _is_expanded:
-                            use cue_icon_button("▾", Function(_cue_toggle_file_ref_expand, f), None, None)
+                            use cue_icon_button("▾", Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
                         else:
-                            use cue_icon_button("▸", Function(_cue_toggle_file_ref_expand, f), None, None)
+                            use cue_icon_button("▸", Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
                         use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder ref", None)
                         use cue_icon_button("▶", Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol), "Preview random file from folder", None)
                         textbutton f:
                             style "cue_btn"
                             text_style "cue_btn_text_sm"
-                            action Function(_cue_toggle_file_ref_expand, f)
+                            action Function(_cue.file_tree.toggle_file_ref_expand, f)
                             xsize None
                             ysize 14
                         text "({} files)".format(_count) style "cue_txt" color "#888888" size 10
@@ -309,7 +309,7 @@ style cue_section_hdr_btn is empty:
 # Usage: use cue_section_frame("Title"):  ...children...
 # Click the header to collapse/expand the section content.
 screen cue_section_frame(header_text):
-    $ _collapsed = _cue._collapsed_sections.get(header_text, False)
+    $ _collapsed = _cue.file_tree.collapsed_sections.get(header_text, False)
     $ _arrow = "▸" if _collapsed else "▾"  # ▸ collapsed, ▾ expanded
     frame:
         background "#222222"
@@ -320,7 +320,7 @@ screen cue_section_frame(header_text):
             spacing 8
             button:
                 style "cue_section_hdr_btn"
-                action Function(_cue_toggle_section, header_text)
+                action Function(_cue.file_tree.toggle_section, header_text)
                 hbox:
                     xfill True
                     text header_text style "cue_hdr"
@@ -724,30 +724,30 @@ screen cue_overlay_content():
                         # --- Presets folder (matches audio tree folder UI) ---
                         hbox:
                             spacing 2
-                            if _cue._presets_expanded:
-                                use cue_icon_button("▾", Function(_cue_toggle_presets_expand), None, None)
+                            if _cue.file_tree.presets_expanded:
+                                use cue_icon_button("▾", Function(_cue.file_tree.toggle_presets_expand), None, None)
                             else:
-                                use cue_icon_button("▸", Function(_cue_toggle_presets_expand), None, None)
+                                use cue_icon_button("▸", Function(_cue.file_tree.toggle_presets_expand), None, None)
                             $ _preset_names = _cue.markers.list_presets()
                             textbutton "Presets/":
                                 style "cue_btn"
                                 text_style "cue_btn_text_sm"
-                                action Function(_cue_toggle_presets_expand)
+                                action Function(_cue.file_tree.toggle_presets_expand)
                                 xsize None
                                 ysize 14
-                        if _cue._presets_expanded:
+                        if _cue.file_tree.presets_expanded:
                             for _pname in _preset_names:
                                 $ _pdata = _cue.markers.get_preset(_pname)
-                                $ _p_expanded = _cue._expanded_presets.get(_pname, False)
+                                $ _p_expanded = _cue.file_tree.expanded_presets.get(_pname, False)
                                 $ _p_files = _cue_resolve_files(_pdata.get("files", [])) if _pdata else []
                                 $ _pfile_count = len(_p_files)
                                 hbox:
                                     spacing 2
                                     text "  " style "cue_txt"  # indent under Presets/
                                     if _p_expanded:
-                                        use cue_icon_button("▾", Function(_cue_toggle_preset_expand, _pname), None, None)
+                                        use cue_icon_button("▾", Function(_cue.file_tree.toggle_preset_expand, _pname), None, None)
                                     else:
-                                        use cue_icon_button("▸", Function(_cue_toggle_preset_expand, _pname), None, None)
+                                        use cue_icon_button("▸", Function(_cue.file_tree.toggle_preset_expand, _pname), None, None)
                                     use cue_icon_button("✕", Function(_cue_confirm_delete_preset, _pname), "Delete preset", None)
                                     use cue_icon_button("▶", Function(_cue_preview_preset, _pname), "Preview random file from preset", None)
                                     use cue_icon_button("V", Function(_cue.markers.video.apply_preset, _pname), "Apply preset to current video at playhead position", None)
@@ -757,7 +757,7 @@ screen cue_overlay_content():
                                     textbutton _pname:
                                         style "cue_btn"
                                         text_style "cue_btn_text_sm"
-                                        action Function(_cue_toggle_preset_expand, _pname)
+                                        action Function(_cue.file_tree.toggle_preset_expand, _pname)
                                         xsize None
                                         ysize 14
                                 if _p_expanded:
@@ -771,21 +771,21 @@ screen cue_overlay_content():
                         # --- Video Presets folder ---
                         hbox:
                             spacing 2
-                            if _cue._video_presets_expanded:
-                                use cue_icon_button("▾", Function(_cue_toggle_video_presets_expand), None, None)
+                            if _cue.file_tree.video_presets_expanded:
+                                use cue_icon_button("▾", Function(_cue.file_tree.toggle_video_presets_expand), None, None)
                             else:
-                                use cue_icon_button("▸", Function(_cue_toggle_video_presets_expand), None, None)
+                                use cue_icon_button("▸", Function(_cue.file_tree.toggle_video_presets_expand), None, None)
                             $ _vp_names = _cue.markers.list_video_presets()
                             textbutton "Video Presets/":
                                 style "cue_btn"
                                 text_style "cue_btn_text_sm"
-                                action Function(_cue_toggle_video_presets_expand)
+                                action Function(_cue.file_tree.toggle_video_presets_expand)
                                 xsize None
                                 ysize 14
-                        if _cue._video_presets_expanded:
+                        if _cue.file_tree.video_presets_expanded:
                             for _vpname in _vp_names:
                                 $ _vpdata = _cue.markers.get_video_preset(_vpname)
-                                $ _vp_expanded = _cue._expanded_video_presets.get(_vpname, False)
+                                $ _vp_expanded = _cue.file_tree.expanded_video_presets.get(_vpname, False)
                                 $ _vp_ts = _vpdata.get("timestamps", []) if _vpdata else []
                                 $ _vp_total_files = 0
                                 for _ts in _vp_ts:
@@ -794,16 +794,16 @@ screen cue_overlay_content():
                                     spacing 2
                                     text "  " style "cue_txt"  # indent under Video Presets/
                                     if _vp_expanded:
-                                        use cue_icon_button("▾", Function(_cue_toggle_video_preset_expand, _vpname), None, None)
+                                        use cue_icon_button("▾", Function(_cue.file_tree.toggle_video_preset_expand, _vpname), None, None)
                                     else:
-                                        use cue_icon_button("▸", Function(_cue_toggle_video_preset_expand, _vpname), None, None)
+                                        use cue_icon_button("▸", Function(_cue.file_tree.toggle_video_preset_expand, _vpname), None, None)
                                     use cue_icon_button("✕", Function(_cue_confirm_delete_video_preset, _vpname), "Delete video preset", None)
                                     use cue_icon_button("▶", Function(_cue_preview_video_preset, _vpname), "Preview random file from video preset", None)
                                     use cue_icon_button("V", Function(_cue_maybe_apply_video_preset, _vpname), "Apply video markers to the current video", None)
                                     textbutton _vpname:
                                         style "cue_btn"
                                         text_style "cue_btn_text_sm"
-                                        action Function(_cue_toggle_video_preset_expand, _vpname)
+                                        action Function(_cue.file_tree.toggle_video_preset_expand, _vpname)
                                         xsize None
                                         ysize 14
                                 if _vp_expanded:
@@ -815,7 +815,7 @@ screen cue_overlay_content():
                                             text "    " style "cue_txt"  # double indent
                                             text "{} ({} files)".format(_cue_format_time(_ts_time), _ts_files) style "cue_txt" color "#ffcc00" size 11
                         # --- Folder/file tree ---
-                        for item in _cue.visible_tree:
+                        for item in _cue.file_tree.visible_tree:
                             hbox:
                                 spacing 2
                                 # Indent
@@ -823,9 +823,9 @@ screen cue_overlay_content():
                                     text " " * item["depth"] style "cue_txt"
                                 if item["type"] == "folder":
                                     if item["expanded"]:
-                                        use cue_icon_button("▾", Function(_cue_toggle_folder, item["full_path"]), None, None)
+                                        use cue_icon_button("▾", Function(_cue.file_tree.toggle_folder, item["full_path"]), None, None)
                                     else:
-                                        use cue_icon_button("▸", Function(_cue_toggle_folder, item["full_path"]), None, None)
+                                        use cue_icon_button("▸", Function(_cue.file_tree.toggle_folder, item["full_path"]), None, None)
                                     if item["has_files"]:
                                         use cue_icon_button("V", Function(_cue.markers.video.add_folder, item["full_path"]), "Add folder to active video timestamp pool", None)
                                         use cue_icon_button("I", Function(_cue.markers.image.add_folder, item["full_path"]), "Add folder to Image SFX pool", None)
@@ -834,7 +834,7 @@ screen cue_overlay_content():
                                     textbutton item["name"]:
                                         style "cue_btn"
                                         text_style "cue_btn_text_sm"
-                                        action Function(_cue_toggle_folder, item["full_path"])
+                                        action Function(_cue.file_tree.toggle_folder, item["full_path"])
                                         xsize None
                                         ysize 14
                                 else:
@@ -849,9 +849,9 @@ screen cue_overlay_content():
                                     # Loop SFX
                                     use cue_icon_button("L", Function(_cue.markers.loop.add_file, item["index"]), "Add to Loop SFX pool", None)
                                     if item.get("enabled", True):
-                                        use cue_icon_button("☑", Function(_cue_toggle_file_enabled, item["full_path"]), "Click to disable globally", None)
+                                        use cue_icon_button("☑", Function(_cue.file_tree.toggle_file_enabled, item["full_path"]), "Click to disable globally", None)
                                     else:
-                                        use cue_icon_button("☐", Function(_cue_toggle_file_enabled, item["full_path"]), "Click to enable globally", None)
+                                        use cue_icon_button("☐", Function(_cue.file_tree.toggle_file_enabled, item["full_path"]), "Click to enable globally", None)
                                     text item["name"] style "cue_txt" color "#ffcc00"
 
 
@@ -1180,8 +1180,3 @@ init -990 python:
         and pool_index. Called by the ✕ on a preset folder in cue_file_list."""
         _cue.markers._detach_pool(trigger_key, pool_index)
         _cue.markers.save()
-
-    def _cue_toggle_section(section_name):
-        """Toggle expand/collapse for a cue_section_frame."""
-        _cue._collapsed_sections[section_name] = not _cue._collapsed_sections.get(section_name, False)
-        renpy.restart_interaction()

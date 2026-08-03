@@ -178,7 +178,7 @@ init python:
             _cue.scan_error = None
 
         # Rebuild visible tree for sidebar
-        _cue.visible_tree = _cue_get_visible_tree()
+        _cue.file_tree.rebuild_tree()
 
 
     def _cue_is_file_in_loop_pool(full_path):
@@ -192,99 +192,6 @@ init python:
                 if full_path in _cue.markers.resolve_pool(_pool).files:
                     return True
         return False
-
-
-    def _cue_toggle_folder(folder_path):
-        """Toggle expand/collapse for a folder in the audio tree."""
-        if folder_path in _cue.expanded_folders:
-            _cue.expanded_folders[folder_path] = not _cue.expanded_folders[folder_path]
-        else:
-            _cue.expanded_folders[folder_path] = True
-        _cue.visible_tree = _cue_get_visible_tree()
-
-
-    def _cue_get_visible_tree():
-        """Return a flat list of visible tree items for rendering.
-        Each item: {type, name, depth, full_path, index_in_flat_list}"""
-        result = []
-        _walk_tree(_cue.audio_tree, "", 0, result)
-        return result
-
-
-    def _walk_tree(items, prefix, depth, result):
-        """Recursively walk tree, only descending into expanded folders."""
-        for item in items:
-            full = prefix + item["name"]
-            if item["type"] == "folder":
-                result.append({
-                    "type": "folder",
-                    "name": item["name"],
-                    "full_path": full,
-                    "depth": depth,
-                    "expanded": _cue.expanded_folders.get(full, False),
-                    "has_files": item.get("has_files", False),
-                })
-                if _cue.expanded_folders.get(full, False):
-                    _walk_tree(item.get("children", []), full, depth + 1, result)
-            else:
-                # Find index in flat list
-                try:
-                    idx = _cue.available_files.index(full)
-                except ValueError:
-                    idx = -1
-                result.append({
-                    "type": "file",
-                    "name": item["name"],
-                    "full_path": full,
-                    "depth": depth,
-                    "index": idx,
-                    "in_pool": _cue_is_file_in_loop_pool(full),
-                    "enabled": full not in _cue.disabled_files,
-                })
-
-
-    def _cue_toggle_file_enabled(full_path):
-        """Toggle whether a file is enabled for marker addition."""
-        if full_path in _cue.disabled_files:
-            _cue.disabled_files.discard(full_path)
-        else:
-            _cue.disabled_files.add(full_path)
-        _cue.visible_tree = _cue_get_visible_tree()
-        _cue_save_markers()
-
-
-    def _cue_toggle_file_ref_expand(folder_ref):
-        """Toggle expand/collapse for a folder ref in a pool file list."""
-        if folder_ref in _cue.expanded_file_refs:
-            _cue.expanded_file_refs[folder_ref] = not _cue.expanded_file_refs[folder_ref]
-        else:
-            _cue.expanded_file_refs[folder_ref] = True
-
-
-    def _cue_toggle_presets_expand():
-        """Toggle expand/collapse for the Presets/ folder in the SFX Library."""
-        _cue._presets_expanded = not _cue._presets_expanded
-
-
-    def _cue_toggle_preset_expand(preset_name):
-        """Toggle expand/collapse for a single preset in the SFX Library."""
-        if preset_name in _cue._expanded_presets:
-            _cue._expanded_presets[preset_name] = not _cue._expanded_presets[preset_name]
-        else:
-            _cue._expanded_presets[preset_name] = True
-
-
-    def _cue_toggle_video_presets_expand():
-        """Toggle expand/collapse for the Video Presets/ folder in the SFX Library."""
-        _cue._video_presets_expanded = not _cue._video_presets_expanded
-
-
-    def _cue_toggle_video_preset_expand(preset_name):
-        """Toggle expand/collapse for a single video preset in the SFX Library."""
-        if preset_name in _cue._expanded_video_presets:
-            _cue._expanded_video_presets[preset_name] = not _cue._expanded_video_presets[preset_name]
-        else:
-            _cue._expanded_video_presets[preset_name] = True
 
 
     # --------------------------------------------------------------------------

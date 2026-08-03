@@ -55,14 +55,7 @@ init -999 python:
     # UI state
     _cue.is_overlay_visible = False
     _cue.initialized = False
-    _cue.visible_tree = []
-    _cue.expanded_folders = {}
-    _cue.expanded_file_refs = {}  # tracks expanded folder refs in pool file lists
-    _cue._presets_expanded = False  # expand/collapse for Presets/ folder in SFX Library
-    _cue._expanded_presets = {}     # per-preset expand/collapse, keyed by preset name
-    _cue._video_presets_expanded = False  # expand/collapse for Video Presets/ folder
-    _cue._expanded_video_presets = {}     # per-video-preset expand/collapse, keyed by preset name
-    _cue._collapsed_sections = {}   # per-section expand/collapse for cue_section_frame
+    _cue.file_tree = CueFileTreeManager()
     _cue._marker_tip_text = ""     # marker timeline tooltip (rendered by _MarkerTooltipOverlay)
     _cue.scan_error = None
 
@@ -162,7 +155,6 @@ init -999 python:
     # Audio file cache
     _cue.available_files = []
     _cue.audio_tree = []
-    _cue.disabled_files = set()  # Set of full_path strings for unchecked files
 
     # Internal
     _cue.__cue_channel_idx = 0
@@ -343,7 +335,7 @@ init python:
         if not _cue.available_files:
             _cue_scan_audio()
         # Rebuild visible tree
-        _cue.visible_tree = _cue_get_visible_tree()
+        _cue.file_tree.rebuild_tree()
         # Auto-detect everything
         _cue_refresh_context()
         # Show the overlay screen
@@ -365,7 +357,7 @@ init python:
 
         # 1. Re-detect video channel
         _cue_refresh_channel()
-        _cue.visible_tree = _cue_get_visible_tree()
+        _cue.file_tree.rebuild_tree()
 
         # Character callbacks don't trigger on rollback, need to clear stale dialogue here.
         if renpy.get_screen("say") is None:
@@ -458,9 +450,9 @@ init python:
             if item.endswith("/"):
                 # Folder reference — expand to all matching available files
                 for f in _cue.available_files:
-                    if f.startswith(item) and f not in _cue.disabled_files and f not in result:
+                    if f.startswith(item) and f not in _cue.file_tree.disabled_files and f not in result:
                         result.append(f)
-            elif item not in _cue.disabled_files and item not in result:
+            elif item not in _cue.file_tree.disabled_files and item not in result:
                 result.append(item)
         return result
 
@@ -940,7 +932,7 @@ init python:
         _cue.markers._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
         _cue.markers._sanitize_video_presets()
         _cue.markers._normalize_all()
-        _cue.disabled_files = set(data.get("disabled_files", []))
+        _cue.file_tree.disabled_files = set(data.get("disabled_files", []))
         _triggers = data.get("triggers_active", True)
         # Unwrap nested lists from old corrupted saves
         while isinstance(_triggers, list) and len(_triggers) > 0:
