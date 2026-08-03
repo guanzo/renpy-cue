@@ -4,7 +4,7 @@
 #
 # Installation:
 #   1. Copy this file into the game's "game/" directory
-#   2. Create "game/sfx_editor/audio/" and place your .ogg/.mp3/.wav files there
+#   2. Create "game/cue_editor/audio/" and place your .ogg/.mp3/.wav files there
 #   3. Launch the game, press backtick (`) to toggle the overlay
 #
 # Features:
@@ -184,10 +184,10 @@ init 999 python:
                 )
 
         # Create a layer above screens for the overlay
-        renpy.add_layer("sfx_editor_layer", above="screens")
+        renpy.add_layer("cue_editor_layer", above="screens")
 
         # Use config.overlay_screens for a persistent key-listener
-        config.overlay_screens.append("sfx_editor_key_listener")
+        config.overlay_screens.append("cue_editor_key_listener")
         _cue_log("INIT: overlay_screens key listener registered")
 
         # Register after_load callback
@@ -234,7 +234,7 @@ init python:
     # --------------------------------------------------------------------------
 
     def _cue_log(msg):
-        """Append a debug message to sfx_editor/debug.log."""
+        """Append a debug message to cue_editor/debug.log."""
         try:
             import time as _logtime
             log_dir = os.path.join(renpy.config.gamedir, _cue.base_dir)
@@ -289,14 +289,14 @@ init python:
         # Auto-detect everything
         _cue_editor_refresh_detections()
         # Show the overlay screen
-        renpy.show_screen("sfx_editor_overlay", _layer="sfx_editor_layer")
+        renpy.show_screen("cue_editor_overlay", _layer="cue_editor_layer")
         renpy.restart_interaction()
 
 
     def _cue_editor_hide():
         _cue.visible = False
         _cue_editor_save_markers()
-        renpy.hide_screen("sfx_editor_overlay", layer="sfx_editor_layer")
+        renpy.hide_screen("cue_editor_overlay", layer="cue_editor_layer")
 
 
     def _cue_editor_refresh_detections():
@@ -993,7 +993,7 @@ init python:
     # --------------------------------------------------------------------------
 
     def _cue_editor_autosave_backup():
-        """Create a timestamped backup of markers in sfx_editor/backups/.
+        """Create a timestamped backup of markers in cue_editor/backups/.
 
         Throttled to once every 5 minutes. Maintains a max of 10 backups,
         deleting the oldest when the limit is reached.
@@ -1015,7 +1015,7 @@ init python:
 
             # List existing backups sorted by mtime (oldest first)
             _files = [f for f in os.listdir(backups_dir)
-                      if f.startswith("sfx_editor_backup_") and f.endswith(".json")]
+                      if f.startswith("cue_editor_backup_") and f.endswith(".json")]
             _files.sort(key=lambda f: os.path.getmtime(
                 os.path.join(backups_dir, f)))
 
@@ -1030,7 +1030,7 @@ init python:
 
             # Write backup with unix timestamp suffix
             _ts = int(_now)
-            _name = "sfx_editor_backup_{}.json".format(_ts)
+            _name = "cue_editor_backup_{}.json".format(_ts)
             _path = os.path.join(backups_dir, _name)
             with open(_path, "w") as f:
                 _json.dump(persistent._cue_markers, f,
@@ -1127,7 +1127,7 @@ init python:
 # KEY-LISTENER SCREEN: Always-visible invisible screen that catches backtick
 # =============================================================================
 
-screen sfx_editor_key_listener():
+screen cue_editor_key_listener():
     zorder 10000
     key "K_BACKQUOTE" action Function(_cue_editor_toggle)
     key "K_F3" action Function(renpy.invoke_in_new_context, renpy.pause)
@@ -1138,11 +1138,11 @@ screen sfx_editor_key_listener():
 # MAIN OVERLAY SCREEN
 # =============================================================================
 
-screen sfx_editor_overlay():
+screen cue_editor_overlay():
 
     zorder 9999
     modal False
-    tag sfx_editor
+    tag cue_editor
 
     # Screen-level key bindings
     key "K_BACKQUOTE" action Function(_cue_editor_hide)
@@ -1158,10 +1158,10 @@ screen sfx_editor_overlay():
         background None
         hover_background None
         frame:
-            style "sfx_frame"
+            style "cue_frame"
             xfill True
             yfill True
-            use sfx_editor_sidebar_content()
+            use cue_editor_sidebar_content()
 
     # --- Floating tooltip near mouse (auto-sizes to fit text) ---
     $ _tt = GetTooltip()

@@ -86,7 +86,7 @@ init python:
                     frac = max(0.0, min(1.0, rx / float(max(1, width))))
                     t = min(frac * dur, max(0.0, dur - 0.05))
                     tip_text = "Click to seek to: " + _cue_editor_format_time(t)
-                    tip_widget = Text(tip_text, style="sfx_txt", size=11,
+                    tip_widget = Text(tip_text, style="cue_txt", size=11,
                                       color="#cccccc", italic=True, substitute=False)
                     tip_render = renpy.render(tip_widget, 300, 100, st, at)
                     tw, th = tip_render.get_size()
@@ -235,7 +235,7 @@ init python:
                 c.rect(bg, (bx_pos, by_pos, self.TAB_W, self.TAB_H))
 
                 # Tab number
-                txt = Text(str(i + 1), style="sfx_btn_text", size=12, color="#ffffff")
+                txt = Text(str(i + 1), style="cue_btn_text", size=12, color="#ffffff")
                 tr = renpy.render(txt, self.TAB_W, self.TAB_H, st, at)
                 tw, _ = tr.get_size()
                 r.blit(tr, (bx_pos + (self.TAB_W - tw) // 2, by_pos))
@@ -249,14 +249,14 @@ init python:
                 gbx = gpx - self.TAB_W // 2
                 gby = self.TRACK_H - 2
                 c.rect("#2a3a44", (gbx, gby, self.TAB_W, self.TAB_H))
-                gtxt = Text("?", style="sfx_btn_text", size=12, color="#888888")
+                gtxt = Text("?", style="cue_btn_text", size=12, color="#888888")
                 gtr = renpy.render(gtxt, self.TAB_W, self.TAB_H, st, at)
                 gtw, _ = gtr.get_size()
                 r.blit(gtr, (gbx + (self.TAB_W - gtw) // 2, gby))
 
             # Render tooltip if there's text (set by event())
             if self._tip_text:
-                tip_widget = Text(self._tip_text, style="sfx_txt", size=11,
+                tip_widget = Text(self._tip_text, style="cue_txt", size=11,
                                   color="#cccccc", italic=True, substitute=False)
                 tip_render = renpy.render(tip_widget, 300, 100, st, at)
                 tw, th = tip_render.get_size()
@@ -484,7 +484,7 @@ init python:
             mx, my = renpy.get_mouse_pos()
 
             text_widget = Text(
-                tt, style="sfx_txt", size=11, color="#cccccc",
+                tt, style="cue_txt", size=11, color="#cccccc",
                 italic=True, substitute=False,
             )
             text_render = renpy.render(text_widget, 300, 100, st, at)
@@ -514,7 +514,7 @@ init python:
 
         def render(self, width, height, st, at):
             text_widget = Text(
-                self._text, style="sfx_txt", size=11, color="#cccccc",
+                self._text, style="cue_txt", size=11, color="#cccccc",
                 italic=True, substitute=False,
             )
             text_render = renpy.render(text_widget, 300, 100, st, at)

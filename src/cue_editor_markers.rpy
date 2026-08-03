@@ -813,7 +813,7 @@ init python:
         # Suppress selection clear triggered by interaction restart
         _cue._mtl_suppress_clear = True
         _cue.repeat_dialog_visible = True
-        renpy.show_screen("sfx_repeat_pattern_dialog", _layer="sfx_editor_layer")
+        renpy.show_screen("cue_repeat_pattern_dialog", _layer="cue_editor_layer")
 
     def _cue_editor_do_repeat_pattern():
         """Apply the repeat pattern: create timestamp copies for each beat
@@ -861,9 +861,9 @@ init python:
         _cue_editor_save_markers()
 
     def _cue_editor_hide_repeat_dialog():
-        """Hide the repeat pattern dialog from the sfx_editor_layer."""
+        """Hide the repeat pattern dialog from the cue_editor_layer."""
         _cue.repeat_dialog_visible = False
-        renpy.hide_screen("sfx_repeat_pattern_dialog", layer="sfx_editor_layer")
+        renpy.hide_screen("cue_repeat_pattern_dialog", layer="cue_editor_layer")
 
     def _cue_editor_compute_ghost_times():
         """Return a sorted list of ghost marker times for the repeat-pattern preview.
@@ -1113,7 +1113,7 @@ init python:
         _cue_editor_save_markers()
 
     def _cue_editor_dump_markers():
-        """Dump entire persistent._cue_markers to sfx_editor/{}.""".format(_cue.config_filename)
+        """Dump entire persistent._cue_markers to cue_editor/{}.""".format(_cue.config_filename)
         try:
             import json as _json
             dump_dir = os.path.join(renpy.config.gamedir, _cue.base_dir)
@@ -1133,7 +1133,7 @@ init python:
             _cue_log("DUMP-MARKERS-ERROR {}".format(str(e)))
 
     def _cue_editor_restore_markers_from_file():
-        """Restore persistent._cue_markers from sfx_editor/{}.""".format(_cue.config_filename)
+        """Restore persistent._cue_markers from cue_editor/{}.""".format(_cue.config_filename)
         try:
             import json as _json
             dump_path = _cue.config_path
