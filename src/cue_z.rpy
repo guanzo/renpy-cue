@@ -669,121 +669,131 @@ init python:
         _cue.__tick_count = getattr(_cue, '__tick_count', 0) + 1
         tick = _cue.__tick_count
 
-        # --- LOOP STATE MACHINE (l: keys) ---
         now = _time.time()
+        _cue_tick_loop_triggers(now, tick)
+        _cue_tick_video_triggers()
+
+    def _cue_tick_loop_triggers(now, tick):
+        """Loop state machine for l: keys — fires pooled SFX on a frequency cycle."""
         loop_key = create_loop_key(_cue.current_file or "")
 
         entry = _cue.markers.get(loop_key)
-        if entry:
-            pools = entry.get("pools", [])
-            # Collect frequencies from resolved pools with files, default 1
-            freqs = []
-            for p in pools:
-                resolved = _cue.markers.resolve_pool(p)
-                if resolved.files:
-                    freqs.append(resolved.frequency)
-            if freqs:
-                freq = int(round(sum(freqs) / float(len(freqs))))
-                # Init pool state if needed
-                if loop_key not in _cue.loop_states:
-                    _cue.loop_states[loop_key] = {
-                        "state": 0,
-                        "channels": [],
-                        "ready_at": 0.0,
-                        "play_start": 0.0,
-                    }
-                ps = _cue.loop_states[loop_key]
+        if entry is None:
+            return
+        pools = entry.get("pools", [])
+        # Collect frequencies from resolved pools with files, default 1
+        freqs = []
+        for p in pools:
+            resolved = _cue.markers.resolve_pool(p)
+            if resolved.files:
+                freqs.append(resolved.frequency)
+        if not freqs:
+            return
 
-                if ps["state"] == 1:
-                    if not _cue_loop_still_playing(ps.get("channels", [])):
-                        dur = now - ps["play_start"]
-                        breathing = _cue.markers.loop.get_delay(freq)
-                        ps["ready_at"] = now + breathing
-                        ps["channels"] = []
-                        ps["state"] = 0
-                        _cue.loop_current = None
-                        _cue_log("TICK#{} POOL-DONE  key={} dur={:.2f}s next_in={:.2f}s".format(
-                            tick, loop_key, dur, breathing))
+        freq = int(round(sum(freqs) / float(len(freqs))))
+        # Init pool state if needed
+        if loop_key not in _cue.loop_states:
+            _cue.loop_states[loop_key] = {
+                "state": 0,
+                "channels": [],
+                "ready_at": 0.0,
+                "play_start": 0.0,
+            }
+        ps = _cue.loop_states[loop_key]
 
-                if ps["state"] == 0:
-                    if ps["ready_at"] == 0:
+        if ps["state"] == 1:
+            if not _cue_loop_still_playing(ps.get("channels", [])):
+                dur = now - ps["play_start"]
+                breathing = _cue.markers.loop.get_delay(freq)
+                ps["ready_at"] = now + breathing
+                ps["channels"] = []
+                ps["state"] = 0
+                _cue.loop_current = None
+                _cue_log("TICK#{} POOL-DONE  key={} dur={:.2f}s next_in={:.2f}s".format(
+                    tick, loop_key, dur, breathing))
+
+        if ps["state"] == 0:
+            if ps["ready_at"] == 0:
+                ps["ready_at"] = now + 0.5
+            elif now >= ps["ready_at"]:
+                # --- Cross-context overlap gate ---
+                block = _cue.loop_current
+                blocking = False
+                if block and block.get("key") != loop_key:
+                    if _cue_loop_still_playing(block.get("channels", [])):
+                        blocking = True
+                    else:
+                        _cue.loop_current = None  # stale
+                if blocking:
+                    ps["ready_at"] = now + 0.1
+                else:
+                    channels = []
+                    picked = []
+                    for pi, pool in enumerate(pools):
+                        resolved = _cue.markers.resolve_pool(pool)
+                        files = _cue_resolve_files(resolved.files)
+                        if not files:
+                            continue
+                        picked_file = _cue_pick_file(files)
+                        tries = 0
+                        while picked_file in picked and len(files) > 1 and tries < 3:
+                            picked_file = _cue_pick_file(files)
+                            tries += 1
+                        if picked_file in picked:
+                            continue
+                        picked.append(picked_file)
+                        pool_vol = _cue.volume.get_effective(entry, loop_key, pool_index=pi)
+                        ch_used = _cue_play_sfx(picked_file, loop_key, volume=pool_vol)
+                        if ch_used:
+                            channels.append(ch_used)
+                    if channels:
+                        ps["state"] = 1
+                        ps["channels"] = channels
+                        ps["play_start"] = now
+                        _cue.loop_current = {
+                            "key": loop_key,
+                            "channels": list(channels),
+                        }
+                        _cue_log("TICK#{} POOL-PLAY  key={} files={} chs={}".format(
+                            tick, loop_key, len(channels), ",".join(channels)))
+                    else:
                         ps["ready_at"] = now + 0.5
-                    elif now >= ps["ready_at"]:
-                        # --- Cross-context overlap gate ---
-                        block = _cue.loop_current
-                        blocking = False
-                        if block and block.get("key") != loop_key:
-                            if _cue_loop_still_playing(block.get("channels", [])):
-                                blocking = True
-                            else:
-                                _cue.loop_current = None  # stale
-                        if blocking:
-                            ps["ready_at"] = now + 0.1
-                        else:
-                            channels = []
-                            picked = []
-                            for pi, pool in enumerate(pools):
-                                resolved = _cue.markers.resolve_pool(pool)
-                                files = _cue_resolve_files(resolved.files)
-                                if not files:
-                                    continue
-                                picked_file = _cue_pick_file(files)
-                                tries = 0
-                                while picked_file in picked and len(files) > 1 and tries < 3:
-                                    picked_file = _cue_pick_file(files)
-                                    tries += 1
-                                if picked_file in picked:
-                                    continue
-                                picked.append(picked_file)
-                                pool_vol = _cue.volume.get_effective(entry, loop_key, pool_index=pi)
-                                ch_used = _cue_play_sfx(picked_file, loop_key, volume=pool_vol)
-                                if ch_used:
-                                    channels.append(ch_used)
-                            if channels:
-                                ps["state"] = 1
-                                ps["channels"] = channels
-                                ps["play_start"] = now
-                                _cue.loop_current = {
-                                    "key": loop_key,
-                                    "channels": list(channels),
-                                }
-                                _cue_log("TICK#{} POOL-PLAY  key={} files={} chs={}".format(
-                                    tick, loop_key, len(channels), ",".join(channels)))
-                            else:
-                                ps["ready_at"] = now + 0.5
 
-        # --- VIDEO MODE triggers (v: keys) ---
+
+    def _cue_tick_video_triggers():
+        """Video timestamp triggers for v: keys — fires SFX at marked times."""
         ch = _cue.active_channel
+        if not ch or _cue.top_layer_type != 'movie':
+            return
+
+        elapsed = _cue.vid_manager.get_elapsed()
         marker_tolerance = 0.08
 
-        if ch and _cue.top_layer_type == 'movie':
-            elapsed = _cue.vid_manager.get_elapsed()
+        # Video markers
+        if _cue.current_file:
+            vid_key = create_vid_key(_cue.current_file)
+            timestamps = _cue.markers.video.get_markers()
+            if timestamps:
+                vid_entry = _cue.markers.get(vid_key)
+                for idx, ts_entry in enumerate(timestamps):
+                    ts_key = "{}@{}".format(vid_key, idx)
+                    if ts_key not in _cue.played_video_keys:
+                        if "time" not in ts_entry:
+                            _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(ts_entry))
+                            continue
+                        mt = ts_entry["time"]
+                        if mt <= elapsed < mt + marker_tolerance:
+                            files = _cue_resolve_files(ts_entry.get("files", []))
+                            if files:
+                                f = _cue_pick_file(files, avoid_repeats=False)
+                                vol = _cue.volume.get_effective(vid_entry, vid_key, ts_index=idx)
+                                _cue_play_sfx(f, vid_key, volume=vol)
+                                _cue.played_video_keys.add(ts_key)
 
-            # Video markers
-            if _cue.current_file:
-                vid_key = create_vid_key(_cue.current_file)
-                timestamps = _cue.markers.video.get_markers()
-                if timestamps:
-                    vid_entry = _cue.markers.get(vid_key)
-                    for idx, ts_entry in enumerate(timestamps):
-                        ts_key = "{}@{}".format(vid_key, idx)
-                        if ts_key not in _cue.played_video_keys:
-                            if "time" not in ts_entry:
-                                _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(ts_entry))
-                                continue
-                            mt = ts_entry["time"]
-                            if mt <= elapsed < mt + marker_tolerance:
-                                files = _cue_resolve_files(ts_entry.get("files", []))
-                                if files:
-                                    f = _cue_pick_file(files, avoid_repeats=False)
-                                    vol = _cue.volume.get_effective(vid_entry, vid_key, ts_index=idx)
-                                    _cue_play_sfx(f, vid_key, volume=vol)
-                                    _cue.played_video_keys.add(ts_key)
-
-            # Detect video loop (markers only, pool uses wall clock)
-            if _cue.vid_manager.last_elapsed > 0 and elapsed < _cue.vid_manager.last_elapsed - 0.3:
-                _cue.played_video_keys.clear()
-            _cue.vid_manager.last_elapsed = elapsed
+        # Detect video loop (markers only, pool uses wall clock)
+        if _cue.vid_manager.last_elapsed > 0 and elapsed < _cue.vid_manager.last_elapsed - 0.3:
+            _cue.played_video_keys.clear()
+        _cue.vid_manager.last_elapsed = elapsed
 
 
     # --------------------------------------------------------------------------
