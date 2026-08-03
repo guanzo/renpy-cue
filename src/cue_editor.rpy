@@ -1,23 +1,4 @@
 ###############################################################################
-# SFX Video Overlay Editor v1.1.0
-# Drop-in mod for Ren'Py games (7.x and 8.x compatible)
-#
-# Installation:
-#   1. Copy this file into the game's "game/" directory
-#   2. Create "game/cue_editor/audio/" and place your .ogg/.mp3/.wav files there
-#   3. Launch the game, press backtick (`) to toggle the overlay
-#
-# Features:
-#   - Manual mode: place SFX markers at precise timestamps in looping videos
-#   - Pool mode: auto-play random SFX from a pool at random intervals
-#   - Frame stepping: pause video, seek forward/backward by 1 frame
-#   - Elapsed / total duration display
-#   - Auto-detect active movie channel
-#   - Configuration persists across sessions
-#   - Configurable audio directory
-###############################################################################
-
-###############################################################################
 # SECTION 1: Variable Defaults (init -999 for early loading)
 ###############################################################################
 

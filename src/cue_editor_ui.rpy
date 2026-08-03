@@ -223,7 +223,7 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing):
         ymaximum 120
         mousewheel True
         scrollbars "vertical"
-        style_group "sfx"
+        style_group "cue"
         vscrollbar_unscrollable "hide"
         vbox:
             spacing 2
@@ -631,7 +631,7 @@ screen cue_editor_sidebar_content():
                     yfill True
                     mousewheel True
                     scrollbars "vertical"
-                    style_group "sfx"
+                    style_group "cue"
                     vscrollbar_unscrollable "hide"
                     vbox:
                         spacing 2

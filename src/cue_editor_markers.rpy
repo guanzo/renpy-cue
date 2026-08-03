@@ -1,5 +1,5 @@
 ###############################################################################
-# SFX Editor — Marker Management
+# Cue Editor — Marker Management
 # Key utilities, audio scanning, pool helpers, marker CRUD, volume, clipboard,
 # time formatting. All functions run in a single init python block.
 ###############################################################################
