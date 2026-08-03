@@ -85,7 +85,7 @@ init python:
                 rx, ry = mx - bx, my - by
                 if 0 <= rx <= width and bar_y <= ry <= bar_y + self.BAR_H:
                     frac = max(0.0, min(1.0, rx / float(max(1, width))))
-                    t = min(frac * dur, max(0.0, dur - 0.05))
+                    t = min(frac * dur, max(0.0, dur - _cue.END_MARGIN))
                     tip_text = "Click to seek to: " + _cue_format_time(t)
                     tip_widget = Text(tip_text, style="cue_txt", size=11,
                                       color="#cccccc", italic=True, substitute=False)
@@ -296,11 +296,11 @@ init python:
                     if self._drag_on:
                         if self._drag_orig_times:
                             # Multi-drag: compute delta, clamp to keep entire
-                            # group within [0, dur - 0.05], then apply uniformly.
+                            # group within [0, dur - _cue.END_MARGIN], then apply uniformly.
                             current_frac = max(0.0, min(1.0, x / float(max(1, w))))
                             start_frac = max(0.0, min(1.0, self._drag_start_x / float(max(1, w))))
                             raw_delta = (current_frac - start_frac) * dur
-                            max_dur = max(0.05, dur - 0.05)
+                            max_dur = max(0.05, dur - _cue.END_MARGIN)
                             # Block: leading edge hits right wall, trailing hits left
                             hi_room = max_dur - self._drag_group_max
                             lo_room = 0.0 - self._drag_group_min
@@ -464,41 +464,6 @@ init python:
                 return None
 
             return None
-
-    class _MouseFollowerTooltip(renpy.Displayable):
-        """Tooltip that continuously re-positions itself at the mouse cursor."""
-
-        def __init__(self, **properties):
-            super(_MouseFollowerTooltip, self).__init__(**properties)
-
-        def render(self, width, height, st, at):
-            tt = getattr(_cue, '_tooltip_text', None) or ""
-            if not tt:
-                return renpy.Render(1, 1)
-
-            mx, my = renpy.get_mouse_pos()
-
-            text_widget = Text(
-                tt, style="cue_txt", size=11, color="#cccccc",
-                italic=True, substitute=False,
-            )
-            text_render = renpy.render(text_widget, 300, 100, st, at)
-            tw, th = text_render.get_size()
-
-            pad_x, pad_y = 4, 2
-            fw = min(tw + pad_x * 2, 300)
-            fh = th + pad_y * 2
-
-            tip = renpy.Render(fw, fh)
-            tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))
-            tip.blit(text_render, (pad_x, pad_y))
-
-            r = renpy.Render(1, 1)
-            r.blit(tip, (mx + 12, my - 8))
-
-            renpy.redraw(self, 0.05)
-            return r
-
 
     class _Tooltip(renpy.Displayable):
         """Hover tooltip that auto-sizes to fit text (single or multi-line)."""

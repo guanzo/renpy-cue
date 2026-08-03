@@ -25,9 +25,8 @@ init -999 python:
     _cue.markers = CueMarkerManager()  # Unified marker CRUD with typed accessors
 
     # Volume constants (clamp range + UI quick-set targets)
-    _cue.VOL_MIN = 0.0       # clamp floor
     _cue.VOL_DEFAULT = 1.0   # default volume; "--" reset target
-    _cue.VOL_MAX = 5.0       # clamp ceiling; "++" target
+    _cue.END_MARGIN = 0.05   # min distance from video end for timestamp placement
 
     # Key prefix constants for _cue.markers trigger keys
     _cue.IMG_KEY_PREFIX = "i:"

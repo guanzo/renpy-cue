@@ -66,7 +66,7 @@ init -999 python:
             # Max repeats that fit in video duration
             dur = _cue.vid_manager.get_duration()
             if dur > 0 and default_interval > 0:
-                max_count = int((dur - 0.05 - anchor_time - max_offset) / default_interval)
+                max_count = int((dur - _cue.END_MARGIN - anchor_time - max_offset) / default_interval)
                 if max_count < 0:
                     max_count = 0
             else:
@@ -103,7 +103,7 @@ init -999 python:
                 beat_anchor = self.anchor + interval * beat_idx
                 for o in self.offsets:
                     new_time = beat_anchor + o["offset"]
-                    if dur > 0 and new_time > dur - 0.05:
+                    if dur > 0 and new_time > dur - _cue.END_MARGIN:
                         continue
                     if new_time < 0:
                         continue
@@ -145,7 +145,7 @@ init -999 python:
                 beat_anchor = self.anchor + interval * beat_idx
                 for o in self.offsets:
                     t = beat_anchor + o["offset"]
-                    if dur > 0 and t > dur - 0.05:
+                    if dur > 0 and t > dur - _cue.END_MARGIN:
                         continue
                     if t < 0:
                         continue

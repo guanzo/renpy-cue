@@ -122,7 +122,7 @@ init -999 python:
                 pos = renpy.music.get_pos(channel=self.channel) or 0.0
                 target = pos + delta_frames * frame_seconds
                 if dur > 0:
-                    target = min(target, dur - 0.05)
+                    target = _cue_clamp_time(target, dur)
                 self.step_target = max(0.001, target)
                 _cue_log("+f step_target={:.3f}".format(self.step_target))
                 renpy.music.set_pause(False, channel=self.channel)
@@ -131,7 +131,7 @@ init -999 python:
                 origin = self.pause_origin
                 target = origin + self.total_offset
                 if dur > 0:
-                    target = max(0.0, min(target, dur - 0.05))
+                    target = _cue_clamp_time(target, dur)
                 else:
                     target = max(0.0, target)
                 filepath = renpy.music.get_playing(channel=self.channel)
@@ -154,7 +154,7 @@ init -999 python:
             dur = renpy.music.get_duration(channel=self.channel) or 0.0
             if dur <= 0:
                 return
-            target = max(0.0, min(target_time, dur - 0.05))
+            target = _cue_clamp_time(target_time, dur)
             current_pos = renpy.music.get_pos(channel=self.channel) or 0.0
             # Reset offset tracking for the absolute target
             self.pause_origin = target
@@ -213,7 +213,6 @@ init -999 python:
         def time_label(self):
             """Return 'elapsed / duration' formatted for the live time display."""
             if _cue.top_layer_type != 'movie':
-                _cue_log("not movie? " + str(_cue.top_layer_type) + " " + str(_cue.current_file))
                 return "--:--.-- / --:--.--"
             e = self.get_elapsed()
             d = self.get_duration()
@@ -225,7 +224,6 @@ init -999 python:
         def frame_label(self):
             """Return 'frame / total' formatted for the live frame display."""
             if _cue.top_layer_type != 'movie':
-                _cue_log("not movie? " + str(_cue.top_layer_type) + " " + str(_cue.current_file))
                 return "---/---"
             e = self.get_elapsed()
             d = self.get_duration()

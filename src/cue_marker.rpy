@@ -232,6 +232,25 @@ init -999 python:
                 self.target_pool = min(self.target_pool, len(timestamps) - 1)
                 return -1
 
+        # -- internal helpers (used by add_file / add_folder / add_pool / apply_preset) --
+
+        def _get_video_elapsed(self):
+            """Return current video elapsed time, or None if not available."""
+            ch = _cue.active_channel
+            if not ch or not renpy.music.is_playing(channel=ch):
+                return None
+            elapsed = _cue.vid_manager.get_elapsed()
+            if elapsed is None or elapsed <= 0:
+                return None
+            return elapsed
+
+        def _append_timestamp(self, entry, timestamps, ts_dict):
+            """Append a timestamp dict, re-sort, and update target_pool + selected."""
+            timestamps.append(ts_dict)
+            timestamps.sort(key=lambda e: e["time"])
+            self.target_pool = len(timestamps) - 1
+            self.selected = set()
+
         # -- public API (extends CueMarkerContext) --
 
         def add_file(self, file_index):
@@ -241,12 +260,6 @@ init -999 python:
             if not _cue.available_files:
                 return
             if file_index < 0 or file_index >= len(_cue.available_files):
-                return
-            ch = _cue.active_channel
-            if not ch or not renpy.music.is_playing(channel=ch):
-                return
-            elapsed = _cue.vid_manager.get_elapsed()
-            if elapsed is None or elapsed <= 0:
                 return
             filename = _cue.available_files[file_index]
             if filename in _cue.file_tree.disabled_files:
@@ -262,10 +275,11 @@ init -999 python:
                     files.append(filename)
             else:
                 # Create new timestamp at current video position
-                timestamps.append({"time": elapsed, "files": [filename]})
-                timestamps.sort(key=lambda e: e["time"])
-                self.target_pool = len(timestamps) - 1
-                self.selected = set()
+                elapsed = self._get_video_elapsed()
+                if elapsed is None:
+                    return
+                self._append_timestamp(entry, timestamps,
+                    {"time": elapsed, "files": [filename]})
             self._mgr.save()
 
         def remove_file(self, ts_index, file_index):
@@ -301,15 +315,11 @@ init -999 python:
                     pool_files.append(folder_ref)
             else:
                 # Create new timestamp at current video position
-                ch = _cue.active_channel
-                if not ch or not renpy.music.is_playing(channel=ch):
+                elapsed = self._get_video_elapsed()
+                if elapsed is None:
                     return
-                elapsed = _cue.vid_manager.get_elapsed()
-                if elapsed is None or elapsed <= 0:
-                    return
-                timestamps.append({"time": elapsed, "files": [folder_ref]})
-                timestamps.sort(key=lambda e: e["time"])
-                self.target_pool = len(timestamps) - 1
+                self._append_timestamp(entry, timestamps,
+                    {"time": elapsed, "files": [folder_ref]})
             self._mgr.save()
 
         def clear(self):
@@ -323,32 +333,24 @@ init -999 python:
 
         def add_pool(self):
             """Create a new empty timestamp at the current video position."""
-            ch = _cue.active_channel
-            if not ch or not renpy.music.is_playing(channel=ch):
-                return
-            elapsed = _cue.vid_manager.get_elapsed()
-            if elapsed is None or elapsed <= 0:
+            elapsed = self._get_video_elapsed()
+            if elapsed is None:
                 return
             vid_key = self._key()
             entry = self._mgr.setdefault(vid_key, {"timestamps": []})
             timestamps = entry.setdefault("timestamps", [])
-            timestamps.append({"time": elapsed, "files": []})
-            timestamps.sort(key=lambda e: e["time"])
-            self.target_pool = len(timestamps) - 1
-            self.selected = set()
+            self._append_timestamp(entry, timestamps,
+                {"time": elapsed, "files": []})
             self._mgr.save()
 
         def apply_preset(self, preset_name):
             """Stamp a pool preset reference onto a new timestamp at the
             current playhead position. The timestamp carries a 'preset' key
             that is resolved at read time, matching the other context types."""
-            ch = _cue.active_channel
-            if not ch or not renpy.music.is_playing(channel=ch):
-                return
-            elapsed = _cue.vid_manager.get_elapsed()
-            if elapsed is None or elapsed <= 0:
-                return
             if not _cue.current_file:
+                return
+            elapsed = self._get_video_elapsed()
+            if elapsed is None:
                 return
             # Verify preset exists and resolves to something
             r = self._mgr.resolve_pool({"preset": preset_name})
@@ -357,10 +359,8 @@ init -999 python:
             vid_key = self._key()
             entry = self._mgr.setdefault(vid_key, {"timestamps": []})
             timestamps = entry.setdefault("timestamps", [])
-            timestamps.append({"time": elapsed, "preset": preset_name})
-            timestamps.sort(key=lambda e: e["time"])
-            self.target_pool = len(timestamps) - 1
-            self.selected = set()
+            self._append_timestamp(entry, timestamps,
+                {"time": elapsed, "preset": preset_name})
             self.sync_text()
             _cue.played_video_keys.clear()
             self._mgr.save()
@@ -464,7 +464,7 @@ init -999 python:
             dur = self.get_duration()
             new_time = ts_entry["time"] + delta
             if dur > 0:
-                new_time = max(0.0, min(new_time, dur - 0.05))
+                new_time = _cue_clamp_time(new_time, dur)
             else:
                 new_time = max(0.0, new_time)
             ts_entry["time"] = new_time
@@ -479,7 +479,7 @@ init -999 python:
             release). Hot path, called every frame during a drag."""
             entry, timestamps = self._entry_and_timestamps()
             dur = self.get_duration()
-            new_time = max(0.0, min(new_time, dur - 0.05)) if dur > 0 else max(0.0, new_time)
+            new_time = _cue_clamp_time(new_time, dur)
             if 0 <= idx < len(timestamps):
                 timestamps[idx]["time"] = new_time
 
@@ -529,7 +529,7 @@ init -999 python:
                 edited_entry = timestamps[self.target_pool]
                 dur = self.get_duration()
                 if dur > 0:
-                    new_time = max(0.0, min(new_time, dur - 0.05))
+                    new_time = _cue_clamp_time(new_time, dur)
                 edited_entry["time"] = new_time
                 self._sort_and_track(timestamps, edited_entry)
                 _cue.played_video_keys.clear()
@@ -795,7 +795,7 @@ init -999 python:
             out = 0
             for ts in preset.get("timestamps", []):
                 t = ts.get("time")
-                if t is not None and t > dur - 0.05:
+                if t is not None and t > dur - _cue.END_MARGIN:
                     out += 1
             return out
 
@@ -818,7 +818,7 @@ init -999 python:
                 if t is None:
                     dropped += 1
                     continue
-                if dur and dur > 0 and t > dur - 0.05:
+                if dur and dur > 0 and t > dur - _cue.END_MARGIN:
                     dropped += 1
                     continue
                 new_timestamps.append({
@@ -838,6 +838,19 @@ init -999 python:
             _cue_log("APPLY-VIDEO-PRESET key={} preset={} markers={} dropped={}".format(
                 vid_key, name, len(new_timestamps), dropped))
 
+        @staticmethod
+        def _clean_timestamp_list(timestamps):
+            """Strip entries missing 'time' from a timestamp list.
+            Returns (clean_list, stripped_count)."""
+            stripped = 0
+            clean = []
+            for ts in timestamps:
+                if ts.get("time") is not None:
+                    clean.append(ts)
+                else:
+                    stripped += 1
+            return clean, stripped
+
         def _sanitize_video_presets(self):
             """Strip entries missing 'time' from all video preset timestamp lists.
             Returns the number of entries stripped."""
@@ -846,13 +859,7 @@ init -999 python:
                 timestamps = preset.get("timestamps")
                 if not timestamps:
                     continue
-                stripped = 0
-                clean = []
-                for ts in timestamps:
-                    if ts.get("time") is not None:
-                        clean.append(ts)
-                    else:
-                        stripped += 1
+                clean, stripped = self._clean_timestamp_list(timestamps)
                 if stripped:
                     preset["timestamps"] = clean
                     total_stripped += stripped
@@ -1138,13 +1145,7 @@ init -999 python:
                 timestamps = entry.get("timestamps")
                 if not timestamps:
                     continue
-                stripped = 0
-                clean = []
-                for ts in timestamps:
-                    if ts.get("time") is not None:
-                        clean.append(ts)
-                    else:
-                        stripped += 1
+                clean, stripped = self._clean_timestamp_list(timestamps)
                 if stripped:
                     entry["timestamps"] = clean
                     total_stripped += stripped
@@ -1161,9 +1162,9 @@ init -999 python:
                 _cue_log("SAVE-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
 
             data = python_dict({
-                "markers": python_dict(self._data),
-                "presets": python_dict(self._presets),
-                "video_presets": python_dict(self._video_presets),
+                "markers": _cue_unwrap_persistent(self._data),
+                "presets": _cue_unwrap_persistent(self._presets),
+                "video_presets": _cue_unwrap_persistent(self._video_presets),
                 "disabled_files": python_list(_cue.file_tree.disabled_files),
                 "triggers_active": _cue.triggers_active,
             })
@@ -1242,8 +1243,6 @@ init -999 python:
                 self._presets = _cue_unwrap_persistent(data.get("presets", {}))
                 self._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
                 self._sanitize_video_presets()
-                _cue_log("disabled___" + str(data.get("disabled_files")))
-                
                 _cue.file_tree.disabled_files = set(data.get("disabled_files", []))
                 _cue.triggers_active = data.get("triggers_active", True)
                 self._normalize_all()
@@ -1314,7 +1313,7 @@ init -999 python:
                     for ts_entry in pasted_entry.get("timestamps", []):
                         t = ts_entry.get("time", 0)
                         if dur > 0:
-                            t = max(0.0, min(t, dur - 0.05))
+                            t = _cue_clamp_time(t, dur)
                         else:
                             t = max(0.0, t)
                         ts_entry["time"] = t

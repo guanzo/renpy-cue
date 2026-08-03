@@ -101,6 +101,7 @@ init python:
         results_set = set()
 
         # Source 1: Ren'Py's cached index (covers .rpa archives)
+        rpy_files = []
         try:
             rpy_files = renpy.list_files()
             for f in rpy_files:
@@ -181,22 +182,15 @@ init python:
         _cue.file_tree.rebuild_tree()
 
 
-    def _cue_is_file_in_loop_pool(full_path):
-        """Check if a file is in any pool of the current context's l: entry."""
-        if not _cue.current_file:
-            return False
-        loop_key = create_loop_key(_cue.current_file)
-        entry = _cue.markers.get(loop_key)
-        if entry:
-            for _pool in entry.get("pools", []):
-                if full_path in _cue.markers.resolve_pool(_pool).files:
-                    return True
-        return False
-
-
     # --------------------------------------------------------------------------
     # Utility: Time Formatting
     # --------------------------------------------------------------------------
+
+    def _cue_clamp_time(t, dur):
+        """Clamp time t to [0, dur - END_MARGIN], handling dur <= 0."""
+        if dur > 0:
+            return max(0.0, min(t, dur - _cue.END_MARGIN))
+        return max(0.0, t)
 
     def _cue_format_time(seconds):
         """Format seconds as MM:SS.cs (centiseconds).

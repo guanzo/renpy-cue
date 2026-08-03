@@ -325,7 +325,7 @@ screen cue_section_frame(header_text):
                     xfill True
                     text header_text style "cue_hdr"
                     null width 8
-                    text _arrow style "cue_hdr" xalign 1.0
+                    text _arrow style "cue_help" xalign 1.0
             if not _collapsed:
                 transclude
 

@@ -71,7 +71,6 @@ init -999 python:
                         "full_path": full,
                         "depth": depth,
                         "index": idx,
-                        "in_pool": _cue_is_file_in_loop_pool(full),
                         "enabled": full not in self.disabled_files,
                     })
 
