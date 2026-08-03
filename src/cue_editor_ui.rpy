@@ -306,6 +306,31 @@ screen cue_pool_section(section_title, ctx, vol_key, subtitle, subject, btn_lett
         else:
             text "Click the {} button in the SFX Library to create a new pool or add files to the active pool.".format(btn_letter) style "cue_help"
 
+# Toggle textbutton: ☑ label when checked, ☐ when unchecked.
+# on_bg/on_hover/off_bg/off_hover override backgrounds per state (None = style default).
+screen cue_toggle_btn(checked, label, action, tt_on, tt_off,
+                       on_bg=None, on_hover=None, off_bg=None, off_hover=None):
+    if checked:
+        textbutton "☑ " + label:
+            style "cue_btn"
+            text_style "cue_btn_text_sm"
+            if on_bg is not None:
+                background on_bg
+            if on_hover is not None:
+                hover_background on_hover
+            action action
+            tooltip tt_on
+    else:
+        textbutton "☐ " + label:
+            style "cue_btn"
+            text_style "cue_btn_text_sm"
+            if off_bg is not None:
+                background off_bg
+            if off_hover is not None:
+                hover_background off_hover
+            action action
+            tooltip tt_off
+
 ###############################################################################
 # SECTION 5: Overlay Screen
 ###############################################################################
@@ -322,22 +347,11 @@ screen cue_overlay_content():
         # --- Top bar: active checkbox + copy + paste + dump + restore + refresh + close ---
         hbox:
             spacing 2
-            if _cue.triggers_active:
-                textbutton "☑ SFX Active":
-                    style "cue_btn"
-                    text_style "cue_btn_text_sm"
-                    background "#446644"
-                    hover_background "#558855"
-                    action Function(_cue_toggle_active)
-                    tooltip "SFX triggers are ON (F4 to toggle)"
-            else:
-                textbutton "☐ SFX Active":
-                    style "cue_btn"
-                    text_style "cue_btn_text_sm"
-                    background "#664444"
-                    hover_background "#885555"
-                    action Function(_cue_toggle_active)
-                    tooltip "SFX triggers are OFF (F4 to toggle)"
+            use cue_toggle_btn(_cue.triggers_active, "SFX Active",
+                Function(_cue_toggle_active),
+                "SFX triggers are ON (F4 to toggle)",
+                "SFX triggers are OFF (F4 to toggle)",
+                "#446644", "#558855", "#664444", "#885555")
             null width 5
             use cue_icon_button("📋", Function(_cue.markers.copy_context), "Copy current context config (Shift + 1)", None)
             use cue_icon_button("📄", Function(_cue.markers.paste_context), "Paste context config (Shift + 2)", None)
@@ -500,18 +514,11 @@ screen cue_overlay_content():
             use cue_pool_section("Image SFX", _cue.markers.image, _img_key,
                 "Image: " + _cue.current_file, "image", "I"):
                 $ _p = _cue._pool_ui["pool"]
-                if _p.get("trigger_on_shake", False):
-                    textbutton "☑ Trigger on screen shake":
-                        style "cue_btn"
-                        text_style "cue_btn_text_sm"
-                        action Function(_cue_toggle_shake_trigger)
-                        tooltip "Play SFX when a screen shake occurs"
-                else:
-                    textbutton "☐ Trigger on screen shake":
-                        style "cue_btn"
-                        text_style "cue_btn_text_sm"
-                        action Function(_cue_toggle_shake_trigger)
-                        tooltip "Play SFX when a screen shake occurs"
+                use cue_toggle_btn(_p.get("trigger_on_shake", False),
+                    "Trigger on screen shake",
+                    Function(_cue_toggle_shake_trigger),
+                    "Play SFX when a screen shake occurs",
+                    "Play SFX when a screen shake occurs")
 
         # --- Dialogue UI ---
         if _is_dialogue:
@@ -615,9 +622,9 @@ screen cue_overlay_content():
                                     # Autoplay SFX
                                     use cue_icon_button("A", Function(_cue.markers.autoplay.add_file, item["index"]), "Add to Autoplay SFX pool", None)
                                     if item.get("enabled", True):
-                                        use cue_icon_button("☑", Function(_cue_toggle_file_enabled, item["full_path"]), "Click to exclude from markers", None)
+                                        use cue_icon_button("☑", Function(_cue_toggle_file_enabled, item["full_path"]), "Click to disable globally", None)
                                     else:
-                                        use cue_icon_button("☐", Function(_cue_toggle_file_enabled, item["full_path"]), "Click to include in markers", None)
+                                        use cue_icon_button("☐", Function(_cue_toggle_file_enabled, item["full_path"]), "Click to enable globally", None)
                                     text item["name"] style "cue_txt" color "#ffcc00"
 
 
