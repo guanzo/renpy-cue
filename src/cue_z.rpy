@@ -182,30 +182,6 @@ init 999 python:
         return _original_with_statement(trans, always=always, paired=paired, clear=clear)
 
     renpy.with_statement = _cue_with_hook
-    # monkeypatch renpy.with_statement
-
-    def _is_screenshake(trans):
-        import functools
-        try:
-            if trans is None:
-                return False
-
-            if not isinstance(trans, functools.partial):
-                return False
-
-            func_name = getattr(trans.func, "__name__", "")
-            if func_name != "Move":
-                return False
-
-            kw = trans.keywords or {}
-            return (
-                kw.get("bounce", False) == True
-                and kw.get("repeat", False) == True
-                and kw.get("delay") is not None
-                and kw.get("delay") < 0.5
-            )
-        except Exception:
-            return False
 
     # Clear debug log for fresh session
     try:
@@ -276,25 +252,6 @@ init 999 python:
 
 init python:
     import os
-
-
-    # --------------------------------------------------------------------------
-    # Debug Logging
-    # --------------------------------------------------------------------------
-
-    def _cue_log(msg):
-        """Append a debug message to cue_editor/debug.log."""
-        try:
-            import time as _logtime
-            log_dir = os.path.join(renpy.config.gamedir, _cue.base_dir)
-            if not os.path.isdir(log_dir):
-                os.makedirs(log_dir)
-            log_path = os.path.join(log_dir, _cue.debug_log_filename)
-            with open(log_path, "a") as f:
-                _ts = _logtime.strftime("%H:%M:%S") + ".{:03d}".format(int(_logtime.time() * 1000) % 1000)
-                f.write("[{}] {}\n".format(_ts, msg))
-        except Exception:
-            pass  # Never let logging break the game
 
     # --------------------------------------------------------------------------
     # Visibility
@@ -441,46 +398,6 @@ init python:
             _cue.current_dialogue[:60] if _cue.current_dialogue else "(none)"))
 
 
-    def _cue_resolve_files(files):
-        """Resolve a files list: expand folder refs (trailing '/') to matching
-        available files, skip disabled files, pass through direct references."""
-        result = []
-        for item in files:
-            if item.endswith("/"):
-                # Folder reference — expand to all matching available files
-                for f in _cue.available_files:
-                    if f.startswith(item) and f not in _cue.file_tree.disabled_files and f not in result:
-                        result.append(f)
-            elif item not in _cue.file_tree.disabled_files and item not in result:
-                result.append(item)
-        return result
-
-    def _cue_pick_file(files, avoid_repeats=True):
-        """Pick a random file from a list.
-        If avoid_repeats is True, avoids files in the global last_played list.
-        Repeat avoidance is shared across all non-video contexts.
-        Video timestamps should pass avoid_repeats=False — they always fire.
-        """
-        import random as _random
-        if not files:
-            return None
-        if len(files) == 1:
-            f = files[0]
-        elif avoid_repeats:
-            last = _cue.last_played
-            f = _random.choice(files)
-            tries = 0
-            while f in last and tries < 10:
-                f = _random.choice(files)
-                tries += 1
-            last.append(f)
-            if len(last) > 2:
-                last.pop(0)
-        else:
-            f = _random.choice(files)
-        return f
-
-
     def _cue_fire_context_triggers(*keys, only_shake_pools=False):
         """Fire markers for the given trigger keys.
         Multi-pool entries play one random file from EACH pool concurrently.
@@ -530,34 +447,6 @@ init python:
     # --------------------------------------------------------------------------
     # Image / Movie Detection (master layer scene list)
     # --------------------------------------------------------------------------
-
-    def _cue_top_layer_name(name):
-        """Normalize a displayable name to a single string.
-        Image names are tuples like ('bg', 'forest') — use the tag ('bg')."""
-        if name is None:
-            return None
-        if isinstance(name, tuple) and name:
-            name = name[0]
-        name = str(name)
-        if not name:
-            return None
-        return name
-
-
-    def _cue_top_movie_name(movie):
-        """Context name for a Movie on the master layer.
-        Movie has no 'name' in Ren'Py 7/8 — fall back to the file basename
-        from its 'play' attribute (which may be a list of paths)."""
-        name = _cue_top_layer_name(getattr(movie, "name", None))
-        if name:
-            return name
-        play = getattr(movie, "play", None)
-        if isinstance(play, list):
-            play = play[0] if play else None
-        if play:
-            return str(play).replace("\\", "/").rsplit("/", 1)[-1]
-        return None
-
 
     def _cue_get_top_layer():
         """Return (name, kind) for the topmost displayable on the master
@@ -759,18 +648,6 @@ init python:
     # --------------------------------------------------------------------------
     # SFX Trigger Engine (Tick)
     # --------------------------------------------------------------------------
-
-    def _cue_loop_still_playing(channels):
-        """True if any channel in the list is currently playing.
-        Unknown/unregistered channels are treated as silent."""
-        for _c in channels:
-            try:
-                if renpy.music.is_playing(channel=_c):
-                    return True
-            except Exception:
-                pass
-        return False
-
 
     def _cue_tick_trigger():
         """SFX trigger engine — runs always (even when overlay is hidden)."""
