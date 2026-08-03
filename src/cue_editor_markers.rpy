@@ -98,22 +98,40 @@ init python:
 
         audio_exts = (".ogg", ".mp3", ".wav", ".opus", ".flac")
 
+        results_set = set()
+
+        # Source 1: Ren'Py's cached index (covers .rpa archives)
         try:
-            all_files = renpy.list_files()
+            rpy_files = renpy.list_files()
+            for f in rpy_files:
+                if f.startswith(search_path):
+                    relative = f[len(search_path):]
+                    if relative and f.lower().endswith(audio_exts):
+                        results_set.add(relative)
         except Exception:
+            pass  # Fall through to filesystem scan below
+
+        # Source 2: Live filesystem scan (picks up files added after startup)
+        fs_dir = os.path.join(renpy.config.gamedir, search_path)
+        if os.path.isdir(fs_dir):
+            for dirpath, _dirnames, filenames in os.walk(fs_dir, followlinks=True):
+                rel_dir = os.path.relpath(dirpath, fs_dir)
+                if rel_dir == ".":
+                    rel_dir = ""
+                for fname in filenames:
+                    if fname.lower().endswith(audio_exts):
+                        rel_path = (rel_dir + "/" + fname) if rel_dir else fname
+                        rel_path = rel_path.replace("\\", "/")
+                        results_set.add(rel_path)
+
+        if not results_set and not rpy_files:
+            # Both sources failed entirely
             _cue.available_files = []
             _cue.audio_tree = []
             _cue.scan_error = "Failed to list files"
             return
 
-        # Build flat list of relative paths
-        results = []
-        for f in all_files:
-            if f.startswith(search_path):
-                relative = f[len(search_path):]
-                if relative and f.lower().endswith(audio_exts):
-                    results.append(relative)
-        results.sort()
+        results = sorted(results_set)
         _cue.available_files = results
 
         # Build tree from flat list
