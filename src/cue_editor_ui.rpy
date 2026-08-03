@@ -267,17 +267,36 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
                         text f style "cue_txt" color "#ffcc00" size 11
 
 # Section frame: styled frame + header, with transclude for child content.
+style cue_section_hdr_btn is empty:
+    background None
+    hover_background "#333333"
+    padding (4, 2)
+    xfill True
+    hover_sound None
+    activate_sound None
+
 # Usage: use cue_section_frame("Title"):  ...children...
+# Click the header to collapse/expand the section content.
 screen cue_section_frame(header_text):
+    $ _collapsed = _cue._collapsed_sections.get(header_text, False)
+    $ _arrow = "▸" if _collapsed else "▾"  # ▸ collapsed, ▾ expanded
     frame:
         background "#222222"
         padding (4, 4)
         xfill True
         yminimum 0
-        has vbox
-        spacing 8
-        text header_text style "cue_hdr"
-        transclude
+        vbox:
+            spacing 8
+            button:
+                style "cue_section_hdr_btn"
+                action Function(_cue_toggle_section, header_text)
+                hbox:
+                    xfill True
+                    text header_text style "cue_hdr"
+                    null width 8
+                    text _arrow style "cue_hdr" xalign 1.0
+            if not _collapsed:
+                transclude
 
 # Generic context section: shared by dialogue, image, and autoplay SFX.
 # ctx: marker context with add_pool, remove_pool, clear, set_active,
@@ -912,3 +931,8 @@ init -990 python:
             "Delete preset '{}'?".format(preset_name),
             Function(_cue.markers.delete_preset, preset_name),
         )
+
+    def _cue_toggle_section(section_name):
+        """Toggle expand/collapse for a cue_section_frame."""
+        _cue._collapsed_sections[section_name] = not _cue._collapsed_sections.get(section_name, False)
+        renpy.restart_interaction()

@@ -60,6 +60,7 @@ init -999 python:
     _cue.expanded_file_refs = {}  # tracks expanded folder refs in pool file lists
     _cue._presets_expanded = False  # expand/collapse for Presets/ folder in SFX Library
     _cue._expanded_presets = {}     # per-preset expand/collapse, keyed by preset name
+    _cue._collapsed_sections = {}   # per-section expand/collapse for cue_section_frame
     _cue.scan_error = None
 
     class CuePresetDialog:
