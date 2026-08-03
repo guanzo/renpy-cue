@@ -743,7 +743,11 @@ init -999 python:
             self._autosave_backup()
 
         def _autosave_backup(self):
-            """Write a backup copy to disk, throttled to once per 5 minutes."""
+            """Write a backup copy to disk, throttled to once per 5 minutes.
+
+            Saves to auto_backups/ with a Unix timestamp suffix. Keeps the last
+            50 copies, deleting older ones.
+            """
             import time as _time
             now = _time.time()
             if now - getattr(_cue, '_last_autosave_time', 0) < 300:
@@ -751,16 +755,26 @@ init -999 python:
             _cue._last_autosave_time = now
             try:
                 import json as _json
-                dump_dir = os.path.join(renpy.config.gamedir, _cue.base_dir)
-                if not os.path.isdir(dump_dir):
-                    os.makedirs(dump_dir)
-                dump_path = os.path.join(dump_dir, _cue.config_filename)
+                import glob as _glob
+                backup_dir = os.path.join(renpy.config.gamedir, _cue.base_dir, "auto_backups")
+                if not os.path.isdir(backup_dir):
+                    os.makedirs(backup_dir)
+                # Generate timestamped filename
+                dump_path = os.path.join(backup_dir, "cue_config_{}.json".format(int(now)))
                 data = getattr(persistent, '_cue_markers', None)
                 if data is None:
                     self.save()
                     data = getattr(persistent, '_cue_markers', {})
                 with open(dump_path, "w") as f:
                     _json.dump(data, f, indent=2, sort_keys=True)
+                # Prune to last 50 backups
+                backups = sorted(_glob.glob(os.path.join(backup_dir, "cue_config_*.json")))
+                if len(backups) > 50:
+                    for old in backups[:-50]:
+                        try:
+                            os.remove(old)
+                        except Exception:
+                            pass
             except Exception:
                 pass  # best-effort
 
