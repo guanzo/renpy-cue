@@ -640,8 +640,10 @@ screen cue_overlay_content():
                     action Function(_cue.markers.loop.set_frequency, 3)
 
         # Audio file browser
-        if _cue.audio_tree:
-            use cue_section_frame("SFX Library"):
+        use cue_section_frame("SFX Library"):
+            if not _cue.audio_tree:
+                text "No audio files found in game/[_cue.audio_dir]/.\nPlace .ogg, .mp3, .wav, .opus, or .flac files there and click ⟳ to refresh." style "cue_help"
+            else:
                 viewport:
                     xfill True
                     yfill True
