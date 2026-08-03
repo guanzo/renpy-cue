@@ -364,7 +364,7 @@ init -999 python:
             }
             timestamps.append(clone)
             timestamps.sort(key=lambda e: e["time"])
-            self.target_pool = timestamps.index(clone)
+            self.target_pool = next(i for i, ts in enumerate(timestamps) if ts is clone)
             self.selected = set()
             self._mgr.save()
 

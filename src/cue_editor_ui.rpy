@@ -188,12 +188,7 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
     hbox:
         spacing 5
         if show_delete:
-            textbutton "Delete All":
-                style "cue_btn"
-                text_style "cue_btn_text"
-                xsize 70
-                action Function(_cue.confirm_dialog.show, delete_confirm, delete_action)
-                tooltip delete_tt
+            use cue_icon_button("✕", Function(_cue.confirm_dialog.show, delete_confirm, delete_action), delete_tt, None)
         textbutton "+ Pool":
             style "cue_btn"
             text_style "cue_btn_text"
@@ -259,7 +254,7 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
                                 if folder_child_remove_fn is not None:
                                     use cue_icon_button("✕",
                                         Function(folder_child_remove_fn, trigger_key, pool_index, fi, _child),
-                                        "Remove this file from the folder ref", None)
+                                        "Remove file from the folder ref", None)
                                 use cue_icon_button("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
                                 $ _display = _child[len(f):]  # strip folder ref prefix
                                 text _display style "cue_txt" color "#ffcc00" size 11
@@ -335,8 +330,8 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
                 spacing 5
                 text _active_label style "cue_txt" size 11
                 null width 5
-                use cue_icon_button("💾", Function(_cue.preset_dialog.open, vol_key, _target), "Save this pool as a preset", None)
-                use cue_icon_button("✕", Function(_cue.confirm_dialog.show, "Delete this pool?", Function(ctx.remove_pool, _target)), "Delete this pool", None)
+                use cue_icon_button("💾", Function(_cue.preset_dialog.open, vol_key, _target), "Save pool as a preset", None)
+                use cue_icon_button("✕", Function(_cue.confirm_dialog.show, "Delete pool?", Function(ctx.remove_pool, _target)), "Delete pool", None)
                 $ _dec = Function(_cue.volume.adjust, vol_key, -0.1, _target)
                 $ _inc = Function(_cue.volume.adjust, vol_key, 0.1, _target)
                 null width 5
@@ -523,8 +518,8 @@ screen cue_overlay_content():
 
                         null width 5
                         
-                        use cue_icon_button("🗐", Function(_cue.markers.video.duplicate_pool, _vid_target), "Duplicate this timestamp pool", None)
-                        use cue_icon_button("✕", Function(_cue.confirm_dialog.show, "Delete this timestamp pool?", Function(_cue.markers.video.remove_pool, _vid_target)), "Delete this timestamp pool", None)
+                        use cue_icon_button("♻", Function(_cue.markers.video.duplicate_pool, _vid_target), "Duplicate timestamp pool", None)
+                        use cue_icon_button("✕", Function(_cue.confirm_dialog.show, "Delete timestamp pool?", Function(_cue.markers.video.remove_pool, _vid_target)), "Delete timestamp pool", None)
 
                         # Volume controls
                         $ _active_ts.setdefault("volume", 1.0)
