@@ -526,8 +526,8 @@ screen cue_overlay_content():
                         action Function(_cue.beat.open)
                         tooltip "Repeat selected markers at regular intervals across the video"
                     $ _has_markers = _cue.markers.video.has_markers()
-                    use cue_icon_button("✕", Function(_cue.confirm_dialog.show, _cue.markers.video.get_delete_message(), Function(_cue.markers.video.remove_selected)) if _has_markers else NullAction(), "Delete selected markers" if _has_markers else "No markers to delete", None)
                     use cue_icon_button("💾", Function(_cue.video_preset_dialog.open), "Save all video markers as a preset", None)
+                    use cue_icon_button("✕", Function(_cue.confirm_dialog.show, _cue.markers.video.get_delete_message(), Function(_cue.markers.video.remove_selected)) if _has_markers else NullAction(), "Delete selected markers" if _has_markers else "No markers to delete", None)
                     textbutton "?":
                         style "cue_btn"
                         text_style "cue_btn_text"
