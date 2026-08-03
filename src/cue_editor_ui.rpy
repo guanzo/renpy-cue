@@ -31,12 +31,14 @@ style cue_btn_icon is empty:
     padding (0, 0)
     background "#444444"
     hover_background "#666666"
+    insensitive_background "#2a2a2a"
     hover_sound None
     activate_sound None
 
 style cue_btn_icon_text is empty:
     size 12
     color "#ffffff"
+    insensitive_color "#666666"
     font "DejaVuSans.ttf"
     xalign 0.5
     yalign 0.5
@@ -119,7 +121,7 @@ screen cue_vol_row(label_text, dec_action, entry_dict, inc_action):
 # Icon button: tiny button with cue_btn_icon / cue_btn_icon_text styles.
 # Most callers don't need xsize (style default is 14); pass an int to override.
 # Pass tt=None to skip the tooltip.
-screen cue_icon_button(text, action, tt, xsize):
+screen cue_icon_button(text, action, tt, xsize, enabled=True):
     textbutton text:
         style "cue_btn_icon"
         text_style "cue_btn_icon_text"
@@ -127,6 +129,7 @@ screen cue_icon_button(text, action, tt, xsize):
             xsize xsize
         if tt is not None:
             tooltip tt
+        sensitive enabled
         action action
 
 screen cue_folder_txt_button(label, action_fn, ysize=16):
@@ -524,15 +527,17 @@ screen cue_overlay_content():
                         tooltip "Repeat selected markers at regular intervals across the video"
                     $ _has_markers = _cue.markers.video.has_markers()
                     use cue_icon_button("💾", Function(_cue.video_preset_dialog.open), "Save all video markers as a preset", None)
-                    use cue_icon_button("✕", Function(_cue.confirm_dialog.show, _cue.markers.video.get_delete_message(), Function(_cue.markers.video.remove_selected)) if _has_markers else NullAction(), "Delete selected markers" if _has_markers else "No markers to delete", None)
-                    textbutton "?":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        action NullAction()
-                        tooltip ("• Markers and marker groups are draggable.\n"
-+ "• (Alt + Click) or (Shift + Click) to create a marker group.\n"
-+ "• Use Repeat to copy selected markers at an interval.\n"
-+ "• Get your markers timed to the first 'beat', find the interval to the next 'beat', then use Repeat to finish.")
+                    use cue_icon_button("✕", 
+                        Function(_cue.confirm_dialog.show, _cue.markers.video.get_delete_message(), 
+                        Function(_cue.markers.video.remove_selected)) if _has_markers else NullAction(), 
+                        "Delete selected markers" if _has_markers else "No markers to delete", None)
+                    use cue_icon_button("?", 
+                        NullAction(), 
+                        ("• Markers and marker groups are draggable.\n"
+                        + "• (Alt + Click) or (Shift + Click) to create a marker group.\n"
+                        + "• Use Repeat to copy selected markers at an interval.\n"
+                        + "• Get your markers timed to the first 'beat', find the interval to the next 'beat', then use Repeat to finish."), 
+                        None)
                 # --- Timeline visualizer ---
                 fixed:
                     xfill True
@@ -742,9 +747,9 @@ screen cue_overlay_content():
                                         use cue_icon_button("▸", Function(_cue.file_tree.toggle_preset_expand, _pname), None, None)
                                     use cue_icon_button("✕", Function(_cue_confirm_delete_preset, _pname), "Delete preset", None)
                                     use cue_icon_button("▶", Function(_cue_preview_preset, _pname), "Preview random file from preset", None)
-                                    use cue_icon_button("V", Function(_cue.markers.video.apply_preset, _pname), "Apply preset to current video at playhead position", None)
-                                    use cue_icon_button("I", Function(_cue.markers.image.apply_preset, _pname), "Apply preset to active Image SFX pool", None)
-                                    use cue_icon_button("D", Function(_cue.markers.dialogue.apply_preset, _pname), "Apply preset to active Dialogue SFX pool", None)
+                                    use cue_icon_button("V", Function(_cue.markers.video.apply_preset, _pname), "Apply preset to current video at playhead position", None, enabled=_is_video)
+                                    use cue_icon_button("I", Function(_cue.markers.image.apply_preset, _pname), "Apply preset to active Image SFX pool", None, enabled=_has_image)
+                                    use cue_icon_button("D", Function(_cue.markers.dialogue.apply_preset, _pname), "Apply preset to active Dialogue SFX pool", None, enabled=_is_dialogue)
                                     use cue_icon_button("L", Function(_cue.markers.loop.apply_preset, _pname), "Apply preset to active Loop SFX pool", None)
                                     use cue_folder_txt_button(_pname, Function(_cue.file_tree.toggle_preset_expand, _pname))
                                 if _p_expanded:
@@ -781,12 +786,12 @@ screen cue_overlay_content():
                                         use cue_icon_button("▸", Function(_cue.file_tree.toggle_video_preset_expand, _vpname), None, None)
                                     use cue_icon_button("✕", Function(_cue_confirm_delete_video_preset, _vpname), "Delete video preset", None)
                                     use cue_icon_button("▶", Function(_cue_preview_video_preset, _vpname), "Preview random file from video preset", None)
-                                    use cue_icon_button("V", Function(_cue_maybe_apply_video_preset, _vpname), "Apply video markers to the current video", None)
+                                    use cue_icon_button("V", Function(_cue_maybe_apply_video_preset, _vpname), "Apply video markers to the current video", None, enabled=_is_video)
                                     use cue_folder_txt_button(_vpname, Function(_cue.file_tree.toggle_video_preset_expand, _vpname))
                                 if _vp_expanded:
                                     for _ts in _vp_ts:
                                         $ _ts_time = _ts.get("time", 0)
-                                        $ _ts_files = len(_ts.get("files", []))
+                                        $ _ts_files = len(_cue_resolve_files(_ts.get("files", [])))
                                         hbox:
                                             spacing 2
                                             text "    " style "cue_txt"  # double indent
@@ -804,20 +809,20 @@ screen cue_overlay_content():
                                     else:
                                         use cue_icon_button("▸", Function(_cue.file_tree.toggle_folder, item["full_path"]), None, None)
                                     if item["has_files"]:
-                                        use cue_icon_button("V", Function(_cue.markers.video.add_folder, item["full_path"]), "Add folder to active video timestamp pool", None)
-                                        use cue_icon_button("I", Function(_cue.markers.image.add_folder, item["full_path"]), "Add folder to Image SFX pool", None)
-                                        use cue_icon_button("D", Function(_cue.markers.dialogue.add_folder, item["full_path"]), "Add folder to Dialogue SFX pool", None)
+                                        use cue_icon_button("V", Function(_cue.markers.video.add_folder, item["full_path"]), "Add folder to active video timestamp pool", None, enabled=_is_video)
+                                        use cue_icon_button("I", Function(_cue.markers.image.add_folder, item["full_path"]), "Add folder to Image SFX pool", None, enabled=_has_image)
+                                        use cue_icon_button("D", Function(_cue.markers.dialogue.add_folder, item["full_path"]), "Add folder to Dialogue SFX pool", None, enabled=_is_dialogue)
                                         use cue_icon_button("L", Function(_cue.markers.loop.add_folder, item["full_path"]), "Add folder to Loop SFX Pool", None)
                                     use cue_folder_txt_button(item["name"], Function(_cue.file_tree.toggle_folder, item["full_path"]))
                                 else:
                                     # Play preview
                                     use cue_icon_button("▶", Function(_cue_preview_sfx, item["full_path"]), "Preview audio", None)
                                     # Video marker (adds to active timestamp pool)
-                                    use cue_icon_button("V", Function(_cue.markers.video.add_file, item["index"]), "Add file to active video timestamp pool", None)
+                                    use cue_icon_button("V", Function(_cue.markers.video.add_file, item["index"]), "Add file to active video timestamp pool", None, enabled=_is_video)
                                     # Image SFX
-                                    use cue_icon_button("I", Function(_cue.markers.image.add_file, item["index"]), "Add to Image SFX pool", None)
+                                    use cue_icon_button("I", Function(_cue.markers.image.add_file, item["index"]), "Add to Image SFX pool", None, enabled=_has_image)
                                     # Dialogue SFX
-                                    use cue_icon_button("D", Function(_cue.markers.dialogue.add_file, item["index"]), "Add to Dialogue SFX pool", None)
+                                    use cue_icon_button("D", Function(_cue.markers.dialogue.add_file, item["index"]), "Add to Dialogue SFX pool", None, enabled=_is_dialogue)
                                     # Loop SFX
                                     use cue_icon_button("L", Function(_cue.markers.loop.add_file, item["index"]), "Add to Loop SFX pool", None)
                                     if item.get("enabled", True):
@@ -914,7 +919,7 @@ screen cue_save_preset_dialog():
     $ _pools = _entry.get("pools", []) if _entry else []
     $ _pool = _pools[_d.pool_idx] if _pools and _d.pool_idx < len(_pools) else {}
     $ _r = _cue.markers.resolve_pool(_pool)
-    $ _file_count = len(_r.files)
+    $ _file_count = len(_cue_resolve_files(_r.files))
     key "K_RETURN" action Function(_d.commit)
     key "K_KP_ENTER" action Function(_d.commit)
     key "K_ESCAPE" action Function(_d.cancel)
@@ -988,7 +993,7 @@ screen cue_save_video_preset_dialog():
         $ _last_t = _timestamps[-1].get("time", 0)
         $ _span_text = _cue_format_time(_last_t - _first_t)
         for _ts in _timestamps:
-            $ _total_files += len(_ts.get("files", []))
+            $ _total_files += len(_cue_resolve_files(_ts.get("files", [])))
     key "K_RETURN" action Function(_d.commit)
     key "K_KP_ENTER" action Function(_d.commit)
     key "K_ESCAPE" action Function(_d.cancel)
