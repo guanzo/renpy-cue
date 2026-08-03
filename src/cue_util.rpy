@@ -283,8 +283,8 @@ init python:
                 os.makedirs(log_dir)
             log_path = os.path.join(log_dir, _cue.debug_log_filename)
             with open(log_path, "a") as f:
-                _ts = _logtime.strftime("%H:%M:%S") + ".{:03d}".format(int(_logtime.time() * 1000) % 1000)
-                f.write("[{}] {}\n".format(_ts, msg))
+                ts = _logtime.strftime("%H:%M:%S") + ".{:03d}".format(int(_logtime.time() * 1000) % 1000)
+                f.write("[{}] {}\n".format(ts, msg))
         except Exception:
             pass  # Never let logging break the game
 
@@ -402,9 +402,9 @@ init python:
     def _cue_loop_still_playing(channels):
         """True if any channel in the list is currently playing.
         Unknown/unregistered channels are treated as silent."""
-        for _c in channels:
+        for ch in channels:
             try:
-                if renpy.music.is_playing(channel=_c):
+                if renpy.music.is_playing(channel=ch):
                     return True
             except Exception:
                 pass

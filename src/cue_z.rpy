@@ -277,9 +277,9 @@ init python:
         When enabled, screen shake transitions play SFX from this pool."""
         if not _cue.current_file:
             return
-        _shake_key = create_img_key(_cue.current_file)
-        _pool = _cue.markers._ensure_pool(_shake_key, _cue.markers._img_target)
-        _pool["trigger_on_shake"] = not _pool.get("trigger_on_shake", False)
+        shake_key = create_img_key(_cue.current_file)
+        pool = _cue.markers._ensure_pool(shake_key, _cue.markers._img_target)
+        pool["trigger_on_shake"] = not pool.get("trigger_on_shake", False)
         _cue_save_markers()
 
 
@@ -322,79 +322,79 @@ init python:
 
         # 2. Re-detect context: top displayable on master layer wins;
         #    fall back to video channel when nothing is on the master layer.
-        _top_name, _top_type = _cue_get_top_layer()
-        if _top_name is None:
+        top_name, top_type = _cue_get_top_layer()
+        if top_name is None:
             return
-        
-        _cue.current_file = _top_name
-        _cue.top_layer_type = _top_type  # cache for screen / other consumers
+
+        _cue.current_file = top_name
+        _cue.top_layer_type = top_type  # cache for screen / other consumers
 
         # 3. Always log current context for debugging
         _cue_log_context()
 
         # 4. If context changed, build trigger keys and fire
-        _changed = ""
-        _img_key = None
-        _dlg_key = None
+        changed = ""
+        img_key = None
+        dlg_key = None
 
         if _cue.current_file != old_file:
-            _changed += " file:{}->{}".format(old_file, _cue.current_file)
-            _img_key = create_img_key(_cue.current_file) if _cue.current_file else None
+            changed += " file:{}->{}".format(old_file, _cue.current_file)
+            img_key = create_img_key(_cue.current_file) if _cue.current_file else None
 
             _cue.loop_states = {} # Clean up stale data
         if _cue.active_channel != old_video:
-            _changed += " ch:{}->{}".format(old_video, _cue.active_channel)
+            changed += " ch:{}->{}".format(old_video, _cue.active_channel)
         if _cue.current_dialogue != _cue.prev_dialogue:
-            _changed += " dlg:{}->{}".format(_cue.prev_dialogue[:30] if _cue.prev_dialogue else "",
+            changed += " dlg:{}->{}".format(_cue.prev_dialogue[:30] if _cue.prev_dialogue else "",
                 _cue.current_dialogue[:30] if _cue.current_dialogue else "")
         if _cue.current_dialogue:
-            _dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
+            dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
 
-        if _changed:
-            _cue_log("CTX-CHANGE{}".format(_changed))
-            _cue_fire_context_triggers(_img_key, _dlg_key)
+        if changed:
+            _cue_log("CTX-CHANGE{}".format(changed))
+            _cue_fire_context_triggers(img_key, dlg_key)
 
         # 5. Screenshake trigger — fires independently of context changes,
         #    but only for pools that opted in via trigger_on_shake.
-        #    
-        #    Dedupe: when the image changed this interaction, _img_key already
+        #
+        #    Dedupe: when the image changed this interaction, img_key already
         #    fired above (hitting all pools for the new image), so skip the
         #    shake call for the same key to avoid double-firing.
-        #    When screen shakes on existing img, _img_key will be None since there
+        #    When screen shakes on existing img, img_key will be None since there
         #    was no img change, and the shake pools will trigger.
         if _cue._shake_just_happened:
             _cue._shake_just_happened = False
             if _cue.current_file:
-                _shake_key = create_img_key(_cue.current_file)
-                if _shake_key != _img_key:
-                    _cue_fire_context_triggers(_shake_key, only_shake_pools=True)
+                shake_key = create_img_key(_cue.current_file)
+                if shake_key != img_key:
+                    _cue_fire_context_triggers(shake_key, only_shake_pools=True)
 
 
     def _cue_log_context():
         """Log current context state for debugging — even if nothing changed."""
-        _vpath = _cue.vid_manager.get_video_path()
-        _vname = _vpath.rsplit("/", 1)[-1] if _vpath else "(none)"
-        _playing = "?"
+        vpath = _cue.vid_manager.get_video_path()
+        vname = vpath.rsplit("/", 1)[-1] if vpath else "(none)"
+        playing = "?"
         if _cue.active_channel:
             try:
-                _playing = "1" if renpy.music.is_playing(channel=_cue.active_channel) else "0"
+                playing = "1" if renpy.music.is_playing(channel=_cue.active_channel) else "0"
             except Exception:
                 pass
         # Determine primary context — top displayable on master layer wins;
         # fall back to video channel when nothing is on the master layer.
-        _top_name, _top_type = _cue_get_top_layer()
-        if _top_type:
-            _ctx_type = _top_type  # 'image' or 'movie'
-        elif _cue.active_channel is not None and _playing == "1":
-            _ctx_type = "video"
+        top_name, top_type = _cue_get_top_layer()
+        if top_type:
+            ctx_type = top_type  # 'image' or 'movie'
+        elif _cue.active_channel is not None and playing == "1":
+            ctx_type = "video"
         else:
-            _ctx_type = "none"
+            ctx_type = "none"
         _cue_log("CTX-DUMP ctx={} type={} video={} ch={} playing={} dlg=\"{}\"".format(
             _cue.current_file or "(none)",
-            _ctx_type,
-            _vname,
+            ctx_type,
+            vname,
             _cue.active_channel or "(none)",
-            _playing,
+            playing,
             _cue.current_dialogue[:60] if _cue.current_dialogue else "(none)"))
 
 
@@ -418,30 +418,30 @@ init python:
             pools = entry.get("pools", [])
             if not pools:
                 continue
-            _vol = entry.get("volume", 1.0)
-            _total = sum(len(_cue.markers.resolve_pool(p).files) for p in pools)
+            vol = entry.get("volume", 1.0)
+            total = sum(len(_cue.markers.resolve_pool(p).files) for p in pools)
 
             _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(
-                key, len(pools), _total, _vol))
+                key, len(pools), total, vol))
 
-            _picked = []
+            picked = []
             for pi, pool in enumerate(pools):
-                _r = _cue.markers.resolve_pool(pool)
-                if only_shake_pools and not _r.trigger_on_shake:
+                resolved = _cue.markers.resolve_pool(pool)
+                if only_shake_pools and not resolved.trigger_on_shake:
                     continue
-                files = _cue_resolve_files(_r.files)
+                files = _cue_resolve_files(resolved.files)
                 if not files:
                     continue
-                _file = _cue_pick_file(files)
-                _tries = 0
-                while _file in _picked and len(files) > 1 and _tries < 3:
-                    _file = _cue_pick_file(files)
-                    _tries += 1
-                if _file in _picked:
+                file = _cue_pick_file(files)
+                tries = 0
+                while file in picked and len(files) > 1 and tries < 3:
+                    file = _cue_pick_file(files)
+                    tries += 1
+                if file in picked:
                     continue
-                _picked.append(_file)
-                _pool_vol = _cue.volume.get_effective(entry, key, pool_index=pi)
-                _cue_play_sfx(_file, key, volume=_pool_vol)
+                picked.append(file)
+                pool_vol = _cue.volume.get_effective(entry, key, pool_index=pi)
+                _cue_play_sfx(file, key, volume=pool_vol)
 
 
     # --------------------------------------------------------------------------
@@ -574,9 +574,9 @@ init python:
         volume: 0.0-5.0, applied to the channel after play starts.
         """
         # Stop the previous user preview before starting a new one
-        _prev_ch = _cue._preview_channel
-        if _prev_ch is not None and renpy.music.is_playing(channel=_prev_ch):
-            renpy.music.stop(channel=_prev_ch, fadeout=0)
+        prev_ch = _cue._preview_channel
+        if prev_ch is not None and renpy.music.is_playing(channel=prev_ch):
+            renpy.music.stop(channel=prev_ch, fadeout=0)
         _cue._preview_channel = _cue_play_sfx(filename, "preview", volume=volume)
 
     def _cue_play_sfx(filename, source="", volume=1.0):
@@ -610,25 +610,25 @@ init python:
         try:
             # Context mismatch warning: compare source context with current state
             curr_file = _cue.current_file
-            _warn = None
+            warn = None
             if is_vid_key(source):
-                _expected_vid = get_key_file(source)
-                if _expected_vid and curr_file and _expected_vid != curr_file:
-                    _warn = "expected vid={} actual vid={}".format(_expected_vid, curr_file)
+                expected_vid = get_key_file(source)
+                if expected_vid and curr_file and expected_vid != curr_file:
+                    warn = "expected vid={} actual vid={}".format(expected_vid, curr_file)
             elif is_img_key(source):
-                _expected_img = get_key_file(source)
-                if _expected_img and curr_file and _expected_img != curr_file:
-                    _warn = "expected img={} actual img={}".format(_expected_img, curr_file)
+                expected_img = get_key_file(source)
+                if expected_img and curr_file and expected_img != curr_file:
+                    warn = "expected img={} actual img={}".format(expected_img, curr_file)
             elif is_dlg_key(source):
-                _expected_img = get_key_file(source)
-                _expected_dlg = get_key_dialogue(source)
-                _cur_dlg = (_cue.current_dialogue or "")[:40]
-                if _expected_img != curr_file or _expected_dlg != _cur_dlg:
-                    _warn = "expected img={}|{} actual img={}|{}".format(
-                        _expected_img, _expected_dlg, curr_file, _cur_dlg)
-            if _warn:
+                expected_img = get_key_file(source)
+                expected_dlg = get_key_dialogue(source)
+                cur_dlg = (_cue.current_dialogue or "")[:40]
+                if expected_img != curr_file or expected_dlg != cur_dlg:
+                    warn = "expected img={}|{} actual img={}|{}".format(
+                        expected_img, expected_dlg, curr_file, cur_dlg)
+            if warn:
                 _cue_log("WARN CTX-MISMATCH file={} src={} {}".format(
-                    filename.rsplit("/", 1)[-1], source, _warn))
+                    filename.rsplit("/", 1)[-1], source, warn))
 
             if _cue._has_relative_volume:
                 renpy.music.play(full_path, channel=target_ch, loop=False, relative_volume=volume)
@@ -677,13 +677,13 @@ init python:
         if entry:
             pools = entry.get("pools", [])
             # Collect frequencies from resolved pools with files, default 1
-            _freqs = []
+            freqs = []
             for p in pools:
-                _r = _cue.markers.resolve_pool(p)
-                if _r.files:
-                    _freqs.append(_r.frequency)
-            if _freqs:
-                freq = int(round(sum(_freqs) / float(len(_freqs))))
+                resolved = _cue.markers.resolve_pool(p)
+                if resolved.files:
+                    freqs.append(resolved.frequency)
+            if freqs:
+                freq = int(round(sum(freqs) / float(len(freqs))))
                 # Init pool state if needed
                 if loop_key not in _cue.loop_states:
                     _cue.loop_states[loop_key] = {
@@ -710,45 +710,45 @@ init python:
                         ps["ready_at"] = now + 0.5
                     elif now >= ps["ready_at"]:
                         # --- Cross-context overlap gate ---
-                        _block = _cue.loop_current
-                        _blocking = False
-                        if _block and _block.get("key") != loop_key:
-                            if _cue_loop_still_playing(_block.get("channels", [])):
-                                _blocking = True
+                        block = _cue.loop_current
+                        blocking = False
+                        if block and block.get("key") != loop_key:
+                            if _cue_loop_still_playing(block.get("channels", [])):
+                                blocking = True
                             else:
                                 _cue.loop_current = None  # stale
-                        if _blocking:
+                        if blocking:
                             ps["ready_at"] = now + 0.1
                         else:
-                            _channels = []
-                            _picked = []
+                            channels = []
+                            picked = []
                             for pi, pool in enumerate(pools):
-                                _r = _cue.markers.resolve_pool(pool)
-                                files = _cue_resolve_files(_r.files)
+                                resolved = _cue.markers.resolve_pool(pool)
+                                files = _cue_resolve_files(resolved.files)
                                 if not files:
                                     continue
-                                _f = _cue_pick_file(files)
-                                _tries = 0
-                                while _f in _picked and len(files) > 1 and _tries < 3:
-                                    _f = _cue_pick_file(files)
-                                    _tries += 1
-                                if _f in _picked:
+                                picked_file = _cue_pick_file(files)
+                                tries = 0
+                                while picked_file in picked and len(files) > 1 and tries < 3:
+                                    picked_file = _cue_pick_file(files)
+                                    tries += 1
+                                if picked_file in picked:
                                     continue
-                                _picked.append(_f)
-                                _pool_vol = _cue.volume.get_effective(entry, loop_key, pool_index=pi)
-                                _ch_used = _cue_play_sfx(_f, loop_key, volume=_pool_vol)
-                                if _ch_used:
-                                    _channels.append(_ch_used)
-                            if _channels:
+                                picked.append(picked_file)
+                                pool_vol = _cue.volume.get_effective(entry, loop_key, pool_index=pi)
+                                ch_used = _cue_play_sfx(picked_file, loop_key, volume=pool_vol)
+                                if ch_used:
+                                    channels.append(ch_used)
+                            if channels:
                                 ps["state"] = 1
-                                ps["channels"] = _channels
+                                ps["channels"] = channels
                                 ps["play_start"] = now
                                 _cue.loop_current = {
                                     "key": loop_key,
-                                    "channels": list(_channels),
+                                    "channels": list(channels),
                                 }
                                 _cue_log("TICK#{} POOL-PLAY  key={} files={} chs={}".format(
-                                    tick, loop_key, len(_channels), ",".join(_channels)))
+                                    tick, loop_key, len(channels), ",".join(channels)))
                             else:
                                 ps["ready_at"] = now + 0.5
 
@@ -776,8 +776,8 @@ init python:
                                 files = _cue_resolve_files(ts_entry.get("files", []))
                                 if files:
                                     f = _cue_pick_file(files, avoid_repeats=False)
-                                    _vol = _cue.volume.get_effective(vid_entry, vid_key, ts_index=idx)
-                                    _cue_play_sfx(f, vid_key, volume=_vol)
+                                    vol = _cue.volume.get_effective(vid_entry, vid_key, ts_index=idx)
+                                    _cue_play_sfx(f, vid_key, volume=vol)
                                     _cue.played_video_keys.add(ts_key)
 
             # Detect video loop (markers only, pool uses wall clock)
