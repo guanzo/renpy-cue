@@ -235,6 +235,7 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
                 if f.endswith("/"):
                     # --- Folder ref: expandable (matches SFX Library folder UI) ---
                     $ _is_expanded = _cue.expanded_file_refs.get(f, False)
+                    $ _count = len(_cue_resolve_files([f]))
                     hbox:
                         spacing row_spacing
                         if _is_expanded:
@@ -249,6 +250,7 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
                             action Function(_cue_toggle_file_ref_expand, f)
                             xsize None
                             ysize 14
+                        text "({} files)".format(_count) style "cue_txt" color "#888888" size 10
                     if _is_expanded:
                         for _child in _cue_resolve_files([f]):
                             hbox:
