@@ -66,7 +66,7 @@ init python:
     # Audio File Scanning
     # --------------------------------------------------------------------------
 
-    def _cue_editor_scan_audio():
+    def _cue_scan_audio():
         """Scan audio dir and build folder tree."""
 
         search_path = _cue.audio_dir
@@ -137,10 +137,10 @@ init python:
             _cue.scan_error = None
 
         # Rebuild visible tree for sidebar
-        _cue.visible_tree = _cue_editor_get_visible_tree()
+        _cue.visible_tree = _cue_get_visible_tree()
 
 
-    def _cue_editor_is_file_in_autoplay_pool(full_path):
+    def _cue_is_file_in_autoplay_pool(full_path):
         """Check if a file is in the current context's a: entry."""
         if not _cue.current_file:
             return False
@@ -151,7 +151,7 @@ init python:
         return False
 
 
-    def _cue_editor_add_folder_to_autoplay_pool(folder_path):
+    def _cue_add_folder_to_autoplay_pool(folder_path):
         """Recursively add all files under a folder prefix to the a: pool."""
         if not _cue.current_file:
             return
@@ -161,35 +161,35 @@ init python:
         for f in _cue.available_files:
             if f.startswith(folder_path) and f not in files and f not in _cue.disabled_files:
                 files.append(f)
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
-    def _cue_editor_add_folder_to_image_markers(folder_path):
+    def _cue_add_folder_to_image_markers(folder_path):
         """Add all files under a folder as image markers for current image.
         Adds to the currently targeted image pool."""
         if not _cue.current_file:
             return
         img_key = create_img_key(_cue.current_file)
-        pool = _cue_editor_ensure_pool(img_key, _cue.img_target_pool)
+        pool = _cue_ensure_pool(img_key, _cue.img_target_pool)
         files = pool.setdefault("files", [])
         for f in _cue.available_files:
             if f.startswith(folder_path) and f not in files and f not in _cue.disabled_files:
                 files.append(f)
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
-    def _cue_editor_add_folder_to_dialogue_markers(folder_path):
+    def _cue_add_folder_to_dialogue_markers(folder_path):
         """Add all files under a folder as dialogue markers for current image+dialogue.
         Adds to the currently targeted dialogue pool."""
         if not _cue.current_dialogue:
             return
         dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
-        pool = _cue_editor_ensure_pool(dlg_key, _cue.dlg_target_pool)
+        pool = _cue_ensure_pool(dlg_key, _cue.dlg_target_pool)
         files = pool.setdefault("files", [])
         for f in _cue.available_files:
             if f.startswith(folder_path) and f not in files and f not in _cue.disabled_files:
                 files.append(f)
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
-    def _cue_editor_add_folder_to_video_markers(folder_path):
+    def _cue_add_folder_to_video_markers(folder_path):
         """Add all files under a folder to the active video timestamp pool.
         Creates a new timestamp pool when none exist (requires playing video)."""
         if not _cue.current_file:
@@ -209,7 +209,7 @@ init python:
             ch = _cue.active_channel
             if not ch or not renpy.music.is_playing(channel=ch):
                 return
-            elapsed = _cue_editor_get_elapsed()
+            elapsed = _cue_get_elapsed()
             if elapsed is None or elapsed <= 0:
                 return
             new_files = []
@@ -220,19 +220,19 @@ init python:
                 timestamps.append({"time": elapsed, "files": new_files})
                 timestamps.sort(key=lambda e: e["time"])
                 _cue.vid_target_pool = len(timestamps) - 1
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
 
-    def _cue_editor_toggle_folder(folder_path):
+    def _cue_toggle_folder(folder_path):
         """Toggle expand/collapse for a folder in the audio tree."""
         if folder_path in _cue.expanded_folders:
             _cue.expanded_folders[folder_path] = not _cue.expanded_folders[folder_path]
         else:
             _cue.expanded_folders[folder_path] = True
-        _cue.visible_tree = _cue_editor_get_visible_tree()
+        _cue.visible_tree = _cue_get_visible_tree()
 
 
-    def _cue_editor_get_visible_tree():
+    def _cue_get_visible_tree():
         """Return a flat list of visible tree items for rendering.
         Each item: {type, name, depth, full_path, index_in_flat_list}"""
         result = []
@@ -267,26 +267,26 @@ init python:
                     "full_path": full,
                     "depth": depth,
                     "index": idx,
-                    "in_pool": _cue_editor_is_file_in_autoplay_pool(full),
+                    "in_pool": _cue_is_file_in_autoplay_pool(full),
                     "enabled": full not in _cue.disabled_files,
                 })
 
 
-    def _cue_editor_toggle_file_enabled(full_path):
+    def _cue_toggle_file_enabled(full_path):
         """Toggle whether a file is enabled for marker addition."""
         if full_path in _cue.disabled_files:
             _cue.disabled_files.discard(full_path)
         else:
             _cue.disabled_files.add(full_path)
-        _cue.visible_tree = _cue_editor_get_visible_tree()
-        _cue_editor_save_markers()
+        _cue.visible_tree = _cue_get_visible_tree()
+        _cue_save_markers()
 
 
     # --------------------------------------------------------------------------
     # Multi-Pool Helpers (normalize, access, create, prune)
     # --------------------------------------------------------------------------
 
-    def _cue_editor_normalize_entry(entry):
+    def _cue_normalize_entry(entry):
         """Migrate legacy {'files': [...]} to {'pools': [{'files': [...]}]} in place.
         Preserves entry-level keys (volume, frequency, etc.)."""
         if entry is None:
@@ -295,7 +295,7 @@ init python:
             entry["pools"] = [{"files": entry.pop("files", [])}]
         return entry
 
-    def _cue_editor_unwrap_persistent(data):
+    def _cue_unwrap_persistent(data):
         """Recursively convert Ren'Py RevertableDict/RevertableList wrappers
         to plain Python dict/list. Duck-typing avoids isinstance which fails
         on wrapped types; json.dumps also fails for the same reason.
@@ -308,34 +308,34 @@ init python:
         except NameError:
             pass
         if hasattr(data, "items") and hasattr(data, "keys"):
-            return python_dict((k, _cue_editor_unwrap_persistent(v)) for k, v in data.items())
+            return python_dict((k, _cue_unwrap_persistent(v)) for k, v in data.items())
         if hasattr(data, "__iter__"):
-            return python_list(_cue_editor_unwrap_persistent(v) for v in data)
+            return python_list(_cue_unwrap_persistent(v) for v in data)
         return data
 
-    def _cue_editor_normalize_all_markers():
+    def _cue_normalize_all_markers():
         """Migrate all legacy i: and d: entries to pools format and persist."""
         changed = False
         for key, entry in list(_cue.markers.items()):
             if is_img_key(key) or is_dlg_key(key):
-                _cue_editor_normalize_entry(entry)
+                _cue_normalize_entry(entry)
                 changed = True
         return changed
 
-    def _cue_editor_get_or_create_entry(trigger_key):
+    def _cue_get_or_create_entry(trigger_key):
         """Get the entry dict for trigger_key, creating it in pools format if
         needed. Migrates legacy {'files': [...]} entries in place."""
         entry = _cue.markers.get(trigger_key)
         if entry is None:
             entry = {"pools": []}
             _cue.markers[trigger_key] = entry
-        return _cue_editor_normalize_entry(entry)
+        return _cue_normalize_entry(entry)
 
-    def _cue_editor_ensure_pool(trigger_key, pool_index):
+    def _cue_ensure_pool(trigger_key, pool_index):
         """Return the pool dict at pool_index for trigger_key, creating the
         entry/pools as needed. Clamps an out-of-range pool_index to the last
         existing pool; creates pool 0 when no pools exist yet."""
-        entry = _cue_editor_get_or_create_entry(trigger_key)
+        entry = _cue_get_or_create_entry(trigger_key)
         pools = entry["pools"]
         if not pools:
             pools.append({
@@ -348,9 +348,9 @@ init python:
             pool_index = len(pools) - 1
         return pools[pool_index]
 
-    def _cue_editor_add_pool(trigger_key, kind="img"):
+    def _cue_add_pool(trigger_key, kind="img"):
         """Append a new empty pool and auto-switch target to it."""
-        entry = _cue_editor_get_or_create_entry(trigger_key)
+        entry = _cue_get_or_create_entry(trigger_key)
         entry["pools"].append({
             "files": [],
             "volume": _cue.VOL_DEFAULT,
@@ -360,9 +360,9 @@ init python:
             _cue.dlg_target_pool = new_idx
         else:
             _cue.img_target_pool = new_idx
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
-    def _cue_editor_remove_pool(trigger_key, pool_index, kind="img"):
+    def _cue_remove_pool(trigger_key, pool_index, kind="img"):
         """Delete a pool; delete the entry when no pools remain.
         Clamps target-pool index so the highlight stays valid."""
         entry = _cue.markers.get(trigger_key)
@@ -386,9 +386,9 @@ init python:
                 _cue.img_target_pool = min(_cue.img_target_pool, remaining - 1)
             else:
                 _cue.img_target_pool = 0
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
-    def _cue_editor_set_target_pool(kind, pool_index):
+    def _cue_set_target_pool(kind, pool_index):
         """Set which pool the file-browser I/D buttons add to."""
         if kind == "dlg":
             _cue.dlg_target_pool = int(pool_index)
@@ -399,15 +399,15 @@ init python:
     # Unified Marker CRUD
     # --------------------------------------------------------------------------
 
-    def _cue_editor_marker_add_file(trigger_key, filename, pool_index=0):
+    def _cue_marker_add_file(trigger_key, filename, pool_index=0):
         """Append a file to a specific pool. Creates the entry/pool if needed."""
-        pool = _cue_editor_ensure_pool(trigger_key, pool_index)
+        pool = _cue_ensure_pool(trigger_key, pool_index)
         files = pool.setdefault("files", [])
         if filename not in files:
             files.append(filename)
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
-    def _cue_editor_marker_remove_file(trigger_key, file_index, pool_index=0):
+    def _cue_marker_remove_file(trigger_key, file_index, pool_index=0):
         """Remove a file from a pool. Prunes pool when empty and entry when
         last pool is gone. Legacy entries (a: callers) use the files branch."""
         entry = _cue.markers.get(trigger_key)
@@ -425,7 +425,7 @@ init python:
                 pools.pop(pool_index)
             if not pools:
                 del _cue.markers[trigger_key]
-            _cue_editor_save_markers()
+            _cue_save_markers()
         elif "files" in entry:
             # Legacy path — a: entries and any un-migrated entries
             files = entry["files"]
@@ -433,11 +433,11 @@ init python:
                 files.pop(file_index)
                 if not files:
                     del _cue.markers[trigger_key]
-                _cue_editor_save_markers()
+                _cue_save_markers()
 
     # --- Video markers (v: prefix) ---
 
-    def _cue_editor_sanitize_video_timestamps():
+    def _cue_sanitize_video_timestamps():
         """Strip non-dict entries and entries missing 'time' from all video
         timestamp lists. Returns the number of entries stripped so callers can
         decide whether to log."""
@@ -460,7 +460,7 @@ init python:
                 total_stripped += stripped
         return total_stripped
 
-    def _cue_editor_add_video_marker(file_index):
+    def _cue_add_video_marker(file_index):
         """Add a file to the active timestamp pool. Creates a new timestamp
         if no timestamps exist yet or the active target is out of range."""
         if not _cue.available_files:
@@ -470,7 +470,7 @@ init python:
         ch = _cue.active_channel
         if not ch or not renpy.music.is_playing(channel=ch):
             return
-        elapsed = _cue_editor_get_elapsed()
+        elapsed = _cue_get_elapsed()
         if elapsed is None or elapsed <= 0:
             return
         filename = _cue.available_files[file_index]
@@ -491,27 +491,27 @@ init python:
             timestamps.sort(key=lambda e: e["time"])
             _cue.vid_target_pool = len(timestamps) - 1
             _cue.mtl_selected = set()
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
-    def _cue_editor_clear_video_markers():
+    def _cue_clear_video_markers():
         """Remove video markers for the current context."""
         vid_key = create_vid_key(_cue.current_file)
         _cue.markers.pop(vid_key, None)
         _cue.curr_vid_state.played_video_keys = set()
         _cue.vid_target_pool = 0
         _cue.mtl_selected = set()
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
-    def _cue_editor_sync_video_ts_text():
+    def _cue_sync_video_ts_text():
         """Sync the edit buffer to the active pool's timestamp value."""
         vid_key = create_vid_key(_cue.current_file)
         entry = _cue.markers.get(vid_key, {})
         timestamps = entry.get("timestamps", [])
         index = _cue.vid_target_pool
         if 0 <= index < len(timestamps):
-            _cue.edit_video_ts_text = _cue_editor_format_time(timestamps[index]["time"])
+            _cue.edit_video_ts_text = _cue_format_time(timestamps[index]["time"])
 
-    def _cue_editor_commit_video_ts():
+    def _cue_commit_video_ts():
         """Parse the edit text and update the active video timestamp.
         Tracks the active tab after re-sort. No-ops when the repeat dialog is open
         (Enter key events propagate cross-screen and should not commit the wrong field)."""
@@ -521,10 +521,10 @@ init python:
         index = _cue.vid_target_pool
         if not (0 <= index < len(timestamps)):
             return
-        new_time = _cue_editor_parse_time(_cue.edit_video_ts_text)
+        new_time = _cue_parse_time(_cue.edit_video_ts_text)
         if new_time is not None and new_time >= 0:
             edited_entry = timestamps[index]
-            dur = _cue_editor_get_duration()
+            dur = _cue_get_duration()
             if dur > 0:
                 new_time = max(0.0, min(new_time, dur - 0.05))
             edited_entry["time"] = new_time
@@ -536,11 +536,11 @@ init python:
                 _cue.vid_target_pool = min(index, len(timestamps) - 1)
             _cue.curr_vid_state.played_video_keys = set()
             _cue.mtl_selected = set()
-            _cue_editor_save_markers()
+            _cue_save_markers()
         # Reformat buffer to reflect current value (error feedback on parse failure)
-        _cue.edit_video_ts_text = _cue_editor_format_time(timestamps[index]["time"])
+        _cue.edit_video_ts_text = _cue_format_time(timestamps[index]["time"])
 
-    def _cue_editor_commit_repeat_interval():
+    def _cue_commit_repeat_interval():
         """Commit the repeat interval. On invalid text, resets to 1.00."""
         try:
             val = float(_cue.repeat_interval_text)
@@ -550,7 +550,7 @@ init python:
             _cue.repeat_interval_text = "1.00"
         renpy.restart_interaction()
 
-    def _cue_editor_nudge_repeat_interval(delta):
+    def _cue_nudge_repeat_interval(delta):
         """Nudge the repeat interval by delta seconds, clamping to >= 0.01."""
         try:
             val = float(_cue.repeat_interval_text)
@@ -560,7 +560,7 @@ init python:
         _cue.repeat_interval_text = "{:.2f}".format(val)
         renpy.restart_interaction()
 
-    def _cue_editor_nudge_repeat_count(delta):
+    def _cue_nudge_repeat_count(delta):
         """Nudge the repeat count by delta, clamping to >= 0."""
         try:
             val = int(_cue.repeat_count_text)
@@ -570,7 +570,7 @@ init python:
         _cue.repeat_count_text = str(val)
         renpy.restart_interaction()
 
-    def _cue_editor_commit_repeat_count():
+    def _cue_commit_repeat_count():
         """Commit the repeat count. On invalid text, resets to 0."""
         try:
             val = int(_cue.repeat_count_text)
@@ -580,50 +580,50 @@ init python:
             _cue.repeat_count_text = "0"
         renpy.restart_interaction()
 
-    def _cue_editor_set_vid_target_pool(pool_index):
+    def _cue_set_vid_target_pool(pool_index):
         """Set which timestamp pool tab is active.
         Clears multi-selection since this is an explicit single-pool operation."""
         _cue.vid_target_pool = int(pool_index)
         _cue.mtl_selected = set()
-        _cue_editor_sync_video_ts_text()
+        _cue_sync_video_ts_text()
 
-    def _cue_editor_mtl_get_selected():
+    def _cue_mtl_get_selected():
         """Get the set of selected marker indices for multi-selection.
         Returns a set of int indices, or empty set if no multi-selection."""
         return getattr(_cue, 'mtl_selected', set())
 
-    def _cue_editor_mtl_get_markers():
+    def _cue_mtl_get_markers():
         """Get the list of timestamp dicts for the current video."""
         vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
         if not vid_key:
             return []
         return _cue.markers.get(vid_key, {}).get("timestamps", [])
 
-    def _cue_editor_mtl_get_active():
+    def _cue_mtl_get_active():
         """Get the active pool index."""
         return _cue.vid_target_pool
 
-    def _cue_editor_mtl_set_active(idx):
+    def _cue_mtl_set_active(idx):
         """Set the active pool index."""
         _cue.vid_target_pool = int(idx)
 
-    def _cue_editor_mtl_get_dur():
+    def _cue_mtl_get_dur():
         """Get video duration, floored at 0.001."""
-        return max(0.001, _cue_editor_get_duration())
+        return max(0.001, _cue_get_duration())
 
-    def _cue_editor_mtl_set_time(idx, new_time):
+    def _cue_mtl_set_time(idx, new_time):
         """Write a marker timestamp during drag — no sort/save (done on release)."""
         vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
         if not vid_key:
             return
         entry = _cue.markers.get(vid_key, {})
         timestamps = entry.get("timestamps", [])
-        dur = _cue_editor_get_duration()
+        dur = _cue_get_duration()
         new_time = max(0.0, min(new_time, dur - 0.05)) if dur > 0 else max(0.0, new_time)
         if 0 <= idx < len(timestamps):
             timestamps[idx]["time"] = new_time
 
-    def _cue_editor_mtl_finalize():
+    def _cue_mtl_finalize():
         """Sort timestamps and save after a drag ends.
         Rebuilds multi-selection indices after re-sort since marker
         positions may change."""
@@ -661,15 +661,15 @@ init python:
             if new_sel:
                 _cue.vid_target_pool = min(new_sel)
 
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
-    def _cue_editor_add_video_pool():
+    def _cue_add_video_pool():
         """Create a new empty timestamp at current elapsed time.
         Auto-switches vid_target_pool to the new timestamp."""
         ch = _cue.active_channel
         if not ch or not renpy.music.is_playing(channel=ch):
             return
-        elapsed = _cue_editor_get_elapsed()
+        elapsed = _cue_get_elapsed()
         if elapsed is None or elapsed <= 0:
             return
         vid_key = create_vid_key(_cue.current_file)
@@ -679,9 +679,9 @@ init python:
         timestamps.sort(key=lambda e: e["time"])
         _cue.vid_target_pool = len(timestamps) - 1
         _cue.mtl_selected = set()
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
-    def _cue_editor_remove_video_pool(ts_index):
+    def _cue_remove_video_pool(ts_index):
         """Delete a timestamp pool by index. Clamps vid_target_pool."""
         vid_key = create_vid_key(_cue.current_file)
         entry = _cue.markers.get(vid_key, {})
@@ -696,9 +696,9 @@ init python:
             _cue.vid_target_pool = min(_cue.vid_target_pool, len(timestamps) - 1)
         _cue.curr_vid_state.played_video_keys = set()
         _cue.mtl_selected = set()
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
-    def _cue_editor_get_delete_confirm_message():
+    def _cue_get_delete_confirm_message():
         """Build the confirmation message listing which markers will be deleted."""
         sel = getattr(_cue, 'mtl_selected', set())
         if len(sel) > 1:
@@ -707,7 +707,7 @@ init python:
         else:
             return "Delete marker {}?".format(_cue.vid_target_pool + 1)
 
-    def _cue_editor_remove_selected_markers():
+    def _cue_remove_selected_markers():
         """Delete selected markers (multi-selection) or active pool (single).
         Removes indices in descending order to avoid index-shift bugs.
         Falls back to active pool if no multi-selection is active."""
@@ -727,12 +727,12 @@ init python:
                     _cue.vid_target_pool = min(_cue.vid_target_pool, len(timestamps) - 1)
             _cue.curr_vid_state.played_video_keys = set()
             _cue.mtl_selected = set()
-            _cue_editor_save_markers()
+            _cue_save_markers()
         else:
             # Single marker — delegate to existing per-pool delete
-            _cue_editor_remove_video_pool(_cue.vid_target_pool)
+            _cue_remove_video_pool(_cue.vid_target_pool)
 
-    def _cue_editor_duplicate_video_pool(ts_index):
+    def _cue_duplicate_video_pool(ts_index):
         """Duplicate a timestamp pool with all settings (time, volume, file list).
         Appends the clone, sorts by time, and switches to the new pool."""
         vid_key = create_vid_key(_cue.current_file)
@@ -751,17 +751,17 @@ init python:
         timestamps.sort(key=lambda e: e["time"])
         _cue.vid_target_pool = timestamps.index(clone)
         _cue.mtl_selected = set()
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
-    def _cue_editor_open_repeat_dialog():
+    def _cue_open_repeat_dialog():
         """Open the Repeat Pattern dialog for the current video marker selection.
         Works with single or multi-selection. Falls back to the active pool
         if nothing is selected."""
-        timestamps = _cue_editor_mtl_get_markers()
+        timestamps = _cue_mtl_get_markers()
         if not timestamps:
             return
 
-        sel = _cue_editor_mtl_get_selected()
+        sel = _cue_mtl_get_selected()
         if not sel:
             # Fall back to active pool as single-marker selection
             active = _cue.vid_target_pool
@@ -801,7 +801,7 @@ init python:
         _cue.repeat_interval_text = "{:.2f}".format(default_interval)
 
         # Max repeats that fit in video duration
-        dur = _cue_editor_get_duration()
+        dur = _cue_get_duration()
         if dur > 0 and default_interval > 0:
             max_count = int((dur - 0.05 - anchor_time - max_offset) / default_interval)
             if max_count < 0:
@@ -815,7 +815,7 @@ init python:
         _cue.repeat_dialog_visible = True
         renpy.show_screen("cue_repeat_pattern_dialog", _layer="cue_editor_layer")
 
-    def _cue_editor_do_repeat_pattern():
+    def _cue_do_repeat_pattern():
         """Apply the repeat pattern: create timestamp copies for each beat
         beyond the first, using the interval and count from the dialog."""
         try:
@@ -836,7 +836,7 @@ init python:
 
         anchor = _cue.repeat_pattern_anchor
         offsets = _cue.repeat_pattern_offsets
-        dur = _cue_editor_get_duration()
+        dur = _cue_get_duration()
 
         new_count = 0
         for beat_idx in range(1, count + 1):
@@ -858,14 +858,14 @@ init python:
         if new_count > 0:
             timestamps.sort(key=lambda e: e["time"])
         _cue.mtl_selected = set()
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
-    def _cue_editor_hide_repeat_dialog():
+    def _cue_hide_repeat_dialog():
         """Hide the repeat pattern dialog from the cue_editor_layer."""
         _cue.repeat_dialog_visible = False
         renpy.hide_screen("cue_repeat_pattern_dialog", layer="cue_editor_layer")
 
-    def _cue_editor_compute_ghost_times():
+    def _cue_compute_ghost_times():
         """Return a sorted list of ghost marker times for the repeat-pattern preview.
         Called by _VideoMarkerTimeline.render() every 50ms while the dialog is visible."""
         if not getattr(_cue, 'repeat_dialog_visible', False):
@@ -881,7 +881,7 @@ init python:
         offsets = _cue.repeat_pattern_offsets
         if not offsets:
             return []
-        dur = _cue_editor_get_duration()
+        dur = _cue_get_duration()
         ghost = []
         for beat_idx in range(1, count + 1):
             beat_anchor = anchor + interval * beat_idx
@@ -895,15 +895,15 @@ init python:
         ghost.sort()
         return ghost
 
-    def _cue_editor_repeat_preview_text():
+    def _cue_repeat_preview_text():
         """Return a preview string for the repeat pattern dialog,
         e.g. 'Creates 12 new marker(s)' or 'No new markers to create'."""
-        new_markers = len(_cue_editor_compute_ghost_times())
+        new_markers = len(_cue_compute_ghost_times())
         if new_markers > 0:
             return "Creates {} new marker(s)".format(new_markers)
         return "No new markers to create"
 
-    def _cue_editor_remove_video_file(ts_index, file_index):
+    def _cue_remove_video_file(ts_index, file_index):
         """Remove a single file from a timestamp's files list.
         Keeps the timestamp even if files becomes empty."""
         vid_key = create_vid_key(_cue.current_file)
@@ -915,18 +915,18 @@ init python:
         if 0 <= file_index < len(files):
             files.pop(file_index)
             _cue.curr_vid_state.played_video_keys = set()
-            _cue_editor_save_markers()
+            _cue_save_markers()
     
-    def _cue_editor_adjust_video_volume(delta):
+    def _cue_adjust_video_volume(delta):
         """Adjust volume on the active timestamp."""
         vid_key = create_vid_key(_cue.current_file)
         entry = _cue.markers.get(vid_key)
         if entry is None:
             return
-        current = _cue_editor_get_volume(entry, vid_key, ts_index=_cue.vid_target_pool)
-        _cue_editor_write_volume(vid_key, current + delta, ts_index=_cue.vid_target_pool)
+        current = _cue_get_volume(entry, vid_key, ts_index=_cue.vid_target_pool)
+        _cue_write_volume(vid_key, current + delta, ts_index=_cue.vid_target_pool)
 
-    def _cue_editor_nudge_video_ts(delta):
+    def _cue_nudge_video_ts(delta):
         """Nudge the active timestamp's time by delta seconds.
         If currently editing, updates both the text buffer and the entry."""
         vid_key = create_vid_key(_cue.current_file)
@@ -936,7 +936,7 @@ init python:
         if not (0 <= index < len(timestamps)):
             return
         ts_entry = timestamps[index]
-        dur = _cue_editor_get_duration()
+        dur = _cue_get_duration()
         new_time = ts_entry["time"] + delta
         if dur > 0:
             new_time = max(0.0, min(new_time, dur - 0.05))
@@ -950,14 +950,14 @@ init python:
         except ValueError:
             pass
         # Keep edit buffer in sync with the nudged value
-        _cue.edit_video_ts_text = _cue_editor_format_time(new_time)
+        _cue.edit_video_ts_text = _cue_format_time(new_time)
         _cue.curr_vid_state.played_video_keys = set()
         _cue.mtl_selected = set()
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
     # --- Image markers (i: prefix) ---
 
-    def _cue_editor_add_image_marker(file_index):
+    def _cue_add_image_marker(file_index):
         """Add a file to the i: entry for the current image."""
         if not _cue.available_files:
             return
@@ -969,22 +969,22 @@ init python:
         if filename in _cue.disabled_files:
             return
         img_key = create_img_key(_cue.current_file)
-        _cue_editor_marker_add_file(img_key, filename, _cue.img_target_pool)
+        _cue_marker_add_file(img_key, filename, _cue.img_target_pool)
 
-    def _cue_editor_remove_image_marker(pool_index, file_index):
+    def _cue_remove_image_marker(pool_index, file_index):
         """Remove a file from a specific pool in the i: entry."""
         img_key = create_img_key(_cue.current_file)
-        _cue_editor_marker_remove_file(img_key, file_index, pool_index)
+        _cue_marker_remove_file(img_key, file_index, pool_index)
 
-    def _cue_editor_clear_image_markers():
+    def _cue_clear_image_markers():
         """Remove image markers for the current context."""
         img_key = create_img_key(_cue.current_file)
         _cue.markers.pop(img_key, None)
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
     # --- Dialogue markers (d: prefix) ---
 
-    def _cue_editor_add_dialogue_marker(file_index):
+    def _cue_add_dialogue_marker(file_index):
         """Add a file to the d: entry for the current image + dialogue."""
         if not _cue.available_files:
             return
@@ -996,22 +996,22 @@ init python:
         if filename in _cue.disabled_files:
             return
         dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
-        _cue_editor_marker_add_file(dlg_key, filename, _cue.dlg_target_pool)
+        _cue_marker_add_file(dlg_key, filename, _cue.dlg_target_pool)
 
-    def _cue_editor_remove_dialogue_marker(pool_index, file_index):
+    def _cue_remove_dialogue_marker(pool_index, file_index):
         """Remove a file from a specific pool in the d: entry."""
         dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
-        _cue_editor_marker_remove_file(dlg_key, file_index, pool_index)
+        _cue_marker_remove_file(dlg_key, file_index, pool_index)
 
-    def _cue_editor_clear_dialogue_markers():
+    def _cue_clear_dialogue_markers():
         """Remove dialogue markers for the current context."""
         dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
         _cue.markers.pop(dlg_key, None)
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
     # --- Autoplay (a: prefix) ---
 
-    def _cue_editor_add_to_autoplay_pool(file_index):
+    def _cue_add_to_autoplay_pool(file_index):
         """Add an audio file to the a: pool for the current context."""
         if 0 <= file_index < len(_cue.available_files):
             if not _cue.current_file:
@@ -1024,25 +1024,25 @@ init python:
             files = entry.setdefault("files", [])
             if filename not in files:
                 files.append(filename)
-            _cue_editor_save_markers()
+            _cue_save_markers()
 
-    def _cue_editor_remove_from_autoplay_pool(file_index):
+    def _cue_remove_from_autoplay_pool(file_index):
         """Remove a file from the a: pool for the current context."""
         autoplay_key = create_autoplay_key(_cue.current_file)
-        _cue_editor_marker_remove_file(autoplay_key, file_index)
+        _cue_marker_remove_file(autoplay_key, file_index)
 
-    def _cue_editor_clear_autoplay_pool():
+    def _cue_clear_autoplay_pool():
         """Remove pool markers for the current context."""
         autoplay_key = create_autoplay_key(_cue.current_file)
         _cue.markers.pop(autoplay_key, None)
         _cue.autoplay_states.pop(autoplay_key, None)
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
     # --- Bulk clear ---
 
     # --- Clipboard ---
 
-    def _cue_editor_copy_context():
+    def _cue_copy_context():
         """Copy markers for the current context to clipboard."""
         import copy as _copy
         ctx_file = _cue.current_file
@@ -1067,7 +1067,7 @@ init python:
             "source_dialogue": ctx_dlg,
         }
 
-    def _cue_editor_paste_context():
+    def _cue_paste_context():
         """Paste clipboard markers into current context, remapping keys."""
         
         import copy as _copy
@@ -1098,7 +1098,7 @@ init python:
 
             # Clamp video timestamps to current video duration
             if is_vid_key(source_key):
-                dur = _cue_editor_get_duration()
+                dur = _cue_get_duration()
                 pasted_entry = _cue.markers[new_key]
                 for ts_entry in pasted_entry.get("timestamps", []):
                     t = ts_entry.get("time", 0)
@@ -1110,9 +1110,9 @@ init python:
 
         _cue.curr_vid_state.played_video_keys = set()
         _cue.autoplay_states = {}
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
-    def _cue_editor_dump_markers():
+    def _cue_dump_markers():
         """Dump entire persistent._cue_markers to cue_editor/{}.""".format(_cue.config_filename)
         try:
             import json as _json
@@ -1123,7 +1123,7 @@ init python:
             data = getattr(persistent, '_cue_markers', None)
             if data is None:
                 # Ensure current state is saved before dumping
-                _cue_editor_save_markers()
+                _cue_save_markers()
                 data = getattr(persistent, '_cue_markers', {})
             with open(dump_path, "w") as f:
                 _json.dump(data, f, indent=2, sort_keys=True)
@@ -1132,7 +1132,7 @@ init python:
         except Exception as e:
             _cue_log("DUMP-MARKERS-ERROR {}".format(str(e)))
 
-    def _cue_editor_restore_markers_from_file():
+    def _cue_restore_markers_from_file():
         """Restore persistent._cue_markers from cue_editor/{}.""".format(_cue.config_filename)
         try:
             import json as _json
@@ -1147,15 +1147,15 @@ init python:
             
             _cue.curr_vid_state.played_video_keys = set()
             _cue.autoplay_states = {}
-            #_cue_editor_normalize_all_markers()
-            _cue_editor_save_markers()
+            #_cue_normalize_all_markers()
+            _cue_save_markers()
             _cue_log("RESTORE-MARKERS total_keys={} path={}".format(
                 len(_cue.markers), _cue.config_filename))
         except Exception as e:
             _cue_log("RESTORE-MARKERS-ERROR {}".format(str(e)))
 
 
-    def _cue_editor_get_autoplay_delay(frequency=1):
+    def _cue_get_autoplay_delay(frequency=1):
         """Return random breathing room (silence) between SFX.
         This is the gap AFTER an SFX finishes before the next one starts.
         frequency: 0=Slow, 1=Normal, 2=Fast, 3=Fastest
@@ -1171,15 +1171,15 @@ init python:
         else:
             return 3.0 + random.uniform(0.0, 1.5)
 
-    def _cue_editor_set_autoplay_frequency(trigger_key, freq):
+    def _cue_set_autoplay_frequency(trigger_key, freq):
         """Set autoplay frequency for a a: entry. 0 = Slow, 1 = Normal, 2 = Fast, 3 = Fastest."""
         entry = _cue.markers.get(trigger_key)
         if entry:
             entry["frequency"] = int(freq)
-            _cue_editor_save_markers()
+            _cue_save_markers()
     
 
-    def _cue_editor_get_volume(entry, trigger_key=None, pool_index=None, ts_index=None):
+    def _cue_get_volume(entry, trigger_key=None, pool_index=None, ts_index=None):
         """Raw stored volume for the target (pool, timestamp, or entry).
         Pool/timestamp volumes default to VOL_DEFAULT (1.0 identity) so
         they multiply correctly with the master (entry-level) volume.
@@ -1198,7 +1198,7 @@ init python:
                 return pools[pool_index].get("volume", _cue.VOL_DEFAULT)
         return entry.get("volume", _cue.VOL_DEFAULT)
 
-    def _cue_editor_write_volume(trigger_key, new_vol, pool_index=None, ts_index=None):
+    def _cue_write_volume(trigger_key, new_vol, pool_index=None, ts_index=None):
         """Clamp and persist a volume, then save + refresh.
         v: keys with ts_index write that specific timestamp; without ts_index
         broadcast to all timestamps (backward-compatible).
@@ -1225,30 +1225,30 @@ init python:
             if target is None:
                 target = entry
             target["volume"] = new_vol
-        _cue_editor_save_markers()
+        _cue_save_markers()
         renpy.restart_interaction()
 
-    def _cue_editor_adjust_volume(trigger_key, delta, pool_index=None):
+    def _cue_adjust_volume(trigger_key, delta, pool_index=None):
         """Adjust volume up/down by delta, clamped to [VOL_MIN, VOL_MAX].
         pool_index targets one pool for i:/d: entries; None = entry-level."""
         entry = _cue.markers.get(trigger_key)
         if entry is None:
             return
-        current = _cue_editor_get_volume(entry, trigger_key, pool_index)
-        _cue_editor_write_volume(trigger_key, current + delta, pool_index)
+        current = _cue_get_volume(entry, trigger_key, pool_index)
+        _cue_write_volume(trigger_key, current + delta, pool_index)
 
     # --------------------------------------------------------------------------
     # Master Volume (entry-level multiplier)
     # --------------------------------------------------------------------------
 
-    def _cue_editor_get_master_volume(trigger_key):
+    def _cue_get_master_volume(trigger_key):
         """Entry-level master volume for a key. Returns VOL_DEFAULT if unset."""
         entry = _cue.markers.get(trigger_key)
         if entry is None:
             return _cue.VOL_DEFAULT
         return entry.get("volume", _cue.VOL_DEFAULT)
 
-    def _cue_editor_set_master_volume(trigger_key, value):
+    def _cue_set_master_volume(trigger_key, value):
         """Set entry-level master volume (clamped, persisted).
         Writes entry["volume"] directly so it works for all key types."""
         entry = _cue.markers.get(trigger_key)
@@ -1256,15 +1256,15 @@ init python:
             return
         new_vol = max(_cue.VOL_MIN, min(_cue.VOL_MAX, round(value, 1)))
         entry["volume"] = new_vol
-        _cue_editor_save_markers()
+        _cue_save_markers()
         renpy.restart_interaction()
 
-    def _cue_editor_adjust_master_volume(trigger_key, delta):
+    def _cue_adjust_master_volume(trigger_key, delta):
         """Adjust master volume by delta (reads raw master, not effective)."""
-        _cue_editor_set_master_volume(trigger_key,
-            _cue_editor_get_master_volume(trigger_key) + delta)
+        _cue_set_master_volume(trigger_key,
+            _cue_get_master_volume(trigger_key) + delta)
 
-    def _cue_editor_get_effective_volume(entry, trigger_key=None, pool_index=None, ts_index=None):
+    def _cue_get_effective_volume(entry, trigger_key=None, pool_index=None, ts_index=None):
         """Effective playback volume = master (entry-level) x target volume, clamped.
         Pool/timestamp volumes default to VOL_DEFAULT (1.0 identity) so master
         is never double-counted. For entry-only queries returns master alone."""
@@ -1285,9 +1285,9 @@ init python:
                 return max(_cue.VOL_MIN, min(_cue.VOL_MAX, master * raw))
         return master
 
-    def _cue_editor_on_volume_bar_changed():
+    def _cue_on_volume_bar_changed():
         """Called after any volume bar is dragged. Saves and refreshes the UI."""
-        _cue_editor_save_markers()
+        _cue_save_markers()
         renpy.restart_interaction()
 
 
@@ -1295,7 +1295,7 @@ init python:
     # Utility: Time Formatting
     # --------------------------------------------------------------------------
 
-    def _cue_editor_format_time(seconds):
+    def _cue_format_time(seconds):
         """Format seconds as MM:SS.cs (centiseconds).
 
         For durations >= 60 min: HH:MM:SS.cs
@@ -1320,7 +1320,7 @@ init python:
             )
 
 
-    def _cue_editor_parse_time(time_str):
+    def _cue_parse_time(time_str):
         """Parse a time string back to float seconds.
 
         Accepts:

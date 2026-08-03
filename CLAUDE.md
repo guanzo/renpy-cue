@@ -45,7 +45,7 @@ E:\Porn\pGames\Dreamland-v0.6.0p-pc
 ## Ren'Py Rollback Rules
 
 - `_cue` is a `NoRollback()` instance. Never reassign `_cue` itself — only mutate its attributes.
-- Anything reachable ONLY through `_cue` is excluded from rollback, regardless of its type (plain or Revertable). It only becomes rollback-tracked if it's ALSO reachable from another path (e.g. aliased from `persistent.x`) — so never alias `persistent.*` into `_cue.*`, always deep-copy via `_cue_editor_unwrap_persistent`.
+- Anything reachable ONLY through `_cue` is excluded from rollback, regardless of its type (plain or Revertable). It only becomes rollback-tracked if it's ALSO reachable from another path (e.g. aliased from `persistent.x`) — so never alias `persistent.*` into `_cue.*`, always deep-copy via `_cue_unwrap_persistent`.
 - Inside `.rpy` files, `dict`, `list`, `set` (including `{}`/`[]` literals) are shadowed to return `RevertableDict`/`RevertableList`/`RevertableSet`, even when called as `dict(...)`/`list(...)`/`set(...)`.
 - To get real plain Python types in `.rpy` code, use `python_dict(...)` / `python_list(...)` / `python_set(...)` (aliases to the true builtins, defined in `cue_editor.rpy`). Never use bare `dict`/`list`/`set`/`{}`/`[]` when a plain type is required.
 - `.py` files imported into the game don't have this shadowing issue — `dict`/`list`/`set` work normally there.

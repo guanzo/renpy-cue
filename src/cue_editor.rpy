@@ -114,12 +114,12 @@ init 999 python:
     # monkeypatch renpy.with_statement
     _original_with_statement = renpy.with_statement
 
-    def _cue_editor_with_hook(trans, always=False, paired=None, clear=True):
+    def _cue_with_hook(trans, always=False, paired=None, clear=True):
         if _is_screenshake(trans):
             _cue._shake_just_happened = True
         return _original_with_statement(trans, always=always, paired=paired, clear=clear)
 
-    renpy.with_statement = _cue_editor_with_hook
+    renpy.with_statement = _cue_with_hook
     # monkeypatch renpy.with_statement
 
     def _is_screenshake(trans):
@@ -178,31 +178,31 @@ init 999 python:
         _cue_log("INIT: overlay_screens key listener registered")
 
         # Register after_load callback
-        def _cue_editor_after_load():
+        def _cue_after_load():
             if _cue.visible:
                 _cue.visible = False
                 _cue.curr_vid_state.paused = False
-        config.after_load_callbacks.append(_cue_editor_after_load)
+        config.after_load_callbacks.append(_cue_after_load)
 
         # Character callback — updates dialogue text only (context change
         # detection now lives in start_interact_callbacks below).
-        def _cue_editor_char_callback(event, interact=True, **kwargs):
+        def _cue_char_callback(event, interact=True, **kwargs):
             if event == "show":
                 _cue.prev_dialogue = _cue.current_dialogue
                 _cue.current_dialogue = getattr(store, '_last_say_what', '') or ''
             elif event == "end":
                 _cue.prev_dialogue = _cue.current_dialogue
                 _cue.current_dialogue = ""
-        config.all_character_callbacks.append(_cue_editor_char_callback)
+        config.all_character_callbacks.append(_cue_char_callback)
 
         # start_interact callback — detects context changes at interaction
-        # boundaries (replaces the old 500ms poll in _cue_editor_tick).
-        def _cue_editor_start_interact_callback(*args, **kwargs):
-            _cue_editor_refresh_detections()
-        config.start_interact_callbacks.append(_cue_editor_start_interact_callback)
+        # boundaries (replaces the old 500ms poll in _cue_tick).
+        def _cue_start_interact_callback(*args, **kwargs):
+            _cue_refresh_detections()
+        config.start_interact_callbacks.append(_cue_start_interact_callback)
 
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
-        _cue_editor_load_markers()
+        _cue_load_markers()
 
         _cue_log("INIT: callbacks registered")
         _cue.initialized = True
@@ -238,67 +238,67 @@ init python:
     # Visibility
     # --------------------------------------------------------------------------
 
-    def _cue_editor_toggle():
+    def _cue_toggle():
         """Toggle the overlay on/off. Called from the key-listener screen."""
         if _cue.visible:
-            _cue_editor_hide()
+            _cue_hide()
         else:
-            _cue_editor_show()
+            _cue_show()
 
 
-    def _cue_editor_toggle_active():
+    def _cue_toggle_active():
         """Toggle active state — when False, no triggers fire. Persisted.
         Called from Ctrl+` key binding and the Active checkbox."""
         _cue.triggers_active = not _cue.triggers_active
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
 
-    def _cue_editor_toggle_shake_trigger():
+    def _cue_toggle_shake_trigger():
         """Toggle trigger_on_shake for the active pool of the current image.
         When enabled, screen shake transitions play SFX from this pool."""
         if not _cue.current_file:
             return
         _shake_key = create_img_key(_cue.current_file)
-        _pool = _cue_editor_ensure_pool(_shake_key, _cue.img_target_pool)
+        _pool = _cue_ensure_pool(_shake_key, _cue.img_target_pool)
         _pool["trigger_on_shake"] = not _pool.get("trigger_on_shake", False)
-        _cue_editor_save_markers()
+        _cue_save_markers()
 
 
-    def _cue_editor_show():
+    def _cue_show():
         _cue.visible = True
         # Load persisted config
-        _cue_editor_load_markers()
+        _cue_load_markers()
         # Scan audio on first open (cached thereafter)
         if not _cue.available_files:
-            _cue_editor_scan_audio()
+            _cue_scan_audio()
         # Rebuild visible tree
-        _cue.visible_tree = _cue_editor_get_visible_tree()
+        _cue.visible_tree = _cue_get_visible_tree()
         # Auto-detect everything
-        _cue_editor_refresh_detections()
+        _cue_refresh_detections()
         # Show the overlay screen
         renpy.show_screen("cue_editor_overlay", _layer="cue_editor_layer")
         renpy.restart_interaction()
 
 
-    def _cue_editor_hide():
+    def _cue_hide():
         _cue.visible = False
-        _cue_editor_save_markers()
+        _cue_save_markers()
         renpy.hide_screen("cue_editor_overlay", layer="cue_editor_layer")
 
 
-    def _cue_editor_refresh_detections():
+    def _cue_refresh_detections():
         """Re-detect video and image, and swap context when they change."""
 
         old_file = _cue.current_file
         old_video = _cue.active_channel
 
         # 1. Re-detect video channel
-        _cue_editor_refresh_channel()
-        _cue.visible_tree = _cue_editor_get_visible_tree()
+        _cue_refresh_channel()
+        _cue.visible_tree = _cue_get_visible_tree()
 
         # 2. Re-detect context: top displayable on master layer wins;
         #    fall back to video channel when nothing is on the master layer.
-        _top_name, _top_type = _cue_editor_get_top_layer()
+        _top_name, _top_type = _cue_get_top_layer()
         if _top_name is None:
             return
         
@@ -327,7 +327,7 @@ init python:
 
         if _changed:
             _cue_log("CTX-CHANGE{}".format(_changed))
-            _cue_editor_fire_context_triggers(_img_key, _dlg_key)
+            _cue_fire_context_triggers(_img_key, _dlg_key)
 
         # 5. Screenshake trigger — fires independently of context changes,
         #    but only for pools that opted in via trigger_on_shake.
@@ -342,12 +342,12 @@ init python:
             if _cue.current_file:
                 _shake_key = create_img_key(_cue.current_file)
                 if _shake_key != _img_key:
-                    _cue_editor_fire_context_triggers(_shake_key, only_shake_pools=True)
+                    _cue_fire_context_triggers(_shake_key, only_shake_pools=True)
 
 
     def _cue_log_context():
         """Log current context state for debugging — even if nothing changed."""
-        _vpath = _cue_editor_get_video_path()
+        _vpath = _cue_get_video_path()
         _vname = _vpath.rsplit("/", 1)[-1] if _vpath else "(none)"
         _playing = "?"
         if _cue.active_channel:
@@ -357,7 +357,7 @@ init python:
                 pass
         # Determine primary context — top displayable on master layer wins;
         # fall back to video channel when nothing is on the master layer.
-        _top_name, _top_type = _cue_editor_get_top_layer()
+        _top_name, _top_type = _cue_get_top_layer()
         if _top_type:
             _ctx_type = _top_type  # 'image' or 'movie'
         elif _cue.active_channel is not None and _playing == "1":
@@ -373,7 +373,7 @@ init python:
             _cue.current_dialogue[:60] if _cue.current_dialogue else "(none)"))
 
 
-    def _cue_editor_pick_file(files, avoid_repeats=True):
+    def _cue_pick_file(files, avoid_repeats=True):
         """Pick a random file from a list.
         If avoid_repeats is True, avoids files in the global last_played list.
         Repeat avoidance is shared across all non-video contexts.
@@ -399,7 +399,7 @@ init python:
         return f
 
 
-    def _cue_editor_fire_context_triggers(*keys, only_shake_pools=False):
+    def _cue_fire_context_triggers(*keys, only_shake_pools=False):
         """Fire markers for the given trigger keys.
         Multi-pool entries play one random file from EACH pool concurrently.
         Dedupe guard: same file in two pools of the same trigger is re-picked
@@ -432,23 +432,23 @@ init python:
                 files = pool.get("files", [])
                 if not files:
                     continue
-                _file = _cue_editor_pick_file(files)
+                _file = _cue_pick_file(files)
                 _tries = 0
                 while _file in _picked and len(files) > 1 and _tries < 3:
-                    _file = _cue_editor_pick_file(files)
+                    _file = _cue_pick_file(files)
                     _tries += 1
                 if _file in _picked:
                     continue
                 _picked.append(_file)
-                _pool_vol = _cue_editor_get_effective_volume(entry, key, pool_index=pi)
-                _cue_editor_play_cue(_file, key, volume=_pool_vol)
+                _pool_vol = _cue_get_effective_volume(entry, key, pool_index=pi)
+                _cue_play_cue(_file, key, volume=_pool_vol)
 
 
     # --------------------------------------------------------------------------
     # Image / Movie Detection (master layer scene list)
     # --------------------------------------------------------------------------
 
-    def _cue_editor_top_name(name):
+    def _cue_top_name(name):
         """Normalize a displayable name to a single string.
         Image names are tuples like ('bg', 'forest') — use the tag ('bg')."""
         if name is None:
@@ -461,11 +461,11 @@ init python:
         return name
 
 
-    def _cue_editor_top_movie_name(movie):
+    def _cue_top_movie_name(movie):
         """Context name for a Movie on the master layer.
         Movie has no 'name' in Ren'Py 7/8 — fall back to the file basename
         from its 'play' attribute (which may be a list of paths)."""
-        name = _cue_editor_top_name(getattr(movie, "name", None))
+        name = _cue_top_name(getattr(movie, "name", None))
         if name:
             return name
         play = getattr(movie, "play", None)
@@ -476,7 +476,7 @@ init python:
         return None
 
 
-    def _cue_editor_get_top_layer():
+    def _cue_get_top_layer():
         """Return (name, kind) for the topmost displayable on the master
         layer — what the player actually sees (scene list order is z-order).
 
@@ -498,21 +498,21 @@ init python:
 
             # The wrapper (ImageReference) always has .name; the underlying
             # displayable (Image / Movie) may be d itself or d.target.
-            name = _cue_editor_top_name(getattr(d, "name", None))
+            name = _cue_top_name(getattr(d, "name", None))
 
             # Movie: check d first ('show expression Movie(...)'), then
             # d.target ('image foo = Movie(...)' + 'show foo').
             movie = d if isinstance(d, renpy.display.video.Movie) else getattr(d, "target", None)
             if isinstance(movie, renpy.display.video.Movie):
                 if name is None:
-                    name = _cue_editor_top_movie_name(movie)
+                    name = _cue_top_movie_name(movie)
                 return name, "movie"
 
             # Image: check d first, then d.target (ImageReference wrapper).
             img = d if isinstance(d, renpy.display.im.Image) else getattr(d, "target", None)
             if isinstance(img, renpy.display.im.Image):
                 if name is None:
-                    name = _cue_editor_top_name(getattr(img, "filename", None))
+                    name = _cue_top_name(getattr(img, "filename", None))
                 return name, "image"
 
             # Unknown but named — treat as image context (matches old behavior).
@@ -527,7 +527,7 @@ init python:
     # Channel Detection
     # --------------------------------------------------------------------------
 
-    def _cue_editor_refresh_channel():
+    def _cue_refresh_channel():
         """Auto-detect the active movie channel. Only finds video (movie) channels."""
 
         if _cue.__refreshing:
@@ -557,7 +557,7 @@ init python:
 
                 _cue.active_channel = ch_name
                 if old_ch != ch_name:
-                    _cue_editor_reset_loop_tracking()
+                    _cue_reset_loop_tracking()
 
             try:
                 import renpy.audio.audio as aaudio
@@ -591,7 +591,7 @@ init python:
             _cue.__refreshing = False
 
 
-    def _cue_editor_reset_loop_tracking():
+    def _cue_reset_loop_tracking():
         """Reset all video state when the video changes."""
         _cue.curr_vid_state = CueVideoState()
 
@@ -600,7 +600,7 @@ init python:
     # Video Metadata
     # --------------------------------------------------------------------------
 
-    def _cue_editor_get_elapsed():
+    def _cue_get_elapsed():
         """Get current playback position (real pos + virtual offset)."""
         ch = _cue.active_channel
         if not ch:
@@ -614,7 +614,7 @@ init python:
         return 0.0
 
 
-    def _cue_editor_get_duration():
+    def _cue_get_duration():
         """Get total duration of the current video in seconds.
         Caches the last valid duration so transient dropouts during seek
         (stop/play restart) don't return 0 and blow up marker x-positions."""
@@ -631,7 +631,7 @@ init python:
         return _cue.curr_vid_state.cached_dur
 
 
-    def _cue_editor_get_video_path():
+    def _cue_get_video_path():
         """Get the filepath of the currently playing video."""
         ch = _cue.active_channel
         if not ch:
@@ -646,7 +646,7 @@ init python:
     # Video Control: Pause
     # --------------------------------------------------------------------------
 
-    def _cue_editor_toggle_pause():
+    def _cue_toggle_pause():
         """Toggle pause on the active video channel."""
         ch = _cue.active_channel
         if not ch:
@@ -682,7 +682,7 @@ init python:
     # Ren'Py movie channels, so we use a time offset for display/markers)
     # --------------------------------------------------------------------------
 
-    def _cue_editor_seek_frame(delta_frames):
+    def _cue_seek_frame(delta_frames):
         """Step forward/backward.
         Forward: briefly unpause, auto-re-pause via tick timer.
         Backward: restart from 0, auto-pause at origin + accumulated offset.
@@ -732,7 +732,7 @@ init python:
                 renpy.music.play(filepath, channel=ch, loop=True)
 
 
-    def _cue_editor_seek_to(target_time):
+    def _cue_seek_to(target_time):
         """Seek to an absolute timestamp and pause there.
 
         Forward (target >= current pos): pause, set __step_target, unpause.
@@ -777,7 +777,7 @@ init python:
     # SFX Playback
     # --------------------------------------------------------------------------
 
-    def _cue_editor_preview_cue(filename, volume=1.0):
+    def _cue_preview_cue(filename, volume=1.0):
         """Play a preview of an SFX file. Restarts interaction to consume click.
         volume: 0.0-5.0, applied to the channel after play starts.
         """
@@ -785,9 +785,9 @@ init python:
         _prev_ch = _cue._preview_channel
         if _prev_ch is not None and renpy.music.is_playing(channel=_prev_ch):
             renpy.music.stop(channel=_prev_ch, fadeout=0)
-        _cue._preview_channel = _cue_editor_play_cue(filename, "preview", volume=volume)
+        _cue._preview_channel = _cue_play_cue(filename, "preview", volume=volume)
 
-    def _cue_editor_play_cue(filename, source="", volume=1.0):
+    def _cue_play_cue(filename, source="", volume=1.0):
         """Play an SFX on the next available dedicated channel.
         source: descriptive key for logging (video, image, dialogue, or pool)
         volume: 0.0-1.0, applied to the channel after play starts
@@ -857,13 +857,13 @@ init python:
     # SFX Trigger Engine (Tick)
     # --------------------------------------------------------------------------
 
-    def _cue_editor_tick_trigger():
+    def _cue_tick_trigger():
         """SFX trigger engine — runs always (even when overlay is hidden)."""
         import time as _time
 
         # Re-detect the active channel each tick so the CDD time display
         # recovers after rollback (Page Up), which resets active_channel.
-        _cue_editor_refresh_channel()
+        _cue_refresh_channel()
 
         # Keep paused state in sync (referenced by the UI for play/pause buttons)
         try:
@@ -914,7 +914,7 @@ init python:
                 if ps["state"] == 1:
                     if not renpy.music.is_playing(channel=ps["ch"]):
                         dur = now - ps["play_start"]
-                        breathing = _cue_editor_get_autoplay_delay(freq)
+                        breathing = _cue_get_autoplay_delay(freq)
                         ps["ready_at"] = now + breathing
                         ps["state"] = 0
                         _cue.autoplay_current = None
@@ -931,9 +931,9 @@ init python:
                             # Another autoplay SFX is still playing -- defer
                             ps["ready_at"] = now + 0.1
                         else:
-                            f = _cue_editor_pick_file(files)
+                            f = _cue_pick_file(files)
                             _vol = entry.get("volume", 1.0)
-                            ch_used = _cue_editor_play_cue(f, autoplay_key, volume=_vol)
+                            ch_used = _cue_play_cue(f, autoplay_key, volume=_vol)
                             if ch_used:
                                 ps["state"] = 1
                                 ps["ch"] = ch_used
@@ -945,7 +945,7 @@ init python:
         # --- VIDEO MODE triggers (v: keys) ---
         ch = _cue.active_channel
         if ch and _cue.top_layer_type == 'movie':
-            elapsed = _cue_editor_get_elapsed()
+            elapsed = _cue_get_elapsed()
 
             # Video markers
             if _cue.current_file:
@@ -963,9 +963,9 @@ init python:
                             if mt <= elapsed < mt + _cue.__marker_tolerance:
                                 files = ts_entry.get("files", [])
                                 if files:
-                                    f = _cue_editor_pick_file(files, avoid_repeats=False)
-                                    _vol = _cue_editor_get_effective_volume(vid_entry, vid_key, ts_index=idx)
-                                    _cue_editor_play_cue(f, vid_key, volume=_vol)
+                                    f = _cue_pick_file(files, avoid_repeats=False)
+                                    _vol = _cue_get_effective_volume(vid_entry, vid_key, ts_index=idx)
+                                    _cue_play_cue(f, vid_key, volume=_vol)
                                     _cue.curr_vid_state.played_video_keys.add(ts_key)
 
             # Detect video loop (markers only, pool uses wall clock)
@@ -978,13 +978,13 @@ init python:
     # Persistence
     # --------------------------------------------------------------------------
 
-    def _cue_editor_autosave_backup():
+    def _cue_autosave_backup():
         """Create a timestamped backup of markers in cue_editor/backups/.
 
         Throttled to once every 5 minutes. Maintains a max of 10 backups,
         deleting the oldest when the limit is reached.
 
-        Called from _cue_editor_save_markers() after every successful save.
+        Called from _cue_save_markers() after every successful save.
         All exceptions are swallowed — autosave must never break the editor."""
         try:
             import time as _time
@@ -1028,7 +1028,7 @@ init python:
         except Exception:
             pass  # Never let autosave break the editor
 
-    def _cue_editor_save_markers():
+    def _cue_save_markers():
         """Save unified markers and disabled_files to persistent storage.
 
         Refuses to overwrite existing persistent marker data with an empty dict.
@@ -1054,7 +1054,7 @@ init python:
                 data["markers"] = {}
         else:
             # Strip malformed entries before persisting (empty dicts, missing "time")
-            stripped = _cue_editor_sanitize_video_timestamps()
+            stripped = _cue_sanitize_video_timestamps()
             if stripped:
                 _cue_log("SAVE-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
             data["markers"] = python_dict(_cue.markers)
@@ -1062,10 +1062,10 @@ init python:
         persistent._cue_markers = data
 
         # Autosave backup to disk (throttled to once per 5 min)
-        _cue_editor_autosave_backup()
+        _cue_autosave_backup()
 
 
-    def _cue_editor_load_markers():
+    def _cue_load_markers():
         """Load markers and disabled_files from persistent storage.
         Unwraps Ren'Py RevertableDict/RevertableList via JSON round-trip
         so that isinstance checks work on the loaded data."""
@@ -1073,10 +1073,10 @@ init python:
         if data is None:
             _cue.markers = {}
             return
-        _cue.markers = _cue_editor_unwrap_persistent(data.get("markers", {}))
+        _cue.markers = _cue_unwrap_persistent(data.get("markers", {}))
         _cue.disabled_files = set(data.get("disabled_files", []))
         _cue.triggers_active = data.get("triggers_active", True)
-        stripped = _cue_editor_sanitize_video_timestamps()
+        stripped = _cue_sanitize_video_timestamps()
         if stripped:
             _cue_log("LOAD-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
         _cue_log("LOAD-MARKERS total_keys={}".format(len(_cue.markers)))
@@ -1086,25 +1086,25 @@ init python:
 # =============================================================================
 
 init python:
-    def _cue_editor_time_label_getter():
+    def _cue_time_label_getter():
         """Return 'elapsed / duration' formatted for the live time display."""
         if _cue.top_layer_type != 'movie':
             _cue_log("not movie? " + _cue.top_layer_type + " " + _cue.current_file)
             return "--:--.-- / --:--.--"
-        e = _cue_editor_get_elapsed()
-        d = _cue_editor_get_duration()
+        e = _cue_get_elapsed()
+        d = _cue_get_duration()
         return "{} / {}".format(
-            _cue_editor_format_time(e),
-            _cue_editor_format_time(d),
+            _cue_format_time(e),
+            _cue_format_time(d),
         )
 
-    def _cue_editor_frame_label_getter():
+    def _cue_frame_label_getter():
         """Return 'frame / total' formatted for the live frame display."""
         if _cue.top_layer_type != 'movie':
             _cue_log("not movie? " + _cue.top_layer_type + " " + _cue.current_file)
             return "---/---"
-        e = _cue_editor_get_elapsed()
-        d = _cue_editor_get_duration()
+        e = _cue_get_elapsed()
+        d = _cue_get_duration()
         fps = max(1, _cue.curr_vid_state.fps)
         return "{}/{}".format(int(e * fps), int(d * fps))
 
@@ -1115,10 +1115,10 @@ init python:
 
 screen cue_editor_key_listener():
     zorder 10000
-    key "K_BACKQUOTE" action Function(_cue_editor_toggle)
+    key "K_BACKQUOTE" action Function(_cue_toggle)
     key "K_F3" action Function(renpy.invoke_in_new_context, renpy.pause)
-    key "K_F4" action Function(_cue_editor_toggle_active)
-    timer 0.025 repeat True action Function(_cue_editor_tick_trigger, _update_screens=False)
+    key "K_F4" action Function(_cue_toggle_active)
+    timer 0.025 repeat True action Function(_cue_tick_trigger, _update_screens=False)
 
 # =============================================================================
 # MAIN OVERLAY SCREEN
@@ -1131,9 +1131,9 @@ screen cue_editor_overlay():
     tag cue_editor
 
     # Screen-level key bindings
-    key "K_BACKQUOTE" action Function(_cue_editor_hide)
-    key "shift_K_1" action Function(_cue_editor_copy_context)
-    key "shift_K_2" action Function(_cue_editor_paste_context)
+    key "K_BACKQUOTE" action Function(_cue_hide)
+    key "shift_K_1" action Function(_cue_copy_context)
+    key "shift_K_2" action Function(_cue_paste_context)
 
     button:
         xalign 0.0

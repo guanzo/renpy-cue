@@ -48,8 +48,8 @@ init python:
             self._w = width
             r = renpy.Render(width, height)
 
-            dur = _cue_editor_get_duration()
-            elapsed = _cue_editor_get_elapsed()
+            dur = _cue_get_duration()
+            elapsed = _cue_get_elapsed()
             paused = _cue.curr_vid_state.paused
 
             # Determine hover state for subtle brightness change
@@ -85,7 +85,7 @@ init python:
                 if 0 <= rx <= width and bar_y <= ry <= bar_y + self.BAR_H:
                     frac = max(0.0, min(1.0, rx / float(max(1, width))))
                     t = min(frac * dur, max(0.0, dur - 0.05))
-                    tip_text = "Click to seek to: " + _cue_editor_format_time(t)
+                    tip_text = "Click to seek to: " + _cue_format_time(t)
                     tip_widget = Text(tip_text, style="cue_txt", size=11,
                                       color="#cccccc", italic=True, substitute=False)
                     tip_render = renpy.render(tip_widget, 300, 100, st, at)
@@ -115,12 +115,12 @@ init python:
                 # Only handle clicks within the visible bar area
                 bar_y = getattr(self, '_bar_y', 0)
                 if bar_y <= y <= bar_y + self.BAR_H:
-                    dur = _cue_editor_get_duration()
+                    dur = _cue_get_duration()
                     if dur > 0 and _cue.active_channel:
                         w = getattr(self, '_w', 1)
                         if w > 0:
                             frac = max(0.0, min(1.0, x / float(w)))
-                            _cue_editor_seek_to(frac * dur)
+                            _cue_seek_to(frac * dur)
                             renpy.redraw(self, 0)
                             raise renpy.display.core.IgnoreEvent()
                 return None
@@ -241,7 +241,7 @@ init python:
                 r.blit(tr, (bx_pos + (self.TAB_W - tw) // 2, by_pos))
 
             # --- Ghost marker preview (repeat-pattern dialog) ---
-            ghost_times = _cue_editor_compute_ghost_times()
+            ghost_times = _cue_compute_ghost_times()
             for gtime in ghost_times:
                 gfrac = max(0.0, min(1.0, gtime / dur))
                 gpx = int(gfrac * width)
@@ -313,14 +313,14 @@ init python:
                             drag_orig = self._drag_orig_times.get(self._drag_idx, 0)
                             cur_time = drag_orig + delta_time
                             self._tip_text = "Pool {} ({}) ({} selected)".format(
-                                self._drag_idx + 1, _cue_editor_format_time(cur_time),
+                                self._drag_idx + 1, _cue_format_time(cur_time),
                                 len(self._drag_orig_times))
                         else:
                             # Single drag
                             f = max(0.0, min(1.0, x / float(max(1, w))))
                             self.set_time(self._drag_idx, f * dur)
                             self._tip_text = "Pool {} ({})".format(
-                                self._drag_idx + 1, _cue_editor_format_time(f * dur))
+                                self._drag_idx + 1, _cue_format_time(f * dur))
                         self._tip_x = x
                         self._tip_y = y
                     renpy.redraw(self, 0)
@@ -333,10 +333,10 @@ init python:
                     sel = self._get_selected()
                     if len(sel) > 1 and hit_idx in sel:
                         self._tip_text = "Pool {} ({}) [{} selected]".format(
-                            hit_idx + 1, _cue_editor_format_time(t), len(sel))
+                            hit_idx + 1, _cue_format_time(t), len(sel))
                     else:
                         self._tip_text = "Pool {} ({})".format(
-                            hit_idx + 1, _cue_editor_format_time(t))
+                            hit_idx + 1, _cue_format_time(t))
                         # Show offset from nearest selected (or active) marker
                         refs = sel if sel else {self.get_active()}
                         if hit_idx not in refs:
@@ -344,7 +344,7 @@ init python:
                             offset = t - markers[ref_idx]["time"]
                             sign = "+" if offset >= 0 else "-"
                             self._tip_text += "\nOffset from Pool {}: {}{}".format(
-                                ref_idx + 1, sign, _cue_editor_format_time(abs(offset)))
+                                ref_idx + 1, sign, _cue_format_time(abs(offset)))
                     self._tip_x = x
                     self._tip_y = y
                     self._hover_idx = hit_idx
@@ -456,7 +456,7 @@ init python:
                     _cue._mtl_drag_idx = -1
                     _cue._mtl_drag_on = False
                     if was_drag:
-                        _cue_editor_mtl_finalize()
+                        _cue_mtl_finalize()
                     else:
                         # Click (no drag) on a marker in multi-selection
                         # resets to single selection on that marker
