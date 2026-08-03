@@ -99,6 +99,24 @@ init -999 python:
 
     _cue.preset_dialog = CuePresetDialog()
 
+    class CueConfirmDialog:
+        """Reusable confirmation popup matching the overlay UI style."""
+        def __init__(self):
+            self.message = ""
+            self.on_confirm = None  # Function() or list of actions
+
+        def show(self, message, confirm_action):
+            self.message = message
+            self.on_confirm = confirm_action
+            renpy.show_screen("cue_confirm_dialog", _layer="cue_layer")
+
+        def hide(self):
+            self.message = ""
+            self.on_confirm = None
+            renpy.hide_screen("cue_confirm_dialog", layer="cue_layer")
+
+    _cue.confirm_dialog = CueConfirmDialog()
+
 
     _cue._last_autosave_time = 0
 

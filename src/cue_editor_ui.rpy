@@ -192,7 +192,7 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                 style "cue_btn"
                 text_style "cue_btn_text"
                 xsize 70
-                action Confirm(delete_confirm, delete_action)
+                action Function(_cue.confirm_dialog.show, delete_confirm, delete_action)
                 tooltip delete_tt
         textbutton "+ Pool":
             style "cue_btn"
@@ -332,7 +332,7 @@ screen cue_pool_section(section_title, ctx, vol_key, subtitle, subject, btn_lett
                 spacing 3
                 text _active_label style "cue_txt" size 11
                 use cue_icon_button("💾", Function(_cue.preset_dialog.open, vol_key, _target), "Save this pool as a preset", None)
-                use cue_icon_button("✕", Confirm("Delete this pool?", Function(ctx.remove_pool, _target)), "Delete this pool", None)
+                use cue_icon_button("✕", Function(_cue.confirm_dialog.show, "Delete this pool?", Function(ctx.remove_pool, _target)), "Delete this pool", None)
             transclude
             $ _dec = Function(_cue.volume.adjust, vol_key, -0.1, _target)
             $ _inc = Function(_cue.volume.adjust, vol_key, 0.1, _target)
@@ -461,7 +461,7 @@ screen cue_overlay_content():
                     textbutton "Delete":
                         style "cue_btn"
                         text_style "cue_btn_text"
-                        action Confirm(_cue.markers.video.get_delete_message(), Function(_cue.markers.video.remove_selected))
+                        action Function(_cue.confirm_dialog.show, _cue.markers.video.get_delete_message(), Function(_cue.markers.video.remove_selected))
                         tooltip "Delete selected markers"
                     textbutton "?":
                         style "cue_btn"
@@ -519,7 +519,7 @@ screen cue_overlay_content():
                         textbutton "Delete":
                             style "cue_btn"
                             text_style "cue_btn_text"
-                            action Confirm("Delete this timestamp pool?", Function(_cue.markers.video.remove_pool, _vid_target))
+                            action Function(_cue.confirm_dialog.show, "Delete this timestamp pool?", Function(_cue.markers.video.remove_pool, _vid_target))
                             tooltip "Delete this timestamp pool"
                     # Editable timestamp + nudge buttons
                     hbox:
@@ -659,7 +659,7 @@ screen cue_overlay_content():
                                     use cue_icon_button("I", Function(_cue.markers.image.apply_preset, _pname), "Apply preset to active Image SFX pool", None)
                                     use cue_icon_button("D", Function(_cue.markers.dialogue.apply_preset, _pname), "Apply preset to active Dialogue SFX pool", None)
                                     use cue_icon_button("A", Function(_cue.markers.autoplay.apply_preset, _pname), "Apply preset to active Autoplay SFX pool", None)
-                                    use cue_icon_button("✕", Confirm("Delete preset '{}'?".format(_pname), Function(_cue.markers.delete_preset, _pname)), "Delete preset", None)
+                                    use cue_icon_button("✕", Function(_cue_confirm_delete_preset, _pname), "Delete preset", None)
                                     textbutton _pname:
                                         style "cue_btn"
                                         text_style "cue_btn_text_sm"
@@ -857,3 +857,53 @@ screen cue_save_preset_dialog():
                     action [
                         Function(_d.commit),
                     ]
+
+
+###############################################################################
+# SECTION 8: Confirm Dialog
+###############################################################################
+
+screen cue_confirm_dialog():
+    $ _d = _cue.confirm_dialog
+    key "K_RETURN" action [Function(_d.hide)] + ([_d.on_confirm] if _d.on_confirm else [])
+    key "K_KP_ENTER" action [Function(_d.hide)] + ([_d.on_confirm] if _d.on_confirm else [])
+    key "K_ESCAPE" action Function(_d.hide)
+
+    button:
+        xpos 500
+        ypos 8
+        padding (16, 8)
+        background "#2a2a2a"
+        hover_background "#2a2a2a"
+        xmaximum 400
+        action NullAction()
+
+        vbox:
+            spacing 8
+            text _d.message style "cue_txt"
+
+            null height 5
+
+            hbox:
+                spacing 8
+                xalign 1.0
+                textbutton "Cancel":
+                    style "cue_btn"
+                    text_style "cue_btn_text"
+                    action Function(_d.hide)
+                textbutton "OK":
+                    style "cue_btn"
+                    text_style "cue_btn_text"
+                    action [
+                        Function(_d.hide),
+                        _d.on_confirm,
+                    ]
+
+
+init -990 python:
+    def _cue_confirm_delete_preset(preset_name):
+        """Show confirmation dialog for preset deletion."""
+        _cue.confirm_dialog.show(
+            "Delete preset '{}'?".format(preset_name),
+            Function(_cue.markers.delete_preset, preset_name),
+        )
