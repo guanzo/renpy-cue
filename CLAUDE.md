@@ -42,6 +42,17 @@ E:\Porn\pGames\Dreamland-v0.6.0p-pc
 - `renpy.restart_interaction()`
 - `renpy.add_layer()`
 
+## Naming Conventions
+
+Ren'Py concatenates all `.rpy` files into a single flat namespace. To avoid collisions with other mods and built-in game code, module-level names MUST be prefixed:
+
+- **Module-level functions**: `_cue_` prefix — `_cue_play_sfx()`, `_cue_refresh_context()`, `_cue_tick_trigger()`
+- **Module-level classes**: `Cue` prefix — `CueBeatManager`, `CueMarkerManager`, `CueVideoManager`
+- **Module-level singleton**: `_cue` (the `NoRollback` instance)
+- **`init python:` block imports**: `import foo as _foo` — keeps the import local to the block
+
+Function-local variables do NOT need underscores — they're scoped to their function and can't collide. Use normal Python names: `vol`, `total`, `picked`, `tries`, `channels`, not `_vol`, `_total`, `_picked`, `_tries`, `_channels`.
+
 ## Code Organization
 
 - **Encapsulate features as classes.** When adding a new UI component, dialog, or feature, create a dedicated class that owns its state, logic, and screen hooks. Prefer `_cue.thing = ThingManager()` over scattered `_cue._thing_var1`, `_cue._thing_var2` and global `_cue_do_thing()` functions.
