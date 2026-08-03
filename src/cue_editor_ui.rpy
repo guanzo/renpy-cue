@@ -305,9 +305,10 @@ screen cue_section_frame(header_text):
 # subtitle: optional "Label: value" text below header (None to skip)
 # subject: noun for confirm messages ("dialogue", "image", "file")
 # btn_letter: "D", "I", or "L" for hint messages
+# description: short line explaining when this SFX triggers (None to skip)
 # Transclude: extra UI between pool label and volume row (shake toggle,
 #             frequency selector). Reads _cue._pool_ui["pool"].
-screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_letter):
+screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_letter, description=None):
     $ _entry = _cue.markers.get(vol_key, {})
     $ _pools = _entry.get("pools", [])
     $ _target = ctx.get_active()
@@ -366,8 +367,12 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
                     trigger_key=vol_key, pool_index=_target,
                     folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
             else:
+                if description is not None:
+                    text description style "cue_help"
                 text "Click the {} button in the SFX Library to add files to this pool.".format(btn_letter) style "cue_help"
         else:
+            if description is not None:
+                text description style "cue_help"
             text "Click the {} button in the SFX Library to create a new pool or add files to the active pool.".format(btn_letter) style "cue_help"
 
 # Toggle textbutton: ☑ label when checked, ☐ when unchecked.
@@ -567,8 +572,10 @@ screen cue_overlay_content():
                         use cue_file_list(_active_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 5,
                             trigger_key=_vid_key, pool_index=_vid_target)
                     else:
+                        text "SFX plays when the video reaches the marked timestamp(s)." style "cue_help"
                         text "Click the V button in the SFX Library to add files to this pool." style "cue_help"
                 else:
+                    text "SFX plays when the video reaches the marked timestamp(s)." style "cue_help"
                     text "Click the V button in the SFX Library to create a new pool or add to the active pool." style "cue_help"
 
 
@@ -577,7 +584,8 @@ screen cue_overlay_content():
         if _has_image:
             $ _img_key = create_img_key(_cue.current_file)
             use cue_context_section("Image SFX", _cue.markers.image, _img_key,
-                "Image: " + _cue.current_file, "image", "I"):
+                "Image: " + _cue.current_file, "image", "I",
+                "SFX plays when this image is displayed."):
                 $ _p = _cue._pool_ui["pool"]
                 use cue_toggle_btn(_p.get("trigger_on_shake", False),
                     "Trigger on screen shake",
@@ -589,7 +597,8 @@ screen cue_overlay_content():
         if _is_dialogue:
             $ _dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
             use cue_context_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
-                "Dialogue: " + _cue.current_dialogue, "dialogue", "D")
+                "Dialogue: " + _cue.current_dialogue, "dialogue", "D",
+                "SFX plays when this line of dialogue is displayed.")
 
         if _cue.scan_error:
             text "[_cue.scan_error]" style "cue_help" color "#ff6666"
@@ -597,7 +606,8 @@ screen cue_overlay_content():
         # Loop SFX
         $ _loop_key = create_loop_key(_cue.current_file or "")
         use cue_context_section("Loop SFX", _cue.markers.loop, _loop_key,
-            None, "file", "L"):
+            None, "file", "L",
+            "SFX plays on a loop when this image/video is displayed."):
             $ _freq = _cue._pool_ui.get("freq", 1)
             hbox:
                 spacing 5
