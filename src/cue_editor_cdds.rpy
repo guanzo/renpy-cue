@@ -129,7 +129,7 @@ init python:
             return None
 
 
-    class _VideoMarkerTimeline(renpy.Displayable):
+    class CueVideoMarkerTimeline(renpy.Displayable):
         """Timeline with draggable marker tabs.
         Click: select single marker (clears multi-selection).
         Alt+Click: toggle marker in/out of multi-selection.
@@ -148,7 +148,7 @@ init python:
         SEL_LINE = "#5588cc"
 
         def __init__(self, get_markers, get_active, set_active, set_time, get_dur, **kw):
-            super(_VideoMarkerTimeline, self).__init__(**kw)
+            super(CueVideoMarkerTimeline, self).__init__(**kw)
             self.get_markers = get_markers
             self.get_active = get_active
             self.set_active = set_active

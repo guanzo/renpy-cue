@@ -127,7 +127,7 @@ init -999 python:
 
         def compute_ghost_times(self):
             """Return sorted list of ghost marker times for the preview overlay.
-            Called by _VideoMarkerTimeline.render() while dialog is visible."""
+            Called by CueVideoMarkerTimeline.render() while dialog is visible."""
             if not self.dialog_visible:
                 return []
             try:

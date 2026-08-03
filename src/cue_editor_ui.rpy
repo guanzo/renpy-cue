@@ -368,7 +368,7 @@ screen cue_overlay_content():
                 $ _vid_target = max(0, min(_vid_target, _vid_count - 1)) if _vid_entries else 0
                 # --- Draggable video marker timeline ---
                 if _vid_entries:
-                    add _VideoMarkerTimeline(
+                    add CueVideoMarkerTimeline(
                         get_markers=_cue_mtl_get_markers,
                         get_active=_cue_mtl_get_active,
                         set_active=_cue_mtl_set_active,
