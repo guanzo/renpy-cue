@@ -3,6 +3,22 @@
 ###############################################################################
 
 init -999 python:
+
+    class CueVideoState:
+        """Per-video playback state so it resets cleanly on video change."""
+        def __init__(self):
+            self.played_video_keys = set()
+            self.paused = False
+            self.fps = 30
+            self.last_elapsed = 0.0
+            self.frame_time = 1.0 / 30.0
+            self.time_offset = 0.0
+            self.step_target = 0.0
+            self.pause_target = 0.0
+            self.pause_origin = 0.0
+            self.total_offset = 0.0
+            self.cached_dur = 0.0
+
     # --- All runtime state on a single NoRollback object ---
     # Ren'Py skips rollback for NoRollback instances — no state gets corrupted
     # by Page Up. Never reassign _cue itself; only mutate its attributes.
@@ -16,8 +32,8 @@ init -999 python:
     _cue.top_layer_type = None
 
     # Path constants
-    _cue.audio_dir = "renpy_cue/audio"
     _cue.base_dir = "renpy_cue"
+    _cue.audio_dir = _cue.base_dir + "/audio"
     _cue.config_filename = "cue_editor_config.json"
     _cue.config_path = os.path.join(renpy.config.gamedir, _cue.base_dir, _cue.config_filename)
     _cue.debug_log_filename = "debug.log"
@@ -42,18 +58,8 @@ init -999 python:
 
     _cue.triggers_active = True
 
-    # Video state
-    _cue.played_video_keys = set()
-    _cue.paused = False
-    _cue.fps = 30
-    _cue.__last_elapsed = 0.0
-    _cue.__frame_time = 1.0 / 30.0
-    _cue.__time_offset = 0.0
-    _cue.__step_target = 0.0
-    _cue.__pause_target = 0.0
-    _cue.__pause_origin = 0.0
-    _cue.__total_offset = 0.0
-    _cue.__cached_dur = 0.0
+    # Video state (per-video playback tracking)
+    _cue.curr_vid_state = CueVideoState()
 
     # UI state
     _cue.visible = False
@@ -175,7 +181,7 @@ init 999 python:
         def _cue_editor_after_load():
             if _cue.visible:
                 _cue.visible = False
-                _cue.paused = False
+                _cue.curr_vid_state.paused = False
         config.after_load_callbacks.append(_cue_editor_after_load)
 
         # Character callback — updates dialogue text only (context change
@@ -546,8 +552,8 @@ init python:
                                 break
                         except Exception:
                             pass
-                _cue.fps = fps
-                _cue.__frame_time = 1.0 / fps
+                _cue.curr_vid_state.fps = fps
+                _cue.curr_vid_state.frame_time = 1.0 / fps
 
                 _cue.active_channel = ch_name
                 if old_ch != ch_name:
@@ -586,9 +592,8 @@ init python:
 
 
     def _cue_editor_reset_loop_tracking():
-        """Reset played markers and loop detection when video changes."""
-        _cue.played_video_keys = set()
-        _cue.__last_elapsed = 0.0
+        """Reset all video state when the video changes."""
+        _cue.curr_vid_state = CueVideoState()
 
 
     # --------------------------------------------------------------------------
@@ -603,7 +608,7 @@ init python:
         try:
             pos = renpy.music.get_pos(channel=ch)
             if pos is not None:
-                return max(0.0, pos + _cue.__time_offset)
+                return max(0.0, pos + _cue.curr_vid_state.time_offset)
         except Exception:
             pass
         return 0.0
@@ -615,15 +620,15 @@ init python:
         (stop/play restart) don't return 0 and blow up marker x-positions."""
         ch = _cue.active_channel
         if not ch:
-            return _cue.__cached_dur
+            return _cue.curr_vid_state.cached_dur
         try:
             dur = renpy.music.get_duration(channel=ch)
             if dur is not None and dur > 0:
-                _cue.__cached_dur = dur
+                _cue.curr_vid_state.cached_dur = dur
                 return dur
         except Exception:
             pass
-        return _cue.__cached_dur
+        return _cue.curr_vid_state.cached_dur
 
 
     def _cue_editor_get_video_path():
@@ -647,29 +652,29 @@ init python:
         if not ch:
             return
 
-        _cue.__time_offset = 0.0
+        _cue.curr_vid_state.time_offset = 0.0
 
         try:
             currently_paused = renpy.music.get_pause(channel=ch)
             new_state = not currently_paused
             renpy.music.set_pause(new_state, channel=ch)
-            _cue.paused = new_state
+            _cue.curr_vid_state.paused = new_state
 
             if new_state:  # Just paused — save origin
-                _cue.__pause_origin = renpy.music.get_pos(channel=ch) or 0.0
-                _cue.__total_offset = 0.0
-                _cue_log("pause: origin={:.3f}".format(_cue.__pause_origin))
+                _cue.curr_vid_state.pause_origin = renpy.music.get_pos(channel=ch) or 0.0
+                _cue.curr_vid_state.total_offset = 0.0
+                _cue_log("pause: origin={:.3f}".format(_cue.curr_vid_state.pause_origin))
             else:  # Just unpaused
-                _cue.__total_offset = 0.0
+                _cue.curr_vid_state.total_offset = 0.0
                 _cue_log("unpause: reset offset")
         except Exception:
             # Fallback: use volume as pseudo-pause
-            if not _cue.paused:
+            if not _cue.curr_vid_state.paused:
                 renpy.music.set_volume(0.0, delay=0, channel=ch)
-                _cue.paused = True
+                _cue.curr_vid_state.paused = True
             else:
                 renpy.music.set_volume(1.0, delay=0, channel=ch)
-                _cue.paused = False
+                _cue.curr_vid_state.paused = False
 
 
     # --------------------------------------------------------------------------
@@ -686,15 +691,15 @@ init python:
         if not ch:
             return
 
-        frame_seconds = _cue.__frame_time
+        frame_seconds = _cue.curr_vid_state.frame_time
 
         # Auto-pause if video is playing
-        if not _cue.paused:
+        if not _cue.curr_vid_state.paused:
             renpy.music.set_pause(True, channel=ch)
-            _cue.paused = True
-            _cue.__pause_origin = renpy.music.get_pos(channel=ch) or 0.0
-            _cue.__total_offset = 0.0
-            _cue.__time_offset = 0.0
+            _cue.curr_vid_state.paused = True
+            _cue.curr_vid_state.pause_origin = renpy.music.get_pos(channel=ch) or 0.0
+            _cue.curr_vid_state.total_offset = 0.0
+            _cue.curr_vid_state.time_offset = 0.0
 
         dur = renpy.music.get_duration(channel=ch) or 0.0
 
@@ -703,14 +708,14 @@ init python:
             target = pos + delta_frames * frame_seconds
             if dur > 0:
                 target = min(target, dur - 0.05)
-            _cue.__step_target = max(0.001, target)
-            _cue_log("+f step_target={:.3f}".format(_cue.__step_target))
+            _cue.curr_vid_state.step_target = max(0.001, target)
+            _cue_log("+f step_target={:.3f}".format(_cue.curr_vid_state.step_target))
             renpy.music.set_pause(False, channel=ch)
 
         else:  # delta_frames < 0
-            _cue.__total_offset += delta_frames * frame_seconds
-            origin = _cue.__pause_origin
-            target = origin + _cue.__total_offset
+            _cue.curr_vid_state.total_offset += delta_frames * frame_seconds
+            origin = _cue.curr_vid_state.pause_origin
+            target = origin + _cue.curr_vid_state.total_offset
             if dur > 0:
                 target = max(0.0, min(target, dur - 0.05))
             else:
@@ -719,10 +724,10 @@ init python:
             filepath = renpy.music.get_playing(channel=ch)
             _cue_log(
                 "-f origin={:.3f} total_offset={:.3f} target={:.3f} dur={:.3f}"
-                .format(origin, _cue.__total_offset, target, dur)
+                .format(origin, _cue.curr_vid_state.total_offset, target, dur)
             )
             if filepath and dur > 0:
-                _cue.__pause_target = max(0.001, target)
+                _cue.curr_vid_state.pause_target = max(0.001, target)
                 renpy.music.stop(channel=ch, fadeout=0)
                 renpy.music.play(filepath, channel=ch, loop=True)
 
@@ -745,25 +750,25 @@ init python:
         current_pos = renpy.music.get_pos(channel=ch) or 0.0
 
         # Reset offset tracking for the absolute target
-        _cue.__pause_origin = target
-        _cue.__total_offset = 0.0
-        _cue.__time_offset = 0.0
-        _cue.__pause_target = 0.0
+        _cue.curr_vid_state.pause_origin = target
+        _cue.curr_vid_state.total_offset = 0.0
+        _cue.curr_vid_state.time_offset = 0.0
+        _cue.curr_vid_state.pause_target = 0.0
 
         if target >= current_pos:
             # Forward seek: pause, set step target, unpause (same as +1f)
-            if not _cue.paused:
+            if not _cue.curr_vid_state.paused:
                 renpy.music.set_pause(True, channel=ch)
-                _cue.paused = True
-            _cue.__step_target = max(0.001, target)
+                _cue.curr_vid_state.paused = True
+            _cue.curr_vid_state.step_target = max(0.001, target)
             renpy.music.set_pause(False, channel=ch)
         else:
             # Backward seek: restart from 0 (same as -1f)
             filepath = renpy.music.get_playing(channel=ch)
             if not filepath:
                 return
-            _cue.__step_target = 0.0
-            _cue.__pause_target = max(0.001, target)
+            _cue.curr_vid_state.step_target = 0.0
+            _cue.curr_vid_state.pause_target = max(0.001, target)
             renpy.music.stop(channel=ch, fadeout=0)
             renpy.music.play(filepath, channel=ch, loop=True)
 
@@ -862,7 +867,7 @@ init python:
 
         # Keep paused state in sync (referenced by the UI for play/pause buttons)
         try:
-            _cue.paused = renpy.music.get_pause(channel=_cue.active_channel)
+            _cue.curr_vid_state.paused = renpy.music.get_pause(channel=_cue.active_channel)
         except Exception:
             pass
 
@@ -870,16 +875,16 @@ init python:
         ch = _cue.active_channel
         if ch and _cue.top_layer_type == 'movie':
             pos = renpy.music.get_pos(channel=ch)
-            if _cue.__pause_target > 0 and pos is not None and pos >= _cue.__pause_target:
+            if _cue.curr_vid_state.pause_target > 0 and pos is not None and pos >= _cue.curr_vid_state.pause_target:
                 renpy.music.set_pause(True, channel=ch)
-                _cue.__pause_target = 0.0
-                _cue.paused = True
-                _cue.__time_offset = 0.0
-            if _cue.__step_target > 0 and pos is not None and pos >= _cue.__step_target:
+                _cue.curr_vid_state.pause_target = 0.0
+                _cue.curr_vid_state.paused = True
+                _cue.curr_vid_state.time_offset = 0.0
+            if _cue.curr_vid_state.step_target > 0 and pos is not None and pos >= _cue.curr_vid_state.step_target:
                 renpy.music.set_pause(True, channel=ch)
-                _cue.__step_target = 0.0
-                _cue.paused = True
-                _cue.__time_offset = 0.0
+                _cue.curr_vid_state.step_target = 0.0
+                _cue.curr_vid_state.paused = True
+                _cue.curr_vid_state.time_offset = 0.0
 
         if not _cue.triggers_active:
             return
@@ -950,7 +955,7 @@ init python:
                     timestamps = vid_entry.get("timestamps", [])
                     for idx, ts_entry in enumerate(timestamps):
                         ts_key = "{}@{}".format(vid_key, idx)
-                        if ts_key not in _cue.played_video_keys:
+                        if ts_key not in _cue.curr_vid_state.played_video_keys:
                             if "time" not in ts_entry:
                                 _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(ts_entry))
                                 continue
@@ -961,12 +966,12 @@ init python:
                                     f = _cue_editor_pick_file(files, avoid_repeats=False)
                                     _vol = _cue_editor_get_effective_volume(vid_entry, vid_key, ts_index=idx)
                                     _cue_editor_play_cue(f, vid_key, volume=_vol)
-                                    _cue.played_video_keys.add(ts_key)
+                                    _cue.curr_vid_state.played_video_keys.add(ts_key)
 
             # Detect video loop (markers only, pool uses wall clock)
-            if _cue.__last_elapsed > 0 and elapsed < _cue.__last_elapsed - 0.3:
-                _cue.played_video_keys.clear()
-            _cue.__last_elapsed = elapsed
+            if _cue.curr_vid_state.last_elapsed > 0 and elapsed < _cue.curr_vid_state.last_elapsed - 0.3:
+                _cue.curr_vid_state.played_video_keys.clear()
+            _cue.curr_vid_state.last_elapsed = elapsed
 
 
     # --------------------------------------------------------------------------
@@ -1100,7 +1105,7 @@ init python:
             return "---/---"
         e = _cue_editor_get_elapsed()
         d = _cue_editor_get_duration()
-        fps = max(1, _cue.fps)
+        fps = max(1, _cue.curr_vid_state.fps)
         return "{}/{}".format(int(e * fps), int(d * fps))
 
 

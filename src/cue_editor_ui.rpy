@@ -314,7 +314,7 @@ screen cue_editor_sidebar_content():
                         add SelfUpdatingLabel(_cue_editor_frame_label_getter, style="cue_txt")
                 hbox:
                     spacing 5
-                    if _cue.paused:
+                    if _cue.curr_vid_state.paused:
                         textbutton "▶":
                             style "cue_btn"
                             text_style "cue_btn_text"

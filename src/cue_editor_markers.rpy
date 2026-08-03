@@ -497,7 +497,7 @@ init python:
         """Remove video markers for the current context."""
         vid_key = create_vid_key(_cue.current_file)
         _cue.markers.pop(vid_key, None)
-        _cue.played_video_keys = set()
+        _cue.curr_vid_state.played_video_keys = set()
         _cue.vid_target_pool = 0
         _cue.mtl_selected = set()
         _cue_editor_save_markers()
@@ -534,7 +534,7 @@ init python:
                 _cue.vid_target_pool = timestamps.index(edited_entry)
             except ValueError:
                 _cue.vid_target_pool = min(index, len(timestamps) - 1)
-            _cue.played_video_keys = set()
+            _cue.curr_vid_state.played_video_keys = set()
             _cue.mtl_selected = set()
             _cue_editor_save_markers()
         # Reformat buffer to reflect current value (error feedback on parse failure)
@@ -694,7 +694,7 @@ init python:
             _cue.vid_target_pool = 0
         else:
             _cue.vid_target_pool = min(_cue.vid_target_pool, len(timestamps) - 1)
-        _cue.played_video_keys = set()
+        _cue.curr_vid_state.played_video_keys = set()
         _cue.mtl_selected = set()
         _cue_editor_save_markers()
 
@@ -725,7 +725,7 @@ init python:
                     _cue.vid_target_pool = 0
                 else:
                     _cue.vid_target_pool = min(_cue.vid_target_pool, len(timestamps) - 1)
-            _cue.played_video_keys = set()
+            _cue.curr_vid_state.played_video_keys = set()
             _cue.mtl_selected = set()
             _cue_editor_save_markers()
         else:
@@ -914,7 +914,7 @@ init python:
         files = timestamps[ts_index].get("files", [])
         if 0 <= file_index < len(files):
             files.pop(file_index)
-            _cue.played_video_keys = set()
+            _cue.curr_vid_state.played_video_keys = set()
             _cue_editor_save_markers()
     
     def _cue_editor_adjust_video_volume(delta):
@@ -951,7 +951,7 @@ init python:
             pass
         # Keep edit buffer in sync with the nudged value
         _cue.edit_video_ts_text = _cue_editor_format_time(new_time)
-        _cue.played_video_keys = set()
+        _cue.curr_vid_state.played_video_keys = set()
         _cue.mtl_selected = set()
         _cue_editor_save_markers()
 
@@ -1108,7 +1108,7 @@ init python:
                         t = max(0.0, t)
                     ts_entry["time"] = t
 
-        _cue.played_video_keys = set()
+        _cue.curr_vid_state.played_video_keys = set()
         _cue.autoplay_states = {}
         _cue_editor_save_markers()
 
@@ -1145,7 +1145,7 @@ init python:
             persistent._cue_markers = data
             _cue.markers = python_dict(data.get("markers", {}))
             
-            _cue.played_video_keys = set()
+            _cue.curr_vid_state.played_video_keys = set()
             _cue.autoplay_states = {}
             #_cue_editor_normalize_all_markers()
             _cue_editor_save_markers()

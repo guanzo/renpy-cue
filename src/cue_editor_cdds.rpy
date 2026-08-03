@@ -50,7 +50,7 @@ init python:
 
             dur = _cue_editor_get_duration()
             elapsed = _cue_editor_get_elapsed()
-            paused = _cue.paused
+            paused = _cue.curr_vid_state.paused
 
             # Determine hover state for subtle brightness change
             hovered = False
