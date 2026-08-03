@@ -103,7 +103,7 @@ screen cue_vol_row(label_text, dec_action, entry_dict, inc_action):
             action dec_action
         bar:
             value DictValue(entry_dict, "volume", range=5.0)
-            xsize 80
+            xsize 60
             ysize 14
             left_bar Solid("#007AFF")
             right_bar Solid("#333333")
@@ -261,7 +261,8 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
                                         Function(folder_child_remove_fn, trigger_key, pool_index, fi, _child),
                                         "Remove this file from the folder ref", None)
                                 use cue_icon_button("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
-                                text _child style "cue_txt" color "#ffcc00" size 11
+                                $ _display = _child[len(f):]  # strip folder ref prefix
+                                text _display style "cue_txt" color "#ffcc00" size 11
                 else:
                     # --- Regular file ---
                     hbox:
@@ -279,11 +280,11 @@ screen cue_section_frame(header_text):
         xfill True
         yminimum 0
         has vbox
-        spacing 5
+        spacing 8
         text header_text style "cue_hdr"
         transclude
 
-# Generic pool section: shared by dialogue, image, and autoplay SFX.
+# Generic context section: shared by dialogue, image, and autoplay SFX.
 # ctx: marker context with add_pool, remove_pool, clear, set_active,
 #      get_active, remove_file (e.g. _cue.markers.dialogue)
 # vol_key: trigger key for volume/marker lookups
@@ -292,7 +293,7 @@ screen cue_section_frame(header_text):
 # btn_letter: "D", "I", or "A" for hint messages
 # Transclude: extra UI between pool label and volume row (shake toggle,
 #             frequency selector). Reads _cue._pool_ui["pool"].
-screen cue_pool_section(section_title, ctx, vol_key, subtitle, subject, btn_letter):
+screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_letter):
     $ _entry = _cue.markers.get(vol_key, {})
     $ _pools = _entry.get("pools", [])
     $ _target = ctx.get_active()
@@ -306,18 +307,18 @@ screen cue_pool_section(section_title, ctx, vol_key, subtitle, subject, btn_lett
             vbox:
                 spacing 5
                 text subtitle style "cue_txt"
-            null height 5
         if _entry:
             $ _entry.setdefault("volume", 1.0)
             $ _master_vol = _entry.get("volume", 1.0)
             $ _dec = Function(_cue.volume.adjust_master, vol_key, -0.1)
             $ _inc = Function(_cue.volume.adjust_master, vol_key, 0.1)
-            use cue_vol_row("Master: {:.1f}".format(_master_vol), _dec, _entry, _inc)
+            use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _entry, _inc)
         use cue_pool_tabs(len(_pools), _target, bool(_pools),
             "Delete all {} for the current {}?".format(section_title.lower(), subject),
             Function(ctx.clear), "Delete all {} for the current {}".format(section_title.lower(), subject),
             Function(ctx.add_pool), "Add a new pool",
             ctx.set_active, (), "Select {} target pool — targets {} button".format(section_title, btn_letter))
+
         if _pools and 0 <= _target < len(_pools):
             $ _active_pool = _pools[_target]
             $ _r = _cue.markers.resolve_pool(_active_pool)
@@ -328,18 +329,24 @@ screen cue_pool_section(section_title, ctx, vol_key, subtitle, subject, btn_lett
             if _is_preset_pool:
                 $ _active_label = "Pool " + str(_target + 1) + " (Preset: " + _active_pool["preset"] + ")"
             else:
-                $ _active_label = "Pool " + str(_target + 1) + " (" + str(len(_r.files)) + " files)"
+                $ _active_label = "Pool " + str(_target + 1) + " (" + str(len(_cue_resolve_files(_r.files))) + " files)"
             $ _cue._pool_ui = {"pool": _active_pool, "files": _r.files, "target": _target, "freq": _r.frequency}
             hbox:
-                spacing 3
+                spacing 5
                 text _active_label style "cue_txt" size 11
+                null width 5
                 use cue_icon_button("💾", Function(_cue.preset_dialog.open, vol_key, _target), "Save this pool as a preset", None)
                 use cue_icon_button("✕", Function(_cue.confirm_dialog.show, "Delete this pool?", Function(ctx.remove_pool, _target)), "Delete this pool", None)
+                $ _dec = Function(_cue.volume.adjust, vol_key, -0.1, _target)
+                $ _inc = Function(_cue.volume.adjust, vol_key, 0.1, _target)
+                null width 5
+                if abs(_active_vol - _active_eff) > 0.01:
+                    $ _vol_label = "Volume: {:.1f} ({:.1f} total)".format(_active_vol, _active_eff)
+                else:
+                    $ _vol_label = "Volume: {:.1f}".format(_active_vol)
+                use cue_vol_row(_vol_label, _dec, _active_pool, _inc)
+
             transclude
-            $ _dec = Function(_cue.volume.adjust, vol_key, -0.1, _target)
-            $ _inc = Function(_cue.volume.adjust, vol_key, 0.1, _target)
-            $ _vol_label = "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff)
-            use cue_vol_row(_vol_label, _dec, _active_pool, _inc)
             if _r.files:
                 use cue_file_list(_r.files, ctx.remove_file, (_target,), _active_eff, 5,
                     trigger_key=vol_key, pool_index=_target,
@@ -491,18 +498,18 @@ screen cue_overlay_content():
                         set_time=_cue.markers.video.set_time,
                         get_dur=_cue.markers.video.get_duration,
                     )
-                null height 5
                 if _vid_entry:
                     $ _vid_entry.setdefault("volume", 1.0)
                     $ _master_vol = _vid_entry.get("volume", 1.0)
                     $ _dec = Function(_cue.volume.adjust_master, _vid_key, -0.1)
                     $ _inc = Function(_cue.volume.adjust_master, _vid_key, 0.1)
-                    use cue_vol_row("Master: {:.1f}".format(_master_vol), _dec, _vid_entry, _inc)
+                    use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _vid_entry, _inc)
                 use cue_pool_tabs(_vid_count, _vid_target, bool(_vid_entries),
                     "Delete all video timestamp markers for the current video?",
                     Function(_cue.markers.video.clear), "Delete all video SFX for the current video",
                     Function(_cue.markers.video.add_pool), "Create a new empty timestamp at current time",
                     _cue.markers.video.set_active, (), "Select timestamp pool — V button adds files here")
+
                 # Active pool display
                 if _vid_entries and 0 <= _vid_target < _vid_count:
                     $ _active_ts = _vid_entries[_vid_target]
@@ -511,18 +518,25 @@ screen cue_overlay_content():
                     $ _active_eff = _cue.volume.get_effective(_vid_entry, _vid_key, ts_index=_vid_target)
                     $ _active_label = "Pool " + str(_vid_target + 1) + " (" + str(len(_active_files)) + " files)"
                     hbox:
-                        spacing 3
+                        spacing 5
                         text _active_label style "cue_txt" size 11
-                        textbutton "Duplicate":
-                            style "cue_btn"
-                            text_style "cue_btn_text"
-                            action Function(_cue.markers.video.duplicate_pool, _vid_target)
-                            tooltip "Duplicate this timestamp pool"
-                        textbutton "Delete":
-                            style "cue_btn"
-                            text_style "cue_btn_text"
-                            action Function(_cue.confirm_dialog.show, "Delete this timestamp pool?", Function(_cue.markers.video.remove_pool, _vid_target))
-                            tooltip "Delete this timestamp pool"
+
+                        null width 5
+                        
+                        use cue_icon_button("🗐", Function(_cue.markers.video.duplicate_pool, _vid_target), "Duplicate this timestamp pool", None)
+                        use cue_icon_button("✕", Function(_cue.confirm_dialog.show, "Delete this timestamp pool?", Function(_cue.markers.video.remove_pool, _vid_target)), "Delete this timestamp pool", None)
+
+                        # Volume controls
+                        $ _active_ts.setdefault("volume", 1.0)
+                        $ _dec = Function(_cue.volume.adjust_video, -0.1)
+                        $ _inc = Function(_cue.volume.adjust_video, 0.1)
+                        null width 5
+                        if abs(_active_vol - _active_eff) > 0.01:
+                            $ _vol_label = "Volume: {:.1f} ({:.1f} total)".format(_active_vol, _active_eff)
+                        else:
+                            $ _vol_label = "Volume: {:.1f}".format(_active_vol)
+                        use cue_vol_row(_vol_label, _dec, _active_ts, _inc)
+
                     # Editable timestamp + nudge buttons
                     hbox:
                         spacing 3
@@ -535,12 +549,6 @@ screen cue_overlay_content():
                         $ _display = _cue_format_time(_active_ts["time"])
                         use cue_time_input("_cue.markers.video.edit_text", _commit, _dec100, _dec10,
                                            _inc10, _inc100, _display)
-                    # Volume controls
-                    $ _active_ts.setdefault("volume", 1.0)
-                    $ _dec = Function(_cue.volume.adjust_video, -0.1)
-                    $ _inc = Function(_cue.volume.adjust_video, 0.1)
-                    $ _vol_label = "Volume: {:.1f} (eff {:.1f})".format(_active_vol, _active_eff)
-                    use cue_vol_row(_vol_label, _dec, _active_ts, _inc)
                     # File list
                     if _active_files:
                         use cue_file_list(_active_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 5,
@@ -555,7 +563,7 @@ screen cue_overlay_content():
         $ _has_image = bool(_cue.current_file) and not _is_video
         if _has_image:
             $ _img_key = create_img_key(_cue.current_file)
-            use cue_pool_section("Image SFX", _cue.markers.image, _img_key,
+            use cue_context_section("Image SFX", _cue.markers.image, _img_key,
                 "Image: " + _cue.current_file, "image", "I"):
                 $ _p = _cue._pool_ui["pool"]
                 use cue_toggle_btn(_p.get("trigger_on_shake", False),
@@ -567,7 +575,7 @@ screen cue_overlay_content():
         # --- Dialogue UI ---
         if _is_dialogue:
             $ _dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
-            use cue_pool_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
+            use cue_context_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
                 "Dialogue: " + _cue.current_dialogue, "dialogue", "D")
 
         if _cue.scan_error:
@@ -575,7 +583,7 @@ screen cue_overlay_content():
 
         # Autoplay SFX
         $ _autoplay_key = create_autoplay_key(_cue.current_file or "")
-        use cue_pool_section("Autoplay SFX", _cue.markers.autoplay, _autoplay_key,
+        use cue_context_section("Autoplay SFX", _cue.markers.autoplay, _autoplay_key,
             None, "file", "A"):
             $ _freq = _cue._pool_ui.get("freq", 1)
             hbox:
