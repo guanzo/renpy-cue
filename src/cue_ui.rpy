@@ -509,7 +509,7 @@ screen cue_overlay_content():
         $ _is_dialogue = bool(_cue.current_dialogue)
 
         # --- Video UI ---
-        if _is_video:
+        if _is_video and not _cue.video_editor.active:
             use cue_section_frame("Video SFX"):
                 $ _vid_name = _cue.current_file if _cue.current_file else "?"
                 text "Video: [_vid_name]" style "cue_txt"
@@ -546,7 +546,16 @@ screen cue_overlay_content():
                         text_style "cue_btn_text"
                         action Function(_cue.vid_manager.seek_frame, 1)
                         tooltip "Seek forward 1 frame (inaccurate)"
-                    
+                
+                    fixed:
+                        ysize 14
+                        xsize 2
+                        add Solid("#555555")
+                    textbutton "Edit Video":
+                        style "cue_btn"
+                        text_style "cue_btn_text"
+                        action Function(_cue.video_editor.open_editor)
+                        tooltip "Change the playback speed of this video file"
                     fixed:
                         ysize 14
                         xsize 2
@@ -669,6 +678,45 @@ screen cue_overlay_content():
                     text "Click the V button in the SFX Library to create a new pool or add to the active pool." style "cue_help"
 
 
+        # --- Video Editor ---
+        if _is_video and _cue.video_editor.active:
+            $ _ved = _cue.video_editor
+            use cue_section_frame("Video Editor"):
+                hbox:
+                    spacing 4
+                    textbutton "<- Back to Video SFX":
+                        style "cue_btn"
+                        text_style "cue_btn_text"
+                        action Function(_cue.video_editor.close_editor)
+                        tooltip "Return to Video SFX"
+                $ _vid_name = _cue.current_file if _cue.current_file else "?"
+                text "Video: [_vid_name]" style "cue_txt"
+                hbox:
+                    spacing 4
+                    text "Speed:" style "cue_txt" size 11
+                    $ _commit = Function(_cue.video_editor.commit_text)
+                    $ _display = _ved.factor_text + "x"
+                    use cue_icon_button("-", Function(_cue.video_editor.nudge, -0.1), "Decrease speed by 0.1x", 18)
+                    use cue_float_input("_cue.video_editor.factor_text", _commit, _display)
+                    use cue_icon_button("+", Function(_cue.video_editor.nudge, 0.1), "Increase speed by 0.1x", 18)
+                    null width 5
+                    textbutton "Apply":
+                        style "cue_btn"
+                        text_style "cue_btn_text"
+                        sensitive not _ved.processing and _ved._ready
+                        action Function(_cue.video_editor.open_apply)
+                        tooltip "Re-encode the video at this speed (original is backed up)"
+                if _ved.has_backup:
+                    textbutton "Restore":
+                        style "cue_btn"
+                        text_style "cue_btn_text"
+                        action Function(_cue.video_editor.open_restore)
+                        tooltip "Restore the original video file from backup"
+                if _ved.last_error:
+                    text _ved.last_error style "cue_txt" size 11 color "#ff6666"
+                elif _ved.has_backup:
+                    text "Speed changed — original backed up. Use Restore to undo." style "cue_txt" size 11 color "#ffcc00"
+
         # --- Image UI ---
         $ _has_image = bool(_cue.current_file) and not _is_video
         if _has_image:
@@ -689,9 +737,6 @@ screen cue_overlay_content():
             use cue_context_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
                 "Dialogue: " + _cue.current_dialogue, "dialogue", "D",
                 "SFX plays when this line of dialogue is displayed.")
-
-        if _cue.scan_error:
-            text "[_cue.scan_error]" style "cue_help" color "#ff6666"
 
         # Loop SFX
         $ _loop_key = create_loop_key(_cue.current_file or "")
@@ -742,7 +787,8 @@ screen cue_overlay_content():
         # Audio file browser
         use cue_section_frame("SFX Library"):
             if not _cue.audio_tree:
-                text "No audio files found in game/[_cue.audio_dir]/.\nPlace .ogg, .mp3, .wav, .opus, or .flac files there and click ⟳ to refresh." style "cue_help"
+                text "[_cue.scan_error]" style "cue_help" color "#ff6666"
+                text "Place .ogg, .mp3, .wav, .opus, or .flac files there and click ⟳ to refresh." style "cue_help"
             else:
                 viewport:
                     xfill True
@@ -1124,6 +1170,51 @@ screen cue_confirm_dialog():
                         Function(_d.hide),
                         _d.on_confirm,
                     ]
+
+
+# Processing dialog: shown while ffmpeg is running. A timer polls
+# _cue.video_editor.poll() on the main thread so all Ren'Py calls stay safe.
+screen cue_speed_processing_dialog():
+    $ _ved = _cue.video_editor
+    $ _pct = int(_ved.progress * 100)
+    key "K_ESCAPE" action Function(_cue.video_editor.cancel_job)
+    timer 0.2 repeat True action [
+        Function(_cue.video_editor.poll),
+        Function(_cue.video_editor._refresh_ui),
+    ]
+
+    button:
+        xpos 500
+        ypos 8
+        padding (16, 8)
+        background "#2a2a2a"
+        hover_background "#2a2a2a"
+        xmaximum 400
+        action NullAction()
+
+        vbox:
+            spacing 8
+            text "Changing Video Speed..." style "cue_hdr"
+            text "Re-encoding with ffmpeg — this can take a while." style "cue_txt"
+            text "The original is backed up and can be restored." style "cue_help"
+            null height 5
+            # Progress bar
+            bar:
+                value VariableValue("_cue.video_editor.progress", range=1.0)
+                xfill True
+                ysize 18
+                left_bar Solid("#007AFF")
+                right_bar Solid("#333333")
+                thumb None
+            text "[_pct]%" style "cue_txt" xalign 0.5
+            null height 5
+            hbox:
+                spacing 8
+                xalign 1.0
+                textbutton "Cancel":
+                    style "cue_btn"
+                    text_style "cue_btn_text"
+                    action Function(_cue.video_editor.cancel_job)
 
 
 init -990 python:

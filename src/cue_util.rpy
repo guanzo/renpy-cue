@@ -178,7 +178,7 @@ init python:
 
         if not results:
             _cue.scan_error = "No audio files found in: {}".format(
-                _cue.audio_dir
+                os.path.normpath(os.path.join(renpy.config.gamedir, _cue.audio_dir))
             )
         else:
             _cue.scan_error = None

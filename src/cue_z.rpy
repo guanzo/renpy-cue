@@ -51,6 +51,9 @@ init -999 python:
     # Repeat pattern dialog state
     _cue.beat = CueBeatManager()
 
+    # Video editor (speed change via ffmpeg)
+    _cue.video_editor = CueVideoEditor()
+
     # UI state
     _cue.is_overlay_visible = False
     _cue.initialized = False
@@ -292,6 +295,8 @@ init python:
         _cue.file_tree.rebuild_tree()
         # Auto-detect everything
         _cue_refresh_context()
+        # Refresh video editor backup state
+        _cue.video_editor.refresh()
         # Show the overlay screen
         renpy.show_screen("cue_overlay", _layer="cue_layer")
         renpy.restart_interaction()
@@ -300,6 +305,7 @@ init python:
     def _cue_hide_overlay():
         _cue.is_overlay_visible = False
         _cue.markers.save_persistent()
+        _cue.video_editor.close_editor()
         renpy.hide_screen("cue_overlay", layer="cue_layer")
 
 
