@@ -91,6 +91,22 @@ init -990 python:
         inside a for loop, where the loop variable must be the last argument."""
         return Function(fn, *(tuple(args_tuple) + (pi,)))
 
+    def _cue_count_file_list_rows(folder_label, folder_children, files):
+        """Estimate visible rows in cue_file_list. Used to decide whether
+        the viewport scroll wrapper (ymaximum 120) is needed."""
+        rows = 0
+        
+        if folder_label is not None:
+            rows += 1  # folder header
+            if _cue.file_tree.expanded_file_refs.get(folder_label, False) and folder_children:
+                rows += len(folder_children)
+        for f in files:
+            rows += 1  # file row or folder-ref header
+            if f.endswith("/"):
+                if _cue.file_tree.expanded_file_refs.get(f, False):
+                    rows += len(_cue_resolve_files([f]))
+        return rows
+
 # Volume row: label + - button + slider bar + + button
 # dec_action/inc_action are pre-built Function() objects — call sites differ
 # in which adjust function they use (master vs pool vs video-pool vs loop).
@@ -225,77 +241,92 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
 # folder_child_remove_fn(trigger_key, pool_index, fi, child_file) is called when
 #   removing a single file from an expanded folder ref (detach operation).
 #   Pass None to hide ✕ on folder children (e.g. for video timestamps).
-screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
-                     trigger_key=None, pool_index=None, folder_child_remove_fn=None,
-                     folder_label=None, folder_children=None):
-    viewport:
-        xfill True
-        ymaximum 120
-        mousewheel True
-        scrollbars "vertical"
-        style_group "cue"
-        vscrollbar_unscrollable "hide"
-        vbox:
-            spacing 2
-            if folder_label is not None:
-                # --- Virtual folder (e.g. preset-backed pool / timestamp) ---
-                $ _is_expanded = _cue.file_tree.expanded_file_refs.get(folder_label, False)
-                $ _count = len(folder_children) if folder_children else 0
+# Inner vbox — extracted so cue_file_list can conditionally wrap it in a viewport.
+screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
+                            trigger_key, pool_index, folder_child_remove_fn,
+                            folder_label, folder_children):
+    vbox:
+        spacing 2
+        if folder_label is not None:
+            # --- Virtual folder (e.g. preset-backed pool / timestamp) ---
+            $ _is_expanded = _cue.file_tree.expanded_file_refs.get(folder_label, False)
+            $ _count = len(folder_children) if folder_children else 0
+            hbox:
+                spacing row_spacing
+                if _is_expanded:
+                    use cue_icon_button("▾", Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
+                else:
+                    use cue_icon_button("▸", Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
+                use cue_icon_button("✕", Function(remove_fn, *remove_args), "Remove preset", None)
+                use cue_icon_button("▶", Function(_cue_preview_sfx, (folder_children or [""])[0], preview_vol), "Preview random file from preset", None)
+                use cue_folder_txt_button(folder_label, Function(_cue.file_tree.toggle_file_ref_expand, folder_label))
+                text "({} files)".format(_count) style "cue_txt" color "#888888" size 10
+            if _is_expanded and folder_children:
+                for _child in folder_children:
+                    hbox:
+                        spacing row_spacing
+                        text "    " style "cue_txt"  # indent
+                        if folder_child_remove_fn is not None:
+                            use cue_icon_button("✕",
+                                Function(folder_child_remove_fn, trigger_key, pool_index, 0, _child),
+                                "Remove file from pool", None)
+                        use cue_icon_button("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
+                        text _child style "cue_txt" color "#ffcc00" size 11
+        for fi, f in enumerate(files):
+            if f.endswith("/"):
+                # --- Folder ref: expandable (matches SFX Library folder UI) ---
+                $ _is_expanded = _cue.file_tree.expanded_file_refs.get(f, False)
+                $ _count = len(_cue_resolve_files([f]))
                 hbox:
                     spacing row_spacing
                     if _is_expanded:
-                        use cue_icon_button("▾", Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
+                        use cue_icon_button("▾", Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
                     else:
-                        use cue_icon_button("▸", Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
-                    use cue_icon_button("✕", Function(remove_fn, *remove_args), "Remove preset", None)
-                    use cue_icon_button("▶", Function(_cue_preview_sfx, (folder_children or [""])[0], preview_vol), "Preview random file from preset", None)
-                    use cue_folder_txt_button(folder_label, Function(_cue.file_tree.toggle_file_ref_expand, folder_label))
+                        use cue_icon_button("▸", Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
+                    use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder ref", None)
+                    use cue_icon_button("▶", Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol), "Preview random file from folder", None)
+                    use cue_folder_txt_button(f, Function(_cue.file_tree.toggle_file_ref_expand, f))
                     text "({} files)".format(_count) style "cue_txt" color "#888888" size 10
-                if _is_expanded and folder_children:
-                    for _child in folder_children:
+                if _is_expanded:
+                    for _child in _cue_resolve_files([f]):
                         hbox:
                             spacing row_spacing
                             text "    " style "cue_txt"  # indent
                             if folder_child_remove_fn is not None:
                                 use cue_icon_button("✕",
-                                    Function(folder_child_remove_fn, trigger_key, pool_index, 0, _child),
-                                    "Remove file from pool", None)
+                                    Function(folder_child_remove_fn, trigger_key, pool_index, fi, _child),
+                                    "Remove file from the folder ref", None)
                             use cue_icon_button("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
-                            text _child style "cue_txt" color "#ffcc00" size 11
-            for fi, f in enumerate(files):
-                if f.endswith("/"):
-                    # --- Folder ref: expandable (matches SFX Library folder UI) ---
-                    $ _is_expanded = _cue.file_tree.expanded_file_refs.get(f, False)
-                    $ _count = len(_cue_resolve_files([f]))
-                    hbox:
-                        spacing row_spacing
-                        if _is_expanded:
-                            use cue_icon_button("▾", Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
-                        else:
-                            use cue_icon_button("▸", Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
-                        use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder ref", None)
-                        use cue_icon_button("▶", Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol), "Preview random file from folder", None)
-                        use cue_folder_txt_button(f, Function(_cue.file_tree.toggle_file_ref_expand, f))
-                        text "({} files)".format(_count) style "cue_txt" color "#888888" size 10
-                    if _is_expanded:
-                        for _child in _cue_resolve_files([f]):
-                            hbox:
-                                spacing row_spacing
-                                text "    " style "cue_txt"  # indent
-                                if folder_child_remove_fn is not None:
-                                    use cue_icon_button("✕",
-                                        Function(folder_child_remove_fn, trigger_key, pool_index, fi, _child),
-                                        "Remove file from the folder ref", None)
-                                use cue_icon_button("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
-                                $ _display = _child[len(f):]  # strip folder ref prefix
-                                text _display style "cue_txt" color "#ffcc00" size 11
-                else:
-                    # --- Regular file ---
-                    hbox:
-                        spacing row_spacing
-                        use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), None, None)
-                        use cue_icon_button("▶", Function(_cue_preview_sfx, f, preview_vol), None, None)
-                        text f style "cue_txt" color "#ffcc00" size 11
+                            $ _display = _child[len(f):]  # strip folder ref prefix
+                            text _display style "cue_txt" color "#ffcc00" size 11
+            else:
+                # --- Regular file ---
+                hbox:
+                    spacing row_spacing
+                    use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), None, None)
+                    use cue_icon_button("▶", Function(_cue_preview_sfx, f, preview_vol), None, None)
+                    text f style "cue_txt" color "#ffcc00" size 11
+
+# Scrollable file list: only wraps in a viewport when content exceeds ~6 rows (120 px).
+screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
+                     trigger_key=None, pool_index=None, folder_child_remove_fn=None,
+                     folder_label=None, folder_children=None):
+    $ _rows = _cue_count_file_list_rows(folder_label, folder_children, files)
+    if _rows > 6:
+        viewport:
+            xfill True
+            ymaximum 120
+            mousewheel True
+            scrollbars "vertical"
+            style_group "cue"
+            vscrollbar_unscrollable "hide"
+            use _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
+                                    trigger_key, pool_index, folder_child_remove_fn,
+                                    folder_label, folder_children)
+    else:
+        use _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
+                                trigger_key, pool_index, folder_child_remove_fn,
+                                folder_label, folder_children)
 
 # Section frame: styled frame + header, with transclude for child content.
 style cue_section_hdr_btn is empty:
