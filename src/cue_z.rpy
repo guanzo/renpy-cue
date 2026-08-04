@@ -149,8 +149,6 @@ init -999 python:
     _cue.confirm_dialog = CueConfirmDialog()
 
 
-    _cue._last_autosave_time = 0
-
     # Audio file cache
     _cue.available_files = []
     _cue.audio_tree = []

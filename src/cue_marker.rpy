@@ -650,6 +650,7 @@ init -999 python:
             self._img_target = 0
             self._dlg_target = 0
             self._loop_target = 0
+            self._last_autosave_time = 0
             self.image = CueImageContext(self)
             self.dialogue = CueDialogueContext(self)
             self.video = CueVideoContext(self)
@@ -1205,10 +1206,10 @@ init -999 python:
             import glob as _glob
 
             now = _time.time()
-            if now - getattr(_cue, '_last_autosave_time', 0) < 300:
+            if now - self._last_autosave_time < 300:
                 return
 
-            _cue._last_autosave_time = now
+            self._last_autosave_time = now
             try:
                 backup_dir = os.path.join(renpy.config.gamedir, _cue.base_dir, "auto_backups")
                 if not os.path.isdir(backup_dir):
