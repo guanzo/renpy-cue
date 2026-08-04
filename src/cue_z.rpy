@@ -213,7 +213,6 @@ init 999 python:
 
         # Use config.overlay_screens for a persistent key-listener
         config.overlay_screens.append("cue_key_listener")
-        _cue_log("INIT: overlay_screens key listener registered")
 
         # Register after_load callback
         def _cue_after_load():
@@ -241,8 +240,9 @@ init 999 python:
 
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
         _cue_load_markers()
+        _cue_scan_audio()
 
-        _cue_log("INIT: callbacks registered")
+        _cue_log("INIT: Done")
         _cue.initialized = True
 
 
