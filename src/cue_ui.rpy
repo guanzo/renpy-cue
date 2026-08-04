@@ -137,7 +137,7 @@ screen cue_vol_row(label_text, dec_action, entry_dict, inc_action):
 # Icon button: tiny button with cue_btn_icon / cue_btn_icon_text styles.
 # Most callers don't need xsize (style default is 14); pass an int to override.
 # Pass tt=None to skip the tooltip.
-screen cue_icon_button(text, action, tt, xsize, enabled=True):
+screen cue_icon_button(text, action, tt=None, xsize=16, enabled=True):
     textbutton text:
         style "cue_btn_icon"
         text_style "cue_btn_icon_text"
@@ -187,8 +187,8 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
     key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
     hbox:
         spacing 3
-        use cue_icon_button("--", dec100_action, "Nudge back 100 ms", 22)
-        use cue_icon_button("-", dec10_action, "Nudge back 10 ms", 18)
+        use cue_icon_button("--", dec100_action, None, 22)
+        use cue_icon_button("-", dec10_action)
 
         if editing:
             input:
@@ -202,8 +202,8 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
                 action [SetLocalVariable("editing", True), Function(_cue.markers.video.sync_text)]
                 tooltip "Click to edit. Press Enter to confirm."
 
-        use cue_icon_button("+", inc10_action, "Nudge forward 10 ms", 18)
-        use cue_icon_button("++", inc100_action, "Nudge forward 100 ms", 22)
+        use cue_icon_button("+", inc10_action)
+        use cue_icon_button("++", inc100_action, None, 22)
 
 # Pool tab row: optional Delete button, + Pool button, numbered tabs [1][2]...
 # tab_action_fn(tab_action_args..., pi) is called when tab pi is clicked.
@@ -688,7 +688,6 @@ screen cue_overlay_content():
                         style "cue_btn"
                         text_style "cue_btn_text"
                         action Function(_cue.video_editor.close_editor)
-                        tooltip "Return to Video SFX"
                 $ _vid_name = _cue.current_file if _cue.current_file else "?"
                 text "Video: [_vid_name]" style "cue_txt"
                 hbox:
@@ -696,9 +695,9 @@ screen cue_overlay_content():
                     text "Speed:" style "cue_txt" size 11
                     $ _commit = Function(_cue.video_editor.commit_text)
                     $ _display = _ved.factor_text + "x"
-                    use cue_icon_button("-", Function(_cue.video_editor.nudge, -0.1), "Decrease speed by 0.1x", 18)
+                    use cue_icon_button("-", Function(_cue.video_editor.nudge, -0.1))
                     use cue_float_input("_cue.video_editor.factor_text", _commit, _display)
-                    use cue_icon_button("+", Function(_cue.video_editor.nudge, 0.1), "Increase speed by 0.1x", 18)
+                    use cue_icon_button("+", Function(_cue.video_editor.nudge, 0.1))
                     null width 5
                     textbutton "Apply":
                         style "cue_btn"
@@ -948,9 +947,9 @@ screen cue_repeat_pattern_dialog():
                     text "Interval (s):" style "cue_txt" size 12
                     $ _commit = Function(_cue.beat.commit_interval)
                     $ _display = _cue.beat.interval_text
-                    use cue_icon_button("-", Function(_cue.beat.nudge_interval, -0.1), "Nudge back 100 ms", 18)
+                    use cue_icon_button("-", Function(_cue.beat.nudge_interval, -0.1))
                     use cue_float_input("_cue.beat.interval_text", _commit, _display)
-                    use cue_icon_button("+", Function(_cue.beat.nudge_interval, 0.1), "Nudge forward 100 ms", 18)
+                    use cue_icon_button("+", Function(_cue.beat.nudge_interval, 0.1))
 
                 hbox:
                     spacing 3
@@ -960,9 +959,9 @@ screen cue_repeat_pattern_dialog():
                     $ _inc = Function(_cue.beat.nudge_count, 1)
                     $ _commit = Function(_cue.beat.commit_count)
                     $ _display = _cue.beat.count_text
-                    use cue_icon_button("-", _dec, "Decrement by 1", 18)
+                    use cue_icon_button("-", _dec)
                     use cue_float_input("_cue.beat.count_text", _commit, _display)
-                    use cue_icon_button("+", _inc, "Increment by 1", 18)
+                    use cue_icon_button("+", _inc)
 
                 $ _preview_label = _cue.beat.preview_text()
                 text _preview_label style "cue_help"
@@ -971,7 +970,6 @@ screen cue_repeat_pattern_dialog():
 
                 hbox:
                     spacing 8
-                    xalign 1.0
                     textbutton "Cancel":
                         style "cue_btn"
                         text_style "cue_btn_text"
@@ -1039,7 +1037,7 @@ screen cue_save_preset_dialog():
 
             hbox:
                 spacing 8
-                xalign 1.0
+                xalign 0.5
                 textbutton "Cancel":
                     style "cue_btn"
                     text_style "cue_btn_text"
@@ -1118,7 +1116,7 @@ screen cue_save_video_preset_dialog():
 
             hbox:
                 spacing 8
-                xalign 1.0
+                xalign 0.5
                 textbutton "Cancel":
                     style "cue_btn"
                     text_style "cue_btn_text"
@@ -1158,7 +1156,7 @@ screen cue_confirm_dialog():
 
             hbox:
                 spacing 8
-                xalign 1.0
+                xalign 0.5
                 textbutton "Cancel":
                     style "cue_btn"
                     text_style "cue_btn_text"
@@ -1210,7 +1208,7 @@ screen cue_speed_processing_dialog():
             null height 5
             hbox:
                 spacing 8
-                xalign 1.0
+                xalign 0.5
                 textbutton "Cancel":
                     style "cue_btn"
                     text_style "cue_btn_text"

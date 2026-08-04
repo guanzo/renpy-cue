@@ -714,6 +714,7 @@ init -999 python:
                 pass
 
             # Store job state (captured at apply time, not read from _current later)
+            self._job_type = "encode"
             self.progress = 0.0
             self._job_cancelled = False
             self._job_vpath = vp
@@ -870,6 +871,7 @@ init -999 python:
             try:
                 if _cue.active_channel:
                     renpy.music.stop(channel=_cue.active_channel, fadeout=0)
+                    _time.sleep(0.5)
             except Exception:
                 pass
 
@@ -896,30 +898,33 @@ init -999 python:
 
             self._job_backup = backup_path
 
-            # Try to swap. On Windows the file may still be locked even
-            # after stop() — retry with a short delay.
-            swapped = False
-            for attempt in range(3):
-                try:
-                    os.remove(fs)
-                    os.rename(tmp, fs)
-                    swapped = True
-                    break
-                except Exception:
-                    if attempt < 2:
-                        _time.sleep(1.0)
-            if not swapped:
-                err = (
-                    "The game still has this video file open. "
-                    "Advance past this video scene, then click Apply again.\n\n"
-                    "(The transcoded file and backup are already saved — "
-                    "the next Apply will reuse them without re-encoding.)"
-                )
-                state = self._ensure_state(vp)
-                state.last_error = self._esc(err)
-                _cue_log("Speed: swap FAILED — file still locked")
-                renpy.restart_interaction()
-                return
+            try:
+                os.remove(fs)
+                os.rename(tmp, fs)
+            except Exception:
+                # File may still be locked — retry with delay
+                swapped = False
+                for _attempt in range(3):
+                    _time.sleep(1.0)
+                    try:
+                        os.remove(fs)
+                        os.rename(tmp, fs)
+                        swapped = True
+                        break
+                    except Exception:
+                        pass
+                if not swapped:
+                    err = (
+                        "The game still has this video file open. "
+                        "Advance past this video scene, then click Apply again.\n\n"
+                        "(The transcoded file and backup are already saved — "
+                        "the next Apply will reuse them without re-encoding.)"
+                    )
+                    state = self._ensure_state(vp)
+                    state.last_error = self._esc(err)
+                    _cue_log("Speed: swap FAILED — file still locked")
+                    renpy.restart_interaction()
+                    return
 
             # Update state for this video
             state = self._ensure_state(vp)
@@ -1011,24 +1016,25 @@ init -999 python:
                 try:
                     if _cue.active_channel:
                         renpy.music.stop(channel=_cue.active_channel, fadeout=0)
+                        _time.sleep(0.5)
                 except Exception:
                     pass
 
-                swapped = False
-                for attempt in range(3):
+                swap_ok = False
+                for _attempt in range(4):
                     try:
                         if os.path.exists(fs):
                             os.remove(fs)
                         os.rename(backup, fs)
-                        swapped = True
+                        swap_ok = True
                         break
                     except Exception:
-                        if attempt < 2:
+                        if _attempt < 3:
                             _time.sleep(1.0)
-                if not swapped:
+                if not swap_ok:
                     self.last_error = self._esc(
-                        "The game still has this video file open. "
-                        "Advance past this video scene, then try Restore again.")
+                        "Cannot restore — the file is still locked. "
+                        "Advance past this video scene and try again.")
                     renpy.restart_interaction()
                     return
 
@@ -1039,11 +1045,13 @@ init -999 python:
 
                 if _cue.is_overlay_visible:
                     _cue.confirm_dialog.show("Original video restored.", NullAction())
-                    
+
                 _cue_log("Speed: restore complete from {}".format(
                     os.path.basename(backup)))
             except Exception as e:
-                self.last_error = self._esc("Restore failed: {}".format(e))
+                self.last_error = self._esc(
+                    "Cannot restore — the file may be locked. "
+                    "Advance past this video scene and try again.")
                 _cue_log("Speed: restore FAILED — {}".format(e))
             renpy.restart_interaction()
 
