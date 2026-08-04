@@ -63,6 +63,48 @@ init python:
         """Return the 2-char prefix of a key ('i:', 'v:', 'd:', or 'l:')."""
         return key[:len(_cue.IMG_KEY_PREFIX)]
 
+    def _cue_unwrap_displayable(name_or_displayable):
+        """Recursively unwrap Transform (.child) and ImageReference (.target)
+        wrappers to find the underlying Image/Movie displayable.
+        Returns the unwrapped displayable, or None if input was None.
+        Guards against reference cycles with a max iteration count."""
+        if isinstance(name_or_displayable, str):
+            d = renpy.displayable(name_or_displayable)
+        else:
+            d = name_or_displayable
+
+        seen = 0
+        while d is not None and seen < 50:
+            if hasattr(d, "child") and d.child is not None:
+                d = d.child
+            elif hasattr(d, "_target") and callable(d._target):
+                try:
+                    resolved = d._target()
+                except Exception:
+                    resolved = None
+                if resolved is None or resolved is d:
+                    break
+                d = resolved
+            elif hasattr(d, "target") and d.target is not None:
+                d = d.target
+            else:
+                break
+            seen += 1
+        return d
+
+
+    def _cue_get_movie_or_image(name_or_displayable):
+        """Given an image tag/name (str) or a displayable object, returns
+        (kind, displayable) where kind is 'movie', 'image', or None if
+        neither could be resolved."""
+
+        d = _cue_unwrap_displayable(name_or_displayable)
+
+        if isinstance(d, renpy.display.video.Movie):
+            return "movie", d
+        if isinstance(d, renpy.display.im.Image):
+            return "image", d
+        return None, d
 
     # --------------------------------------------------------------------------
     # Persistent Data Helpers

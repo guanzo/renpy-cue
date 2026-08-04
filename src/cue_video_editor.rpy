@@ -182,8 +182,6 @@ init -999 python:
 
         @property
         def has_backup(self):
-            _cue_log('backup? = ' + str(self._get_state_or_dummy().has_backup))
-            
             return self._get_state_or_dummy().has_backup
 
         @has_backup.setter
@@ -1415,8 +1413,6 @@ init -999 python:
             """Update has_backup for the current video.
             Called on overlay open and when context changes."""
 
-            #_cue_log("refresh stack:\n" + traceback.format_exc())
-
             vp = self._get_video_vpath()
             
             if vp:
@@ -1443,9 +1439,6 @@ init -999 python:
                 self._probed_fps = 30
             if self.processing:
                 self.last_error = ""
-
-            
-            _cue_log(f'refresh {vp=} {self._ffmpeg_cache=} {fs=}')
 
             renpy.restart_interaction()
 

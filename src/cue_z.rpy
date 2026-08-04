@@ -338,7 +338,11 @@ init python:
         #    During scene transitions the old movie channel may still be playing
         #    even though the master layer has already changed. Pass the expected
         #    filename so _cue_refresh_channel skips channels that don't match.
-        _cue_refresh_channel(prefer_name=top_name)
+        #
+        #   Note, channel operations are async b/c file takes some time to load. 
+        #   Even though top_type is movie, the movie channel may not exist yet.
+        #   So we also refresh_channel in the tick_trigger
+        _cue_refresh_channel(tag=top_name)
 
         _cue.file_tree.rebuild_tree()
 
@@ -477,38 +481,26 @@ init python:
         when name is None (channel movies are not on the master layer).
         """
         try:
+            tags = renpy.get_showing_tags(layer="master")
+            if not tags:
+                return None, None
+
+            # Topmost tag = highest zorder on this layer
             layers = renpy.game.context().scene_lists.layers.get("master", [])
             if not layers:
                 return None, None
-
-            d = layers[-1].displayable
-            unwrap = lambda f, x: (f(f, x.child) if x is not None and hasattr(x, "child") else x)
-            d = unwrap(unwrap, d)
-            if d is None:
+            name = layers[-1].tag
+            if not name:
                 return None, None
 
-            # The wrapper (ImageReference) always has .name; the underlying
-            # displayable (Image / Movie) may be d itself or d.target.
-            name = _cue_top_layer_name(getattr(d, "name", None))
+            d = _cue_unwrap_displayable(name)
 
-            # Movie: check d first ('show expression Movie(...)'), then
-            # d.target ('image foo = Movie(...)' + 'show foo').
-            movie = d if isinstance(d, renpy.display.video.Movie) else getattr(d, "target", None)
-            if isinstance(movie, renpy.display.video.Movie):
-                if name is None:
-                    name = _cue_top_movie_name(movie)
+            if isinstance(d, renpy.display.video.Movie):
                 return name, "movie"
-
-            # Image: check d first, then d.target (ImageReference wrapper).
-            img = d if isinstance(d, renpy.display.im.Image) else getattr(d, "target", None)
-            if isinstance(img, renpy.display.im.Image):
-                if name is None:
-                    name = _cue_top_layer_name(getattr(img, "filename", None))
+            if isinstance(d, renpy.display.im.Image):
                 return name, "image"
 
             # Unknown but named — treat as image context (matches old behavior).
-            if name:
-                return name, "image"
             return None, None
         except Exception as exc:
             _cue_log("TOP-LAYER-ERR {}".format(repr(exc)))
@@ -518,11 +510,11 @@ init python:
     # Channel Detection
     # --------------------------------------------------------------------------
 
-    def _cue_refresh_channel(prefer_name=None):
+    def _cue_refresh_channel(tag=None):
         """Auto-detect the active movie channel. Only finds video (movie) channels.
 
-        When prefer_name is given, only a channel whose playing file basename
-        matches prefer_name will be selected — stale channels from a previous
+        When tag is given, only a channel whose playing file basename
+        matches tag will be selected — stale channels from a previous
         scene that are still winding down are skipped."""
 
         if _cue.__refreshing_channel:
@@ -551,9 +543,9 @@ init python:
                 if old_ch != ch_name:
                     _cue.active_channel = ch_name
                     _cue.vid_manager.channel = ch_name
-                    _cue_log('set new channel ' + ch_name)
                     _cue.vid_manager.reset(ch_name)
                     _cue.vid_manager.set_fps(fps)
+                    _cue.video_editor.refresh()
 
             # Collect all candidate movie channels: (ch_name, ch_obj, path)
             candidates = []
@@ -565,11 +557,10 @@ init python:
                         ch = aaudio.channels.get(ch_name)
                         if ch is None or not getattr(ch, 'movie', False):
                             continue
-                        if renpy.music.is_playing(channel=ch_name):
-                            path = renpy.music.get_playing(channel=ch_name)
-                            dur = renpy.music.get_duration(channel=ch_name)
-                            if path and dur > 0:
-                                candidates.append((ch_name, ch, path))
+                        path = renpy.music.get_playing(channel=ch_name)
+                        dur = renpy.music.get_duration(channel=ch_name)
+                        if path and dur > 0:
+                            candidates.append((ch_name, ch, path))
                     except Exception:
                         pass
             except Exception:
@@ -578,19 +569,18 @@ init python:
             for ch in ["movie", "_movie_1", "_movie_2"]:
                 try:
                     path = renpy.music.get_playing(channel=ch)
-                    if path and path.lower().endswith(video_exts) and renpy.music.is_playing(channel=ch):
+                    if path and path.lower().endswith(video_exts):
                         candidates.append((ch, None, path))
                 except Exception:
                     pass
 
             if candidates:
-                if prefer_name is not None:
+                
+                if tag is not None:
                     # First pass: prefer the channel whose playing file matches
                     for ch_name, ch_obj, path in candidates:
-                        vname = path.replace("\\", "/").rsplit("/", 1)[-1]
-                        _cue_log(f'{vname=} {prefer_name=}')
-                        
-                        if vname == prefer_name:
+                        d = _cue_unwrap_displayable(tag)
+                        if isinstance(d, renpy.display.video.Movie) and path == d._original_play:
                             _apply_channel(ch_name, ch_obj)
                             return
                     # No match — clear, don't fall back to a stale channel
@@ -699,13 +689,10 @@ init python:
 
         # Re-detect the active channel each tick so the CDD time display
         # recovers after rollback (Page Up), which resets active_channel.
-        # Pass the current file as prefer_name so a stale channel from the
+        # Pass the current file as tag so a stale channel from the
         # previous scene is never picked up during movie-to-movie transitions.
         if _cue.top_layer_type == 'movie':
-            _cue_refresh_channel(prefer_name=_cue.current_file)
-        else:
-            _cue.active_channel = None
-            _cue.vid_manager.channel = None
+            _cue_refresh_channel(tag=_cue.current_file)
 
         # Keep paused state in sync (referenced by the UI for play/pause buttons)
         _cue.vid_manager.sync_paused()
