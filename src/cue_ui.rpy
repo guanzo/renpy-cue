@@ -382,7 +382,7 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
                 text _active_label style "cue_txt" size 11
                 null width 5
                 use cue_icon_button("💾", Function(_cue.preset_dialog.open, vol_key, _target), "Save pool as a preset", None)
-                use cue_icon_button("✕", Function(_cue.confirm_dialog.show, "Delete pool?", Function(ctx.remove_pool, _target)), "Delete pool", None)
+                use cue_icon_button("✕", Function(ctx.remove_pool, _target), "Delete pool", None)
                 $ _dec = Function(_cue.volume.adjust, vol_key, -0.1, _target)
                 $ _inc = Function(_cue.volume.adjust, vol_key, 0.1, _target)
                 null width 5
@@ -527,9 +527,8 @@ screen cue_overlay_content():
                         tooltip "Repeat selected markers at regular intervals across the video"
                     $ _has_markers = _cue.markers.video.has_markers()
                     use cue_icon_button("💾", Function(_cue.video_preset_dialog.open), "Save all video markers as a preset", None)
-                    use cue_icon_button("✕", 
-                        Function(_cue.confirm_dialog.show, _cue.markers.video.get_delete_message(), 
-                        Function(_cue.markers.video.remove_selected)) if _has_markers else NullAction(), 
+                    use cue_icon_button("✕",
+                        Function(_cue.markers.video.remove_selected) if _has_markers else NullAction(),
                         "Delete selected markers" if _has_markers else "No markers to delete", None)
                     use cue_icon_button("?", 
                         NullAction(), 
@@ -596,7 +595,7 @@ screen cue_overlay_content():
                         null width 5
 
                         use cue_icon_button("♻", Function(_cue.markers.video.duplicate_pool, _vid_target), "Duplicate timestamp pool", None)
-                        use cue_icon_button("✕", Function(_cue.confirm_dialog.show, "Delete pool?", Function(_cue.markers.video.remove_pool, _vid_target)), "Delete pool", None)
+                        use cue_icon_button("✕", Function(_cue.markers.video.remove_pool, _vid_target), "Delete pool", None)
 
                         # Volume controls
                         $ _vol_target.setdefault("volume", 1.0)
