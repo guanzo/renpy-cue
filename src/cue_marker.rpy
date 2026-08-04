@@ -9,7 +9,7 @@
 #   _cue.markers.loop.add_file(idx)       Pool-based (l: prefix)
 #
 #   _cue.markers[key] / .get(key) / .items()  Dict-like access (backward compat)
-#   _cue.markers.save() / .dump() / .restore()  Persistence
+#   _cue.markers.save_persistent() / .backup_to_file() / .restore_from_file()  Persistence
 #   _cue.markers.copy_context() / .paste_context()  Clipboard
 ###############################################################################
 
@@ -640,7 +640,7 @@ init -999 python:
             _cue.markers["key"]          # dict-like get
             _cue.markers.image.add_file(idx)
             _cue.markers.video.nudge(0.01)
-            _cue.markers.save()
+            _cue.markers.save_persistent()
         """
 
         def __init__(self):
@@ -694,7 +694,7 @@ init -999 python:
             """Save a pool dict as a named preset. Overwrites if name exists."""
             import copy as _copy
             self._presets[name] = _copy.deepcopy(pool_dict)
-            self.save()
+            self.save_persistent()
             _cue_log("CREATE-PRESET name={} files={} vol={:.1f}".format(
                 name, len(pool_dict.get("files", [])), pool_dict.get("volume", _cue.VOL_DEFAULT)))
 
@@ -702,7 +702,7 @@ init -999 python:
             """Delete a preset by name. Markers referencing it will resolve to empty."""
             if name in self._presets:
                 del self._presets[name]
-                self.save()
+                self.save_persistent()
                 _cue_log("DELETE-PRESET name={}".format(name))
 
         def preset_remove_file(self, name, file_path):
@@ -715,7 +715,7 @@ init -999 python:
             # Direct file removal
             if file_path in files:
                 files.remove(file_path)
-                self.save()
+                self.save_persistent()
                 return
             # Check folder refs — detach if the file is inside one
             for fi, f in enumerate(files):
@@ -727,7 +727,7 @@ init -999 python:
                     if file_path in resolved:
                         resolved.remove(file_path)
                     files[fi:fi + 1] = resolved
-                    self.save()
+                    self.save_persistent()
                     return
 
         def get_preset(self, name):
@@ -763,7 +763,7 @@ init -999 python:
                 "volume": entry.get("volume", _cue.VOL_DEFAULT),
                 "source_duration": max(source_dur, 0.0),
             }
-            self.save()
+            self.save_persistent()
             _cue_log("CREATE-VIDEO-PRESET name={} markers={} dur={:.1f}".format(
                 name, len(clean), source_dur))
 
@@ -771,7 +771,7 @@ init -999 python:
             """Delete a video preset by name."""
             if name in self._video_presets:
                 del self._video_presets[name]
-                self.save()
+                self.save_persistent()
                 _cue_log("DELETE-VIDEO-PRESET name={}".format(name))
 
         def get_video_preset(self, name):
@@ -833,7 +833,7 @@ init -999 python:
             self.video.selected = set()
             self.video.sync_text()
             _cue.played_video_keys.clear()
-            self.save()
+            self.save_persistent()
             _cue_log("APPLY-VIDEO-PRESET key={} preset={} markers={} dropped={}".format(
                 vid_key, name, len(new_timestamps), dropped))
 
@@ -915,7 +915,7 @@ init -999 python:
                 files = pools[pool_index].get("files", [])
                 if child_file in files:
                     files.remove(child_file)
-            self.save()
+            self.save_persistent()
 
         def _remove_file_from_preset_ts(self, trigger_key, pool_index, _dummy_fi, child_file):
             """Detach the active video timestamp then remove a specific file by
@@ -933,7 +933,7 @@ init -999 python:
                 files = timestamps[ts_idx].get("files", [])
                 if child_file in files:
                     files.remove(child_file)
-            self.save()
+            self.save_persistent()
 
         def resolve_pool(self, pool):
             """Resolve a pool dict to a ResolvedPool object.
@@ -981,7 +981,7 @@ init -999 python:
                 pool["frequency"] = r.frequency
             if "trigger_on_shake" in preset:
                 pool["trigger_on_shake"] = r.trigger_on_shake
-            self.save()
+            self.save_persistent()
             _cue_log("DETACH-POOL key={} pi={} preset={} files={}".format(
                 trigger_key, pool_index, preset_name, len(r.files)))
             return True
@@ -994,7 +994,7 @@ init -999 python:
             while len(pools) <= pool_index:
                 pools.append({"files": [], "volume": _cue.VOL_DEFAULT})
             pools[pool_index] = {"preset": preset_name}
-            self.save()
+            self.save_persistent()
             _cue_log("STAMP-PRESET key={} pi={} preset={}".format(
                 trigger_key, pool_index, preset_name))
 
@@ -1026,7 +1026,7 @@ init -999 python:
             if file_index >= len(files):
                 return
             self._detach_folder_ref_in_files(files, file_index, child_file)
-            self.save()
+            self.save_persistent()
 
         def _remove_file_from_video_folder_ref(self, trigger_key, ts_index, file_index, child_file):
             """Remove a child file from a folder ref in a video timestamp."""
@@ -1040,7 +1040,7 @@ init -999 python:
             if file_index >= len(files):
                 return
             self._detach_folder_ref_in_files(files, file_index, child_file)
-            self.save()
+            self.save_persistent()
 
         # -- internal helpers (used by context accessors) --
 
@@ -1085,7 +1085,7 @@ init -999 python:
             files = pool.setdefault("files", [])
             if filename not in files:
                 files.append(filename)
-            self.save()
+            self.save_persistent()
 
         def _remove_file_from_pool(self, trigger_key, file_index, pool_index=0):
             """Remove a file from a pool. Prunes empty pools and entries.
@@ -1106,7 +1106,7 @@ init -999 python:
                     pools.pop(pool_index)
                 if not pools:
                     del self._data[trigger_key]
-                self.save()
+                self.save_persistent()
             elif "files" in entry:
                 # Legacy path — l: entries and un-migrated entries
                 files = entry["files"]
@@ -1114,7 +1114,7 @@ init -999 python:
                     files.pop(file_index)
                     if not files:
                         del self._data[trigger_key]
-                    self.save()
+                    self.save_persistent()
 
         def _normalize_all(self):
             """Migrate all legacy i:, d:, and l: entries to pools format.
@@ -1152,7 +1152,7 @@ init -999 python:
 
         # -- persistence --
 
-        def save(self):
+        def save_persistent(self):
             """Persist markers to Ren'Py persistent storage. Automatically
             strips malformed video timestamps before writing."""
             # Sanitize before persisting
@@ -1172,34 +1172,26 @@ init -999 python:
             # Autosave backup to disk (throttled to once per 5 min)
             self._autosave_backup()
 
-        def load(self):
-            """Load markers, presets, and disabled_files from persistent storage.
-            Populates internal state with unwrapped plain Python dicts."""
+        def _populate_config(self, data):
+            """Populate all internal state from a plain data dict.
+            Called by both load() (from persistent) and restore() (from disk)."""
+            self._data = _cue_unwrap_persistent(data.get("markers", {}))
+            self._presets = _cue_unwrap_persistent(data.get("presets", {}))
+            self._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
+            _cue.file_tree.disabled_files = _cue_unwrap_persistent(data.get("disabled_files", []))
+            _cue.triggers_active = data.get("triggers_active", True)
+            self._sanitize_video_timestamps()
+            self._sanitize_video_presets()
+            self._normalize_all()
+
+        def load_persistent(self):
+            """Load markers from persistent storage into internal state."""
             data = getattr(persistent, '_cue_markers', None)
             if data is None:
                 self._data = {}
                 self._video_presets = {}
                 return
-
-            self._data = _cue_unwrap_persistent(data.get("markers", {}))
-            self._presets = _cue_unwrap_persistent(data.get("presets", {}))
-            self._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
-            self._sanitize_video_presets()
-            self._normalize_all()
-
-            _cue.file_tree.disabled_files = python_set(data.get("disabled_files", python_set()))
-            
-            _triggers = data.get("triggers_active", True)
-
-            # Unwrap nested lists from old corrupted saves
-            while isinstance(_triggers, list) and len(_triggers) > 0:
-                _triggers = _triggers[0]
-            _cue.triggers_active = bool(_triggers)
-
-            stripped = self._sanitize_video_timestamps()
-            if stripped:
-                _cue_log("LOAD-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
-
+            self._populate_config(data)
             _cue_log("LOAD-MARKERS total_keys={}".format(len(self._data)))
 
         def _autosave_backup(self):
@@ -1209,24 +1201,30 @@ init -999 python:
             50 copies, deleting older ones.
             """
             import time as _time
+            import json as _json
+            import glob as _glob
+
             now = _time.time()
             if now - getattr(_cue, '_last_autosave_time', 0) < 300:
                 return
+
             _cue._last_autosave_time = now
             try:
-                import json as _json
-                import glob as _glob
                 backup_dir = os.path.join(renpy.config.gamedir, _cue.base_dir, "auto_backups")
                 if not os.path.isdir(backup_dir):
                     os.makedirs(backup_dir)
+
                 # Generate timestamped filename
                 dump_path = os.path.join(backup_dir, "cue_config_{}.json".format(int(now)))
                 data = getattr(persistent, '_cue_markers', None)
+
                 if data is None:
-                    self.save()
+                    self.save_persistent()
                     data = getattr(persistent, '_cue_markers', {})
+
                 with open(dump_path, "w") as f:
                     _json.dump(data, f, indent=2, sort_keys=True)
+
                 # Prune to last 50 backups
                 backups = sorted(_glob.glob(os.path.join(backup_dir, "cue_config_*.json")))
                 if len(backups) > 50:
@@ -1238,27 +1236,31 @@ init -999 python:
             except Exception:
                 pass  # best-effort
 
-        def dump(self):
+        def backup_to_file(self):
             """Dump entire persistent._cue_markers to disk."""
             try:
                 import json as _json
                 dump_dir = os.path.join(renpy.config.gamedir, _cue.base_dir)
+
                 if not os.path.isdir(dump_dir):
                     os.makedirs(dump_dir)
                 dump_path = os.path.join(dump_dir, _cue.config_filename)
                 data = getattr(persistent, '_cue_markers', None)
+
                 if data is None:
-                    self.save()
+                    self.save_persistent()
                     data = getattr(persistent, '_cue_markers', {})
+
                 with open(dump_path, "w") as f:
                     _json.dump(data, f, indent=2, sort_keys=True)
+
                 _cue_log("DUMP-MARKERS total_keys={} path={}".format(
                     len(self._data), _cue.config_filename))
             except Exception as e:
                 _cue_log("DUMP-MARKERS-ERROR {}".format(str(e)))
 
-        def restore(self):
-            """Restore markers from disk, replacing all in-memory data."""
+        def restore_from_file(self):
+            """Restore markers from a disk backup, replacing persistent and in-memory state."""
             try:
                 import json as _json
                 dump_path = _cue.config_path
@@ -1270,17 +1272,9 @@ init -999 python:
                     data = _json.load(f)
 
                 persistent._cue_markers = data
+                self._populate_config(data)
+                self.save_persistent()
 
-                self._data = _cue_unwrap_persistent(data.get("markers", {}))
-                self._presets = _cue_unwrap_persistent(data.get("presets", {}))
-                self._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
-                self._sanitize_video_presets()
-                _cue.file_tree.disabled_files = python_set(data.get("disabled_files", python_set()))
-                _cue.triggers_active = data.get("triggers_active", True)
-
-                self._normalize_all()
-                self.save()
-                
                 _cue_log("RESTORE-MARKERS total_keys={} path={}".format(
                     len(self._data), _cue.config_filename))
             except Exception as e:
@@ -1354,4 +1348,4 @@ init -999 python:
 
             _cue.played_video_keys.clear()
             _cue.loop_states = {}
-            self.save()
+            self.save_persistent()

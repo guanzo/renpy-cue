@@ -496,9 +496,9 @@ screen cue_overlay_content():
             use cue_icon_button("📄", Function(_cue.markers.paste_context), "Paste context config (Shift + 2)", None)
             null width 5
             $ _backup_tooltip = "Backup config to " + _cue.config_filename
-            use cue_icon_button("💾", Function(_cue.markers.dump), _backup_tooltip, None)
+            use cue_icon_button("💾", Function(_cue.markers.backup_to_file), _backup_tooltip, None)
             $ _restore_tooltip = "Restore config from " + _cue.config_filename
-            use cue_icon_button("📂", Function(_cue.markers.restore), _restore_tooltip, None)
+            use cue_icon_button("📂", Function(_cue.markers.restore_from_file), _restore_tooltip, None)
             null width 5
             use cue_icon_button("⏸", Function(renpy.invoke_in_new_context, renpy.pause), "Pause game (F3)", None)
             use cue_icon_button("⟳", [Function(_cue_refresh_context), Function(_cue_scan_audio)], "Refresh overlay", None)
@@ -1180,10 +1180,10 @@ init -990 python:
         if entry is None:
             return
         _cue.markers._detach_video_timestamp(entry, _cue.markers.video.target_pool)
-        _cue.markers.save()
+        _cue.markers.save_persistent()
 
     def _cue_detach_pool_at(trigger_key, pool_index):
         """Detach a pool from its preset reference at the given trigger_key
         and pool_index. Called by the ✕ on a preset folder in cue_file_list."""
         _cue.markers._detach_pool(trigger_key, pool_index)
-        _cue.markers.save()
+        _cue.markers.save_persistent()

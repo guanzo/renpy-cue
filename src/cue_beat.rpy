@@ -118,7 +118,7 @@ init -999 python:
             if new_count > 0:
                 timestamps.sort(key=lambda e: e["time"])
             _cue.markers.video.selected = set()
-            _cue.markers.save()
+            _cue.markers.save_persistent()
 
         def hide(self):
             """Hide the repeat pattern dialog."""

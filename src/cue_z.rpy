@@ -239,7 +239,7 @@ init 999 python:
         config.start_interact_callbacks.append(_cue_start_interact_callback)
 
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
-        _cue.markers.load()
+        _cue.markers.load_persistent()
         _cue_scan_audio()
 
         _cue_log("INIT: Done")
@@ -269,7 +269,7 @@ init python:
         """Toggle active state — when False, no triggers fire. Persisted.
         Called from Ctrl+` key binding and the Active checkbox."""
         _cue.triggers_active = not _cue.triggers_active
-        _cue.markers.save()
+        _cue.markers.save_persistent()
 
 
     def _cue_toggle_shake_trigger():
@@ -280,13 +280,13 @@ init python:
         shake_key = create_img_key(_cue.current_file)
         pool = _cue.markers._ensure_pool(shake_key, _cue.markers._img_target)
         pool["trigger_on_shake"] = not pool.get("trigger_on_shake", False)
-        _cue.markers.save()
+        _cue.markers.save_persistent()
 
 
     def _cue_show_overlay():
         _cue.is_overlay_visible = True
         # Load persisted config
-        _cue.markers.load()
+        _cue.markers.load_persistent()
         # Scan audio on first open (cached thereafter)
         if not _cue.available_files:
             _cue_scan_audio()
@@ -301,7 +301,7 @@ init python:
 
     def _cue_hide_overlay():
         _cue.is_overlay_visible = False
-        _cue.markers.save()
+        _cue.markers.save_persistent()
         renpy.hide_screen("cue_overlay", layer="cue_layer")
 
 
