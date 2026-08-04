@@ -519,7 +519,6 @@ screen cue_overlay_content():
                         spacing 0
                         text "Time: " style "cue_txt"
                         add SelfUpdatingLabel(_cue.vid_manager.time_label, style="cue_txt")
-                    add Solid("#555555") xsize 2 ysize 15
                     hbox:
                         spacing 0
                         text "Frames: " style "cue_txt"
@@ -705,6 +704,12 @@ screen cue_overlay_content():
                         sensitive not _ved.processing and _ved._ready
                         action Function(_cue.video_editor.open_apply)
                         tooltip "Re-encode the video at this speed (original is backed up)"
+                if _ved.get_factor() > 1.0:
+                    $ _interp = _ved._current.interpolate if _ved._current else False
+                    use cue_toggle_btn(_interp, "Smooth motion",
+                        Function(_cue.video_editor.toggle_interpolate),
+                        "Frame interpolation ON — smoother at high speeds, but slower encode",
+                        "Frame interpolation OFF — may look choppy")
                 if _ved.has_backup:
                     textbutton "Restore":
                         style "cue_btn"
@@ -1175,6 +1180,8 @@ screen cue_confirm_dialog():
 screen cue_speed_processing_dialog():
     $ _ved = _cue.video_editor
     $ _pct = int(_ved.progress * 100)
+    $ _elapsed = _ved.get_elapsed()
+    $ _elapsed_str = "{:02d}:{:02d}".format(int(_elapsed // 60), int(_elapsed % 60))
     key "K_ESCAPE" action Function(_cue.video_editor.cancel_job)
     timer 0.2 repeat True action [
         Function(_cue.video_editor.poll),
@@ -1193,6 +1200,8 @@ screen cue_speed_processing_dialog():
         vbox:
             spacing 8
             text "Changing Video Speed..." style "cue_hdr"
+            if _ved._pass_label:
+                text _ved._pass_label style "cue_help"
             text "Re-encoding with ffmpeg — this can take a while." style "cue_txt"
             text "The original is backed up and can be restored." style "cue_help"
             null height 5
@@ -1205,6 +1214,7 @@ screen cue_speed_processing_dialog():
                 right_bar Solid("#333333")
                 thumb None
             text "[_pct]%" style "cue_txt" xalign 0.5
+            text "Elapsed: [_elapsed_str]" style "cue_help" xalign 0.5
             null height 5
             hbox:
                 spacing 8

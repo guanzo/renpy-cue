@@ -22,13 +22,14 @@ init -999 python:
 
     class CueVideoEditorState:
         """Editing state for a single video file."""
-        __slots__ = ("vpath", "factor_text", "has_backup", "last_error")
+        __slots__ = ("vpath", "factor_text", "has_backup", "last_error", "interpolate")
 
         def __init__(self, vpath):
             self.vpath = vpath
             self.factor_text = "1.00"
             self.has_backup = False
             self.last_error = ""
+            self.interpolate = False
 
 
     class CueVideoEditor:
@@ -79,6 +80,8 @@ init -999 python:
             self._ready = False             # True after ffmpeg probe cache is warm
             self.processing = False         # True while ffmpeg is running
             self.progress = 0.0             # 0.0–1.0 encoding progress
+            self._pass_label = ""           # "Pass 1/2 — analyzing..." etc
+            self._start_time = 0            # time.time() when encode started
 
             # --- Job state (one ffmpeg at a time; set by main thread) ---
             self.job_done = False
@@ -342,24 +345,100 @@ init -999 python:
         # Quality flags per encoder — "visually transparent" without
         # ballooning file size or encode time.
         _VIDEO_QUALITY = {
-            "libx264":     ["-crf", "18"],
-            "libx265":     ["-crf", "22"],
-            "libvpx-vp9":  ["-crf", "24", "-b:v", "0"],
-            "libvpx":      ["-crf", "10", "-b:v", "1M"],
-            "mpeg4":       ["-q:v", "3"],
-            "mpeg2video":  ["-q:v", "3"],
-            "libtheora":   ["-q:v", "6"],
-            "h263":        ["-q:v", "3"],
-            "wmv2":        ["-q:v", "3"],
+            "libx264":     ["-crf", "15", "-preset", "slower"],  # near-lossless
+            "libx265":     ["-crf", "18", "-preset", "slower"],  # near-lossless
+            "libvpx-vp9":  ["-crf", "12", "-b:v", "0"],  # near-lossless (0-63)
+            "libvpx":      ["-crf", "4", "-b:v", "0"],    # best possible (4-63)
+            "mpeg4":       ["-q:v", "2"],     # near-lossless (1-31)
+            "mpeg2video":  ["-q:v", "2"],
+            "libtheora":   ["-q:v", "8"],     # near-lossless (0-10, higher=better)
+            "h263":        ["-q:v", "2"],
+            "wmv2":        ["-q:v", "2"],
         }
         _AUDIO_QUALITY = {
-            "aac":         ["-b:a", "256k"],
-            "libopus":     ["-b:a", "192k"],
-            "libvorbis":   ["-q:a", "6"],
-            "libmp3lame":  ["-q:a", "0"],
-            "mp3":         ["-q:a", "0"],
-            "mp2":         ["-b:a", "256k"],
+            "aac":         ["-b:a", "320k"],
+            "libopus":     ["-b:a", "256k"],
+            "libvorbis":   ["-q:a", "8"],
+            "libmp3lame":  ["-q:a", "0"],     # already max
+            "mp3":         ["-q:a", "0"],     # already max
+            "mp2":         ["-b:a", "320k"],
         }
+
+        def _probe_fps(self, fspath):
+            """Probe source video framerate. Returns int fps, default 30."""
+            if not self.ffprobe_available():
+                return 30
+            try:
+                p = _subprocess.Popen(
+                    [self._ffprobe_path, "-v", "error",
+                     "-select_streams", "v:0",
+                     "-show_entries", "stream=r_frame_rate",
+                     "-of", "default=noprint_wrappers=1:nokey=1",
+                     fspath],
+                    stdout=_subprocess.PIPE,
+                    stderr=_subprocess.STDOUT,
+                    creationflags=_CREATIONFLAGS,
+                )
+                out, _ = p.communicate()
+                if isinstance(out, bytes):
+                    out = out.decode("utf-8", errors="replace")
+                rate = out.strip()  # "30/1" or "30000/1001"
+                if "/" in rate:
+                    num, den = rate.split("/", 1)
+                    return int(round(float(num) / float(den)))
+            except Exception:
+                pass
+            return 30
+
+        def _probe_bitrate(self, fspath):
+            """Probe the source video bitrate for quality matching.
+            Returns a string like '6000k' or None if probe fails."""
+            if not self.ffprobe_available():
+                return None
+            bps = None
+            # Try stream bitrate first
+            try:
+                p = _subprocess.Popen(
+                    [self._ffprobe_path, "-v", "error",
+                     "-select_streams", "v:0",
+                     "-show_entries", "stream=bit_rate",
+                     "-of", "default=noprint_wrappers=1:nokey=1",
+                     fspath],
+                    stdout=_subprocess.PIPE,
+                    stderr=_subprocess.STDOUT,
+                    creationflags=_CREATIONFLAGS,
+                )
+                out, _ = p.communicate()
+                if isinstance(out, bytes):
+                    out = out.decode("utf-8", errors="replace")
+                val = out.strip()
+                if val and val != "N/A":
+                    bps = int(val)
+            except Exception:
+                pass
+            # Fall back to format bitrate
+            if not bps:
+                try:
+                    p = _subprocess.Popen(
+                        [self._ffprobe_path, "-v", "error",
+                         "-show_entries", "format=bit_rate",
+                         "-of", "default=noprint_wrappers=1:nokey=1",
+                         fspath],
+                        stdout=_subprocess.PIPE,
+                        stderr=_subprocess.STDOUT,
+                        creationflags=_CREATIONFLAGS,
+                    )
+                    out, _ = p.communicate()
+                    if isinstance(out, bytes):
+                        out = out.decode("utf-8", errors="replace")
+                    val = out.strip()
+                    if val and val != "N/A":
+                        bps = int(val)
+                except Exception:
+                    pass
+            if bps and bps > 0:
+                return "{}k".format(int(bps / 1000))
+            return None
 
         # ==================================================================
         # atempo chain builder
@@ -385,46 +464,122 @@ init -999 python:
         # ffmpeg command builder
         # ==================================================================
 
-        def _build_ffmpeg_cmd(self, fspath, temp_path, speed, vcodec, acodec,
-                              has_audio):
-            """Build the ffmpeg argument list. Returns python_list of args.
+        def _build_ffmpeg_cmds(self, fspath, temp_path, speed, vcodec, acodec,
+                               has_audio, target_bitrate, interpolate=False,
+                               source_fps=30):
+            """Build ffmpeg command(s). Returns python_list of arg lists.
 
-            setpts adjusts video PTS; atempo adjusts audio tempo.
-            Matches input codecs to keep quality as close to original as possible."""
+            For VP8/VP9: 2-pass encoding with probed source bitrate.
+            For other codecs: single pass.
+            setpts adjusts video PTS; atempo adjusts audio tempo."""
 
-            args = [self._ffmpeg_path, "-y",
-                     "-progress", "pipe:1",
-                     "-nostats",
-                     "-loglevel", "error",
-                     "-i", fspath]
+            # Null device for pass 1
+            null_dev = "NUL" if os.name == "nt" else "/dev/null"
 
-            filters = ["[0:v]setpts=PTS/{:.4f}[v]".format(speed)]
+            # Shared filter
+            # Build video filter: setpts, optionally frame interpolation
+            _vf = "setpts=PTS/{:.4f}".format(speed)
+            if interpolate and speed > 1.0:
+                _target_fps = min(60, int(source_fps * speed))
+                _vf += ",minterpolate=fps={}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1".format(_target_fps)
+            filters = ["[0:v]{}[v]".format(_vf)]
             if has_audio:
                 atempo_chain = self._build_atempo(speed)
                 filters.append("[0:a]{}[a]".format(",".join(atempo_chain)))
 
-            args.append("-filter_complex")
-            args.append(";".join(filters))
-
-            args.extend(["-map", "[v]"])
+            # Shared output args (except pass-specific ones)
+            shared = [
+                self._ffmpeg_path, "-y",
+                "-i", fspath,
+                "-filter_complex", ";".join(filters),
+                "-map", "[v]",
+            ]
             if has_audio:
-                args.extend(["-map", "[a]"])
+                shared.extend(["-map", "[a]"])
             else:
-                args.extend(["-an"])
+                shared.extend(["-an"])
 
+            if vcodec:
+                shared.extend(["-c:v", vcodec])
+            if has_audio and acodec:
+                shared.extend(["-c:a", acodec])
+
+            shared.extend(["-vsync", "0",
+                           "-avoid_negative_ts", "make_zero"])
+
+            # Determine if 2-pass (VP8/VP9 with bitrate available)
+            is_vp = vcodec in ("libvpx-vp9", "libvpx")
+            if is_vp and target_bitrate:
+                passlog = temp_path + ".passlog"
+                vq = self._VIDEO_QUALITY.get(vcodec, [])
+                aq = self._AUDIO_QUALITY.get(acodec, [])
+
+                pass1 = [
+                    self._ffmpeg_path, "-y",
+                    "-v", "error",
+                    "-i", fspath,
+                    "-filter_complex", ";".join(filters),
+                    "-map", "[v]",
+                    "-c:v", vcodec,
+                    "-b:v", target_bitrate,
+                    "-quality", "good", "-speed", "4",
+                    "-pass", "1",
+                    "-passlogfile", passlog,
+                    "-an", "-f", "webm", null_dev,
+                ]
+
+                pass2 = [
+                    self._ffmpeg_path, "-y",
+                    "-progress", "pipe:1",
+                    "-nostats",
+                    "-loglevel", "error",
+                    "-i", fspath,
+                    "-filter_complex", ";".join(filters),
+                    "-map", "[v]",
+                ]
+                if has_audio:
+                    pass2.extend(["-map", "[a]"])
+                else:
+                    pass2.extend(["-an"])
+                pass2.extend(["-c:v", vcodec])
+                if has_audio and acodec:
+                    pass2.extend(["-c:a", acodec])
+                pass2.extend([
+                    "-b:v", target_bitrate,
+                    "-quality", "good", "-speed", "1",
+                    "-pass", "2",
+                    "-passlogfile", passlog,
+                    "-vsync", "0",
+                    "-avoid_negative_ts", "make_zero",
+                    temp_path,
+                ])
+
+                _cue_log("2-pass encode: bitrate={}, passlog={}".format(
+                    target_bitrate, passlog))
+                return [pass1, pass2], passlog
+
+            # Single-pass
+            args = [self._ffmpeg_path, "-y",
+                    "-progress", "pipe:1",
+                    "-nostats",
+                    "-loglevel", "error",
+                    "-i", fspath,
+                    "-filter_complex", ";".join(filters)]
+            if has_audio:
+                args.extend(["-map", "[v]", "-map", "[a]"])
+            else:
+                args.extend(["-map", "[v]", "-an"])
             if vcodec:
                 args.extend(["-c:v", vcodec])
                 args.extend(self._VIDEO_QUALITY.get(vcodec, []))
             if has_audio and acodec:
                 args.extend(["-c:a", acodec])
                 args.extend(self._AUDIO_QUALITY.get(acodec, []))
-
             args.extend(["-vsync", "0",
                          "-avoid_negative_ts", "make_zero"])
-
             args.append(temp_path)
-            _cue_log("ffmpeg args: {}".format(" ".join(args)))
-            return args
+            _cue_log("1-pass encode: codec={}".format(vcodec))
+            return [args], None
 
         # ==================================================================
         # RPA extraction
@@ -591,6 +746,19 @@ init -999 python:
                 self._ready = True
             renpy.restart_interaction()
 
+        def get_factor(self):
+            """Parse factor_text to float. Returns 1.0 on failure."""
+            try:
+                return float(self.factor_text)
+            except (ValueError, TypeError):
+                return 1.0
+
+        def toggle_interpolate(self):
+            """Toggle frame interpolation on/off (only relevant for speed > 1x)."""
+            if self._current is not None:
+                self._current.interpolate = not self._current.interpolate
+            renpy.restart_interaction()
+
         def close_editor(self):
             """Return to the normal Video SFX section."""
             self.active = False
@@ -640,7 +808,7 @@ init -999 python:
 
             fs = self._get_video_fspath()
             _cue.confirm_dialog.show(
-                "Set speed of '{}' to {:.2f}x?\n\n"
+                "Set speed of '{}' to {:.2f}x of original speed?\n\n"
                 "The video will be re-encoded with ffmpeg "
                 "(this can take a while). The original is "
                 "backed up and can be restored.".format(
@@ -716,6 +884,7 @@ init -999 python:
             # Store job state (captured at apply time, not read from _current later)
             self._job_type = "encode"
             self.progress = 0.0
+            self._start_time = _time.time()
             self._job_cancelled = False
             self._job_vpath = vp
             self._job_fs_in = fs
@@ -744,10 +913,11 @@ init -999 python:
             Reads -progress pipe:1 line by line to update self.progress.
             All subprocess calls are off the main thread — no game freeze."""
             try:
-                # --- Probe codecs from input file (fast ffprobe calls) ---
+                # --- Probe codecs and bitrate from input file ---
                 vcodec = ""
                 acodec = ""
                 has_audio = True
+                target_bitrate = None
                 if self.ffprobe_available():
                     vc_in, ac_in = self._probe_codecs(input_fs)
                     has_audio = self._probe_has_audio(input_fs)
@@ -755,69 +925,117 @@ init -999 python:
                         vcodec = self._pick_encoder(vc_in, "video") or ""
                     if ac_in and has_audio:
                         acodec = self._pick_encoder(ac_in, "audio") or ""
-                    _cue_log("probed vcodec: {} -> {}, acodec: {} -> {}, audio: {}".format(
-                        vc_in, vcodec, ac_in, acodec, has_audio))
+                    # Probe source bitrate for quality matching
+                    target_bitrate = self._probe_bitrate(input_fs)
+                    _cue_log("probed vcodec: {} -> {}, acodec: {} -> {}, audio: {}, bitrate: {}".format(
+                        vc_in, vcodec, ac_in, acodec, has_audio, target_bitrate))
 
-                # --- Build ffmpeg command ---
-                cmd = self._build_ffmpeg_cmd(
+                # --- Build ffmpeg command(s) ---
+                interpolate = (self._current is not None and self._current.interpolate)
+                source_fps = self._probe_fps(input_fs)
+                cmds, passlog = self._build_ffmpeg_cmds(
                     input_fs, temp_path, factor,
                     vcodec, acodec, has_audio,
+                    target_bitrate,
+                    interpolate=interpolate,
+                    source_fps=source_fps,
                 )
 
-                # --- Run ffmpeg ---
-                self._job_proc = _subprocess.Popen(
-                    cmd,
-                    stdout=_subprocess.PIPE,
-                    stderr=_subprocess.PIPE,
-                    creationflags=_CREATIONFLAGS,
-                )
-                for line in iter(self._job_proc.stdout.readline, b""):
+                # --- Run ffmpeg (1 or 2 passes) ---
+                # Log file next to debug.log for troubleshooting
+                log_path = os.path.join(renpy.config.gamedir, _cue.base_dir, "ffmpeg.log")
+                with open(log_path, "w") as _logf:
+                    _logf.write("cmd: {}\n".format(" ".join(cmds[0])))
+                for pass_idx, cmd in enumerate(cmds):
                     if self._job_cancelled:
                         break
-                    if isinstance(line, bytes):
-                        line_str = line.decode("utf-8", errors="replace").strip()
+                    if len(cmds) > 1:
+                        self._pass_label = "Pass {}/2 — {}".format(
+                            pass_idx + 1,
+                            "analyzing..." if pass_idx == 0 else "encoding...")
                     else:
-                        line_str = str(line).strip()
+                        self._pass_label = ""
+                    self._job_proc = _subprocess.Popen(
+                        cmd,
+                        stdout=_subprocess.PIPE,
+                        stderr=_subprocess.PIPE,
+                        creationflags=_CREATIONFLAGS,
+                    )
+                    all_out = []
+                    for line in iter(self._job_proc.stdout.readline, b""):
+                        if self._job_cancelled:
+                            break
+                        all_out.append(line)
+                        if isinstance(line, bytes):
+                            line_str = line.decode("utf-8", errors="replace").strip()
+                        else:
+                            line_str = str(line).strip()
 
-                    if line_str.startswith("out_time_ms="):
-                        try:
-                            ms = int(line_str.split("=", 1)[1])
-                            if dur_ms > 0:
-                                # Cap at 99% until fully done (ffmpeg may
-                                # still be muxing after encode finishes)
-                                self.progress = min(0.99, float(ms) / float(dur_ms))
-                        except (ValueError, IndexError):
-                            pass
+                        if line_str.startswith("out_time_ms="):
+                            try:
+                                ms = int(line_str.split("=", 1)[1])
+                                if dur_ms > 0:
+                                    self.progress = min(0.99, float(ms) / float(dur_ms))
+                            except (ValueError, IndexError):
+                                pass
 
-                err_out = self._job_proc.stderr.read()
-                self._job_proc.stdout.close()
-                self._job_proc.stderr.close()
-                self._job_proc.wait()
-                rc = self._job_proc.returncode
+                    err_out = self._job_proc.stderr.read()
+                    self._job_proc.stdout.close()
+                    self._job_proc.stderr.close()
+                    rc = self._job_proc.wait()
+
+                    # Append pass output to log
+                    with open(log_path, "a") as _logf:
+                        _logf.write("--- pass {} (rc={}) ---\n".format(pass_idx + 1, rc))
+                        for line in all_out:
+                            if isinstance(line, bytes):
+                                _logf.write(line.decode("utf-8", errors="replace"))
+                            else:
+                                _logf.write(str(line))
+                        if err_out:
+                            _logf.write("\n[stderr]\n")
+                            if isinstance(err_out, bytes):
+                                _logf.write(err_out.decode("utf-8", errors="replace"))
+                            else:
+                                _logf.write(str(err_out))
+                            _logf.write("\n")
+
+                    if self._job_cancelled:
+                        self._kill_job_proc()
+                        break
+                    if rc != 0:
+                        self._kill_job_proc()
+                        self.job_error = "ffmpeg pass {} exited with code {}".format(
+                            pass_idx + 1, rc)
+                        break
+
+                # --- Clean up passlog ---
+                if passlog:
+                    try:
+                        for f in [passlog + "-0.log", passlog + "-1.log"]:
+                            if os.path.exists(f):
+                                os.remove(f)
+                    except Exception:
+                        pass
 
                 if self._job_cancelled:
                     self.job_done = True
                     return
 
-                if isinstance(err_out, bytes):
-                    err_str = err_out.decode("utf-8", errors="replace")
-                else:
-                    err_str = str(err_out) if err_out else ""
-
-                if rc == 0 and os.path.exists(self._job_fs_tmp) and os.path.getsize(self._job_fs_tmp) > 0:
+                # All passes completed with rc=0
+                if not self.job_error and os.path.exists(self._job_fs_tmp) and os.path.getsize(self._job_fs_tmp) > 0:
                     self.job_ok = True
                     self.progress = 1.0
                     _cue_log("Speed worker: ffmpeg succeeded")
-                else:
-                    tail = err_str[-400:] if len(err_str) > 400 else err_str
-                    self.job_error = "ffmpeg exited with code {}: {}".format(rc, tail)
-                    _cue_log("Speed worker: FAILED — {}".format(self.job_error))
+                elif not self.job_error:
+                    self.job_error = "ffmpeg produced no output"
+                    _cue_log("Speed worker: FAILED — no output file")
             except Exception as e:
                 if not self._job_cancelled:
                     self.job_error = "ffmpeg error: {}".format(e)
                     _cue_log("Speed worker: exception — {}".format(e))
             finally:
-                self._job_proc = None
+                self._kill_job_proc()
                 self.job_done = True
 
         def poll(self):
@@ -936,7 +1154,9 @@ init -999 python:
 
             # Only show popup if overlay is visible
             if _cue.is_overlay_visible:
-                msg = "Speed changed to {:.2f}x. Use Restore to undo.".format(self._job_factor)
+                elapsed = _time.time() - self._start_time if self._start_time else 0
+                msg = "Speed changed to {:.2f}x in {:.0f}s. Use Restore to undo.".format(
+                    self._job_factor, elapsed)
                 _cue.confirm_dialog.show(msg, NullAction())
             renpy.restart_interaction()
 
@@ -953,14 +1173,25 @@ init -999 python:
         # Cancel
         # ==================================================================
 
+        def _kill_job_proc(self):
+            """Kill the current ffmpeg process and wait for it. Safe to call
+            from any thread, or when _job_proc is None."""
+            try:
+                if self._job_proc is not None:
+                    p = self._job_proc
+                    p.kill()
+                    try:
+                        p.wait()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            self._job_proc = None
+
         def cancel_job(self):
             """Kill the running ffmpeg process (main thread, called from dialog)."""
             self._job_cancelled = True
-            try:
-                if self._job_proc is not None:
-                    self._job_proc.kill()
-            except Exception:
-                pass
+            self._kill_job_proc()
             _cue_log("Speed: cancel requested")
 
         # ==================================================================
@@ -1064,6 +1295,12 @@ init -999 python:
             self._sync_backup_for_current()
             if self.processing:
                 self.last_error = ""
+
+        def get_elapsed(self):
+            """Seconds since encode started. Returns 0 if not processing."""
+            if self._start_time:
+                return _time.time() - self._start_time
+            return 0.0
 
         def _refresh_ui(self):
             """No-op that triggers a screen redraw for progress text updates."""
