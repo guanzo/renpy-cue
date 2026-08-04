@@ -708,7 +708,7 @@ screen cue_overlay_content():
                     spacing 4
                     text "Speed:" style "cue_txt" size 11
                     $ _commit = Function(_cue.video_editor.commit_text)
-                    $ _display = ("%g" % float(_ved.factor_text)) + "x"
+                    $ _display = "{:.1f}x".format(float(_ved.factor_text))
                     use cue_icon_button("-", Function(_cue.video_editor.nudge, -0.1))
                     use cue_float_input("_cue.video_editor.factor_text", _commit, _display)
                     use cue_icon_button("+", Function(_cue.video_editor.nudge, 0.1))
