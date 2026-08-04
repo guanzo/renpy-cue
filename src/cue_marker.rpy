@@ -1167,6 +1167,7 @@ init -999 python:
                 "video_presets": _cue_unwrap_persistent(self._video_presets),
                 "disabled_files": _cue_unwrap_persistent(_cue.file_tree.disabled_files),
                 "triggers_active": _cue.triggers_active,
+                "interpolate": _cue.video_editor.interpolate,
             })
             persistent._cue_markers = data
 
@@ -1179,8 +1180,11 @@ init -999 python:
             self._data = _cue_unwrap_persistent(data.get("markers", {}))
             self._presets = _cue_unwrap_persistent(data.get("presets", {}))
             self._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
+            
             _cue.file_tree.disabled_files = _cue_unwrap_persistent(data.get("disabled_files", []))
             _cue.triggers_active = data.get("triggers_active", True)
+            _cue.video_editor.interpolate = bool(data.get("interpolate", False))
+            
             self._sanitize_video_timestamps()
             self._sanitize_video_presets()
             self._normalize_all()

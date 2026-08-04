@@ -554,7 +554,7 @@ screen cue_overlay_content():
                         style "cue_btn"
                         text_style "cue_btn_text"
                         action Function(_cue.video_editor.open_editor)
-                        tooltip "Change the playback speed of this video file"
+                        tooltip "Change the playback speed of this video"
                     fixed:
                         ysize 14
                         xsize 2
@@ -705,8 +705,7 @@ screen cue_overlay_content():
                         action Function(_cue.video_editor.open_apply)
                         tooltip "Re-encode the video at this speed (original is backed up)"
                 if _ved.get_factor() > 1.0:
-                    $ _interp = _ved._current.interpolate if _ved._current else False
-                    use cue_toggle_btn(_interp, "Smooth motion",
+                    use cue_toggle_btn(_ved.interpolate, "Smooth motion",
                         Function(_cue.video_editor.toggle_interpolate),
                         "Frame interpolation ON — smoother at high speeds, but slower encode",
                         "Frame interpolation OFF — may look choppy")

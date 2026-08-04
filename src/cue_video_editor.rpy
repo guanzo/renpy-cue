@@ -22,14 +22,13 @@ init -999 python:
 
     class CueVideoEditorState:
         """Editing state for a single video file."""
-        __slots__ = ("vpath", "factor_text", "has_backup", "last_error", "interpolate")
+        __slots__ = ("vpath", "factor_text", "has_backup", "last_error")
 
         def __init__(self, vpath):
             self.vpath = vpath
             self.factor_text = "1.00"
             self.has_backup = False
             self.last_error = ""
-            self.interpolate = False
 
 
     class CueVideoEditor:
@@ -80,6 +79,7 @@ init -999 python:
             self._ready = False             # True after ffmpeg probe cache is warm
             self.processing = False         # True while ffmpeg is running
             self.progress = 0.0             # 0.0–1.0 encoding progress
+            self.interpolate = False        # Global frame interpolation toggle
             self._pass_label = ""           # "Pass 1/2 — analyzing..." etc
             self._start_time = 0            # time.time() when encode started
 
@@ -671,6 +671,10 @@ init -999 python:
                 self._states[vpath] = CueVideoEditorState(vpath)
             return self._states[vpath]
 
+        def _save_interpolate(self):
+            """Persist interpolate setting via the shared markers key."""
+            _cue.markers.save_persistent()
+
         def _state_for_vpath(self, vpath):
             """Return the state for vpath, or None if it doesn't exist."""
             return self._states.get(vpath)
@@ -755,8 +759,8 @@ init -999 python:
 
         def toggle_interpolate(self):
             """Toggle frame interpolation on/off (only relevant for speed > 1x)."""
-            if self._current is not None:
-                self._current.interpolate = not self._current.interpolate
+            self.interpolate = not self.interpolate
+            self._save_interpolate()
             renpy.restart_interaction()
 
         def close_editor(self):
@@ -931,7 +935,7 @@ init -999 python:
                         vc_in, vcodec, ac_in, acodec, has_audio, target_bitrate))
 
                 # --- Build ffmpeg command(s) ---
-                interpolate = (self._current is not None and self._current.interpolate)
+                interpolate = self.interpolate
                 source_fps = self._probe_fps(input_fs)
                 cmds, passlog = self._build_ffmpeg_cmds(
                     input_fs, temp_path, factor,
