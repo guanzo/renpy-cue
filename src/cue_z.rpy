@@ -341,7 +341,9 @@ init python:
             changed += " file:{}->{}".format(old_file, _cue.current_file)
             img_key = create_img_key(_cue.current_file) if _cue.current_file else None
 
-            _cue.loop_states = {} # Clean up stale data
+            # Clean up stale data
+            _cue.loop_states = {} 
+            _cue.played_video_keys.clear()
         if _cue.active_channel != old_video:
             changed += " ch:{}->{}".format(old_video, _cue.active_channel)
         if _cue.current_dialogue != _cue.prev_dialogue:
@@ -773,6 +775,7 @@ init python:
         if _cue.current_file:
             vid_key = create_vid_key(_cue.current_file)
             timestamps = _cue.markers.video.get_markers()
+            
             if timestamps:
                 vid_entry = _cue.markers.get(vid_key)
                 for idx, ts_entry in enumerate(timestamps):
@@ -789,6 +792,7 @@ init python:
                                 vol = _cue.volume.get_effective(vid_entry, vid_key, ts_index=idx)
                                 _cue_play_sfx(f, vid_key, volume=vol)
                                 _cue.played_video_keys.add(ts_key)
+                        
 
         # Detect video loop (markers only, pool uses wall clock)
         if _cue.vid_manager.last_elapsed > 0 and elapsed < _cue.vid_manager.last_elapsed - 0.3:
