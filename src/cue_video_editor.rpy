@@ -14,12 +14,6 @@ init -999 python:
     import threading as _threading
     import time as _time
 
-    # Suppress console window flash on Windows for all ffmpeg/ffprobe calls
-    if os.name == "nt":
-        _CREATIONFLAGS = 0x08000000  # CREATE_NO_WINDOW
-    else:
-        _CREATIONFLAGS = 0
-
     class CueVideoEditorState:
         """Editing state for a single video file."""
         __slots__ = ("vpath", "factor_text", "has_backup", "last_error")
@@ -103,33 +97,6 @@ init -999 python:
         SPEED_MIN = 0.25
         SPEED_MAX = 4.0
 
-        # Codec maps: input codec name -> list of encoders to try in order.
-        # The first encoder that ffmpeg supports will be used.
-        VIDEO_ENCODERS = {
-            "h264": ["libx264"],
-            "vp9": ["libvpx-vp9", "libvpx"],
-            "vp8": ["libvpx", "libvpx-vp9"],
-            "mpeg4": ["mpeg4", "libx264"],
-            "theora": ["libtheora"],
-            "mpeg2video": ["mpeg2video", "mpeg4", "libx264"],
-            "hevc": ["libx265"],
-            "h263": ["h263", "mpeg4"],
-            "wmv2": ["wmv2", "mpeg4"],
-            "wmv3": ["wmv3", "mpeg4"],
-            "vc1": ["vc1", "mpeg4"],
-        }
-
-        AUDIO_ENCODERS = {
-            "aac": ["aac"],
-            "opus": ["libopus"],
-            "vorbis": ["libvorbis"],
-            "mp3": ["libmp3lame", "mp3"],
-            "mp2": ["mp2", "libmp3lame"],
-            "pcm_s16le": ["pcm_s16le"],
-            "pcm_s24le": ["pcm_s24le"],
-            "flac": ["flac"],
-        }
-
         TMP_SUFFIX = "__cue_speed_tmp"
 
         def __init__(self):
@@ -147,11 +114,7 @@ init -999 python:
             self._current_job = None        # CueVideoJob currently processing, or None
             self._next_job_id = 1           # incrementing counter for job_id
 
-            # --- Cached probe data (shared across all states) ---
-            self._ffmpeg_cache = -1         # -1=unchecked, 0=not found, 1=found
-            self._ffmpeg_path = "ffmpeg"
-            self._ffprobe_path = "ffprobe"
-            self._encoder_cache = None      # None=not loaded, set when populated
+            # --- Cached probe data ---
             self._probed_fps = 30           # probed source fps, refreshed in open_editor
 
         @property
@@ -251,394 +214,6 @@ init -999 python:
             self._current.has_backup = self._find_existing_backup(fs) is not None
 
         # ==================================================================
-        # ffmpeg / ffprobe detection
-        # ==================================================================
-
-        def _probe_exe(self, exe_name):
-            """Return True if exe_name is runnable. Called from background thread."""
-            try:
-                p = _subprocess.Popen(
-                    [exe_name, "-version"],
-                    stdout=_subprocess.PIPE,
-                    stderr=_subprocess.STDOUT,
-                    creationflags=_CREATIONFLAGS,
-                )
-                p.communicate()
-                return p.returncode == 0
-            except Exception:
-                return False
-
-        def ffmpeg_available(self):
-            """Check ffmpeg once and cache the result."""
-            if self._ffmpeg_cache != -1:
-                return self._ffmpeg_cache == 1
-            exe = os.environ.get("RENPY_CUE_FFMPEG", "ffmpeg")
-            ok = self._probe_exe(exe)
-            if ok:
-                self._ffmpeg_path = exe
-                self._ffmpeg_cache = 1
-            else:
-                self._ffmpeg_cache = 0
-            return ok
-
-        def ffprobe_available(self):
-            """Check ffprobe once."""
-            exe = os.environ.get("RENPY_CUE_FFPROBE", "ffprobe")
-            if self._probe_exe(exe):
-                self._ffprobe_path = exe
-                return True
-            if self._ffmpeg_path != "ffmpeg":
-                alt = self._ffmpeg_path.replace("ffmpeg", "ffprobe")
-                if self._probe_exe(alt):
-                    self._ffprobe_path = alt
-                    return True
-            return False
-
-        def _load_encoders(self):
-            """Cache the set of available encoders from ffmpeg -encoders output."""
-            if self._encoder_cache is not None:
-                return
-            if not self.ffmpeg_available():
-                self._encoder_cache = set()
-                return
-            self._encoder_cache = set()
-            try:
-                p = _subprocess.Popen(
-                    [self._ffmpeg_path, "-encoders"],
-                    stdout=_subprocess.PIPE,
-                    stderr=_subprocess.STDOUT,
-                    creationflags=_CREATIONFLAGS,
-                )
-                out, _ = p.communicate()
-                if isinstance(out, bytes):
-                    out = out.decode("utf-8", errors="replace")
-                for line in out.split("\n"):
-                    line = line.strip()
-                    if line and line[0] in ("V", "A") and not line.startswith(" ---"):
-                        parts = line.split()
-                        if len(parts) >= 2:
-                            self._encoder_cache.add(parts[1])
-            except Exception:
-                pass
-
-        def _pick_encoder(self, codec_name, category):
-            """Pick an available encoder for the given input codec.
-            category: 'video' or 'audio'. Returns the encoder name or None."""
-            self._load_encoders()
-            maps = self.VIDEO_ENCODERS if category == "video" else self.AUDIO_ENCODERS
-            candidates = maps.get(codec_name, [])
-            for enc in candidates:
-                if enc in self._encoder_cache:
-                    return enc
-            return None
-
-        # ==================================================================
-        # Codec probing (via ffprobe)
-        # ==================================================================
-
-        def _probe_codecs(self, fspath):
-            """Return (video_codec, audio_codec) from ffprobe, or ('', '') on failure."""
-            vc, ac = "", ""
-            if not self.ffprobe_available():
-                return vc, ac
-            try:
-                p = _subprocess.Popen(
-                    [self._ffprobe_path, "-v", "error",
-                     "-select_streams", "v:0",
-                     "-show_entries", "stream=codec_name",
-                     "-of", "default=noprint_wrappers=1:nokey=1",
-                     fspath],
-                    stdout=_subprocess.PIPE,
-                    stderr=_subprocess.STDOUT,
-                    creationflags=_CREATIONFLAGS,
-                )
-                out, _ = p.communicate()
-                if isinstance(out, bytes):
-                    out = out.decode("utf-8", errors="replace")
-                vc = out.strip()
-            except Exception:
-                pass
-            try:
-                p = _subprocess.Popen(
-                    [self._ffprobe_path, "-v", "error",
-                     "-select_streams", "a:0",
-                     "-show_entries", "stream=codec_name",
-                     "-of", "default=noprint_wrappers=1:nokey=1",
-                     fspath],
-                    stdout=_subprocess.PIPE,
-                    stderr=_subprocess.STDOUT,
-                    creationflags=_CREATIONFLAGS,
-                )
-                out, _ = p.communicate()
-                if isinstance(out, bytes):
-                    out = out.decode("utf-8", errors="replace")
-                ac = out.strip()
-            except Exception:
-                pass
-            return vc, ac
-
-        def _probe_has_audio(self, fspath):
-            """Return True if the file has at least one audio stream."""
-            if not self.ffprobe_available():
-                return True
-            try:
-                p = _subprocess.Popen(
-                    [self._ffprobe_path, "-v", "error",
-                     "-select_streams", "a",
-                     "-show_entries", "stream=index",
-                     "-of", "csv=p=0",
-                     fspath],
-                    stdout=_subprocess.PIPE,
-                    stderr=_subprocess.STDOUT,
-                    creationflags=_CREATIONFLAGS,
-                )
-                out, _ = p.communicate()
-                if isinstance(out, bytes):
-                    out = out.decode("utf-8", errors="replace")
-                return bool(out.strip())
-            except Exception:
-                return True
-
-        # Quality flags per encoder — "visually transparent" without
-        # ballooning file size or encode time.
-        _VIDEO_QUALITY = {
-            "libx264":     ["-crf", "15", "-preset", "slower"],  # near-lossless
-            "libx265":     ["-crf", "18", "-preset", "slower"],  # near-lossless
-            "libvpx-vp9":  ["-crf", "12", "-b:v", "0"],  # near-lossless (0-63)
-            "libvpx":      ["-crf", "4", "-b:v", "0"],    # best possible (4-63)
-            "mpeg4":       ["-q:v", "2"],     # near-lossless (1-31)
-            "mpeg2video":  ["-q:v", "2"],
-            "libtheora":   ["-q:v", "8"],     # near-lossless (0-10, higher=better)
-            "h263":        ["-q:v", "2"],
-            "wmv2":        ["-q:v", "2"],
-        }
-        _AUDIO_QUALITY = {
-            "aac":         ["-b:a", "320k"],
-            "libopus":     ["-b:a", "256k"],
-            "libvorbis":   ["-q:a", "8"],
-            "libmp3lame":  ["-q:a", "0"],     # already max
-            "mp3":         ["-q:a", "0"],     # already max
-            "mp2":         ["-b:a", "320k"],
-        }
-
-        def _probe_fps(self, fspath):
-            """Probe source video framerate. Returns int fps, default 30."""
-            if not self.ffprobe_available():
-                return 30
-            try:
-                p = _subprocess.Popen(
-                    [self._ffprobe_path, "-v", "error",
-                     "-select_streams", "v:0",
-                     "-show_entries", "stream=r_frame_rate",
-                     "-of", "default=noprint_wrappers=1:nokey=1",
-                     fspath],
-                    stdout=_subprocess.PIPE,
-                    stderr=_subprocess.STDOUT,
-                    creationflags=_CREATIONFLAGS,
-                )
-                out, _ = p.communicate()
-                if isinstance(out, bytes):
-                    out = out.decode("utf-8", errors="replace")
-                rate = out.strip()  # "30/1" or "30000/1001"
-                if "/" in rate:
-                    num, den = rate.split("/", 1)
-                    return int(round(float(num) / float(den)))
-            except Exception:
-                pass
-            return 30
-
-        def _probe_bitrate(self, fspath):
-            """Probe the source video bitrate for quality matching.
-            Returns a string like '6000k' or None if probe fails."""
-            if not self.ffprobe_available():
-                return None
-            bps = None
-            # Try stream bitrate first
-            try:
-                p = _subprocess.Popen(
-                    [self._ffprobe_path, "-v", "error",
-                     "-select_streams", "v:0",
-                     "-show_entries", "stream=bit_rate",
-                     "-of", "default=noprint_wrappers=1:nokey=1",
-                     fspath],
-                    stdout=_subprocess.PIPE,
-                    stderr=_subprocess.STDOUT,
-                    creationflags=_CREATIONFLAGS,
-                )
-                out, _ = p.communicate()
-                if isinstance(out, bytes):
-                    out = out.decode("utf-8", errors="replace")
-                val = out.strip()
-                if val and val != "N/A":
-                    bps = int(val)
-            except Exception:
-                pass
-            # Fall back to format bitrate
-            if not bps:
-                try:
-                    p = _subprocess.Popen(
-                        [self._ffprobe_path, "-v", "error",
-                         "-show_entries", "format=bit_rate",
-                         "-of", "default=noprint_wrappers=1:nokey=1",
-                         fspath],
-                        stdout=_subprocess.PIPE,
-                        stderr=_subprocess.STDOUT,
-                        creationflags=_CREATIONFLAGS,
-                    )
-                    out, _ = p.communicate()
-                    if isinstance(out, bytes):
-                        out = out.decode("utf-8", errors="replace")
-                    val = out.strip()
-                    if val and val != "N/A":
-                        bps = int(val)
-                except Exception:
-                    pass
-            if bps and bps > 0:
-                return "{}k".format(int(bps / 1000))
-            return None
-
-        # ==================================================================
-        # atempo chain builder
-        # ==================================================================
-
-        @staticmethod
-        def _build_atempo(speed):
-            """Build ffmpeg atempo filter chain for the given speed factor.
-            ffmpeg atempo is limited to [0.5, 2.0] per instance, so we chain
-            multiple filters for speeds outside that range."""
-            f = speed
-            parts = []
-            while f > 2.0:
-                parts.append("atempo=2.0000")
-                f = f / 2.0
-            while f < 0.5:
-                parts.append("atempo=0.5000")
-                f = f / 0.5
-            parts.append("atempo={:.4f}".format(f))
-            return parts
-
-        # ==================================================================
-        # ffmpeg command builder
-        # ==================================================================
-
-        def _build_ffmpeg_cmds(self, fspath, temp_path, speed, vcodec, acodec,
-                               has_audio, target_bitrate, interpolate=False,
-                               source_fps=30):
-            """Build ffmpeg command(s). Returns python_list of arg lists.
-
-            For VP8/VP9: 2-pass encoding with probed source bitrate.
-            For other codecs: single pass.
-            setpts adjusts video PTS; atempo adjusts audio tempo."""
-
-            # Null device for pass 1
-            null_dev = "NUL" if os.name == "nt" else "/dev/null"
-
-            # Shared filter
-            # Build video filter: setpts, optionally frame interpolation
-            _vf = "setpts=PTS/{:.4f}".format(speed)
-            if interpolate and source_fps < 55:
-                _target_fps = min(60, source_fps * 2)
-                _vf += ",minterpolate=fps={}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1".format(_target_fps)
-            filters = ["[0:v]{}[v]".format(_vf)]
-            if has_audio:
-                atempo_chain = self._build_atempo(speed)
-                filters.append("[0:a]{}[a]".format(",".join(atempo_chain)))
-
-            # Shared output args (except pass-specific ones)
-            shared = [
-                self._ffmpeg_path, "-y",
-                "-i", fspath,
-                "-filter_complex", ";".join(filters),
-                "-map", "[v]",
-            ]
-            if has_audio:
-                shared.extend(["-map", "[a]"])
-            else:
-                shared.extend(["-an"])
-
-            if vcodec:
-                shared.extend(["-c:v", vcodec])
-            if has_audio and acodec:
-                shared.extend(["-c:a", acodec])
-
-            shared.extend(["-vsync", "0",
-                           "-avoid_negative_ts", "make_zero"])
-
-            # Determine if 2-pass (VP8/VP9 with bitrate available)
-            is_vp = vcodec in ("libvpx-vp9", "libvpx")
-            if is_vp and target_bitrate:
-                passlog = temp_path + ".passlog"
-                vq = self._VIDEO_QUALITY.get(vcodec, [])
-                aq = self._AUDIO_QUALITY.get(acodec, [])
-
-                pass1 = [
-                    self._ffmpeg_path, "-y",
-                    "-v", "error",
-                    "-i", fspath,
-                    "-filter_complex", ";".join(filters),
-                    "-map", "[v]",
-                    "-c:v", vcodec,
-                    "-b:v", target_bitrate,
-                    "-quality", "good", "-speed", "4",
-                    "-pass", "1",
-                    "-passlogfile", passlog,
-                    "-an", "-f", "webm", null_dev,
-                ]
-
-                pass2 = [
-                    self._ffmpeg_path, "-y",
-                    "-progress", "pipe:1",
-                    "-nostats",
-                    "-loglevel", "error",
-                    "-i", fspath,
-                    "-filter_complex", ";".join(filters),
-                    "-map", "[v]",
-                ]
-                if has_audio:
-                    pass2.extend(["-map", "[a]"])
-                else:
-                    pass2.extend(["-an"])
-                pass2.extend(["-c:v", vcodec])
-                if has_audio and acodec:
-                    pass2.extend(["-c:a", acodec])
-                pass2.extend([
-                    "-b:v", target_bitrate,
-                    "-quality", "good", "-speed", "1",
-                    "-pass", "2",
-                    "-passlogfile", passlog,
-                    "-vsync", "0",
-                    "-avoid_negative_ts", "make_zero",
-                    temp_path,
-                ])
-
-                _cue_log("2-pass encode: bitrate={}, passlog={}".format(
-                    target_bitrate, passlog))
-                return [pass1, pass2], passlog
-
-            # Single-pass
-            args = [self._ffmpeg_path, "-y",
-                    "-progress", "pipe:1",
-                    "-nostats",
-                    "-loglevel", "error",
-                    "-i", fspath,
-                    "-filter_complex", ";".join(filters)]
-            if has_audio:
-                args.extend(["-map", "[v]", "-map", "[a]"])
-            else:
-                args.extend(["-map", "[v]", "-an"])
-            if vcodec:
-                args.extend(["-c:v", vcodec])
-                args.extend(self._VIDEO_QUALITY.get(vcodec, []))
-            if has_audio and acodec:
-                args.extend(["-c:a", acodec])
-                args.extend(self._AUDIO_QUALITY.get(acodec, []))
-            args.extend(["-vsync", "0",
-                         "-avoid_negative_ts", "make_zero"])
-            args.append(temp_path)
-            _cue_log("1-pass encode: codec={}".format(vcodec))
-            return [args], None
-
-        # ==================================================================
         # RPA extraction
         # ==================================================================
 
@@ -713,7 +288,7 @@ init -999 python:
             if not os.access(d, os.W_OK):
                 return ("error", "Video directory is read-only.")
 
-            if not self.ffmpeg_available():
+            if not _cue.ffmpeg.ffmpeg_available():
                 return ("error", "ffmpeg not found. Install ffmpeg and restart the game, or set RENPY_CUE_FFMPEG environment variable.")
 
             return ("ok", "")
@@ -776,9 +351,9 @@ init -999 python:
         def _warm_cache(self):
             """Run ffmpeg/ffprobe probes and load encoder list. Blocking —
             must be called from a background thread, never main."""
-            self.ffmpeg_available()
-            self.ffprobe_available()
-            self._load_encoders()
+            _cue.ffmpeg.ffmpeg_available()
+            _cue.ffmpeg.ffprobe_available()
+            _cue.ffmpeg.load_encoders()
 
         def _warm_tools(self):
             """Background thread entry: warm the probe cache, then flag ready."""
@@ -795,7 +370,7 @@ init -999 python:
         def _probe_fps_bg(self, fspath):
             """Background thread: probe fps and flag done."""
             try:
-                self._probed_fps = self._probe_fps(fspath)
+                self._probed_fps = _cue.ffmpeg.probe_fps(fspath)
             except Exception:
                 self._probed_fps = 30
             # Frame interpolation is useless at >= 55 fps source
@@ -982,21 +557,21 @@ init -999 python:
                 acodec = ""
                 has_audio = True
                 target_bitrate = None
-                if self.ffprobe_available():
-                    vc_in, ac_in = self._probe_codecs(input_fs)
-                    has_audio = self._probe_has_audio(input_fs)
+                if _cue.ffmpeg.ffprobe_available():
+                    vc_in, ac_in = _cue.ffmpeg.probe_codecs(input_fs)
+                    has_audio = _cue.ffmpeg.probe_has_audio(input_fs)
                     if vc_in:
-                        vcodec = self._pick_encoder(vc_in, "video") or ""
+                        vcodec = _cue.ffmpeg.pick_encoder(vc_in, "video") or ""
                     if ac_in and has_audio:
-                        acodec = self._pick_encoder(ac_in, "audio") or ""
+                        acodec = _cue.ffmpeg.pick_encoder(ac_in, "audio") or ""
                     # Probe source bitrate for quality matching
-                    target_bitrate = self._probe_bitrate(input_fs)
+                    target_bitrate = _cue.ffmpeg.probe_bitrate(input_fs)
                     _cue_log("probed vcodec: {} -> {}, acodec: {} -> {}, audio: {}, bitrate: {}".format(
                         vc_in, vcodec, ac_in, acodec, has_audio, target_bitrate))
 
                 # --- Build ffmpeg command(s) ---
                 interpolate = job.interpolate
-                source_fps = self._probe_fps(input_fs)
+                source_fps = _cue.ffmpeg.probe_fps(input_fs)
                 # Total output frames for progress. -vsync 0 preserves frame count
                 # unless minterpolate generates new frames at a different rate.
                 if interpolate and source_fps < 55:
@@ -1005,7 +580,7 @@ init -999 python:
                 else:
                     total_frames = source_fps * (dur_ms / 1000.0)
                 job.total_frames = total_frames
-                cmds, passlog = self._build_ffmpeg_cmds(
+                cmds, passlog = _cue.ffmpeg.build_ffmpeg_cmds(
                     input_fs, temp_path, factor,
                     vcodec, acodec, has_audio,
                     target_bitrate,
@@ -1421,7 +996,7 @@ init -999 python:
                 self._current.last_error = ""
             # Warm ffmpeg/encoder probe cache in background (avoids main-thread
             # freeze when the user clicks Apply later). Only needed once.
-            if self._ffmpeg_cache == -1:
+            if _cue.ffmpeg._ffmpeg_cache == -1:
                 self._ready = False
                 t = _threading.Thread(target=self._warm_tools)
                 t.daemon = True

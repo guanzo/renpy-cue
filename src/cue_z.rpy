@@ -52,6 +52,7 @@ init -999 python:
     _cue.beat = CueBeatManager()
 
     # Video editor (speed change via ffmpeg)
+    _cue.ffmpeg = CueFFmpeg()
     _cue.video_editor = CueVideoEditor()
 
     # UI state
