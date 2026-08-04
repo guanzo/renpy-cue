@@ -75,7 +75,7 @@ init -999 python:
             """Remove all pools for the current context."""
             key = self._key()
             self._mgr.pop(key, None)
-            self._mgr.save()
+            self._mgr.save_persistent()
 
         def add_pool(self):
             """Append a new empty pool and auto-switch to it."""
@@ -86,7 +86,7 @@ init -999 python:
                 "volume": _cue.VOL_DEFAULT,
             })
             self._set_target(len(entry["pools"]) - 1)
-            self._mgr.save()
+            self._mgr.save_persistent()
 
         def remove_pool(self, pool_index):
             """Delete a pool. Removes the entry when no pools remain.
@@ -106,7 +106,7 @@ init -999 python:
                 self._set_target(min(self._get_target(), remaining - 1))
             else:
                 self._set_target(0)
-            self._mgr.save()
+            self._mgr.save_persistent()
 
         def get_active(self):
             """Return the active pool index."""
@@ -132,7 +132,7 @@ init -999 python:
             files = pool.setdefault("files", [])
             if folder_ref not in files:
                 files.append(folder_ref)
-            self._mgr.save()
+            self._mgr.save_persistent()
 
 
     class ResolvedPool:
@@ -279,7 +279,7 @@ init -999 python:
                     return
                 self._append_timestamp(entry, timestamps,
                     {"time": elapsed, "files": [filename]})
-            self._mgr.save()
+            self._mgr.save_persistent()
 
         def remove_file(self, ts_index, file_index):
             """Remove a single file from a timestamp's files list.
@@ -294,7 +294,7 @@ init -999 python:
             if 0 <= file_index < len(files):
                 files.pop(file_index)
                 _cue.played_video_keys.clear()
-                self._mgr.save()
+                self._mgr.save_persistent()
 
         def add_folder(self, folder_path):
             """Add a folder reference to the active timestamp pool.
@@ -319,7 +319,7 @@ init -999 python:
                     return
                 self._append_timestamp(entry, timestamps,
                     {"time": elapsed, "files": [folder_ref]})
-            self._mgr.save()
+            self._mgr.save_persistent()
 
         def clear(self):
             """Remove all video markers for the current context."""
@@ -328,7 +328,7 @@ init -999 python:
             _cue.played_video_keys.clear()
             self.target_pool = 0
             self.selected = set()
-            self._mgr.save()
+            self._mgr.save_persistent()
 
         def add_pool(self):
             """Create a new empty timestamp at the current video position."""
@@ -340,7 +340,7 @@ init -999 python:
             timestamps = entry.setdefault("timestamps", [])
             self._append_timestamp(entry, timestamps,
                 {"time": elapsed, "files": []})
-            self._mgr.save()
+            self._mgr.save_persistent()
 
         def apply_preset(self, preset_name):
             """Stamp a pool preset reference onto a new timestamp at the
@@ -362,7 +362,7 @@ init -999 python:
                 {"time": elapsed, "preset": preset_name})
             self.sync_text()
             _cue.played_video_keys.clear()
-            self._mgr.save()
+            self._mgr.save_persistent()
 
         def remove_pool(self, ts_index):
             """Delete a timestamp pool by index. Clamps target_pool."""
@@ -377,7 +377,7 @@ init -999 python:
                 self.target_pool = min(self.target_pool, len(timestamps) - 1)
             _cue.played_video_keys.clear()
             self.selected = set()
-            self._mgr.save()
+            self._mgr.save_persistent()
 
         def duplicate_pool(self, ts_index):
             """Clone a timestamp with all settings (time, volume, file list).
@@ -397,7 +397,7 @@ init -999 python:
             timestamps.sort(key=lambda e: e["time"])
             self.target_pool = next(i for i, ts in enumerate(timestamps) if ts is clone)
             self.selected = set()
-            self._mgr.save()
+            self._mgr.save_persistent()
 
         def remove_selected(self):
             """Delete selected markers (multi-selection) or the active pool
@@ -417,7 +417,7 @@ init -999 python:
                         self.target_pool = min(self.target_pool, len(timestamps) - 1)
                 _cue.played_video_keys.clear()
                 self.selected = set()
-                self._mgr.save()
+                self._mgr.save_persistent()
             else:
                 # No selection — delegate to per-pool delete
                 self.remove_pool(self.target_pool)
@@ -471,7 +471,7 @@ init -999 python:
             self.edit_text = _cue_format_time(new_time)
             _cue.played_video_keys.clear()
             self.selected = set()
-            self._mgr.save()
+            self._mgr.save_persistent()
 
         def set_time(self, idx, new_time):
             """Write a marker timestamp during drag — no sort/save (done on
@@ -509,7 +509,7 @@ init -999 python:
                 if new_sel:
                     self.target_pool = min(new_sel)
 
-            self._mgr.save()
+            self._mgr.save_persistent()
 
         def sync_text(self):
             """Load the active timestamp's value into the edit text buffer."""
@@ -533,7 +533,7 @@ init -999 python:
                 self._sort_and_track(timestamps, edited_entry)
                 _cue.played_video_keys.clear()
                 self.selected = set()
-                self._mgr.save()
+                self._mgr.save_persistent()
             # Reformat buffer — shows current value, or feedback on parse failure
             self.edit_text = _cue_format_time(timestamps[self.target_pool]["time"])
 
@@ -594,14 +594,14 @@ init -999 python:
                 "frequency": 1,
             })
             self._set_target(len(entry["pools"]) - 1)
-            self._mgr.save()
+            self._mgr.save_persistent()
 
         def clear(self):
             """Remove loop markers for the current context."""
             key = self._key()
             self._mgr.pop(key, None)
             _cue.loop_states.pop(key, None)
-            self._mgr.save()
+            self._mgr.save_persistent()
 
         def set_frequency(self, freq):
             """Set loop frequency for the active pool. 0=Slow, 1=Normal, 2=Fast, 3=Fastest.
@@ -613,7 +613,7 @@ init -999 python:
                 pools = entry.get("pools", [])
                 if pools and 0 <= target < len(pools):
                     pools[target]["frequency"] = int(freq)
-                    self._mgr.save()
+                    self._mgr.save_persistent()
 
         @staticmethod
         def get_delay(frequency=1):
