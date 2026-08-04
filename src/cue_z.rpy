@@ -239,7 +239,7 @@ init 999 python:
         config.start_interact_callbacks.append(_cue_start_interact_callback)
 
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
-        _cue_load_markers()
+        _cue.markers.load()
         _cue_scan_audio()
 
         _cue_log("INIT: Done")
@@ -269,7 +269,7 @@ init python:
         """Toggle active state — when False, no triggers fire. Persisted.
         Called from Ctrl+` key binding and the Active checkbox."""
         _cue.triggers_active = not _cue.triggers_active
-        _cue_save_markers()
+        _cue.markers.save()
 
 
     def _cue_toggle_shake_trigger():
@@ -280,13 +280,13 @@ init python:
         shake_key = create_img_key(_cue.current_file)
         pool = _cue.markers._ensure_pool(shake_key, _cue.markers._img_target)
         pool["trigger_on_shake"] = not pool.get("trigger_on_shake", False)
-        _cue_save_markers()
+        _cue.markers.save()
 
 
     def _cue_show_overlay():
         _cue.is_overlay_visible = True
         # Load persisted config
-        _cue_load_markers()
+        _cue.markers.load()
         # Scan audio on first open (cached thereafter)
         if not _cue.available_files:
             _cue_scan_audio()
@@ -301,7 +301,7 @@ init python:
 
     def _cue_hide_overlay():
         _cue.is_overlay_visible = False
-        _cue_save_markers()
+        _cue.markers.save()
         renpy.hide_screen("cue_overlay", layer="cue_layer")
 
 
@@ -798,40 +798,6 @@ init python:
         if _cue.vid_manager.last_elapsed > 0 and elapsed < _cue.vid_manager.last_elapsed - 0.3:
             _cue.played_video_keys.clear()
         _cue.vid_manager.last_elapsed = elapsed
-
-
-    # --------------------------------------------------------------------------
-    # Persistence
-    # --------------------------------------------------------------------------
-
-    def _cue_save_markers():
-        """Persist markers to Ren'Py persistent storage. Delegates to the manager."""
-        _cue.markers.save()
-
-
-    def _cue_load_markers():
-        """Load markers and disabled_files from persistent storage.
-        Populates the CueMarkerManager with unwrapped plain Python dicts."""
-        data = getattr(persistent, '_cue_markers', None)
-        if data is None:
-            _cue.markers._data = {}
-            _cue.markers._video_presets = {}
-            return
-        _cue.markers._data = _cue_unwrap_persistent(data.get("markers", {}))
-        _cue.markers._presets = _cue_unwrap_persistent(data.get("presets", {}))
-        _cue.markers._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
-        _cue.markers._sanitize_video_presets()
-        _cue.markers._normalize_all()
-        _cue.file_tree.disabled_files = set(data.get("disabled_files", []))
-        _triggers = data.get("triggers_active", True)
-        # Unwrap nested lists from old corrupted saves
-        while isinstance(_triggers, list) and len(_triggers) > 0:
-            _triggers = _triggers[0]
-        _cue.triggers_active = bool(_triggers)
-        stripped = _cue.markers._sanitize_video_timestamps()
-        if stripped:
-            _cue_log("LOAD-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
-        _cue_log("LOAD-MARKERS total_keys={}".format(len(_cue.markers._data)))
 
 
     def _cue_preview_preset(preset_name):

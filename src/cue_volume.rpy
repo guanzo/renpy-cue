@@ -64,7 +64,7 @@ init -999 python:
                 if target is None:
                     target = entry
                 target["volume"] = new_vol
-            _cue_save_markers()
+            _cue.markers.save()
             renpy.restart_interaction()
 
         def adjust(self, trigger_key, delta, pool_index=None):
@@ -93,7 +93,7 @@ init -999 python:
                 return
             new_vol = max(self.VOL_MIN, min(self.VOL_MAX, round(value, 1)))
             entry["volume"] = new_vol
-            _cue_save_markers()
+            _cue.markers.save()
             renpy.restart_interaction()
 
         def adjust_master(self, trigger_key, delta):
@@ -140,5 +140,5 @@ init -999 python:
 
         def on_bar_changed(self):
             """Called after any volume bar is dragged. Saves and refreshes the UI."""
-            _cue_save_markers()
+            _cue.markers.save()
             renpy.restart_interaction()

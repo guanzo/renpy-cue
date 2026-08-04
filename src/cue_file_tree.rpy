@@ -97,7 +97,7 @@ init -999 python:
             else:
                 self.disabled_files.add(full_path)
             self.rebuild_tree()
-            _cue_save_markers()
+            _cue.markers.save()
 
         # ------------------------------------------------------------------
         # Toggle: pool file-list folder refs

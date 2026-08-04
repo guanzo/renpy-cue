@@ -69,9 +69,9 @@ init python:
     # --------------------------------------------------------------------------
 
     def _cue_unwrap_persistent(data):
-        """Recursively convert Ren'Py RevertableDict/RevertableList wrappers
-        to plain Python dict/list. Duck-typing avoids isinstance which fails
-        on wrapped types; json.dumps also fails for the same reason.
+        """Recursively convert Ren'Py RevertableDict/RevertableList/RevertableSet
+        wrappers to plain Python dict/list/set. Duck-typing avoids isinstance
+        which fails on wrapped types; json.dumps also fails for the same reason.
         Strings/basestrings must be guarded — they are iterable."""
         if isinstance(data, (str, bytes)):
             return data
@@ -82,6 +82,9 @@ init python:
             pass
         if hasattr(data, "items") and hasattr(data, "keys"):
             return python_dict((k, _cue_unwrap_persistent(v)) for k, v in data.items())
+        # Set before list — sets are also iterable but have add/discard
+        if hasattr(data, "add") and hasattr(data, "discard"):
+            return python_set(_cue_unwrap_persistent(v) for v in data)
         if hasattr(data, "__iter__"):
             return python_list(_cue_unwrap_persistent(v) for v in data)
         return data

@@ -1164,13 +1164,43 @@ init -999 python:
                 "markers": _cue_unwrap_persistent(self._data),
                 "presets": _cue_unwrap_persistent(self._presets),
                 "video_presets": _cue_unwrap_persistent(self._video_presets),
-                "disabled_files": python_list(_cue.file_tree.disabled_files),
+                "disabled_files": _cue_unwrap_persistent(_cue.file_tree.disabled_files),
                 "triggers_active": _cue.triggers_active,
             })
             persistent._cue_markers = data
 
             # Autosave backup to disk (throttled to once per 5 min)
             self._autosave_backup()
+
+        def load(self):
+            """Load markers, presets, and disabled_files from persistent storage.
+            Populates internal state with unwrapped plain Python dicts."""
+            data = getattr(persistent, '_cue_markers', None)
+            if data is None:
+                self._data = {}
+                self._video_presets = {}
+                return
+
+            self._data = _cue_unwrap_persistent(data.get("markers", {}))
+            self._presets = _cue_unwrap_persistent(data.get("presets", {}))
+            self._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
+            self._sanitize_video_presets()
+            self._normalize_all()
+
+            _cue.file_tree.disabled_files = python_set(data.get("disabled_files", python_set()))
+            
+            _triggers = data.get("triggers_active", True)
+
+            # Unwrap nested lists from old corrupted saves
+            while isinstance(_triggers, list) and len(_triggers) > 0:
+                _triggers = _triggers[0]
+            _cue.triggers_active = bool(_triggers)
+
+            stripped = self._sanitize_video_timestamps()
+            if stripped:
+                _cue_log("LOAD-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
+
+            _cue_log("LOAD-MARKERS total_keys={}".format(len(self._data)))
 
         def _autosave_backup(self):
             """Write a backup copy to disk, throttled to once per 5 minutes.
@@ -1232,20 +1262,25 @@ init -999 python:
             try:
                 import json as _json
                 dump_path = _cue.config_path
+
                 if not os.path.isfile(dump_path):
                     _cue_log("RESTORE-MARKERS-NO-FILE path={}".format(_cue.config_filename))
                     return
                 with open(dump_path, "r") as f:
                     data = _json.load(f)
+
                 persistent._cue_markers = data
+
                 self._data = _cue_unwrap_persistent(data.get("markers", {}))
                 self._presets = _cue_unwrap_persistent(data.get("presets", {}))
                 self._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
                 self._sanitize_video_presets()
-                _cue.file_tree.disabled_files = set(data.get("disabled_files", []))
+                _cue.file_tree.disabled_files = python_set(data.get("disabled_files", python_set()))
                 _cue.triggers_active = data.get("triggers_active", True)
+
                 self._normalize_all()
                 self.save()
+                
                 _cue_log("RESTORE-MARKERS total_keys={} path={}".format(
                     len(self._data), _cue.config_filename))
             except Exception as e:
