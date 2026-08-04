@@ -1183,7 +1183,7 @@ init -999 python:
             
             _cue.file_tree.disabled_files = _cue_unwrap_persistent(data.get("disabled_files", []))
             _cue.triggers_active = data.get("triggers_active", True)
-            _cue.video_editor.interpolate = bool(data.get("interpolate", False))
+            _cue.video_editor.interpolate = bool(data.get("interpolate", True))
             
             self._sanitize_video_timestamps()
             self._sanitize_video_presets()

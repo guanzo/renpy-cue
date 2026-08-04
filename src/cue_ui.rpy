@@ -22,6 +22,9 @@ style cue_btn_text is empty:
     font "DejaVuSans.ttf"
     xalign 0.5
     yalign 0.5
+    xanchor 0.5
+    yanchor 0.5
+    adjust_spacing False
 
 style cue_btn_text_sm is cue_btn_text:
     size 10
@@ -141,6 +144,7 @@ screen cue_icon_button(text, action, tt=None, xsize=16, enabled=True):
     textbutton text:
         style "cue_btn_icon"
         text_style "cue_btn_icon_text"
+        ysize 16
         if xsize is not None:
             xsize xsize
         if tt is not None:
@@ -169,10 +173,12 @@ screen cue_float_input(field_name, commit_action, display_text):
             value VariableInputValue(field_name)
             default True
             xsize 80
+            ysize 16
     else:
         textbutton display_text:
             style "cue_btn"
             text_style "cue_btn_text"
+            ysize 16
             action SetLocalVariable("editing", True)
             tooltip "Click to edit. Press Enter to confirm."
 
@@ -448,11 +454,13 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
 # Toggle textbutton: ☑ label when checked, ☐ when unchecked.
 # on_bg/on_hover/off_bg/off_hover override backgrounds per state (None = style default).
 screen cue_toggle_btn(checked, label, action, tt_on, tt_off,
-                       on_bg=None, on_hover=None, off_bg=None, off_hover=None):
+                       on_bg=None, on_hover=None, off_bg=None, off_hover=None,
+                       enabled=True):
     if checked:
         textbutton "☑ " + label:
             style "cue_btn"
             text_style "cue_btn_text"
+            sensitive enabled
             if on_bg is not None:
                 background on_bg
             if on_hover is not None:
@@ -463,6 +471,7 @@ screen cue_toggle_btn(checked, label, action, tt_on, tt_off,
         textbutton "☐ " + label:
             style "cue_btn"
             text_style "cue_btn_text"
+            sensitive enabled
             if off_bg is not None:
                 background off_bg
             if off_hover is not None:
@@ -683,42 +692,82 @@ screen cue_overlay_content():
             use cue_section_frame("Video Editor"):
                 hbox:
                     spacing 4
-                    textbutton "<- Back to Video SFX":
+                    textbutton "← Back to Video SFX":
                         style "cue_btn"
                         text_style "cue_btn_text"
                         action Function(_cue.video_editor.close_editor)
                 $ _vid_name = _cue.current_file if _cue.current_file else "?"
                 text "Video: [_vid_name]" style "cue_txt"
-                hbox:
-                    spacing 4
-                    text "Speed:" style "cue_txt" size 11
-                    $ _commit = Function(_cue.video_editor.commit_text)
-                    $ _display = _ved.factor_text + "x"
-                    use cue_icon_button("-", Function(_cue.video_editor.nudge, -0.1))
-                    use cue_float_input("_cue.video_editor.factor_text", _commit, _display)
-                    use cue_icon_button("+", Function(_cue.video_editor.nudge, 0.1))
-                    null width 5
-                    textbutton "Apply":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        sensitive not _ved.processing and _ved._ready
-                        action Function(_cue.video_editor.open_apply)
-                        tooltip "Re-encode the video at this speed (original is backed up)"
-                if _ved.get_factor() > 1.0:
-                    use cue_toggle_btn(_ved.interpolate, "Smooth motion",
-                        Function(_cue.video_editor.toggle_interpolate),
-                        "Frame interpolation ON — smoother at high speeds, but slower encode",
-                        "Frame interpolation OFF — may look choppy")
                 if _ved.has_backup:
-                    textbutton "Restore":
+                    textbutton "Restore Original Video":
                         style "cue_btn"
                         text_style "cue_btn_text"
                         action Function(_cue.video_editor.open_restore)
                         tooltip "Restore the original video file from backup"
+                hbox:
+                    spacing 4
+                    text "Speed:" style "cue_txt" size 11
+                    $ _commit = Function(_cue.video_editor.commit_text)
+                    $ _display = ("%g" % float(_ved.factor_text)) + "x"
+                    use cue_icon_button("-", Function(_cue.video_editor.nudge, -0.1))
+                    use cue_float_input("_cue.video_editor.factor_text", _commit, _display)
+                    use cue_icon_button("+", Function(_cue.video_editor.nudge, 0.1))
+                    null width 5
+                hbox:
+                    spacing 4
+                    $ _source_fps = _ved.source_fps
+                    use cue_toggle_btn(_ved.interpolate, "Interpolate Frames",
+                        Function(_cue.video_editor.toggle_interpolate),
+                        "Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to edit.",
+                        "Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to edit.",
+                        enabled=_source_fps > 0 and _source_fps < 55)
+                    if _source_fps < 0:
+                        text "Checking source fps..." style "cue_help" size 10 yalign 0.5
+                    elif _source_fps >= 55:
+                        text "Already {}fps — no interpolation needed".format(_source_fps) style "cue_help" size 10 yalign 0.5
+                    elif _ved.interpolate:
+                        $ _target_fps = min(60, _source_fps * 2)
+                        text "{}fps → {}fps".format(_source_fps, _target_fps) style "cue_help" size 10 yalign 0.5
+                    else:
+                        text "Source: {}fps".format(_source_fps) style "cue_help" size 10 yalign 0.5
+                null height 3
+                textbutton "Create":
+                    style "cue_btn"
+                    text_style "cue_btn_text"
+                    sensitive _ved._ready
+                    action Function(_cue.video_editor.prepare_create)
                 if _ved.last_error:
                     text _ved.last_error style "cue_txt" size 11 color "#ff6666"
-                elif _ved.has_backup:
-                    text "Speed changed — original backed up. Use Restore to undo." style "cue_txt" size 11 color "#ffcc00"
+
+                # --- Edit queue ---
+                if _ved._jobs:
+                    null height 2
+                    add Solid("#555555") ysize 1
+                    timer 0.2 repeat True action [
+                        Function(_cue.video_editor.poll),
+                        Function(_cue.video_editor._refresh_ui),
+                    ]
+                    frame:
+                        background "#222222"
+                        padding (4, 4)
+                        yminimum 0
+                        xfill True
+                        vbox:
+                            spacing 3
+                            text "Edit Queue" style "cue_txt" size 14 bold True
+                            null height 2
+                            for _job in _ved._jobs:
+                                hbox:
+                                    spacing 4
+                                    if _job.status in ("queued", "analyzing", "encoding"):
+                                        use cue_icon_button("✕", Function(_cue.video_editor.cancel_job, _job.job_id), "Cancel job", None)
+                                    else:
+                                        use cue_icon_button("✕", Function(_cue.video_editor.remove_job, _job.job_id), "Remove from queue", None)
+                                    text _job.filename() style "cue_txt" size 11
+                                    text "(" + _job.status_text() + ")" style "cue_txt" size 11
+                                    if _job.status != "queued":
+                                        $ _elapsed = int(_job.elapsed())
+                                        text ("%d:%02d" % (_elapsed // 60, _elapsed % 60)) style "cue_txt" size 11 color "#aaaaaa"
 
         # --- Image UI ---
         $ _has_image = bool(_cue.current_file) and not _is_video
@@ -1172,56 +1221,6 @@ screen cue_confirm_dialog():
                         Function(_d.hide),
                         _d.on_confirm,
                     ]
-
-
-# Processing dialog: shown while ffmpeg is running. A timer polls
-# _cue.video_editor.poll() on the main thread so all Ren'Py calls stay safe.
-screen cue_speed_processing_dialog():
-    $ _ved = _cue.video_editor
-    $ _pct = int(_ved.progress * 100)
-    $ _elapsed = _ved.get_elapsed()
-    $ _elapsed_str = "{:02d}:{:02d}".format(int(_elapsed // 60), int(_elapsed % 60))
-    key "K_ESCAPE" action Function(_cue.video_editor.cancel_job)
-    timer 0.2 repeat True action [
-        Function(_cue.video_editor.poll),
-        Function(_cue.video_editor._refresh_ui),
-    ]
-
-    button:
-        xpos 500
-        ypos 8
-        padding (16, 8)
-        background "#2a2a2a"
-        hover_background "#2a2a2a"
-        xmaximum 400
-        action NullAction()
-
-        vbox:
-            spacing 8
-            text "Changing Video Speed..." style "cue_hdr"
-            if _ved._pass_label:
-                text _ved._pass_label style "cue_help"
-            text "Re-encoding with ffmpeg — this can take a while." style "cue_txt"
-            text "The original is backed up and can be restored." style "cue_help"
-            null height 5
-            # Progress bar
-            bar:
-                value VariableValue("_cue.video_editor.progress", range=1.0)
-                xfill True
-                ysize 18
-                left_bar Solid("#007AFF")
-                right_bar Solid("#333333")
-                thumb None
-            text "[_pct]%" style "cue_txt" xalign 0.5
-            text "Elapsed: [_elapsed_str]" style "cue_help" xalign 0.5
-            null height 5
-            hbox:
-                spacing 8
-                xalign 0.5
-                textbutton "Cancel":
-                    style "cue_btn"
-                    text_style "cue_btn_text"
-                    action Function(_cue.video_editor.cancel_job)
 
 
 init -990 python:

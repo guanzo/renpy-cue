@@ -31,6 +31,67 @@ init -999 python:
             self.last_error = ""
 
 
+    class CueVideoJob:
+        """One ffmpeg encode job in the queue."""
+        __slots__ = ("job_id", "vpath", "fspath_in", "fspath_tmp", "backup_path",
+                     "factor", "status", "progress", "error_msg",
+                     "start_time", "end_time",
+                     "total_frames", "passlog", "cancelled", "proc",
+                     "interpolate", "_done", "_ok")
+
+        def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, interpolate):
+            self.job_id = job_id
+            self.vpath = vpath
+            self.fspath_in = fspath_in
+            self.fspath_tmp = fspath_tmp
+            self.factor = factor
+            self.interpolate = interpolate
+            self.status = "queued"      # queued | analyzing | encoding | done | error
+            self.progress = 0.0
+            self.error_msg = ""
+            self.start_time = 0.0
+            self.end_time = 0.0
+            self.total_frames = 0
+            self.passlog = None
+            self.cancelled = False
+            self.proc = None            # Popen handle (set by worker thread)
+            self.backup_path = None     # set after successful finalize
+            self._done = False          # worker sets True when finished
+            self._ok = False            # True if ffmpeg exited 0 and output exists
+
+        def elapsed(self):
+            if not self.start_time:
+                return 0.0
+            if self.status in ("done", "error") and self.end_time:
+                return self.end_time - self.start_time
+            return _time.time() - self.start_time
+
+        def status_text(self):
+            if self.status == "queued":
+                return "Queued"
+            if self.status == "analyzing":
+                return "Analyzing"
+            if self.status == "encoding":
+                _pct = int(self.progress * 100)
+                return "Encoding {}%".format(_pct)
+            if self.status == "done":
+                return "Done"
+            if self.status == "error":
+                msg = self.error_msg or "Unknown error"
+                if msg == "Cancelled":
+                    return "Cancelled"
+                if len(msg) > 40:
+                    msg = msg[:40] + "..."
+                return "Error: {}".format(msg)
+            return self.status
+
+        def filename(self):
+            """Basename of the input file for display."""
+            if self.fspath_in:
+                return os.path.basename(self.fspath_in)
+            return "?"
+
+
     class CueVideoEditor:
         """Change the playback speed of the currently-playing video.
 
@@ -69,6 +130,8 @@ init -999 python:
             "flac": ["flac"],
         }
 
+        TMP_SUFFIX = "__cue_speed_tmp"
+
         def __init__(self):
             # --- Per-video state ---
             self._states = {}               # vpath -> CueVideoEditorState
@@ -77,29 +140,23 @@ init -999 python:
             # --- UI flags (flat — not per-video) ---
             self.active = False             # True when Video Editor section is shown
             self._ready = False             # True after ffmpeg probe cache is warm
-            self.processing = False         # True while ffmpeg is running
-            self.progress = 0.0             # 0.0–1.0 encoding progress
-            self.interpolate = False        # Global frame interpolation toggle
-            self._pass_label = ""           # "Pass 1/2 — analyzing..." etc
-            self._start_time = 0            # time.time() when encode started
+            self.interpolate = True         # Global frame interpolation toggle
 
-            # --- Job state (one ffmpeg at a time; set by main thread) ---
-            self.job_done = False
-            self.job_ok = False
-            self.job_error = ""
-            self._job_proc = None           # Popen handle for Cancel
-            self._job_cancelled = False
-            self._job_vpath = None          # vpath captured at apply time
-            self._job_fs_in = None
-            self._job_fs_tmp = None
-            self._job_backup = None
-            self._job_factor = 1.0
+            # --- Job queue ---
+            self._jobs = []                 # list of CueVideoJob
+            self._current_job = None        # CueVideoJob currently processing, or None
+            self._next_job_id = 1           # incrementing counter for job_id
 
             # --- Cached probe data (shared across all states) ---
             self._ffmpeg_cache = -1         # -1=unchecked, 0=not found, 1=found
             self._ffmpeg_path = "ffmpeg"
             self._ffprobe_path = "ffprobe"
             self._encoder_cache = None      # None=not loaded, set when populated
+            self._probed_fps = 30           # probed source fps, refreshed in open_editor
+
+        @property
+        def processing(self):
+            return self._current_job is not None
 
         # ==================================================================
         # Properties — delegate to _current state so UI code Just Works
@@ -125,6 +182,8 @@ init -999 python:
 
         @property
         def has_backup(self):
+            _cue_log('backup? = ' + str(self._get_state_or_dummy().has_backup))
+            
             return self._get_state_or_dummy().has_backup
 
         @has_backup.setter
@@ -479,8 +538,8 @@ init -999 python:
             # Shared filter
             # Build video filter: setpts, optionally frame interpolation
             _vf = "setpts=PTS/{:.4f}".format(speed)
-            if interpolate and speed > 1.0:
-                _target_fps = min(60, int(source_fps * speed))
+            if interpolate and source_fps < 55:
+                _target_fps = min(60, source_fps * 2)
                 _vf += ",minterpolate=fps={}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1".format(_target_fps)
             filters = ["[0:v]{}[v]".format(_vf)]
             if has_audio:
@@ -731,24 +790,26 @@ init -999 python:
                 pass
             self._ready = True
 
+        @property
+        def source_fps(self):
+            return self._probed_fps
+
+        def _probe_fps_bg(self, fspath):
+            """Background thread: probe fps and flag done."""
+            try:
+                self._probed_fps = self._probe_fps(fspath)
+            except Exception:
+                self._probed_fps = 30
+            # Frame interpolation is useless at >= 55 fps source
+            if self._probed_fps >= 55:
+                self.interpolate = False
+            renpy.restart_interaction()
+
         def open_editor(self):
             """Show the Video Editor section, loading state for current video."""
-            vp = self._get_video_vpath()
-            if vp:
-                self._current = self._ensure_state(vp)
-                self._sync_backup_for_current()
-                self._current.last_error = ""
             self.active = True
-            # Warm ffmpeg/encoder probe cache in background (avoids main-thread
-            # freeze when the user clicks Apply later). Only needed once.
-            if self._ffmpeg_cache == -1:
-                self._ready = False
-                t = _threading.Thread(target=self._warm_tools)
-                t.daemon = True
-                t.start()
-            else:
-                self._ready = True
-            renpy.restart_interaction()
+            self.refresh()
+            
 
         def get_factor(self):
             """Parse factor_text to float. Returns 1.0 on failure."""
@@ -773,7 +834,7 @@ init -999 python:
         # Apply flow
         # ==================================================================
 
-        def open_apply(self):
+        def prepare_create(self):
             """Pre-flight check then show confirmation dialog (main thread)."""
             if not self._ready:
                 self.last_error = "Checking ffmpeg — try again in a moment."
@@ -788,15 +849,7 @@ init -999 python:
                 return
 
             if status == "rpa":
-                vp = self._get_video_vpath()
-                _cue.confirm_dialog.show(
-                    "The video '{}' is inside an .rpa archive.\n"
-                    "Extract it to disk so we can change its speed?\n\n"
-                    "(This copies the file to the real filesystem — "
-                    "you can delete it later to restore the archive version.)".format(
-                        os.path.basename(vp) if vp else "?"),
-                    Function(self._extract_then_apply),
-                )
+                self._extract_then_create()
                 return
 
             try:
@@ -805,23 +858,16 @@ init -999 python:
                 factor = 1.0
             factor = max(self.SPEED_MIN, min(self.SPEED_MAX, factor))
 
-            if abs(factor - 1.0) < 0.001:
+            if abs(factor - 1.0) < 0.001 and not self.interpolate:
                 self.last_error = "Speed is already 1.00x."
                 renpy.restart_interaction()
                 return
 
             fs = self._get_video_fspath()
-            _cue.confirm_dialog.show(
-                "Set speed of '{}' to {:.2f}x of original speed?\n\n"
-                "The video will be re-encoded with ffmpeg "
-                "(this can take a while). The original is "
-                "backed up and can be restored.".format(
-                    os.path.basename(fs), factor),
-                Function(self.apply, factor),
-            )
+            self.create(factor)
 
-        def _extract_then_apply(self):
-            """Callback after user confirms RPA extraction. Extract first, then apply."""
+        def _extract_then_create(self):
+            """Callback after user confirms RPA extraction. Extract first, then create."""
             self.last_error = ""
             ok, msg = self.extract_from_rpa()
             if ok == "error":
@@ -842,17 +888,10 @@ init -999 python:
             factor = max(self.SPEED_MIN, min(self.SPEED_MAX, factor))
 
             fs = self._get_video_fspath()
-            _cue.confirm_dialog.show(
-                "Extracted! Set speed of '{}' to {:.2f}x?".format(
-                    os.path.basename(fs), factor),
-                Function(self.apply, factor),
-            )
+            self.create(factor)
 
-        def apply(self, factor):
-            """Start the ffmpeg worker thread (main thread, called from confirm)."""
-            if self.processing:
-                return
-
+        def create(self, factor):
+            """Enqueue a speed-change job (main thread)."""
             vp = self._get_video_vpath()
             fs = self._get_video_fspath()
             if not fs:
@@ -866,7 +905,7 @@ init -999 python:
                 ext = ".webm"
             temp_path = os.path.join(
                 os.path.dirname(fs),
-                "{}__cue_speed_tmp{}".format(base, ext),
+                "{}{}{}".format(base, self.TMP_SUFFIX, ext),
             )
 
             # Always transcode from the backup (pristine original) if it
@@ -878,6 +917,43 @@ init -999 python:
             else:
                 input_fs = fs
 
+            # Create job and add to queue
+            job_id = self._next_job_id
+            self._next_job_id += 1
+            job = CueVideoJob(job_id, vp, input_fs, temp_path, factor, self.interpolate)
+            self._jobs.append(job)
+
+            _cue_log("Speed job queued: id={}, factor={:.2f}, file={}".format(
+                job_id, factor, os.path.basename(fs)))
+            self._start_if_idle()
+            renpy.restart_interaction()
+
+        def _find_job(self, job_id):
+            """Return the CueVideoJob with job_id, or None."""
+            for j in self._jobs:
+                if j.job_id == job_id:
+                    return j
+            return None
+
+        def _start_if_idle(self):
+            """If no job is currently processing, start the next queued one."""
+            if self._current_job is None:
+                self._start_next_job()
+
+        def _start_next_job(self):
+            """Pick the first queued job and start its worker thread."""
+            job = None
+            for j in self._jobs:
+                if j.status == "queued":
+                    job = j
+                    break
+            if job is None:
+                return
+
+            self._current_job = job
+            job.start_time = _time.time()
+            job.status = "analyzing"
+
             # Capture duration for progress (fast — no subprocess)
             dur_ms = 0
             try:
@@ -885,37 +961,23 @@ init -999 python:
             except Exception:
                 pass
 
-            # Store job state (captured at apply time, not read from _current later)
-            self._job_type = "encode"
-            self.progress = 0.0
-            self._start_time = _time.time()
-            self._job_cancelled = False
-            self._job_vpath = vp
-            self._job_fs_in = fs
-            self._job_fs_tmp = temp_path
-            self._job_backup = None     # backup is created after ffmpeg succeeds
-            self._job_factor = factor
-            self.job_ok = False
-            self.job_done = False
-            self.job_error = ""
-            self.processing = True
-
-            # Worker does all subprocess work (ffprobe probes + ffmpeg encode)
-            # in a background thread so the main thread never freezes.
-            renpy.show_screen("cue_speed_processing_dialog", _layer="cue_layer")
             t = _threading.Thread(
                 target=self._worker,
-                args=(input_fs, temp_path, factor, dur_ms),
+                args=(job, dur_ms),
             )
             t.daemon = True
             t.start()
-            _cue_log("Speed worker started: factor={:.2f}, file={}".format(
-                factor, os.path.basename(fs)))
+            _cue_log("Speed worker started: job_id={}, factor={:.2f}, file={}".format(
+                job.job_id, job.factor, os.path.basename(job.fspath_in)))
+            renpy.restart_interaction()
 
-        def _worker(self, input_fs, temp_path, factor, dur_ms):
+        def _worker(self, job, dur_ms):
             """Background thread: probe codecs, build command, run ffmpeg.
-            Reads -progress pipe:1 line by line to update self.progress.
+            Reads -progress pipe:1 line by line to update job.progress.
             All subprocess calls are off the main thread — no game freeze."""
+            input_fs = job.fspath_in
+            temp_path = job.fspath_tmp
+            factor = job.factor
             try:
                 # --- Probe codecs and bitrate from input file ---
                 vcodec = ""
@@ -935,8 +997,16 @@ init -999 python:
                         vc_in, vcodec, ac_in, acodec, has_audio, target_bitrate))
 
                 # --- Build ffmpeg command(s) ---
-                interpolate = self.interpolate
+                interpolate = job.interpolate
                 source_fps = self._probe_fps(input_fs)
+                # Total output frames for progress. -vsync 0 preserves frame count
+                # unless minterpolate generates new frames at a different rate.
+                if interpolate and source_fps < 55:
+                    _out_fps = min(60, source_fps * 2)
+                    total_frames = _out_fps * (dur_ms / 1000.0) / factor
+                else:
+                    total_frames = source_fps * (dur_ms / 1000.0)
+                job.total_frames = total_frames
                 cmds, passlog = self._build_ffmpeg_cmds(
                     input_fs, temp_path, factor,
                     vcodec, acodec, has_audio,
@@ -944,6 +1014,7 @@ init -999 python:
                     interpolate=interpolate,
                     source_fps=source_fps,
                 )
+                job.passlog = passlog
 
                 # --- Run ffmpeg (1 or 2 passes) ---
                 # Log file next to debug.log for troubleshooting
@@ -951,23 +1022,20 @@ init -999 python:
                 with open(log_path, "w") as _logf:
                     _logf.write("cmd: {}\n".format(" ".join(cmds[0])))
                 for pass_idx, cmd in enumerate(cmds):
-                    if self._job_cancelled:
+                    if job.cancelled:
                         break
-                    if len(cmds) > 1:
-                        self._pass_label = "Pass {}/2 — {}".format(
-                            pass_idx + 1,
-                            "analyzing..." if pass_idx == 0 else "encoding...")
-                    else:
-                        self._pass_label = ""
-                    self._job_proc = _subprocess.Popen(
+                    if len(cmds) == 1 or pass_idx > 0:
+                        job.status = "encoding"
+                    job.progress = 0.0
+                    job.proc = _subprocess.Popen(
                         cmd,
                         stdout=_subprocess.PIPE,
                         stderr=_subprocess.PIPE,
                         creationflags=_CREATIONFLAGS,
                     )
                     all_out = []
-                    for line in iter(self._job_proc.stdout.readline, b""):
-                        if self._job_cancelled:
+                    for line in iter(job.proc.stdout.readline, b""):
+                        if job.cancelled:
                             break
                         all_out.append(line)
                         if isinstance(line, bytes):
@@ -975,18 +1043,18 @@ init -999 python:
                         else:
                             line_str = str(line).strip()
 
-                        if line_str.startswith("out_time_ms="):
+                        if line_str.startswith("frame="):
                             try:
-                                ms = int(line_str.split("=", 1)[1])
-                                if dur_ms > 0:
-                                    self.progress = min(0.99, float(ms) / float(dur_ms))
+                                _frame = int(line_str.split("=", 1)[1])
+                                if total_frames > 0:
+                                    job.progress = min(1.0, float(_frame) / total_frames)
                             except (ValueError, IndexError):
                                 pass
 
-                    err_out = self._job_proc.stderr.read()
-                    self._job_proc.stdout.close()
-                    self._job_proc.stderr.close()
-                    rc = self._job_proc.wait()
+                    err_out = job.proc.stderr.read()
+                    job.proc.stdout.close()
+                    job.proc.stderr.close()
+                    rc = job.proc.wait()
 
                     # Append pass output to log
                     with open(log_path, "a") as _logf:
@@ -1004,16 +1072,16 @@ init -999 python:
                                 _logf.write(str(err_out))
                             _logf.write("\n")
 
-                    if self._job_cancelled:
-                        self._kill_job_proc()
+                    if job.cancelled:
+                        self._kill_job_proc_for(job)
                         break
                     if rc != 0:
-                        self._kill_job_proc()
-                        self.job_error = "ffmpeg pass {} exited with code {}".format(
+                        self._kill_job_proc_for(job)
+                        job.error_msg = "ffmpeg pass {} exited with code {}".format(
                             pass_idx + 1, rc)
                         break
 
-                # --- Clean up passlog ---
+                # --- Clean up 2-pass artifacts ---
                 if passlog:
                     try:
                         for f in [passlog + "-0.log", passlog + "-1.log"]:
@@ -1022,47 +1090,55 @@ init -999 python:
                     except Exception:
                         pass
 
-                if self._job_cancelled:
-                    self.job_done = True
+                if job.cancelled:
+                    job._done = True
                     return
 
                 # All passes completed with rc=0
-                if not self.job_error and os.path.exists(self._job_fs_tmp) and os.path.getsize(self._job_fs_tmp) > 0:
-                    self.job_ok = True
-                    self.progress = 1.0
+                if not job.error_msg and os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+                    job._ok = True
+                    job.progress = 1.0
                     _cue_log("Speed worker: ffmpeg succeeded")
-                elif not self.job_error:
-                    self.job_error = "ffmpeg produced no output"
+                elif not job.error_msg:
+                    job.error_msg = "ffmpeg produced no output"
                     _cue_log("Speed worker: FAILED — no output file")
             except Exception as e:
-                if not self._job_cancelled:
-                    self.job_error = "ffmpeg error: {}".format(e)
+                if not job.cancelled:
+                    job.error_msg = "ffmpeg error: {}".format(e)
                     _cue_log("Speed worker: exception — {}".format(e))
             finally:
-                self._kill_job_proc()
-                self.job_done = True
+                self._kill_job_proc_for(job)
+                job._done = True
 
         def poll(self):
             """Called by screen timer on the main thread. When the worker is
             done, finalize or report error."""
-            if not self.processing or not self.job_done:
-                return
+            job = self._current_job
+            if job is not None:
+                if not job._done:
+                    return
 
-            self.processing = False
-            renpy.hide_screen("cue_speed_processing_dialog", layer="cue_layer")
+                # Worker finished — finalize on main thread
+                job.end_time = _time.time()
+                self._current_job = None
 
-            if self._job_cancelled:
-                self._cleanup_temp()
-                self._set_job_state_error("Cancelled — original video untouched.")
-                _cue_log("Speed: cancelled by user")
-                renpy.restart_interaction()
-                return
+                if job.cancelled:
+                    self._cleanup_temp_for(job)
+                    job.status = "error"
+                    job.error_msg = "Cancelled"
+                    _cue_log("Speed: cancelled by user (job_id={})".format(job.job_id))
+                    self._start_next_job()
+                    renpy.restart_interaction()
+                    return
 
-            if self.job_ok:
-                self._finalize_swap()
-            else:
-                self._cleanup_temp()
-                self._set_job_state_error("Speed change failed: " + (self.job_error or "unknown error"))
+                if job._ok:
+                    self._finalize_swap_for(job)
+                else:
+                    self._cleanup_temp_for(job)
+                    job.status = "error"
+                    _cue_log("Speed: job failed (job_id={})".format(job.job_id))
+
+                self._start_next_job()
                 renpy.restart_interaction()
 
         @staticmethod
@@ -1073,27 +1149,33 @@ init -999 python:
                 return text.replace("[", "[[").replace("]", "]]")
             return text
 
-        def _set_job_state_error(self, msg):
-            """Write an error to the state for _job_vpath (not necessarily current)."""
-            state = self._state_for_vpath(self._job_vpath)
+        def _set_job_state_error_for(self, job, msg):
+            """Write an error to the state for the job's vpath."""
+            vp = job.vpath
+            state = self._state_for_vpath(vp)
             if state is not None:
                 state.last_error = self._esc(msg)
-            if self._current is not None and self._current.vpath == self._job_vpath:
+            if self._current is not None and self._current.vpath == vp:
                 pass  # last_error property already delegates to _current
 
-        def _finalize_swap(self):
+        def _finalize_swap_for(self, job):
             """Backup original, swap transcoded file into place (main thread)."""
-            fs = self._job_fs_in
-            tmp = self._job_fs_tmp
-            vp = self._job_vpath
+            fs = job.fspath_in
+            tmp = job.fspath_tmp
+            vp = job.vpath
 
-            # Release the file by stopping playback. On Windows, Ren'Py
-            # holds the file handle open while the movie channel is active,
-            # which would block os.remove/rename and even open-for-read.
+            # Release the file by stopping playback — but only if the
+            # current channel is actually playing this job's video.
+            # Otherwise the user may be watching a different video and
+            # stopping it would be disruptive.
             try:
                 if _cue.active_channel:
-                    renpy.music.stop(channel=_cue.active_channel, fadeout=0)
-                    _time.sleep(0.5)
+                    playing = renpy.music.get_playing(channel=_cue.active_channel)
+                    if playing:
+                        playing_fs = os.path.join(renpy.config.gamedir, playing)
+                        if os.path.normpath(playing_fs) == os.path.normpath(fs):
+                            renpy.music.stop(channel=_cue.active_channel, fadeout=0)
+                            _time.sleep(0.5)
             except Exception:
                 pass
 
@@ -1111,14 +1193,14 @@ init -999 python:
                                     break
                                 dst.write(chunk)
                 except Exception as e:
-                    self._set_job_state_error(
+                    job.status = "error"
+                    self._set_job_state_error_for(job,
                         "Cannot read the original video (file is locked by "
                         "the game player). Advance past this video scene, "
-                        "then click Apply again. ({})".format(e))
-                    renpy.restart_interaction()
+                        "then try again. ({})".format(e))
                     return
 
-            self._job_backup = backup_path
+            job.backup_path = backup_path
 
             try:
                 os.remove(fs)
@@ -1138,14 +1220,15 @@ init -999 python:
                 if not swapped:
                     err = (
                         "The game still has this video file open. "
-                        "Advance past this video scene, then click Apply again.\n\n"
+                        "Advance past this video scene, then try again.\n\n"
                         "(The transcoded file and backup are already saved — "
-                        "the next Apply will reuse them without re-encoding.)"
+                        "the next attempt will reuse them without re-encoding.)"
                     )
                     state = self._ensure_state(vp)
                     state.last_error = self._esc(err)
-                    _cue_log("Speed: swap FAILED — file still locked")
-                    renpy.restart_interaction()
+                    job.status = "error"
+                    job.error_msg = "File locked — retry later"
+                    _cue_log("Speed: swap FAILED — file still locked (job_id={})".format(job.job_id))
                     return
 
             # Update state for this video
@@ -1153,36 +1236,29 @@ init -999 python:
             state.has_backup = True
             state.last_error = ""
 
-            _cue_log("Speed: swap complete, backup at {}".format(
-                os.path.basename(backup_path)))
+            job.status = "done"
+            _cue_log("Speed: swap complete, backup at {} (job_id={})".format(
+                os.path.basename(backup_path), job.job_id))
 
-            # Only show popup if overlay is visible
-            if _cue.is_overlay_visible:
-                elapsed = _time.time() - self._start_time if self._start_time else 0
-                msg = "Speed changed to {:.2f}x in {:.0f}s. Use Restore to undo.".format(
-                    self._job_factor, elapsed)
-                _cue.confirm_dialog.show(msg, NullAction())
-            renpy.restart_interaction()
-
-        def _cleanup_temp(self):
+        def _cleanup_temp_for(self, job):
             """Remove the temp transcoded file if it exists."""
             try:
-                tmp = self._job_fs_tmp
+                tmp = job.fspath_tmp
                 if tmp and os.path.exists(tmp):
                     os.remove(tmp)
             except Exception:
                 pass
 
         # ==================================================================
-        # Cancel
+        # Cancel / Remove
         # ==================================================================
 
-        def _kill_job_proc(self):
-            """Kill the current ffmpeg process and wait for it. Safe to call
-            from any thread, or when _job_proc is None."""
+        def _kill_job_proc_for(self, job):
+            """Kill a job's ffmpeg process and wait for it. Safe to call
+            from any thread, or when job.proc is None."""
             try:
-                if self._job_proc is not None:
-                    p = self._job_proc
+                if job.proc is not None:
+                    p = job.proc
                     p.kill()
                     try:
                         p.wait()
@@ -1190,13 +1266,33 @@ init -999 python:
                         pass
             except Exception:
                 pass
-            self._job_proc = None
+            job.proc = None
 
-        def cancel_job(self):
-            """Kill the running ffmpeg process (main thread, called from dialog)."""
-            self._job_cancelled = True
-            self._kill_job_proc()
-            _cue_log("Speed: cancel requested")
+        def cancel_job(self, job_id):
+            """Cancel a job by job_id (main thread, called from screen action)."""
+            job = self._find_job(job_id)
+            if job is None:
+                return
+            if job.status == "queued":
+                self._jobs.remove(job)
+                if job is self._current_job:
+                    self._current_job = None
+                _cue_log("Speed: de-queued job_id={}".format(job_id))
+            elif job is self._current_job:
+                job.cancelled = True
+                self._kill_job_proc_for(job)
+                _cue_log("Speed: cancel requested for job_id={}".format(job_id))
+            elif job.status in ("done", "error"):
+                self.remove_job(job_id)
+            renpy.restart_interaction()
+
+        def remove_job(self, job_id):
+            """Remove a completed job from the list (main thread, screen action)."""
+            job = self._find_job(job_id)
+            if job is not None and job.status in ("done", "error"):
+                self._jobs.remove(job)
+                _cue_log("Speed: removed job_id={} from list".format(job_id))
+            renpy.restart_interaction()
 
         # ==================================================================
         # Restore
@@ -1222,13 +1318,8 @@ init -999 python:
                 self.last_error = "Backup file not found."
                 renpy.restart_interaction()
                 return
-
-            _cue.confirm_dialog.show(
-                "Restore '{}' to its original speed?\n\n"
-                "The backup will be copied back, undoing all speed changes.".format(
-                    os.path.basename(fs)),
-                Function(self.restore),
-            )
+            
+            self.restore()
 
         def restore(self):
             """Restore the original video from backup (main thread, from confirm)."""
@@ -1278,11 +1369,16 @@ init -999 python:
                     state.has_backup = False
                     state.last_error = ""
 
-                if _cue.is_overlay_visible:
-                    _cue.confirm_dialog.show("Original video restored.", NullAction())
-
                 _cue_log("Speed: restore complete from {}".format(
                     os.path.basename(backup)))
+
+                # Re-probe fps — the restored original may differ from the
+                # replaced file (e.g. user slowed it down then restored).
+                self._probed_fps = -1
+                if fs:
+                    t = _threading.Thread(target=self._probe_fps_bg, args=(fs,))
+                    t.daemon = True
+                    t.start()
             except Exception as e:
                 self.last_error = self._esc(
                     "Cannot restore — the file may be locked. "
@@ -1290,23 +1386,76 @@ init -999 python:
                 _cue_log("Speed: restore FAILED — {}".format(e))
             renpy.restart_interaction()
 
+        @staticmethod
+        def cleanup_orphans():
+            """Remove leftover tmp and passlog files from interrupted encodes.
+            Called once on init. Never touches *.bak* backups."""
+            import glob as _glob
+            removed = 0
+            try:
+                gamedir = renpy.config.gamedir
+                for dirpath, _dirnames, _filenames in os.walk(gamedir):
+                    for pattern in ("*" + CueVideoEditor.TMP_SUFFIX + "*",):
+                        for f in _glob.glob(os.path.join(dirpath, pattern)):
+                            try:
+                                os.remove(f)
+                                removed += 1
+                            except Exception:
+                                pass
+            except Exception:
+                pass
+            if removed:
+                _cue_log("CLEANUP-ORPHANS: removed {} leftover temp file(s)".format(removed))
+
         # ==================================================================
         # Refresh (called when overlay is shown)
         # ==================================================================
 
         def refresh(self):
-            """Update has_backup for the current video. Called on overlay open."""
-            self._sync_backup_for_current()
+            """Update has_backup for the current video.
+            Called on overlay open and when context changes."""
+
+            #_cue_log("refresh stack:\n" + traceback.format_exc())
+
+            vp = self._get_video_vpath()
+            
+            if vp:
+                self._current = self._ensure_state(vp)
+                self._sync_backup_for_current()
+                self._current.last_error = ""
+            # Warm ffmpeg/encoder probe cache in background (avoids main-thread
+            # freeze when the user clicks Apply later). Only needed once.
+            if self._ffmpeg_cache == -1:
+                self._ready = False
+                t = _threading.Thread(target=self._warm_tools)
+                t.daemon = True
+                t.start()
+            else:
+                self._ready = True
+            # Probe source fps in background (avoids main-thread ffprobe call)
+            self._probed_fps = -1
+            fs = self._get_video_fspath()
+            if fs:
+                t = _threading.Thread(target=self._probe_fps_bg, args=(fs,))
+                t.daemon = True
+                t.start()
+            else:
+                self._probed_fps = 30
             if self.processing:
                 self.last_error = ""
 
+            
+            _cue_log(f'refresh {vp=} {self._ffmpeg_cache=} {fs=}')
+
+            renpy.restart_interaction()
+
         def get_elapsed(self):
-            """Seconds since encode started. Returns 0 if not processing."""
-            if self._start_time:
-                return _time.time() - self._start_time
+            """Seconds since current job started. Returns 0 if idle."""
+            if self._current_job is not None:
+                return self._current_job.elapsed()
             return 0.0
 
         def _refresh_ui(self):
-            """No-op that triggers a screen redraw for progress text updates."""
-            if self.processing:
+            """Trigger a screen redraw while jobs are active."""
+            if self._current_job is not None or self._jobs:
                 renpy.restart_interaction()

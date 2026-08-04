@@ -242,6 +242,7 @@ init 999 python:
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
         _cue.markers.load_persistent()
         _cue_scan_audio()
+        _cue.video_editor.cleanup_orphans()
 
         _cue_log("INIT: Done")
         _cue.initialized = True
@@ -295,8 +296,10 @@ init python:
         _cue.file_tree.rebuild_tree()
         # Auto-detect everything
         _cue_refresh_context()
+
         # Refresh video editor backup state
-        _cue.video_editor.refresh()
+        #_cue.video_editor.refresh()
+        
         # Show the overlay screen
         renpy.show_screen("cue_overlay", _layer="cue_layer")
         renpy.restart_interaction()
@@ -315,23 +318,29 @@ init python:
         old_file = _cue.current_file
         old_video = _cue.active_channel
 
-        # 1. Re-detect video channel
-        _cue_refresh_channel()
-        _cue.file_tree.rebuild_tree()
-
         # Character callbacks don't trigger on rollback, need to clear stale dialogue here.
         if renpy.get_screen("say") is None:
             _cue.current_dialogue = ""
             _cue.prev_dialogue = ""
 
-        # 2. Re-detect context: top displayable on master layer wins;
-        #    fall back to video channel when nothing is on the master layer.
+        # 1. Re-detect context from the master layer FIRST — this is the
+        #    authoritative source for "what scene are we in." Channel detection
+        #    needs this to avoid picking up a stale movie still playing from
+        #    the previous scene.
         top_name, top_type = _cue_get_top_layer()
         if top_name is None:
             return
 
         _cue.current_file = top_name
         _cue.top_layer_type = top_type  # cache for screen / other consumers
+
+        # 2. Reconcile video channel with the top layer.
+        #    During scene transitions the old movie channel may still be playing
+        #    even though the master layer has already changed. Pass the expected
+        #    filename so _cue_refresh_channel skips channels that don't match.
+        _cue_refresh_channel(prefer_name=top_name)
+
+        _cue.file_tree.rebuild_tree()
 
         # 3. Always log current context for debugging
         _cue_log_context()
@@ -346,8 +355,11 @@ init python:
             img_key = create_img_key(_cue.current_file) if _cue.current_file else None
 
             # Clean up stale data
-            _cue.loop_states = {} 
+            _cue.loop_states = {}
             _cue.played_video_keys.clear()
+            # Refresh video editor for the new file (backup state, etc.)
+            if _cue.is_overlay_visible:
+                _cue.video_editor.refresh()
         if _cue.active_channel != old_video:
             changed += " ch:{}->{}".format(old_video, _cue.active_channel)
         if _cue.current_dialogue != _cue.prev_dialogue:
@@ -395,6 +407,7 @@ init python:
             ctx_type = "video"
         else:
             ctx_type = "none"
+            
         _cue_log("CTX-DUMP ctx={} type={} video={} ch={} playing={} dlg=\"{}\"".format(
             _cue.current_file or "(none)",
             ctx_type,
@@ -505,8 +518,12 @@ init python:
     # Channel Detection
     # --------------------------------------------------------------------------
 
-    def _cue_refresh_channel():
-        """Auto-detect the active movie channel. Only finds video (movie) channels."""
+    def _cue_refresh_channel(prefer_name=None):
+        """Auto-detect the active movie channel. Only finds video (movie) channels.
+
+        When prefer_name is given, only a channel whose playing file basename
+        matches prefer_name will be selected — stale channels from a previous
+        scene that are still winding down are skipped."""
 
         if _cue.__refreshing_channel:
             return
@@ -530,11 +547,16 @@ init python:
                                 break
                         except Exception:
                             pass
-                _cue.active_channel = ch_name
-                _cue.vid_manager.channel = ch_name
+                
                 if old_ch != ch_name:
+                    _cue.active_channel = ch_name
+                    _cue.vid_manager.channel = ch_name
+                    _cue_log('set new channel ' + ch_name)
                     _cue.vid_manager.reset(ch_name)
-                _cue.vid_manager.set_fps(fps)
+                    _cue.vid_manager.set_fps(fps)
+
+            # Collect all candidate movie channels: (ch_name, ch_obj, path)
+            candidates = []
 
             try:
                 import renpy.audio.audio as aaudio
@@ -547,8 +569,7 @@ init python:
                             path = renpy.music.get_playing(channel=ch_name)
                             dur = renpy.music.get_duration(channel=ch_name)
                             if path and dur > 0:
-                                _apply_channel(ch_name, ch)
-                                return
+                                candidates.append((ch_name, ch, path))
                     except Exception:
                         pass
             except Exception:
@@ -558,13 +579,30 @@ init python:
                 try:
                     path = renpy.music.get_playing(channel=ch)
                     if path and path.lower().endswith(video_exts) and renpy.music.is_playing(channel=ch):
-                        _apply_channel(ch, None)
-                        return
+                        candidates.append((ch, None, path))
                 except Exception:
                     pass
 
-            _cue.active_channel = None
-            _cue.vid_manager.channel = None
+            if candidates:
+                if prefer_name is not None:
+                    # First pass: prefer the channel whose playing file matches
+                    for ch_name, ch_obj, path in candidates:
+                        vname = path.replace("\\", "/").rsplit("/", 1)[-1]
+                        _cue_log(f'{vname=} {prefer_name=}')
+                        
+                        if vname == prefer_name:
+                            _apply_channel(ch_name, ch_obj)
+                            return
+                    # No match — clear, don't fall back to a stale channel
+                    _cue.active_channel = None
+                    _cue.vid_manager.channel = None
+                else:
+                    # First playing channel wins
+                    ch_name, ch_obj, _ = candidates[0]
+                    _apply_channel(ch_name, ch_obj)
+            else:
+                _cue.active_channel = None
+                _cue.vid_manager.channel = None
         finally:
             _cue.__refreshing_channel = False
 
@@ -661,7 +699,13 @@ init python:
 
         # Re-detect the active channel each tick so the CDD time display
         # recovers after rollback (Page Up), which resets active_channel.
-        _cue_refresh_channel()
+        # Pass the current file as prefer_name so a stale channel from the
+        # previous scene is never picked up during movie-to-movie transitions.
+        if _cue.top_layer_type == 'movie':
+            _cue_refresh_channel(prefer_name=_cue.current_file)
+        else:
+            _cue.active_channel = None
+            _cue.vid_manager.channel = None
 
         # Keep paused state in sync (referenced by the UI for play/pause buttons)
         _cue.vid_manager.sync_paused()
