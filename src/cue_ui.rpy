@@ -721,18 +721,10 @@ screen cue_overlay_content():
                     null width 5
                 hbox:
                     spacing 4
-                    $ _source_fps = _ved.source_fps
                     use cue_toggle_btn(_ved.interpolate, "Interpolate Frames",
                         Function(_cue.video_editor.toggle_interpolate),
                         "Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to encode.",
-                        enabled=_source_fps > 0)
-                    if _source_fps < 0:
-                        text "Checking source fps..." style "cue_help" size 10 yalign 0.5
-                    elif _ved.interpolate:
-                        $ _target_fps = min(60, _source_fps * 2)
-                        text "{}fps → {}fps".format(_source_fps, _target_fps) style "cue_help" size 10 yalign 0.5
-                    else:
-                        text "Source: {}fps".format(_source_fps) style "cue_help" size 10 yalign 0.5
+                        "Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to encode.")
                 hbox:
                     spacing 4
                     use cue_toggle_btn(_ved.fast_preview, "Fast Preview",

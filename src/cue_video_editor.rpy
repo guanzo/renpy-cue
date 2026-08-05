@@ -121,9 +121,6 @@ init -999 python:
             self._current_job = None        # CueVideoJob currently processing, or None
             self._next_job_id = 1           # incrementing counter for job_id
 
-            # --- Cached probe data ---
-            self._probed_fps = 30           # probed source fps, refreshed in open_editor
-
         @property
         def processing(self):
             return self._current_job is not None
@@ -384,18 +381,6 @@ init -999 python:
             except Exception:
                 pass
             self._ready = True
-
-        @property
-        def source_fps(self):
-            return self._probed_fps
-
-        def _probe_fps_bg(self, fspath):
-            """Background thread: probe fps and flag done."""
-            try:
-                self._probed_fps = _cue.ffmpeg.probe_fps(fspath)
-            except Exception:
-                self._probed_fps = 30
-            renpy.restart_interaction()
 
         def open_editor(self):
             """Show the Video Editor section, loading state for current video."""
@@ -1020,13 +1005,6 @@ init -999 python:
                 _cue_log("Speed: restore complete from {}".format(
                     os.path.basename(backup)))
 
-                # Re-probe fps — the restored original may differ from the
-                # replaced file (e.g. user slowed it down then restored).
-                self._probed_fps = -1
-                if fs:
-                    t = _threading.Thread(target=self._probe_fps_bg, args=(fs,))
-                    t.daemon = True
-                    t.start()
             except Exception as e:
                 self.last_error = self._esc(
                     "Cannot restore — the file may be locked. "
@@ -1078,15 +1056,6 @@ init -999 python:
                 t.start()
             else:
                 self._ready = True
-            # Probe source fps in background (avoids main-thread ffprobe call)
-            self._probed_fps = -1
-            fs = self._get_video_fspath()
-            if fs:
-                t = _threading.Thread(target=self._probe_fps_bg, args=(fs,))
-                t.daemon = True
-                t.start()
-            else:
-                self._probed_fps = 30
             if self.processing:
                 self.last_error = ""
 
