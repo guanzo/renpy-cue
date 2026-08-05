@@ -263,10 +263,7 @@ init -999 python:
                         chunk = fh.read(1024 * 1024)
                         if not chunk:
                             break
-                        if isinstance(chunk, str):
-                            fh_out.write(chunk)
-                        else:
-                            fh_out.write(chunk)
+                        fh_out.write(chunk)
                 finally:
                     fh_out.close()
             except Exception as e:
