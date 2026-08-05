@@ -657,6 +657,7 @@ init -999 python:
                     job.proc.stdout.close()
                     job.proc.stderr.close()
                     rc = job.proc.wait()
+                    job.proc = None  # child reaped; prevent finally from kill()ing stale pid
 
                     # Append pass output to log
                     with open(log_path, "a") as _logf:
