@@ -663,7 +663,10 @@ init -999 python:
             return key in self._data
 
         def get(self, key, default=None):
-            return self._data.get(key, default)
+            entry = self._data.get(key)
+            if entry is None:
+                return default
+            return self._normalize_entry(entry)
 
         def setdefault(self, key, default):
             return self._data.setdefault(key, default)
@@ -927,19 +930,25 @@ init -999 python:
             pool = pools[pool_index]
             if "preset" not in pool:
                 return False
+
             preset_name = pool["preset"]
             preset = self._presets.get(preset_name, {})
             r = self.resolve_pool(pool)
             del pool["preset"]
+
             pool["files"] = r.files
             pool["volume"] = r.volume
+
             if "frequency" in preset:
                 pool["frequency"] = r.frequency
             if "trigger_on_shake" in preset:
                 pool["trigger_on_shake"] = r.trigger_on_shake
+
             self.save_persistent()
+
             _cue_log("DETACH-POOL key={} pi={} preset={} files={}".format(
                 trigger_key, pool_index, preset_name, len(r.files)))
+
             return True
 
         def _stamp_preset(self, trigger_key, preset_name, pool_index=0):
@@ -993,6 +1002,7 @@ init -999 python:
                 return entry
             if "pools" not in entry:
                 entry["pools"] = [{"files": entry.pop("files", [])}]
+            entry.setdefault("replay", _cue.current_replay)
             return entry
 
         def _get_or_create_entry(self, trigger_key):
@@ -1002,7 +1012,6 @@ init -999 python:
                 entry = {"pools": []}
                 self._data[trigger_key] = entry
             entry = self._normalize_entry(entry)
-            entry["replay"] = _cue.current_replay
             return entry
 
         def _ensure_pool(self, trigger_key, pool_index):
@@ -1307,7 +1316,7 @@ init -999 python:
 
                 self._data[new_key] = _copy.deepcopy(entry)
                 self._data[new_key]["replay"] = _cue.current_replay
-                
+
                 _cue_log("{} {}".format(new_key, str(entry)))
 
                 # Clamp video pools to current video duration
