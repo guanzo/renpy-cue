@@ -214,8 +214,9 @@ init 999 python:
         # Create a layer above screens for the overlay
         renpy.add_layer("cue_layer", above="screens")
 
-        # Use config.overlay_screens for a persistent key-listener
+        # Use config.overlay_screens for persistent screens that survive rollback
         config.overlay_screens.append("cue_key_listener")
+        config.overlay_screens.append("cue_overlay")
 
         # Register after_load callback
         def _cue_after_load():
@@ -302,16 +303,14 @@ init python:
         # Refresh video editor backup state
         #_cue.video_editor.refresh()
         
-        # Show the overlay screen
-        renpy.show_screen("cue_overlay", _layer="cue_layer")
-        renpy.restart_interaction()      
+        renpy.restart_interaction()
 
 
     def _cue_hide_overlay():
         _cue.is_overlay_visible = False
         _cue.markers.save_persistent()
         _cue.video_editor.close_editor()
-        renpy.hide_screen("cue_overlay", layer="cue_layer")
+        renpy.restart_interaction()
 
 
     def _cue_refresh_context():
@@ -883,32 +882,33 @@ screen cue_overlay():
 
     zorder 9999
     modal False
-    tag cue_editor
 
-    # Screen-level key bindings
-    key "K_BACKQUOTE" action Function(_cue_hide_overlay)
-    key "shift_K_1" action Function(_cue.markers.copy_context)
-    key "shift_K_2" action Function(_cue.markers.paste_context)
+    if _cue.is_overlay_visible:
 
-    button:
-        xalign 0.0
-        yalign 0.0
-        xsize 500
-        yfill True
-        action NullAction()
-        background None
-        hover_background None
-        frame:
-            style "cue_frame"
-            xfill True
+        # Screen-level key bindings
+        key "K_BACKQUOTE" action Function(_cue_hide_overlay)
+        key "shift_K_1" action Function(_cue.markers.copy_context)
+        key "shift_K_2" action Function(_cue.markers.paste_context)
+
+        button:
+            xalign 0.0
+            yalign 0.0
+            xsize 500
             yfill True
-            use cue_overlay_content()
+            action NullAction()
+            background None
+            hover_background None
+            frame:
+                style "cue_frame"
+                xfill True
+                yfill True
+                use cue_overlay_content()
 
-    # --- Floating tooltip near mouse (auto-sizes to fit text) ---
-    $ _tt = GetTooltip()
-    if _tt:
-        add _Tooltip(_tt)
+        # --- Floating tooltip near mouse (auto-sizes to fit text) ---
+        $ _tt = GetTooltip()
+        if _tt:
+            add _Tooltip(_tt)
 
-    # --- Marker timeline tooltip (rendered last so it's always on top) ---
-    add _MarkerTooltipOverlay()
+        # --- Marker timeline tooltip (rendered last so it's always on top) ---
+        add _MarkerTooltipOverlay()
 
