@@ -238,10 +238,7 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                 style "cue_btn"
                 text_style "cue_btn_text"
                 xsize 14
-                if _is_active:
-                    background _cue_tab_active_bg
-                else:
-                    background "#444444"
+                background (_cue_tab_active_bg if _is_active else "#444444")
                 action _cue_make_tab_action(tab_action_fn, tab_action_args, pi)
                 tooltip tab_tt
 
@@ -264,10 +261,8 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
             $ _count = len(folder_children) if folder_children else 0
             hbox:
                 spacing row_spacing
-                if _is_expanded:
-                    use cue_icon_button("▾", Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
-                else:
-                    use cue_icon_button("▸", Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
+                use cue_icon_button(("▾" if _is_expanded else "▸"),
+                    Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
                 use cue_icon_button("✕", Function(remove_fn, *remove_args), "Remove preset", None)
                 use cue_icon_button("▶", Function(_cue_preview_sfx, (folder_children or [""])[0], preview_vol), "Preview random file from preset", None)
                 use cue_folder_txt_button(folder_label, Function(_cue.file_tree.toggle_file_ref_expand, folder_label))
@@ -290,10 +285,8 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 $ _count = len(_cue_resolve_files([f]))
                 hbox:
                     spacing row_spacing
-                    if _is_expanded:
-                        use cue_icon_button("▾", Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
-                    else:
-                        use cue_icon_button("▸", Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
+                    use cue_icon_button(("▾" if _is_expanded else "▸"),
+                        Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
                     use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder ref", None)
                     use cue_icon_button("▶", Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol), "Preview random file from folder", None)
                     use cue_folder_txt_button(f, Function(_cue.file_tree.toggle_file_ref_expand, f))
@@ -482,10 +475,7 @@ screen cue_toggle_btn(checked, label, action, tt_on, tt_off=None,
             if off_hover is not None:
                 hover_background off_hover
             action action
-            if tt_off is None:
-                tooltip tt_on
-            else:
-                tooltip tt_off
+            tooltip (tt_on if tt_off is None else tt_off)
 
 ###############################################################################
 # SECTION 5: Overlay Screen
@@ -564,16 +554,10 @@ screen cue_overlay_content():
                             add SelfUpdatingLabel(_cue.vid_manager.frame_label, style="cue_txt")
                     hbox:
                         spacing 5
-                        if _cue.vid_manager.paused:
-                            textbutton "▶":
-                                style "cue_btn"
-                                text_style "cue_btn_text"
-                                action Function(_cue.vid_manager.toggle_pause)
-                        else:
-                            textbutton "⏸":
-                                style "cue_btn"
-                                text_style "cue_btn_text"
-                                action Function(_cue.vid_manager.toggle_pause)
+                    textbutton ("▶" if _cue.vid_manager.paused else "⏸"):
+                        style "cue_btn"
+                        text_style "cue_btn_text"
+                        action Function(_cue.vid_manager.toggle_pause)
                         textbutton "-1f":
                             style "cue_btn"
                             text_style "cue_btn_text"
@@ -686,7 +670,7 @@ screen cue_overlay_content():
                             $ _inc10 = Function(_cue.markers.video.nudge, 0.01)
                             $ _inc100 = Function(_cue.markers.video.nudge, 0.1)
                             $ _commit = Function(_cue.markers.video.commit_text)
-                            $ _display = _cue_format_time(_active_pool["time"])
+                            $ _display = _cue_format_time(_active_pool.get("time", 0))
                             use cue_time_input("_cue.markers.video.edit_text", _commit, _dec100, _dec10,
                                                _inc10, _inc100, _display)
                         # File list
@@ -821,34 +805,22 @@ screen cue_overlay_content():
                 textbutton "Slow":
                     style "cue_btn"
                     text_style "cue_btn_text"
-                    if slow_selected:
-                        background _cue_tab_active_bg
-                    else:
-                        background "#444444"
+                    background (_cue_tab_active_bg if slow_selected else "#444444")
                     action Function(_cue.markers.loop.set_frequency, 0)
                 textbutton "Normal":
                     style "cue_btn"
                     text_style "cue_btn_text"
-                    if normal_selected:
-                        background _cue_tab_active_bg
-                    else:
-                        background "#444444"
+                    background (_cue_tab_active_bg if normal_selected else "#444444")
                     action Function(_cue.markers.loop.set_frequency, 1)
                 textbutton "Fast":
                     style "cue_btn"
                     text_style "cue_btn_text"
-                    if fast_selected:
-                        background _cue_tab_active_bg
-                    else:
-                        background "#444444"
+                    background (_cue_tab_active_bg if fast_selected else "#444444")
                     action Function(_cue.markers.loop.set_frequency, 2)
                 textbutton "Fastest":
                     style "cue_btn"
                     text_style "cue_btn_text"
-                    if fastest_selected:
-                        background _cue_tab_active_bg
-                    else:
-                        background "#444444"
+                    background (_cue_tab_active_bg if fastest_selected else "#444444")
                     action Function(_cue.markers.loop.set_frequency, 3)
 
         # Audio file browser
@@ -869,10 +841,9 @@ screen cue_overlay_content():
                         # --- Presets folder (matches audio tree folder UI) ---
                         hbox:
                             spacing 2
-                            if _cue.file_tree.presets_expanded:
-                                use cue_icon_button("▾", Function(_cue.file_tree.toggle_presets_expand), None, None)
-                            else:
-                                use cue_icon_button("▸", Function(_cue.file_tree.toggle_presets_expand), None, None)
+                            use cue_icon_button(
+                                ("▾" if _cue.file_tree.presets_expanded else "▸"),
+                                Function(_cue.file_tree.toggle_presets_expand), None, None)
                             $ _preset_names = _cue.markers.list_presets()
                             use cue_folder_txt_button("Presets/", Function(_cue.file_tree.toggle_presets_expand))
                         if _cue.file_tree.presets_expanded:
@@ -884,10 +855,9 @@ screen cue_overlay_content():
                                 hbox:
                                     spacing 2
                                     text "  " style "cue_txt"  # indent under Presets/
-                                    if _p_expanded:
-                                        use cue_icon_button("▾", Function(_cue.file_tree.toggle_preset_expand, _pname), None, None)
-                                    else:
-                                        use cue_icon_button("▸", Function(_cue.file_tree.toggle_preset_expand, _pname), None, None)
+                                    use cue_icon_button(
+                                        ("▾" if _p_expanded else "▸"),
+                                        Function(_cue.file_tree.toggle_preset_expand, _pname), None, None)
                                     use cue_icon_button("✕", Function(_cue_confirm_delete_preset, _pname), "Delete preset", None)
                                     use cue_icon_button("▶", Function(_cue_preview_preset, _pname), "Preview random file from preset", None)
                                     use cue_icon_button("V", Function(_cue.markers.video.apply_preset, _pname), "Apply preset to current video at playhead position", None, enabled=_is_video)
@@ -906,10 +876,9 @@ screen cue_overlay_content():
                         # --- Video Presets folder ---
                         hbox:
                             spacing 2
-                            if _cue.file_tree.video_presets_expanded:
-                                use cue_icon_button("▾", Function(_cue.file_tree.toggle_video_presets_expand), None, None)
-                            else:
-                                use cue_icon_button("▸", Function(_cue.file_tree.toggle_video_presets_expand), None, None)
+                            use cue_icon_button(
+                                ("▾" if _cue.file_tree.video_presets_expanded else "▸"),
+                                Function(_cue.file_tree.toggle_video_presets_expand), None, None)
                             $ _vp_names = _cue.markers.list_video_presets()
                             use cue_folder_txt_button("Video Presets/", Function(_cue.file_tree.toggle_video_presets_expand))
                         if _cue.file_tree.video_presets_expanded:
@@ -923,10 +892,9 @@ screen cue_overlay_content():
                                 hbox:
                                     spacing 2
                                     text "  " style "cue_txt"  # indent under Video Presets/
-                                    if _vp_expanded:
-                                        use cue_icon_button("▾", Function(_cue.file_tree.toggle_video_preset_expand, _vpname), None, None)
-                                    else:
-                                        use cue_icon_button("▸", Function(_cue.file_tree.toggle_video_preset_expand, _vpname), None, None)
+                                    use cue_icon_button(
+                                        ("▾" if _vp_expanded else "▸"),
+                                        Function(_cue.file_tree.toggle_video_preset_expand, _vpname), None, None)
                                     use cue_icon_button("✕", Function(_cue_confirm_delete_video_preset, _vpname), "Delete video preset", None)
                                     use cue_icon_button("▶", Function(_cue_preview_video_preset, _vpname), "Preview random file from video preset", None)
                                     use cue_icon_button("V", Function(_cue_maybe_apply_video_preset, _vpname), "Apply video markers to the current video", None, enabled=_is_video)
@@ -968,10 +936,11 @@ screen cue_overlay_content():
                                     use cue_icon_button("D", Function(_cue.markers.dialogue.add_file, item["index"]), "Add to Dialogue SFX pool", None, enabled=_is_dialogue)
                                     # Loop SFX
                                     use cue_icon_button("L", Function(_cue.markers.loop.add_file, item["index"]), "Add to Loop SFX pool", None)
-                                    if item.get("enabled", True):
-                                        use cue_icon_button("☑", Function(_cue.file_tree.toggle_file_enabled, item["full_path"]), "Click to disable globally", None)
-                                    else:
-                                        use cue_icon_button("☐", Function(_cue.file_tree.toggle_file_enabled, item["full_path"]), "Click to enable globally", None)
+                                    use cue_icon_button(
+                                        ("☑" if item.get("enabled", True) else "☐"),
+                                        Function(_cue.file_tree.toggle_file_enabled, item["full_path"]),
+                                        "Click to {} globally".format("disable" if item.get("enabled", True) else "enable"),
+                                        None)
                                     text item["name"] style "cue_txt" color "#ffcc00"
 
 
