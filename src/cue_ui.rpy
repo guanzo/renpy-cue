@@ -701,13 +701,15 @@ screen cue_overlay_content():
                         text_style "cue_btn_text"
                         action Function(_cue.video_editor.close_editor)
                 $ _vid_name = _cue.current_file if _cue.current_file else "?"
-                text "Video: [_vid_name]" style "cue_txt"
+                $ _cfg_label = _ved.config_label
+                text "Video: [_vid_name]" + (" (" + _cfg_label + ")" if _cfg_label else "") style "cue_txt"
                 if _ved.has_backup:
                     textbutton "Restore Original Video":
                         style "cue_btn"
                         text_style "cue_btn_text"
                         action Function(_cue.video_editor.open_restore)
                         tooltip "Restore the original video file from backup"
+                null height 2
                 hbox:
                     spacing 4
                     text "Speed:" style "cue_txt" size 11
@@ -735,8 +737,9 @@ screen cue_overlay_content():
                         text "Source: {}fps".format(_source_fps) style "cue_help" size 10 yalign 0.5
                 hbox:
                     spacing 4
+                    use cue_toggle_btn(_ved.fast_preview, "Fast Preview",
                         Function(_cue.video_editor.toggle_fast_preview),
-                        "Fast low-quality encode to judge the edited speed. Disables frame interpolation.")
+                        "Fast low-quality encode to judge the edited speed.")
                     text "Faster encode, lower quality" style "cue_help" size 10 yalign 0.5
                 null height 3
                 textbutton "Create":
@@ -770,7 +773,7 @@ screen cue_overlay_content():
                                         use cue_icon_button("✕", Function(_cue.video_editor.cancel_job, _job.job_id), "Cancel job", None)
                                     else:
                                         use cue_icon_button("✕", Function(_cue.video_editor.remove_job, _job.job_id), "Remove from queue", None)
-                                    text _job.filename() style "cue_txt" size 11
+                                    text _job.filename() + " " + _job.speed_label style "cue_txt" size 11
                                     text "(" + _job.status_text() + ")" style "cue_txt" size 11
                                     if _job.status != "queued":
                                         $ _elapsed = int(_job.elapsed())

@@ -1138,6 +1138,16 @@ init -999 python:
             if stripped:
                 _cue_log("SAVE-MARKERS: sanitized {} malformed video pool(s)".format(stripped))
 
+            # Per-video edit history
+            _edit_history = python_dict()
+            for _vp, _st in _cue.video_editor._states.items():
+                if _st.last_factor is not None:
+                    _edit_history[_vp] = python_dict({
+                        "factor": _st.last_factor,
+                        "interpolate": _st.last_interpolate,
+                        "fast_preview": _st.last_fast_preview,
+                    })
+
             data = python_dict({
                 "markers": _cue_unwrap_persistent(self._data),
                 "presets": _cue_unwrap_persistent(self._presets),
@@ -1145,6 +1155,7 @@ init -999 python:
                 "disabled_files": _cue_unwrap_persistent(_cue.file_tree.disabled_files),
                 "triggers_active": _cue.triggers_active,
                 "interpolate": _cue.video_editor.interpolate,
+                "video_edit_history": _cue_unwrap_persistent(_edit_history),
             })
             persistent._cue_config = data
 
@@ -1161,6 +1172,15 @@ init -999 python:
             _cue.file_tree.disabled_files = _cue_unwrap_persistent(data.get("disabled_files", []))
             _cue.triggers_active = data.get("triggers_active", True)
             _cue.video_editor.interpolate = bool(data.get("interpolate", True))
+
+            # Restore per-video edit history
+            _edit_history = _cue_unwrap_persistent(data.get("video_edit_history", {}))
+            for _vp, _cfg in _edit_history.items():
+                _st = _cue.video_editor._ensure_state(_vp)
+                _st.last_factor = float(_cfg.get("factor", 1.0))
+                _st.last_interpolate = bool(_cfg.get("interpolate", False))
+                _st.last_fast_preview = bool(_cfg.get("fast_preview", False))
+                _st.factor_text = "{:.2f}".format(_st.last_factor)
 
             self._migrate_video_timestamps_to_pools()
             self._sanitize_video_pools()

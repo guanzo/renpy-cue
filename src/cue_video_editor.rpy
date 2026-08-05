@@ -22,6 +22,9 @@ init -999 python:
             self.factor_text = "1.00"
             self.has_backup = False
             self.last_error = ""
+            self.last_factor = None    # float set on edit completion, None = never edited
+            self.last_interpolate = False
+            self.last_fast_preview = False
 
 
     class CueVideoJob:
@@ -75,10 +78,22 @@ init -999 python:
             return self.status
 
         def filename(self):
-            """Basename of the input file for display."""
-            if self.fspath_in:
-                return os.path.basename(self.fspath_in)
+            """Basename of the target video for display.
+            Uses the temp output path, stripping the tmp suffix — this is
+            the actual video file being replaced, not the .bak source."""
+            if self.fspath_tmp:
+                base = os.path.basename(self.fspath_tmp)
+                # Strip TMP_SUFFIX from the temp filename to get the real name
+                suffix = CueVideoEditor.TMP_SUFFIX
+                return base.replace(suffix, "")
+            if self.vpath:
+                return os.path.basename(self.vpath)
             return "?"
+
+        @property
+        def speed_label(self):
+            """Speed factor for queue display, e.g. '1.5x'."""
+            return "{:.1f}x".format(self.factor)
 
 
     class CueVideoEditor:
@@ -158,6 +173,21 @@ init -999 python:
             s = self._get_state()
             if s is not None:
                 s.last_error = value
+
+        @property
+        def config_label(self):
+            """Human-readable summary of the last edit config for the current
+            video, e.g. '1.5x interpolated' or '2.0x'. Returns '' if the
+            current video has never been edited."""
+            s = self._get_state()
+            if s is None or s.last_factor is None:
+                return ""
+            label = "{:.1f}x".format(s.last_factor)
+            if s.last_fast_preview:
+                label += " fast preview"
+            elif s.last_interpolate:
+                label += " interpolated"
+            return label
 
         # ==================================================================
         # Helpers
@@ -812,6 +842,9 @@ init -999 python:
             state = self._ensure_state(vp)
             state.has_backup = True
             state.last_error = ""
+            state.last_factor = job.factor
+            state.last_interpolate = job.interpolate
+            state.last_fast_preview = job.fast_preview
 
             job.status = "done"
             _cue_log("Speed: swap complete, backup at {} (job_id={})".format(
@@ -836,6 +869,15 @@ init -999 python:
             try:
                 if job.proc is not None:
                     p = job.proc
+                    # Close pipes first — if ffmpeg is blocked on a full
+                    # stdout/stderr pipe buffer, kill() won't take effect
+                    # until the buffer is drained.
+                    for _pipe in (p.stdout, p.stderr):
+                        if _pipe is not None:
+                            try:
+                                _pipe.close()
+                            except Exception:
+                                pass
                     p.kill()
                     try:
                         p.wait()
@@ -945,6 +987,9 @@ init -999 python:
                 if state:
                     state.has_backup = False
                     state.last_error = ""
+                    state.last_factor = None
+                    state.last_interpolate = False
+                    state.last_fast_preview = False
 
                 _cue_log("Speed: restore complete from {}".format(
                     os.path.basename(backup)))
