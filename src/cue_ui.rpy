@@ -725,11 +725,9 @@ screen cue_overlay_content():
                     use cue_toggle_btn(_ved.interpolate, "Interpolate Frames",
                         Function(_cue.video_editor.toggle_interpolate),
                         "Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to encode.",
-                        enabled=_source_fps > 0 and _source_fps < 55)
+                        enabled=_source_fps > 0)
                     if _source_fps < 0:
                         text "Checking source fps..." style "cue_help" size 10 yalign 0.5
-                    elif _source_fps >= 55:
-                        text "Already {}fps — no interpolation needed".format(_source_fps) style "cue_help" size 10 yalign 0.5
                     elif _ved.interpolate:
                         $ _target_fps = min(60, _source_fps * 2)
                         text "{}fps → {}fps".format(_source_fps, _target_fps) style "cue_help" size 10 yalign 0.5

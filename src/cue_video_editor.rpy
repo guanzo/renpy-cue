@@ -395,9 +395,6 @@ init -999 python:
                 self._probed_fps = _cue.ffmpeg.probe_fps(fspath)
             except Exception:
                 self._probed_fps = 30
-            # Frame interpolation is useless at >= 55 fps source
-            if self._probed_fps >= 55:
-                self.interpolate = False
             renpy.restart_interaction()
 
         def open_editor(self):
@@ -603,7 +600,7 @@ init -999 python:
                 source_fps = _cue.ffmpeg.probe_fps(input_fs)
                 # Total output frames for progress. -vsync 0 preserves frame count
                 # unless minterpolate generates new frames at a different rate.
-                if interpolate and source_fps < 55:
+                if interpolate:
                     _out_fps = min(60, source_fps * 2)
                     total_frames = _out_fps * (dur_ms / 1000.0) / factor
                 else:

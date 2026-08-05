@@ -358,7 +358,7 @@ init -999 python:
             # Shared filter
             # Build video filter: setpts, optionally frame interpolation
             _vf = "setpts=PTS/{:.4f}".format(speed)
-            if interpolate and source_fps < 55:
+            if interpolate:
                 _target_fps = min(60, source_fps * 2)
                 _vf += ",minterpolate=fps={}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1".format(_target_fps)
             filters = ["[0:v]{}[v]".format(_vf)]
