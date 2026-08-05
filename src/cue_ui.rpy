@@ -554,10 +554,10 @@ screen cue_overlay_content():
                             add SelfUpdatingLabel(_cue.vid_manager.frame_label, style="cue_txt")
                     hbox:
                         spacing 5
-                    textbutton ("▶" if _cue.vid_manager.paused else "⏸"):
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        action Function(_cue.vid_manager.toggle_pause)
+                        textbutton ("▶" if _cue.vid_manager.paused else "⏸"):
+                            style "cue_btn"
+                            text_style "cue_btn_text"
+                            action Function(_cue.vid_manager.toggle_pause)
                         textbutton "-1f":
                             style "cue_btn"
                             text_style "cue_btn_text"
