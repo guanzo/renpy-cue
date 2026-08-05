@@ -890,16 +890,17 @@ init -999 python:
             try:
                 if job.proc is not None:
                     p = job.proc
-                    # Close pipes first — if ffmpeg is blocked on a full
-                    # stdout/stderr pipe buffer, kill() won't take effect
-                    # until the buffer is drained.
+                    # Kill first — unblocks any readline() immediately
+                    # so the main thread never freezes waiting on a pipe
+                    # close (especially VP8/VP9 pass-1 which has no
+                    # -progress pipe:1 output).
+                    p.kill()
                     for _pipe in (p.stdout, p.stderr):
                         if _pipe is not None:
                             try:
                                 _pipe.close()
                             except Exception:
                                 pass
-                    p.kill()
                     try:
                         p.wait()
                     except Exception:
