@@ -69,12 +69,9 @@ init -999 python:
             if self.status == "done":
                 return "Done"
             if self.status == "error":
-                msg = self.error_msg or "Unknown error"
-                if msg == "Cancelled":
+                if self.error_msg == "Cancelled":
                     return "Cancelled"
-                if len(msg) > 40:
-                    msg = msg[:40] + "..."
-                return "Error: {}".format(msg)
+                return "Error"
             return self.status
 
         def filename(self):
@@ -729,21 +726,21 @@ init -999 python:
                 job.status = "error"
                 job.error_msg = "Cancelled"
                 _cue_log("Speed: cancelled by user (job_id={})".format(job.job_id))
-                self._current_job = None
-                self._start_next_job()
-                renpy.restart_interaction()
-                return
-
-            if not job._ok:
+            elif not job._ok:
                 self._cleanup_temp_for(job)
                 job.status = "error"
                 _cue_log("Speed: job failed (job_id={})".format(job.job_id))
-                self._current_job = None
-                self._start_next_job()
-                renpy.restart_interaction()
-                return
+            else:
+                self._finish_swap(job)
 
-            # --- Job succeeded, swap into place ---
+            self._current_job = None
+            self._start_next_job()
+            renpy.restart_interaction()
+
+        def _finish_swap(self, job):
+            """Swap the transcoded file into place. Blocking — call from
+            main thread only. Returns True on success, False on failure
+            (error state already set on job)."""
             tmp = job.fspath_tmp
             fs = tmp.replace(self.TMP_SUFFIX, "")
             vp = job.vpath
@@ -756,8 +753,6 @@ init -999 python:
                     if _playing:
                         _playing_fs = os.path.join(renpy.config.gamedir, _playing)
                         if os.path.normpath(_playing_fs) == os.path.normpath(fs):
-                            _cue_log('found channel for ' + str(os.path.normpath(fs)))
-                            
                             renpy.music.stop(channel=_ch_name, fadeout=0)
             except Exception:
                 pass
@@ -781,20 +776,16 @@ init -999 python:
                         "Cannot read the original video (file is locked by "
                         "the game player). Advance past this video scene, "
                         "then try again. ({})".format(e))
-                    self._current_job = None
-                    self._start_next_job()
                     _cue_log("Speed: backup FAILED (job_id={})".format(job.job_id))
-                    renpy.restart_interaction()
-                    return
+                    return False
 
             job.backup_path = backup_path
 
-            # Try swap with retries (same pattern as restore())
+            # Try swap with retries
             for _attempt in range(4):
                 try:
                     os.remove(fs)
                     os.rename(tmp, fs)
-                    # Success
                     state = self._ensure_state(vp)
                     state.has_backup = True
                     state.last_error = ""
@@ -805,26 +796,47 @@ init -999 python:
                     _cue_log("Speed: swap complete, backup at {} (job_id={})".format(
                         os.path.basename(backup_path), job.job_id))
                     _cue.markers.save_persistent()
-                    break
+                    return True
                 except Exception:
                     if _attempt < 3:
                         _time.sleep(1.0)
-            else:
-                # All attempts failed — leave temp + backup for retry
-                err = (
-                    "The game still has this video file open. "
-                    "Advance past this video scene, then try again.\n\n"
-                    "(The transcoded file and backup are already saved — "
-                    "advance one scene and click Create again.)"
-                )
-                state = self._ensure_state(vp)
-                state.last_error = self._esc(err)
-                job.status = "error"
-                job.error_msg = "File locked — retry later"
-                _cue_log("Speed: swap FAILED — file locked (job_id={})".format(job.job_id))
 
-            self._current_job = None
-            self._start_next_job()
+            # All attempts failed — leave temp + backup for retry
+            err = (
+                "The game still has this video file open. "
+                "Advance past this video scene, then try again.\n\n"
+                "(The transcoded file and backup are already saved — "
+                "advance one scene and click Create again.)"
+            )
+            state = self._ensure_state(vp)
+            state.last_error = self._esc(err)
+            job.status = "error"
+            job.error_msg = "File locked — retry later"
+            _cue_log("Speed: swap FAILED — file locked (job_id={})".format(job.job_id))
+            return False
+
+        def retry_job(self, job_id):
+            """Retry a failed job from where it left off. If the temp file
+            exists, skip straight to swap. Otherwise re-encode from scratch."""
+            job = self._find_job(job_id)
+            if job is None or job.status != "error":
+                return
+
+            if os.path.exists(job.fspath_tmp):
+                # Temp still exists — swap only
+                _cue_log("Speed: retry swap (job_id={})".format(job_id))
+                self._finish_swap(job)
+                # If swap succeeded, job.status is now "done"
+            else:
+                # Need to re-encode
+                _cue_log("Speed: retry encode (job_id={})".format(job_id))
+                job.status = "queued"
+                job._done = False
+                job._ok = False
+                job.progress = 0.0
+                job.error_msg = ""
+                self._start_if_idle()
+
             renpy.restart_interaction()
 
         @staticmethod

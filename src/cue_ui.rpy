@@ -768,6 +768,15 @@ screen cue_overlay_content():
                                     if _job.status != "queued":
                                         $ _elapsed = int(_job.elapsed())
                                         text ("%d:%02d" % (_elapsed // 60, _elapsed % 60)) style "cue_txt" size 11 color "#aaaaaa"
+                                if _job.status == "error" and _job.error_msg:
+                                    hbox:
+                                        spacing 4
+                                        null width 20
+                                        text _job.error_msg style "cue_txt" size 10 color "#ff6666"
+                                        textbutton "Retry":
+                                            style "cue_btn"
+                                            text_style "cue_btn_text"
+                                            action Function(_cue.video_editor.retry_job, _job.job_id)
 
         # --- Image UI ---
         $ _has_image = bool(_cue.current_file) and not _is_video
