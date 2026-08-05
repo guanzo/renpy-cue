@@ -768,7 +768,7 @@ screen cue_overlay_content():
                                     if _job.status != "queued":
                                         $ _elapsed = int(_job.elapsed())
                                         text ("%d:%02d" % (_elapsed // 60, _elapsed % 60)) style "cue_txt" size 11 color "#aaaaaa"
-                                if _job.status == "error" and _job.error_msg:
+                                if _job.status == "error" and _job.error_msg and not _job.cancelled:
                                     hbox:
                                         spacing 4
                                         null width 20
