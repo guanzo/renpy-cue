@@ -246,7 +246,7 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
 # row_spacing controls horizontal gap in each row (5 for most, 2 for loop).
 # folder_child_remove_fn(trigger_key, pool_index, fi, child_file) is called when
 #   removing a single file from an expanded folder ref (detach operation).
-#   Pass None to hide ✕ on folder children (e.g. for video timestamps).
+#   Pass None to hide ✕ on folder children (e.g. for video pools).
 # Inner vbox — extracted so cue_file_list can conditionally wrap it in a viewport.
 screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
                             trigger_key, pool_index, folder_child_remove_fn,
@@ -254,7 +254,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
     vbox:
         spacing 2
         if folder_label is not None:
-            # --- Virtual folder (e.g. preset-backed pool / timestamp) ---
+            # --- Virtual folder (e.g. preset-backed pool / video pool) ---
             $ _is_expanded = _cue.file_tree.expanded_file_refs.get(folder_label, False)
             $ _count = len(folder_children) if folder_children else 0
             hbox:
@@ -593,7 +593,7 @@ screen cue_overlay_content():
                 # Video marker tabs + active pool
                 $ _vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
                 $ _vid_entry = _cue.markers.get(_vid_key, {})
-                $ _vid_entries = _cue.markers._resolve_video_timestamps(_vid_entry) if _vid_entry else []
+                $ _vid_entries = _cue.markers._resolve_video_pools(_vid_entry) if _vid_entry else []
                 $ _vid_count = len(_vid_entries)
                 $ _vid_target = _cue.markers.video.target_pool
                 $ _vid_target = max(0, min(_vid_target, _vid_count - 1)) if _vid_entries else 0
@@ -613,25 +613,25 @@ screen cue_overlay_content():
                     $ _inc = Function(_cue.volume.adjust_master, _vid_key, 0.1)
                     use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _vid_entry, _inc)
                 use cue_pool_tabs(_vid_count, _vid_target, bool(_vid_entries),
-                    "Delete all video timestamp markers for the current video?",
+                    "Delete all video markers for the current video?",
                     Function(_cue.markers.video.clear), "Delete all video SFX for the current video",
-                    Function(_cue.markers.video.add_pool), "Create a new empty timestamp at current time",
-                    _cue.markers.video.select_tab, (), "Select timestamp pool — V button adds files here")
+                    Function(_cue.markers.video.add_pool), "Create a new empty marker at current time",
+                    _cue.markers.video.select_tab, (), "Select pool — V button adds files here")
 
                 # Active pool display
                 if _vid_entries and 0 <= _vid_target < _vid_count:
-                    $ _active_ts = _vid_entries[_vid_target]
-                    $ _active_files = _active_ts.get("files", [])
-                    $ _active_vol = _active_ts.get("volume", _cue.VOL_DEFAULT)
+                    $ _active_pool = _vid_entries[_vid_target]
+                    $ _active_files = _active_pool.get("files", [])
+                    $ _active_vol = _active_pool.get("volume", _cue.VOL_DEFAULT)
                     $ _active_eff = _cue.volume.get_effective(_vid_entry, _vid_key, ts_index=_vid_target)
-                    # Detect preset-backed timestamp
-                    $ _raw_ts_list = _vid_entry.get("timestamps", [])
-                    $ _raw_ts = _raw_ts_list[_vid_target] if 0 <= _vid_target < len(_raw_ts_list) else {}
-                    $ _is_preset_ts = "preset" in _raw_ts
-                    $ _preset_name = _raw_ts.get("preset", "")
-                    # Volume dict target: raw ts for preset-backed (so overrides
-                    # persist on the real dict), resolved ts for concrete.
-                    $ _vol_target = _raw_ts if _is_preset_ts else _active_ts
+                    # Detect preset-backed pool
+                    $ _raw_pool_list = _vid_entry.get("pools", [])
+                    $ _raw_pool = _raw_pool_list[_vid_target] if 0 <= _vid_target < len(_raw_pool_list) else {}
+                    $ _is_preset_ts = "preset" in _raw_pool
+                    $ _preset_name = _raw_pool.get("preset", "")
+                    # Volume dict target: raw pool for preset-backed (so overrides
+                    # persist on the real dict), resolved pool for concrete.
+                    $ _vol_target = _raw_pool if _is_preset_ts else _active_pool
                     if _is_preset_ts:
                         $ _active_label = "Pool " + str(_vid_target + 1) + " (Preset: " + _preset_name + ")"
                     else:
@@ -642,7 +642,7 @@ screen cue_overlay_content():
 
                         null width 5
 
-                        use cue_icon_button("♻", Function(_cue.markers.video.duplicate_pool, _vid_target), "Duplicate timestamp pool", None)
+                        use cue_icon_button("♻", Function(_cue.markers.video.duplicate_pool, _vid_target), "Duplicate pool", None)
                         use cue_icon_button("✕", Function(_cue.markers.video.remove_pool, _vid_target), "Delete pool", None)
 
                         # Volume controls
@@ -656,7 +656,7 @@ screen cue_overlay_content():
                             $ _vol_label = "Volume: {:.1f}".format(_active_vol)
                         use cue_vol_row(_vol_label, _dec, _vol_target, _inc)
 
-                    # Editable timestamp + nudge buttons
+                    # Editable time + nudge buttons
                     hbox:
                         spacing 3
                         text "Time:" style "cue_txt" size 11
@@ -665,7 +665,7 @@ screen cue_overlay_content():
                         $ _inc10 = Function(_cue.markers.video.nudge, 0.01)
                         $ _inc100 = Function(_cue.markers.video.nudge, 0.1)
                         $ _commit = Function(_cue.markers.video.commit_text)
-                        $ _display = _cue_format_time(_active_ts["time"])
+                        $ _display = _cue_format_time(_active_pool["time"])
                         use cue_time_input("_cue.markers.video.edit_text", _commit, _dec100, _dec10,
                                            _inc10, _inc100, _display)
                     # File list
@@ -673,16 +673,16 @@ screen cue_overlay_content():
                         # Preset-backed: render as expandable folder via cue_file_list
                         use cue_file_list([], _cue_detach_active_video_ts, (), _active_eff, 5,
                             folder_label=_preset_name, folder_children=_active_files,
-                            folder_child_remove_fn=_cue.markers._remove_file_from_preset_ts)
+                            folder_child_remove_fn=_cue.markers._remove_file_from_video_preset_pool)
                     elif _active_files:
                         use cue_file_list(_active_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 5,
                             trigger_key=_vid_key, pool_index=_vid_target,
-                            folder_child_remove_fn=_cue.markers._remove_file_from_video_folder_ref)
+                            folder_child_remove_fn=_cue.markers._remove_file_from_video_pool_folder_ref)
                     else:
-                        text "SFX plays when this video reaches the marked timestamp(s)." style "cue_help"
+                        text "SFX plays when this video reaches the marked time(s)." style "cue_help"
                         text "Click the V button in the SFX Library to add files to this pool." style "cue_help"
                 else:
-                    text "SFX plays when this video reaches the marked timestamp(s)." style "cue_help"
+                    text "SFX plays when this video reaches the marked time(s)." style "cue_help"
                     text "Click the V button in the SFX Library to create a new pool or add to the active pool." style "cue_help"
 
 
@@ -741,7 +741,6 @@ screen cue_overlay_content():
 
                 # --- Edit queue ---
                 if _ved._jobs:
-                    null height 2
                     add Solid("#555555") ysize 1
                     timer 0.2 repeat True action [
                         Function(_cue.video_editor.poll),
@@ -901,10 +900,10 @@ screen cue_overlay_content():
                             for _vpname in _vp_names:
                                 $ _vpdata = _cue.markers.get_video_preset(_vpname)
                                 $ _vp_expanded = _cue.file_tree.expanded_video_presets.get(_vpname, False)
-                                $ _vp_ts = _vpdata.get("timestamps", []) if _vpdata else []
+                                $ _vp_pools = _vpdata.get("pools", []) if _vpdata else []
                                 $ _vp_total_files = 0
-                                for _ts in _vp_ts:
-                                    $ _vp_total_files += len(_ts.get("files", []))
+                                for _pool in _vp_pools:
+                                    $ _vp_total_files += len(_pool.get("files", []))
                                 hbox:
                                     spacing 2
                                     text "  " style "cue_txt"  # indent under Video Presets/
@@ -917,13 +916,13 @@ screen cue_overlay_content():
                                     use cue_icon_button("V", Function(_cue_maybe_apply_video_preset, _vpname), "Apply video markers to the current video", None, enabled=_is_video)
                                     use cue_folder_txt_button(_vpname, Function(_cue.file_tree.toggle_video_preset_expand, _vpname))
                                 if _vp_expanded:
-                                    for _ts in _vp_ts:
-                                        $ _ts_time = _ts.get("time", 0)
-                                        $ _ts_files = len(_cue_resolve_files(_ts.get("files", [])))
+                                    for _pool in _vp_pools:
+                                        $ _pool_time = _pool.get("time", 0)
+                                        $ _pool_files = len(_cue_resolve_files(_pool.get("files", [])))
                                         hbox:
                                             spacing 2
                                             text "    " style "cue_txt"  # double indent
-                                            text "{} ({} files)".format(_cue_format_time(_ts_time), _ts_files) style "cue_txt" color "#ffcc00" size 11
+                                            text "{} ({} files)".format(_cue_format_time(_pool_time), _pool_files) style "cue_txt" color "#ffcc00" size 11
                         # --- Folder/file tree ---
                         for item in _cue.file_tree.visible_tree:
                             hbox:
@@ -937,7 +936,7 @@ screen cue_overlay_content():
                                     else:
                                         use cue_icon_button("▸", Function(_cue.file_tree.toggle_folder, item["full_path"]), None, None)
                                     if item["has_files"]:
-                                        use cue_icon_button("V", Function(_cue.markers.video.add_folder, item["full_path"]), "Add folder to active video timestamp pool", None, enabled=_is_video)
+                                        use cue_icon_button("V", Function(_cue.markers.video.add_folder, item["full_path"]), "Add folder to active video pool", None, enabled=_is_video)
                                         use cue_icon_button("I", Function(_cue.markers.image.add_folder, item["full_path"]), "Add folder to Image SFX pool", None, enabled=_has_image)
                                         use cue_icon_button("D", Function(_cue.markers.dialogue.add_folder, item["full_path"]), "Add folder to Dialogue SFX pool", None, enabled=_is_dialogue)
                                         use cue_icon_button("L", Function(_cue.markers.loop.add_folder, item["full_path"]), "Add folder to Loop SFX Pool", None)
@@ -945,8 +944,8 @@ screen cue_overlay_content():
                                 else:
                                     # Play preview
                                     use cue_icon_button("▶", Function(_cue_preview_sfx, item["full_path"]), "Preview audio", None)
-                                    # Video marker (adds to active timestamp pool)
-                                    use cue_icon_button("V", Function(_cue.markers.video.add_file, item["index"]), "Add file to active video timestamp pool", None, enabled=_is_video)
+                                    # Video marker (adds to active pool)
+                                    use cue_icon_button("V", Function(_cue.markers.video.add_file, item["index"]), "Add file to active video pool", None, enabled=_is_video)
                                     # Image SFX
                                     use cue_icon_button("I", Function(_cue.markers.image.add_file, item["index"]), "Add to Image SFX pool", None, enabled=_has_image)
                                     # Dialogue SFX
@@ -1111,16 +1110,16 @@ screen cue_save_video_preset_dialog():
     $ _d = _cue.video_preset_dialog
     $ _vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
     $ _entry = _cue.markers.get(_vid_key, {}) if _vid_key else {}
-    $ _timestamps = _entry.get("timestamps", [])
-    $ _marker_count = len(_timestamps)
+    $ _pools = _entry.get("pools", [])
+    $ _marker_count = len(_pools)
     $ _total_files = 0
     $ _span_text = "0:00.00"
-    if _timestamps:
-        $ _first_t = _timestamps[0].get("time", 0)
-        $ _last_t = _timestamps[-1].get("time", 0)
+    if _pools:
+        $ _first_t = _pools[0].get("time", 0)
+        $ _last_t = _pools[-1].get("time", 0)
         $ _span_text = _cue_format_time(_last_t - _first_t)
-        for _ts in _timestamps:
-            $ _total_files += len(_cue_resolve_files(_ts.get("files", [])))
+        for _pool in _pools:
+            $ _total_files += len(_cue_resolve_files(_pool.get("files", [])))
     key "K_RETURN" action Function(_d.commit)
     key "K_KP_ENTER" action Function(_d.commit)
     key "K_ESCAPE" action Function(_d.cancel)
@@ -1243,7 +1242,7 @@ init -990 python:
         out_count = _cue.markers.video_preset_out_of_range(preset_name)
         if out_count > 0:
             preset = _cue.markers.get_video_preset(preset_name)
-            total = len(preset.get("timestamps", [])) if preset else 0
+            total = len(preset.get("pools", [])) if preset else 0
             dur = _cue.vid_manager.get_duration()
             msg = "{} of {} marker(s) won't fit (video is {:.1f}s). Apply anyway?".format(
                 out_count, total, dur)
@@ -1259,8 +1258,8 @@ init -990 python:
         if preset is None:
             return
         all_files = []
-        for ts in preset.get("timestamps", []):
-            all_files.extend(ts.get("files", []))
+        for pool in preset.get("pools", []):
+            all_files.extend(pool.get("files", []))
         resolved = _cue_resolve_files(all_files)
         if resolved:
             import random as _random
@@ -1268,7 +1267,7 @@ init -990 python:
             _cue_preview_sfx(f)
 
     def _cue_detach_active_video_ts(*args):
-        """Detach the active video timestamp from its preset reference.
+        """Detach the active video pool from its preset reference.
         Called by the ✕ button on a preset folder ref in cue_file_list."""
         vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
         if not vid_key:
@@ -1276,7 +1275,7 @@ init -990 python:
         entry = _cue.markers.get(vid_key)
         if entry is None:
             return
-        _cue.markers._detach_video_timestamp(entry, _cue.markers.video.target_pool)
+        _cue.markers._detach_video_pool(entry, _cue.markers.video.target_pool)
         _cue.markers.save_persistent()
 
     def _cue_detach_pool_at(trigger_key, pool_index):

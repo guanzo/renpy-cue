@@ -1,5 +1,5 @@
 ###############################################################################
-# CueBeatManager — repeat-pattern dialog for video marker timestamps.
+# CueBeatManager — repeat-pattern dialog for video marker pools.
 # Instantiated once at _cue.beat, lives on the NoRollback _cue object.
 ###############################################################################
 
@@ -22,28 +22,28 @@ init -999 python:
         def open(self):
             """Open the Repeat Pattern dialog for the current selection.
             Falls back to the active pool if nothing is selected."""
-            timestamps = _cue.markers.video.get_markers()
-            if not timestamps:
+            markers = _cue.markers.video.get_markers()
+            if not markers:
                 return
 
             sel = _cue.markers.video.get_selected()
             if not sel:
                 active = _cue.markers.video.target_pool
-                if 0 <= active < len(timestamps):
+                if 0 <= active < len(markers):
                     sel = {active}
                 else:
                     return
 
             sorted_sel = sorted(sel)
-            anchor_time = timestamps[sorted_sel[0]]["time"]
+            anchor_time = markers[sorted_sel[0]]["time"]
 
             offsets = []
             for idx in sorted_sel:
-                ts = timestamps[idx]
+                pool = markers[idx]
                 offsets.append({
-                    "offset": ts["time"] - anchor_time,
-                    "files": list(ts.get("files", [])),
-                    "volume": ts.get("volume", _cue.volume.VOL_DEFAULT),
+                    "offset": pool["time"] - anchor_time,
+                    "files": list(pool.get("files", [])),
+                    "volume": pool.get("volume", _cue.volume.VOL_DEFAULT),
                 })
 
             self.anchor = anchor_time
@@ -93,8 +93,8 @@ init -999 python:
             if not vid_key:
                 return
 
-            entry = _cue.markers.setdefault(vid_key, {"timestamps": []})
-            timestamps = entry.setdefault("timestamps", [])
+            entry = _cue.markers.setdefault(vid_key, {"pools": []})
+            pools = entry.setdefault("pools", [])
 
             dur = _cue.vid_manager.get_duration()
 
@@ -112,11 +112,11 @@ init -999 python:
                         "files": list(o["files"]),
                         "volume": o["volume"],
                     }
-                    timestamps.append(clone)
+                    pools.append(clone)
                     new_count += 1
 
             if new_count > 0:
-                timestamps.sort(key=lambda e: e["time"])
+                pools.sort(key=lambda e: e["time"])
             _cue.markers.video.selected = set()
             _cue.markers.save_persistent()
 

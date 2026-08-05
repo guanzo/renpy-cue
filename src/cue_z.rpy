@@ -26,7 +26,7 @@ init -999 python:
 
     # Volume constants (clamp range + UI quick-set targets)
     _cue.VOL_DEFAULT = 1.0   # default volume; "--" reset target
-    _cue.END_MARGIN = 0.05   # min distance from video end for timestamp placement
+    _cue.END_MARGIN = 0.05   # min distance from video end for marker placement
 
     # Key prefix constants for _cue.markers trigger keys
     _cue.IMG_KEY_PREFIX = "i:"
@@ -105,21 +105,21 @@ init -999 python:
             self.name = ""
 
         def open(self):
-            """Open the save dialog for the current video's timestamps."""
+            """Open the save dialog for the current video's pools."""
             vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
             if not vid_key:
                 return
             entry = _cue.markers.get(vid_key)
             if entry is None:
                 return
-            timestamps = entry.get("timestamps", [])
-            if not timestamps:
+            pools = entry.get("pools", [])
+            if not pools:
                 return
             self.name = ""
             renpy.show_screen("cue_save_video_preset_dialog", _layer="cue_layer")
 
         def commit(self):
-            """Create a video preset from the current video's timestamps."""
+            """Create a video preset from the current video's pools."""
             name = self.name.strip()
             if name:
                 vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
@@ -799,7 +799,7 @@ init python:
 
 
     def _cue_tick_video_triggers():
-        """Video timestamp triggers for v: keys — fires SFX at marked times."""
+        """Video pool triggers for v: keys — fires SFX at marked times."""
         ch = _cue.active_channel
         if not ch or _cue.top_layer_type != 'movie':
             return
@@ -810,19 +810,19 @@ init python:
         # Video markers
         if _cue.current_file:
             vid_key = create_vid_key(_cue.current_file)
-            timestamps = _cue.markers.video.get_markers()
-            
-            if timestamps:
+            markers = _cue.markers.video.get_markers()
+
+            if markers:
                 vid_entry = _cue.markers.get(vid_key)
-                for idx, ts_entry in enumerate(timestamps):
+                for idx, pool_entry in enumerate(markers):
                     ts_key = "{}@{}".format(vid_key, idx)
                     if ts_key not in _cue.played_video_keys:
-                        if "time" not in ts_entry:
-                            _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(ts_entry))
+                        if "time" not in pool_entry:
+                            _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(pool_entry))
                             continue
-                        mt = ts_entry["time"]
+                        mt = pool_entry["time"]
                         if mt <= elapsed < mt + marker_tolerance:
-                            files = _cue_resolve_files(ts_entry.get("files", []))
+                            files = _cue_resolve_files(pool_entry.get("files", []))
                             if files:
                                 f = _cue_pick_file(files, avoid_repeats=False)
                                 vol = _cue.volume.get_effective(vid_entry, vid_key, ts_index=idx)

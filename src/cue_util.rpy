@@ -356,7 +356,7 @@ init python:
         """Pick a random file from a list.
         If avoid_repeats is True, avoids files in the global last_played list.
         Repeat avoidance is shared across all non-video contexts.
-        Video timestamps should pass avoid_repeats=False — they always fire.
+        Video markers should pass avoid_repeats=False — they always fire.
         """
         import random as _random
         if not files:

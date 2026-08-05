@@ -5,7 +5,7 @@
 # API:
 #   _cue.markers.image.add_file(idx)          Pool-based (i: prefix)
 #   _cue.markers.dialogue.add_file(idx)       Pool-based (d: prefix)
-#   _cue.markers.video.add_file(idx)          Timestamp-based (v: prefix)
+#   _cue.markers.video.add_file(idx)          Pool-based (v: prefix)
 #   _cue.markers.loop.add_file(idx)       Pool-based (l: prefix)
 #
 #   _cue.markers[key] / .get(key) / .items()  Dict-like access (backward compat)
@@ -180,14 +180,14 @@ init -999 python:
 
 
     # =========================================================================
-    # CueVideoContext — timestamp-based markers (v: prefix)
+    # CueVideoContext — pool-based markers (v: prefix)
     # =========================================================================
 
     class CueVideoContext(CueMarkerContext):
-        """Manage timestamp cue-points on a video timeline.
+        """Manage pool-based cue-points on a video timeline.
 
         A video entry looks like:
-            {"timestamps": [
+            {"pools": [
                 {"time": 12.5, "files": ["moan1.ogg"], "volume": 1.0},
                 {"time": 45.2, "files": ["scream.ogg"]},
             ], "volume": 1.0}
@@ -198,7 +198,7 @@ init -999 python:
 
         def __init__(self, manager):
             super(CueVideoContext, self).__init__(manager)
-            self.target_pool = 0     # active timestamp index
+            self.target_pool = 0     # active pool index
             self.selected = set()    # multi-selection indices
             self.edit_text = ""      # time-edit input buffer
 
@@ -208,28 +208,28 @@ init -999 python:
             """Build the v: key for the current video context."""
             return create_vid_key(_cue.current_file) if _cue.current_file else ""
 
-        def _entry_and_timestamps(self):
-            """Return (entry, timestamps) for the current video, or (None, []).
-            Returns raw timestamps — callers that display data should use
-            _mgr._resolve_video_timestamps(entry) for preset resolution."""
+        def _entry_and_pools(self):
+            """Return (entry, pools) for the current video, or (None, []).
+            Returns raw pools — callers that display data should use
+            _mgr._resolve_video_pools(entry) for preset resolution."""
             vid_key = self._key()
             if not vid_key:
                 return None, []
             entry = self._mgr.get(vid_key)
             if entry is None:
                 return None, []
-            return entry, entry.get("timestamps", [])
+            return entry, entry.get("pools", [])
 
-        def _sort_and_track(self, timestamps, tracked_entry):
-            """Sort timestamps by time and update target_pool to tracked_entry's
+        def _sort_and_track(self, pools, tracked_entry):
+            """Sort pools by time and update target_pool to tracked_entry's
             new index. Returns the new index, or -1 if not found."""
-            timestamps.sort(key=lambda e: e["time"])
+            pools.sort(key=lambda e: e["time"])
             try:
-                new_idx = timestamps.index(tracked_entry)
+                new_idx = pools.index(tracked_entry)
                 self.target_pool = new_idx
                 return new_idx
             except ValueError:
-                self.target_pool = min(self.target_pool, len(timestamps) - 1)
+                self.target_pool = min(self.target_pool, len(pools) - 1)
                 return -1
 
         # -- internal helpers (used by add_file / add_folder / add_pool / apply_preset) --
@@ -244,17 +244,17 @@ init -999 python:
                 return None
             return elapsed
 
-        def _append_timestamp(self, entry, timestamps, ts_dict):
-            """Append a timestamp dict, re-sort, and update target_pool + selected."""
-            timestamps.append(ts_dict)
-            self._sort_and_track(timestamps, ts_dict)
+        def _append_pool(self, entry, pools, pool_dict):
+            """Append a pool dict, re-sort, and update target_pool + selected."""
+            pools.append(pool_dict)
+            self._sort_and_track(pools, pool_dict)
             self.selected = set()
 
         # -- public API (extends CueMarkerContext) --
 
         def add_file(self, file_index):
-            """Add an audio file to the active timestamp pool. Creates a new
-            timestamp at the current video position if no timestamps exist or
+            """Add an audio file to the active pool. Creates a new
+            pool at the current video position if no pools exist or
             the active target is out of range."""
             if not _cue.available_files:
                 return
@@ -264,60 +264,60 @@ init -999 python:
             if filename in _cue.file_tree.disabled_files:
                 return
             vid_key = self._key()
-            entry = self._mgr.setdefault(vid_key, {"timestamps": []})
-            timestamps = entry.setdefault("timestamps", [])
-            if timestamps and 0 <= self.target_pool < len(timestamps):
-                # Add to existing active timestamp
-                self._mgr._detach_video_timestamp(entry, self.target_pool)
-                files = timestamps[self.target_pool].setdefault("files", [])
+            entry = self._mgr.setdefault(vid_key, {"pools": []})
+            pools = entry.setdefault("pools", [])
+            if pools and 0 <= self.target_pool < len(pools):
+                # Add to existing active pool
+                self._mgr._detach_video_pool(entry, self.target_pool)
+                files = pools[self.target_pool].setdefault("files", [])
                 if filename not in files:
                     files.append(filename)
             else:
-                # Create new timestamp at current video position
+                # Create new pool at current video position
                 elapsed = self._get_video_elapsed()
                 if elapsed is None:
                     return
-                self._append_timestamp(entry, timestamps,
+                self._append_pool(entry, pools,
                     {"time": elapsed, "files": [filename]})
             self._mgr.save_persistent()
 
         def remove_file(self, ts_index, file_index):
-            """Remove a single file from a timestamp's files list.
-            Keeps the timestamp even if files becomes empty."""
+            """Remove a single file from a pool's files list.
+            Keeps the pool even if files becomes empty."""
             vid_key = self._key()
             entry = self._mgr.get(vid_key, {})
-            timestamps = entry.get("timestamps", [])
-            if not (0 <= ts_index < len(timestamps)):
+            pools = entry.get("pools", [])
+            if not (0 <= ts_index < len(pools)):
                 return
-            self._mgr._detach_video_timestamp(entry, ts_index)
-            files = timestamps[ts_index].get("files", [])
+            self._mgr._detach_video_pool(entry, ts_index)
+            files = pools[ts_index].get("files", [])
             if 0 <= file_index < len(files):
                 files.pop(file_index)
                 _cue.played_video_keys.clear()
                 self._mgr.save_persistent()
 
         def add_folder(self, folder_path):
-            """Add a folder reference to the active timestamp pool.
+            """Add a folder reference to the active pool.
             Stores the folder path (with trailing '/') instead of expanding.
-            Creates a new timestamp when none exist (requires playing video)."""
+            Creates a new pool when none exist (requires playing video)."""
             if not _cue.current_file:
                 return
             folder_ref = folder_path.rstrip("/") + "/"
             vid_key = self._key()
-            entry = self._mgr.setdefault(vid_key, {"timestamps": []})
-            timestamps = entry.setdefault("timestamps", [])
-            if timestamps and 0 <= self.target_pool < len(timestamps):
-                # Add to existing active timestamp
-                self._mgr._detach_video_timestamp(entry, self.target_pool)
-                pool_files = timestamps[self.target_pool].setdefault("files", [])
+            entry = self._mgr.setdefault(vid_key, {"pools": []})
+            pools = entry.setdefault("pools", [])
+            if pools and 0 <= self.target_pool < len(pools):
+                # Add to existing active pool
+                self._mgr._detach_video_pool(entry, self.target_pool)
+                pool_files = pools[self.target_pool].setdefault("files", [])
                 if folder_ref not in pool_files:
                     pool_files.append(folder_ref)
             else:
-                # Create new timestamp at current video position
+                # Create new pool at current video position
                 elapsed = self._get_video_elapsed()
                 if elapsed is None:
                     return
-                self._append_timestamp(entry, timestamps,
+                self._append_pool(entry, pools,
                     {"time": elapsed, "files": [folder_ref]})
             self._mgr.save_persistent()
 
@@ -331,20 +331,20 @@ init -999 python:
             self._mgr.save_persistent()
 
         def add_pool(self):
-            """Create a new empty timestamp at the current video position."""
+            """Create a new empty pool at the current video position."""
             elapsed = self._get_video_elapsed()
             if elapsed is None:
                 return
             vid_key = self._key()
-            entry = self._mgr.setdefault(vid_key, {"timestamps": []})
-            timestamps = entry.setdefault("timestamps", [])
-            self._append_timestamp(entry, timestamps,
+            entry = self._mgr.setdefault(vid_key, {"pools": []})
+            pools = entry.setdefault("pools", [])
+            self._append_pool(entry, pools,
                 {"time": elapsed, "files": []})
             self._mgr.save_persistent()
 
         def apply_preset(self, preset_name):
-            """Stamp a pool preset reference onto a new timestamp at the
-            current playhead position. The timestamp carries a 'preset' key
+            """Stamp a pool preset reference onto a new pool at the
+            current playhead position. The pool carries a 'preset' key
             that is resolved at read time, matching the other context types."""
             if not _cue.current_file:
                 return
@@ -356,46 +356,46 @@ init -999 python:
             if not r.files:
                 return
             vid_key = self._key()
-            entry = self._mgr.setdefault(vid_key, {"timestamps": []})
-            timestamps = entry.setdefault("timestamps", [])
-            self._append_timestamp(entry, timestamps,
+            entry = self._mgr.setdefault(vid_key, {"pools": []})
+            pools = entry.setdefault("pools", [])
+            self._append_pool(entry, pools,
                 {"time": elapsed, "preset": preset_name})
             self.sync_text()
             _cue.played_video_keys.clear()
             self._mgr.save_persistent()
 
         def remove_pool(self, ts_index):
-            """Delete a timestamp pool by index. Clamps target_pool."""
-            entry, timestamps = self._entry_and_timestamps()
-            if not timestamps or not (0 <= ts_index < len(timestamps)):
+            """Delete a pool by index. Clamps target_pool."""
+            entry, pools = self._entry_and_pools()
+            if not pools or not (0 <= ts_index < len(pools)):
                 return
-            timestamps.pop(ts_index)
-            if not timestamps:
+            pools.pop(ts_index)
+            if not pools:
                 del self._mgr[self._key()]
                 self.target_pool = 0
             else:
-                self.target_pool = min(self.target_pool, len(timestamps) - 1)
+                self.target_pool = min(self.target_pool, len(pools) - 1)
             _cue.played_video_keys.clear()
             self.selected = set()
             self._mgr.save_persistent()
 
         def duplicate_pool(self, ts_index):
-            """Clone a timestamp with all settings (time, volume, file list).
+            """Clone a pool with all settings (time, volume, file list).
             Appends the clone, sorts by time, and switches to the new pool."""
             vid_key = self._key()
             entry = self._mgr.get(vid_key, {})
-            timestamps = entry.get("timestamps", [])
-            if not (0 <= ts_index < len(timestamps)):
+            pools = entry.get("pools", [])
+            if not (0 <= ts_index < len(pools)):
                 return
-            original = timestamps[ts_index]
+            original = pools[ts_index]
             clone = {
                 "time": original["time"],
                 "volume": original.get("volume", _cue.VOL_DEFAULT),
                 "files": list(original.get("files", [])),
             }
-            timestamps.append(clone)
-            timestamps.sort(key=lambda e: e["time"])
-            self.target_pool = next(i for i, ts in enumerate(timestamps) if ts is clone)
+            pools.append(clone)
+            pools.sort(key=lambda e: e["time"])
+            self.target_pool = next(i for i, pool in enumerate(pools) if pool is clone)
             self.selected = set()
             self._mgr.save_persistent()
 
@@ -405,16 +405,16 @@ init -999 python:
             if not self.has_markers():
                 return
             if len(self.selected) >= 1:
-                entry, timestamps = self._entry_and_timestamps()
-                if timestamps:
+                entry, pools = self._entry_and_pools()
+                if pools:
                     for idx in sorted(self.selected, reverse=True):
-                        if 0 <= idx < len(timestamps):
-                            timestamps.pop(idx)
-                    if not timestamps:
+                        if 0 <= idx < len(pools):
+                            pools.pop(idx)
+                    if not pools:
                         del self._mgr[self._key()]
                         self.target_pool = 0
                     else:
-                        self.target_pool = min(self.target_pool, len(timestamps) - 1)
+                        self.target_pool = min(self.target_pool, len(pools) - 1)
                 _cue.played_video_keys.clear()
                 self.selected = set()
                 self._mgr.save_persistent()
@@ -423,9 +423,9 @@ init -999 python:
                 self.remove_pool(self.target_pool)
 
         def has_markers(self):
-            """Return True if the current video has at least one timestamp."""
-            _, timestamps = self._entry_and_timestamps()
-            return bool(timestamps)
+            """Return True if the current video has at least one pool."""
+            _, pools = self._entry_and_pools()
+            return bool(pools)
 
         def get_delete_message(self):
             """Build the confirmation message for marker deletion."""
@@ -441,7 +441,7 @@ init -999 python:
                 return "Delete marker {}?".format(self.target_pool + 1)
 
         def set_active(self, pool_index):
-            """Set which timestamp pool tab is active (no-op on selection)."""
+            """Set which pool tab is active (no-op on selection)."""
             self.target_pool = int(pool_index)
             self.sync_text()
 
@@ -451,59 +451,59 @@ init -999 python:
             self.selected = set()
             self.set_active(pool_index)
 
-        # -- timestamp editing --
+        # -- pool time editing --
 
         def nudge(self, delta):
-            """Nudge the active timestamp's time by delta seconds.
+            """Nudge the active pool's time by delta seconds.
             Updates both the data entry and the edit text buffer."""
-            entry, timestamps = self._entry_and_timestamps()
-            if not (0 <= self.target_pool < len(timestamps)):
+            entry, pools = self._entry_and_pools()
+            if not (0 <= self.target_pool < len(pools)):
                 return
-            ts_entry = timestamps[self.target_pool]
+            pool_entry = pools[self.target_pool]
             dur = self.get_duration()
-            new_time = ts_entry["time"] + delta
+            new_time = pool_entry["time"] + delta
             if dur > 0:
                 new_time = _cue_clamp_time(new_time, dur)
             else:
                 new_time = max(0.0, new_time)
-            ts_entry["time"] = new_time
-            self._sort_and_track(timestamps, ts_entry)
+            pool_entry["time"] = new_time
+            self._sort_and_track(pools, pool_entry)
             self.edit_text = _cue_format_time(new_time)
             _cue.played_video_keys.clear()
             self.selected = set()
             self._mgr.save_persistent()
 
         def set_time(self, idx, new_time):
-            """Write a marker timestamp during drag — no sort/save (done on
+            """Write a marker time during drag — no sort/save (done on
             release). Hot path, called every frame during a drag."""
-            entry, timestamps = self._entry_and_timestamps()
+            entry, pools = self._entry_and_pools()
             dur = self.get_duration()
             new_time = _cue_clamp_time(new_time, dur)
-            if 0 <= idx < len(timestamps):
-                timestamps[idx]["time"] = new_time
+            if 0 <= idx < len(pools):
+                pools[idx]["time"] = new_time
 
         def finalize_drag(self):
-            """Sort timestamps and save after a drag ends. Rebuilds the
+            """Sort pools and save after a drag ends. Rebuilds the
             multi-selection set after re-sort since indices may shift."""
-            entry, timestamps = self._entry_and_timestamps()
-            if not timestamps:
+            entry, pools = self._entry_and_pools()
+            if not pools:
                 return
 
-            # Capture selected timestamp identities before sorting
+            # Capture selected pool identities before sorting
             sel_objects = set()
             for idx in self.selected:
-                if 0 <= idx < len(timestamps):
-                    sel_objects.add(id(timestamps[idx]))
+                if 0 <= idx < len(pools):
+                    sel_objects.add(id(pools[idx]))
 
             pi = self.target_pool
-            if 0 <= pi < len(timestamps):
-                self._sort_and_track(timestamps, timestamps[pi])
+            if 0 <= pi < len(pools):
+                self._sort_and_track(pools, pools[pi])
 
             # Rebuild selection from new indices after sort
             if sel_objects:
                 new_sel = set()
-                for i, ts in enumerate(timestamps):
-                    if id(ts) in sel_objects:
+                for i, pool in enumerate(pools):
+                    if id(pool) in sel_objects:
                         new_sel.add(i)
                 self.selected = new_sel
                 if new_sel:
@@ -512,43 +512,43 @@ init -999 python:
             self._mgr.save_persistent()
 
         def sync_text(self):
-            """Load the active timestamp's value into the edit text buffer."""
-            entry, timestamps = self._entry_and_timestamps()
-            if 0 <= self.target_pool < len(timestamps):
-                self.edit_text = _cue_format_time(timestamps[self.target_pool]["time"])
+            """Load the active pool's time into the edit text buffer."""
+            entry, pools = self._entry_and_pools()
+            if 0 <= self.target_pool < len(pools):
+                self.edit_text = _cue_format_time(pools[self.target_pool]["time"])
 
         def commit_text(self):
-            """Parse the edit text buffer and update the active timestamp.
+            """Parse the edit text buffer and update the active pool's time.
             Tracks the active tab after re-sort."""
-            entry, timestamps = self._entry_and_timestamps()
-            if not (0 <= self.target_pool < len(timestamps)):
+            entry, pools = self._entry_and_pools()
+            if not (0 <= self.target_pool < len(pools)):
                 return
             new_time = _cue_parse_time(self.edit_text)
             if new_time is not None and new_time >= 0:
-                edited_entry = timestamps[self.target_pool]
+                edited_entry = pools[self.target_pool]
                 dur = self.get_duration()
                 if dur > 0:
                     new_time = _cue_clamp_time(new_time, dur)
                 edited_entry["time"] = new_time
-                self._sort_and_track(timestamps, edited_entry)
+                self._sort_and_track(pools, edited_entry)
                 _cue.played_video_keys.clear()
                 self.selected = set()
                 self._mgr.save_persistent()
             # Reformat buffer — shows current value, or feedback on parse failure
-            self.edit_text = _cue_format_time(timestamps[self.target_pool]["time"])
+            self.edit_text = _cue_format_time(pools[self.target_pool]["time"])
 
         # -- CDD callback interface (injected into _VideoMarkerTimeline) --
 
         def get_markers(self):
-            """Return the list of timestamp dicts for the current video.
-            Preset-backed timestamps are transparently resolved."""
-            entry, _ = self._entry_and_timestamps()
+            """Return the list of pool dicts for the current video.
+            Preset-backed pools are transparently resolved."""
+            entry, _ = self._entry_and_pools()
             if entry is None:
                 return []
-            return self._mgr._resolve_video_timestamps(entry)
+            return self._mgr._resolve_video_pools(entry)
 
         def get_active(self):
-            """Return the active timestamp index."""
+            """Return the active pool index."""
             return self.target_pool
 
         def get_selected(self):
@@ -646,7 +646,7 @@ init -999 python:
         def __init__(self):
             self._data = {}
             self._presets = {}  # name -> {"files": [...], "volume": 1.0, ...}
-            self._video_presets = {}  # name -> {"timestamps": [...], "volume": 1.0, ...}
+            self._video_presets = {}  # name -> {"pools": [...], "volume": 1.0, ...}
             self._img_target = 0
             self._dlg_target = 0
             self._loop_target = 0
@@ -742,25 +742,25 @@ init -999 python:
         # -- video presets --
 
         def create_video_preset(self, name, entry):
-            """Save video timestamps as a named preset. Overwrites if name exists."""
+            """Save video pools as a named preset. Overwrites if name exists."""
             import copy as _copy
-            timestamps = entry.get("timestamps", [])
-            if not timestamps:
+            pools = entry.get("pools", [])
+            if not pools:
                 return
             clean = []
-            for ts in timestamps:
-                if ts.get("time") is not None:
+            for pool in pools:
+                if pool.get("time") is not None:
                     clean.append({
-                        "time": ts["time"],
-                        "files": python_list(ts.get("files", [])),
-                        "volume": ts.get("volume", _cue.VOL_DEFAULT),
+                        "time": pool["time"],
+                        "files": python_list(pool.get("files", [])),
+                        "volume": pool.get("volume", _cue.VOL_DEFAULT),
                     })
             if not clean:
                 return
             clean.sort(key=lambda e: e["time"])
             source_dur = _cue.vid_manager.get_duration() if hasattr(_cue, 'vid_manager') else 0.0
             self._video_presets[name] = {
-                "timestamps": clean,
+                "pools": clean,
                 "volume": entry.get("volume", _cue.VOL_DEFAULT),
                 "source_duration": max(source_dur, 0.0),
             }
@@ -784,7 +784,7 @@ init -999 python:
             return sorted(self._video_presets.keys())
 
         def video_preset_out_of_range(self, name):
-            """Return how many timestamps in a preset exceed the current
+            """Return how many pools in a preset exceed the current
             video's duration. Returns 0 when duration is unknown (dur <= 0)."""
             preset = self._video_presets.get(name)
             if preset is None:
@@ -793,14 +793,14 @@ init -999 python:
             if dur is None or dur <= 0:
                 return 0
             out = 0
-            for ts in preset.get("timestamps", []):
-                t = ts.get("time")
+            for pool in preset.get("pools", []):
+                t = pool.get("time")
                 if t is not None and t > dur - _cue.END_MARGIN:
                     out += 1
             return out
 
         def apply_video_preset(self, name):
-            """Copy a video preset's timestamps into the current video entry.
+            """Copy a video preset's pools into the current video entry.
             Silently drops markers that don't fit the target video duration.
             Resets UI state so the timeline re-renders correctly."""
             import copy as _copy
@@ -811,24 +811,24 @@ init -999 python:
                 return
             vid_key = create_vid_key(_cue.current_file)
             dur = _cue.vid_manager.get_duration()
-            new_timestamps = []
+            new_pools = []
             dropped = 0
-            for ts in preset.get("timestamps", []):
-                t = ts.get("time")
+            for pool in preset.get("pools", []):
+                t = pool.get("time")
                 if t is None:
                     dropped += 1
                     continue
                 if dur and dur > 0 and t > dur - _cue.END_MARGIN:
                     dropped += 1
                     continue
-                new_timestamps.append({
+                new_pools.append({
                     "time": t,
-                    "files": python_list(ts.get("files", [])),
-                    "volume": ts.get("volume", _cue.VOL_DEFAULT),
+                    "files": python_list(pool.get("files", [])),
+                    "volume": pool.get("volume", _cue.VOL_DEFAULT),
                 })
-            new_timestamps.sort(key=lambda e: e["time"])
+            new_pools.sort(key=lambda e: e["time"])
             entry = self.setdefault(vid_key, {})
-            entry["timestamps"] = new_timestamps
+            entry["pools"] = new_pools
             entry["volume"] = preset.get("volume", _cue.VOL_DEFAULT)
             self.video.target_pool = 0
             self.video.selected = set()
@@ -836,71 +836,71 @@ init -999 python:
             _cue.played_video_keys.clear()
             self.save_persistent()
             _cue_log("APPLY-VIDEO-PRESET key={} preset={} markers={} dropped={}".format(
-                vid_key, name, len(new_timestamps), dropped))
+                vid_key, name, len(new_pools), dropped))
 
         @staticmethod
-        def _clean_timestamp_list(timestamps):
-            """Strip entries missing 'time' from a timestamp list.
+        def _clean_pool_list(pools):
+            """Strip entries missing 'time' from a pool list.
             Returns (clean_list, stripped_count)."""
             stripped = 0
             clean = []
-            for ts in timestamps:
-                if ts.get("time") is not None:
-                    clean.append(ts)
+            for pool in pools:
+                if pool.get("time") is not None:
+                    clean.append(pool)
                 else:
                     stripped += 1
             return clean, stripped
 
         def _sanitize_video_presets(self):
-            """Strip entries missing 'time' from all video preset timestamp lists.
+            """Strip entries missing 'time' from all video preset pool lists.
             Returns the number of entries stripped."""
             total_stripped = 0
             for name, preset in list(self._video_presets.items()):
-                timestamps = preset.get("timestamps")
-                if not timestamps:
+                pools = preset.get("pools")
+                if not pools:
                     continue
-                clean, stripped = self._clean_timestamp_list(timestamps)
+                clean, stripped = self._clean_pool_list(pools)
                 if stripped:
-                    preset["timestamps"] = clean
+                    preset["pools"] = clean
                     total_stripped += stripped
             return total_stripped
 
-        # -- timestamp-level preset resolution (for video entries) --
+        # -- pool-level preset resolution (for video entries) --
 
-        def _resolve_video_timestamps(self, entry):
-            """Return a resolved list of timestamp dicts from entry, expanding
+        def _resolve_video_pools(self, entry):
+            """Return a resolved list of pool dicts from entry, expanding
             any preset references (stamped by CueVideoContext.apply_preset).
             The original entry is not modified. List length matches the raw list
             so that trigger-tick indices stay consistent for volume lookup."""
-            raw = entry.get("timestamps", [])
+            raw = entry.get("pools", [])
             resolved = []
-            for ts in raw:
-                if "preset" in ts:
-                    r = self.resolve_pool(ts)
+            for pool in raw:
+                if "preset" in pool:
+                    r = self.resolve_pool(pool)
                     resolved.append({
-                        "time": ts["time"],
+                        "time": pool["time"],
                         "files": python_list(r.files),
                         "volume": r.volume,
                     })
                 else:
-                    resolved.append(ts)
+                    resolved.append(pool)
             return resolved
 
-        def _detach_video_timestamp(self, entry, ts_index):
-            """If the timestamp at ts_index is preset-backed, resolve it to
+        def _detach_video_pool(self, entry, ts_index):
+            """If the pool at ts_index is preset-backed, resolve it to
             concrete values in place. Returns True if a detach occurred."""
-            timestamps = entry.get("timestamps", [])
-            if ts_index < 0 or ts_index >= len(timestamps):
+            pools = entry.get("pools", [])
+            if ts_index < 0 or ts_index >= len(pools):
                 return False
-            ts = timestamps[ts_index]
-            if "preset" not in ts:
+            pool = pools[ts_index]
+            if "preset" not in pool:
                 return False
-            r = self.resolve_pool(ts)
-            preset_name = ts["preset"]
-            del ts["preset"]
-            ts["files"] = python_list(r.files)
-            ts.setdefault("volume", r.volume)
-            _cue_log("DETACH-VIDEO-TS key={} idx={} preset={} files={}".format(
+            r = self.resolve_pool(pool)
+            preset_name = pool["preset"]
+            del pool["preset"]
+            pool["files"] = python_list(r.files)
+            pool.setdefault("volume", r.volume)
+            _cue_log("DETACH-VIDEO-POOL key={} idx={} preset={} files={}".format(
                 "?", ts_index, preset_name, len(r.files)))
             return True
 
@@ -918,8 +918,8 @@ init -999 python:
                     files.remove(child_file)
             self.save_persistent()
 
-        def _remove_file_from_preset_ts(self, trigger_key, pool_index, _dummy_fi, child_file):
-            """Detach the active video timestamp then remove a specific file by
+        def _remove_file_from_video_preset_pool(self, trigger_key, pool_index, _dummy_fi, child_file):
+            """Detach the active video pool then remove a specific file by
             path. Signature matches folder_child_remove_fn for cue_file_list."""
             vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
             if not vid_key:
@@ -927,11 +927,11 @@ init -999 python:
             entry = self._data.get(vid_key)
             if entry is None:
                 return
-            self._detach_video_timestamp(entry, self.video.target_pool)
-            timestamps = entry.get("timestamps", [])
-            ts_idx = self.video.target_pool
-            if 0 <= ts_idx < len(timestamps):
-                files = timestamps[ts_idx].get("files", [])
+            self._detach_video_pool(entry, self.video.target_pool)
+            pools = entry.get("pools", [])
+            pool_idx = self.video.target_pool
+            if 0 <= pool_idx < len(pools):
+                files = pools[pool_idx].get("files", [])
                 if child_file in files:
                     files.remove(child_file)
             self.save_persistent()
@@ -1029,15 +1029,15 @@ init -999 python:
             self._detach_folder_ref_in_files(files, file_index, child_file)
             self.save_persistent()
 
-        def _remove_file_from_video_folder_ref(self, trigger_key, ts_index, file_index, child_file):
-            """Remove a child file from a folder ref in a video timestamp."""
+        def _remove_file_from_video_pool_folder_ref(self, trigger_key, ts_index, file_index, child_file):
+            """Remove a child file from a folder ref in a video pool."""
             entry = self._data.get(trigger_key)
             if entry is None:
                 return
-            timestamps = entry.get("timestamps")
-            if not timestamps or ts_index >= len(timestamps):
+            pools = entry.get("pools")
+            if not pools or ts_index >= len(pools):
                 return
-            files = timestamps[ts_index].get("files", [])
+            files = pools[ts_index].get("files", [])
             if file_index >= len(files):
                 return
             self._detach_folder_ref_in_files(files, file_index, child_file)
@@ -1135,19 +1135,44 @@ init -999 python:
                     changed = True
             return changed
 
-        def _sanitize_video_timestamps(self):
-            """Strip entries missing 'time' from all video timestamp lists.
+        def _migrate_video_timestamps_to_pools(self):
+            """One-time: rename 'timestamps' key to 'pools' in video entries
+            and video presets. Idempotent — safe to run every load.
+            Returns (entries_changed, presets_changed)."""
+            entries_changed = 0
+            for key, entry in list(self._data.items()):
+                if is_vid_key(key) and "timestamps" in entry:
+                    if "pools" not in entry:
+                        entry["pools"] = entry.pop("timestamps")
+                    else:
+                        del entry["timestamps"]
+                    entries_changed += 1
+            presets_changed = 0
+            for name, preset in list(self._video_presets.items()):
+                if "timestamps" in preset:
+                    if "pools" not in preset:
+                        preset["pools"] = preset.pop("timestamps")
+                    else:
+                        del preset["timestamps"]
+                    presets_changed += 1
+            if entries_changed or presets_changed:
+                _cue_log("MIGRATE-VIDEO-POOLS entries={} presets={}".format(
+                    entries_changed, presets_changed))
+            return entries_changed, presets_changed
+
+        def _sanitize_video_pools(self):
+            """Strip entries missing 'time' from all video pool lists.
             Returns the number of entries stripped."""
             total_stripped = 0
             for key, entry in list(self._data.items()):
                 if not is_vid_key(key):
                     continue
-                timestamps = entry.get("timestamps")
-                if not timestamps:
+                pools = entry.get("pools")
+                if not pools:
                     continue
-                clean, stripped = self._clean_timestamp_list(timestamps)
+                clean, stripped = self._clean_pool_list(pools)
                 if stripped:
-                    entry["timestamps"] = clean
+                    entry["pools"] = clean
                     total_stripped += stripped
             return total_stripped
 
@@ -1155,11 +1180,11 @@ init -999 python:
 
         def save_persistent(self):
             """Persist markers to Ren'Py persistent storage. Automatically
-            strips malformed video timestamps before writing."""
+            strips malformed video pools before writing."""
             # Sanitize before persisting
-            stripped = self._sanitize_video_timestamps()
+            stripped = self._sanitize_video_pools()
             if stripped:
-                _cue_log("SAVE-MARKERS: sanitized {} malformed video timestamp(s)".format(stripped))
+                _cue_log("SAVE-MARKERS: sanitized {} malformed video pool(s)".format(stripped))
 
             data = python_dict({
                 "markers": _cue_unwrap_persistent(self._data),
@@ -1184,8 +1209,9 @@ init -999 python:
             _cue.file_tree.disabled_files = _cue_unwrap_persistent(data.get("disabled_files", []))
             _cue.triggers_active = data.get("triggers_active", True)
             _cue.video_editor.interpolate = bool(data.get("interpolate", True))
-            
-            self._sanitize_video_timestamps()
+
+            self._migrate_video_timestamps_to_pools()
+            self._sanitize_video_pools()
             self._sanitize_video_presets()
             self._normalize_all()
 
@@ -1339,17 +1365,17 @@ init -999 python:
                 self._data[new_key] = _copy.deepcopy(entry)
                 _cue_log("{} {}".format(new_key, str(entry)))
 
-                # Clamp video timestamps to current video duration
+                # Clamp video pools to current video duration
                 if is_vid_key(source_key):
                     dur = _cue.vid_manager.get_duration()
                     pasted_entry = self._data[new_key]
-                    for ts_entry in pasted_entry.get("timestamps", []):
-                        t = ts_entry.get("time", 0)
+                    for pool_entry in pasted_entry.get("pools", []):
+                        t = pool_entry.get("time", 0)
                         if dur > 0:
                             t = _cue_clamp_time(t, dur)
                         else:
                             t = max(0.0, t)
-                        ts_entry["time"] = t
+                        pool_entry["time"] = t
 
             _cue.played_video_keys.clear()
             _cue.loop_states = {}
