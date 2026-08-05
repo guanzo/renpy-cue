@@ -208,6 +208,12 @@ init -999 python:
             """Build the v: key for the current video context."""
             return create_vid_key(_cue.current_file) if _cue.current_file else ""
 
+        def _get_target(self):
+            return self.target_pool
+
+        def _set_target(self, value):
+            self.target_pool = int(value)
+
         def _entry_and_pools(self):
             """Return (entry, pools) for the current video, or (None, []).
             Returns raw pools — callers that display data should use
@@ -264,11 +270,11 @@ init -999 python:
             if filename in _cue.file_tree.disabled_files:
                 return
             vid_key = self._key()
-            entry = self._mgr.setdefault(vid_key, {"pools": []})
-            pools = entry.setdefault("pools", [])
+            entry = self._mgr._get_or_create_entry(vid_key)
+            pools = entry["pools"]
             if pools and 0 <= self.target_pool < len(pools):
                 # Add to existing active pool
-                self._mgr._detach_video_pool(entry, self.target_pool)
+                self._mgr._detach_pool(vid_key, self.target_pool)
                 files = pools[self.target_pool].setdefault("files", [])
                 if filename not in files:
                     files.append(filename)
@@ -289,7 +295,7 @@ init -999 python:
             pools = entry.get("pools", [])
             if not (0 <= ts_index < len(pools)):
                 return
-            self._mgr._detach_video_pool(entry, ts_index)
+            self._mgr._detach_pool(vid_key, ts_index)
             files = pools[ts_index].get("files", [])
             if 0 <= file_index < len(files):
                 files.pop(file_index)
@@ -304,11 +310,11 @@ init -999 python:
                 return
             folder_ref = folder_path.rstrip("/") + "/"
             vid_key = self._key()
-            entry = self._mgr.setdefault(vid_key, {"pools": []})
-            pools = entry.setdefault("pools", [])
+            entry = self._mgr._get_or_create_entry(vid_key)
+            pools = entry["pools"]
             if pools and 0 <= self.target_pool < len(pools):
                 # Add to existing active pool
-                self._mgr._detach_video_pool(entry, self.target_pool)
+                self._mgr._detach_pool(vid_key, self.target_pool)
                 pool_files = pools[self.target_pool].setdefault("files", [])
                 if folder_ref not in pool_files:
                     pool_files.append(folder_ref)
@@ -323,12 +329,10 @@ init -999 python:
 
         def clear(self):
             """Remove all video markers for the current context."""
-            vid_key = self._key()
-            self._mgr.pop(vid_key, None)
-            _cue.played_video_keys.clear()
+            super(CueVideoContext, self).clear()
             self.target_pool = 0
+            _cue.played_video_keys.clear()
             self.selected = set()
-            self._mgr.save_persistent()
 
         def add_pool(self):
             """Create a new empty pool at the current video position."""
@@ -336,8 +340,8 @@ init -999 python:
             if elapsed is None:
                 return
             vid_key = self._key()
-            entry = self._mgr.setdefault(vid_key, {"pools": []})
-            pools = entry.setdefault("pools", [])
+            entry = self._mgr._get_or_create_entry(vid_key)
+            pools = entry["pools"]
             self._append_pool(entry, pools,
                 {"time": elapsed, "files": []})
             self._mgr.save_persistent()
@@ -356,8 +360,8 @@ init -999 python:
             if not r.files:
                 return
             vid_key = self._key()
-            entry = self._mgr.setdefault(vid_key, {"pools": []})
-            pools = entry.setdefault("pools", [])
+            entry = self._mgr._get_or_create_entry(vid_key)
+            pools = entry["pools"]
             self._append_pool(entry, pools,
                 {"time": elapsed, "preset": preset_name})
             self.sync_text()
@@ -366,18 +370,9 @@ init -999 python:
 
         def remove_pool(self, ts_index):
             """Delete a pool by index. Clamps target_pool."""
-            entry, pools = self._entry_and_pools()
-            if not pools or not (0 <= ts_index < len(pools)):
-                return
-            pools.pop(ts_index)
-            if not pools:
-                del self._mgr[self._key()]
-                self.target_pool = 0
-            else:
-                self.target_pool = min(self.target_pool, len(pools) - 1)
+            super(CueVideoContext, self).remove_pool(ts_index)
             _cue.played_video_keys.clear()
             self.selected = set()
-            self._mgr.save_persistent()
 
         def duplicate_pool(self, ts_index):
             """Clone a pool with all settings (time, volume, file list).
@@ -442,7 +437,7 @@ init -999 python:
 
         def set_active(self, pool_index):
             """Set which pool tab is active (no-op on selection)."""
-            self.target_pool = int(pool_index)
+            super(CueVideoContext, self).set_active(pool_index)
             self.sync_text()
 
         def select_tab(self, pool_index):
@@ -546,10 +541,6 @@ init -999 python:
             if entry is None:
                 return []
             return self._mgr._resolve_video_pools(entry)
-
-        def get_active(self):
-            """Return the active pool index."""
-            return self.target_pool
 
         def get_selected(self):
             """Return the set of multi-selected marker indices."""
@@ -886,24 +877,6 @@ init -999 python:
                     resolved.append(pool)
             return resolved
 
-        def _detach_video_pool(self, entry, ts_index):
-            """If the pool at ts_index is preset-backed, resolve it to
-            concrete values in place. Returns True if a detach occurred."""
-            pools = entry.get("pools", [])
-            if ts_index < 0 or ts_index >= len(pools):
-                return False
-            pool = pools[ts_index]
-            if "preset" not in pool:
-                return False
-            r = self.resolve_pool(pool)
-            preset_name = pool["preset"]
-            del pool["preset"]
-            pool["files"] = python_list(r.files)
-            pool.setdefault("volume", r.volume)
-            _cue_log("DETACH-VIDEO-POOL key={} idx={} preset={} files={}".format(
-                "?", ts_index, preset_name, len(r.files)))
-            return True
-
         def _remove_file_from_preset_pool(self, trigger_key, pool_index, _dummy_fi, child_file):
             """Detach a preset-backed pool then remove a specific file by path.
             Signature matches folder_child_remove_fn for cue_file_list."""
@@ -914,24 +887,6 @@ init -999 python:
             pools = entry.get("pools")
             if pools and 0 <= pool_index < len(pools):
                 files = pools[pool_index].get("files", [])
-                if child_file in files:
-                    files.remove(child_file)
-            self.save_persistent()
-
-        def _remove_file_from_video_preset_pool(self, trigger_key, pool_index, _dummy_fi, child_file):
-            """Detach the active video pool then remove a specific file by
-            path. Signature matches folder_child_remove_fn for cue_file_list."""
-            vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
-            if not vid_key:
-                return
-            entry = self._data.get(vid_key)
-            if entry is None:
-                return
-            self._detach_video_pool(entry, self.video.target_pool)
-            pools = entry.get("pools", [])
-            pool_idx = self.video.target_pool
-            if 0 <= pool_idx < len(pools):
-                files = pools[pool_idx].get("files", [])
                 if child_file in files:
                     files.remove(child_file)
             self.save_persistent()
@@ -1024,20 +979,6 @@ init -999 python:
             if not pools or pool_index >= len(pools):
                 return
             files = pools[pool_index].get("files", [])
-            if file_index >= len(files):
-                return
-            self._detach_folder_ref_in_files(files, file_index, child_file)
-            self.save_persistent()
-
-        def _remove_file_from_video_pool_folder_ref(self, trigger_key, ts_index, file_index, child_file):
-            """Remove a child file from a folder ref in a video pool."""
-            entry = self._data.get(trigger_key)
-            if entry is None:
-                return
-            pools = entry.get("pools")
-            if not pools or ts_index >= len(pools):
-                return
-            files = pools[ts_index].get("files", [])
             if file_index >= len(files):
                 return
             self._detach_folder_ref_in_files(files, file_index, child_file)

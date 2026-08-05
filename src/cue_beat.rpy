@@ -93,8 +93,8 @@ init -999 python:
             if not vid_key:
                 return
 
-            entry = _cue.markers.setdefault(vid_key, {"pools": []})
-            pools = entry.setdefault("pools", [])
+            entry = _cue.markers._get_or_create_entry(vid_key)
+            pools = entry["pools"]
 
             dur = _cue.vid_manager.get_duration()
 

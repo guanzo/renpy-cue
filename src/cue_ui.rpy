@@ -623,7 +623,7 @@ screen cue_overlay_content():
                     $ _active_pool = _vid_entries[_vid_target]
                     $ _active_files = _active_pool.get("files", [])
                     $ _active_vol = _active_pool.get("volume", _cue.VOL_DEFAULT)
-                    $ _active_eff = _cue.volume.get_effective(_vid_entry, _vid_key, ts_index=_vid_target)
+                    $ _active_eff = _cue.volume.get_effective(_vid_entry, _vid_key, pool_index=_vid_target)
                     # Detect preset-backed pool
                     $ _raw_pool_list = _vid_entry.get("pools", [])
                     $ _raw_pool = _raw_pool_list[_vid_target] if 0 <= _vid_target < len(_raw_pool_list) else {}
@@ -673,11 +673,12 @@ screen cue_overlay_content():
                         # Preset-backed: render as expandable folder via cue_file_list
                         use cue_file_list([], _cue_detach_active_video_ts, (), _active_eff, 5,
                             folder_label=_preset_name, folder_children=_active_files,
-                            folder_child_remove_fn=_cue.markers._remove_file_from_video_preset_pool)
+                            trigger_key=_vid_key, pool_index=_vid_target,
+                            folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
                     elif _active_files:
                         use cue_file_list(_active_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 5,
                             trigger_key=_vid_key, pool_index=_vid_target,
-                            folder_child_remove_fn=_cue.markers._remove_file_from_video_pool_folder_ref)
+                            folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
                     else:
                         text "SFX plays when this video reaches the marked time(s)." style "cue_help"
                         text "Click the V button in the SFX Library to add files to this pool." style "cue_help"
@@ -1275,7 +1276,7 @@ init -990 python:
         entry = _cue.markers.get(vid_key)
         if entry is None:
             return
-        _cue.markers._detach_video_pool(entry, _cue.markers.video.target_pool)
+        _cue.markers._detach_pool(vid_key, _cue.markers.video.target_pool)
         _cue.markers.save_persistent()
 
     def _cue_detach_pool_at(trigger_key, pool_index):

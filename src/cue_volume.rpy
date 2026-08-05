@@ -10,66 +10,48 @@ init -999 python:
 
         Each marker entry has an optional "volume" key (master level).
         Pools (including video pools) can also have per-target "volume" keys.
-        Effective playback volume = master × target, clamped to [MIN, MAX]."""
+        Effective playback volume = master x target, clamped to [MIN, MAX]."""
 
         VOL_MIN = 0.0
         VOL_DEFAULT = 1.0
         VOL_MAX = 5.0
 
-        def get(self, entry, trigger_key=None, pool_index=None, ts_index=None):
+        def get(self, entry, trigger_key=None, pool_index=None):
             """Raw stored volume for the target (pool or entry).
             Pool volumes default to VOL_DEFAULT (1.0 identity) so
             they multiply correctly with the master (entry-level) volume.
-            v: keys read the specified ts_index (falls back to first pool)."""
-            if trigger_key is not None and is_vid_key(trigger_key):
-                pools = entry.get("pools", [])
-                if pools:
-                    idx = ts_index if ts_index is not None else 0
-                    if 0 <= idx < len(pools):
-                        return pools[idx].get("volume", self.VOL_DEFAULT)
-                    if pools:
-                        return pools[0].get("volume", self.VOL_DEFAULT)
+            Falls back to first pool when pool_index is out of range."""
             if pool_index is not None:
                 pools = entry.get("pools")
-                if pools and 0 <= pool_index < len(pools):
-                    resolved = _cue.markers.resolve_pool(pools[pool_index])
-                    return resolved.volume
+                if pools:
+                    idx = pool_index
+                    if 0 <= idx < len(pools):
+                        resolved = _cue.markers.resolve_pool(pools[idx])
+                        return resolved.volume
+                    if pools:
+                        resolved = _cue.markers.resolve_pool(pools[0])
+                        return resolved.volume
             return entry.get("volume", self.VOL_DEFAULT)
 
-        def write(self, trigger_key, new_vol, pool_index=None, ts_index=None):
+        def write(self, trigger_key, new_vol, pool_index=None):
             """Clamp and persist a volume, then save + refresh.
-            v: keys with ts_index write that specific pool; without ts_index
-            broadcast to all pools (backward-compatible).
-            i:/d: with pool_index write that pool; otherwise entry-level."""
+            With pool_index writes that specific pool; otherwise entry-level."""
             entry = _cue.markers.get(trigger_key)
             if entry is None:
                 return
             new_vol = max(self.VOL_MIN, min(self.VOL_MAX, round(new_vol, 1)))
-            if is_vid_key(trigger_key):
-                pools = entry.get("pools", [])
-                if not pools:
-                    return
-                if ts_index is not None:
-                    if 0 <= ts_index < len(pools):
-                        pools[ts_index]["volume"] = new_vol
-                else:
-                    for pool_entry in pools:
-                        pool_entry["volume"] = new_vol
+            if pool_index is not None:
+                pools = entry.get("pools")
+                if pools and 0 <= pool_index < len(pools):
+                    pools[pool_index]["volume"] = new_vol
             else:
-                target = None
-                if pool_index is not None:
-                    pools = entry.get("pools")
-                    if pools and 0 <= pool_index < len(pools):
-                        target = pools[pool_index]
-                if target is None:
-                    target = entry
-                target["volume"] = new_vol
+                entry["volume"] = new_vol
             _cue.markers.save_persistent()
             renpy.restart_interaction()
 
         def adjust(self, trigger_key, delta, pool_index=None):
             """Adjust volume up/down by delta, clamped to [MIN, MAX].
-            pool_index targets one pool for i:/d: entries; None = entry-level."""
+            pool_index targets one pool; None = entry-level."""
             entry = _cue.markers.get(trigger_key)
             if entry is None:
                 return
@@ -103,26 +85,21 @@ init -999 python:
 
         # --- Effective volume (master × target) ---
 
-        def get_effective(self, entry, trigger_key=None, pool_index=None, ts_index=None):
+        def get_effective(self, entry, trigger_key=None, pool_index=None):
             """Effective playback volume = master (entry-level) x target volume, clamped.
             Pool volumes default to VOL_DEFAULT (1.0 identity) so master
             is never double-counted. For entry-only queries returns master alone."""
             master = entry.get("volume", self.VOL_DEFAULT) if entry is not None else self.VOL_DEFAULT
-            if trigger_key is not None and is_vid_key(trigger_key):
-                pools = entry.get("pools", [])
-                if pools:
-                    idx = ts_index if ts_index is not None else 0
-                    if 0 <= idx < len(pools):
-                        raw = pools[idx].get("volume", self.VOL_DEFAULT)
-                    else:
-                        raw = pools[0].get("volume", self.VOL_DEFAULT)
-                    return max(self.VOL_MIN, min(self.VOL_MAX, master * raw))
             if pool_index is not None:
                 pools = entry.get("pools")
-                if pools and 0 <= pool_index < len(pools):
-                    pool = pools[pool_index]
-                    resolved = _cue.markers.resolve_pool(pool)
-                    return max(self.VOL_MIN, min(self.VOL_MAX, master * resolved.volume))
+                if pools:
+                    idx = pool_index
+                    if 0 <= idx < len(pools):
+                        resolved = _cue.markers.resolve_pool(pools[idx])
+                        return max(self.VOL_MIN, min(self.VOL_MAX, master * resolved.volume))
+                    if pools:
+                        resolved = _cue.markers.resolve_pool(pools[0])
+                        return max(self.VOL_MIN, min(self.VOL_MAX, master * resolved.volume))
             return master
 
         # --- Convenience: video pool volume ---
@@ -133,8 +110,9 @@ init -999 python:
             entry = _cue.markers.get(vid_key)
             if entry is None:
                 return
-            current = self.get(entry, vid_key, ts_index=_cue.markers.video.target_pool)
-            self.write(vid_key, current + delta, ts_index=_cue.markers.video.target_pool)
+            pi = _cue.markers.video.target_pool
+            current = self.get(entry, vid_key, pool_index=pi)
+            self.write(vid_key, current + delta, pool_index=pi)
 
         # --- Bar changed callback ---
 

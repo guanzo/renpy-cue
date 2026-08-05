@@ -422,6 +422,17 @@ init python:
             _cue.current_dialogue[:60] if _cue.current_dialogue else "(none)"))
 
 
+    def _cue_play_pool(entry, key, pool, pool_index, file=None, avoid_repeats=True):
+        """Resolve a pool, pick a random file (unless file is given), and play it.
+        Returns the audio channel name, or None if the pool has no playable files."""
+        resolved = _cue.markers.resolve_pool(pool)
+        files = _cue_resolve_files(resolved.files)
+        if not files:
+            return None
+        f = file if file is not None else _cue_pick_file(files, avoid_repeats=avoid_repeats)
+        vol = _cue.volume.get_effective(entry, key, pool_index=pool_index)
+        return _cue_play_sfx(f, key, volume=vol)
+
     def _cue_fire_context_triggers(*keys, only_shake_pools=False):
         """Fire markers for the given trigger keys.
         Multi-pool entries play one random file from EACH pool concurrently.
@@ -464,8 +475,7 @@ init python:
                 if file in picked:
                     continue
                 picked.append(file)
-                pool_vol = _cue.volume.get_effective(entry, key, pool_index=pi)
-                _cue_play_sfx(file, key, volume=pool_vol)
+                _cue_play_pool(entry, key, pool, pi, file=file)
 
 
     # --------------------------------------------------------------------------
@@ -780,8 +790,7 @@ init python:
                         if picked_file in picked:
                             continue
                         picked.append(picked_file)
-                        pool_vol = _cue.volume.get_effective(entry, loop_key, pool_index=pi)
-                        ch_used = _cue_play_sfx(picked_file, loop_key, volume=pool_vol)
+                        ch_used = _cue_play_pool(entry, loop_key, pool, pi, file=picked_file)
                         if ch_used:
                             channels.append(ch_used)
                     if channels:
@@ -822,11 +831,8 @@ init python:
                             continue
                         mt = pool_entry["time"]
                         if mt <= elapsed < mt + marker_tolerance:
-                            files = _cue_resolve_files(pool_entry.get("files", []))
-                            if files:
-                                f = _cue_pick_file(files, avoid_repeats=False)
-                                vol = _cue.volume.get_effective(vid_entry, vid_key, ts_index=idx)
-                                _cue_play_sfx(f, vid_key, volume=vol)
+                            f = _cue_play_pool(vid_entry, vid_key, pool_entry, idx, avoid_repeats=False)
+                            if f:
                                 _cue.played_video_keys.add(ts_key)
                         
 
