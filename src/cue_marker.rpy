@@ -1146,7 +1146,7 @@ init -999 python:
                 "triggers_active": _cue.triggers_active,
                 "interpolate": _cue.video_editor.interpolate,
             })
-            persistent._cue_markers = data
+            persistent._cue_config = data
 
             # Autosave backup to disk (throttled to once per 5 min)
             self._autosave_backup()
@@ -1169,7 +1169,7 @@ init -999 python:
 
         def load_persistent(self):
             """Load markers from persistent storage into internal state."""
-            data = getattr(persistent, '_cue_markers', None)
+            data = getattr(persistent, '_cue_config', None)
             if data is None:
                 self._data = {}
                 self._video_presets = {}
@@ -1199,11 +1199,11 @@ init -999 python:
 
                 # Generate timestamped filename
                 dump_path = os.path.join(backup_dir, "cue_config_{}.json".format(int(now)))
-                data = getattr(persistent, '_cue_markers', None)
+                data = getattr(persistent, '_cue_config', None)
 
                 if data is None:
                     self.save_persistent()
-                    data = getattr(persistent, '_cue_markers', {})
+                    data = getattr(persistent, '_cue_config', {})
 
                 with open(dump_path, "w") as f:
                     _json.dump(data, f, indent=2, sort_keys=True)
@@ -1220,7 +1220,7 @@ init -999 python:
                 pass  # best-effort
 
         def backup_to_file(self):
-            """Dump entire persistent._cue_markers to disk."""
+            """Dump entire persistent._cue_config to disk."""
             try:
                 import json as _json
                 dump_dir = os.path.join(renpy.config.gamedir, _cue.base_dir)
@@ -1228,11 +1228,11 @@ init -999 python:
                 if not os.path.isdir(dump_dir):
                     os.makedirs(dump_dir)
                 dump_path = os.path.join(dump_dir, _cue.config_filename)
-                data = getattr(persistent, '_cue_markers', None)
+                data = getattr(persistent, '_cue_config', None)
 
                 if data is None:
                     self.save_persistent()
-                    data = getattr(persistent, '_cue_markers', {})
+                    data = getattr(persistent, '_cue_config', {})
 
                 with open(dump_path, "w") as f:
                     _json.dump(data, f, indent=2, sort_keys=True)
@@ -1254,7 +1254,7 @@ init -999 python:
                 with open(dump_path, "r") as f:
                     data = _json.load(f)
 
-                persistent._cue_markers = data
+                persistent._cue_config = data
                 self._populate_config(data)
                 self.save_persistent()
 
