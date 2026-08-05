@@ -26,6 +26,12 @@ E:\Porn\pGames\Dreamland-v0.6.0p-pc
 - `renpy.get_displayable()` with `screen=`/`id=` kwargs — API varies
 - `<from N>` syntax on movie channels — ignored, always restarts from 0
 
+### FORBIDDEN (screen language):
+- Python inline `x if cond else y` in screen property values ONLY works
+  when the entire expression is wrapped in parentheses:
+  `property ("#446644" if cond else "#444444")`.
+  Without parens the parser reads `if` as a screen-language block.
+
 ### SAFE across all versions:
 - `store._last_say_what` — current dialogue text
 - `store._last_say_who` — current speaker
