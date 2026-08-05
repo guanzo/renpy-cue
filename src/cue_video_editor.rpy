@@ -594,6 +594,9 @@ init -999 python:
                     _cue_log("probed vcodec: {} -> {}, acodec: {} -> {}, audio: {}, bitrate: {}".format(
                         vc_in, vcodec, ac_in, acodec, has_audio, target_bitrate))
 
+                if job.cancelled:
+                    return
+
                 # --- Build ffmpeg command(s) ---
                 interpolate = job.interpolate
                 source_fps = _cue.ffmpeg.probe_fps(input_fs)
@@ -717,6 +720,8 @@ init -999 python:
                 return
 
             if not job._done:
+                if job.cancelled:
+                    renpy.restart_interaction()
                 return
 
             job.end_time = _time.time()
