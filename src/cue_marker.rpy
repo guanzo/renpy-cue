@@ -1151,8 +1151,8 @@ init -999 python:
             self._presets = _cue_unwrap_persistent(data.get("presets", {}))
             self._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
             
-            _cue.file_tree.disabled_files = _cue_unwrap_persistent(data.get("disabled_files", []))
-            _cue.triggers_active = data.get("triggers_active", True)
+            _cue.file_tree.disabled_files = python_set(_cue_unwrap_persistent(data.get("disabled_files", set())))
+            _cue.triggers_active = bool(data.get("triggers_active", True))
             _cue.video_editor.interpolate = bool(data.get("interpolate", True))
 
             # Restore per-video edit history
