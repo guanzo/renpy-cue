@@ -602,7 +602,7 @@ screen cue_overlay_content():
                                     style "cue_btn"
                                     text_style "cue_btn_text"
                                     sensitive not _ov.generating
-                                    background "#446644" if abs(_ov.speed - _sp) < 0.001 else "#444444"
+                                    background ("#446644" if abs(_ov.speed - _sp) < 0.001 else "#444444")
                                     action Function(_cue.video_overlay.activate_speed, _sp)
                                     tooltip "Play at {:.2f}x — ./, keys cycle".format(_sp)
                     if _ov.generating:
