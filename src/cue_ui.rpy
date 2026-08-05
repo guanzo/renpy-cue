@@ -604,13 +604,13 @@ screen cue_overlay_content():
                                     sensitive not _ov.generating
                                     background ("#446644" if abs(_ov.speed - _sp) < 0.001 else "#444444")
                                     action Function(_cue.video_overlay.activate_speed, _sp)
-                                    tooltip "Play at {:.2f}x — ./, keys cycle".format(_sp)
+                                    tooltip ("Switch to {:.2f}x speed — edited video plays on top, original file is never modified. Use . and , keys to cycle.".format(_sp) if abs(_sp - 1.0) > 0.001 else "Switch back to the original video.")
                     if _ov.generating:
                         text "Generating {:.2f}x variant...".format(_ov.gen_speed) style "cue_txt" size 11 color "#ffcc00"
                     if _ov.gen_error:
                         text _ov.gen_error style "cue_txt" size 11 color _cue_color_error
                     if _ov.active:
-                        text "Overlay active — {:.2f}x. Press . or , to cycle.".format(_ov.speed) style "cue_txt" size 11 color "#88cc88"
+                        text "Playing {:.2f}x variant on top of original. Original is paused and untouched on disk. Press . or , to cycle, 1.00x to restore.".format(_ov.speed) style "cue_txt" size 11 color "#88cc88"
 
                     # --- Timeline visualizer ---
                     fixed:
