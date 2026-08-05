@@ -16,7 +16,6 @@ init -999 python:
 
     class CueVideoEditorState:
         """Editing state for a single video file."""
-        __slots__ = ("vpath", "factor_text", "has_backup", "last_error")
 
         def __init__(self, vpath):
             self.vpath = vpath
@@ -27,13 +26,8 @@ init -999 python:
 
     class CueVideoJob:
         """One ffmpeg encode job in the queue."""
-        __slots__ = ("job_id", "vpath", "fspath_in", "fspath_tmp", "backup_path",
-                     "factor", "status", "progress", "error_msg",
-                     "start_time", "end_time",
-                     "total_frames", "passlog", "cancelled", "proc",
-                     "interpolate", "_done", "_ok")
 
-        def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, interpolate):
+        def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, interpolate, quick_preview):
             self.job_id = job_id
             self.vpath = vpath
             self.fspath_in = fspath_in
