@@ -818,7 +818,7 @@ init -999 python:
                     "volume": pool.get("volume", _cue.VOL_DEFAULT),
                 })
             new_pools.sort(key=lambda e: e["time"])
-            entry = self.setdefault(vid_key, {})
+            entry = self._get_or_create_entry(vid_key)
             entry["pools"] = new_pools
             entry["volume"] = preset.get("volume", _cue.VOL_DEFAULT)
             self.video.target_pool = 0
@@ -1001,7 +1001,9 @@ init -999 python:
             if entry is None:
                 entry = {"pools": []}
                 self._data[trigger_key] = entry
-            return self._normalize_entry(entry)
+            entry = self._normalize_entry(entry)
+            entry["replay"] = _cue.current_replay
+            return entry
 
         def _ensure_pool(self, trigger_key, pool_index):
             """Return the pool dict at pool_index, creating entry/pools as needed.
@@ -1304,6 +1306,8 @@ init -999 python:
                     new_key = create_loop_key(ctx_file)
 
                 self._data[new_key] = _copy.deepcopy(entry)
+                self._data[new_key]["replay"] = _cue.current_replay
+                
                 _cue_log("{} {}".format(new_key, str(entry)))
 
                 # Clamp video pools to current video duration

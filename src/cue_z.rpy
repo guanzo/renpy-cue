@@ -15,6 +15,7 @@ init -999 python:
     _cue.current_dialogue = ""
     _cue.prev_dialogue = ""
     _cue.top_layer_type = None
+    _cue.current_replay = None
 
     # Path constants
     _cue.base_dir = "renpy_cue"
@@ -303,7 +304,7 @@ init python:
         
         # Show the overlay screen
         renpy.show_screen("cue_overlay", _layer="cue_layer")
-        renpy.restart_interaction()
+        renpy.restart_interaction()      
 
 
     def _cue_hide_overlay():
@@ -315,6 +316,7 @@ init python:
 
     def _cue_refresh_context():
         """Re-detect video and image, and swap context when they change."""
+        _cue.current_replay = renpy.store._in_replay
 
         old_file = _cue.current_file
         old_video = _cue.active_channel
