@@ -15,6 +15,7 @@ init -999 python:
     _cue.current_dialogue = ""
     _cue.prev_dialogue = ""
     _cue.top_layer_type = None
+    _cue.top_displayable = None
     _cue.current_replay = None
 
     # Path constants
@@ -329,22 +330,18 @@ init python:
         #    authoritative source for "what scene are we in." Channel detection
         #    needs this to avoid picking up a stale movie still playing from
         #    the previous scene.
-        top_name, top_type = _cue_get_top_layer()
+        top_name, top_type, top_d = _cue_get_top_layer()
         if top_name is None:
             return
 
         _cue.current_file = top_name
         _cue.top_layer_type = top_type  # cache for screen / other consumers
+        _cue.top_displayable = top_d   # cached for tick_trigger
 
         # 2. Reconcile video channel with the top layer.
         #    During scene transitions the old movie channel may still be playing
-        #    even though the master layer has already changed. Pass the expected
-        #    filename so _cue_refresh_channel skips channels that don't match.
-        #
-        #   Note, channel operations are async b/c file takes some time to load. 
-        #   Even though top_type is movie, the movie channel may not exist yet.
-        #   So we also refresh_channel in the tick_trigger
-        _cue_refresh_channel(tag=top_name)
+        #    even though the master layer has already changed.
+        _cue_refresh_channel(displayable=top_d)
 
         _cue.file_tree.rebuild_tree()
 
@@ -406,7 +403,7 @@ init python:
                 pass
         # Determine primary context — top displayable on master layer wins;
         # fall back to video channel when nothing is on the master layer.
-        top_name, top_type = _cue_get_top_layer()
+        top_name, top_type, _unused = _cue_get_top_layer()
         if top_type:
             ctx_type = top_type  # 'image' or 'movie'
         elif _cue.active_channel is not None and playing == "1":
@@ -484,50 +481,69 @@ init python:
     # --------------------------------------------------------------------------
 
     def _cue_get_top_layer():
-        """Return (name, kind) for the topmost displayable on the master
-        layer — what the player actually sees (scene list order is z-order).
+        """Return (name, kind, displayable) for the topmost displayable on
+        the master layer — what the player actually sees (scene list order
+        is z-order).
 
         kind is 'image', 'movie', or None (nothing/unknown on the layer).
         name is the image tag (e.g. 'bg') or movie basename (e.g.
         'intro.webm'), or None. Callers fall back to the video channel
         when name is None (channel movies are not on the master layer).
-        """
+
+        displayable is the unwrapped displayable, or None."""
         try:
             tags = renpy.get_showing_tags(layer="master")
             if not tags:
-                return None, None
+                return None, None, None
 
             # Topmost tag = highest zorder on this layer
             layers = renpy.game.context().scene_lists.layers.get("master", [])
             if not layers:
-                return None, None
+                return None, None, None
             name = layers[-1].tag
             if not name:
-                return None, None
+                return None, None, None
 
-            d = _cue_unwrap_displayable(name)
+            # Get the displayable directly from the scene list entry.
+            # renpy.displayable(name) does an image-registry lookup by name
+            # which fails on bare tags when the image was registered with
+            # attributes (e.g. "bg anim_josy_on_top_slide_ep2 movie").
+            entry = layers[-1]
+            d = _cue_unwrap_displayable(entry.displayable)
 
             if isinstance(d, renpy.display.video.Movie):
-                return name, "movie"
+                # Use the actual movie filename (matches audio channel name)
+                # movie_path = getattr(d, '_original_play', '') or ''
+                # movie_name = movie_path.rsplit("/", 1)[-1].rsplit(".", 1)[0] if movie_path else ""
+                # if movie_name:
+                #     return movie_name, "movie", d
+                # Fallback: full image name without the tag
+                name = " ".join(entry.name[1:]) if len(entry.name) > 1 else entry.name[0]
+                return name, "movie", d
             if isinstance(d, renpy.display.im.Image):
-                return name, "image"
+                name = " ".join(entry.name) if entry.name else name
+                return name, "image", d
 
-            # Unknown but named — treat as image context (matches old behavior).
-            return None, None
+            # Unexpected displayable type — keep current_file accurate
+            name = " ".join(entry.name) if entry.name else name
+            if d is not None:
+                _cue_log("TOP-LAYER-UNKNOWN name={} d_class={}".format(
+                    name, d.__class__.__name__))
+            return name, "image", d
         except Exception as exc:
             _cue_log("TOP-LAYER-ERR {}".format(repr(exc)))
-            return None, None
+            return None, None, None
 
     # --------------------------------------------------------------------------
     # Channel Detection
     # --------------------------------------------------------------------------
 
-    def _cue_refresh_channel(tag=None):
+    def _cue_refresh_channel(displayable=None):
         """Auto-detect the active movie channel. Only finds video (movie) channels.
 
-        When tag is given, only a channel whose playing file basename
-        matches tag will be selected — stale channels from a previous
-        scene that are still winding down are skipped."""
+        When displayable is given (a Movie), only the channel whose playing
+        file matches displayable._original_play is selected — stale channels
+        from a previous scene that are still winding down are skipped."""
 
         if _cue.__refreshing_channel:
             return
@@ -585,16 +601,18 @@ init python:
                         candidates.append((ch, None, path))
                 except Exception:
                     pass
-
+            
+            
             if candidates:
-                
-                if tag is not None:
-                    # First pass: prefer the channel whose playing file matches
-                    for ch_name, ch_obj, path in candidates:
-                        d = _cue_unwrap_displayable(tag)
-                        if isinstance(d, renpy.display.video.Movie) and path == d._original_play:
-                            _apply_channel(ch_name, ch_obj)
-                            return
+                if displayable is not None and isinstance(displayable, renpy.display.video.Movie):
+                    # Match channel by file path (works for movie sprites where
+                    # the tag is "bg" but the actual file is different)
+                    target_path = getattr(displayable, '_original_play', '') or ''
+                    if target_path:
+                        for ch_name, ch_obj, path in candidates:
+                            if path == target_path:
+                                _apply_channel(ch_name, ch_obj)
+                                return
                     # No match — clear, don't fall back to a stale channel
                     _cue.active_channel = None
                     _cue.vid_manager.channel = None
@@ -704,7 +722,7 @@ init python:
         # Pass the current file as tag so a stale channel from the
         # previous scene is never picked up during movie-to-movie transitions.
         if _cue.top_layer_type == 'movie':
-            _cue_refresh_channel(tag=_cue.current_file)
+            _cue_refresh_channel(displayable=_cue.top_displayable)
 
         # Keep paused state in sync (referenced by the UI for play/pause buttons)
         _cue.vid_manager.sync_paused()

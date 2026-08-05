@@ -725,6 +725,7 @@ screen cue_overlay_content():
                         Function(_cue.video_editor.toggle_interpolate),
                         "Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to encode.",
                         "Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to encode.")
+                    text "Slower encode, higher quality" style "cue_help" size 10 yalign 0.5
                 hbox:
                     spacing 4
                     use cue_toggle_btn(_ved.fast_preview, "Fast Preview",
