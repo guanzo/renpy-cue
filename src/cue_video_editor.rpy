@@ -107,6 +107,7 @@ init -999 python:
             # --- UI flags (flat — not per-video) ---
             self.active = False             # True when Video Editor section is shown
             self._ready = False             # True after ffmpeg probe cache is warm
+            self._warm_cache_error = ""      # "" = ok, else the exception string from warmup
             self.interpolate = True         # Global frame interpolation toggle
             self.fast_preview = False    # Fast low-quality encode for judging speed
 
@@ -372,8 +373,8 @@ init -999 python:
             """Background thread entry: warm the probe cache, then flag ready."""
             try:
                 self._warm_cache()
-            except Exception:
-                pass
+            except Exception as e:
+                self._warm_cache_error = str(e)
             self._ready = True
 
         def open_editor(self):
@@ -416,6 +417,11 @@ init -999 python:
             """Pre-flight check then show confirmation dialog (main thread)."""
             if not self._ready:
                 self.last_error = "Checking ffmpeg — try again in a moment."
+                renpy.restart_interaction()
+                return
+            if self._warm_cache_error:
+                self.last_error = self._esc(
+                    "ffmpeg check failed: {}".format(self._warm_cache_error))
                 renpy.restart_interaction()
                 return
             self._sync_backup_for_current()
