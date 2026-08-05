@@ -78,14 +78,7 @@ init -999 python:
             return self.status
 
         def filename(self):
-            """Basename of the target video for display.
-            Uses the temp output path, stripping the tmp suffix — this is
-            the actual video file being replaced, not the .bak source."""
-            if self.fspath_tmp:
-                base = os.path.basename(self.fspath_tmp)
-                # Strip TMP_SUFFIX from the temp filename to get the real name
-                suffix = CueVideoEditor.TMP_SUFFIX
-                return base.replace(suffix, "")
+            """Basename of the target video for display (never the .bak source)."""
             if self.vpath:
                 return os.path.basename(self.vpath)
             return "?"
@@ -767,8 +760,11 @@ init -999 python:
 
         def _finalize_swap_for(self, job):
             """Backup original, swap transcoded file into place (main thread)."""
-            fs = job.fspath_in
+            # Derive the real video path from the temp path — job.fspath_in
+            # may be the .bak source, not the target. The temp path is
+            # <dir>/<name>__cue_speed_tmp<ext>, target is <dir>/<name><ext>.
             tmp = job.fspath_tmp
+            fs = tmp.replace(self.TMP_SUFFIX, "")
             vp = job.vpath
 
             # Release the file by stopping playback — but only if the
