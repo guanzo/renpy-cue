@@ -926,8 +926,6 @@ init -999 python:
                 return
             if job.status == "queued":
                 self._jobs.remove(job)
-                if job is self._current_job:
-                    self._current_job = None
                 _cue_log("Speed: de-queued job_id={}".format(job_id))
             elif job is self._current_job:
                 job.cancelled = True
