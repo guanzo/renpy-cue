@@ -744,7 +744,7 @@ screen cue_overlay_content():
                 if _ved._jobs:
                     add Solid("#555555") ysize 1
                     timer 0.2 repeat True action [
-                        Function(_cue.video_editor.poll),
+                        Function(_cue.video_editor.poll_jobs),
                         Function(_cue.video_editor._refresh_ui),
                     ]
                     frame:

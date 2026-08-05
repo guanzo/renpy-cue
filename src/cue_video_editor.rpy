@@ -713,9 +713,9 @@ init -999 python:
                 self._kill_job_proc_for(job)
                 job._done = True
 
-        def poll(self):
-            """Called by screen timer on the main thread. When the worker is
-            done, finalize or report error."""
+        def poll_jobs(self):
+            """Called by screen timer and tick_trigger on the main thread.
+            When the worker is done, finalize or report error."""
             job = self._current_job
             if job is None:
                 return

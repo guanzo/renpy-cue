@@ -710,6 +710,10 @@ init python:
         # Keep paused state in sync (referenced by the UI for play/pause buttons)
         _cue.vid_manager.sync_paused()
 
+        # Finalize completed video editor jobs even when editor UI is closed
+        if _cue.video_editor.processing:
+            _cue.video_editor.poll_jobs()
+
         # --- Auto-re-pause after seek (runs regardless of SFX Active) ---
         _cue.vid_manager.poll_autopause()
 
