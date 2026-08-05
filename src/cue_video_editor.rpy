@@ -30,7 +30,8 @@ init -999 python:
     class CueVideoJob:
         """One ffmpeg encode job in the queue."""
 
-        def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, interpolate, fast_preview):
+        def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, interpolate, fast_preview,
+                     mode="encode", fspath_out=None):
             self.job_id = job_id
             self.vpath = vpath
             self.fspath_in = fspath_in
@@ -38,6 +39,8 @@ init -999 python:
             self.factor = factor
             self.interpolate = interpolate
             self.fast_preview = fast_preview
+            self.mode = mode            # "encode" (swap) or "overlay" (variant)
+            self.fspath_out = fspath_out  # variant output path (overlay mode)
             self.status = "queued"      # queued | analyzing | encoding | done | error
             self.progress = 0.0
             self.error_msg = ""
@@ -534,6 +537,51 @@ init -999 python:
             if self._current_job is None:
                 self._start_next_job()
 
+        def apply_variant(self, speed, out_fspath):
+            """Start ffmpeg to generate a speed variant file (overlay mode).
+            Unlike apply(), this does NOT stop the original channel and does
+            NOT swap files — it writes a new persistent variant alongside the
+            original. Called by CueVideoOverlay._start_generation()."""
+            if self.processing:
+                return
+
+            vp = self._get_video_vpath()
+            fs = self._get_video_fspath()
+            if not fs:
+                _cue.video_overlay.gen_error = "Video file not found on disk."
+                _cue.video_overlay.generating = False
+                renpy.restart_interaction()
+                return
+
+            # Build temp path in same directory (atomic rename after success)
+            base, ext = os.path.splitext(os.path.basename(fs))
+            if not ext:
+                ext = ".webm"
+            temp_path = os.path.join(
+                os.path.dirname(out_fspath),
+                "{}__cue_ovl_tmp{}".format(base, ext),
+            )
+
+            # Always transcode from the backup (pristine original) if it
+            # exists. Otherwise repeated edits would compound quality loss.
+            backup_path = self._backup_path(fs)
+            if os.path.exists(backup_path):
+                input_fs = backup_path
+            else:
+                input_fs = fs
+
+            # Create job and add to queue
+            job_id = self._next_job_id
+            self._next_job_id += 1
+            job = CueVideoJob(job_id, vp, input_fs, temp_path, speed,
+                              self.interpolate, False,
+                              mode="overlay", fspath_out=out_fspath)
+            self._jobs.append(job)
+
+            _cue_log("Overlay variant job queued: id={}, speed={:.2f}, out={}".format(
+                job_id, speed, os.path.basename(out_fspath)))
+            self._start_if_idle()
+
         def _start_next_job(self):
             """Pick the first queued job and start its worker thread."""
             job = None
@@ -727,13 +775,22 @@ init -999 python:
                 self._cleanup_temp_for(job)
                 job.status = "error"
                 job.error_msg = "Cancelled"
+                if job.mode == "overlay":
+                    _cue.video_overlay.generating = False
+                    _cue.video_overlay.gen_error = "Cancelled."
                 _cue_log("Speed: cancelled by user (job_id={})".format(job.job_id))
             elif not job._ok:
                 self._cleanup_temp_for(job)
                 job.status = "error"
+                if job.mode == "overlay":
+                    _cue.video_overlay.generating = False
+                    _cue.video_overlay.gen_error = "Speed change failed: " + (job.error_msg or "unknown error")
                 _cue_log("Speed: job failed (job_id={})".format(job.job_id))
             else:
-                self._finish_swap(job)
+                if job.mode == "overlay":
+                    self._finish_variant(job)
+                else:
+                    self._finish_swap(job)
 
             self._current_job = None
             self._start_next_job()
@@ -822,6 +879,65 @@ init -999 python:
             job.error_msg = "File locked — retry later"
             _cue_log("Speed: swap FAILED — file locked (job_id={})".format(job.job_id))
             return False
+
+        def _finish_variant(self, job):
+            """Move the temp file to the final variant path (overlay mode).
+            No backup, no channel stop, no swap — the original is untouched."""
+            tmp = job.fspath_tmp
+            out = job.fspath_out
+            speed = job.factor
+
+            if not tmp or not out:
+                _cue.video_overlay.generating = False
+                _cue.video_overlay.gen_error = "Variant generation failed — missing paths."
+                _cue_log("Overlay variant: FAILED — missing tmp or out path (job_id={})".format(job.job_id))
+                job.status = "error"
+                job.error_msg = "Missing paths"
+                return
+
+            # Validate temp file
+            try:
+                if not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
+                    self._cleanup_temp_for(job)
+                    _cue.video_overlay.generating = False
+                    _cue.video_overlay.gen_error = "Variant generation produced no output."
+                    _cue_log("Overlay variant: FAILED — empty or missing temp (job_id={})".format(job.job_id))
+                    job.status = "error"
+                    job.error_msg = "Empty output"
+                    return
+            except Exception:
+                self._cleanup_temp_for(job)
+                _cue.video_overlay.generating = False
+                _cue.video_overlay.gen_error = "Variant generation failed — cannot read temp file."
+                job.status = "error"
+                job.error_msg = "Cannot read temp"
+                return
+
+            # Remove stale output if it exists
+            try:
+                if os.path.exists(out):
+                    os.remove(out)
+            except Exception:
+                pass
+
+            # Rename temp to final
+            try:
+                os.rename(tmp, out)
+            except Exception:
+                self._cleanup_temp_for(job)
+                _cue.video_overlay.generating = False
+                _cue.video_overlay.gen_error = "Variant generation failed — cannot write output."
+                _cue_log("Overlay variant: FAILED — rename failed (job_id={})".format(job.job_id))
+                job.status = "error"
+                job.error_msg = "Rename failed"
+                return
+
+            job.status = "done"
+            _cue_log("Overlay variant: generated {:.2f}x at {} (job_id={})".format(
+                speed, os.path.basename(out), job.job_id))
+
+            # Notify overlay that generation is done — it will auto-activate
+            _cue.video_overlay._on_generation_done(True, speed)
 
         def retry_job(self, job_id):
             """Retry a failed job from where it left off. If the temp file

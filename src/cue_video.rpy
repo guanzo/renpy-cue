@@ -42,6 +42,8 @@ init -999 python:
 
         def get_elapsed(self):
             """Get current playback position (real pos + virtual offset)."""
+            if _cue.video_overlay.active:
+                return _cue.video_overlay.logical_pos
             if not self.channel:
                 return 0.0
             try:
@@ -56,6 +58,8 @@ init -999 python:
             """Get total duration of the current video in seconds.
             Caches the last valid duration so transient dropouts during seek
             (stop/play restart) don't return 0 and blow up marker x-positions."""
+            if _cue.video_overlay.active:
+                return max(0.0, _cue.video_overlay.variant_dur * _cue.video_overlay.speed)
             if not self.channel:
                 return self.cached_dur
             try:
@@ -78,6 +82,9 @@ init -999 python:
 
         def toggle_pause(self):
             """Toggle pause on the active video channel."""
+            if _cue.video_overlay.active:
+                _cue.video_overlay.toggle_pause()
+                return
             if not self.channel:
                 return
             self.time_offset = 0.0
@@ -107,6 +114,9 @@ init -999 python:
             Forward: briefly unpause, auto-re-pause via tick timer.
             Backward: restart from 0, auto-pause at origin + accumulated offset.
             Does not wrap around — clamps at 0 and duration."""
+            if _cue.video_overlay.active:
+                _cue.video_overlay.seek_frame(delta_frames)
+                return
             if not self.channel:
                 return
             frame_seconds = self.frame_time
@@ -149,6 +159,9 @@ init -999 python:
             Forward (target >= current pos): pause, set step_target, unpause.
             The tick auto-pauses when pos reaches the target — no restart.
             Backward (target < current pos): restart from 0 with pause_target."""
+            if _cue.video_overlay.active:
+                _cue.video_overlay.seek_logical(target_time)
+                return
             if not self.channel:
                 return
             dur = renpy.music.get_duration(channel=self.channel) or 0.0
@@ -182,6 +195,8 @@ init -999 python:
 
         def poll_autopause(self):
             """Tick hook: auto-re-pause when a seek target is reached."""
+            if _cue.video_overlay.active:
+                return  # overlay handles its own seek targets
             if not self.channel or _cue.top_layer_type != 'movie':
                 return
             try:
@@ -201,6 +216,8 @@ init -999 python:
 
         def sync_paused(self):
             """Mirror the channel's real pause state (UI play/pause buttons)."""
+            if _cue.video_overlay.active:
+                return  # overlay owns pause state; original is held paused
             if not self.channel:
                 return
             try:
