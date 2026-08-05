@@ -27,13 +27,14 @@ init -999 python:
     class CueVideoJob:
         """One ffmpeg encode job in the queue."""
 
-        def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, interpolate, quick_preview):
+        def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, interpolate, fast_preview):
             self.job_id = job_id
             self.vpath = vpath
             self.fspath_in = fspath_in
             self.fspath_tmp = fspath_tmp
             self.factor = factor
             self.interpolate = interpolate
+            self.fast_preview = fast_preview
             self.status = "queued"      # queued | analyzing | encoding | done | error
             self.progress = 0.0
             self.error_msg = ""
@@ -102,6 +103,7 @@ init -999 python:
             self.active = False             # True when Video Editor section is shown
             self._ready = False             # True after ffmpeg probe cache is warm
             self.interpolate = True         # Global frame interpolation toggle
+            self.fast_preview = False    # Fast low-quality encode for judging speed
 
             # --- Job queue ---
             self._jobs = []                 # list of CueVideoJob
@@ -391,6 +393,13 @@ init -999 python:
             self._save_interpolate()
             renpy.restart_interaction()
 
+        def toggle_fast_preview(self):
+            """Toggle fast preview — fast low-quality encode for judging speed."""
+            self.fast_preview = not self.fast_preview
+            if self.fast_preview:
+                self.interpolate = False
+            renpy.restart_interaction()
+
         def close_editor(self):
             """Return to the normal Video SFX section."""
             self.active = False
@@ -487,7 +496,7 @@ init -999 python:
             # Create job and add to queue
             job_id = self._next_job_id
             self._next_job_id += 1
-            job = CueVideoJob(job_id, vp, input_fs, temp_path, factor, self.interpolate)
+            job = CueVideoJob(job_id, vp, input_fs, temp_path, factor, self.interpolate, self.fast_preview)
             self._jobs.append(job)
 
             _cue_log("Speed job queued: id={}, factor={:.2f}, file={}".format(
@@ -580,6 +589,7 @@ init -999 python:
                     target_bitrate,
                     interpolate=interpolate,
                     source_fps=source_fps,
+                    fast=job.fast_preview,
                 )
                 job.passlog = passlog
 

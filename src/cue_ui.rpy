@@ -733,6 +733,11 @@ screen cue_overlay_content():
                         text "{}fps → {}fps".format(_source_fps, _target_fps) style "cue_help" size 10 yalign 0.5
                     else:
                         text "Source: {}fps".format(_source_fps) style "cue_help" size 10 yalign 0.5
+                hbox:
+                    spacing 4
+                        Function(_cue.video_editor.toggle_fast_preview),
+                        "Fast low-quality encode to judge the edited speed. Disables frame interpolation.")
+                    text "Faster encode, lower quality" style "cue_help" size 10 yalign 0.5
                 null height 3
                 textbutton "Create":
                     style "cue_btn"

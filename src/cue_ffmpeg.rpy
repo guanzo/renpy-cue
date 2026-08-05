@@ -62,6 +62,19 @@ init -999 python:
             "h263":        ["-q:v", "2"],
             "wmv2":        ["-q:v", "2"],
         }
+        # Lower quality for fast preview — decent enough to judge
+        # speed changes, much faster to encode.
+        _VIDEO_QUALITY_FAST = {
+            "libx264":     ["-crf", "23", "-preset", "veryfast"],
+            "libx265":     ["-crf", "26", "-preset", "veryfast"],
+            "libvpx-vp9":  ["-crf", "24", "-b:v", "0"],
+            "libvpx":      ["-crf", "10", "-b:v", "0"],
+            "mpeg4":       ["-q:v", "5"],
+            "mpeg2video":  ["-q:v", "5"],
+            "libtheora":   ["-q:v", "6"],
+            "h263":        ["-q:v", "5"],
+            "wmv2":        ["-q:v", "5"],
+        }
         _AUDIO_QUALITY = {
             "aac":         ["-b:a", "320k"],
             "libopus":     ["-b:a", "256k"],
@@ -332,7 +345,7 @@ init -999 python:
 
         def build_ffmpeg_cmds(self, fspath, temp_path, speed, vcodec, acodec,
                                has_audio, target_bitrate, interpolate=False,
-                               source_fps=30):
+                               source_fps=30, fast=False):
             """Build ffmpeg command(s). Returns python_list of arg lists.
 
             For VP8/VP9: 2-pass encoding with probed source bitrate.
@@ -410,9 +423,10 @@ init -999 python:
                 pass2.extend(["-c:v", vcodec])
                 if has_audio and acodec:
                     pass2.extend(["-c:a", acodec])
+                _pass2_speed = "2" if fast else "1"
                 pass2.extend([
                     "-b:v", target_bitrate,
-                    "-quality", "good", "-speed", "1",
+                    "-quality", "good", "-speed", _pass2_speed,
                     "-pass", "2",
                     "-passlogfile", passlog,
                     "-vsync", "0",
@@ -437,7 +451,8 @@ init -999 python:
                 args.extend(["-map", "[v]", "-an"])
             if vcodec:
                 args.extend(["-c:v", vcodec])
-                args.extend(self._VIDEO_QUALITY.get(vcodec, []))
+                _vq = self._VIDEO_QUALITY_FAST if fast else self._VIDEO_QUALITY
+                args.extend(_vq.get(vcodec, []))
             if has_audio and acodec:
                 args.extend(["-c:a", acodec])
                 args.extend(self._AUDIO_QUALITY.get(acodec, []))
