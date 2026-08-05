@@ -38,8 +38,7 @@ init -999 python:
             self.factor = factor
             self.interpolate = interpolate
             self.fast_preview = fast_preview
-            self.status = "queued"      # queued | analyzing | encoding | swapping | done | error
-            self._swap_attempts = 0     # retry counter for the swap phase
+            self.status = "queued"      # queued | analyzing | encoding | done | error
             self.progress = 0.0
             self.error_msg = ""
             self.start_time = 0.0
@@ -67,8 +66,6 @@ init -999 python:
             if self.status == "encoding":
                 _pct = int(self.progress * 100)
                 return "Encoding {}%".format(_pct)
-            if self.status == "swapping":
-                return "Swapping..."
             if self.status == "done":
                 return "Done"
             if self.status == "error":
@@ -492,10 +489,30 @@ init -999 python:
                 "{}{}{}".format(base, self.TMP_SUFFIX, ext),
             )
 
+            # Build backup path
+            backup_path = self._backup_path(fs)
+
+            # If temp + backup already exist (from a previous locked swap),
+            # skip re-encoding and try the swap directly on the main thread.
+            if os.path.exists(temp_path) and os.path.exists(backup_path):
+                if self._try_swap_paths(temp_path, fs):
+                    state = self._ensure_state(vp)
+                    state.has_backup = True
+                    state.last_error = ""
+                    state.last_factor = factor
+                    state.last_interpolate = self.interpolate
+                    state.last_fast_preview = self.fast_preview
+                    _cue_log("Speed: reused existing temp, swap complete")
+                else:
+                    self.last_error = self._esc(
+                        "The game still has this video file open. "
+                        "Advance past this video scene, then try again.")
+                renpy.restart_interaction()
+                return
+
             # Always transcode from the backup (pristine original) if it
             # exists. Otherwise repeated edits would compound quality loss
             # from lossy re-encodes.
-            backup_path = self._backup_path(fs)
             if os.path.exists(backup_path):
                 input_fs = backup_path
             else:
@@ -697,8 +714,7 @@ init -999 python:
 
         def poll(self):
             """Called by screen timer on the main thread. When the worker is
-            done, finalize or report error. Swap retries on subsequent ticks
-            if the file is still locked."""
+            done, finalize or report error."""
             job = self._current_job
             if job is None:
                 return
@@ -706,110 +722,95 @@ init -999 python:
             if not job._done:
                 return
 
-            # Worker just finished — first poll tick after completion
-            if job.status != "swapping":
-                job.end_time = _time.time()
+            job.end_time = _time.time()
 
-                if job.cancelled:
-                    self._cleanup_temp_for(job)
-                    job.status = "error"
-                    job.error_msg = "Cancelled"
-                    _cue_log("Speed: cancelled by user (job_id={})".format(job.job_id))
-                    self._current_job = None
-                    self._start_next_job()
-                    renpy.restart_interaction()
-                    return
-
-                if not job._ok:
-                    self._cleanup_temp_for(job)
-                    job.status = "error"
-                    _cue_log("Speed: job failed (job_id={})".format(job.job_id))
-                    self._current_job = None
-                    self._start_next_job()
-                    renpy.restart_interaction()
-                    return
-
-                # --- Job succeeded, prepare for swap ---
-                tmp = job.fspath_tmp
-                fs = tmp.replace(self.TMP_SUFFIX, "")
-
-                # Stop playback to release the file handle — only if the
-                # current channel is playing this job's video.
-                try:
-                    if _cue.active_channel:
-                        playing = renpy.music.get_playing(channel=_cue.active_channel)
-                        if playing:
-                            playing_fs = os.path.join(renpy.config.gamedir, playing)
-                            if os.path.normpath(playing_fs) == os.path.normpath(fs):
-                                renpy.music.stop(channel=_cue.active_channel, fadeout=0)
-                except Exception:
-                    pass
-
-                # Create backup NOW (after ffmpeg success, before swap).
-                # Only if a backup doesn't already exist — never overwrite
-                # the original backup with an already-modified version.
-                backup_path = self._backup_path(fs)
-                if not os.path.exists(backup_path):
-                    try:
-                        with open(fs, "rb") as src:
-                            with open(backup_path, "wb") as dst:
-                                while True:
-                                    chunk = src.read(1024 * 1024)
-                                    if not chunk:
-                                        break
-                                    dst.write(chunk)
-                    except Exception as e:
-                        self._cleanup_temp_for(job)
-                        job.status = "error"
-                        self._set_job_state_error_for(job,
-                            "Cannot read the original video (file is locked by "
-                            "the game player). Advance past this video scene, "
-                            "then try again. ({})".format(e))
-                        self._current_job = None
-                        self._start_next_job()
-                        _cue_log("Speed: backup FAILED (job_id={})".format(job.job_id))
-                        renpy.restart_interaction()
-                        return
-
-                job.backup_path = backup_path
-                job.status = "swapping"
-                job._swap_attempts = 0
-                # Don't clear _current_job — keep retrying on future ticks
-                renpy.restart_interaction()
-                return
-
-            # --- Swapping phase — retry each poll tick ---
             if job.cancelled:
+                self._cleanup_temp_for(job)
                 job.status = "error"
                 job.error_msg = "Cancelled"
-                _cue_log("Speed: cancelled during swap (job_id={})".format(job.job_id))
+                _cue_log("Speed: cancelled by user (job_id={})".format(job.job_id))
                 self._current_job = None
                 self._start_next_job()
                 renpy.restart_interaction()
                 return
 
-            job._swap_attempts += 1
-            if self._try_swap(job):
-                # Success — update state and move on
-                vp = job.vpath
-                fs = job.fspath_tmp.replace(self.TMP_SUFFIX, "")
-                state = self._ensure_state(vp)
-                state.has_backup = True
-                state.last_error = ""
-                state.last_factor = job.factor
-                state.last_interpolate = job.interpolate
-                state.last_fast_preview = job.fast_preview
-                job.status = "done"
-                _cue_log("Speed: swap complete, backup at {} (job_id={})".format(
-                    os.path.basename(job.backup_path or ""), job.job_id))
+            if not job._ok:
+                self._cleanup_temp_for(job)
+                job.status = "error"
+                _cue_log("Speed: job failed (job_id={})".format(job.job_id))
                 self._current_job = None
                 self._start_next_job()
                 renpy.restart_interaction()
                 return
 
-            # Swap still failing — give up after ~6 seconds (30 ticks × 0.2s)
-            if job._swap_attempts >= 30:
-                vp = job.vpath
+            # --- Job succeeded, swap into place ---
+            tmp = job.fspath_tmp
+            fs = tmp.replace(self.TMP_SUFFIX, "")
+            vp = job.vpath
+
+            # Stop ALL channels playing this file
+            try:
+                import renpy.audio.audio as _aaudio
+                for _ch_name in _aaudio.channels:
+                    _playing = renpy.music.get_playing(channel=_ch_name)
+                    if _playing:
+                        _playing_fs = os.path.join(renpy.config.gamedir, _playing)
+                        if os.path.normpath(_playing_fs) == os.path.normpath(fs):
+                            _cue_log('found channel for ' + str(os.path.normpath(fs)))
+                            
+                            renpy.music.stop(channel=_ch_name, fadeout=0)
+            except Exception:
+                pass
+            _time.sleep(0.5)
+
+            # Create backup (if not already existing)
+            backup_path = self._backup_path(fs)
+            if not os.path.exists(backup_path):
+                try:
+                    with open(fs, "rb") as src:
+                        with open(backup_path, "wb") as dst:
+                            while True:
+                                chunk = src.read(1024 * 1024)
+                                if not chunk:
+                                    break
+                                dst.write(chunk)
+                except Exception as e:
+                    self._cleanup_temp_for(job)
+                    job.status = "error"
+                    self._set_job_state_error_for(job,
+                        "Cannot read the original video (file is locked by "
+                        "the game player). Advance past this video scene, "
+                        "then try again. ({})".format(e))
+                    self._current_job = None
+                    self._start_next_job()
+                    _cue_log("Speed: backup FAILED (job_id={})".format(job.job_id))
+                    renpy.restart_interaction()
+                    return
+
+            job.backup_path = backup_path
+
+            # Try swap with retries (same pattern as restore())
+            for _attempt in range(4):
+                try:
+                    os.remove(fs)
+                    os.rename(tmp, fs)
+                    # Success
+                    state = self._ensure_state(vp)
+                    state.has_backup = True
+                    state.last_error = ""
+                    state.last_factor = job.factor
+                    state.last_interpolate = job.interpolate
+                    state.last_fast_preview = job.fast_preview
+                    job.status = "done"
+                    _cue_log("Speed: swap complete, backup at {} (job_id={})".format(
+                        os.path.basename(backup_path), job.job_id))
+                    _cue.markers.save_persistent()
+                    break
+                except Exception:
+                    if _attempt < 3:
+                        _time.sleep(1.0)
+            else:
+                # All attempts failed — leave temp + backup for retry
                 err = (
                     "The game still has this video file open. "
                     "Advance past this video scene, then try again.\n\n"
@@ -820,14 +821,10 @@ init -999 python:
                 state.last_error = self._esc(err)
                 job.status = "error"
                 job.error_msg = "File locked — retry later"
-                _cue_log("Speed: swap FAILED after {} attempts (job_id={})".format(
-                    job._swap_attempts, job.job_id))
-                self._current_job = None
-                self._start_next_job()
-                renpy.restart_interaction()
-                return
+                _cue_log("Speed: swap FAILED — file locked (job_id={})".format(job.job_id))
 
-            # Still retrying — trigger redraw for elapsed display
+            self._current_job = None
+            self._start_next_job()
             renpy.restart_interaction()
 
         @staticmethod
@@ -847,13 +844,9 @@ init -999 python:
             if self._current is not None and self._current.vpath == vp:
                 pass  # last_error property already delegates to _current
 
-        def _try_swap(self, job):
-            """Try to replace the original file with the transcoded temp.
-            Returns True on success, False if the file is still locked.
-            Called from poll() on the main thread — gives Ren'Py one full
-            interaction cycle between attempts to release the file handle."""
-            tmp = job.fspath_tmp
-            fs = tmp.replace(self.TMP_SUFFIX, "")
+        @staticmethod
+        def _try_swap_paths(tmp, fs):
+            """Replace fs with tmp. Returns True on success."""
             try:
                 os.remove(fs)
                 os.rename(tmp, fs)
