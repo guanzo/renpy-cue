@@ -3,6 +3,11 @@
 # SECTION 4: Styles (game-agnostic — all properties explicit, no inheritance)
 ###############################################################################
 
+define _cue_tab_active_bg = "#669966"
+define _cue_color_error = "#ff6666"
+define _cue_color_bg_panel = "#222222"
+define _cue_color_divider = "#555555"
+
 style cue_frame is empty:
     background "#000000ee"
     padding (8, 6)
@@ -79,7 +84,7 @@ style cue_input is cue_txt:
 style cue_vscrollbar:
     xsize 4
     base_bar Solid("#1a1a1a")
-    thumb Solid("#555555")
+    thumb Solid(_cue_color_divider)
     hover_thumb Solid("#888888")
 
 
@@ -233,7 +238,10 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                 style "cue_btn"
                 text_style "cue_btn_text"
                 xsize 14
-                background ("#669966" if _is_active else "#444444")
+                if _is_active:
+                    background _cue_tab_active_bg
+                else:
+                    background "#444444"
                 action _cue_make_tab_action(tab_action_fn, tab_action_args, pi)
                 tooltip tab_tt
 
@@ -256,8 +264,10 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
             $ _count = len(folder_children) if folder_children else 0
             hbox:
                 spacing row_spacing
-                use cue_icon_button(("▾" if _is_expanded else "▸"),
-                    Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
+                if _is_expanded:
+                    use cue_icon_button("▾", Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
+                else:
+                    use cue_icon_button("▸", Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
                 use cue_icon_button("✕", Function(remove_fn, *remove_args), "Remove preset", None)
                 use cue_icon_button("▶", Function(_cue_preview_sfx, (folder_children or [""])[0], preview_vol), "Preview random file from preset", None)
                 use cue_folder_txt_button(folder_label, Function(_cue.file_tree.toggle_file_ref_expand, folder_label))
@@ -280,8 +290,10 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 $ _count = len(_cue_resolve_files([f]))
                 hbox:
                     spacing row_spacing
-                    use cue_icon_button(("▾" if _is_expanded else "▸"),
-                        Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
+                    if _is_expanded:
+                        use cue_icon_button("▾", Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
+                    else:
+                        use cue_icon_button("▸", Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
                     use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder ref", None)
                     use cue_icon_button("▶", Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol), "Preview random file from folder", None)
                     use cue_folder_txt_button(f, Function(_cue.file_tree.toggle_file_ref_expand, f))
@@ -342,7 +354,7 @@ screen cue_section_frame(header_text):
     $ _collapsed = _cue.file_tree.collapsed_sections.get(header_text, False)
     $ _arrow = "▸" if _collapsed else "▾"  # ▸ collapsed, ▾ expanded
     frame:
-        background "#222222"
+        background _cue_color_bg_panel
         padding (4, 4)
         xfill True
         yminimum 0
@@ -379,7 +391,7 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
             fixed:
                 xfill True
                 ysize 1
-                add Solid("#555555")
+                add Solid(_cue_color_divider)
             vbox:
                 spacing 5
                 text subtitle style "cue_txt"
@@ -470,7 +482,10 @@ screen cue_toggle_btn(checked, label, action, tt_on, tt_off=None,
             if off_hover is not None:
                 hover_background off_hover
             action action
-            tooltip (tt_on if tt_off is None else tt_off)
+            if tt_off is None:
+                tooltip tt_on
+            else:
+                tooltip tt_off
 
 ###############################################################################
 # SECTION 5: Overlay Screen
@@ -511,257 +526,264 @@ screen cue_overlay_content():
         $ _is_dialogue = bool(_cue.current_dialogue)
 
         # --- Video UI ---
-        if _is_video and not _cue.video_editor.active:
-            use cue_section_frame("Video SFX"):
+        if _is_video:
+            use cue_section_frame("Video"):
+                # --- Tab buttons ---
+                hbox:
+                    spacing 5
+                    textbutton "SFX":
+                        style "cue_btn"
+                        text_style "cue_btn_text"
+                        if not _cue.video_editor.active:
+                            background _cue_tab_active_bg
+                            action NullAction()
+                        else:
+                            action Function(_cue.video_editor.close_editor)
+                    textbutton "VFX":
+                        style "cue_btn"
+                        text_style "cue_btn_text"
+                        if _cue.video_editor.active:
+                            background _cue_tab_active_bg
+                            action NullAction()
+                        else:
+                            action Function(_cue.video_editor.open_editor)
                 $ _vid_name = _cue.current_file if _cue.current_file else "?"
                 text "Video: [_vid_name]" style "cue_txt"
-                hbox:
-                    spacing 5
-                    hbox:
-                        spacing 0
-                        text "Time: " style "cue_txt"
-                        add SelfUpdatingLabel(_cue.vid_manager.time_label, style="cue_txt")
-                    hbox:
-                        spacing 0
-                        text "Frames: " style "cue_txt"
-                        add SelfUpdatingLabel(_cue.vid_manager.frame_label, style="cue_txt")
-                hbox:
-                    spacing 5
-                    textbutton ("▶" if _cue.vid_manager.paused else "⏸"):
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        action Function(_cue.vid_manager.toggle_pause)
-                    textbutton "-1f":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        action Function(_cue.vid_manager.seek_frame, -1)
-                        tooltip "Seek backwards 1 frame (inaccurate and requires restarting video)"
-                    textbutton "+1f":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        action Function(_cue.vid_manager.seek_frame, 1)
-                        tooltip "Seek forward 1 frame (inaccurate)"
-                
-                    fixed:
-                        ysize 14
-                        xsize 2
-                        add Solid("#555555")
-                    textbutton "Edit Video":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        action Function(_cue.video_editor.open_editor)
-                        tooltip "Change the playback speed of this video"
-                    fixed:
-                        ysize 14
-                        xsize 2
-                        add Solid("#555555")
-                    textbutton "Repeat":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        action Function(_cue.beat.open)
-                        tooltip "Repeat selected markers at regular intervals across the video"
-                    $ _has_markers = _cue.markers.video.has_markers()
-                    use cue_icon_button("💾", Function(_cue.video_preset_dialog.open), "Save all video markers as a preset", None)
-                    use cue_icon_button("✕",
-                        Function(_cue.markers.video.remove_selected) if _has_markers else NullAction(),
-                        "Delete selected markers" if _has_markers else "No markers to delete", None)
-                    use cue_icon_button("?", 
-                        NullAction(), 
-                        ("• Markers and marker groups are draggable.\n"
-                        + "• (Alt + Click) or (Shift + Click) to create a marker group.\n"
-                        + "• Use Repeat to copy selected markers at an interval.\n"
-                        + "• Get your markers timed to the first 'beat', find the interval to the next 'beat', then use Repeat to finish."), 
-                        None)
-                # --- Timeline visualizer ---
-                fixed:
-                    xfill True
-                    ysize 18
-                    add VideoTimeline()
-                # Video marker tabs + active pool
-                $ _vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
-                $ _vid_entry = _cue.markers.get(_vid_key, {})
-                $ _vid_entries = _cue.markers._resolve_video_pools(_vid_entry) if _vid_entry else []
-                $ _vid_count = len(_vid_entries)
-                $ _vid_target = _cue.markers.video.target_pool
-                $ _vid_target = max(0, min(_vid_target, _vid_count - 1)) if _vid_entries else 0
-                # --- Draggable video marker timeline ---
-                if _vid_entries:
-                    add CueVideoMarkerTimeline(
-                        get_markers=_cue.markers.video.get_markers,
-                        get_active=_cue.markers.video.get_active,
-                        set_active=_cue.markers.video.set_active,
-                        set_time=_cue.markers.video.set_time,
-                        get_dur=_cue.markers.video.get_duration,
-                    ) yoffset -8
-                if _vid_entry:
-                    $ _vid_entry.setdefault("volume", 1.0)
-                    $ _master_vol = _vid_entry.get("volume", 1.0)
-                    $ _dec = Function(_cue.volume.adjust_master, _vid_key, -0.1)
-                    $ _inc = Function(_cue.volume.adjust_master, _vid_key, 0.1)
-                    use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _vid_entry, _inc)
-                use cue_pool_tabs(_vid_count, _vid_target, bool(_vid_entries),
-                    "Delete all video markers for the current video?",
-                    Function(_cue.markers.video.clear), "Delete all video SFX for the current video",
-                    Function(_cue.markers.video.add_pool), "Create a new empty marker at current time",
-                    _cue.markers.video.select_tab, (), "Select pool — V button adds files here")
 
-                # Active pool display
-                if _vid_entries and 0 <= _vid_target < _vid_count:
-                    $ _active_pool = _vid_entries[_vid_target]
-                    $ _active_files = _active_pool.get("files", [])
-                    $ _active_vol = _active_pool.get("volume", _cue.VOL_DEFAULT)
-                    $ _active_eff = _cue.volume.get_effective(_vid_entry, _vid_key, pool_index=_vid_target)
-                    # Detect preset-backed pool
-                    $ _raw_pool_list = _vid_entry.get("pools", [])
-                    $ _raw_pool = _raw_pool_list[_vid_target] if 0 <= _vid_target < len(_raw_pool_list) else {}
-                    $ _is_preset_ts = "preset" in _raw_pool
-                    $ _preset_name = _raw_pool.get("preset", "")
-                    # Volume dict target: raw pool for preset-backed (so overrides
-                    # persist on the real dict), resolved pool for concrete.
-                    $ _vol_target = _raw_pool if _is_preset_ts else _active_pool
-                    if _is_preset_ts:
-                        $ _active_label = "Pool " + str(_vid_target + 1) + " (Preset: " + _preset_name + ")"
-                    else:
-                        $ _active_label = "Pool " + str(_vid_target + 1) + " (" + str(len(_active_files)) + " files)"
+                # --- SFX Tab ---
+                if not _cue.video_editor.active:
                     hbox:
                         spacing 5
-                        text _active_label style "cue_txt" size 11
-
-                        null width 5
-
-                        use cue_icon_button("♻", Function(_cue.markers.video.duplicate_pool, _vid_target), "Duplicate pool", None)
-                        use cue_icon_button("✕", Function(_cue.markers.video.remove_pool, _vid_target), "Delete pool", None)
-
-                        # Volume controls
-                        $ _vol_target.setdefault("volume", 1.0)
-                        $ _dec = Function(_cue.volume.adjust_video, -0.1)
-                        $ _inc = Function(_cue.volume.adjust_video, 0.1)
-                        null width 5
-                        if abs(_active_vol - _active_eff) > 0.01:
-                            $ _vol_label = "Volume: {:.1f} ({:.1f} total)".format(_active_vol, _active_eff)
-                        else:
-                            $ _vol_label = "Volume: {:.1f}".format(_active_vol)
-                        use cue_vol_row(_vol_label, _dec, _vol_target, _inc)
-
-                    # Editable time + nudge buttons
+                        hbox:
+                            spacing 0
+                            text "Time: " style "cue_txt"
+                            add SelfUpdatingLabel(_cue.vid_manager.time_label, style="cue_txt")
+                        hbox:
+                            spacing 0
+                            text "Frames: " style "cue_txt"
+                            add SelfUpdatingLabel(_cue.vid_manager.frame_label, style="cue_txt")
                     hbox:
-                        spacing 3
-                        text "Time:" style "cue_txt" size 11
-                        $ _dec10 = Function(_cue.markers.video.nudge, -0.01)
-                        $ _dec100 = Function(_cue.markers.video.nudge, -0.1)
-                        $ _inc10 = Function(_cue.markers.video.nudge, 0.01)
-                        $ _inc100 = Function(_cue.markers.video.nudge, 0.1)
-                        $ _commit = Function(_cue.markers.video.commit_text)
-                        $ _display = _cue_format_time(_active_pool.get("time", 0))
-                        use cue_time_input("_cue.markers.video.edit_text", _commit, _dec100, _dec10,
-                                           _inc10, _inc100, _display)
-                    # File list
-                    if _is_preset_ts:
-                        # Preset-backed: render as expandable folder via cue_file_list
-                        use cue_file_list([], _cue_detach_active_video_ts, (), _active_eff, 5,
-                            folder_label=_preset_name, folder_children=_active_files,
-                            trigger_key=_vid_key, pool_index=_vid_target,
-                            folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
-                    elif _active_files:
-                        use cue_file_list(_active_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 5,
-                            trigger_key=_vid_key, pool_index=_vid_target,
-                            folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
+                        spacing 5
+                        if _cue.vid_manager.paused:
+                            textbutton "▶":
+                                style "cue_btn"
+                                text_style "cue_btn_text"
+                                action Function(_cue.vid_manager.toggle_pause)
+                        else:
+                            textbutton "⏸":
+                                style "cue_btn"
+                                text_style "cue_btn_text"
+                                action Function(_cue.vid_manager.toggle_pause)
+                        textbutton "-1f":
+                            style "cue_btn"
+                            text_style "cue_btn_text"
+                            action Function(_cue.vid_manager.seek_frame, -1)
+                            tooltip "Seek backwards 1 frame (inaccurate and requires restarting video)"
+                        textbutton "+1f":
+                            style "cue_btn"
+                            text_style "cue_btn_text"
+                            action Function(_cue.vid_manager.seek_frame, 1)
+                            tooltip "Seek forward 1 frame (inaccurate)"
+
+                        fixed:
+                            ysize 14
+                            xsize 2
+                            add Solid(_cue_color_divider)
+                        textbutton "Repeat":
+                            style "cue_btn"
+                            text_style "cue_btn_text"
+                            action Function(_cue.beat.open)
+                            tooltip "Repeat selected markers at regular intervals across the video"
+                        $ _has_markers = _cue.markers.video.has_markers()
+                        use cue_icon_button("💾", Function(_cue.video_preset_dialog.open), "Save all video markers as a preset", None)
+                        use cue_icon_button("✕",
+                            Function(_cue.markers.video.remove_selected) if _has_markers else NullAction(),
+                            "Delete selected markers" if _has_markers else "No markers to delete", None)
+                        use cue_icon_button("?",
+                            NullAction(),
+                            ("• Markers and marker groups are draggable.\n"
+                            + "• (Alt + Click) or (Shift + Click) to create a marker group.\n"
+                            + "• Use Repeat to copy selected markers at an interval.\n"
+                            + "• Get your markers timed to the first 'beat', find the interval to the next 'beat', then use Repeat to finish."),
+                            None)
+                    # --- Timeline visualizer ---
+                    fixed:
+                        xfill True
+                        ysize 18
+                        add VideoTimeline()
+                    # Video marker tabs + active pool
+                    $ _vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
+                    $ _vid_entry = _cue.markers.get(_vid_key, {})
+                    $ _vid_entries = _cue.markers._resolve_video_pools(_vid_entry) if _vid_entry else []
+                    $ _vid_count = len(_vid_entries)
+                    $ _vid_target = _cue.markers.video.target_pool
+                    $ _vid_target = max(0, min(_vid_target, _vid_count - 1)) if _vid_entries else 0
+                    # --- Draggable video marker timeline ---
+                    if _vid_entries:
+                        add CueVideoMarkerTimeline(
+                            get_markers=_cue.markers.video.get_markers,
+                            get_active=_cue.markers.video.get_active,
+                            set_active=_cue.markers.video.set_active,
+                            set_time=_cue.markers.video.set_time,
+                            get_dur=_cue.markers.video.get_duration,
+                        ) yoffset -8
+                    if _vid_entry:
+                        $ _vid_entry.setdefault("volume", 1.0)
+                        $ _master_vol = _vid_entry.get("volume", 1.0)
+                        $ _dec = Function(_cue.volume.adjust_master, _vid_key, -0.1)
+                        $ _inc = Function(_cue.volume.adjust_master, _vid_key, 0.1)
+                        use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _vid_entry, _inc)
+                    use cue_pool_tabs(_vid_count, _vid_target, bool(_vid_entries),
+                        "Delete all video markers for the current video?",
+                        Function(_cue.markers.video.clear), "Delete all video SFX for the current video",
+                        Function(_cue.markers.video.add_pool), "Create a new empty marker at current time",
+                        _cue.markers.video.select_tab, (), "Select pool — V button adds files here")
+
+                    # Active pool display
+                    if _vid_entries and 0 <= _vid_target < _vid_count:
+                        $ _active_pool = _vid_entries[_vid_target]
+                        $ _active_files = _active_pool.get("files", [])
+                        $ _active_vol = _active_pool.get("volume", _cue.VOL_DEFAULT)
+                        $ _active_eff = _cue.volume.get_effective(_vid_entry, _vid_key, pool_index=_vid_target)
+                        # Detect preset-backed pool
+                        $ _raw_pool_list = _vid_entry.get("pools", [])
+                        $ _raw_pool = _raw_pool_list[_vid_target] if 0 <= _vid_target < len(_raw_pool_list) else {}
+                        $ _is_preset_ts = "preset" in _raw_pool
+                        $ _preset_name = _raw_pool.get("preset", "")
+                        # Volume dict target: raw pool for preset-backed (so overrides
+                        # persist on the real dict), resolved pool for concrete.
+                        $ _vol_target = _raw_pool if _is_preset_ts else _active_pool
+                        if _is_preset_ts:
+                            $ _active_label = "Pool " + str(_vid_target + 1) + " (Preset: " + _preset_name + ")"
+                        else:
+                            $ _active_label = "Pool " + str(_vid_target + 1) + " (" + str(len(_active_files)) + " files)"
+                        hbox:
+                            spacing 5
+                            text _active_label style "cue_txt" size 11
+
+                            null width 5
+
+                            use cue_icon_button("♻", Function(_cue.markers.video.duplicate_pool, _vid_target), "Duplicate pool", None)
+                            use cue_icon_button("✕", Function(_cue.markers.video.remove_pool, _vid_target), "Delete pool", None)
+
+                            # Volume controls
+                            $ _vol_target.setdefault("volume", 1.0)
+                            $ _dec = Function(_cue.volume.adjust_video, -0.1)
+                            $ _inc = Function(_cue.volume.adjust_video, 0.1)
+                            null width 5
+                            if abs(_active_vol - _active_eff) > 0.01:
+                                $ _vol_label = "Volume: {:.1f} ({:.1f} total)".format(_active_vol, _active_eff)
+                            else:
+                                $ _vol_label = "Volume: {:.1f}".format(_active_vol)
+                            use cue_vol_row(_vol_label, _dec, _vol_target, _inc)
+
+                        # Editable time + nudge buttons
+                        hbox:
+                            spacing 3
+                            text "Time:" style "cue_txt" size 11
+                            $ _dec10 = Function(_cue.markers.video.nudge, -0.01)
+                            $ _dec100 = Function(_cue.markers.video.nudge, -0.1)
+                            $ _inc10 = Function(_cue.markers.video.nudge, 0.01)
+                            $ _inc100 = Function(_cue.markers.video.nudge, 0.1)
+                            $ _commit = Function(_cue.markers.video.commit_text)
+                            $ _display = _cue_format_time(_active_pool["time"])
+                            use cue_time_input("_cue.markers.video.edit_text", _commit, _dec100, _dec10,
+                                               _inc10, _inc100, _display)
+                        # File list
+                        if _is_preset_ts:
+                            # Preset-backed: render as expandable folder via cue_file_list
+                            use cue_file_list([], _cue_detach_active_video_ts, (), _active_eff, 5,
+                                folder_label=_preset_name, folder_children=_active_files,
+                                trigger_key=_vid_key, pool_index=_vid_target,
+                                folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
+                        elif _active_files:
+                            use cue_file_list(_active_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 5,
+                                trigger_key=_vid_key, pool_index=_vid_target,
+                                folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
+                        else:
+                            text "SFX plays when this video reaches the marked time(s)." style "cue_help"
+                            text "Click the V button in the SFX Library to add files to this pool." style "cue_help"
                     else:
                         text "SFX plays when this video reaches the marked time(s)." style "cue_help"
-                        text "Click the V button in the SFX Library to add files to this pool." style "cue_help"
-                else:
-                    text "SFX plays when this video reaches the marked time(s)." style "cue_help"
-                    text "Click the V button in the SFX Library to create a new pool or add to the active pool." style "cue_help"
+                        text "Click the V button in the SFX Library to create a new pool or add to the active pool." style "cue_help"
 
-
-        # --- Video Editor ---
-        if _is_video and _cue.video_editor.active:
-            $ _ved = _cue.video_editor
-            use cue_section_frame("Video Editor"):
-                hbox:
-                    spacing 4
-                    textbutton "← Back to Video SFX":
+                # --- Video Editor Tab ---
+                if _cue.video_editor.active:
+                    $ _ved = _cue.video_editor
+                    $ _cfg_label = _ved.config_label
+                    if _ved.has_backup:
+                        textbutton "Restore Original Video":
+                            style "cue_btn"
+                            text_style "cue_btn_text"
+                            action Function(_cue.video_editor.open_restore)
+                            tooltip "Restore the original video file from backup"
+                    hbox:
+                        spacing 4
+                        text "Speed:" style "cue_txt"
+                        $ _commit = Function(_cue.video_editor.commit_text)
+                        $ _display = "{:.1f}x".format(float(_ved.factor_text))
+                        use cue_icon_button("-", Function(_cue.video_editor.nudge, -0.1))
+                        use cue_float_input("_cue.video_editor.factor_text", _commit, _display)
+                        use cue_icon_button("+", Function(_cue.video_editor.nudge, 0.1))
+                        text "Speed up or slow down video" style "cue_help" size 10 yalign 0.5
+                    hbox:
+                        spacing 4
+                        use cue_toggle_btn(_ved.interpolate, "Interpolate Frames",
+                            Function(_cue.video_editor.toggle_interpolate),
+                            "Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to encode.")
+                        text "Slower encode, higher quality" style "cue_help" size 10 yalign 0.5
+                    hbox:
+                        spacing 4
+                        use cue_toggle_btn(_ved.fast_preview, "Fast Preview",
+                            Function(_cue.video_editor.toggle_fast_preview),
+                            "Fast low-quality encode to judge the edited speed.")
+                        text "Faster encode, lower quality" style "cue_help" size 10 yalign 0.5
+                    null height 3
+                    textbutton "Create":
                         style "cue_btn"
                         text_style "cue_btn_text"
-                        action Function(_cue.video_editor.close_editor)
-                $ _vid_name = _cue.current_file if _cue.current_file else "?"
-                $ _cfg_label = _ved.config_label
-                text "Video: [_vid_name]" + (" (" + _cfg_label + ")" if _cfg_label else "") style "cue_txt"
-                if _ved.has_backup:
-                    textbutton "Restore Original Video":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        action Function(_cue.video_editor.open_restore)
-                        tooltip "Restore the original video file from backup"
-                null height 2
-                hbox:
-                    spacing 4
-                    text "Speed:" style "cue_txt" size 11
-                    $ _commit = Function(_cue.video_editor.commit_text)
-                    $ _display = "{:.1f}x".format(float(_ved.factor_text))
-                    use cue_icon_button("-", Function(_cue.video_editor.nudge, -0.1))
-                    use cue_float_input("_cue.video_editor.factor_text", _commit, _display)
-                    use cue_icon_button("+", Function(_cue.video_editor.nudge, 0.1))
-                    null width 5
-                hbox:
-                    spacing 4
-                    use cue_toggle_btn(_ved.interpolate, "Interpolate Frames",
-                        Function(_cue.video_editor.toggle_interpolate),
-                        "Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to encode.",
-                        "Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to encode.")
-                    text "Slower encode, higher quality" style "cue_help" size 10 yalign 0.5
-                hbox:
-                    spacing 4
-                    use cue_toggle_btn(_ved.fast_preview, "Fast Preview",
-                        Function(_cue.video_editor.toggle_fast_preview),
-                        "Fast low-quality encode to judge the edited speed.")
-                    text "Faster encode, lower quality" style "cue_help" size 10 yalign 0.5
-                null height 3
-                textbutton "Create":
-                    style "cue_btn"
-                    text_style "cue_btn_text"
-                    sensitive _ved._ready
-                    action Function(_cue.video_editor.prepare_create)
-                if _ved.last_error:
-                    text _ved.last_error style "cue_txt" size 11 color "#ff6666"
+                        sensitive _ved._ready
+                        action Function(_cue.video_editor.prepare_create)
+                    if _ved.last_error:
+                        text _ved.last_error style "cue_txt" size 11 color _cue_color_error
 
-                # --- Edit queue ---
-                if _ved._jobs:
-                    add Solid("#555555") ysize 1
-                    timer 0.2 repeat True action [
-                        Function(_cue.video_editor.poll_jobs),
-                        Function(_cue.video_editor._refresh_ui),
-                    ]
-                    frame:
-                        background "#222222"
-                        padding (4, 4)
-                        yminimum 0
-                        xfill True
-                        vbox:
-                            spacing 3
-                            text "Edit Queue" style "cue_txt" size 14 bold True
-                            null height 2
-                            for _job in _ved._jobs:
-                                hbox:
-                                    spacing 4
-                                    if _job.status in ("queued", "analyzing", "encoding"):
-                                        use cue_icon_button("✕", Function(_cue.video_editor.cancel_job, _job.job_id), "Cancel job", None)
-                                    else:
-                                        use cue_icon_button("✕", Function(_cue.video_editor.remove_job, _job.job_id), "Remove from queue", None)
-                                    text _job.filename() + " " + _job.speed_label style "cue_txt" size 11
-                                    text "(" + _job.status_text() + ")" style "cue_txt" size 11
-                                    if _job.status != "queued":
-                                        $ _elapsed = int(_job.elapsed())
-                                        text ("%d:%02d" % (_elapsed // 60, _elapsed % 60)) style "cue_txt" size 11 color "#aaaaaa"
-                                if _job.status == "error" and _job.error_msg and not _job.cancelled:
+                    # --- Edit queue ---
+                    if _ved._jobs:
+                        add Solid(_cue_color_divider) ysize 1
+                        timer 0.2 repeat True action [
+                            Function(_cue.video_editor.poll_jobs),
+                            Function(_cue.video_editor._refresh_ui),
+                        ]
+                        frame:
+                            background _cue_color_bg_panel
+                            padding (4, 4)
+                            yminimum 0
+                            xfill True
+                            vbox:
+                                spacing 3
+                                text "Edit Queue" style "cue_txt" size 14 bold True
+                                null height 2
+                                for _job in _ved._jobs:
                                     hbox:
                                         spacing 4
-                                        null width 20
-                                        text _job.error_msg style "cue_txt" size 10 color "#ff6666"
-                                        textbutton "Retry":
-                                            style "cue_btn"
-                                            text_style "cue_btn_text"
-                                            action Function(_cue.video_editor.retry_job, _job.job_id)
+                                        if _job.status in ("queued", "analyzing", "encoding"):
+                                            use cue_icon_button("✕", Function(_cue.video_editor.cancel_job, _job.job_id), "Cancel job", None)
+                                        else:
+                                            use cue_icon_button("✕", Function(_cue.video_editor.remove_job, _job.job_id), "Remove from queue", None)
+                                        text _job.filename() + " " + _job.speed_label style "cue_txt" size 11
+                                        text "(" + _job.status_text() + ")" style "cue_txt" size 11
+                                        if _job.status != "queued":
+                                            $ _elapsed = int(_job.elapsed())
+                                            text ("%d:%02d" % (_elapsed // 60, _elapsed % 60)) style "cue_txt" size 11 color "#aaaaaa"
+                                    if _job.status == "error" and _job.error_msg and not _job.cancelled:
+                                        hbox:
+                                            spacing 4
+                                            null width 20
+                                            text _job.error_msg style "cue_txt" size 10 color _cue_color_error
+                                            textbutton "Retry":
+                                                style "cue_btn"
+                                                text_style "cue_btn_text"
+                                                action Function(_cue.video_editor.retry_job, _job.job_id)
 
         # --- Image UI ---
         $ _has_image = bool(_cue.current_file) and not _is_video
@@ -799,28 +821,40 @@ screen cue_overlay_content():
                 textbutton "Slow":
                     style "cue_btn"
                     text_style "cue_btn_text"
-                    background ("#669966" if slow_selected else "#444444")
+                    if slow_selected:
+                        background _cue_tab_active_bg
+                    else:
+                        background "#444444"
                     action Function(_cue.markers.loop.set_frequency, 0)
                 textbutton "Normal":
                     style "cue_btn"
                     text_style "cue_btn_text"
-                    background ("#669966" if normal_selected else "#444444")
+                    if normal_selected:
+                        background _cue_tab_active_bg
+                    else:
+                        background "#444444"
                     action Function(_cue.markers.loop.set_frequency, 1)
                 textbutton "Fast":
                     style "cue_btn"
                     text_style "cue_btn_text"
-                    background ("#669966" if fast_selected else "#444444")
+                    if fast_selected:
+                        background _cue_tab_active_bg
+                    else:
+                        background "#444444"
                     action Function(_cue.markers.loop.set_frequency, 2)
                 textbutton "Fastest":
                     style "cue_btn"
                     text_style "cue_btn_text"
-                    background ("#669966" if fastest_selected else "#444444")
+                    if fastest_selected:
+                        background _cue_tab_active_bg
+                    else:
+                        background "#444444"
                     action Function(_cue.markers.loop.set_frequency, 3)
 
         # Audio file browser
         use cue_section_frame("SFX Library"):
             if not _cue.audio_tree:
-                text "[_cue.scan_error]" style "cue_help" color "#ff6666"
+                text "[_cue.scan_error]" style "cue_help" color _cue_color_error
                 text "Place .ogg, .mp3, .wav, .opus, or .flac files there and click ⟳ to refresh." style "cue_help"
             else:
                 viewport:
@@ -835,9 +869,10 @@ screen cue_overlay_content():
                         # --- Presets folder (matches audio tree folder UI) ---
                         hbox:
                             spacing 2
-                            use cue_icon_button(
-                                ("▾" if _cue.file_tree.presets_expanded else "▸"),
-                                Function(_cue.file_tree.toggle_presets_expand), None, None)
+                            if _cue.file_tree.presets_expanded:
+                                use cue_icon_button("▾", Function(_cue.file_tree.toggle_presets_expand), None, None)
+                            else:
+                                use cue_icon_button("▸", Function(_cue.file_tree.toggle_presets_expand), None, None)
                             $ _preset_names = _cue.markers.list_presets()
                             use cue_folder_txt_button("Presets/", Function(_cue.file_tree.toggle_presets_expand))
                         if _cue.file_tree.presets_expanded:
@@ -849,9 +884,10 @@ screen cue_overlay_content():
                                 hbox:
                                     spacing 2
                                     text "  " style "cue_txt"  # indent under Presets/
-                                    use cue_icon_button(
-                                        ("▾" if _p_expanded else "▸"),
-                                        Function(_cue.file_tree.toggle_preset_expand, _pname), None, None)
+                                    if _p_expanded:
+                                        use cue_icon_button("▾", Function(_cue.file_tree.toggle_preset_expand, _pname), None, None)
+                                    else:
+                                        use cue_icon_button("▸", Function(_cue.file_tree.toggle_preset_expand, _pname), None, None)
                                     use cue_icon_button("✕", Function(_cue_confirm_delete_preset, _pname), "Delete preset", None)
                                     use cue_icon_button("▶", Function(_cue_preview_preset, _pname), "Preview random file from preset", None)
                                     use cue_icon_button("V", Function(_cue.markers.video.apply_preset, _pname), "Apply preset to current video at playhead position", None, enabled=_is_video)
@@ -870,10 +906,10 @@ screen cue_overlay_content():
                         # --- Video Presets folder ---
                         hbox:
                             spacing 2
-                            use cue_icon_button(
-                                ("▾" if _cue.file_tree.video_presets_expanded else "▸"), 
-                                Function(_cue.file_tree.toggle_video_presets_expand), None, None)
-
+                            if _cue.file_tree.video_presets_expanded:
+                                use cue_icon_button("▾", Function(_cue.file_tree.toggle_video_presets_expand), None, None)
+                            else:
+                                use cue_icon_button("▸", Function(_cue.file_tree.toggle_video_presets_expand), None, None)
                             $ _vp_names = _cue.markers.list_video_presets()
                             use cue_folder_txt_button("Video Presets/", Function(_cue.file_tree.toggle_video_presets_expand))
                         if _cue.file_tree.video_presets_expanded:
@@ -887,9 +923,10 @@ screen cue_overlay_content():
                                 hbox:
                                     spacing 2
                                     text "  " style "cue_txt"  # indent under Video Presets/
-                                    use cue_icon_button(
-                                        ("▾" if _vp_expanded else "▸"),
-                                        Function(_cue.file_tree.toggle_video_preset_expand, _vpname), None, None)
+                                    if _vp_expanded:
+                                        use cue_icon_button("▾", Function(_cue.file_tree.toggle_video_preset_expand, _vpname), None, None)
+                                    else:
+                                        use cue_icon_button("▸", Function(_cue.file_tree.toggle_video_preset_expand, _vpname), None, None)
                                     use cue_icon_button("✕", Function(_cue_confirm_delete_video_preset, _vpname), "Delete video preset", None)
                                     use cue_icon_button("▶", Function(_cue_preview_video_preset, _vpname), "Preview random file from video preset", None)
                                     use cue_icon_button("V", Function(_cue_maybe_apply_video_preset, _vpname), "Apply video markers to the current video", None, enabled=_is_video)
@@ -910,9 +947,10 @@ screen cue_overlay_content():
                                 if item["depth"] > 0:
                                     text " " * item["depth"] style "cue_txt"
                                 if item["type"] == "folder":
-                                    use cue_icon_button(
-                                        ("▾" if item["expanded"] else "▸"),
-                                        Function(_cue.file_tree.toggle_folder, item["full_path"]), None, None)
+                                    if item["expanded"]:
+                                        use cue_icon_button("▾", Function(_cue.file_tree.toggle_folder, item["full_path"]), None, None)
+                                    else:
+                                        use cue_icon_button("▸", Function(_cue.file_tree.toggle_folder, item["full_path"]), None, None)
                                     if item["has_files"]:
                                         use cue_icon_button("V", Function(_cue.markers.video.add_folder, item["full_path"]), "Add folder to active video pool", None, enabled=_is_video)
                                         use cue_icon_button("I", Function(_cue.markers.image.add_folder, item["full_path"]), "Add folder to Image SFX pool", None, enabled=_has_image)
@@ -930,11 +968,10 @@ screen cue_overlay_content():
                                     use cue_icon_button("D", Function(_cue.markers.dialogue.add_file, item["index"]), "Add to Dialogue SFX pool", None, enabled=_is_dialogue)
                                     # Loop SFX
                                     use cue_icon_button("L", Function(_cue.markers.loop.add_file, item["index"]), "Add to Loop SFX pool", None)
-                                    use cue_icon_button(
-                                        ("☑" if item.get("enabled", True) else "☐"),
-                                        Function(_cue.file_tree.toggle_file_enabled, item["full_path"]),
-                                        "Click to {} globally".format("disable" if item.get("enabled", True) else "enable"),
-                                        None)
+                                    if item.get("enabled", True):
+                                        use cue_icon_button("☑", Function(_cue.file_tree.toggle_file_enabled, item["full_path"]), "Click to disable globally", None)
+                                    else:
+                                        use cue_icon_button("☐", Function(_cue.file_tree.toggle_file_enabled, item["full_path"]), "Click to enable globally", None)
                                     text item["name"] style "cue_txt" color "#ffcc00"
 
 
