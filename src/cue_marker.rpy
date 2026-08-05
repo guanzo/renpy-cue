@@ -240,16 +240,6 @@ init -999 python:
 
         # -- internal helpers (used by add_file / add_folder / add_pool / apply_preset) --
 
-        def _get_video_elapsed(self):
-            """Return current video elapsed time, or None if not available."""
-            ch = _cue.active_channel
-            if not ch or not renpy.music.is_playing(channel=ch):
-                return None
-            elapsed = _cue.vid_manager.get_elapsed()
-            if elapsed is None or elapsed <= 0:
-                return None
-            return elapsed
-
         def _append_pool(self, entry, pools, pool_dict):
             """Append a pool dict, re-sort, and update target_pool + selected."""
             pools.append(pool_dict)
@@ -280,9 +270,7 @@ init -999 python:
                     files.append(filename)
             else:
                 # Create new pool at current video position
-                elapsed = self._get_video_elapsed()
-                if elapsed is None:
-                    return
+                elapsed = _cue.vid_manager.get_elapsed()
                 self._append_pool(entry, pools,
                     {"time": elapsed, "files": [filename]})
             self._mgr.save_persistent()
@@ -320,9 +308,7 @@ init -999 python:
                     pool_files.append(folder_ref)
             else:
                 # Create new pool at current video position
-                elapsed = self._get_video_elapsed()
-                if elapsed is None:
-                    return
+                elapsed = _cue.vid_manager.get_elapsed()
                 self._append_pool(entry, pools,
                     {"time": elapsed, "files": [folder_ref]})
             self._mgr.save_persistent()
@@ -336,9 +322,7 @@ init -999 python:
 
         def add_pool(self):
             """Create a new empty pool at the current video position."""
-            elapsed = self._get_video_elapsed()
-            if elapsed is None:
-                return
+            elapsed = _cue.vid_manager.get_elapsed()
             vid_key = self._key()
             entry = self._mgr._get_or_create_entry(vid_key)
             pools = entry["pools"]
@@ -352,9 +336,7 @@ init -999 python:
             that is resolved at read time, matching the other context types."""
             if not _cue.current_file:
                 return
-            elapsed = self._get_video_elapsed()
-            if elapsed is None:
-                return
+            elapsed = _cue.vid_manager.get_elapsed()
             # Verify preset exists and resolves to something
             r = self._mgr.resolve_pool({"preset": preset_name})
             if not r.files:

@@ -511,6 +511,11 @@ init python:
             entry = layers[-1]
             d = _cue_unwrap_displayable(entry.displayable)
 
+            # scene cmd: bg anim_josy_on_top_slide_ep2 movie
+            # name='bg' entry.name=('bg', 'anim_josy_on_top_slide_ep2', 'movie')
+            #
+            name = " ".join(entry.name) if entry.name else name
+
             if isinstance(d, renpy.display.video.Movie):
                 # Use the actual movie filename (matches audio channel name)
                 # movie_path = getattr(d, '_original_play', '') or ''
@@ -518,14 +523,11 @@ init python:
                 # if movie_name:
                 #     return movie_name, "movie", d
                 # Fallback: full image name without the tag
-                name = " ".join(entry.name[1:]) if len(entry.name) > 1 else entry.name[0]
                 return name, "movie", d
             if isinstance(d, renpy.display.im.Image):
-                name = " ".join(entry.name) if entry.name else name
                 return name, "image", d
 
             # Unexpected displayable type — keep current_file accurate
-            name = " ".join(entry.name) if entry.name else name
             if d is not None:
                 _cue_log("TOP-LAYER-UNKNOWN name={} d_class={}".format(
                     name, d.__class__.__name__))
