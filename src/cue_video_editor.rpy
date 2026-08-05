@@ -410,23 +410,21 @@ init -999 python:
         # Apply flow
         # ==================================================================
 
+        @_cue_ui_refresh
         def prepare_create(self):
             """Pre-flight check then show confirmation dialog (main thread)."""
             if not self._ready:
                 self.last_error = "Checking ffmpeg — try again in a moment."
-                renpy.restart_interaction()
                 return
             if self._warm_cache_error:
                 self.last_error = self._esc(
                     "ffmpeg check failed: {}".format(self._warm_cache_error))
-                renpy.restart_interaction()
                 return
             self._sync_backup_for_current()
 
             status, msg = self.check_prerequisites()
             if status == "error":
                 self.last_error = msg
-                renpy.restart_interaction()
                 return
 
             if status == "rpa":
@@ -441,25 +439,23 @@ init -999 python:
 
             if abs(factor - 1.0) < 0.001 and not self.interpolate:
                 self.last_error = "Speed is already 1.00x."
-                renpy.restart_interaction()
                 return
 
             fs = self._get_video_fspath()
             self.create(factor)
 
+        @_cue_ui_refresh
         def _extract_then_create(self):
             """Callback after user confirms RPA extraction. Extract first, then create."""
             self.last_error = ""
             ok, msg = self.extract_from_rpa()
             if ok == "error":
                 self.last_error = msg
-                renpy.restart_interaction()
                 return
 
             status, msg2 = self.check_prerequisites()
             if status == "error":
                 self.last_error = msg2
-                renpy.restart_interaction()
                 return
 
             try:
@@ -471,13 +467,13 @@ init -999 python:
             fs = self._get_video_fspath()
             self.create(factor)
 
+        @_cue_ui_refresh
         def create(self, factor):
             """Enqueue a speed-change job (main thread)."""
             vp = self._get_video_vpath()
             fs = self._get_video_fspath()
             if not fs:
                 self.last_error = "Video file disappeared."
-                renpy.restart_interaction()
                 return
 
             # Build temp path in same directory (same fs = atomic rename)
@@ -507,7 +503,6 @@ init -999 python:
                     self.last_error = self._esc(
                         "The game still has this video file open. "
                         "Advance past this video scene, then try again.")
-                renpy.restart_interaction()
                 return
 
             # Always transcode from the backup (pristine original) if it
@@ -527,7 +522,6 @@ init -999 python:
             _cue_log("Speed job queued: id={}, factor={:.2f}, file={}".format(
                 job_id, factor, os.path.basename(fs)))
             self._start_if_idle()
-            renpy.restart_interaction()
 
         def _find_job(self, job_id):
             """Return the CueVideoJob with job_id, or None."""
@@ -947,43 +941,40 @@ init -999 python:
         # Restore
         # ==================================================================
 
+        @_cue_ui_refresh
         def open_restore(self):
             """Confirm then restore (main thread)."""
             self._sync_backup_for_current()
             if not self.has_backup:
                 self.last_error = "No backup exists for the current video."
-                renpy.restart_interaction()
                 return
 
             fs = self._get_video_fspath()
             if not fs:
                 self.last_error = "Video file not found."
-                renpy.restart_interaction()
                 return
 
             backup = self._find_existing_backup(fs)
             if not backup:
                 self.has_backup = False
                 self.last_error = "Backup file not found."
-                renpy.restart_interaction()
                 return
-            
+
             self.restore()
 
+        @_cue_ui_refresh
         def restore(self):
             """Restore the original video from backup (main thread, from confirm)."""
             vp = self._get_video_vpath()
             fs = self._get_video_fspath()
             if not fs:
                 self.last_error = "Video file not found."
-                renpy.restart_interaction()
                 return
 
             backup = self._find_existing_backup(fs)
             if not backup:
                 self.has_backup = False
                 self.last_error = "Backup file not found."
-                renpy.restart_interaction()
                 return
 
             try:
@@ -1010,7 +1001,6 @@ init -999 python:
                     self.last_error = self._esc(
                         "Cannot restore — the file is still locked. "
                         "Advance past this video scene and try again.")
-                    renpy.restart_interaction()
                     return
 
                 state = self._ensure_state(vp) if vp else None
@@ -1029,7 +1019,6 @@ init -999 python:
                     "Cannot restore — the file may be locked. "
                     "Advance past this video scene and try again.")
                 _cue_log("Speed: restore FAILED — {}".format(e))
-            renpy.restart_interaction()
 
         @staticmethod
         def cleanup_orphans():

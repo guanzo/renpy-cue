@@ -4,6 +4,19 @@
 # debug logging, file resolution, displayable name helpers.
 ###############################################################################
 
+init -999 python:
+
+    def _cue_ui_refresh(fn):
+        """Decorator for screen-action methods. Calls renpy.restart_interaction()
+        in a finally block so every return/exception path gets a UI refresh
+        automatically — methods can drop their explicit restart calls."""
+        def _wrapper(*args, **kwargs):
+            try:
+                return fn(*args, **kwargs)
+            finally:
+                renpy.restart_interaction()
+        return _wrapper
+
 init python:
     import os
 
