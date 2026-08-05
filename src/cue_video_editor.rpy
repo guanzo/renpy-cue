@@ -868,8 +868,8 @@ init -999 python:
             state = self._state_for_vpath(vp)
             if state is not None:
                 state.last_error = self._esc(msg)
-            if self._current is not None and self._current.vpath == vp:
-                pass  # last_error property already delegates to _current
+            # If _current matches this vpath, the last_error property
+            # already delegates to _current — no need to set it again.
 
         @staticmethod
         def _try_swap_paths(tmp, fs):
