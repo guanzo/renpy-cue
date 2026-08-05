@@ -160,7 +160,7 @@ init -999 python:
         def last_error(self, value):
             s = self._get_state()
             if s is not None:
-                s.last_error = value
+                s.last_error = self._esc(value)
 
         @property
         def config_label(self):
@@ -417,8 +417,7 @@ init -999 python:
                 self.last_error = "Checking ffmpeg — try again in a moment."
                 return
             if self._warm_cache_error:
-                self.last_error = self._esc(
-                    "ffmpeg check failed: {}".format(self._warm_cache_error))
+                self.last_error = "ffmpeg check failed: {}".format(self._warm_cache_error)
                 return
             self._sync_backup_for_current()
 
@@ -500,7 +499,7 @@ init -999 python:
                     state.last_fast_preview = self.fast_preview
                     _cue_log("Speed: reused existing temp, swap complete")
                 else:
-                    self.last_error = self._esc(
+                    self.last_error = (
                         "The game still has this video file open. "
                         "Advance past this video scene, then try again.")
                 return
@@ -998,7 +997,7 @@ init -999 python:
                         if _attempt < 3:
                             _time.sleep(1.0)
                 if not swap_ok:
-                    self.last_error = self._esc(
+                    self.last_error = (
                         "Cannot restore — the file is still locked. "
                         "Advance past this video scene and try again.")
                     return
@@ -1015,7 +1014,7 @@ init -999 python:
                     os.path.basename(backup)))
 
             except Exception as e:
-                self.last_error = self._esc(
+                self.last_error = (
                     "Cannot restore — the file may be locked. "
                     "Advance past this video scene and try again.")
                 _cue_log("Speed: restore FAILED — {}".format(e))
