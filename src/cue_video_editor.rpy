@@ -748,7 +748,13 @@ init -999 python:
             main thread only. Returns True on success, False on failure
             (error state already set on job)."""
             tmp = job.fspath_tmp
-            fs = tmp.replace(self.TMP_SUFFIX, "")
+            # Derive the original path by stripping TMP_SUFFIX from the
+            # basename — safer than a blind str.replace which would mangle
+            # the path if TMP_SUFFIX appeared in a directory name.
+            _dir = os.path.dirname(tmp)
+            _base = os.path.basename(tmp)
+            _base_no_suffix = _base.replace(self.TMP_SUFFIX, "", 1)
+            fs = os.path.join(_dir, _base_no_suffix)
             vp = job.vpath
 
             # Stop ALL channels playing this file
