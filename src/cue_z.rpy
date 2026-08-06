@@ -183,16 +183,6 @@ init 999 python:
     config.developer = True
     config.console = True
 
-    # monkeypatch renpy.with_statement
-    _original_with_statement = renpy.with_statement
-
-    def _cue_with_hook(trans, always=False, paired=None, clear=True):
-        if _is_screenshake(trans):
-            _cue._shake_just_happened = True
-        return _original_with_statement(trans, always=always, paired=paired, clear=clear)
-
-    renpy.with_statement = _cue_with_hook
-
     # Clear debug log for fresh session
     try:
         log_dir = os.path.join(renpy.config.gamedir, _cue.base_dir)
@@ -203,91 +193,15 @@ init 999 python:
     except Exception:
         pass
 
-    # ------------------------------------------------------------------
-    # Speed resolver — DynamicDisplayable callback and kwargs capture
-    # ------------------------------------------------------------------
+    # monkeypatch renpy.with_statement
+    _original_with_statement = renpy.with_statement
 
-    def _cue_resolver(st, at, tag, base_path, orig_movie):
-        """DynamicDisplayable callback. Returns (displayable, redraw_delay).
-        Called per render/prediction — must be cheap and identity-stable
-        (DynamicDisplayable only rebuilds child when raw_child !=)."""
-        try:
-            speed = _cue.speed_prefs.get(tag, 1.0)
-        except Exception:
-            speed = 1.0  # defensive: resolver may fire during speculative prediction
+    def _cue_with_hook(trans, always=False, paired=None, clear=True):
+        if _is_screenshake(trans):
+            _cue._shake_just_happened = True
+        return _original_with_statement(trans, always=always, paired=paired, clear=clear)
 
-        if abs(speed - 1.0) < 0.05:
-            return orig_movie, None  # same object — no child rebuild, no restart
-
-        variant = _cue_speed_variant_path(base_path, speed)
-        if not renpy.loadable(variant):
-            return orig_movie, None  # variant not generated yet — fall back
-
-        # Memoize: return the same Movie object so DynamicDisplayable
-        # doesn't rebuild its child every frame
-        cached = _cue.resolver_children.get(tag, None)
-        if cached is not None:
-            return cached, None
-
-        kwargs = _cue_capture_kwargs(orig_movie)
-        kwargs["play"] = variant
-        child = renpy.display.video.Movie(**kwargs)
-        _cue.resolver_children[tag] = child
-        return child, None
-
-
-    def _cue_capture_kwargs(movie):
-        """Capture constructor kwargs from a Movie object so we can reconstruct
-        an equivalent Movie with a different play path."""
-        kwargs = python_dict({
-            "channel": movie.channel,
-            "loop": movie.loop,
-            "size": movie.size,
-            "side_mask": getattr(movie, "side_mask", False),
-            "mask": getattr(movie, "mask", None),
-            "mask_channel": getattr(movie, "mask_channel", None),
-            "image": getattr(movie, "image", None),
-            "start_image": getattr(movie, "start_image", None),
-            "play_callback": getattr(movie, "play_callback", None),
-        })
-        # group param only exists in Ren'Py 8.x — would TypeError on 7.x
-        if hasattr(movie, "group"):
-            kwargs["group"] = movie.group
-        return kwargs
-
-
-    # ------------------------------------------------------------------
-    # Wrap all Movie images in the registry with DynamicDisplayable
-    # ------------------------------------------------------------------
-
-    def _cue_wrap_all_movie_images():
-        import time as _time
-        _start = _time.time()
-        _count = 0
-        for name_tuple, d in list(renpy.display.image.images.items()):
-            if isinstance(d, DynamicDisplayable):
-                continue  # already wrapped — safe against hot-reload
-
-            unwrapped = _cue_unwrap_displayable(d)
-            if not isinstance(unwrapped, renpy.display.video.Movie):
-                continue  # not a video — leave every other image untouched
-
-            # Key by FULL joined name to match _cue.current_file
-            tag = " ".join(name_tuple)
-
-            
-            base_path = _cue_get_movie_play(unwrapped)
-
-            if not base_path:
-                continue
-
-            _cue.resolver_paths[tag] = base_path
-            _cue_log("resolver wrapping: tag={} path={}".format(tag, base_path))
-            renpy.image(name_tuple, DynamicDisplayable(_cue_resolver, tag, base_path, unwrapped))
-            _count += 1
-
-        _elapsed = _time.time() - _start
-        _cue_log("resolver wrapping done: {} movies in {:.3f}s".format(_count, _elapsed))
+    renpy.with_statement = _cue_with_hook
 
     _cue_wrap_all_movie_images()
 
