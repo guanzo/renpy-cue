@@ -724,43 +724,24 @@ screen cue_overlay_content():
                             text_style "cue_btn_text"
                             action Function(_cue.video_editor.open_restore)
                             tooltip "Restore the original video file from backup"
-                    hbox:
-                        spacing 4
-                        text "Speed:" style "cue_txt"
-                        $ _commit = Function(_cue.video_editor.commit_text)
-                        $ _display = "{:.1f}x".format(float(_ved.factor_text))
-                        use cue_icon_button("-", Function(_cue.video_editor.nudge, -0.1))
-                        use cue_float_input("_cue.video_editor.factor_text", _commit, _display)
-                        use cue_icon_button("+", Function(_cue.video_editor.nudge, 0.1))
-                        $ _ov_presets = _cue_get_preset_speeds()
-                        if _ov_presets:
-                            for _sp in _ov_presets:
-                                textbutton "{:.1f}x".format(_sp):
-                                    style "cue_btn"
-                                    text_style "cue_btn_text"
-                                    action Function(_cue.video_editor.set_quick, _sp)
-                                    tooltip "Set speed to {:.1f}x".format(_sp)
+                    vbox:
+                        hbox:
+                            spacing 4
+                            text "Speed:" style "cue_txt"
+                            $ _commit = Function(_cue.video_editor.commit_text)
+                            $ _display = "{:.1f}x".format(float(_ved.factor_text))
+                            use cue_icon_button("-", Function(_cue.video_editor.nudge, -0.1))
+                            use cue_float_input("_cue.video_editor.factor_text", _commit, _display)
+                            use cue_icon_button("+", Function(_cue.video_editor.nudge, 0.1))
+                            $ _ov_presets = _cue_get_preset_speeds()
+                            if _ov_presets:
+                                for _sp in _ov_presets:
+                                    textbutton "{:.1f}x".format(_sp):
+                                        style "cue_btn"
+                                        text_style "cue_btn_text"
+                                        action Function(_cue.video_editor.set_quick, _sp)
+                                        tooltip "Set speed to {:.1f}x".format(_sp)
                         text "Speed multiplier is based on original video" style "cue_help" size 10 yalign 0.5
-                    # --- Custom speed presets ---
-                    $ _usr = _cue_get_user_speeds()
-                    hbox:
-                        spacing 3
-                        text "Custom:" style "cue_txt" size 10
-                        for _sp in _usr:
-                            hbox:
-                                spacing 1
-                                text "{:.1f}x".format(_sp) style "cue_txt" size 10
-                                textbutton "x":
-                                    style "cue_btn"
-                                    text_style "cue_btn_text"
-                                    action Function(_cue_remove_user_speed, _sp)
-                                    tooltip "Remove {:.1f}x from presets".format(_sp)
-                        $ _add_custom = Function(_cue_add_user_speed, _cue.video_editor.get_factor())
-                        textbutton "+":
-                            style "cue_btn"
-                            text_style "cue_btn_text"
-                            action _add_custom
-                            tooltip "Add current speed as a preset"
 
                     # --- Encode mode radio buttons ---
                     vbox:
@@ -800,7 +781,7 @@ screen cue_overlay_content():
                         ]
                         frame:
                             background _cue_color_bg_panel
-                            padding (4, 4)
+                            padding (4, 0)
                             yminimum 0
                             xfill True
                             vbox:

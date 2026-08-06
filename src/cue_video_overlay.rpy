@@ -62,52 +62,9 @@ init -999 python:
         return speeds
 
     # ------------------------------------------------------------------
-    # User speed presets (used by Video Editor UI)
+    # Speed presets (used by Video Editor UI)
     # ------------------------------------------------------------------
 
-    def _cue_get_user_speeds():
-        """Return list of user-added speed presets from persistent storage."""
-        try:
-            data = getattr(_cue.markers, '_data', None)
-            if data is not None:
-                stored = data.get("video_overlay_user_speeds", None)
-                if stored is not None:
-                    return python_list([float(s) for s in stored])
-        except Exception:
-            pass
-        return python_list([])
-
-    def _cue_add_user_speed(speed):
-        """Add a custom speed to the user presets list and persist."""
-        speed = round(max(0.25, min(4.0, speed)), 2)
-        current = _cue_get_user_speeds()
-        if speed not in current and abs(speed - 1.0) > 0.05:
-            current.append(speed)
-            current.sort()
-            try:
-                _cue.markers._data["video_overlay_user_speeds"] = list(current)
-                _cue.markers.save_persistent()
-            except Exception:
-                pass
-        renpy.restart_interaction()
-
-    def _cue_remove_user_speed(speed):
-        """Remove a custom speed from the user presets list and persist."""
-        current = _cue_get_user_speeds()
-        filtered = python_list([s for s in current if abs(s - speed) > 0.05])
-        try:
-            _cue.markers._data["video_overlay_user_speeds"] = list(filtered)
-            _cue.markers.save_persistent()
-        except Exception:
-            pass
-        renpy.restart_interaction()
-
     def _cue_get_preset_speeds():
-        """Return combined hardcoded + user speed presets (no 1.0)."""
-        defaults = python_list([0.5, 1.5, 2.0])
-        combined = list(defaults)
-        for s in _cue_get_user_speeds():
-            if s not in combined:
-                combined.append(s)
-        combined.sort()
-        return python_list(combined)
+        """Return hardcoded speed presets (no 1.0)."""
+        return python_list([0.5, 1.5, 2.0])
