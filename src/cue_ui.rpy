@@ -591,21 +591,24 @@ screen cue_overlay_content():
                             + "• Get your markers timed to the first 'beat', find the interval to the next 'beat', then use Repeat to finish."),
                             None)
                     # --- Speed overlay toggle ---
-                    $ _avail = _cue_get_active_speeds_for_current()
-                    if len(_avail) > 0:
-                        hbox:
-                            spacing 3
-                            text "Speed:" style "cue_txt" size 11
-                            for _sp in _avail:
-                                $ _label = "1.0x" if abs(_sp - 1.0) < 0.05 else "{:.1f}x".format(_sp)
-                                textbutton _label:
-                                    style "cue_btn"
-                                    text_style "cue_btn_text"
-                                    background ("#446644" if abs(_cue._speed_pref - _sp) < 0.05 else "#444444")
-                                    action Function(_cue_set_speed, _sp)
-                                    tooltip ("Switch to {:.1f}x speed. Original file is never modified. Use . and , keys to cycle.".format(_sp) if abs(_sp - 1.0) > 0.05 else "Switch back to the original video.")
-                        if abs(_cue._speed_pref - 1.0) > 0.05:
-                            text "Playing {:.1f}x variant. Press . or , to cycle, 1.0x to restore.".format(_cue._speed_pref) style "cue_txt" size 11 color "#88cc88"
+                    $ _vid_path = _cue_resolver_base_path_for(_cue.current_file)
+                    if _vid_path:
+                        $ _avail = _cue_get_available_speeds(_vid_path)
+                        if len(_avail) > 1:
+                            hbox:
+                                spacing 3
+                                text "Speed:" style "cue_txt" size 11
+                                for _sp in _avail:
+                                    $ _label = "1.0x" if abs(_sp - 1.0) < 0.05 else "{:.1f}x".format(_sp)
+                                    $ _cur = _cue_resolver_speed_for(_cue.current_file)
+                                    textbutton _label:
+                                        style "cue_btn"
+                                        text_style "cue_btn_text"
+                                        background ("#446644" if abs(_cur - _sp) < 0.05 else "#444444")
+                                        action Function(_cue_set_speed_new, _sp)
+                                        tooltip ("Switch to {:.1f}x speed. Original file is never modified. Use . and , keys to cycle.".format(_sp) if abs(_sp - 1.0) > 0.05 else "Switch back to the original video.")
+                            if abs(_cur - 1.0) > 0.05:
+                                text "Playing {:.1f}x variant. Press . or , to cycle, 1.0x to restore.".format(_cur) style "cue_txt" size 11 color "#88cc88"
 
                     # --- Timeline visualizer ---
                     fixed:

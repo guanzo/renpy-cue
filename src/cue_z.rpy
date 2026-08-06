@@ -61,6 +61,12 @@ init -999 python:
     _cue._dynamic_tags = {}
     _cue._speed_pref = 1.0
 
+    # Speed resolver — per-tag speed preferences (session-only)
+    # Keys are full joined image names (e.g. "bg anim_josy movie")
+    _cue.speed_prefs = {}
+    _cue.resolver_paths = {}      # tag -> original base video path (wrap-time)
+    _cue.resolver_children = {}   # tag -> memoized variant Movie (speed != 1.0)
+
     # UI state
     _cue.is_overlay_visible = False
     _cue.initialized = False
@@ -201,21 +207,101 @@ init 999 python:
     except Exception:
         pass
 
-    for name_tuple, d in list(renpy.display.image.images.items()):
-        _cue_log(f"resolver {name_tuple=}")
-        if isinstance(d, DynamicDisplayable):
-            continue  # already wrapped — skip on re-init/hot-reload
+    # ------------------------------------------------------------------
+    # Speed resolver — DynamicDisplayable callback and kwargs capture
+    # ------------------------------------------------------------------
 
-        unwrapped = _cue_unwrap_displayable(d)
-        if not isinstance(unwrapped, renpy.display.video.Movie):
-            continue  # not a video, leave it alone
+    def _cue_resolver(st, at, tag, base_path, orig_movie):
+        """DynamicDisplayable callback. Returns (displayable, redraw_delay).
+        Called per render/prediction — must be cheap and identity-stable
+        (DynamicDisplayable only rebuilds child when raw_child !=)."""
+        try:
+            speed = _cue.speed_prefs.get(tag, 1.0)
+        except Exception:
+            speed = 1.0  # defensive: resolver may fire during speculative prediction
 
-        tag = name_tuple[0]
-        base_path = unwrapped._original_play
-        #_cue_log(f"resolver {name_tuple=} {base_path=}")
-        #kwargs = _cue_capture_kwargs(unwrapped)
+        if abs(speed - 1.0) < 0.05:
+            return orig_movie, None  # same object — no child rebuild, no restart
 
-        #renpy.image(name_tuple, DynamicDisplayable(_cue_resolver, tag, base_path, kwargs))
+        variant = _cue_speed_variant_path(base_path, speed)
+        if not renpy.loadable(variant):
+            return orig_movie, None  # variant not generated yet — fall back
+
+        # Memoize: return the same Movie object so DynamicDisplayable
+        # doesn't rebuild its child every frame
+        cached = _cue.resolver_children.get(tag, None)
+        if cached is not None:
+            return cached, None
+
+        kwargs = _cue_capture_kwargs(orig_movie)
+        kwargs["play"] = variant
+        child = renpy.display.video.Movie(**kwargs)
+        _cue.resolver_children[tag] = child
+        return child, None
+
+
+    def _cue_capture_kwargs(movie):
+        """Capture constructor kwargs from a Movie object so we can reconstruct
+        an equivalent Movie with a different play path."""
+        kwargs = python_dict({
+            "channel": movie.channel,
+            "loop": movie.loop,
+            "size": movie.size,
+            "side_mask": getattr(movie, "side_mask", False),
+            "mask": getattr(movie, "mask", None),
+            "mask_channel": getattr(movie, "mask_channel", None),
+            "image": getattr(movie, "image", None),
+            "start_image": getattr(movie, "start_image", None),
+            "play_callback": getattr(movie, "play_callback", None),
+        })
+        # group param only exists in Ren'Py 8.x — would TypeError on 7.x
+        if hasattr(movie, "group"):
+            kwargs["group"] = movie.group
+        return kwargs
+
+
+    # ------------------------------------------------------------------
+    # Wrap all Movie images in the registry with DynamicDisplayable
+    # ------------------------------------------------------------------
+
+    def _cue_wrap_all_movie_images():
+        import time as _time
+        _start = _time.time()
+        _count = 0
+        for name_tuple, d in list(renpy.display.image.images.items()):
+            if isinstance(d, DynamicDisplayable):
+                continue  # already wrapped — safe against hot-reload
+
+            unwrapped = _cue_unwrap_displayable(d)
+            if not isinstance(unwrapped, renpy.display.video.Movie):
+                continue  # not a video — leave every other image untouched
+
+            # Key by FULL joined name to match _cue.current_file
+            tag = " ".join(name_tuple)
+
+            # _original_play only exists in Ren'Py 8.x; fall back to _play for 7.x
+            raw_play = getattr(unwrapped, '_original_play', None)
+            if raw_play is None:
+                raw_play = getattr(unwrapped, '_play', None)
+            if isinstance(raw_play, list):
+                raw_play = raw_play[0] if raw_play else ""
+            if raw_play and isinstance(raw_play, str):
+                if raw_play.startswith("<") and raw_play.endswith(">"):
+                    raw_play = raw_play[1:-1]
+            base_path = raw_play if raw_play else ""
+
+            if not base_path:
+                continue
+
+            _cue.resolver_paths[tag] = base_path
+            _cue_log("resolver wrapping: tag={} path={}".format(tag, base_path))
+            renpy.image(name_tuple, DynamicDisplayable(_cue_resolver, tag, base_path, unwrapped))
+            _count += 1
+
+        _elapsed = _time.time() - _start
+        _cue_log("resolver wrapping done: {} movies in {:.3f}s".format(_count, _elapsed))
+
+    _cue_wrap_all_movie_images()
 
     if not _cue.initialized:
         # Detect Ren'Py version for relative_volume support (added in 7.5)
@@ -307,6 +393,83 @@ init python:
         _cue.markers.save_persistent()
 
 
+    # --------------------------------------------------------------------------
+    # Speed Resolver — lookup helpers
+    # --------------------------------------------------------------------------
+
+    def _cue_resolver_key_for(tag):
+        """Map a scene-list name to the resolver's speed_prefs key.
+        Exact match first, then longest-prefix match for partial attribute shows."""
+        if not tag:
+            return tag
+        if tag in _cue.speed_prefs:
+            return tag
+        best_key = tag
+        best_len = -1
+        for key in _cue.speed_prefs:
+            if key.startswith(tag + " ") and len(key) > best_len:
+                best_key = key
+                best_len = len(key)
+        return best_key
+
+    def _cue_resolver_speed_for(tag):
+        """Current speed for a scene-list name (1.0 if unknown)."""
+        return _cue.speed_prefs.get(_cue_resolver_key_for(tag), 1.0)
+
+    def _cue_resolver_base_path_for(tag):
+        """Original base video path for a scene-list name."""
+        if not tag:
+            return None
+        if tag in _cue.resolver_paths:
+            return _cue.resolver_paths[tag]
+        for key, base in _cue.resolver_paths.items():
+            if key.startswith(tag + " ") or tag.startswith(key + " "):
+                return base
+        return _cue.vid_manager.get_video_path()
+
+
+    # --------------------------------------------------------------------------
+    # Speed Resolver — cycle/set
+    # --------------------------------------------------------------------------
+
+    def _cue_cycle_speed_new(delta):
+        """Cycle through available speed variants. delta = 1 for next, -1 for prev."""
+        if _cue.top_layer_type != 'movie':
+            return
+        tag = _cue.current_file
+        if not tag:
+            return
+        key = _cue_resolver_key_for(tag)
+        base_path = _cue_resolver_base_path_for(tag)
+        if not base_path:
+            return
+        available = _cue_get_available_speeds(base_path)
+        if len(available) <= 1:
+            return
+        current = _cue.speed_prefs.get(key, 1.0)
+        try:
+            idx = available.index(current)
+        except ValueError:
+            idx = 0
+        new_speed = available[(idx + delta) % len(available)]
+        _cue.speed_prefs[key] = new_speed
+        _cue.resolver_children.pop(key, None)  # invalidate memoized variant
+        renpy.restart_interaction()
+
+
+    def _cue_set_speed_new(speed):
+        """Set playback speed to a specific value."""
+        if _cue.top_layer_type != 'movie':
+            return
+        tag = _cue.current_file
+        if not tag:
+            return
+        key = _cue_resolver_key_for(tag)
+        _cue.speed_prefs[key] = speed
+        _cue.resolver_children.pop(key, None)  # invalidate memoized variant
+        renpy.restart_interaction()
+
+
     def _cue_toggle_shake_trigger():
         """Toggle trigger_on_shake for the active pool of the current image.
         When enabled, screen shake transitions play SFX from this pool."""
@@ -373,10 +536,11 @@ init python:
         _cue_refresh_channel(displayable=top_d)
 
         # 2.5 Register dynamic video tag for speed overlay
-        if top_type == 'movie':
-            _base_path = _cue.vid_manager.get_video_path()
-            if _base_path:
-                _cue_on_video_detected(top_name, _base_path)
+        # Disabled: resolver handles video display via DynamicDisplayable
+        # if top_type == 'movie':
+        #     _base_path = _cue.vid_manager.get_video_path()
+        #     if _base_path:
+        #         _cue_on_video_detected(top_name, _base_path)
 
         _cue.file_tree.rebuild_tree()
 
@@ -930,8 +1094,8 @@ screen cue_key_listener():
     key "K_F4" action Function(_cue_toggle_active)
     key "shift_K_1" action Function(_cue.markers.copy_context)
     key "shift_K_2" action Function(_cue.markers.paste_context)
-    key "K_PERIOD" action Function(_cue_cycle_speed, 1)
-    key "K_COMMA" action Function(_cue_cycle_speed, -1)
+    key "K_PERIOD" action Function(_cue_cycle_speed_new, 1)
+    key "K_COMMA" action Function(_cue_cycle_speed_new, -1)
     timer 0.025 repeat True action Function(_cue_tick_trigger, _update_screens=False)
 
 # =============================================================================
@@ -964,14 +1128,16 @@ screen cue_overlay():
         add _Tooltip(_tt)
 
     # --- Speed overlay badge ---
-    if _cue.top_layer_type == 'movie' and abs(_cue._speed_pref - 1.0) > 0.05:
-        frame:
-            xalign 1.0
-            yalign 0.0
-            xpadding 6
-            ypadding 3
-            background "#446644"
-            text "{:.1f}x".format(_cue._speed_pref) style "cue_txt" size 14
+    if _cue.top_layer_type == 'movie' and _cue.current_file:
+        $ _sp = _cue_resolver_speed_for(_cue.current_file)
+        if abs(_sp - 1.0) > 0.05:
+            frame:
+                xalign 1.0
+                yalign 0.0
+                xpadding 6
+                ypadding 3
+                background "#446644"
+                text "{:.1f}x".format(_sp) style "cue_txt" size 14
 
     # --- Marker timeline tooltip (rendered last so it's always on top) ---
     add _MarkerTooltipOverlay()

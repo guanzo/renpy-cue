@@ -1134,10 +1134,11 @@ init -999 python:
                 "markers": _cue_unwrap_persistent(self._data),
                 "presets": _cue_unwrap_persistent(self._presets),
                 "video_presets": _cue_unwrap_persistent(self._video_presets),
-                "disabled_files": _cue_unwrap_persistent(_cue.file_tree.disabled_files),
+                "disabled_files": sorted(list(_cue_unwrap_persistent(_cue.file_tree.disabled_files))),
                 "triggers_active": _cue.triggers_active,
                 "interpolate": _cue.video_editor.interpolate,
                 "video_edit_history": _cue_unwrap_persistent(_edit_history),
+                "speed_prefs": _cue_unwrap_persistent(_cue.speed_prefs),
             })
             persistent._cue_config = data
 
@@ -1154,6 +1155,7 @@ init -999 python:
             _cue.file_tree.disabled_files = python_set(_cue_unwrap_persistent(data.get("disabled_files", set())))
             _cue.triggers_active = bool(data.get("triggers_active", True))
             _cue.video_editor.interpolate = bool(data.get("interpolate", True))
+            _cue.speed_prefs = _cue_unwrap_persistent(data.get("speed_prefs", {}))
 
             # Restore per-video edit history
             _edit_history = _cue_unwrap_persistent(data.get("video_edit_history", {}))
