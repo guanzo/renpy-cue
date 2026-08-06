@@ -275,16 +275,8 @@ init 999 python:
             # Key by FULL joined name to match _cue.current_file
             tag = " ".join(name_tuple)
 
-            # _original_play only exists in Ren'Py 8.x; fall back to _play for 7.x
-            raw_play = getattr(unwrapped, '_original_play', None)
-            if raw_play is None:
-                raw_play = getattr(unwrapped, '_play', None)
-            if isinstance(raw_play, list):
-                raw_play = raw_play[0] if raw_play else ""
-            if raw_play and isinstance(raw_play, str):
-                if raw_play.startswith("<") and raw_play.endswith(">"):
-                    raw_play = raw_play[1:-1]
-            base_path = raw_play if raw_play else ""
+            
+            base_path = _cue_get_movie_play(unwrapped)
 
             if not base_path:
                 continue
@@ -712,12 +704,6 @@ init python:
             name = " ".join(entry.name) if entry.name else name
 
             if isinstance(d, renpy.display.video.Movie):
-                # Use the actual movie filename (matches audio channel name)
-                # movie_path = getattr(d, '_original_play', '') or ''
-                # movie_name = movie_path.rsplit("/", 1)[-1].rsplit(".", 1)[0] if movie_path else ""
-                # if movie_name:
-                #     return movie_name, "movie", d
-                # Fallback: full image name without the tag
                 return name, "movie", d
             if isinstance(d, renpy.display.im.Image):
                 return name, "image", d
@@ -804,7 +790,7 @@ init python:
                 if displayable is not None and isinstance(displayable, renpy.display.video.Movie):
                     # Match channel by file path (works for movie sprites where
                     # the tag is "bg" but the actual file is different)
-                    target_path = getattr(displayable, '_original_play', '') or ''
+                    target_path = _cue_get_movie_play(displayable)
                     if target_path:
                         for ch_name, ch_obj, path in candidates:
                             if path == target_path:

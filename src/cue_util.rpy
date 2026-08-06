@@ -421,6 +421,15 @@ init python:
         if play:
             return str(play).replace("\\", "/").rsplit("/", 1)[-1]
         return None
+    
+    # _original_play only exists in Ren'Py 8.x; fall back to _play for 7.x
+    def _cue_get_movie_play(movie):
+        raw_play = getattr(unwrapped, '_original_play', None)
+        if raw_play is None:
+            raw_play = getattr(unwrapped, '_play', None)
+        if isinstance(raw_play, (list, tuple)):
+            raw_play = raw_play[0] if raw_play else ""
+        return raw_play or ""
 
 
     # --------------------------------------------------------------------------
