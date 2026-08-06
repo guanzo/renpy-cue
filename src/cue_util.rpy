@@ -418,7 +418,7 @@ init python:
         if name:
             return name
         play = getattr(movie, "play", None)
-        if isinstance(play, list):
+        if hasattr(play, "__iter__") and not isinstance(play, (str, bytes)):
             play = play[0] if play else None
         if play:
             return str(play).replace("\\", "/").rsplit("/", 1)[-1]
@@ -429,7 +429,8 @@ init python:
         raw_play = getattr(movie, '_original_play', None)
         if raw_play is None:
             raw_play = getattr(movie, '_play', None)
-        if isinstance(raw_play, (list, tuple)):
+        # Duck typing: isinstance(x, list) fails when Ren'Py shadows list→RevertableList
+        if hasattr(raw_play, "__iter__") and not isinstance(raw_play, (str, bytes)):
             raw_play = raw_play[0] if raw_play else ""
         return raw_play or ""
 
@@ -492,6 +493,28 @@ init python:
         except Exception:
             speed = 1.0  # defensive: resolver may fire during speculative prediction
 
+        def _cue_build_or_cache(cache_key, play_value):
+            """Return cached Movie for cache_key, or build and cache one."""
+            cached = _cue.resolver_children.get(cache_key, None)
+            if cached is not None:
+                return cached
+            kwargs = _cue_capture_kwargs(orig_movie)
+            kwargs["play"] = play_value
+            child = renpy.display.video.Movie(**kwargs)
+            _cue.resolver_children[cache_key] = child
+            _cue_log("VQ-BUILD cache_key={}".format(cache_key))
+            return child
+
+        # --- Active speed queue overrides normal speed resolution ---
+        active = _cue.video_queue_active_tag
+        if active and (tag == active or
+                       active.startswith(tag + " ") or
+                       tag.startswith(active + " ")):
+            queue_paths = _cue_video_queue_paths_for(active)
+            if queue_paths:
+                return _cue_build_or_cache(("__queue__", active), queue_paths), None
+
+        # --- Normal speed resolution ---
         if abs(speed - 1.0) < 0.05:
             return orig_movie, None  # same object — no child rebuild, no restart
 
@@ -499,17 +522,7 @@ init python:
         if not renpy.loadable(variant):
             return orig_movie, None  # variant not generated yet — fall back
 
-        # Memoize: return the same Movie object so DynamicDisplayable
-        # doesn't rebuild its child every frame
-        cached = _cue.resolver_children.get(tag, None)
-        if cached is not None:
-            return cached, None
-
-        kwargs = _cue_capture_kwargs(orig_movie)
-        kwargs["play"] = variant
-        child = renpy.display.video.Movie(**kwargs)
-        _cue.resolver_children[tag] = child
-        return child, None
+        return _cue_build_or_cache((tag, speed), variant), None
 
 
     def _cue_capture_kwargs(movie):
@@ -541,6 +554,7 @@ init python:
         _start = _time.time()
         _count = 0
         for name_tuple, d in list(renpy.display.image.images.items()):
+            # TODO: ambiguous, could be dev created DynamicDisplayable and not ours
             if isinstance(d, DynamicDisplayable):
                 continue  # already wrapped — safe against hot-reload
 
