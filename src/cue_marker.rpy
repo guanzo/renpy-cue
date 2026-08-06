@@ -1319,7 +1319,8 @@ init -999 python:
                     new_key = create_loop_key(ctx_file)
 
                 self._data[new_key] = _copy.deepcopy(entry)
-                self._data[new_key]["replay"] = _cue.current_replay
+                if _cue.current_replay:
+                    self._data[new_key]["replay"] = _cue.current_replay
 
                 _cue_log("{} {}".format(new_key, str(entry)))
 
