@@ -456,6 +456,26 @@ screen cue_toggle_btn(checked, label, action, tt_on, tt_off=None,
             action action
             tooltip (tt_on if tt_off is None else tt_off)
 
+# Radio textbutton: ● label when selected, ○ when not.
+# Exclusivity within a group is enforced by the shared action target.
+screen cue_radio_btn(checked, label, action, tt=None, enabled=True):
+    if checked:
+        textbutton "● " + label:
+            style "cue_btn"
+            text_style "cue_btn_text"
+            sensitive enabled
+            action action
+            if tt is not None:
+                tooltip tt
+    else:
+        textbutton "○ " + label:
+            style "cue_btn"
+            text_style "cue_btn_text"
+            sensitive enabled
+            action action
+            if tt is not None:
+                tooltip tt
+
 ###############################################################################
 # SECTION 5: Overlay Screen
 ###############################################################################
@@ -720,7 +740,7 @@ screen cue_overlay_content():
                                     text_style "cue_btn_text"
                                     action Function(_cue.video_editor.set_quick, _sp)
                                     tooltip "Set speed to {:.1f}x".format(_sp)
-                        text "Speed up or slow down video" style "cue_help" size 10 yalign 0.5
+                        text "Speed multipler is based on original video" style "cue_help" size 10 yalign 0.5
                     # --- Custom speed presets ---
                     $ _usr = _cue_get_user_speeds()
                     hbox:
@@ -742,18 +762,26 @@ screen cue_overlay_content():
                             action _add_custom
                             tooltip "Add current speed as a preset"
 
-                    hbox:
-                        spacing 4
-                        use cue_toggle_btn(_ved.interpolate, "Interpolate Frames",
-                            Function(_cue.video_editor.toggle_interpolate),
-                            "Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to encode.")
-                        text "Slower encode, higher quality" style "cue_help" size 10 yalign 0.5
-                    hbox:
-                        spacing 4
-                        use cue_toggle_btn(_ved.fast_preview, "Fast Preview",
-                            Function(_cue.video_editor.toggle_fast_preview),
-                            "Fast low-quality encode to judge the edited speed.")
-                        text "Faster encode, lower quality" style "cue_help" size 10 yalign 0.5
+                    # --- Encode mode radio buttons ---
+                    vbox:
+                        spacing 2
+                        hbox:
+                            spacing 4
+                            use cue_radio_btn(_ved.encode_mode == _ved.MODE_FAST_PREVIEW, "Fast Preview",
+                                Function(_cue.video_editor.set_encode_mode, _ved.MODE_FAST_PREVIEW),
+                                tt="Fast low-quality encode to judge the edited speed.")
+                            use cue_radio_btn(_ved.encode_mode == _ved.MODE_NORMAL, "Normal",
+                                Function(_cue.video_editor.set_encode_mode, _ved.MODE_NORMAL),
+                                tt="Standard encode at the original quality — no extra processing.")
+                            use cue_radio_btn(_ved.encode_mode == _ved.MODE_INTERPOLATE, "Interpolate Frames",
+                                Function(_cue.video_editor.set_encode_mode, _ved.MODE_INTERPOLATE),
+                                tt="Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to encode.")
+                        if _ved.encode_mode == _ved.MODE_INTERPOLATE:
+                            text "Slower encode, higher quality" style "cue_help" size 10
+                        elif _ved.encode_mode == _ved.MODE_FAST_PREVIEW:
+                            text "Faster encode, lower quality" style "cue_help" size 10
+                        else:
+                            text "No processing, original quality" style "cue_help" size 10
                     null height 3
                     textbutton "Create":
                         style "cue_btn"

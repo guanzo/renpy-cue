@@ -1126,8 +1126,7 @@ init -999 python:
                 if _st.last_factor is not None:
                     _edit_history[_vp] = python_dict({
                         "factor": _st.last_factor,
-                        "interpolate": _st.last_interpolate,
-                        "fast_preview": _st.last_fast_preview,
+                        "encode_mode": _st.last_encode_mode,
                     })
 
             data = python_dict({
@@ -1136,7 +1135,7 @@ init -999 python:
                 "video_presets": _cue_unwrap_persistent(self._video_presets),
                 "disabled_files": list(_cue_unwrap_persistent(_cue.file_tree.disabled_files)),
                 "triggers_active": _cue.triggers_active,
-                "interpolate": _cue.video_editor.interpolate,
+                "encode_mode": _cue.video_editor.encode_mode,
                 "video_edit_history": _cue_unwrap_persistent(_edit_history),
                 "speed_prefs": _cue_unwrap_persistent(_cue.speed_prefs),
             })
@@ -1154,7 +1153,23 @@ init -999 python:
             
             _cue.file_tree.disabled_files = python_set(_cue_unwrap_persistent(data.get("disabled_files", set())))
             _cue.triggers_active = bool(data.get("triggers_active", True))
-            _cue.video_editor.interpolate = bool(data.get("interpolate", True))
+            _ved = _cue.video_editor
+            if "encode_mode" in data:
+                _mode = int(data["encode_mode"])
+            else:
+                # Automatic migration from old separate-boolean format.
+                # On the next save_persistent() call, only the new
+                # "encode_mode" key will be written — old keys are
+                # dropped automatically since save builds a fresh dict.
+                _old_interp = bool(data.get("interpolate", True))
+                _old_fast = bool(data.get("fast_preview", False))
+                if _old_fast:
+                    _mode = _ved.MODE_FAST_PREVIEW
+                elif _old_interp:
+                    _mode = _ved.MODE_INTERPOLATE
+                else:
+                    _mode = _ved.MODE_NORMAL
+            _ved.set_encode_mode(_mode, save=False, restart=False)
             _cue.speed_prefs = _cue_unwrap_persistent(data.get("speed_prefs", {}))
 
             # Restore per-video edit history
@@ -1162,8 +1177,16 @@ init -999 python:
             for _vp, _cfg in _edit_history.items():
                 _st = _cue.video_editor._ensure_state(_vp)
                 _st.last_factor = float(_cfg.get("factor", 1.0))
-                _st.last_interpolate = bool(_cfg.get("interpolate", False))
-                _st.last_fast_preview = bool(_cfg.get("fast_preview", False))
+                if "encode_mode" in _cfg:
+                    _st.last_encode_mode = int(_cfg["encode_mode"])
+                else:
+                    # Legacy history entries stored two mutually-exclusive bools
+                    if _cfg.get("fast_preview"):
+                        _st.last_encode_mode = _ved.MODE_FAST_PREVIEW
+                    elif _cfg.get("interpolate"):
+                        _st.last_encode_mode = _ved.MODE_INTERPOLATE
+                    else:
+                        _st.last_encode_mode = _ved.MODE_NORMAL
                 _st.factor_text = "{:.2f}".format(_st.last_factor)
 
             self._migrate_video_timestamps_to_pools()

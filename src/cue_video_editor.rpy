@@ -14,6 +14,11 @@ init -999 python:
     import threading as _threading
     import time as _time
 
+    # Encode mode constants (global — shared with cue_marker.rpy)
+    CUE_VE_MODE_NORMAL = 0
+    CUE_VE_MODE_INTERPOLATE = 1
+    CUE_VE_MODE_FAST_PREVIEW = 2
+
     class CueVideoEditorState:
         """Editing state for a single video file."""
 
@@ -23,22 +28,20 @@ init -999 python:
             self.has_backup = False
             self.last_error = ""
             self.last_factor = None    # float set on edit completion, None = never edited
-            self.last_interpolate = False
-            self.last_fast_preview = False
+            self.last_encode_mode = CUE_VE_MODE_NORMAL  # 0 normal, 1 interpolate, 2 fast preview
 
 
     class CueVideoJob:
         """One ffmpeg encode job in the queue."""
 
-        def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, interpolate, fast_preview,
+        def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, encode_mode,
                      mode="encode", fspath_out=None):
             self.job_id = job_id
             self.vpath = vpath
             self.fspath_in = fspath_in
             self.fspath_tmp = fspath_tmp
             self.factor = factor
-            self.interpolate = interpolate
-            self.fast_preview = fast_preview
+            self.encode_mode = encode_mode
             self.mode = mode            # "encode" (swap) or "overlay" (variant)
             self.fspath_out = fspath_out  # variant output path (overlay mode)
             self.status = "queued"      # queued | analyzing | encoding | done | error
@@ -100,6 +103,10 @@ init -999 python:
         SPEED_MIN = 0.1
         SPEED_MAX = 10.0
 
+        MODE_NORMAL = CUE_VE_MODE_NORMAL
+        MODE_INTERPOLATE = CUE_VE_MODE_INTERPOLATE
+        MODE_FAST_PREVIEW = CUE_VE_MODE_FAST_PREVIEW
+
         TMP_SUFFIX = "__cue_speed_tmp"
 
         def __init__(self):
@@ -111,8 +118,7 @@ init -999 python:
             self.active = False             # True when Video Editor section is shown
             self._ready = False             # True after ffmpeg probe cache is warm
             self._warm_cache_error = ""      # "" = ok, else the exception string from warmup
-            self.interpolate = True         # Global frame interpolation toggle
-            self.fast_preview = False    # Fast low-quality encode for judging speed
+            self.encode_mode = CUE_VE_MODE_INTERPOLATE  # Global encode mode: 0 normal, 1 interpolate, 2 fast preview
 
             # --- Job queue ---
             self._jobs = []                 # list of CueVideoJob
@@ -174,9 +180,9 @@ init -999 python:
             if s is None or s.last_factor is None:
                 return ""
             label = "{:.1f}x".format(s.last_factor)
-            if s.last_fast_preview:
+            if s.last_encode_mode == self.MODE_FAST_PREVIEW:
                 label += " fast preview"
-            elif s.last_interpolate:
+            elif s.last_encode_mode == self.MODE_INTERPOLATE:
                 label += " interpolated"
             return label
 
@@ -317,8 +323,8 @@ init -999 python:
                 self._states[vpath] = CueVideoEditorState(vpath)
             return self._states[vpath]
 
-        def _save_interpolate(self):
-            """Persist interpolate setting via the shared markers key."""
+        def _save_encode_settings(self):
+            """Persist encode mode via the shared markers key."""
             _cue.markers.save_persistent()
 
         def _state_for_vpath(self, vpath):
@@ -390,18 +396,17 @@ init -999 python:
             except (ValueError, TypeError):
                 return 1.0
 
-        def toggle_interpolate(self):
-            """Toggle frame interpolation on/off (only relevant for speed > 1x)."""
-            self.interpolate = not self.interpolate
-            self._save_interpolate()
-            renpy.restart_interaction()
-
-        def toggle_fast_preview(self):
-            """Toggle fast preview — fast low-quality encode for judging speed."""
-            self.fast_preview = not self.fast_preview
-            if self.fast_preview:
-                self.interpolate = False
-            renpy.restart_interaction()
+        def set_encode_mode(self, mode, save=True, restart=True):
+            """Select the encode mode for new jobs: 0=normal, 1=interpolate,
+            2=fast preview. Invalid modes are ignored (mode unchanged)."""
+            mode = int(mode)
+            if mode not in (self.MODE_NORMAL, self.MODE_INTERPOLATE, self.MODE_FAST_PREVIEW):
+                return
+            self.encode_mode = mode
+            if save:
+                self._save_encode_settings()
+            if restart:
+                renpy.restart_interaction()
 
         def close_editor(self):
             """Return to the normal Video SFX section."""
@@ -439,7 +444,7 @@ init -999 python:
                 factor = 1.0
             factor = max(self.SPEED_MIN, min(self.SPEED_MAX, factor))
 
-            if abs(factor - 1.0) < 0.05 and not self.interpolate:
+            if abs(factor - 1.0) < 0.05 and self.encode_mode != self.MODE_INTERPOLATE:
                 self.last_error = "Speed is already 1.00x."
                 return
 
@@ -510,7 +515,7 @@ init -999 python:
             job_id = self._next_job_id
             self._next_job_id += 1
             job = CueVideoJob(job_id, vp, input_fs, temp_path, factor,
-                              self.interpolate, self.fast_preview,
+                              self.encode_mode,
                               mode="overlay", fspath_out=out_fspath)
             self._jobs.append(job)
 
@@ -571,8 +576,12 @@ init -999 python:
             # Create job and add to queue
             job_id = self._next_job_id
             self._next_job_id += 1
+            # Variants never use fast preview — downgrade to normal
+            _enc_mode = self.encode_mode
+            if _enc_mode == self.MODE_FAST_PREVIEW:
+                _enc_mode = self.MODE_NORMAL
             job = CueVideoJob(job_id, vp, input_fs, temp_path, speed,
-                              self.interpolate, False,
+                              _enc_mode,
                               mode="overlay", fspath_out=out_fspath)
             self._jobs.append(job)
 
@@ -640,7 +649,7 @@ init -999 python:
                     return
 
                 # --- Build ffmpeg command(s) ---
-                interpolate = job.interpolate
+                interpolate = (job.encode_mode == CUE_VE_MODE_INTERPOLATE)
                 source_fps = _cue.ffmpeg.probe_fps(input_fs)
                 # Total output frames for progress. -vsync 0 preserves frame count
                 # unless minterpolate generates new frames at a different rate.
@@ -656,7 +665,7 @@ init -999 python:
                     target_bitrate,
                     interpolate=interpolate,
                     source_fps=source_fps,
-                    fast=job.fast_preview,
+                    fast=(job.encode_mode == CUE_VE_MODE_FAST_PREVIEW),
                 )
                 job.passlog = passlog
 
@@ -847,8 +856,7 @@ init -999 python:
                     state.has_backup = True
                     state.last_error = ""
                     state.last_factor = job.factor
-                    state.last_interpolate = job.interpolate
-                    state.last_fast_preview = job.fast_preview
+                    state.last_encode_mode = job.encode_mode
                     job.status = "done"
                     _cue_log("Speed: swap complete, backup at {} (job_id={})".format(
                         os.path.basename(backup_path), job.job_id))
@@ -1104,8 +1112,7 @@ init -999 python:
                     state.has_backup = False
                     state.last_error = ""
                     state.last_factor = None
-                    state.last_interpolate = False
-                    state.last_fast_preview = False
+                    state.last_encode_mode = self.MODE_NORMAL
 
                 _cue_log("Speed: restore complete from {}".format(
                     os.path.basename(backup)))
