@@ -35,15 +35,14 @@ init -999 python:
         """One ffmpeg encode job in the queue."""
 
         def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, encode_mode,
-                     mode="encode", fspath_out=None):
+                     fspath_out=None):
             self.job_id = job_id
             self.vpath = vpath
             self.fspath_in = fspath_in
             self.fspath_tmp = fspath_tmp
             self.factor = factor
             self.encode_mode = encode_mode
-            self.mode = mode            # "encode" (swap) or "overlay" (variant)
-            self.fspath_out = fspath_out  # variant output path (overlay mode)
+            self.fspath_out = fspath_out  # variant output path
             self.status = "queued"      # queued | analyzing | encoding | done | error
             self.progress = 0.0
             self.error_msg = ""
@@ -53,7 +52,6 @@ init -999 python:
             self.passlog = None
             self.cancelled = False
             self.proc = None            # Popen handle (set by worker thread)
-            self.backup_path = None     # set after successful finalize
             self._done = False          # worker sets True when finished
             self._ok = False            # True if ffmpeg exited 0 and output exists
 
@@ -106,8 +104,6 @@ init -999 python:
         MODE_NORMAL = CUE_VE_MODE_NORMAL
         MODE_INTERPOLATE = CUE_VE_MODE_INTERPOLATE
         MODE_FAST_PREVIEW = CUE_VE_MODE_FAST_PREVIEW
-
-        TMP_SUFFIX = "__cue_speed_tmp"
 
         def __init__(self):
             # --- Per-video state ---
@@ -500,7 +496,7 @@ init -999 python:
             # Build temp path in same directory (atomic rename after success)
             temp_path = os.path.join(
                 os.path.dirname(orig_fs),
-                "{}__cue_ovl_tmp{}".format(os.path.basename(base), ext),
+                "{}__cue_tmp_{:.1f}x{}".format(os.path.basename(base), factor, ext),
             )
 
             # Always transcode from the backup (pristine original) if it
@@ -511,12 +507,12 @@ init -999 python:
             else:
                 input_fs = orig_fs
 
-            # Create job with mode="overlay" — writes variant, not swap
+            # Create job — writes a variant alongside the original
             job_id = self._next_job_id
             self._next_job_id += 1
             job = CueVideoJob(job_id, vp, input_fs, temp_path, factor,
                               self.encode_mode,
-                              mode="overlay", fspath_out=out_fspath)
+                              fspath_out=out_fspath)
             self._jobs.append(job)
 
             _cue_log("Speed variant job queued: id={}, factor={:.1f}, out={}".format(
@@ -536,17 +532,14 @@ init -999 python:
                 self._start_next_job()
 
         def apply_variant(self, speed, out_fspath):
-            """Start ffmpeg to generate a speed variant file.
-            Unlike apply(), this does NOT stop the original channel and does
-            NOT swap files — it writes a new persistent variant alongside the
-            original."""
+            """Start ffmpeg to generate a speed variant file alongside the original."""
             if self.processing:
                 return
 
             vp = self._get_video_vpath()
             fs = self._get_video_fspath()
             if not fs:
-                _cue_log("SPEED-OVERLAY: apply_variant failed — no filesystem path")
+                _cue_log("SPEED-VARIANT: apply_variant failed — no filesystem path")
                 renpy.restart_interaction()
                 return
 
@@ -562,7 +555,7 @@ init -999 python:
                 ext = ".webm"
             temp_path = os.path.join(
                 os.path.dirname(out_fspath),
-                "{}__cue_ovl_tmp{}".format(base, ext),
+                "{}__cue_tmp_{:.1f}x{}".format(base, speed, ext),
             )
 
             # Always transcode from the backup (pristine original) if it
@@ -581,11 +574,10 @@ init -999 python:
             if _enc_mode == self.MODE_FAST_PREVIEW:
                 _enc_mode = self.MODE_NORMAL
             job = CueVideoJob(job_id, vp, input_fs, temp_path, speed,
-                              _enc_mode,
-                              mode="overlay", fspath_out=out_fspath)
+                              _enc_mode, fspath_out=out_fspath)
             self._jobs.append(job)
 
-            _cue_log("Overlay variant job queued: id={}, speed={:.1f}, out={}".format(
+            _cue_log("Variant job queued: id={}, speed={:.1f}, out={}".format(
                 job_id, speed, os.path.basename(out_fspath)))
             self._start_if_idle()
 
@@ -788,107 +780,23 @@ init -999 python:
                 job.status = "error"
                 _cue_log("Speed: job failed (job_id={})".format(job.job_id))
             else:
-                if job.mode == "overlay":
-                    self._finish_variant(job)
-                else:
-                    self._finish_swap(job)
+                self._finish_variant(job)
 
             self._current_job = None
             self._start_next_job()
             renpy.restart_interaction()
 
-        def _finish_swap(self, job):
-            """Swap the transcoded file into place. Blocking — call from
-            main thread only. Returns True on success, False on failure
-            (error state already set on job)."""
-            tmp = job.fspath_tmp
-            # Derive the original path by stripping TMP_SUFFIX from the
-            # basename — safer than a blind str.replace which would mangle
-            # the path if TMP_SUFFIX appeared in a directory name.
-            _dir = os.path.dirname(tmp)
-            _base = os.path.basename(tmp)
-            _base_no_suffix = _base.replace(self.TMP_SUFFIX, "", 1)
-            fs = os.path.join(_dir, _base_no_suffix)
-            vp = job.vpath
-
-            # Stop ALL channels playing this file
-            try:
-                import renpy.audio.audio as _aaudio
-                for _ch_name in _aaudio.channels:
-                    _playing = renpy.music.get_playing(channel=_ch_name)
-                    if _playing:
-                        _playing_fs = os.path.join(renpy.config.gamedir, _playing)
-                        if os.path.normpath(_playing_fs) == os.path.normpath(fs):
-                            renpy.music.stop(channel=_ch_name, fadeout=0)
-            except Exception:
-                pass
-            _time.sleep(0.5)
-
-            # Create backup (if not already existing)
-            backup_path = self._backup_path(fs)
-            if not os.path.exists(backup_path):
-                try:
-                    with open(fs, "rb") as src:
-                        with open(backup_path, "wb") as dst:
-                            while True:
-                                chunk = src.read(1024 * 1024)
-                                if not chunk:
-                                    break
-                                dst.write(chunk)
-                except Exception as e:
-                    self._cleanup_temp_for(job)
-                    job.status = "error"
-                    self._set_job_state_error_for(job,
-                        "Cannot read the original video (file is locked by "
-                        "the game player). Advance past this video scene, "
-                        "then try again. ({})".format(e))
-                    _cue_log("Speed: backup FAILED (job_id={})".format(job.job_id))
-                    return False
-
-            job.backup_path = backup_path
-
-            # Try swap with retries
-            for _attempt in range(4):
-                try:
-                    os.remove(fs)
-                    os.rename(tmp, fs)
-                    state = self._ensure_state(vp)
-                    state.has_backup = True
-                    state.last_error = ""
-                    state.last_factor = job.factor
-                    state.last_encode_mode = job.encode_mode
-                    job.status = "done"
-                    _cue_log("Speed: swap complete, backup at {} (job_id={})".format(
-                        os.path.basename(backup_path), job.job_id))
-                    _cue.markers.save_persistent()
-                    return True
-                except Exception:
-                    if _attempt < 3:
-                        _time.sleep(1.0)
-
-            # All attempts failed — leave temp + backup for retry
-            err = (
-                "The game still has this video file open. "
-                "Advance past this video scene, then try again.\n\n"
-                "(The transcoded file and backup are already saved — "
-                "advance one scene and click Create again.)"
-            )
-            state = self._ensure_state(vp)
-            state.last_error = self._esc(err)
-            job.status = "error"
-            job.error_msg = "File locked — retry later"
-            _cue_log("Speed: swap FAILED — file locked (job_id={})".format(job.job_id))
-            return False
-
         def _finish_variant(self, job):
-            """Move the temp file to the final variant path (overlay mode).
-            No backup, no channel stop, no swap — the original is untouched."""
+            """Move the temp file to the final variant path, replacing any
+            existing variant. Stops channels playing the target, then retries
+            the swap up to 4 times with backoff to handle file locks."""
             tmp = job.fspath_tmp
             out = job.fspath_out
             speed = job.factor
+            vp = job.vpath
 
             if not tmp or not out:
-                _cue_log("Overlay variant: FAILED — missing tmp or out path (job_id={})".format(job.job_id))
+                _cue_log("Variant: FAILED — missing tmp or out path (job_id={})".format(job.job_id))
                 job.status = "error"
                 job.error_msg = "Missing paths"
                 return
@@ -897,7 +805,7 @@ init -999 python:
             try:
                 if not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
                     self._cleanup_temp_for(job)
-                    _cue_log("Overlay variant: FAILED — empty or missing temp (job_id={})".format(job.job_id))
+                    _cue_log("Variant: FAILED — empty or missing temp (job_id={})".format(job.job_id))
                     job.status = "error"
                     job.error_msg = "Empty output"
                     return
@@ -907,26 +815,46 @@ init -999 python:
                 job.error_msg = "Cannot read temp"
                 return
 
-            # Remove stale output if it exists
+            # Stop channels playing the variant we're about to replace
             try:
-                if os.path.exists(out):
-                    os.remove(out)
+                import renpy.audio.audio as _aaudio
+                for _ch_name in _aaudio.channels:
+                    _playing = renpy.music.get_playing(channel=_ch_name)
+                    if _playing:
+                        _playing_fs = os.path.join(renpy.config.gamedir, _playing)
+                        if os.path.normpath(_playing_fs) == os.path.normpath(out):
+                            renpy.music.stop(channel=_ch_name, fadeout=0)
             except Exception:
                 pass
+            _time.sleep(0.5)
 
-            # Rename temp to final
-            try:
-                os.rename(tmp, out)
-            except Exception:
-                self._cleanup_temp_for(job)
-                _cue_log("Overlay variant: FAILED — rename failed (job_id={})".format(job.job_id))
-                job.status = "error"
-                job.error_msg = "Rename failed"
-                return
+            # Swap with retries
+            for _attempt in range(4):
+                try:
+                    if os.path.exists(out):
+                        os.remove(out)
+                    os.rename(tmp, out)
+                    job.status = "done"
+                    state = self._ensure_state(vp)
+                    state.last_error = ""
+                    state.last_factor = job.factor
+                    state.last_encode_mode = job.encode_mode
+                    _cue_log("Variant: generated {:.1f}x at {} (job_id={})".format(
+                        speed, os.path.basename(out), job.job_id))
+                    _cue.markers.save_persistent()
+                    return
+                except Exception:
+                    if _attempt < 3:
+                        _time.sleep(1.0)
 
-            job.status = "done"
-            _cue_log("Overlay variant: generated {:.1f}x at {} (job_id={})".format(
-                speed, os.path.basename(out), job.job_id))
+            # All attempts failed — leave temp for retry
+            state = self._ensure_state(vp)
+            state.last_error = self._esc(
+                "The game still has this video file open. "
+                "Advance past this video scene, then try again.")
+            job.status = "error"
+            job.error_msg = "File locked — retry later"
+            _cue_log("Variant: swap FAILED — file locked (job_id={})".format(job.job_id))
 
         def retry_job(self, job_id):
             """Retry a failed job from where it left off. If the temp file
@@ -936,10 +864,9 @@ init -999 python:
                 return
 
             if os.path.exists(job.fspath_tmp):
-                # Temp still exists — swap only
-                _cue_log("Speed: retry swap (job_id={})".format(job_id))
-                self._finish_swap(job)
-                # If swap succeeded, job.status is now "done"
+                # Temp still exists — finish the swap
+                _cue_log("Speed: retry finish (job_id={})".format(job_id))
+                self._finish_variant(job)
             else:
                 # Need to re-encode
                 _cue_log("Speed: retry encode (job_id={})".format(job_id))
@@ -960,24 +887,6 @@ init -999 python:
                 return text.replace("[", "[[").replace("]", "]]")
             return text
 
-        def _set_job_state_error_for(self, job, msg):
-            """Write an error to the state for the job's vpath."""
-            vp = job.vpath
-            state = self._state_for_vpath(vp)
-            if state is not None:
-                state.last_error = self._esc(msg)
-            # If _current matches this vpath, the last_error property
-            # already delegates to _current — no need to set it again.
-
-        @staticmethod
-        def _try_swap_paths(tmp, fs):
-            """Replace fs with tmp. Returns True on success."""
-            try:
-                os.remove(fs)
-                os.rename(tmp, fs)
-                return True
-            except Exception:
-                return False
 
         def _cleanup_temp_for(self, job):
             """Remove the temp transcoded file if it exists."""
@@ -1132,7 +1041,7 @@ init -999 python:
             try:
                 gamedir = renpy.config.gamedir
                 for dirpath, _dirnames, _filenames in os.walk(gamedir):
-                    for pattern in ("*" + CueVideoEditor.TMP_SUFFIX + "*",):
+                    for pattern in ("*__cue_tmp_*",):
                         for f in _glob.glob(os.path.join(dirpath, pattern)):
                             try:
                                 os.remove(f)

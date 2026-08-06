@@ -740,7 +740,7 @@ screen cue_overlay_content():
                                     text_style "cue_btn_text"
                                     action Function(_cue.video_editor.set_quick, _sp)
                                     tooltip "Set speed to {:.1f}x".format(_sp)
-                        text "Speed multipler is based on original video" style "cue_help" size 10 yalign 0.5
+                        text "Speed multiplier is based on original video" style "cue_help" size 10 yalign 0.5
                     # --- Custom speed presets ---
                     $ _usr = _cue_get_user_speeds()
                     hbox:

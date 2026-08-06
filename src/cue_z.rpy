@@ -406,7 +406,6 @@ init python:
     def _cue_hide_overlay():
         _cue.is_overlay_visible = False
         _cue.markers.save_persistent()
-        _cue.video_editor.close_editor()
         renpy.hide_screen("cue_overlay", layer="cue_layer")
 
 
