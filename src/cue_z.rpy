@@ -57,10 +57,6 @@ init -999 python:
     _cue.ffmpeg = CueFFmpeg()
     _cue.video_editor = CueVideoEditor()
 
-    # Speed overlay — tags re-registered with DynamicDisplayable (session-only)
-    _cue._dynamic_tags = {}
-    _cue._speed_pref = 1.0
-
     # Speed resolver — per-tag speed preferences (session-only)
     # Keys are full joined image names (e.g. "bg anim_josy movie")
     _cue.speed_prefs = {}
