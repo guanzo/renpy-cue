@@ -155,7 +155,7 @@ init 999 python:
 
         # start_interact callback — detects context changes at interaction
         def _cue_start_interact_callback(*args, **kwargs):
-            _cue_log(f'_cue_start_interact_callback ')
+            _cue_log('_cue_start_interact_callback ')
             # Ensure key listeners are always active.
             if not renpy.get_screen("cue_key_listener"):
                 renpy.show_screen("cue_key_listener", _layer="cue_layer")
@@ -166,11 +166,6 @@ init 999 python:
             _cue_refresh_context()
 
         config.start_interact_callbacks.append(_cue_start_interact_callback)
-
-        def _cue_scene_callback(*args, **kwargs):
-            _cue_log(f'_cue_scene_callback {args} {kwargs}')
-            
-        config.scene_callbacks.append(_cue_scene_callback)
 
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
         _cue.markers.load_persistent()
@@ -437,7 +432,7 @@ init python:
         vol = _cue.volume.get_effective(entry, key, pool_index=pool_index)
         return _cue_play_sfx(f, key, volume=vol)
 
-    def _cue_fire_context_triggers(*keys, only_shake_pools=False):
+    def _cue_fire_context_triggers(*keys, **kwargs):
         """Fire markers for the given trigger keys.
         Multi-pool entries play one random file from EACH pool concurrently.
         Dedupe guard: same file in two pools of the same trigger is re-picked
@@ -446,6 +441,8 @@ init python:
         When only_shake_pools is True, pool without the trigger_on_shake flag
         are skipped — used by screenshake triggers so each pool independently
         opts in to firing on shake."""
+        
+        only_shake_pools = kwargs.get("only_shake_pools", False)
         if not _cue.triggers_active:
             return
         for key in keys:
