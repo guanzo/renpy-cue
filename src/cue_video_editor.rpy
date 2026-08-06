@@ -841,7 +841,6 @@ init -999 python:
         # Orphan cleanup
         # ==================================================================
 
-        @_cue_ui_refresh
         @staticmethod
         def cleanup_orphans():
             """Remove leftover tmp and passlog files from interrupted encodes.

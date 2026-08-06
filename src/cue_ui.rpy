@@ -70,7 +70,7 @@ style cue_hdr is cue_txt:
     bold True
 
 style cue_help is cue_txt:
-    size 12
+    size 11
     color "#aaaaaa"
 
 style cue_input is cue_txt:
@@ -376,7 +376,7 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
         use cue_pool_tabs(len(_pools), _target, bool(_pools),
             "Delete all {} for the current {}?".format(section_title.lower(), subject),
             Function(ctx.clear), "Delete all {} for the current {}".format(section_title.lower(), subject),
-            Function(ctx.add_pool), "Add a new pool",
+            Function(ctx.add_pool), "Create a SFX pool",
             ctx.set_active, (), "Select {} target pool — targets {} button".format(section_title, btn_letter))
 
         if _pools and 0 <= _target < len(_pools):
@@ -539,6 +539,34 @@ screen cue_overlay_content():
                 $ _vid_name = _cue.current_file if _cue.current_file else "?"
                 text "Video: [_vid_name]" style "cue_txt"
 
+                # --- Speed selector (shared between SFX / VFX tabs) ---
+                $ _vid_path = _cue_resolver_base_path_for(_cue.current_file)
+                if _vid_path:
+                    $ _avail = _cue_get_available_speeds(_vid_path)
+                    if len(_avail) > 1:
+                        $ _cur = _cue_resolver_speed_for(_cue.current_file)
+                        hbox:
+                            spacing 3
+                            text "Speeds:" style "cue_txt" size 11
+                            for _sp in _avail:
+                                $ _label = "1.0x" if abs(_sp - 1.0) < 0.05 else "{:.1f}x".format(_sp)
+                                textbutton _label:
+                                    style "cue_btn"
+                                    text_style "cue_btn_text"
+                                    background ("#446644" if abs(_cur - _sp) < 0.05 else "#444444")
+                                    action Function(_cue_set_speed_new, _sp)
+                                    tooltip ("Switch to {:.1f}x speed. Use . and , keys to cycle.".format(_sp) if abs(_sp - 1.0) > 0.05 else "Switch back to the original video.")
+                            if _cur != 1.0:
+                                fixed:
+                                    ysize 14
+                                    xsize 2
+                                    add Solid(_cue_color_divider)
+                                textbutton "Delete {:.1f}x".format(_cur):
+                                    style "cue_btn"
+                                    text_style "cue_btn_text"
+                                    action Function(_cue_delete_speed_variant, _vid_path, _cur)
+                                    tooltip "Delete the {:.1f}x file.".format(_cur)
+
                 # --- SFX Tab ---
                 if not _cue.video_editor.active:
                     hbox:
@@ -589,24 +617,6 @@ screen cue_overlay_content():
                             + "• Use Repeat to copy selected markers at an interval.\n"
                             + "• Get your markers timed to the first 'beat', find the interval to the next 'beat', then use Repeat to finish."),
                             None)
-                    # --- Speed overlay toggle ---
-                    $ _vid_path = _cue_resolver_base_path_for(_cue.current_file)
-                    if _vid_path:
-                        $ _avail = _cue_get_available_speeds(_vid_path)
-                        if len(_avail) > 1:
-                            hbox:
-                                spacing 3
-                                text "Speed:" style "cue_txt" size 11
-                                for _sp in _avail:
-                                    $ _label = "1.0x" if abs(_sp - 1.0) < 0.05 else "{:.1f}x".format(_sp)
-                                    $ _cur = _cue_resolver_speed_for(_cue.current_file)
-                                    textbutton _label:
-                                        style "cue_btn"
-                                        text_style "cue_btn_text"
-                                        background ("#446644" if abs(_cur - _sp) < 0.05 else "#444444")
-                                        action Function(_cue_set_speed_new, _sp)
-                                        tooltip ("Switch to {:.1f}x speed. Original file is never modified. Use . and , keys to cycle.".format(_sp) if abs(_sp - 1.0) > 0.05 else "Switch back to the original video.")
-
                     # --- Timeline visualizer ---
                     frame:
                         background None
@@ -717,9 +727,10 @@ screen cue_overlay_content():
                     $ _ved = _cue.video_editor
                     $ _cfg_label = _ved.config_label
                     vbox:
+                        spacing 2
                         hbox:
                             spacing 5
-                            text "Speed:" style "cue_txt"
+                            text "New Speed:" style "cue_txt"
                             $ _commit = Function(_cue.video_editor.commit_text)
                             $ _display = "{:.1f}x".format(float(_ved.factor_text))
                             use cue_icon_button("-", Function(_cue.video_editor.nudge, -0.1))
@@ -740,6 +751,7 @@ screen cue_overlay_content():
                         spacing 2
                         hbox:
                             spacing 4
+                            text "Quality:" style "cue_txt"
                             use cue_radio_btn(_ved.encode_mode == _ved.MODE_FAST_PREVIEW, "Fast Preview",
                                 Function(_cue.video_editor.set_encode_mode, _ved.MODE_FAST_PREVIEW),
                                 tt="Fast low-quality encode to judge the edited speed.")
@@ -750,26 +762,26 @@ screen cue_overlay_content():
                                 Function(_cue.video_editor.set_encode_mode, _ved.MODE_INTERPOLATE),
                                 tt="Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to encode.")
                         if _ved.encode_mode == _ved.MODE_INTERPOLATE:
-                            text "Slower encode, higher quality" style "cue_help" size 10
+                            text "Slower encode, higher quality" style "cue_help"
                         elif _ved.encode_mode == _ved.MODE_FAST_PREVIEW:
-                            text "Faster encode, lower quality" style "cue_help" size 10
+                            text "Faster encode, lower quality" style "cue_help"
                         else:
-                            text "No processing, original quality" style "cue_help" size 10
-                    null height 3
+                            text "Match original quality" style "cue_help"
+                    null height 2
                     textbutton "Create":
                         style "cue_btn"
                         text_style "cue_btn_text"
                         sensitive _ved._ready
                         action Function(_cue.video_editor.prepare_create)
                     if _ved.last_error:
-                        text _ved.last_error style "cue_txt" size 11 color _cue_color_error
+                        text _ved.last_error style "cue_txt" color _cue_color_error
 
                     # --- Edit queue ---
-                    if _ved._jobs:
+                    if _ved.queue.jobs:
                         add Solid(_cue_color_divider) ysize 1
                         timer 0.2 repeat True action [
-                            Function(_cue.video_editor.poll_jobs),
-                            Function(_cue.video_editor._refresh_ui),
+                            Function(_cue.video_editor.queue.poll),
+                            Function(_cue.video_editor.queue.refresh_ui),
                         ]
                         frame:
                             background _cue_color_bg_panel
@@ -780,13 +792,13 @@ screen cue_overlay_content():
                                 spacing 3
                                 text "Edit Queue" style "cue_txt" size 14 bold True
                                 null height 2
-                                for _job in _ved._jobs:
+                                for _job in _ved.queue.jobs:
                                     hbox:
                                         spacing 4
                                         if _job.status in ("queued", "analyzing", "encoding"):
-                                            use cue_icon_button("✕", Function(_cue.video_editor.cancel_job, _job.job_id), "Cancel job", None)
+                                            use cue_icon_button("✕", Function(_cue.video_editor.queue.cancel, _job.job_id), "Cancel job", None)
                                         else:
-                                            use cue_icon_button("✕", Function(_cue.video_editor.remove_job, _job.job_id), "Remove from queue", None)
+                                            use cue_icon_button("✕", Function(_cue.video_editor.queue.remove, _job.job_id), "Remove from queue", None)
                                         text _job.filename() + " " + _job.speed_label style "cue_txt" size 11
                                         text "(" + _job.status_text() + ")" style "cue_txt" size 11
                                         if _job.status != "queued":
@@ -800,7 +812,7 @@ screen cue_overlay_content():
                                             textbutton "Retry":
                                                 style "cue_btn"
                                                 text_style "cue_btn_text"
-                                                action Function(_cue.video_editor.retry_job, _job.job_id)
+                                                action Function(_cue.video_editor.queue.retry, _job.job_id)
 
         # --- Image UI ---
         $ _has_image = bool(_cue.current_file) and not _is_video
@@ -830,7 +842,7 @@ screen cue_overlay_content():
             $ _freq = _cue._pool_ui.get("freq", 1)
             hbox:
                 spacing 5
-                text "Interval" style "cue_txt" size 11
+                text "Interval:" style "cue_txt" size 11
                 $ slow_selected = (_freq == 0)
                 $ normal_selected = (_freq == 1)
                 $ fast_selected = (_freq == 2)
@@ -1014,7 +1026,7 @@ screen cue_repeat_pattern_dialog():
                 hbox:
                     spacing 3
                     xalign 0.0
-                    text "Interval (s):" style "cue_txt" size 12
+                    text "Interval:" style "cue_txt" size 12
                     $ _commit = Function(_cue.beat.commit_interval)
                     $ _display = _cue.beat.interval_text
                     use cue_icon_button("-", Function(_cue.beat.nudge_interval, -0.1))
