@@ -540,11 +540,11 @@ screen cue_overlay_content():
                 text "Video: [_vid_name]" style "cue_txt"
 
                 # --- Speed selector (shared between SFX / VFX tabs) ---
-                $ _vid_path = _cue_resolver_base_path_for(_cue.current_file)
+                $ _vid_path = _cue.speed_resolver.base_path_for(_cue.current_file)
                 if _vid_path:
-                    $ _avail = _cue_get_available_speeds(_vid_path)
+                    $ _avail = _cue.speed_resolver.get_available_speeds(_vid_path)
                     if len(_avail) > 1:
-                        $ _cur = _cue_resolver_speed_for(_cue.current_file)
+                        $ _cur = _cue.speed_resolver.speed_for(_cue.current_file)
                         hbox:
                             spacing 3
                             text "Speeds:" style "cue_txt" size 11
@@ -554,7 +554,7 @@ screen cue_overlay_content():
                                     style "cue_btn"
                                     text_style "cue_btn_text"
                                     background ("#446644" if abs(_cur - _sp) < 0.05 else "#444444")
-                                    action Function(_cue_set_speed_new, _sp)
+                                    action Function(_cue.speed_resolver.set_speed, _sp)
                                     tooltip ("Switch to {:.1f}x speed. Use . and , keys to cycle.".format(_sp) if abs(_sp - 1.0) > 0.05 else "Switch back to the original video.")
                             if _cur != 1.0:
                                 fixed:
@@ -564,7 +564,7 @@ screen cue_overlay_content():
                                 textbutton "Delete {:.1f}x".format(_cur):
                                     style "cue_btn"
                                     text_style "cue_btn_text"
-                                    action Function(_cue_delete_speed_variant, _vid_path, _cur)
+                                    action Function(_cue.speed_resolver.delete_variant, _vid_path, _cur)
                                     tooltip "Delete the {:.1f}x file.".format(_cur)
 
                 # --- SFX Tab ---
@@ -621,6 +621,7 @@ screen cue_overlay_content():
                     frame:
                         background None
                         xfill True
+                        yminimum 0
                         padding (10, 0)
                         fixed:
                             xfill True
@@ -736,7 +737,7 @@ screen cue_overlay_content():
                             use cue_icon_button("-", Function(_cue.video_editor.nudge, -0.1))
                             use cue_float_input("_cue.video_editor.factor_text", _commit, _display)
                             use cue_icon_button("+", Function(_cue.video_editor.nudge, 0.1))
-                            $ _ov_presets = _cue_get_preset_speeds()
+                            $ _ov_presets = _cue.speed_resolver.preset_speeds()
                             if _ov_presets:
                                 for _sp in _ov_presets:
                                     textbutton "{:.1f}x".format(_sp):

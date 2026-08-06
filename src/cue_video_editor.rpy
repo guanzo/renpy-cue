@@ -84,7 +84,7 @@ init -999 python:
             return self.status
 
         def filename(self):
-            """Basename of the target video for display (never the .bak source)."""
+            """Basename of the target video for display."""
             if self.vpath:
                 return os.path.basename(self.vpath)
             return "?"
@@ -498,11 +498,6 @@ init -999 python:
                 return False
             return self._get_video_fspath() is None
 
-        def _backup_path(self, fspath):
-            """Backup lives next to the original: movie.bak.webm"""
-            base, ext = os.path.splitext(fspath)
-            return "{}.bak{}".format(base, ext)
-
         # ==================================================================
         # RPA extraction
         # ==================================================================
@@ -752,7 +747,7 @@ init -999 python:
 
             # Use the resolver's original base path for display and output
             # naming, not the currently-playing file (which may be a variant).
-            vp = _cue_resolver_base_path_for(_cue.current_file) or self._get_video_vpath()
+            vp = _cue.speed_resolver.base_path_for(_cue.current_file) or self._get_video_vpath()
             orig_vpath = vp
             orig_vpath = orig_vpath.replace("\\", "/")
             orig_fs = os.path.normpath(os.path.join(renpy.config.gamedir, orig_vpath))
@@ -769,13 +764,9 @@ init -999 python:
                 "{}__cue_tmp_{:.1f}x{}".format(os.path.basename(base), factor, ext),
             )
 
-            # Always transcode from the backup (pristine original) if it
-            # exists. Otherwise repeated edits would compound quality loss.
-            backup_path = self._backup_path(orig_fs)
-            if os.path.exists(backup_path):
-                input_fs = backup_path
-            else:
-                input_fs = orig_fs
+            # Transcode from the original — variants are sidecar files,
+            # the original is never modified.
+            input_fs = orig_fs
 
             # Create job — writes a variant alongside the original
             job_id = self.job_queue._next_job_id
@@ -802,7 +793,7 @@ init -999 python:
 
             # Use the resolver's original base path, not the
             # currently-playing file (which may be a variant).
-            orig_vpath = _cue_resolver_base_path_for(_cue.current_file) or vp
+            orig_vpath = _cue.speed_resolver.base_path_for(_cue.current_file) or vp
             orig_vpath = orig_vpath.replace("\\", "/")
             orig_fs = os.path.normpath(os.path.join(renpy.config.gamedir, orig_vpath))
 
@@ -815,13 +806,9 @@ init -999 python:
                 "{}__cue_tmp_{:.1f}x{}".format(base, speed, ext),
             )
 
-            # Always transcode from the backup (pristine original) if it
-            # exists. Otherwise repeated edits would compound quality loss.
-            backup_path = self._backup_path(orig_fs)
-            if os.path.exists(backup_path):
-                input_fs = backup_path
-            else:
-                input_fs = orig_fs
+            # Transcode from the original — variants are sidecar files,
+            # the original is never modified.
+            input_fs = orig_fs
 
             # Create job and add to queue
             job_id = self.job_queue._next_job_id
