@@ -57,6 +57,10 @@ init -999 python:
     _cue.ffmpeg = CueFFmpeg()
     _cue.video_editor = CueVideoEditor()
 
+    # Speed overlay — tags re-registered with DynamicDisplayable (session-only)
+    _cue._dynamic_tags = {}
+    _cue._speed_pref = 1.0
+
     # UI state
     _cue.is_overlay_visible = False
     _cue.initialized = False
@@ -197,6 +201,22 @@ init 999 python:
     except Exception:
         pass
 
+    for name_tuple, d in list(renpy.display.image.images.items()):
+        _cue_log(f"resolver {name_tuple=}")
+        if isinstance(d, DynamicDisplayable):
+            continue  # already wrapped — skip on re-init/hot-reload
+
+        unwrapped = _cue_unwrap_displayable(d)
+        if not isinstance(unwrapped, renpy.display.video.Movie):
+            continue  # not a video, leave it alone
+
+        tag = name_tuple[0]
+        base_path = unwrapped._original_play
+        #_cue_log(f"resolver {name_tuple=} {base_path=}")
+        #kwargs = _cue_capture_kwargs(unwrapped)
+
+        #renpy.image(name_tuple, DynamicDisplayable(_cue_resolver, tag, base_path, kwargs))
+
     if not _cue.initialized:
         # Detect Ren'Py version for relative_volume support (added in 7.5)
         _v = getattr(renpy, 'version_tuple', (0, 0, 0))
@@ -220,7 +240,6 @@ init 999 python:
             if _cue.is_overlay_visible:
                 _cue.is_overlay_visible = False
                 _cue.vid_manager.reset_pause()
-            _cue_speed_after_load()
         config.after_load_callbacks.append(_cue_after_load)
 
         # Character callback — updates dialogue text only (context change
@@ -236,6 +255,7 @@ init 999 python:
 
         # start_interact callback — detects context changes at interaction
         def _cue_start_interact_callback(*args, **kwargs):
+            _cue_log(f'_cue_start_interact_callback ')
             # Ensure key listeners are always active.
             if not renpy.get_screen("cue_key_listener"):
                 renpy.show_screen("cue_key_listener", _layer="cue_layer")
@@ -246,6 +266,11 @@ init 999 python:
             _cue_refresh_context()
 
         config.start_interact_callbacks.append(_cue_start_interact_callback)
+
+        def _cue_scene_callback(*args, **kwargs):
+            _cue_log(f'_cue_scene_callback {args} {kwargs}')
+            
+        config.scene_callbacks.append(_cue_scene_callback)
 
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
         _cue.markers.load_persistent()
@@ -348,8 +373,10 @@ init python:
         _cue_refresh_channel(displayable=top_d)
 
         # 2.5 Register dynamic video tag for speed overlay
-        if top_type == 'movie' and hasattr(top_d, 'play') and top_d.play:
-            _cue_on_video_detected(top_name, top_d.play[0])
+        if top_type == 'movie':
+            _base_path = _cue.vid_manager.get_video_path()
+            if _base_path:
+                _cue_on_video_detected(top_name, _base_path)
 
         _cue.file_tree.rebuild_tree()
 
@@ -937,14 +964,14 @@ screen cue_overlay():
         add _Tooltip(_tt)
 
     # --- Speed overlay badge ---
-    if _cue.top_layer_type == 'movie' and abs(_cue._speed_pref - 1.0) > 0.001:
+    if _cue.top_layer_type == 'movie' and abs(_cue._speed_pref - 1.0) > 0.05:
         frame:
             xalign 1.0
             yalign 0.0
             xpadding 6
             ypadding 3
             background "#446644"
-            text "{:.2f}x".format(_cue._speed_pref) style "cue_txt" size 14
+            text "{:.1f}x".format(_cue._speed_pref) style "cue_txt" size 14
 
     # --- Marker timeline tooltip (rendered last so it's always on top) ---
     add _MarkerTooltipOverlay()

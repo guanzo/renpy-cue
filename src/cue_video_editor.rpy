@@ -332,7 +332,7 @@ init -999 python:
         def set_quick(self, mult):
             """Set speed factor from a quick-select button (0.5, 1.0, 1.5, 2.0)."""
             mult = max(self.SPEED_MIN, min(self.SPEED_MAX, float(mult)))
-            self.factor_text = "{:.2f}".format(mult)
+            self.factor_text = "{:.1f}".format(mult)
             self.last_error = ""
             renpy.restart_interaction()
 
@@ -343,7 +343,7 @@ init -999 python:
             except (ValueError, TypeError):
                 v = 1.0
             v = max(self.SPEED_MIN, min(self.SPEED_MAX, v))
-            self.factor_text = "{:.2f}".format(v)
+            self.factor_text = "{:.1f}".format(v)
             self.last_error = ""
             renpy.restart_interaction()
 
@@ -354,7 +354,7 @@ init -999 python:
             except (ValueError, TypeError):
                 v = 1.0
             v = max(self.SPEED_MIN, min(self.SPEED_MAX, v + delta))
-            self.factor_text = "{:.2f}".format(v)
+            self.factor_text = "{:.1f}".format(v)
             self.last_error = ""
             renpy.restart_interaction()
 
@@ -439,7 +439,7 @@ init -999 python:
                 factor = 1.0
             factor = max(self.SPEED_MIN, min(self.SPEED_MAX, factor))
 
-            if abs(factor - 1.0) < 0.001 and not self.interpolate:
+            if abs(factor - 1.0) < 0.05 and not self.interpolate:
                 self.last_error = "Speed is already 1.00x."
                 return
 
@@ -471,58 +471,45 @@ init -999 python:
 
         @_cue_ui_refresh
         def create(self, factor):
-            """Enqueue a speed-change job (main thread)."""
+            """Enqueue a speed-change job (main thread).
+            Generates a variant file alongside the original instead of
+            replacing it. The variant appears in the Speed: toggle row."""
             vp = self._get_video_vpath()
             fs = self._get_video_fspath()
             if not fs:
                 self.last_error = "Video file disappeared."
                 return
 
-            # Build temp path in same directory (same fs = atomic rename)
-            base, ext = os.path.splitext(os.path.basename(fs))
+            # Build variant output path: movie.2.00x.webm
+            base, ext = os.path.splitext(fs)
             if not ext:
                 ext = ".webm"
+            out_fspath = "{}.{:.1f}x{}".format(base, factor, ext)
+
+            # Build temp path in same directory (atomic rename after success)
             temp_path = os.path.join(
                 os.path.dirname(fs),
-                "{}{}{}".format(base, self.TMP_SUFFIX, ext),
+                "{}__cue_ovl_tmp{}".format(os.path.basename(base), ext),
             )
 
-            # Build backup path
-            backup_path = self._backup_path(fs)
-
-            # If temp + backup already exist (from a previous locked swap),
-            # skip re-encoding and try the swap directly on the main thread.
-            if os.path.exists(temp_path) and os.path.exists(backup_path):
-                if self._try_swap_paths(temp_path, fs):
-                    state = self._ensure_state(vp)
-                    state.has_backup = True
-                    state.last_error = ""
-                    state.last_factor = factor
-                    state.last_interpolate = self.interpolate
-                    state.last_fast_preview = self.fast_preview
-                    _cue_log("Speed: reused existing temp, swap complete")
-                else:
-                    self.last_error = (
-                        "The game still has this video file open. "
-                        "Advance past this video scene, then try again.")
-                return
-
             # Always transcode from the backup (pristine original) if it
-            # exists. Otherwise repeated edits would compound quality loss
-            # from lossy re-encodes.
+            # exists. Otherwise repeated edits would compound quality loss.
+            backup_path = self._backup_path(fs)
             if os.path.exists(backup_path):
                 input_fs = backup_path
             else:
                 input_fs = fs
 
-            # Create job and add to queue
+            # Create job with mode="overlay" — writes variant, not swap
             job_id = self._next_job_id
             self._next_job_id += 1
-            job = CueVideoJob(job_id, vp, input_fs, temp_path, factor, self.interpolate, self.fast_preview)
+            job = CueVideoJob(job_id, vp, input_fs, temp_path, factor,
+                              self.interpolate, self.fast_preview,
+                              mode="overlay", fspath_out=out_fspath)
             self._jobs.append(job)
 
-            _cue_log("Speed job queued: id={}, factor={:.2f}, file={}".format(
-                job_id, factor, os.path.basename(fs)))
+            _cue_log("Speed variant job queued: id={}, factor={:.1f}, out={}".format(
+                job_id, factor, os.path.basename(out_fspath)))
             self._start_if_idle()
 
         def _find_job(self, job_id):
@@ -577,7 +564,7 @@ init -999 python:
                               mode="overlay", fspath_out=out_fspath)
             self._jobs.append(job)
 
-            _cue_log("Overlay variant job queued: id={}, speed={:.2f}, out={}".format(
+            _cue_log("Overlay variant job queued: id={}, speed={:.1f}, out={}".format(
                 job_id, speed, os.path.basename(out_fspath)))
             self._start_if_idle()
 
@@ -608,7 +595,7 @@ init -999 python:
             )
             t.daemon = True
             t.start()
-            _cue_log("Speed worker started: job_id={}, factor={:.2f}, file={}".format(
+            _cue_log("Speed worker started: job_id={}, factor={:.1f}, file={}".format(
                 job.job_id, job.factor, os.path.basename(job.fspath_in)))
             renpy.restart_interaction()
 
@@ -918,7 +905,7 @@ init -999 python:
                 return
 
             job.status = "done"
-            _cue_log("Overlay variant: generated {:.2f}x at {} (job_id={})".format(
+            _cue_log("Overlay variant: generated {:.1f}x at {} (job_id={})".format(
                 speed, os.path.basename(out), job.job_id))
 
         def retry_job(self, job_id):
