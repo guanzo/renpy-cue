@@ -97,8 +97,8 @@ init -999 python:
         so all Ren'Py calls stay on the main thread."""
 
         # --- constants ---
-        SPEED_MIN = 0.25
-        SPEED_MAX = 4.0
+        SPEED_MIN = 0.1
+        SPEED_MAX = 10.0
 
         TMP_SUFFIX = "__cue_speed_tmp"
 

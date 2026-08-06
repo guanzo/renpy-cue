@@ -104,7 +104,7 @@ init -999 python:
 
     def _cue_get_preset_speeds():
         """Return combined hardcoded + user speed presets (no 1.0)."""
-        defaults = python_list([1.5, 2.0, 2.5])
+        defaults = python_list([0.5, 1.5, 2.0, 2.5])
         combined = list(defaults)
         for s in _cue_get_user_speeds():
             if s not in combined:
