@@ -140,17 +140,18 @@ init 999 python:
             if _cue.is_overlay_visible:
                 _cue.is_overlay_visible = False
                 _cue.vid_manager.reset_pause()
+
         config.after_load_callbacks.append(_cue_after_load)
 
         # Character callback — updates dialogue text only (context change
         # detection now lives in start_interact_callbacks below).
         def _cue_char_callback(event, interact=True, **kwargs):
+            _cue.prev_dialogue = _cue.current_dialogue
             if event == "show":
-                _cue.prev_dialogue = _cue.current_dialogue
-                _cue.current_dialogue = getattr(store, '_last_say_what', '') or ''
+                _cue.current_dialogue = getattr(store, '_last_say_what', '')
             elif event == "end":
-                _cue.prev_dialogue = _cue.current_dialogue
                 _cue.current_dialogue = ""
+        
         config.all_character_callbacks.append(_cue_char_callback)
 
         # start_interact callback — detects context changes at interaction
@@ -320,7 +321,8 @@ init python:
         _cue.current_replay = renpy.store._in_replay
 
         old_file = _cue.current_file
-        old_video = _cue.active_channel
+        old_channel = _cue.active_channel
+        old_layer_type = _cue.top_layer_type
 
         # Character callbacks don't trigger on rollback, need to clear stale dialogue here.
         if renpy.get_screen("say") is None:
@@ -356,25 +358,32 @@ init python:
 
         if _cue.current_file != old_file:
             changed += " file:{}->{}".format(old_file, _cue.current_file)
-            img_key = create_img_key(_cue.current_file) if _cue.current_file else None
-
+            if _cue.current_file:
+                img_key = create_img_key(_cue.current_file) 
+            
             # Clean up stale data
             _cue.loop_states = {}
             _cue.played_video_keys.clear()
             # Refresh video editor for the new file (backup state, etc.)
             if _cue.is_overlay_visible:
                 _cue.video_editor.refresh()
-        if _cue.active_channel != old_video:
-            changed += " ch:{}->{}".format(old_video, _cue.active_channel)
+
+        if _cue.active_channel != old_channel:
+            changed += " ch:{}->{}".format(old_channel, _cue.active_channel)
+
         if _cue.current_dialogue != _cue.prev_dialogue:
-            changed += " dlg:{}->{}".format(_cue.prev_dialogue[:30] if _cue.prev_dialogue else "",
-                _cue.current_dialogue[:30] if _cue.current_dialogue else "")
-        if _cue.current_dialogue:
-            dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
+            changed += " dlg:{}->{}".format(_cue.prev_dialogue[:20] if _cue.prev_dialogue else "",
+                _cue.current_dialogue[:20] if _cue.current_dialogue else "")
+            if _cue.current_dialogue:
+                dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
+        
+        if _cue.top_layer_type != old_layer_type:
+            changed += " type:{}->{}".format(old_layer_type, _cue.top_layer_type)
 
         if changed:
             _cue_log("CTX-CHANGE{}".format(changed))
             _cue_fire_context_triggers(img_key, dlg_key)
+            renpy.restart_interaction()
 
         # 5. Screenshake trigger — fires independently of context changes,
         #    but only for pools that opted in via trigger_on_shake.
@@ -716,6 +725,22 @@ init python:
         """SFX trigger engine — runs always (even when overlay is hidden)."""
         import time as _time
 
+        # Catches context changes caused by ATL child transitions, which aren't
+        # caused by user interactions or have callbacks.
+        #
+        # Example renpy sequence:
+        # image bg anim_jade_insert_ep9 movie:
+        #   "anim_jade_insert_ep9"
+        #   pause 4
+        #   "anim_jade_insert_ep9_end"
+        #
+        # The tag remains "bg anim_jade_insert_ep9 movie", but it plays a movie
+        # then automatically switches to an image.
+        if _cue.current_file is not None:
+            top_name, top_type, __ = _cue_get_top_layer()
+            if top_name != _cue.current_file or top_type != _cue.top_layer_type:
+                _cue_refresh_context()
+            
         # Re-detect the active channel each tick so the CDD time display
         # recovers after rollback (Page Up), which resets active_channel.
         # Pass the current file as tag so a stale channel from the
