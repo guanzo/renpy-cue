@@ -355,7 +355,8 @@ init python:
             idx = available.index(current)
         except ValueError:
             idx = 0
-        new_speed = available[(idx + delta) % len(available)]
+        new_idx = max(0, min(idx + delta, len(available) - 1))
+        new_speed = available[new_idx]
         _cue.speed_prefs[key] = new_speed
         renpy.restart_interaction()
 
