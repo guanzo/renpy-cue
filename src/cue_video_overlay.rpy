@@ -17,6 +17,25 @@ init -999 python:
             ext = ".webm"
         return "{}.{:.1f}x{}".format(base, speed, ext)
 
+    def _cue_is_speed_variant_of(path, base_path):
+        """True if path is base_path itself or a speed variant of it
+        (movies/ep1.webm -> movies/ep1.2.0x.webm)."""
+        if not path or not base_path:
+            return False
+        if path == base_path:
+            return True
+        base, ext = _os.path.splitext(base_path)
+        if not ext:
+            ext = ".webm"
+        if not (path.startswith(base + ".") and path.endswith("x" + ext)):
+            return False
+        middle = path[len(base) + 1:-len("x" + ext)]
+        try:
+            sp = float(middle)
+        except ValueError:
+            return False
+        return 0.25 <= sp <= 4.0
+
     def _cue_get_available_speeds(base_path):
         """Return sorted list of speeds that have variant files on disk.
         Always includes 1.0 (the original)."""

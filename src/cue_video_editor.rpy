@@ -474,31 +474,37 @@ init -999 python:
             """Enqueue a speed-change job (main thread).
             Generates a variant file alongside the original instead of
             replacing it. The variant appears in the Speed: toggle row."""
-            vp = self._get_video_vpath()
             fs = self._get_video_fspath()
             if not fs:
                 self.last_error = "Video file disappeared."
                 return
 
-            # Build variant output path: movie.2.00x.webm
-            base, ext = os.path.splitext(fs)
+            # Use the resolver's original base path for display and output
+            # naming, not the currently-playing file (which may be a variant).
+            vp = _cue_resolver_base_path_for(_cue.current_file) or self._get_video_vpath()
+            orig_vpath = vp
+            orig_vpath = orig_vpath.replace("\\", "/")
+            orig_fs = os.path.normpath(os.path.join(renpy.config.gamedir, orig_vpath))
+
+            # Build variant output path: movie.2.0x.webm
+            base, ext = os.path.splitext(orig_fs)
             if not ext:
                 ext = ".webm"
             out_fspath = "{}.{:.1f}x{}".format(base, factor, ext)
 
             # Build temp path in same directory (atomic rename after success)
             temp_path = os.path.join(
-                os.path.dirname(fs),
+                os.path.dirname(orig_fs),
                 "{}__cue_ovl_tmp{}".format(os.path.basename(base), ext),
             )
 
             # Always transcode from the backup (pristine original) if it
             # exists. Otherwise repeated edits would compound quality loss.
-            backup_path = self._backup_path(fs)
+            backup_path = self._backup_path(orig_fs)
             if os.path.exists(backup_path):
                 input_fs = backup_path
             else:
-                input_fs = fs
+                input_fs = orig_fs
 
             # Create job with mode="overlay" — writes variant, not swap
             job_id = self._next_job_id
@@ -539,8 +545,14 @@ init -999 python:
                 renpy.restart_interaction()
                 return
 
+            # Use the resolver's original base path, not the
+            # currently-playing file (which may be a variant).
+            orig_vpath = _cue_resolver_base_path_for(_cue.current_file) or vp
+            orig_vpath = orig_vpath.replace("\\", "/")
+            orig_fs = os.path.normpath(os.path.join(renpy.config.gamedir, orig_vpath))
+
             # Build temp path in same directory (atomic rename after success)
-            base, ext = os.path.splitext(os.path.basename(fs))
+            base, ext = os.path.splitext(os.path.basename(orig_fs))
             if not ext:
                 ext = ".webm"
             temp_path = os.path.join(
@@ -550,11 +562,11 @@ init -999 python:
 
             # Always transcode from the backup (pristine original) if it
             # exists. Otherwise repeated edits would compound quality loss.
-            backup_path = self._backup_path(fs)
+            backup_path = self._backup_path(orig_fs)
             if os.path.exists(backup_path):
                 input_fs = backup_path
             else:
-                input_fs = fs
+                input_fs = orig_fs
 
             # Create job and add to queue
             job_id = self._next_job_id

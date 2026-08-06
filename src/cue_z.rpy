@@ -63,7 +63,16 @@ init -900 python:
     # Keys are full joined image names (e.g. "bg anim_josy movie")
     _cue.speed_prefs = {}
     _cue.resolver_paths = {}      # tag -> original base video path (wrap-time)
-    _cue.resolver_children = {}   # tag -> memoized variant Movie (speed != 1.0)
+    _cue.resolver_children = {}   # (tag, speed) -> memoized variant Movie
+
+    # Hardcoded speed-queue experiment: video tag -> speed sequence.
+    # Ren'Py's audio queue re-loops the WHOLE queued list, so
+    # play(first) + queue(rest, loop=True) cycles the sequence forever.
+    _cue.video_queue_map = {
+        "v1s3_veronica_tits": [1.0, 2.0, 3.0, 2.0],
+        "anim_lily_rev1_ep8": [1.0, 1.5, 2.0, 2.5, 2.5, 2.5, 2, 1.5],
+    }
+    _cue.video_queue_active_tag = None   # tag whose sequence currently owns the channel
 
     # UI state
     _cue.is_overlay_visible = False
@@ -241,11 +250,94 @@ init python:
 
 
     # --------------------------------------------------------------------------
+    # Hardcoded speed queue (experiment)
+    # --------------------------------------------------------------------------
+
+    def _cue_video_queue_speeds_for(tag):
+        """Speed sequence for a tag from _cue.video_queue_map, or None.
+        Exact match first, then prefix match in both directions so shows
+        with extra attributes still resolve."""
+        if not tag:
+            return None
+        if tag in _cue.video_queue_map:
+            return _cue.video_queue_map[tag]
+        for key, speeds in _cue.video_queue_map.items():
+            if key.startswith(tag + " ") or tag.startswith(key + " "):
+                return speeds
+        return None
+
+    def _cue_video_queue_paths_for(tag):
+        """Resolved file list for the tag's sequence, or None if unusable.
+        1.0 entries use the base path; other speeds use generated variants.
+        Missing variant files are skipped (renpy.loadable handles .rpa)."""
+        speeds = _cue_video_queue_speeds_for(tag)
+        base_path = _cue_resolver_base_path_for(tag)
+        if not speeds or len(speeds) < 2 or not base_path:
+            return None
+        paths = python_list([])
+        for sp in speeds:
+            if abs(sp - 1.0) < 0.05:
+                paths.append(base_path)
+            else:
+                vpath = _cue_speed_variant_path(base_path, sp)
+                if renpy.loadable(vpath):
+                    paths.append(vpath)
+        if len(paths) < 2 or len(python_set(paths)) < 2:
+            return None
+        return paths
+
+    def _cue_start_video_queue(tag):
+        """Set the active queue tag and trigger a resolver rebuild.
+        The resolver builds a Movie with play=[paths...], and the
+        DynamicDisplayable swap causes Movie.play() → music.play(paths)
+        which sets up the full sequence atomically — no periodic() race."""
+        paths = _cue_video_queue_paths_for(tag)
+        if not paths:
+            _cue_log("VQ-NOSTART tag={} paths={}".format(tag, paths is not None))
+            _cue.video_queue_active_tag = None
+            return
+        # Clear resolver cache for this tag so a fresh queue Movie is built
+        keys_to_pop = [k for k in _cue.resolver_children
+                       if (isinstance(k, tuple) and k[0] == tag)]
+        for k in keys_to_pop:
+            _cue.resolver_children.pop(k, None)
+        _cue.video_queue_active_tag = tag
+        _cue_log("VQ-START tag={} paths={}".format(tag, ",".join(paths)))
+        renpy.restart_interaction()
+
+    def _cue_handle_video_queue(tag):
+        """Context-change hook. Starts the queue for a mapped tag; clears
+        the active tag when leaving a queued scene."""
+        old_tag = _cue.video_queue_active_tag
+        speeds = _cue_video_queue_speeds_for(tag)
+        if speeds:
+            if not old_tag or old_tag != tag:
+                _cue_start_video_queue(tag)
+        elif old_tag:
+            _cue.video_queue_active_tag = None
+            if _cue.top_layer_type != 'movie':
+                ch = _cue.vid_manager.channel
+                if ch:
+                    try:
+                        renpy.music.stop(channel=ch, fadeout=0)
+                    except Exception:
+                        pass
+
+    def _cue_cancel_video_queue():
+        """Release the queue so normal speed control takes over.
+        The subsequent restart_interaction() in cycle/set triggers the
+        resolver to swap the Movie, which calls Movie.play() and replaces
+        the channel."""
+        _cue.video_queue_active_tag = None
+
+
+    # --------------------------------------------------------------------------
     # Speed Resolver — cycle/set
     # --------------------------------------------------------------------------
 
     def _cue_cycle_speed_new(delta):
         """Cycle through available speed variants. delta = 1 for next, -1 for prev."""
+        _cue_cancel_video_queue()
         if _cue.top_layer_type != 'movie':
             return
         tag = _cue.current_file
@@ -265,12 +357,12 @@ init python:
             idx = 0
         new_speed = available[(idx + delta) % len(available)]
         _cue.speed_prefs[key] = new_speed
-        _cue.resolver_children.pop(key, None)  # invalidate memoized variant
         renpy.restart_interaction()
 
 
     def _cue_set_speed_new(speed):
         """Set playback speed to a specific value."""
+        _cue_cancel_video_queue()
         if _cue.top_layer_type != 'movie':
             return
         tag = _cue.current_file
@@ -278,7 +370,6 @@ init python:
             return
         key = _cue_resolver_key_for(tag)
         _cue.speed_prefs[key] = speed
-        _cue.resolver_children.pop(key, None)  # invalidate memoized variant
         renpy.restart_interaction()
 
 
@@ -369,6 +460,9 @@ init python:
             # Refresh video editor for the new file (backup state, etc.)
             if _cue.is_overlay_visible:
                 _cue.video_editor.refresh()
+
+            # Hardcoded speed-queue experiment
+            _cue_handle_video_queue(_cue.current_file)
 
         if _cue.active_channel != old_channel:
             changed += " ch:{}->{}".format(old_channel, _cue.active_channel)
@@ -623,9 +717,10 @@ init python:
                     # Match channel by file path (works for movie sprites where
                     # the tag is "bg" but the actual file is different)
                     target_path = _cue_get_movie_play(displayable)
+                    
                     if target_path:
                         for ch_name, ch_obj, path in candidates:
-                            if path == target_path:
+                            if path == target_path or _cue_is_speed_variant_of(path, target_path):
                                 _apply_channel(ch_name, ch_obj)
                                 return
                     # No match — clear, don't fall back to a stale channel
@@ -681,6 +776,28 @@ init python:
 
         # --- Auto-re-pause after seek (runs regardless of SFX Active) ---
         _cue.vid_manager.poll_autopause()
+
+        # --- Play-count tracker: logs each new play via elapsed wrap-around ---
+        if _cue.video_queue_active_tag and _cue.vid_manager.channel:
+            try:
+                ch = _cue.vid_manager.channel
+                now_playing = renpy.music.get_playing(channel=ch)
+                now_elapsed = renpy.music.get_pos(channel=ch) or 0.0
+            except Exception:
+                now_playing = None
+                now_elapsed = 0.0
+            prev_file = getattr(_cue, '_vq_last_playing', None)
+            prev_elapsed = getattr(_cue, '_vq_last_elapsed', 0.0)
+            is_new_play = (now_playing != prev_file or
+                           (now_playing and now_elapsed < 1.0 and
+                            prev_elapsed - now_elapsed > 1.0))
+            if is_new_play:
+                _cue._vq_play_count = getattr(_cue, '_vq_play_count', 0) + 1
+                _cue_log("VQ-PLAY #{} file={}".format(
+                    _cue._vq_play_count,
+                    now_playing.rsplit("/", 1)[-1] if now_playing else now_playing))
+            _cue._vq_last_playing = now_playing
+            _cue._vq_last_elapsed = now_elapsed
 
         if not _cue.triggers_active:
             return
