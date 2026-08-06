@@ -629,7 +629,7 @@ screen cue_overlay_content():
                     # Active pool display
                     if _vid_entries and 0 <= _vid_target < _vid_count:
                         $ _active_pool = _vid_entries[_vid_target]
-                        $ _active_files = _active_pool.get("files", [])
+                        $ _active_files = _cue_resolve_files(_active_pool.get("files", []))
                         $ _active_vol = _active_pool.get("volume", _cue.VOL_DEFAULT)
                         $ _active_eff = _cue.volume.get_effective(_vid_entry, _vid_key, pool_index=_vid_target)
                         # Detect preset-backed pool
