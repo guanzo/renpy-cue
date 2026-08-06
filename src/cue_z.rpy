@@ -2,7 +2,7 @@
 # SECTION 1: Variable Defaults (init -999 for early loading)
 ###############################################################################
 
-init -999 python:
+init -900 python:
 
     # --- All runtime state on a single NoRollback object ---
     # Ren'Py skips rollback for NoRollback instances — no state gets corrupted
@@ -70,96 +70,9 @@ init -999 python:
     _cue._marker_tip_text = ""     # marker timeline tooltip (rendered by _MarkerTooltipOverlay)
     _cue.scan_error = None
 
-    class CuePresetDialog:
-        """Self-contained state for the Save Preset popup."""
-        def __init__(self):
-            self.trigger_key = None
-            self.pool_idx = 0
-            self.name = ""
-
-        def open(self, trigger_key, pool_idx):
-            entry = _cue.markers.get(trigger_key)
-            if entry is None:
-                return
-            pools = entry.get("pools", [])
-            if pool_idx >= len(pools):
-                return
-            _cue.markers._detach_pool(trigger_key, pool_idx)
-            self.trigger_key = trigger_key
-            self.pool_idx = pool_idx
-            self.name = ""
-            renpy.show_screen("cue_save_preset_dialog", _layer="cue_layer")
-
-        def commit(self):
-            name = self.name.strip()
-            if name:
-                entry = _cue.markers.get(self.trigger_key)
-                if entry:
-                    pools = entry.get("pools", [])
-                    if self.pool_idx < len(pools):
-                        _cue.markers.create_preset(name, pools[self.pool_idx])
-            self.trigger_key = None
-            renpy.hide_screen("cue_save_preset_dialog", layer="cue_layer")
-
-        def cancel(self):
-            self.trigger_key = None
-            renpy.hide_screen("cue_save_preset_dialog", layer="cue_layer")
-
     _cue.preset_dialog = CuePresetDialog()
-
-    class CueVideoPresetDialog:
-        """Self-contained state for the Save Video Preset popup."""
-        def __init__(self):
-            self.name = ""
-
-        def open(self):
-            """Open the save dialog for the current video's pools."""
-            vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
-            if not vid_key:
-                return
-            entry = _cue.markers.get(vid_key)
-            if entry is None:
-                return
-            pools = entry.get("pools", [])
-            if not pools:
-                return
-            self.name = ""
-            renpy.show_screen("cue_save_video_preset_dialog", _layer="cue_layer")
-
-        def commit(self):
-            """Create a video preset from the current video's pools."""
-            name = self.name.strip()
-            if name:
-                vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
-                if vid_key:
-                    entry = _cue.markers.get(vid_key)
-                    if entry:
-                        _cue.markers.create_video_preset(name, entry)
-            renpy.hide_screen("cue_save_video_preset_dialog", layer="cue_layer")
-
-        def cancel(self):
-            renpy.hide_screen("cue_save_video_preset_dialog", layer="cue_layer")
-
     _cue.video_preset_dialog = CueVideoPresetDialog()
-
-    class CueConfirmDialog:
-        """Reusable confirmation popup matching the overlay UI style."""
-        def __init__(self):
-            self.message = ""
-            self.on_confirm = None  # Function() or list of actions
-
-        def show(self, message, confirm_action):
-            self.message = message
-            self.on_confirm = confirm_action
-            renpy.show_screen("cue_confirm_dialog", _layer="cue_layer")
-
-        def hide(self):
-            self.message = ""
-            self.on_confirm = None
-            renpy.hide_screen("cue_confirm_dialog", layer="cue_layer")
-
     _cue.confirm_dialog = CueConfirmDialog()
-
 
     # Audio file cache
     _cue.available_files = []
