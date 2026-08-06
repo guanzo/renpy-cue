@@ -95,7 +95,7 @@ init -999 python:
             return "{:.1f}x".format(self.factor)
 
 
-    class CueVideoQueue:
+    class CueVideoEditQueue:
         """Job queue for ffmpeg encode jobs. Owns job lifecycle: enqueue,
         start worker thread, poll for completion, cancel, and retry.
 
@@ -417,11 +417,11 @@ init -999 python:
             self.encode_mode = CUE_VE_MODE_INTERPOLATE  # Global encode mode: 0 normal, 1 interpolate, 2 fast preview
 
             # --- Job queue ---
-            self.queue = CueVideoQueue(self)
+            self.job_queue = CueVideoEditQueue(self)
 
         @property
         def processing(self):
-            return self.queue.processing
+            return self.job_queue.processing
 
         # ==================================================================
         # Properties — delegate to _current state so UI code Just Works
@@ -778,19 +778,19 @@ init -999 python:
                 input_fs = orig_fs
 
             # Create job — writes a variant alongside the original
-            job_id = self.queue._next_job_id
-            self.queue._next_job_id += 1
+            job_id = self.job_queue._next_job_id
+            self.job_queue._next_job_id += 1
             job = CueVideoJob(job_id, vp, input_fs, temp_path, factor,
                               self.encode_mode,
                               fspath_out=out_fspath)
-            self.queue.enqueue(job)
+            self.job_queue.enqueue(job)
 
             _cue_log("Speed variant job queued: id={}, factor={:.1f}, out={}".format(
                 job_id, factor, os.path.basename(out_fspath)))
 
         def apply_variant(self, speed, out_fspath):
             """Start ffmpeg to generate a speed variant file alongside the original."""
-            if self.queue.processing:
+            if self.job_queue.processing:
                 return
 
             vp = self._get_video_vpath()
@@ -824,15 +824,15 @@ init -999 python:
                 input_fs = orig_fs
 
             # Create job and add to queue
-            job_id = self.queue._next_job_id
-            self.queue._next_job_id += 1
+            job_id = self.job_queue._next_job_id
+            self.job_queue._next_job_id += 1
             # Variants never use fast preview — downgrade to normal
             _enc_mode = self.encode_mode
             if _enc_mode == self.MODE_FAST_PREVIEW:
                 _enc_mode = self.MODE_NORMAL
             job = CueVideoJob(job_id, vp, input_fs, temp_path, speed,
                               _enc_mode, fspath_out=out_fspath)
-            self.queue.enqueue(job)
+            self.job_queue.enqueue(job)
 
             _cue_log("Variant job queued: id={}, speed={:.1f}, out={}".format(
                 job_id, speed, os.path.basename(out_fspath)))

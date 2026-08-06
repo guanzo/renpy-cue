@@ -777,11 +777,11 @@ screen cue_overlay_content():
                         text _ved.last_error style "cue_txt" color _cue_color_error
 
                     # --- Edit queue ---
-                    if _ved.queue.jobs:
+                    if _ved.job_queue.jobs:
                         add Solid(_cue_color_divider) ysize 1
                         timer 0.2 repeat True action [
-                            Function(_cue.video_editor.queue.poll),
-                            Function(_cue.video_editor.queue.refresh_ui),
+                            Function(_cue.video_editor.job_queue.poll),
+                            Function(_cue.video_editor.job_queue.refresh_ui),
                         ]
                         frame:
                             background _cue_color_bg_panel
@@ -792,13 +792,13 @@ screen cue_overlay_content():
                                 spacing 3
                                 text "Edit Queue" style "cue_txt" size 14 bold True
                                 null height 2
-                                for _job in _ved.queue.jobs:
+                                for _job in _ved.job_queue.jobs:
                                     hbox:
                                         spacing 4
                                         if _job.status in ("queued", "analyzing", "encoding"):
-                                            use cue_icon_button("✕", Function(_cue.video_editor.queue.cancel, _job.job_id), "Cancel job", None)
+                                            use cue_icon_button("✕", Function(_cue.video_editor.job_queue.cancel, _job.job_id), "Cancel job", None)
                                         else:
-                                            use cue_icon_button("✕", Function(_cue.video_editor.queue.remove, _job.job_id), "Remove from queue", None)
+                                            use cue_icon_button("✕", Function(_cue.video_editor.job_queue.remove, _job.job_id), "Remove from queue", None)
                                         text _job.filename() + " " + _job.speed_label style "cue_txt" size 11
                                         text "(" + _job.status_text() + ")" style "cue_txt" size 11
                                         if _job.status != "queued":
@@ -812,7 +812,7 @@ screen cue_overlay_content():
                                             textbutton "Retry":
                                                 style "cue_btn"
                                                 text_style "cue_btn_text"
-                                                action Function(_cue.video_editor.queue.retry, _job.job_id)
+                                                action Function(_cue.video_editor.job_queue.retry, _job.job_id)
 
         # --- Image UI ---
         $ _has_image = bool(_cue.current_file) and not _is_video
