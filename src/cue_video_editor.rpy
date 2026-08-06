@@ -1,7 +1,6 @@
 ###############################################################################
 # CueVideoEditor — edit the currently-playing video file.
 # Currently supports: playback speed change via ffmpeg.
-# Backs up the original, replaces the file in place, and can restore.
 # No preview, no marker rescaling.
 #
 # Per-video state: one CueVideoEditorState per virtual path, held in _states
@@ -25,7 +24,6 @@ init -999 python:
         def __init__(self, vpath):
             self.vpath = vpath
             self.factor_text = "1.00"
-            self.has_backup = False
             self.last_error = ""
             self.last_factor = None    # float set on edit completion, None = never edited
             self.last_encode_mode = CUE_VE_MODE_NORMAL  # 0 normal, 1 interpolate, 2 fast preview
@@ -148,16 +146,6 @@ init -999 python:
                 s.factor_text = value
 
         @property
-        def has_backup(self):
-            return self._get_state_or_dummy().has_backup
-
-        @has_backup.setter
-        def has_backup(self, value):
-            s = self._get_state()
-            if s is not None:
-                s.has_backup = value
-
-        @property
         def last_error(self):
             return self._get_state_or_dummy().last_error
 
@@ -214,23 +202,6 @@ init -999 python:
             """Backup lives next to the original: movie.bak.webm"""
             base, ext = os.path.splitext(fspath)
             return "{}.bak{}".format(base, ext)
-
-        def _find_existing_backup(self, fspath):
-            """Return the backup path if it exists, or None."""
-            bp = self._backup_path(fspath)
-            if os.path.exists(bp):
-                return bp
-            return None
-
-        def _sync_backup_for_current(self):
-            """Update current state's has_backup from the filesystem."""
-            if self._current is None:
-                return
-            fs = self._get_video_fspath()
-            if not fs:
-                self._current.has_backup = False
-                return
-            self._current.has_backup = self._find_existing_backup(fs) is not None
 
         # ==================================================================
         # RPA extraction
@@ -423,7 +394,6 @@ init -999 python:
             if self._warm_cache_error:
                 self.last_error = "ffmpeg check failed: {}".format(self._warm_cache_error)
                 return
-            self._sync_backup_for_current()
 
             status, msg = self.check_prerequisites()
             if status == "error":
@@ -955,83 +925,6 @@ init -999 python:
         # ==================================================================
 
         @_cue_ui_refresh
-        def open_restore(self):
-            """Confirm then restore (main thread)."""
-            self._sync_backup_for_current()
-            if not self.has_backup:
-                self.last_error = "No backup exists for the current video."
-                return
-
-            fs = self._get_video_fspath()
-            if not fs:
-                self.last_error = "Video file not found."
-                return
-
-            backup = self._find_existing_backup(fs)
-            if not backup:
-                self.has_backup = False
-                self.last_error = "Backup file not found."
-                return
-
-            self.restore()
-
-        @_cue_ui_refresh
-        def restore(self):
-            """Restore the original video from backup (main thread, from confirm)."""
-            vp = self._get_video_vpath()
-            fs = self._get_video_fspath()
-            if not fs:
-                self.last_error = "Video file not found."
-                return
-
-            backup = self._find_existing_backup(fs)
-            if not backup:
-                self.has_backup = False
-                self.last_error = "Backup file not found."
-                return
-
-            try:
-                # Release file lock before swapping
-                try:
-                    if _cue.active_channel:
-                        renpy.music.stop(channel=_cue.active_channel, fadeout=0)
-                        _time.sleep(0.5)
-                except Exception:
-                    pass
-
-                swap_ok = False
-                for _attempt in range(4):
-                    try:
-                        if os.path.exists(fs):
-                            os.remove(fs)
-                        os.rename(backup, fs)
-                        swap_ok = True
-                        break
-                    except Exception:
-                        if _attempt < 3:
-                            _time.sleep(1.0)
-                if not swap_ok:
-                    self.last_error = (
-                        "Cannot restore — the file is still locked. "
-                        "Advance past this video scene and try again.")
-                    return
-
-                state = self._ensure_state(vp) if vp else None
-                if state:
-                    state.has_backup = False
-                    state.last_error = ""
-                    state.last_factor = None
-                    state.last_encode_mode = self.MODE_NORMAL
-
-                _cue_log("Speed: restore complete from {}".format(
-                    os.path.basename(backup)))
-
-            except Exception as e:
-                self.last_error = (
-                    "Cannot restore — the file may be locked. "
-                    "Advance past this video scene and try again.")
-                _cue_log("Speed: restore FAILED — {}".format(e))
-
         @staticmethod
         def cleanup_orphans():
             """Remove leftover tmp and passlog files from interrupted encodes.
@@ -1058,14 +951,13 @@ init -999 python:
         # ==================================================================
 
         def refresh(self):
-            """Update has_backup for the current video.
+            """Load state for the current video.
             Called on overlay open and when context changes."""
 
             vp = self._get_video_vpath()
-            
+
             if vp:
                 self._current = self._ensure_state(vp)
-                self._sync_backup_for_current()
                 self._current.last_error = ""
             # Warm ffmpeg/encoder probe cache in background (avoids main-thread
             # freeze when the user clicks Apply later). Only needed once.

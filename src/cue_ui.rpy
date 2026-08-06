@@ -606,8 +606,6 @@ screen cue_overlay_content():
                                         background ("#446644" if abs(_cur - _sp) < 0.05 else "#444444")
                                         action Function(_cue_set_speed_new, _sp)
                                         tooltip ("Switch to {:.1f}x speed. Original file is never modified. Use . and , keys to cycle.".format(_sp) if abs(_sp - 1.0) > 0.05 else "Switch back to the original video.")
-                            if abs(_cur - 1.0) > 0.05:
-                                text "Playing {:.1f}x variant. Press . or , to cycle, 1.0x to restore.".format(_cur) style "cue_txt" size 11 color "#88cc88"
 
                     # --- Timeline visualizer ---
                     frame:
@@ -718,15 +716,9 @@ screen cue_overlay_content():
                 if _cue.video_editor.active:
                     $ _ved = _cue.video_editor
                     $ _cfg_label = _ved.config_label
-                    if _ved.has_backup:
-                        textbutton "Restore Original Video":
-                            style "cue_btn"
-                            text_style "cue_btn_text"
-                            action Function(_cue.video_editor.open_restore)
-                            tooltip "Restore the original video file from backup"
                     vbox:
                         hbox:
-                            spacing 4
+                            spacing 5
                             text "Speed:" style "cue_txt"
                             $ _commit = Function(_cue.video_editor.commit_text)
                             $ _display = "{:.1f}x".format(float(_ved.factor_text))
