@@ -19,6 +19,7 @@ init -900 python:
     _cue.top_layer_type = None
     _cue.top_displayable = None
     _cue.current_replay = None
+    _cue._logged_unknown_displayables = python_set()
 
     # Path constants
     _cue.base_dir = "renpy_cue"
@@ -158,7 +159,6 @@ init 999 python:
 
         # start_interact callback — detects context changes at interaction
         def _cue_start_interact_callback(*args, **kwargs):
-            _cue_log('_cue_start_interact_callback ')
             # Ensure key listeners are always active.
             if not renpy.get_screen("cue_key_listener"):
                 renpy.show_screen("cue_key_listener", _layer="cue_layer")
@@ -535,10 +535,15 @@ init python:
             if isinstance(d, renpy.display.im.Image):
                 return name, "image", d
 
-            # Unexpected displayable type — keep current_file accurate
+            # Unexpected displayable type — keep current_file accurate.
+            # Log each unique (name, class) pair once to avoid spam.
             if d is not None:
-                _cue_log("TOP-LAYER-UNKNOWN name={} d_class={}".format(
-                    name, d.__class__.__name__))
+                dedup_key = (name, d.__class__.__name__)
+                if dedup_key not in _cue._logged_unknown_displayables:
+                    _cue._logged_unknown_displayables.add(dedup_key)
+                    _cue_log("TOP-LAYER-UNKNOWN name={} d_class={}".format(
+                        name, d.__class__.__name__))
+
             return name, "image", d
         except Exception as exc:
             _cue_log("TOP-LAYER-ERR {}".format(repr(exc)))

@@ -1134,7 +1134,7 @@ init -999 python:
                 "markers": _cue_unwrap_persistent(self._data),
                 "presets": _cue_unwrap_persistent(self._presets),
                 "video_presets": _cue_unwrap_persistent(self._video_presets),
-                "disabled_files": sorted(list(_cue_unwrap_persistent(_cue.file_tree.disabled_files))),
+                "disabled_files": list(_cue_unwrap_persistent(_cue.file_tree.disabled_files)),
                 "triggers_active": _cue.triggers_active,
                 "interpolate": _cue.video_editor.interpolate,
                 "video_edit_history": _cue_unwrap_persistent(_edit_history),

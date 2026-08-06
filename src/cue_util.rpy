@@ -562,4 +562,4 @@ init python:
             _count += 1
 
         _elapsed = _time.time() - _start
-        _cue_log("resolver wrapping done: {} movies in {:.3f}s".format(_count, _elapsed))
+        _cue_log("DynamicDisplayable resolver wrapping done: {} movies in {:.3f}s".format(_count, _elapsed))
