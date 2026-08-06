@@ -772,7 +772,7 @@ init python:
 
         # Finalize completed video editor jobs even when editor UI is closed
         if _cue.video_editor.processing:
-            _cue.video_editor.poll_jobs()
+            _cue.video_editor.queue.poll()
 
         # --- Auto-re-pause after seek (runs regardless of SFX Active) ---
         _cue.vid_manager.poll_autopause()

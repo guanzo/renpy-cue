@@ -2,7 +2,7 @@
 # CueVideoWorker — background ffmpeg encode thread.
 # Module-level function so the editor class doesn't carry the whole
 # subprocess dance. All Ren'Py calls happen on the main thread via the
-# caller's poll_jobs; this function is pure Python + ffmpeg subprocess I/O.
+# caller's queue.poll; this function is pure Python + ffmpeg subprocess I/O.
 ###############################################################################
 
 init -999 python:

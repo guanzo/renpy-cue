@@ -17,6 +17,14 @@ init -999 python:
     CUE_VE_MODE_INTERPOLATE = 1
     CUE_VE_MODE_FAST_PREVIEW = 2
 
+    def _cue_esc(text):
+        """Escape square brackets so Ren'Py text interpolation doesn't
+        try to resolve them as variable references."""
+        if text:
+            return text.replace("[", "[[").replace("]", "]]")
+        return text
+
+
     class CueVideoEditorState:
         """Editing state for a single video file."""
 
@@ -87,6 +95,301 @@ init -999 python:
             return "{:.1f}x".format(self.factor)
 
 
+    class CueVideoQueue:
+        """Job queue for ffmpeg encode jobs. Owns job lifecycle: enqueue,
+        start worker thread, poll for completion, cancel, and retry.
+
+        Holds a back-reference to the CueVideoEditor for state updates
+        (_ensure_state) and save triggers."""
+
+        def __init__(self, editor):
+            self._editor = editor
+            self._jobs = []                 # list of CueVideoJob
+            self._current = None            # CueVideoJob currently processing, or None
+            self._next_job_id = 1           # incrementing counter for job_id
+
+        @property
+        def processing(self):
+            return self._current is not None
+
+        @property
+        def current_job(self):
+            return self._current
+
+        @property
+        def jobs(self):
+            return self._jobs
+
+        # ==================================================================
+        # Enqueue
+        # ==================================================================
+
+        def enqueue(self, job):
+            """Add a job and start if idle."""
+            self._jobs.append(job)
+            self._start_if_idle()
+
+        # ==================================================================
+        # Internal job management
+        # ==================================================================
+
+        def _find(self, job_id):
+            """Return the CueVideoJob with job_id, or None."""
+            for j in self._jobs:
+                if j.job_id == job_id:
+                    return j
+            return None
+
+        def _start_if_idle(self):
+            """If no job is currently processing, start the next queued one."""
+            if self._current is None:
+                self._start_next()
+
+        def _start_next(self):
+            """Pick the first queued job and start its worker thread."""
+            job = None
+            for j in self._jobs:
+                if j.status == "queued":
+                    job = j
+                    break
+            if job is None:
+                return
+
+            self._current = job
+            job.start_time = _time.time()
+            job.status = "analyzing"
+
+            # Capture duration for progress (fast — no subprocess)
+            dur_ms = 0
+            try:
+                dur_ms = int(renpy.music.get_duration(channel=_cue.active_channel) * 1000)
+            except Exception:
+                pass
+
+            t = _threading.Thread(
+                target=_cue_run_encode,
+                args=(_cue.ffmpeg, job, dur_ms, _cue.base_dir,
+                      lambda _j=job: self._kill_proc(_j)),
+            )
+            t.daemon = True
+            t.start()
+            _cue_log("Speed worker started: job_id={}, factor={:.1f}, file={}".format(
+                job.job_id, job.factor, os.path.basename(job.fspath_in)))
+            renpy.restart_interaction()
+
+        # ==================================================================
+        # Polling (called from main thread by screen timer + tick)
+        # ==================================================================
+
+        def poll(self):
+            """Called by screen timer and tick_trigger on the main thread.
+            When the worker is done, finalize or report error."""
+            job = self._current
+            if job is None:
+                return
+
+            if not job._done:
+                if job.cancelled:
+                    renpy.restart_interaction()
+                return
+
+            job.end_time = _time.time()
+
+            if job.cancelled:
+                self._cleanup_temp(job)
+                job.status = "error"
+                job.error_msg = "Cancelled"
+                _cue_log("Speed: cancelled by user (job_id={})".format(job.job_id))
+            elif not job._ok:
+                self._cleanup_temp(job)
+                job.status = "error"
+                _cue_log("Speed: job failed (job_id={})".format(job.job_id))
+            else:
+                self._finish(job)
+
+            self._current = None
+            self._start_next()
+            renpy.restart_interaction()
+
+        def _finish(self, job):
+            """Move the temp file to the final variant path, replacing any
+            existing variant. Stops channels playing the target, then retries
+            the swap up to 4 times with backoff to handle file locks."""
+            tmp = job.fspath_tmp
+            out = job.fspath_out
+            speed = job.factor
+            vp = job.vpath
+
+            if not tmp or not out:
+                _cue_log("Variant: FAILED — missing tmp or out path (job_id={})".format(job.job_id))
+                job.status = "error"
+                job.error_msg = "Missing paths"
+                return
+
+            # Validate temp file
+            try:
+                if not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
+                    self._cleanup_temp(job)
+                    _cue_log("Variant: FAILED — empty or missing temp (job_id={})".format(job.job_id))
+                    job.status = "error"
+                    job.error_msg = "Empty output"
+                    return
+            except Exception:
+                self._cleanup_temp(job)
+                job.status = "error"
+                job.error_msg = "Cannot read temp"
+                return
+
+            # Stop channels playing the variant we're about to replace
+            try:
+                import renpy.audio.audio as _aaudio
+                for _ch_name in _aaudio.channels:
+                    _playing = renpy.music.get_playing(channel=_ch_name)
+                    if _playing:
+                        _playing_fs = os.path.join(renpy.config.gamedir, _playing)
+                        if os.path.normpath(_playing_fs) == os.path.normpath(out):
+                            renpy.music.stop(channel=_ch_name, fadeout=0)
+            except Exception:
+                pass
+            _time.sleep(0.5)
+
+            # Swap with retries
+            for _attempt in range(4):
+                try:
+                    if os.path.exists(out):
+                        os.remove(out)
+                    os.rename(tmp, out)
+                    job.status = "done"
+                    state = self._editor._ensure_state(vp)
+                    state.last_error = ""
+                    state.last_factor = job.factor
+                    state.last_encode_mode = job.encode_mode
+                    _cue_log("Variant: generated {:.1f}x at {} (job_id={})".format(
+                        speed, os.path.basename(out), job.job_id))
+                    _cue.markers.save_persistent()
+                    return
+                except Exception:
+                    if _attempt < 3:
+                        _time.sleep(1.0)
+
+            # All attempts failed — leave temp for retry
+            state = self._editor._ensure_state(vp)
+            state.last_error = _cue_esc(
+                "The game still has this video file open. "
+                "Advance past this video scene, then try again.")
+            job.status = "error"
+            job.error_msg = "File locked — retry later"
+            _cue_log("Variant: swap FAILED — file locked (job_id={})".format(job.job_id))
+
+        # ==================================================================
+        # Retry
+        # ==================================================================
+
+        def retry(self, job_id):
+            """Retry a failed job from where it left off. If the temp file
+            exists, skip straight to swap. Otherwise re-encode from scratch."""
+            job = self._find(job_id)
+            if job is None or job.status != "error":
+                return
+
+            if os.path.exists(job.fspath_tmp):
+                # Temp still exists — finish the swap
+                _cue_log("Speed: retry finish (job_id={})".format(job_id))
+                self._finish(job)
+            else:
+                # Need to re-encode
+                _cue_log("Speed: retry encode (job_id={})".format(job_id))
+                job.status = "queued"
+                job._done = False
+                job._ok = False
+                job.progress = 0.0
+                job.error_msg = ""
+                self._start_if_idle()
+
+            renpy.restart_interaction()
+
+        # ==================================================================
+        # Cancel / Remove
+        # ==================================================================
+
+        def cancel(self, job_id):
+            """Cancel a job by job_id (main thread, called from screen action)."""
+            job = self._find(job_id)
+            if job is None:
+                return
+            if job.status == "queued":
+                self._jobs.remove(job)
+                _cue_log("Speed: de-queued job_id={}".format(job_id))
+            elif job is self._current:
+                job.cancelled = True
+                self._kill_proc(job)
+                _cue_log("Speed: cancel requested for job_id={}".format(job_id))
+            elif job.status in ("done", "error"):
+                self.remove(job_id)
+            renpy.restart_interaction()
+
+        def remove(self, job_id):
+            """Remove a completed job from the list (main thread, screen action)."""
+            job = self._find(job_id)
+            if job is not None and job.status in ("done", "error"):
+                self._jobs.remove(job)
+                _cue_log("Speed: removed job_id={} from list".format(job_id))
+            renpy.restart_interaction()
+
+        # ==================================================================
+        # Process management (safe to call from any thread)
+        # ==================================================================
+
+        def _kill_proc(self, job):
+            """Kill a job's ffmpeg process and wait for it. Safe to call
+            from any thread, or when job.proc is None."""
+            try:
+                if job.proc is not None:
+                    p = job.proc
+                    # Kill first — unblocks any readline() immediately
+                    # so the main thread never freezes waiting on a pipe
+                    # close (especially VP8/VP9 pass-1 which has no
+                    # -progress pipe:1 output).
+                    p.kill()
+                    for _pipe in (p.stdout, p.stderr):
+                        if _pipe is not None:
+                            try:
+                                _pipe.close()
+                            except Exception:
+                                pass
+                    try:
+                        p.wait()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            job.proc = None
+
+        def _cleanup_temp(self, job):
+            """Remove the temp transcoded file if it exists."""
+            try:
+                tmp = job.fspath_tmp
+                if tmp and os.path.exists(tmp):
+                    os.remove(tmp)
+            except Exception:
+                pass
+
+        # ==================================================================
+        # UI helpers
+        # ==================================================================
+
+        def get_elapsed(self):
+            """Seconds since current job started. Returns 0 if idle."""
+            if self._current is not None:
+                return self._current.elapsed()
+            return 0.0
+
+        def refresh_ui(self):
+            """Trigger a screen redraw while jobs are active."""
+            if self._current is not None or self._jobs:
+                renpy.restart_interaction()
+
+
     class CueVideoEditor:
         """Change the playback speed of the currently-playing video.
 
@@ -114,13 +417,11 @@ init -999 python:
             self.encode_mode = CUE_VE_MODE_INTERPOLATE  # Global encode mode: 0 normal, 1 interpolate, 2 fast preview
 
             # --- Job queue ---
-            self._jobs = []                 # list of CueVideoJob
-            self._current_job = None        # CueVideoJob currently processing, or None
-            self._next_job_id = 1           # incrementing counter for job_id
+            self.queue = CueVideoQueue(self)
 
         @property
         def processing(self):
-            return self._current_job is not None
+            return self.queue.processing
 
         # ==================================================================
         # Properties — delegate to _current state so UI code Just Works
@@ -152,7 +453,7 @@ init -999 python:
         def last_error(self, value):
             s = self._get_state()
             if s is not None:
-                s.last_error = self._esc(value)
+                s.last_error = _cue_esc(value)
 
         @property
         def config_label(self):
@@ -353,7 +654,7 @@ init -999 python:
             """Show the Video Editor section, loading state for current video."""
             self.active = True
             self.refresh()
-            
+
 
         def get_factor(self):
             """Parse factor_text to float. Returns 1.0 on failure."""
@@ -477,32 +778,19 @@ init -999 python:
                 input_fs = orig_fs
 
             # Create job — writes a variant alongside the original
-            job_id = self._next_job_id
-            self._next_job_id += 1
+            job_id = self.queue._next_job_id
+            self.queue._next_job_id += 1
             job = CueVideoJob(job_id, vp, input_fs, temp_path, factor,
                               self.encode_mode,
                               fspath_out=out_fspath)
-            self._jobs.append(job)
+            self.queue.enqueue(job)
 
             _cue_log("Speed variant job queued: id={}, factor={:.1f}, out={}".format(
                 job_id, factor, os.path.basename(out_fspath)))
-            self._start_if_idle()
-
-        def _find_job(self, job_id):
-            """Return the CueVideoJob with job_id, or None."""
-            for j in self._jobs:
-                if j.job_id == job_id:
-                    return j
-            return None
-
-        def _start_if_idle(self):
-            """If no job is currently processing, start the next queued one."""
-            if self._current_job is None:
-                self._start_next_job()
 
         def apply_variant(self, speed, out_fspath):
             """Start ffmpeg to generate a speed variant file alongside the original."""
-            if self.processing:
+            if self.queue.processing:
                 return
 
             vp = self._get_video_vpath()
@@ -536,248 +824,21 @@ init -999 python:
                 input_fs = orig_fs
 
             # Create job and add to queue
-            job_id = self._next_job_id
-            self._next_job_id += 1
+            job_id = self.queue._next_job_id
+            self.queue._next_job_id += 1
             # Variants never use fast preview — downgrade to normal
             _enc_mode = self.encode_mode
             if _enc_mode == self.MODE_FAST_PREVIEW:
                 _enc_mode = self.MODE_NORMAL
             job = CueVideoJob(job_id, vp, input_fs, temp_path, speed,
                               _enc_mode, fspath_out=out_fspath)
-            self._jobs.append(job)
+            self.queue.enqueue(job)
 
             _cue_log("Variant job queued: id={}, speed={:.1f}, out={}".format(
                 job_id, speed, os.path.basename(out_fspath)))
-            self._start_if_idle()
-
-        def _start_next_job(self):
-            """Pick the first queued job and start its worker thread."""
-            job = None
-            for j in self._jobs:
-                if j.status == "queued":
-                    job = j
-                    break
-            if job is None:
-                return
-
-            self._current_job = job
-            job.start_time = _time.time()
-            job.status = "analyzing"
-
-            # Capture duration for progress (fast — no subprocess)
-            dur_ms = 0
-            try:
-                dur_ms = int(renpy.music.get_duration(channel=_cue.active_channel) * 1000)
-            except Exception:
-                pass
-
-            t = _threading.Thread(
-                target=_cue_run_encode,
-                args=(_cue.ffmpeg, job, dur_ms, _cue.base_dir,
-                      lambda _j=job: self._kill_job_proc_for(_j)),
-            )
-            t.daemon = True
-            t.start()
-            _cue_log("Speed worker started: job_id={}, factor={:.1f}, file={}".format(
-                job.job_id, job.factor, os.path.basename(job.fspath_in)))
-            renpy.restart_interaction()
-
-        def poll_jobs(self):
-            """Called by screen timer and tick_trigger on the main thread.
-            When the worker is done, finalize or report error."""
-            job = self._current_job
-            if job is None:
-                return
-
-            if not job._done:
-                if job.cancelled:
-                    renpy.restart_interaction()
-                return
-
-            job.end_time = _time.time()
-
-            if job.cancelled:
-                self._cleanup_temp_for(job)
-                job.status = "error"
-                job.error_msg = "Cancelled"
-                _cue_log("Speed: cancelled by user (job_id={})".format(job.job_id))
-            elif not job._ok:
-                self._cleanup_temp_for(job)
-                job.status = "error"
-                _cue_log("Speed: job failed (job_id={})".format(job.job_id))
-            else:
-                self._finish_variant(job)
-
-            self._current_job = None
-            self._start_next_job()
-            renpy.restart_interaction()
-
-        def _finish_variant(self, job):
-            """Move the temp file to the final variant path, replacing any
-            existing variant. Stops channels playing the target, then retries
-            the swap up to 4 times with backoff to handle file locks."""
-            tmp = job.fspath_tmp
-            out = job.fspath_out
-            speed = job.factor
-            vp = job.vpath
-
-            if not tmp or not out:
-                _cue_log("Variant: FAILED — missing tmp or out path (job_id={})".format(job.job_id))
-                job.status = "error"
-                job.error_msg = "Missing paths"
-                return
-
-            # Validate temp file
-            try:
-                if not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
-                    self._cleanup_temp_for(job)
-                    _cue_log("Variant: FAILED — empty or missing temp (job_id={})".format(job.job_id))
-                    job.status = "error"
-                    job.error_msg = "Empty output"
-                    return
-            except Exception:
-                self._cleanup_temp_for(job)
-                job.status = "error"
-                job.error_msg = "Cannot read temp"
-                return
-
-            # Stop channels playing the variant we're about to replace
-            try:
-                import renpy.audio.audio as _aaudio
-                for _ch_name in _aaudio.channels:
-                    _playing = renpy.music.get_playing(channel=_ch_name)
-                    if _playing:
-                        _playing_fs = os.path.join(renpy.config.gamedir, _playing)
-                        if os.path.normpath(_playing_fs) == os.path.normpath(out):
-                            renpy.music.stop(channel=_ch_name, fadeout=0)
-            except Exception:
-                pass
-            _time.sleep(0.5)
-
-            # Swap with retries
-            for _attempt in range(4):
-                try:
-                    if os.path.exists(out):
-                        os.remove(out)
-                    os.rename(tmp, out)
-                    job.status = "done"
-                    state = self._ensure_state(vp)
-                    state.last_error = ""
-                    state.last_factor = job.factor
-                    state.last_encode_mode = job.encode_mode
-                    _cue_log("Variant: generated {:.1f}x at {} (job_id={})".format(
-                        speed, os.path.basename(out), job.job_id))
-                    _cue.markers.save_persistent()
-                    return
-                except Exception:
-                    if _attempt < 3:
-                        _time.sleep(1.0)
-
-            # All attempts failed — leave temp for retry
-            state = self._ensure_state(vp)
-            state.last_error = self._esc(
-                "The game still has this video file open. "
-                "Advance past this video scene, then try again.")
-            job.status = "error"
-            job.error_msg = "File locked — retry later"
-            _cue_log("Variant: swap FAILED — file locked (job_id={})".format(job.job_id))
-
-        def retry_job(self, job_id):
-            """Retry a failed job from where it left off. If the temp file
-            exists, skip straight to swap. Otherwise re-encode from scratch."""
-            job = self._find_job(job_id)
-            if job is None or job.status != "error":
-                return
-
-            if os.path.exists(job.fspath_tmp):
-                # Temp still exists — finish the swap
-                _cue_log("Speed: retry finish (job_id={})".format(job_id))
-                self._finish_variant(job)
-            else:
-                # Need to re-encode
-                _cue_log("Speed: retry encode (job_id={})".format(job_id))
-                job.status = "queued"
-                job._done = False
-                job._ok = False
-                job.progress = 0.0
-                job.error_msg = ""
-                self._start_if_idle()
-
-            renpy.restart_interaction()
-
-        @staticmethod
-        def _esc(text):
-            """Escape square brackets so Ren'Py text interpolation doesn't
-            try to resolve them as variable references."""
-            if text:
-                return text.replace("[", "[[").replace("]", "]]")
-            return text
-
-
-        def _cleanup_temp_for(self, job):
-            """Remove the temp transcoded file if it exists."""
-            try:
-                tmp = job.fspath_tmp
-                if tmp and os.path.exists(tmp):
-                    os.remove(tmp)
-            except Exception:
-                pass
 
         # ==================================================================
-        # Cancel / Remove
-        # ==================================================================
-
-        def _kill_job_proc_for(self, job):
-            """Kill a job's ffmpeg process and wait for it. Safe to call
-            from any thread, or when job.proc is None."""
-            try:
-                if job.proc is not None:
-                    p = job.proc
-                    # Kill first — unblocks any readline() immediately
-                    # so the main thread never freezes waiting on a pipe
-                    # close (especially VP8/VP9 pass-1 which has no
-                    # -progress pipe:1 output).
-                    p.kill()
-                    for _pipe in (p.stdout, p.stderr):
-                        if _pipe is not None:
-                            try:
-                                _pipe.close()
-                            except Exception:
-                                pass
-                    try:
-                        p.wait()
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-            job.proc = None
-
-        def cancel_job(self, job_id):
-            """Cancel a job by job_id (main thread, called from screen action)."""
-            job = self._find_job(job_id)
-            if job is None:
-                return
-            if job.status == "queued":
-                self._jobs.remove(job)
-                _cue_log("Speed: de-queued job_id={}".format(job_id))
-            elif job is self._current_job:
-                job.cancelled = True
-                self._kill_job_proc_for(job)
-                _cue_log("Speed: cancel requested for job_id={}".format(job_id))
-            elif job.status in ("done", "error"):
-                self.remove_job(job_id)
-            renpy.restart_interaction()
-
-        def remove_job(self, job_id):
-            """Remove a completed job from the list (main thread, screen action)."""
-            job = self._find_job(job_id)
-            if job is not None and job.status in ("done", "error"):
-                self._jobs.remove(job)
-                _cue_log("Speed: removed job_id={} from list".format(job_id))
-            renpy.restart_interaction()
-
-        # ==================================================================
-        # Restore
+        # Orphan cleanup
         # ==================================================================
 
         @_cue_ui_refresh
@@ -828,14 +889,3 @@ init -999 python:
                 self.last_error = ""
 
             renpy.restart_interaction()
-
-        def get_elapsed(self):
-            """Seconds since current job started. Returns 0 if idle."""
-            if self._current_job is not None:
-                return self._current_job.elapsed()
-            return 0.0
-
-        def _refresh_ui(self):
-            """Trigger a screen redraw while jobs are active."""
-            if self._current_job is not None or self._jobs:
-                renpy.restart_interaction()
