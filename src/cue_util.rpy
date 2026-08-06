@@ -556,7 +556,6 @@ init python:
                 continue
 
             _cue.resolver_paths[tag] = base_path
-            _cue_log("resolver wrapping: tag={} path={}".format(tag, base_path))
             renpy.image(name_tuple, DynamicDisplayable(_cue_resolver, tag, base_path, unwrapped))
             _count += 1
 

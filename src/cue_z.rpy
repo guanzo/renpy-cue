@@ -634,89 +634,6 @@ init python:
         finally:
             _cue.__refreshing_channel = False
 
-
-
-
-    # --------------------------------------------------------------------------
-    # SFX Playback
-    # --------------------------------------------------------------------------
-
-    def _cue_preview_sfx(filename, volume=1.0):
-        """Play a preview of an SFX file. Restarts interaction to consume click.
-        volume: 0.0-5.0, applied to the channel after play starts.
-        """
-        # Stop the previous user preview before starting a new one
-        prev_ch = _cue._preview_channel
-        if prev_ch is not None and renpy.music.is_playing(channel=prev_ch):
-            renpy.music.stop(channel=prev_ch, fadeout=0)
-        _cue._preview_channel = _cue_play_sfx(filename, "preview", volume=volume)
-
-    def _cue_play_sfx(filename, source="", volume=1.0):
-        """Play an SFX on the next available dedicated channel.
-        source: descriptive key for logging (video, image, dialogue, or pool)
-        volume: 0.0-1.0, applied to the channel after play starts
-        Returns the channel name, or None on failure.
-        """
-
-        base_dir = _cue.audio_dir
-        if not base_dir.endswith("/"):
-            base_dir = base_dir + "/"
-        full_path = base_dir + filename
-
-        # Find first idle channel
-        target_ch = None
-        for i in range(1, 9):
-            ch_name = "_cue_{}".format(i)
-            if not renpy.music.is_playing(channel=ch_name):
-                target_ch = ch_name
-                break
-
-        if target_ch is None:
-            idx = _cue.__cue_channel_idx
-            target_ch = "_cue_{}".format(idx + 1)
-            _cue.__cue_channel_idx = (idx + 1) % 8
-        else:
-            ch_num = int(target_ch.split("_")[-1])
-            _cue.__cue_channel_idx = ch_num % 8
-
-        try:
-            # Context mismatch warning: compare source context with current state
-            curr_file = _cue.current_file
-            warn = None
-            if is_vid_key(source):
-                expected_vid = get_key_file(source)
-                if expected_vid and curr_file and expected_vid != curr_file:
-                    warn = "expected vid={} actual vid={}".format(expected_vid, curr_file)
-            elif is_img_key(source):
-                expected_img = get_key_file(source)
-                if expected_img and curr_file and expected_img != curr_file:
-                    warn = "expected img={} actual img={}".format(expected_img, curr_file)
-            elif is_dlg_key(source):
-                expected_img = get_key_file(source)
-                expected_dlg = get_key_dialogue(source)
-                cur_dlg = (_cue.current_dialogue or "")[:40]
-                if expected_img != curr_file or expected_dlg != cur_dlg:
-                    warn = "expected img={}|{} actual img={}|{}".format(
-                        expected_img, expected_dlg, curr_file, cur_dlg)
-            if warn:
-                _cue_log("WARN CTX-MISMATCH file={} src={} {}".format(
-                    filename.rsplit("/", 1)[-1], source, warn))
-
-            if _cue._has_relative_volume:
-                renpy.music.play(full_path, channel=target_ch, loop=False, relative_volume=volume)
-            else:
-                renpy.music.play(full_path, channel=target_ch, loop=False)
-                renpy.music.set_volume(volume, delay=0, channel=target_ch)
-
-            _cue_log("PLAY-SFX file={} src={} ch={} vol={:.2f}".format(
-                filename.rsplit("/", 1)[-1], source, target_ch, volume))
-
-            return target_ch
-        except Exception:
-            return None
-
-
-
     # --------------------------------------------------------------------------
     # SFX Trigger Engine (Tick)
     # --------------------------------------------------------------------------
@@ -899,6 +816,84 @@ init python:
             import random as _random
             f = _random.choice(files)
             _cue_preview_sfx(f)
+
+    # --------------------------------------------------------------------------
+    # SFX Playback
+    # --------------------------------------------------------------------------
+
+    def _cue_preview_sfx(filename, volume=1.0):
+        """Play a preview of an SFX file. Restarts interaction to consume click.
+        volume: 0.0-5.0, applied to the channel after play starts.
+        """
+        # Stop the previous user preview before starting a new one
+        prev_ch = _cue._preview_channel
+        if prev_ch is not None and renpy.music.is_playing(channel=prev_ch):
+            renpy.music.stop(channel=prev_ch, fadeout=0)
+        _cue._preview_channel = _cue_play_sfx(filename, "preview", volume=volume)
+
+    def _cue_play_sfx(filename, source="", volume=1.0):
+        """Play an SFX on the next available dedicated channel.
+        source: descriptive key for logging (video, image, dialogue, or pool)
+        volume: 0.0-1.0, applied to the channel after play starts
+        Returns the channel name, or None on failure.
+        """
+
+        base_dir = _cue.audio_dir
+        if not base_dir.endswith("/"):
+            base_dir = base_dir + "/"
+        full_path = base_dir + filename
+
+        # Find first idle channel
+        target_ch = None
+        for i in range(1, 9):
+            ch_name = "_cue_{}".format(i)
+            if not renpy.music.is_playing(channel=ch_name):
+                target_ch = ch_name
+                break
+
+        if target_ch is None:
+            idx = _cue.__cue_channel_idx
+            target_ch = "_cue_{}".format(idx + 1)
+            _cue.__cue_channel_idx = (idx + 1) % 8
+        else:
+            ch_num = int(target_ch.split("_")[-1])
+            _cue.__cue_channel_idx = ch_num % 8
+
+        try:
+            # Context mismatch warning: compare source context with current state
+            curr_file = _cue.current_file
+            warn = None
+            if is_vid_key(source):
+                expected_vid = get_key_file(source)
+                if expected_vid and curr_file and expected_vid != curr_file:
+                    warn = "expected vid={} actual vid={}".format(expected_vid, curr_file)
+            elif is_img_key(source):
+                expected_img = get_key_file(source)
+                if expected_img and curr_file and expected_img != curr_file:
+                    warn = "expected img={} actual img={}".format(expected_img, curr_file)
+            elif is_dlg_key(source):
+                expected_img = get_key_file(source)
+                expected_dlg = get_key_dialogue(source)
+                cur_dlg = (_cue.current_dialogue or "")[:40]
+                if expected_img != curr_file or expected_dlg != cur_dlg:
+                    warn = "expected img={}|{} actual img={}|{}".format(
+                        expected_img, expected_dlg, curr_file, cur_dlg)
+            if warn:
+                _cue_log("WARN CTX-MISMATCH file={} src={} {}".format(
+                    filename.rsplit("/", 1)[-1], source, warn))
+
+            if _cue._has_relative_volume:
+                renpy.music.play(full_path, channel=target_ch, loop=False, relative_volume=volume)
+            else:
+                renpy.music.play(full_path, channel=target_ch, loop=False)
+                renpy.music.set_volume(volume, delay=0, channel=target_ch)
+
+            _cue_log("PLAY-SFX file={} src={} ch={} vol={:.2f}".format(
+                filename.rsplit("/", 1)[-1], source, target_ch, volume))
+
+            return target_ch
+        except Exception:
+            return None
 
 
 # =============================================================================
