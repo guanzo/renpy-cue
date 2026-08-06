@@ -335,6 +335,8 @@ init python:
     def _cue_log(msg):
         """Append a debug message to renpy_cue/debug.log."""
         try:
+            if not _cue.debug:
+                return
             import time as _logtime
             log_dir = os.path.join(renpy.config.gamedir, _cue.base_dir)
             if not os.path.isdir(log_dir):

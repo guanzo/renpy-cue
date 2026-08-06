@@ -9,6 +9,8 @@ init -900 python:
     # by Page Up. Never reassign _cue itself; only mutate its attributes.
     _cue = renpy.python.NoRollback()
 
+    _cue.debug = True
+
     # Context tracking
     _cue.active_channel = None
     _cue.current_file = ""
