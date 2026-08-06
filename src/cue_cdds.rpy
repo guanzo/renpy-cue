@@ -85,7 +85,7 @@ init python:
                 rx, ry = mx - bx, my - by
                 if 0 <= rx <= width and bar_y <= ry <= bar_y + self.BAR_H:
                     frac = max(0.0, min(1.0, rx / float(max(1, width))))
-                    t = min(frac * dur, max(0.0, dur - _cue.END_MARGIN))
+                    t = frac * dur
                     tip_text = "Click to seek to: " + _cue_format_time(t)
                     tip_widget = Text(tip_text, style="cue_txt", size=11,
                                       color="#cccccc", italic=True, substitute=False)
@@ -141,6 +141,7 @@ init python:
         LINE_H = 8
         TAB_W = 14
         DRAG_THRESH = 4
+        PAD_X = 10  # breathing room so edge markers don't clip
 
 
         # Selection highlight colour (blue tint for selected-but-not-active)
@@ -175,6 +176,15 @@ init python:
         def _total_h(self):
             return self.TAB_H + self.TRACK_H + 4
 
+        def _time_to_x(self, t, dur, w):
+            """Map a time to pixel x within the padded timeline."""
+            frac = max(0.0, min(1.0, t / float(dur)))
+            return self.PAD_X + int(frac * w)
+
+        def _x_to_frac(self, x, w):
+            """Map an inner-space pixel x to fraction [0, 1]."""
+            return max(0.0, min(1.0, x / float(max(1, w))))
+
         def _get_selected(self):
             """Return the current set of selected marker indices."""
             return _cue.markers.video.get_selected()
@@ -191,7 +201,8 @@ init python:
             return -1
 
         def render(self, width, height, st, at):
-            self._w = width
+            inner_w = max(1, width - 2 * self.PAD_X)
+            self._w = inner_w
             r = renpy.Render(width, self._total_h())
             c = r.canvas()
             dur = max(0.001, self.get_dur())
@@ -203,8 +214,7 @@ init python:
             # Draw marker lines and tabs (hover state managed by event())
             for i, m in enumerate(markers):
                 t = m.get("time", 0.0)
-                frac = max(0.0, min(1.0, t / dur))
-                px = int(frac * width)
+                px = self._time_to_x(t, dur, inner_w)
 
                 in_sel = i in sel
 
@@ -247,8 +257,7 @@ init python:
             # --- Ghost marker preview (repeat-pattern dialog) ---
             ghost_times = _cue.beat.compute_ghost_times()
             for gtime in ghost_times:
-                gfrac = max(0.0, min(1.0, gtime / dur))
-                gpx = int(gfrac * width)
+                gpx = self._time_to_x(gtime, dur, inner_w)
                 c.rect("#3a5060", (gpx - 1, 0, 2, self.TRACK_H + self.LINE_H))
                 gbx = gpx - self.TAB_W // 2
                 gby = self.TRACK_H - 2
@@ -273,6 +282,7 @@ init python:
             dur = max(0.001, self.get_dur())
             markers = self.get_markers()
             w = getattr(self, '_w', 1)
+            inner_x = x - self.PAD_X  # offset for padding
 
             import pygame
             if ev.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP):
@@ -281,7 +291,7 @@ init python:
                 self._screen_y = my - y
             if ev.type == pygame.MOUSEMOTION:
                 if self._drag_idx >= 0:
-                    if not self._drag_on and abs(x - self._drag_start_x) > self.DRAG_THRESH:
+                    if not self._drag_on and abs(inner_x - self._drag_start_x) > self.DRAG_THRESH:
                         self._drag_on = True
                         
                         # Snapshot original times + group bounds for multi-drag
@@ -296,11 +306,11 @@ init python:
                     if self._drag_on:
                         if self._drag_orig_times:
                             # Multi-drag: compute delta, clamp to keep entire
-                            # group within [0, dur - _cue.END_MARGIN], then apply uniformly.
-                            current_frac = max(0.0, min(1.0, x / float(max(1, w))))
-                            start_frac = max(0.0, min(1.0, self._drag_start_x / float(max(1, w))))
+                            # group within [0, dur], then apply uniformly.
+                            current_frac = self._x_to_frac(inner_x, w)
+                            start_frac = self._x_to_frac(self._drag_start_x, w)
                             raw_delta = (current_frac - start_frac) * dur
-                            max_dur = max(0.05, dur - _cue.END_MARGIN)
+                            max_dur = dur
                             # Block: leading edge hits right wall, trailing hits left
                             hi_room = max_dur - self._drag_group_max
                             lo_room = 0.0 - self._drag_group_min
@@ -315,7 +325,7 @@ init python:
                                 len(self._drag_orig_times))
                         else:
                             # Single drag
-                            f = max(0.0, min(1.0, x / float(max(1, w))))
+                            f = self._x_to_frac(inner_x, w)
                             self.set_time(self._drag_idx, f * dur)
                             self._tip_text = "Pool {} ({})".format(
                                 self._drag_idx + 1, _cue_format_time(f * dur))
@@ -325,7 +335,7 @@ init python:
                     raise renpy.display.core.IgnoreEvent()
                 # Hover tooltip
                 self._hover_idx = -1
-                hit_idx = self._hit_test(markers, dur, w, x, y)
+                hit_idx = self._hit_test(markers, dur, w, inner_x, y)
                 if hit_idx >= 0:
                     t = markers[hit_idx].get("time", 0.0)
                     sel = self._get_selected()
@@ -355,17 +365,17 @@ init python:
                 alt_held = bool(mods & (pygame.KMOD_LALT | pygame.KMOD_RALT))
                 shift_held = bool(mods & (pygame.KMOD_LSHIFT | pygame.KMOD_RSHIFT))
 
-                hit_idx = self._hit_test(markers, dur, w, x, y)
+                hit_idx = self._hit_test(markers, dur, w, inner_x, y)
 
                 sel = self._get_selected()
 
                 # Compute click time from x position (used by shift logic)
-                click_frac = x / float(max(1, w))
+                click_frac = self._x_to_frac(inner_x, w)
                 click_time = click_frac * dur
 
                 # Ignore clicks outside this displayable's bounds (e.g. on
                 # buttons above the timeline) — they shouldn't clear selection.
-                if not (0 <= x < w and 0 <= y < self._total_h()):
+                if not (-self.PAD_X <= inner_x < w + self.PAD_X and 0 <= y < self._total_h()):
                     return None
 
                 if hit_idx < 0:
@@ -434,7 +444,7 @@ init python:
                     # Arm drag (preserve selection if marker was in group —
                     # reset to single happens on MOUSEBUTTONUP if no drag)
                     self._drag_idx = hit_idx
-                    self._drag_start_x = x
+                    self._drag_start_x = inner_x
                     self._drag_on = False
                     self._reset_drag_state()
                     

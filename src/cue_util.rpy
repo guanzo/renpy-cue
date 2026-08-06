@@ -247,9 +247,9 @@ init python:
     # --------------------------------------------------------------------------
 
     def _cue_clamp_time(t, dur):
-        """Clamp time t to [0, dur - END_MARGIN], handling dur <= 0."""
+        """Clamp time t to [0, dur], handling dur <= 0."""
         if dur > 0:
-            return max(0.0, min(t, dur - _cue.END_MARGIN))
+            return max(0.0, min(t, dur))
         return max(0.0, t)
 
     def _cue_format_time(seconds):

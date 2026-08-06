@@ -771,7 +771,7 @@ init -999 python:
             out = 0
             for pool in preset.get("pools", []):
                 t = pool.get("time")
-                if t is not None and t > dur - _cue.END_MARGIN:
+                if t is not None and t > dur:
                     out += 1
             return out
 
@@ -794,7 +794,7 @@ init -999 python:
                 if t is None:
                     dropped += 1
                     continue
-                if dur and dur > 0 and t > dur - _cue.END_MARGIN:
+                if dur and dur > 0 and t > dur:
                     dropped += 1
                     continue
                 new_pools.append({

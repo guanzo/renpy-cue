@@ -590,10 +590,14 @@ screen cue_overlay_content():
                                 text "Playing {:.1f}x variant. Press . or , to cycle, 1.0x to restore.".format(_cur) style "cue_txt" size 11 color "#88cc88"
 
                     # --- Timeline visualizer ---
-                    fixed:
+                    frame:
+                        background None
                         xfill True
-                        ysize 18
-                        add VideoTimeline()
+                        padding (10, 0)
+                        fixed:
+                            xfill True
+                            ysize 18
+                            add VideoTimeline()
                     # Video marker tabs + active pool
                     $ _vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
                     $ _vid_entry = _cue.markers.get(_vid_key, {})

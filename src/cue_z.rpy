@@ -28,7 +28,6 @@ init -900 python:
 
     # Volume constants (clamp range + UI quick-set targets)
     _cue.VOL_DEFAULT = 1.0   # default volume; "--" reset target
-    _cue.END_MARGIN = 0.05   # min distance from video end for marker placement
 
     # Key prefix constants for _cue.markers trigger keys
     _cue.IMG_KEY_PREFIX = "i:"
@@ -349,13 +348,6 @@ init python:
         #    During scene transitions the old movie channel may still be playing
         #    even though the master layer has already changed.
         _cue_refresh_channel(displayable=top_d)
-
-        # 2.5 Register dynamic video tag for speed overlay
-        # Disabled: resolver handles video display via DynamicDisplayable
-        # if top_type == 'movie':
-        #     _base_path = _cue.vid_manager.get_video_path()
-        #     if _base_path:
-        #         _cue_on_video_detected(top_name, _base_path)
 
         _cue.file_tree.rebuild_tree()
 
