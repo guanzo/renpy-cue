@@ -538,18 +538,17 @@ init -999 python:
                 self._start_next_job()
 
         def apply_variant(self, speed, out_fspath):
-            """Start ffmpeg to generate a speed variant file (overlay mode).
+            """Start ffmpeg to generate a speed variant file.
             Unlike apply(), this does NOT stop the original channel and does
             NOT swap files — it writes a new persistent variant alongside the
-            original. Called by CueVideoOverlay._start_generation()."""
+            original."""
             if self.processing:
                 return
 
             vp = self._get_video_vpath()
             fs = self._get_video_fspath()
             if not fs:
-                _cue.video_overlay.gen_error = "Video file not found on disk."
-                _cue.video_overlay.generating = False
+                _cue_log("SPEED-OVERLAY: apply_variant failed — no filesystem path")
                 renpy.restart_interaction()
                 return
 
@@ -775,16 +774,10 @@ init -999 python:
                 self._cleanup_temp_for(job)
                 job.status = "error"
                 job.error_msg = "Cancelled"
-                if job.mode == "overlay":
-                    _cue.video_overlay.generating = False
-                    _cue.video_overlay.gen_error = "Cancelled."
                 _cue_log("Speed: cancelled by user (job_id={})".format(job.job_id))
             elif not job._ok:
                 self._cleanup_temp_for(job)
                 job.status = "error"
-                if job.mode == "overlay":
-                    _cue.video_overlay.generating = False
-                    _cue.video_overlay.gen_error = "Speed change failed: " + (job.error_msg or "unknown error")
                 _cue_log("Speed: job failed (job_id={})".format(job.job_id))
             else:
                 if job.mode == "overlay":
@@ -888,8 +881,6 @@ init -999 python:
             speed = job.factor
 
             if not tmp or not out:
-                _cue.video_overlay.generating = False
-                _cue.video_overlay.gen_error = "Variant generation failed — missing paths."
                 _cue_log("Overlay variant: FAILED — missing tmp or out path (job_id={})".format(job.job_id))
                 job.status = "error"
                 job.error_msg = "Missing paths"
@@ -899,16 +890,12 @@ init -999 python:
             try:
                 if not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
                     self._cleanup_temp_for(job)
-                    _cue.video_overlay.generating = False
-                    _cue.video_overlay.gen_error = "Variant generation produced no output."
                     _cue_log("Overlay variant: FAILED — empty or missing temp (job_id={})".format(job.job_id))
                     job.status = "error"
                     job.error_msg = "Empty output"
                     return
             except Exception:
                 self._cleanup_temp_for(job)
-                _cue.video_overlay.generating = False
-                _cue.video_overlay.gen_error = "Variant generation failed — cannot read temp file."
                 job.status = "error"
                 job.error_msg = "Cannot read temp"
                 return
@@ -925,8 +912,6 @@ init -999 python:
                 os.rename(tmp, out)
             except Exception:
                 self._cleanup_temp_for(job)
-                _cue.video_overlay.generating = False
-                _cue.video_overlay.gen_error = "Variant generation failed — cannot write output."
                 _cue_log("Overlay variant: FAILED — rename failed (job_id={})".format(job.job_id))
                 job.status = "error"
                 job.error_msg = "Rename failed"
@@ -935,9 +920,6 @@ init -999 python:
             job.status = "done"
             _cue_log("Overlay variant: generated {:.2f}x at {} (job_id={})".format(
                 speed, os.path.basename(out), job.job_id))
-
-            # Notify overlay that generation is done — it will auto-activate
-            _cue.video_overlay._on_generation_done(True, speed)
 
         def retry_job(self, job_id):
             """Retry a failed job from where it left off. If the temp file

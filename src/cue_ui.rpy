@@ -591,26 +591,21 @@ screen cue_overlay_content():
                             + "• Get your markers timed to the first 'beat', find the interval to the next 'beat', then use Repeat to finish."),
                             None)
                     # --- Speed overlay toggle ---
-                    $ _ov = _cue.video_overlay
-                    if _ov._all_speeds:
+                    $ _avail = _cue_get_active_speeds_for_current()
+                    if len(_avail) > 0:
                         hbox:
                             spacing 3
                             text "Speed:" style "cue_txt" size 11
-                            for _sp in _ov._all_speeds:
+                            for _sp in _avail:
                                 $ _label = "1.00x" if abs(_sp - 1.0) < 0.001 else "{:.2f}x".format(_sp)
                                 textbutton _label:
                                     style "cue_btn"
                                     text_style "cue_btn_text"
-                                    sensitive not _ov.generating
-                                    background ("#446644" if abs(_ov.speed - _sp) < 0.001 else "#444444")
-                                    action Function(_cue.video_overlay.activate_speed, _sp)
-                                    tooltip ("Switch to {:.2f}x speed — edited video plays on top, original file is never modified. Use . and , keys to cycle.".format(_sp) if abs(_sp - 1.0) > 0.001 else "Switch back to the original video.")
-                    if _ov.generating:
-                        text "Generating {:.2f}x variant...".format(_ov.gen_speed) style "cue_txt" size 11 color "#ffcc00"
-                    if _ov.gen_error:
-                        text _ov.gen_error style "cue_txt" size 11 color _cue_color_error
-                    if _ov.active:
-                        text "Playing {:.2f}x variant on top of original. Original is paused and untouched on disk. Press . or , to cycle, 1.00x to restore.".format(_ov.speed) style "cue_txt" size 11 color "#88cc88"
+                                    background ("#446644" if abs(_cue._speed_pref - _sp) < 0.001 else "#444444")
+                                    action Function(_cue_set_speed, _sp)
+                                    tooltip ("Switch to {:.2f}x speed. Original file is never modified. Use . and , keys to cycle.".format(_sp) if abs(_sp - 1.0) > 0.001 else "Switch back to the original video.")
+                        if abs(_cue._speed_pref - 1.0) > 0.001:
+                            text "Playing {:.2f}x variant. Press . or , to cycle, 1.00x to restore.".format(_cue._speed_pref) style "cue_txt" size 11 color "#88cc88"
 
                     # --- Timeline visualizer ---
                     fixed:
@@ -731,7 +726,7 @@ screen cue_overlay_content():
                         use cue_icon_button("-", Function(_cue.video_editor.nudge, -0.1))
                         use cue_float_input("_cue.video_editor.factor_text", _commit, _display)
                         use cue_icon_button("+", Function(_cue.video_editor.nudge, 0.1))
-                        $ _ov_presets = _cue.video_overlay.get_preset_speeds()
+                        $ _ov_presets = _cue_get_preset_speeds()
                         if _ov_presets:
                             for _sp in _ov_presets:
                                 textbutton "{:.2f}x".format(_sp):
@@ -741,20 +736,20 @@ screen cue_overlay_content():
                                     tooltip "Set speed to {:.2f}x".format(_sp)
                         text "Speed up or slow down video" style "cue_help" size 10 yalign 0.5
                     # --- Custom speed presets ---
-                    $ _ov = _cue.video_overlay
+                    $ _usr = _cue_get_user_speeds()
                     hbox:
                         spacing 3
                         text "Custom:" style "cue_txt" size 10
-                        for _sp in _ov.user_speeds:
+                        for _sp in _usr:
                             hbox:
                                 spacing 1
                                 text "{:.2f}x".format(_sp) style "cue_txt" size 10
                                 textbutton "x":
                                     style "cue_btn"
                                     text_style "cue_btn_text"
-                                    action Function(_cue.video_overlay.remove_user_speed, _sp)
+                                    action Function(_cue_remove_user_speed, _sp)
                                     tooltip "Remove {:.2f}x from presets".format(_sp)
-                        $ _add_custom = Function(_cue.video_overlay.add_user_speed, _cue.video_editor.get_factor())
+                        $ _add_custom = Function(_cue_add_user_speed, _cue.video_editor.get_factor())
                         textbutton "+":
                             style "cue_btn"
                             text_style "cue_btn_text"

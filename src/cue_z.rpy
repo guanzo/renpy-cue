@@ -57,9 +57,6 @@ init -999 python:
     _cue.ffmpeg = CueFFmpeg()
     _cue.video_editor = CueVideoEditor()
 
-    # Video speed overlay (non-destructive, plays variants on top of original)
-    _cue.video_overlay = CueVideoOverlay()
-
     # UI state
     _cue.is_overlay_visible = False
     _cue.initialized = False
@@ -218,14 +215,12 @@ init 999 python:
         # Create a layer above screens for the Cue UI.
         renpy.add_layer("cue_layer", above="screens")
 
-        # Create a layer between master and screens for video overlay
-        renpy.add_layer("cue_video_layer", above="master")
         # Register after_load callback
         def _cue_after_load():
             if _cue.is_overlay_visible:
                 _cue.is_overlay_visible = False
                 _cue.vid_manager.reset_pause()
-            _cue.video_overlay.after_load()
+            _cue_speed_after_load()
         config.after_load_callbacks.append(_cue_after_load)
 
         # Character callback — updates dialogue text only (context change
@@ -312,8 +307,6 @@ init python:
 
         # Refresh video editor backup state
         _cue.video_editor.refresh()
-        # Refresh video overlay state
-        _cue.video_overlay.refresh()
         renpy.show_screen("cue_overlay", _layer="cue_layer")
         renpy.restart_interaction()
 
@@ -322,7 +315,6 @@ init python:
         _cue.is_overlay_visible = False
         _cue.markers.save_persistent()
         _cue.video_editor.close_editor()
-        _cue.video_overlay.deactivate()
         renpy.hide_screen("cue_overlay", layer="cue_layer")
 
 
@@ -354,6 +346,10 @@ init python:
         #    During scene transitions the old movie channel may still be playing
         #    even though the master layer has already changed.
         _cue_refresh_channel(displayable=top_d)
+
+        # 2.5 Register dynamic video tag for speed overlay
+        if top_type == 'movie' and hasattr(top_d, 'play') and top_d.play:
+            _cue_on_video_detected(top_name, top_d.play[0])
 
         _cue.file_tree.rebuild_tree()
 
@@ -747,7 +743,6 @@ init python:
 
         # --- Auto-re-pause after seek (runs regardless of SFX Active) ---
         _cue.vid_manager.poll_autopause()
-        _cue.video_overlay.poll_tick()
 
         if not _cue.triggers_active:
             return
@@ -908,8 +903,8 @@ screen cue_key_listener():
     key "K_F4" action Function(_cue_toggle_active)
     key "shift_K_1" action Function(_cue.markers.copy_context)
     key "shift_K_2" action Function(_cue.markers.paste_context)
-    key "K_PERIOD" action Function(_cue.video_overlay.cycle_speed, 1)
-    key "K_COMMA" action Function(_cue.video_overlay.cycle_speed, -1)
+    key "K_PERIOD" action Function(_cue_cycle_speed, 1)
+    key "K_COMMA" action Function(_cue_cycle_speed, -1)
     timer 0.025 repeat True action Function(_cue_tick_trigger, _update_screens=False)
 
 # =============================================================================
@@ -942,27 +937,16 @@ screen cue_overlay():
         add _Tooltip(_tt)
 
     # --- Speed overlay badge ---
-    if _cue.video_overlay.active:
+    if _cue.top_layer_type == 'movie' and abs(_cue._speed_pref - 1.0) > 0.001:
         frame:
             xalign 1.0
             yalign 0.0
             xpadding 6
             ypadding 3
             background "#446644"
-            text "{:.2f}x".format(_cue.video_overlay.speed) style "cue_txt" size 14
+            text "{:.2f}x".format(_cue._speed_pref) style "cue_txt" size 14
 
     # --- Marker timeline tooltip (rendered last so it's always on top) ---
     add _MarkerTooltipOverlay()
 
-# =============================================================================
-# VIDEO OVERLAY SCREEN: Fullscreen speed-variant overlay on cue_video_layer
-# =============================================================================
-
-screen cue_overlay_video():
-    zorder 100
-    if _cue.video_overlay.active and _cue.video_overlay.variant_vpath:
-        add Movie(
-            play=_cue.video_overlay.variant_vpath,
-            channel=_cue.video_overlay.overlay_ch,
-            size=(config.screen_width, config.screen_height))
 
