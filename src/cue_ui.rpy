@@ -3,28 +3,50 @@
 # SECTION 4: Styles (game-agnostic — all properties explicit, no inheritance)
 ###############################################################################
 
-define _cue_tab_active_bg = "#669966"
-define _cue_tab_inactive_bg = "#666666"
-define _cue_color_error = "#ff6666"
+# --- Surfaces (dark theme, darkest → lightest) ---
+define _cue_color_bg_overlay = "#000000ee"
+define _cue_color_bg_scrollbar = "#1a1a1a"
 define _cue_color_bg_panel = "#222222"
+define _cue_color_bg_dialog = "#2a2a2a"
+define _cue_color_bg_input = "#333333"
+define _cue_color_bg_btn = "#444444"
 define _cue_color_divider = "#555555"
+define _cue_color_bg_btn_hover = "#666666"
+
+# --- Text ---
+define _cue_color_text = "#cccccc"
+define _cue_color_text_white = "#ffffff"
+define _cue_color_text_accent = "#ffcc00"
+define _cue_color_text_muted = "#aaaaaa"
+define _cue_color_text_dim = "#888888"
+
+# --- Semantic ---
+define _cue_color_active = "#669966"
+define _cue_color_green = "#446644"
+define _cue_color_green_hover = "#558855"
+define _cue_color_red = "#664444"
+define _cue_color_red_hover = "#885555"
+define _cue_color_error = "#ff6666"
+
+# --- Controls ---
+define _cue_color_bar_active = "#007AFF"
 
 style cue_frame is empty:
-    background "#000000ee"
+    background _cue_color_bg_overlay
     padding (8, 6)
     xfill True
 
 style cue_btn is empty:
-    background "#444444"
-    hover_background "#666666"
+    background _cue_color_bg_btn
+    hover_background _cue_color_bg_btn_hover
     padding (2, 0)
     hover_sound None
     activate_sound None
 
 style cue_btn_text is empty:
     size 12
-    color "#ffffff"
-    hover_color "#ffffff"
+    color _cue_color_text_white
+    hover_color _cue_color_text_white
     font "DejaVuSans.ttf"
     xalign 0.5
     yalign 0.5
@@ -38,16 +60,16 @@ style cue_btn_text_sm is cue_btn_text:
 style cue_btn_icon is empty:
     xysize (16, 16)
     padding (0, 0)
-    background "#444444"
-    hover_background "#666666"
-    insensitive_background "#2a2a2a"
+    background _cue_color_bg_btn
+    hover_background _cue_color_bg_btn_hover
+    insensitive_background _cue_color_bg_dialog
     hover_sound None
     activate_sound None
 
 style cue_btn_icon_text is empty:
     size 12
-    color "#ffffff"
-    insensitive_color "#666666"
+    color _cue_color_text_white
+    insensitive_color _cue_color_bg_btn_hover
     font "DejaVuSans.ttf"
     xalign 0.5
     yalign 0.5
@@ -62,37 +84,37 @@ style cue_btn_icon_text is empty:
 
 style cue_txt is empty:
     size 12
-    color "#cccccc"
+    color _cue_color_text
     font "DejaVuSans.ttf"
 
 style cue_hdr is cue_txt:
     size 14
-    color "#ffcc00"
+    color _cue_color_text_accent
     bold True
 
 style cue_help is cue_txt:
     size 11
-    color "#aaaaaa"
+    color _cue_color_text_muted
 
 style cue_input is cue_txt:
     size 12
-    color "#ffffff"
-    background "#333333"
+    color _cue_color_text_white
+    background _cue_color_bg_input
     xsize 72
     padding (2, 2)
     ypadding 2
 
 style cue_vscrollbar:
     xsize 4
-    base_bar Solid("#1a1a1a")
+    base_bar Solid(_cue_color_bg_scrollbar)
     thumb Solid(_cue_color_divider)
-    hover_thumb Solid("#888888")
+    hover_thumb Solid(_cue_color_text_dim)
 
 style cue_scrollbar:
     ysize 4
-    base_bar Solid("#1a1a1a")
+    base_bar Solid(_cue_color_bg_scrollbar)
     thumb Solid(_cue_color_divider)
-    hover_thumb Solid("#888888")
+    hover_thumb Solid(_cue_color_text_dim)
 
 
 ###############################################################################
@@ -117,10 +139,10 @@ screen cue_vol_row(label_text, dec_action, entry_dict, inc_action):
             value DictValue(entry_dict, "volume", range=5.0)
             xsize 60
             ysize 14
-            left_bar Solid("#007AFF")
-            right_bar Solid("#333333")
-            thumb Solid("#cccccc")
-            hover_thumb Solid("#ffffff")
+            left_bar Solid(_cue_color_bar_active)
+            right_bar Solid(_cue_color_bg_input)
+            thumb Solid(_cue_color_text)
+            hover_thumb Solid(_cue_color_text_white)
             changed _cue.volume.on_bar_changed
         textbutton "+":
             style "cue_btn_icon"
@@ -224,7 +246,7 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                 style "cue_btn"
                 text_style "cue_btn_text"
                 xsize 14
-                background (_cue_tab_active_bg if _is_active else "#444444")
+                background (_cue_color_active if _is_active else _cue_color_bg_btn)
                 action _cue_make_tab_action(tab_action_fn, tab_action_args, pi)
                 tooltip tab_tt
 
@@ -252,7 +274,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 use cue_icon_button("✕", Function(remove_fn, *remove_args), "Remove preset", None)
                 use cue_icon_button("▶", Function(_cue_preview_sfx, (folder_children or [""])[0], preview_vol), "Preview random file from preset", None)
                 use cue_folder_txt_button(folder_label, Function(_cue.file_tree.toggle_file_ref_expand, folder_label))
-                text "({} files)".format(_count) style "cue_txt" color "#888888" size 10
+                text "({} files)".format(_count) style "cue_txt" color _cue_color_text_dim size 10
             if _is_expanded and folder_children:
                 for _child in folder_children:
                     hbox:
@@ -263,7 +285,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                                 Function(folder_child_remove_fn, trigger_key, pool_index, 0, _child),
                                 "Remove file from pool", None)
                         use cue_icon_button("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
-                        text _child style "cue_txt" color "#ffcc00" size 11
+                        text _child style "cue_txt" color _cue_color_text_accent size 11
         for fi, f in enumerate(files):
             if f.endswith("/"):
                 # --- Folder ref: expandable (matches SFX Library folder UI) ---
@@ -276,7 +298,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                     use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder ref", None)
                     use cue_icon_button("▶", Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol), "Preview random file from folder", None)
                     use cue_folder_txt_button(f, Function(_cue.file_tree.toggle_file_ref_expand, f))
-                    text "({} files)".format(_count) style "cue_txt" color "#888888" size 10
+                    text "({} files)".format(_count) style "cue_txt" color _cue_color_text_dim size 10
                 if _is_expanded:
                     for _child in _cue_resolve_files([f]):
                         hbox:
@@ -288,14 +310,14 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                                     "Remove file from the folder ref", None)
                             use cue_icon_button("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
                             $ _display = _child[len(f):]  # strip folder ref prefix
-                            text _display style "cue_txt" color "#ffcc00" size 11
+                            text _display style "cue_txt" color _cue_color_text_accent size 11
             else:
                 # --- Regular file ---
                 hbox:
                     spacing row_spacing
                     use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), None, None)
                     use cue_icon_button("▶", Function(_cue_preview_sfx, f, preview_vol), None, None)
-                    text f style "cue_txt" color "#ffcc00" size 11
+                    text f style "cue_txt" color _cue_color_text_accent size 11
 
 # Scrollable file list: only wraps in a viewport when content exceeds ~6 rows (120 px).
 screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
@@ -321,7 +343,7 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
 # Section frame: styled frame + header, with transclude for child content.
 style cue_section_hdr_btn is empty:
     background None
-    hover_background "#333333"
+    hover_background _cue_color_bg_input
     padding (4, 2)
     xfill True
     hover_sound None
@@ -504,7 +526,7 @@ screen cue_overlay_content():
                 Function(_cue_toggle_active),
                 "SFX triggers are ON (F4 to toggle)",
                 "SFX triggers are OFF (F4 to toggle)",
-                "#446644", "#558855", "#664444", "#885555")
+                _cue_color_green, _cue_color_green_hover, _cue_color_red, _cue_color_red_hover)
             null width 5
             use cue_icon_button("📋", Function(_cue.markers.copy_context), "Copy current context config (Shift + 1)", None)
             use cue_icon_button("📄", Function(_cue.markers.paste_context), "Paste context config (Shift + 2)", None)
@@ -532,7 +554,7 @@ screen cue_overlay_content():
                         style "cue_btn"
                         text_style "cue_btn_text"
                         if not _cue.video_editor.active:
-                            background _cue_tab_active_bg
+                            background _cue_color_active
                             action NullAction()
                         else:
                             action Function(_cue.video_editor.close_editor)
@@ -540,7 +562,7 @@ screen cue_overlay_content():
                         style "cue_btn"
                         text_style "cue_btn_text"
                         if _cue.video_editor.active:
-                            background _cue_tab_active_bg
+                            background _cue_color_active
                             action NullAction()
                         else:
                             action Function(_cue.video_editor.open_editor)
@@ -557,11 +579,11 @@ screen cue_overlay_content():
                     if len(_avail) > 1 or _seq:
                         hbox:
                             spacing 5
-                            textbutton "Speeds":
+                            textbutton "Single Speed":
                                 style "cue_btn"
                                 text_style "cue_btn_text"
                                 if _mode == SpeedMode.SINGLE:
-                                    background _cue_tab_active_bg
+                                    background _cue_color_active
                                     action NullAction()
                                 else:
                                     action Function(_cue.video_sequence.set_mode, SpeedMode.SINGLE)
@@ -569,7 +591,7 @@ screen cue_overlay_content():
                                 style "cue_btn"
                                 text_style "cue_btn_text"
                                 if _mode == SpeedMode.SEQUENCE:
-                                    background _cue_tab_active_bg
+                                    background _cue_color_active
                                     action NullAction()
                                 else:
                                     action Function(_cue.video_sequence.set_mode, SpeedMode.SEQUENCE)
@@ -586,7 +608,7 @@ screen cue_overlay_content():
                                     textbutton _label:
                                         style "cue_btn"
                                         text_style "cue_btn_text"
-                                        background ("#446644" if abs(_cur - _sp) < 0.05 else "#444444")
+                                        background (_cue_color_green if abs(_cur - _sp) < 0.05 else _cue_color_bg_btn)
                                         action Function(_cue.speed_resolver.set_speed, _sp)
                                         tooltip ("Play at " + _cue_speed_label(_sp) + " speed"
                                             if _sp != _cue.DEFAULT_VIDEO_SPEED
@@ -643,7 +665,7 @@ screen cue_overlay_content():
                                         textbutton _s_label:
                                             style "cue_btn"
                                             text_style "cue_btn_text"
-                                            background _cue_tab_active_bg
+                                            background _cue_color_active
                                             action NullAction()
                                             tooltip "Sequence position {}. Cycles in order.".format(_si + 1)
                         text "The video plays through each speed in order, then loops." style "cue_help"
@@ -888,7 +910,7 @@ screen cue_overlay_content():
                                         text "(" + _job.status_text() + ")" style "cue_txt" size 11
                                         if _job.status != "queued":
                                             $ _elapsed = int(_job.elapsed())
-                                            text ("%d:%02d" % (_elapsed // 60, _elapsed % 60)) style "cue_txt" size 11 color "#aaaaaa"
+                                            text ("%d:%02d" % (_elapsed // 60, _elapsed % 60)) style "cue_txt" size 11 color _cue_color_text_muted
                                     if _job.status == "error" and _job.error_msg and not _job.cancelled:
                                         hbox:
                                             spacing 4
@@ -935,22 +957,22 @@ screen cue_overlay_content():
                 textbutton "Slow":
                     style "cue_btn"
                     text_style "cue_btn_text"
-                    background (_cue_tab_active_bg if slow_selected else "#444444")
+                    background (_cue_color_active if slow_selected else _cue_color_bg_btn)
                     action Function(_cue.markers.loop.set_frequency, 0)
                 textbutton "Normal":
                     style "cue_btn"
                     text_style "cue_btn_text"
-                    background (_cue_tab_active_bg if normal_selected else "#444444")
+                    background (_cue_color_active if normal_selected else _cue_color_bg_btn)
                     action Function(_cue.markers.loop.set_frequency, 1)
                 textbutton "Fast":
                     style "cue_btn"
                     text_style "cue_btn_text"
-                    background (_cue_tab_active_bg if fast_selected else "#444444")
+                    background (_cue_color_active if fast_selected else _cue_color_bg_btn)
                     action Function(_cue.markers.loop.set_frequency, 2)
                 textbutton "Fastest":
                     style "cue_btn"
                     text_style "cue_btn_text"
-                    background (_cue_tab_active_bg if fastest_selected else "#444444")
+                    background (_cue_color_active if fastest_selected else _cue_color_bg_btn)
                     action Function(_cue.markers.loop.set_frequency, 3)
 
         # Audio file browser
@@ -1002,7 +1024,7 @@ screen cue_overlay_content():
                                             text "    " style "cue_txt"  # double indent
                                             use cue_icon_button("✕", Function(_cue.markers.preset_remove_file, _pname, _child), "Remove file from preset", None)
                                             use cue_icon_button("▶", Function(_cue_preview_sfx, _child), "Preview file", None)
-                                            text _child style "cue_txt" color "#ffcc00" size 11
+                                            text _child style "cue_txt" color _cue_color_text_accent size 11
                         # --- Video Presets folder ---
                         hbox:
                             spacing 2
@@ -1036,7 +1058,7 @@ screen cue_overlay_content():
                                         hbox:
                                             spacing 2
                                             text "    " style "cue_txt"  # double indent
-                                            text "{} ({} files)".format(_cue_format_time(_pool_time), _pool_files) style "cue_txt" color "#ffcc00" size 11
+                                            text "{} ({} files)".format(_cue_format_time(_pool_time), _pool_files) style "cue_txt" color _cue_color_text_accent size 11
                         # --- Folder/file tree ---
                         for item in _cue.file_tree.visible_tree:
                             hbox:
@@ -1071,7 +1093,7 @@ screen cue_overlay_content():
                                         Function(_cue.file_tree.toggle_file_enabled, item["full_path"]),
                                         "Click to {} globally".format("disable" if item.get("enabled", True) else "enable"),
                                         None)
-                                    text item["name"] style "cue_txt" color "#ffcc00"
+                                    text item["name"] style "cue_txt" color _cue_color_text_accent
 
 
 ###############################################################################
@@ -1087,8 +1109,8 @@ screen cue_repeat_pattern_dialog():
         xpos 500
         ypos 8
         padding (16, 8)
-        background "#2a2a2a"
-        hover_background "#2a2a2a"
+        background _cue_color_bg_dialog
+        hover_background _cue_color_bg_dialog
         xmaximum 400
         action NullAction()
 
@@ -1099,12 +1121,12 @@ screen cue_repeat_pattern_dialog():
                 hbox:
                     spacing 5
                     text "Selected:" style "cue_txt"
-                    text "{} marker(s)".format(sel_count) style "cue_txt" color "#ffcc00"
+                    text "{} marker(s)".format(sel_count) style "cue_txt" color _cue_color_text_accent
 
                 hbox:
                     spacing 5
                     text "Anchor:" style "cue_txt"
-                    text _cue_format_time(anchor) style "cue_txt" color "#ffcc00"
+                    text _cue_format_time(anchor) style "cue_txt" color _cue_color_text_accent
 
                 null height 5
 
@@ -1169,8 +1191,8 @@ screen cue_save_preset_dialog():
         xpos 500
         ypos 8
         padding (16, 8)
-        background "#2a2a2a"
-        hover_background "#2a2a2a"
+        background _cue_color_bg_dialog
+        hover_background _cue_color_bg_dialog
         xmaximum 400
         action NullAction()
 
@@ -1181,12 +1203,12 @@ screen cue_save_preset_dialog():
             hbox:
                 spacing 5
                 text "Files:" style "cue_txt"
-                text "{} file(s)".format(_file_count) style "cue_txt" color "#ffcc00"
+                text "{} file(s)".format(_file_count) style "cue_txt" color _cue_color_text_accent
 
             hbox:
                 spacing 5
                 text "Volume:" style "cue_txt"
-                text "{:.1f}".format(_r.volume) style "cue_txt" color "#ffcc00"
+                text "{:.1f}".format(_r.volume) style "cue_txt" color _cue_color_text_accent
 
             null height 5
 
@@ -1243,8 +1265,8 @@ screen cue_save_video_preset_dialog():
         xpos 500
         ypos 8
         padding (16, 8)
-        background "#2a2a2a"
-        hover_background "#2a2a2a"
+        background _cue_color_bg_dialog
+        hover_background _cue_color_bg_dialog
         xmaximum 400
         action NullAction()
 
@@ -1255,17 +1277,17 @@ screen cue_save_video_preset_dialog():
             hbox:
                 spacing 5
                 text "Markers:" style "cue_txt"
-                text "{} marker(s)".format(_marker_count) style "cue_txt" color "#ffcc00"
+                text "{} marker(s)".format(_marker_count) style "cue_txt" color _cue_color_text_accent
 
             hbox:
                 spacing 5
                 text "Span:" style "cue_txt"
-                text _span_text style "cue_txt" color "#ffcc00"
+                text _span_text style "cue_txt" color _cue_color_text_accent
 
             hbox:
                 spacing 5
                 text "Files:" style "cue_txt"
-                text "{} file(s)".format(_total_files) style "cue_txt" color "#ffcc00"
+                text "{} file(s)".format(_total_files) style "cue_txt" color _cue_color_text_accent
 
             null height 5
 
@@ -1310,8 +1332,8 @@ screen cue_confirm_dialog():
         xpos 500
         ypos 8
         padding (16, 8)
-        background "#2a2a2a"
-        hover_background "#2a2a2a"
+        background _cue_color_bg_dialog
+        hover_background _cue_color_bg_dialog
         xmaximum 400
         action NullAction()
 
