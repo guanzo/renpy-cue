@@ -490,7 +490,6 @@ init python:
             old_ch = _cue.vid_manager.channel
 
             def _apply_channel(ch_name, ch_obj=None):
-
                 fps = 30
                 if ch_obj is not None:
                     for attr in ('framerate', 'fps', 'frame_rate'):
@@ -505,8 +504,6 @@ init python:
                             pass
                 
                 if old_ch != ch_name:
-                    _cue.vid_manager.channel = ch_name
-                    _cue.vid_manager.channel = ch_name
                     _cue.vid_manager.reset(ch_name)
                     _cue.vid_manager.set_fps(fps)
                     _cue.video_editor.refresh()
