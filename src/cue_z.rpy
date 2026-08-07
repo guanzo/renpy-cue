@@ -135,8 +135,6 @@ init 999 python:
                     ch_name, "sfx", loop=False, stop_on_mute=True, tight=False
                 )
 
-        _cue.speed_resolver.wrap_all_movies()
-
         # Create a layer above screens for the Cue UI.
         renpy.add_layer("cue_layer", above="screens")
 
@@ -174,9 +172,11 @@ init 999 python:
 
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
         _cue.markers.load_persistent()
+        _cue.speed_resolver.wrap_all_movies()
         _cue_scan_audio()
-        _cue_log("INIT: Done")
+        
         _cue.initialized = True
+        _cue_log("INIT: Done")
 
 
 ###############################################################################
@@ -227,7 +227,7 @@ init python:
 
         # Refresh video editor backup state
         _cue.video_editor.refresh()
-        
+
         renpy.show_screen("cue_overlay", _layer="cue_layer")
         renpy.restart_interaction()
 
@@ -601,7 +601,7 @@ init python:
 
         # Finalize completed video editor jobs even when editor UI is closed
         if _cue.video_editor.processing:
-            _cue.video_editor.queue.poll()
+            _cue.video_editor.job_queue.poll()
 
         # --- Auto-re-pause after seek (runs regardless of SFX Active) ---
         _cue.vid_manager.poll_autopause()
@@ -828,59 +828,5 @@ init python:
             return target_ch
         except Exception:
             return None
-
-
-# =============================================================================
-
-
-
-# =============================================================================
-# KEY-LISTENER SCREEN: Always-visible invisible screen that catches backtick
-# =============================================================================
-
-screen cue_key_listener():
-    zorder 10000
-
-    key "K_BACKQUOTE" action Function(_cue_toggle_overlay)
-    key "K_F3" action Function(renpy.invoke_in_new_context, renpy.pause)
-    key "K_F4" action Function(_cue_toggle_active)
-    key "shift_K_1" action Function(_cue.markers.copy_context)
-    key "shift_K_2" action Function(_cue.markers.paste_context)
-    key "K_PERIOD" action Function(_cue.speed_resolver.cycle_speed, 1)
-    key "K_COMMA" action Function(_cue.speed_resolver.cycle_speed, -1)
-    timer 0.025 repeat True action Function(_cue_tick_trigger, _update_screens=False)
-
-# =============================================================================
-# MAIN OVERLAY SCREEN
-# =============================================================================
-
-screen cue_overlay():
-
-    zorder 9999
-    modal False
-
-
-    button:
-        xalign 0.0
-        yalign 0.0
-        xsize 500
-        yfill True
-        action NullAction()
-        background None
-        hover_background None
-        frame:
-            style "cue_frame"
-            xfill True
-            yfill True
-            use cue_overlay_content()
-
-    # --- Floating tooltip near mouse (auto-sizes to fit text) ---
-    $ _tt = GetTooltip()
-    if _tt:
-        add _Tooltip(_tt)
-
-
-    # --- Marker timeline tooltip (rendered last so it's always on top) ---
-    add _MarkerTooltipOverlay()
 
 

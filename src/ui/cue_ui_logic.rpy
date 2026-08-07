@@ -1,5 +1,5 @@
 ###############################################################################
-# Python logic backing the overlay UI screens in cue_ui.rpy.
+# Python logic backing the overlay UI screens in ui/.
 # Dialog state classes, tab-action builder, file-list row counter, and
 # preset/video-preset helper functions.
 ###############################################################################

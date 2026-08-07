@@ -1,0 +1,119 @@
+
+###############################################################################
+# Styles — all properties explicit, no inheritance
+###############################################################################
+
+# --- Surfaces (dark theme, darkest → lightest) ---
+define _cue_color_bg_overlay = "#000000ee"
+define _cue_color_bg_scrollbar = "#1a1a1a"
+define _cue_color_bg_panel = "#222222"
+define _cue_color_bg_dialog = "#2a2a2a"
+define _cue_color_bg_input = "#333333"
+define _cue_color_bg_btn = "#444444"
+define _cue_color_divider = "#555555"
+define _cue_color_bg_btn_hover = "#666666"
+
+# --- Text ---
+define _cue_color_text = "#cccccc"
+define _cue_color_text_white = "#ffffff"
+define _cue_color_text_accent = "#ffcc00"
+define _cue_color_text_muted = "#aaaaaa"
+define _cue_color_text_dim = "#888888"
+
+# --- Semantic ---
+define _cue_color_active = "#669966"
+define _cue_color_green = "#446644"
+define _cue_color_green_hover = "#558855"
+define _cue_color_red = "#664444"
+define _cue_color_red_hover = "#885555"
+define _cue_color_error = "#ff6666"
+
+# --- Controls ---
+define _cue_color_bar_active = "#007AFF"
+
+style cue_frame is empty:
+    background _cue_color_bg_overlay
+    padding (8, 6)
+    xfill True
+
+style cue_btn is empty:
+    background _cue_color_bg_btn
+    hover_background _cue_color_bg_btn_hover
+    padding (2, 0)
+    hover_sound None
+    activate_sound None
+
+style cue_btn_text is empty:
+    size 12
+    color _cue_color_text_white
+    hover_color _cue_color_text_white
+    font "DejaVuSans.ttf"
+    xalign 0.5
+    yalign 0.5
+    xanchor 0.5
+    yanchor 0.5
+    adjust_spacing False
+
+style cue_btn_text_sm is cue_btn_text:
+    size 10
+
+style cue_btn_icon is empty:
+    xysize (16, 16)
+    padding (0, 0)
+    background _cue_color_bg_btn
+    hover_background _cue_color_bg_btn_hover
+    insensitive_background _cue_color_bg_dialog
+    hover_sound None
+    activate_sound None
+
+style cue_btn_icon_text is empty:
+    size 12
+    color _cue_color_text_white
+    insensitive_color _cue_color_bg_btn_hover
+    font "DejaVuSans.ttf"
+    xalign 0.5
+    yalign 0.5
+    xanchor 0.5
+    yanchor 0.5
+    adjust_spacing False
+    hover_xoffset 0
+    hover_yoffset 0
+    hover_xalign 0.5
+    hover_yalign 0.5
+    padding (0, 0)
+
+style cue_txt is empty:
+    size 12
+    color _cue_color_text
+    font "DejaVuSans.ttf"
+
+style cue_hdr is cue_txt:
+    size 14
+    color _cue_color_text_accent
+    bold True
+
+style cue_help is cue_txt:
+    size 11
+    color _cue_color_text_muted
+
+style cue_input is cue_txt:
+    size 12
+    color _cue_color_text_white
+    background _cue_color_bg_input
+    xsize 72
+    padding (2, 2)
+    ypadding 2
+
+style cue_vscrollbar:
+    xsize 6
+    base_bar Solid(_cue_color_bg_scrollbar)
+    thumb Solid(_cue_color_divider)
+    hover_thumb Solid(_cue_color_text_dim)
+
+style cue_scrollbar:
+    ysize 6
+    base_bar Solid(_cue_color_bg_scrollbar)
+    thumb Solid(_cue_color_divider)
+    hover_thumb Solid(_cue_color_text_dim)
+
+
