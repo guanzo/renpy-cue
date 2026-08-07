@@ -158,11 +158,15 @@ init 999 python:
         # start_interact callback — detects context changes at interaction
         def _cue_start_interact_callback(*args, **kwargs):
             # Ensure key listeners are always active.
-            if not renpy.get_screen("cue_key_listener"):
+            if not renpy.get_screen("cue_key_listener", layer="cue_layer"):
                 renpy.show_screen("cue_key_listener", _layer="cue_layer")
-            # Ensure overlay stays visible after rollback
-            if _cue.is_overlay_visible and not renpy.get_screen("cue_overlay"):
+            # Keep overlay screen in sync with the NoRollback flag.
+            # Rollback can undo renpy.hide_screen, so re-hide when the
+            # flag says the overlay should not be visible.
+            if _cue.is_overlay_visible and not renpy.get_screen("cue_overlay", layer="cue_layer"):
                 renpy.show_screen("cue_overlay", _layer="cue_layer")
+            elif not _cue.is_overlay_visible and renpy.get_screen("cue_overlay", layer="cue_layer"):
+                renpy.hide_screen("cue_overlay", layer="cue_layer")
 
             _cue_refresh_context()
 
