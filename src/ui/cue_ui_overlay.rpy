@@ -68,7 +68,7 @@ screen cue_overlay_content():
                 Function(_cue_toggle_active),
                 "SFX triggers are ON (F4 to toggle)",
                 "SFX triggers are OFF (F4 to toggle)",
-                _cue_color_green, _cue_color_green_hover, _cue_color_red, _cue_color_red_hover)
+                _cue_color_active, _cue_color_green_hover, _cue_color_red, _cue_color_red_hover)
             null width 5
             use cue_icon_button("📋", Function(_cue.markers.copy_context), "Copy current context config (Shift + 1)", None)
             use cue_icon_button("📄", Function(_cue.markers.paste_context), "Paste context config (Shift + 2)", None)
@@ -106,7 +106,7 @@ screen cue_overlay_content():
                     $ _seq = _cue.video_sequence.speeds_for(_cue.current_file)
                     $ _mode = _cue.video_sequence.get_mode()
 
-                    if len(_avail) > 1 or _seq:
+                    if len(_avail) > 1:
                         hbox:
                             spacing 5
                             use cue_tab_btn("Single Speed", _mode == SpeedMode.SINGLE,

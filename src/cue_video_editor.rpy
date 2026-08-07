@@ -160,7 +160,7 @@ init -999 python:
             # Capture duration for progress (fast — no subprocess)
             dur_ms = 0
             try:
-                dur_ms = int(renpy.music.get_duration(channel=_cue.active_channel) * 1000)
+                dur_ms = int(renpy.music.get_duration(channel=_cue.vid_manager.channel) * 1000)
             except Exception:
                 pass
 

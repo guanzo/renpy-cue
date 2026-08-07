@@ -78,7 +78,7 @@ init python:
                 canvas.rect(ph_color, (px, bar_y, 2, self.BAR_H))
 
             # --- Hover seek-preview tooltip ---
-            if dur > 0 and _cue.active_channel:
+            if dur > 0 and _cue.vid_manager.channel:
                 mx, my = renpy.get_mouse_pos()
                 bx = getattr(_cue, '_vtl_screen_x', -999)
                 by = getattr(_cue, '_vtl_screen_y', -999)
@@ -118,7 +118,7 @@ init python:
                 if bar_y <= y <= bar_y + self.BAR_H:
                     vs = _cue.vid_manager
                     dur = vs.get_duration()
-                    if dur > 0 and _cue.active_channel:
+                    if dur > 0 and _cue.vid_manager.channel:
                         w = getattr(self, '_w', 1)
                         if w > 0:
                             frac = max(0.0, min(1.0, x / float(w)))

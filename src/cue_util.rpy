@@ -281,9 +281,7 @@ init python:
             )
 
     def _cue_speed_label(sp):
-        """Format a speed multiplier for UI display: 1.0 -> '1x', 1.5 -> '1.5x'."""
-        if sp == int(sp):
-            return "{}x".format(int(sp))
+        """Format a speed multiplier for UI display: 1.0 -> '1.0x', 1.5 -> '1.5x'."""
         return "{:.1f}x".format(sp)
 
 

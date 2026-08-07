@@ -12,7 +12,6 @@ init -900 python:
     _cue.debug = True
 
     # Context tracking
-    _cue.active_channel = None
     _cue.current_file = ""
     _cue.current_dialogue = ""
     _cue.prev_dialogue = ""
@@ -83,7 +82,6 @@ init -900 python:
 
     # Internal
     _cue.__cue_channel_idx = 0
-    _cue.__refreshing_channel = False
     _cue._shake_just_happened = False
 
     # Preview state: channel the last user preview played on (None if none)
@@ -243,7 +241,7 @@ init python:
         _cue.current_replay = renpy.store._in_replay
 
         old_file = _cue.current_file
-        old_channel = _cue.active_channel
+        old_channel = _cue.vid_manager.channel
         old_layer_type = _cue.top_layer_type
 
         # Character callbacks don't trigger on rollback, need to clear stale dialogue here.
@@ -293,8 +291,8 @@ init python:
             # User-defined speed sequence (auto-activates when present)
             _cue.video_sequence.handle(_cue.current_file)
 
-        if _cue.active_channel != old_channel:
-            changed += " ch:{}->{}".format(old_channel, _cue.active_channel)
+        if _cue.vid_manager.channel != old_channel:
+            changed += " ch:{}->{}".format(old_channel, _cue.vid_manager.channel)
 
         if _cue.current_dialogue != _cue.prev_dialogue:
             changed += " dlg:{}->{}".format(_cue.prev_dialogue[:20] if _cue.prev_dialogue else "",
@@ -331,9 +329,9 @@ init python:
         vpath = _cue.vid_manager.get_video_path()
         vname = vpath.rsplit("/", 1)[-1] if vpath else "(none)"
         playing = "?"
-        if _cue.active_channel:
+        if _cue.vid_manager.channel:
             try:
-                playing = "1" if renpy.music.is_playing(channel=_cue.active_channel) else "0"
+                playing = "1" if renpy.music.is_playing(channel=_cue.vid_manager.channel) else "0"
             except Exception:
                 pass
         # Determine primary context — top displayable on master layer wins;
@@ -341,7 +339,7 @@ init python:
         top_name, top_type, _unused = _cue_get_top_layer()
         if top_type:
             ctx_type = top_type  # 'image' or 'movie'
-        elif _cue.active_channel is not None and playing == "1":
+        elif _cue.vid_manager.channel is not None and playing == "1":
             ctx_type = "video"
         else:
             ctx_type = "none"
@@ -350,7 +348,7 @@ init python:
             _cue.current_file or "(none)",
             ctx_type,
             vname,
-            _cue.active_channel or "(none)",
+            _cue.vid_manager.channel or "(none)",
             playing,
             _cue.current_dialogue[:60] if _cue.current_dialogue else "(none)"))
 
@@ -483,13 +481,13 @@ init python:
         file matches displayable._original_play is selected — stale channels
         from a previous scene that are still winding down are skipped."""
 
-        if _cue.__refreshing_channel:
+        if _cue.vid_manager.refreshing:
             return
-        _cue.__refreshing_channel = True
+        _cue.vid_manager.refreshing = True
 
         try:
             video_exts = (".webm", ".mp4", ".mkv", ".avi", ".ogv", ".mpeg", ".mpg")
-            old_ch = _cue.active_channel
+            old_ch = _cue.vid_manager.channel
 
             def _apply_channel(ch_name, ch_obj=None):
 
@@ -507,7 +505,7 @@ init python:
                             pass
                 
                 if old_ch != ch_name:
-                    _cue.active_channel = ch_name
+                    _cue.vid_manager.channel = ch_name
                     _cue.vid_manager.channel = ch_name
                     _cue.vid_manager.reset(ch_name)
                     _cue.vid_manager.set_fps(fps)
@@ -531,15 +529,6 @@ init python:
                         pass
             except Exception:
                 pass
-
-            for ch in ["movie", "_movie_1", "_movie_2"]:
-                try:
-                    path = renpy.music.get_playing(channel=ch)
-                    if path and path.lower().endswith(video_exts):
-                        candidates.append((ch, None, path))
-                except Exception:
-                    pass
-            
             
             if candidates:
                 if displayable is not None and isinstance(displayable, renpy.display.video.Movie):
@@ -556,17 +545,15 @@ init python:
                                 _apply_channel(ch_name, ch_obj)
                                 return
                     # No match — clear, don't fall back to a stale channel
-                    _cue.active_channel = None
                     _cue.vid_manager.channel = None
                 else:
                     # First playing channel wins
                     ch_name, ch_obj, _ = candidates[0]
                     _apply_channel(ch_name, ch_obj)
             else:
-                _cue.active_channel = None
                 _cue.vid_manager.channel = None
         finally:
-            _cue.__refreshing_channel = False
+            _cue.vid_manager.refreshing = False
 
     # --------------------------------------------------------------------------
     # SFX Trigger Engine (Tick)
@@ -710,7 +697,7 @@ init python:
 
     def _cue_tick_video_triggers():
         """Video pool triggers for v: keys — fires SFX at marked times."""
-        ch = _cue.active_channel
+        ch = _cue.vid_manager.channel
         if not ch or _cue.top_layer_type != 'movie':
             return
 

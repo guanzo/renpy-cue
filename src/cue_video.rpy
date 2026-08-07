@@ -8,7 +8,7 @@ init -999 python:
     class CueVideoManager:
         """Per-video playback state and control.
         Methods act on self.channel (the movie channel this state tracks);
-        _cue.active_channel is kept in sync by _cue_refresh_channel."""
+        _cue.vid_manager.channel is kept in sync by _cue_refresh_channel."""
 
         def __init__(self, channel=None):
             self.reset(channel)
@@ -21,6 +21,7 @@ init -999 python:
             if channel is not None:
                 self.channel = channel
             self.paused = False
+            self.refreshing = False
             self.fps = 30
             self.last_elapsed = 0.0
             self.frame_time = 1.0 / 30.0
