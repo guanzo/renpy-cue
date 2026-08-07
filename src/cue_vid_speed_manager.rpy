@@ -606,7 +606,16 @@ init -999 python:
             self.active_tag = tag
             self.play_count = 0
             self._step_index = 0
-            self.last_playing = None
+            # Snapshot the current channel so the old→new queue transition
+            # counts as play #1 instead of advancing _step_index prematurely.
+            # This matters when the user edits the queue while it's playing —
+            # the old file is still on the channel when start() runs, so
+            # tick() would see it as "play #1" then the new file as "play #2".
+            try:
+                ch = _cue.vid_manager.channel
+                self.last_playing = renpy.music.get_playing(channel=ch) if ch else None
+            except Exception:
+                self.last_playing = None
             self.last_elapsed = 0.0
             _cue_log("VQ-START tag={} paths={}".format(tag, ",".join(paths)))
             renpy.restart_interaction()
