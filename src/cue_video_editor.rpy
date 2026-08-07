@@ -737,9 +737,10 @@ init -999 python:
             out_fspath = _cue.speed_resolver.variant_path(orig_fs, factor)
 
             # Build temp path in same directory (atomic rename after success)
+            _base, _ext = _cue.speed_resolver._split_ext(os.path.basename(orig_fs))
             temp_path = os.path.join(
                 os.path.dirname(orig_fs),
-                "{}__cue_tmp_{:.1f}x{}".format(os.path.basename(base), factor, ext),
+                "{}__cue_tmp_{:.1f}x{}".format(_base, factor, _ext),
             )
 
             # Transcode from the original — variants are sidecar files,

@@ -171,7 +171,7 @@ init -999 python:
                                tag.startswith(active + " ")):
                     queue_paths = seq.paths_for(active)
                     if queue_paths:
-                        return _build_or_cache(("__queue__", active), queue_paths), None
+                        return _build_or_cache((tag, "__queue__"), queue_paths), None
 
             # --- Normal speed resolution ---
             if speed == _cue.DEFAULT_VIDEO_SPEED:
@@ -269,7 +269,8 @@ init -999 python:
                 return True
             base, ext = cls._split_ext(base_path)
             sp = cls._parse_variant_speed(path, base, ext)
-            return sp is not None and 0.25 <= sp <= 4.0
+            
+            return sp is not None
 
         def get_available_speeds(self, base_path):
             """Return sorted list of speeds that have variant files on disk.
@@ -281,7 +282,7 @@ init -999 python:
             try:
                 for f in _os.listdir(base_dir):
                     sp = self._parse_variant_speed(f, base_no_ext, ext)
-                    if sp is not None and 0.25 <= sp <= 4.0 and abs(sp - 1.0) > 0.05:
+                    if sp is not None and abs(sp - 1.0) > 0.05:
                         if _os.path.isfile(_os.path.join(base_dir, f)):
                             speeds.append(sp)
             except Exception:
@@ -407,6 +408,7 @@ init -999 python:
             self.last_playing = None
             self.last_elapsed = 0.0
             self.play_count = 0
+            self._step_index = -1
 
         # ==================================================================
         # Lookup
@@ -416,15 +418,11 @@ init -999 python:
             """User-defined speed sequence for a video, from its marker entry.
             Exact file match. Returns None when absent or empty."""
             if not tag:
-                _cue_log("VQ-SPEEDS-FOR tag is empty")
                 return None
-            vid_key = create_vid_key(tag)
-            entry = _cue.markers.get(vid_key)
-            _cue_log("VQ-SPEEDS-FOR tag={} key={} entry={}".format(tag, vid_key, entry is not None))
+            entry = _cue.markers.get(create_vid_key(tag))
             if entry is None:
                 return None
             seq = entry.get("speed_sequence")
-            _cue_log("VQ-SPEEDS-FOR seq={}".format(seq))
             if not seq:
                 return None
             return seq
@@ -432,6 +430,11 @@ init -999 python:
         # ==================================================================
         # UI helpers
         # ==================================================================
+
+        def current_step_index(self):
+            """Index of the currently playing step in the active sequence,
+            or -1 if the sequence isn't active."""
+            return self._step_index
 
         def contains(self, speed):
             """True if speed (within 0.05) appears in the current video's sequence."""
@@ -456,16 +459,14 @@ init -999 python:
         def append_speed(self, speed):
             """Append a speed to the current video's sequence. Persists immediately."""
             tag = _cue.current_file
-            _cue_log("VQ-APPEND tag={} speed={}".format(tag, speed))
             if not tag:
                 return
             entry = self._get_entry(tag)
-            _cue_log("VQ-APPEND entry_ok={}".format(entry is not None))
             if entry is None:
                 return
             seq = entry.setdefault("speed_sequence", [])
             seq.append(speed)
-            _cue_log("VQ-APPEND seq={}".format(seq))
+            _cue_log("VQ-APPEND tag={} speed={} seq={}".format(tag, speed, seq))
             if len(seq) >= 1:
                 self.start(tag)
 
@@ -603,6 +604,10 @@ init -999 python:
             # Clear resolver cache for this tag so a fresh queue Movie is built
             self.resolver.invalidate(tag)
             self.active_tag = tag
+            self.play_count = 0
+            self._step_index = 0
+            self.last_playing = None
+            self.last_elapsed = 0.0
             _cue_log("VQ-START tag={} paths={}".format(tag, ",".join(paths)))
             renpy.restart_interaction()
 
@@ -642,14 +647,24 @@ init -999 python:
             except Exception:
                 now_playing = None
                 now_elapsed = 0.0
-            is_new_play = (now_playing != self.last_playing or
-                           (now_playing and now_elapsed < 1.0 and
-                            self.last_elapsed - now_elapsed > 1.0))
+
+            is_wrap_around = now_playing and now_elapsed < 0.2 and self.last_elapsed - now_elapsed > 0.2
+            is_new_play = (now_playing != self.last_playing or is_wrap_around)
+            
             if is_new_play:
+                # On the very first detection (last_playing was None),
+                # _step_index is already 0 from start() — don't advance.
+                if self.play_count > 0:
+                    seq = self.speeds_for(self.active_tag)
+                    if seq:
+                        self._step_index = (self._step_index + 1) % len(seq)
                 self.play_count += 1
-                _cue_log("VQ-PLAY #{} file={}".format(
-                    self.play_count,
+
+                _cue_log("VQ-PLAY #{} step={} file={}".format(
+                    self.play_count, self._step_index,
                     now_playing.rsplit("/", 1)[-1] if now_playing else now_playing))
+                renpy.restart_interaction()
+
             self.last_playing = now_playing
             self.last_elapsed = now_elapsed
 

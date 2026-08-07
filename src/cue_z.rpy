@@ -543,10 +543,13 @@ init python:
             
             if candidates:
                 if displayable is not None and isinstance(displayable, renpy.display.video.Movie):
-                    # Match channel by file path (works for movie sprites where
-                    # the tag is "bg" but the actual file is different)
-                    target_path = _cue_get_movie_play(displayable)
-                    
+                    # Match by the resolver's static base path, not the
+                    # displayable's current _play (which may be a variant
+                    # or a list that hasn't rendered yet).
+                    _cue_get_movie_play(displayable)
+
+                    target_path = _cue.speed_resolver.base_path_for(_cue.current_file)
+
                     if target_path:
                         for ch_name, ch_obj, path in candidates:
                             if path == target_path or _cue.speed_resolver.is_variant_of(path, target_path):
