@@ -276,6 +276,12 @@ init python:
                 minutes, sec_remainder, centiseconds
             )
 
+    def _cue_speed_label(sp):
+        """Format a speed multiplier for UI display: 1.0 -> '1x', 1.5 -> '1.5x'."""
+        if sp == int(sp):
+            return "{}x".format(int(sp))
+        return "{:.1f}x".format(sp)
+
 
     def _cue_parse_time(time_str):
         """Parse a time string back to float seconds.

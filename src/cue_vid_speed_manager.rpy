@@ -3,9 +3,10 @@
 # Wraps every Movie image in a DynamicDisplayable that swaps in speed variants
 # (or the active sequence playlist) without touching the registry entry.
 #
-# CueVidSpeedSequence — hardcoded speed-variant playlist experiment.
-# When active, overrides normal speed resolution: the resolver builds a Movie
-# with play=[paths...] and Ren'Py's audio queue re-loops the whole list.
+# CueVidSpeedSequence — user-defined per-video speed sequences stored in the
+# marker config. When active, overrides normal speed resolution: the resolver
+# builds a Movie with play=[paths...] and Ren'Py's audio queue re-loops the
+# whole list.
 #
 # Instantiated at _cue.speed_resolver and _cue.video_sequence.
 ###############################################################################
@@ -13,6 +14,11 @@
 init -999 python:
     import os as _os
     import time as _time
+
+    class SpeedMode:
+        """Playback mode for video speed control."""
+        SINGLE = "single"       # play at one fixed speed (from speed_prefs)
+        SEQUENCE = "sequence"   # loop through the user-defined speed sequence
 
     class CueVidSpeedResolver:
         """Per-tag speed preferences and memoized variant/queue Movies.
@@ -47,8 +53,8 @@ init -999 python:
             return best_key
 
         def speed_for(self, tag):
-            """Current speed for a scene-list name (1.0 if unknown)."""
-            return self.speed_prefs.get(self.key_for(tag), 1.0)
+            """Current speed for a scene-list name (_cue.DEFAULT_VIDEO_SPEED if unknown)."""
+            return self.speed_prefs.get(self.key_for(tag), _cue.DEFAULT_VIDEO_SPEED)
 
         def base_path_for(self, tag):
             """Original base video path for a scene-list name."""
@@ -68,7 +74,7 @@ init -999 python:
         def cycle_speed(self, delta):
             """Cycle through available speed variants. delta = 1/-1."""
             if self.sequence is not None:
-                self.sequence.cancel()
+                self.sequence.set_mode(SpeedMode.SINGLE)
             if _cue.top_layer_type != 'movie':
                 return
             tag = _cue.current_file
@@ -81,7 +87,7 @@ init -999 python:
             available = self.get_available_speeds(base_path)
             if len(available) <= 1:
                 return
-            current = self.speed_prefs.get(key, 1.0)
+            current = self.speed_prefs.get(key, _cue.DEFAULT_VIDEO_SPEED)
             try:
                 idx = available.index(current)
             except ValueError:
@@ -94,7 +100,7 @@ init -999 python:
         def set_speed(self, speed):
             """Set playback speed to a specific value."""
             if self.sequence is not None:
-                self.sequence.cancel()
+                self.sequence.set_mode(SpeedMode.SINGLE)
             if _cue.top_layer_type != 'movie':
                 return
             tag = _cue.current_file
@@ -126,9 +132,9 @@ init -999 python:
             Called by the module-level _cue_resolver wrapper so the DD
             callback stays picklable by name reference."""
             try:
-                speed = self.speed_prefs.get(tag, 1.0)
+                speed = self.speed_prefs.get(tag, _cue.DEFAULT_VIDEO_SPEED)
             except Exception:
-                speed = 1.0
+                speed = _cue.DEFAULT_VIDEO_SPEED
 
             def _build_or_cache(cache_key, play_value):
                 """Return cached Movie for cache_key, or build and cache one."""
@@ -154,7 +160,7 @@ init -999 python:
                         return _build_or_cache(("__queue__", active), queue_paths), None
 
             # --- Normal speed resolution ---
-            if abs(speed - 1.0) < 0.05:
+            if speed == _cue.DEFAULT_VIDEO_SPEED:
                 return orig_movie, None
 
             variant = self.variant_path(base_path, speed)
@@ -227,8 +233,8 @@ init -999 python:
 
         def get_available_speeds(self, base_path):
             """Return sorted list of speeds that have variant files on disk.
-            Always includes 1.0 (the original)."""
-            speeds = [1.0]
+            Always includes the default speed (the original)."""
+            speeds = [_cue.DEFAULT_VIDEO_SPEED]
             base_dir = _os.path.dirname(_os.path.join(renpy.config.gamedir, base_path))
             base_name = _os.path.basename(base_path)
             base_no_ext, ext = _os.path.splitext(base_name)
@@ -252,14 +258,14 @@ init -999 python:
 
         @staticmethod
         def preset_speeds():
-            """Return hardcoded speed presets for the video editor UI (no 1.0)."""
-            return python_list([0.5, 1.5, 2.0])
+            """Return hardcoded speed presets for the video editor UI (no default speed)."""
+            return [0.5, 1.5, 2.0]
 
         def delete_variant(self, base_path, speed):
             """Delete a speed variant file from disk. If the variant is currently
             playing, switches to the 1.0x original first so the file handle is
             released before deletion."""
-            if abs(speed - 1.0) < 0.05:
+            if speed == _cue.DEFAULT_VIDEO_SPEED:
                 return  # cannot delete the original
 
             vpath = self.variant_path(base_path, speed)
@@ -286,20 +292,20 @@ init -999 python:
                 pass
 
             # Update speed prefs before deleting so the resolver falls back
-            # to 1.0x on the next interaction.
+            # to default speed on the next interaction.
             for tag, bp in self.paths.items():
                 if bp == base_path:
                     key = self.key_for(tag)
-                    cur = self.speed_prefs.get(key, 1.0)
+                    cur = self.speed_prefs.get(key, _cue.DEFAULT_VIDEO_SPEED)
                     if abs(cur - speed) < 0.05:
-                        self.speed_prefs[key] = 1.0
+                        self.speed_prefs[key] = _cue.DEFAULT_VIDEO_SPEED
 
             tag = _cue.current_file
             if tag:
                 key = self.key_for(tag)
-                cur = self.speed_prefs.get(key, 1.0)
+                cur = self.speed_prefs.get(key, _cue.DEFAULT_VIDEO_SPEED)
                 if abs(cur - speed) < 0.05:
-                    self.speed_prefs[key] = 1.0
+                    self.speed_prefs[key] = _cue.DEFAULT_VIDEO_SPEED
 
             # Now delete the variant file with a few retries in case the
             # file handle takes a moment to release (Windows especially).
@@ -330,17 +336,14 @@ init -999 python:
 
 
     class CueVidSpeedSequence:
-        """Hardcoded per-video speed sequences. When active, overrides normal
-        speed resolution: the resolver builds a Movie with play=[paths...] and
-        Ren'Py's audio queue re-loops the WHOLE list, cycling the sequence
-        forever. Owns the play-count tracker used for VQ-PLAY log lines."""
+        """User-defined per-video speed sequences stored in the marker config.
+        When active, overrides normal speed resolution: the resolver builds a
+        Movie with play=[paths...] and Ren'Py's audio queue re-loops the WHOLE
+        list, cycling the sequence forever. Owns the play-count tracker used
+        for VQ-PLAY log lines."""
 
         def __init__(self, resolver):
             self.resolver = resolver
-            self.map = {
-                "v1s3_veronica_tits": python_list([1.0, 2.0, 3.0, 2.0]),
-                "anim_lily_rev1_ep8": python_list([1.0, 1.5, 2.0, 2.5, 2.5, 2.5, 2.0, 1.5]),
-            }
             self.active_tag = None
             self.last_playing = None
             self.last_elapsed = 0.0
@@ -351,34 +354,176 @@ init -999 python:
         # ==================================================================
 
         def speeds_for(self, tag):
-            """Speed sequence for a tag from the map, or None.
-            Exact match first, then prefix match in both directions."""
+            """User-defined speed sequence for a video, from its marker entry.
+            Exact file match. Returns None when absent or empty."""
+            if not tag:
+                _cue_log("VQ-SPEEDS-FOR tag is empty")
+                return None
+            vid_key = create_vid_key(tag)
+            entry = _cue.markers.get(vid_key)
+            _cue_log("VQ-SPEEDS-FOR tag={} key={} entry={}".format(tag, vid_key, entry is not None))
+            if entry is None:
+                return None
+            seq = entry.get("speed_sequence")
+            _cue_log("VQ-SPEEDS-FOR seq={}".format(seq))
+            if not seq:
+                return None
+            return seq
+
+        # ==================================================================
+        # UI helpers
+        # ==================================================================
+
+        def contains(self, speed):
+            """True if speed (within 0.05) appears in the current video's sequence."""
+            seq = self.speeds_for(_cue.current_file)
+            if not seq:
+                return False
+            for s in seq:
+                if abs(s - speed) < 0.05:
+                    return True
+            return False
+
+        def _get_entry(self, tag):
+            """Get or create the video marker entry for tag. Returns entry or None."""
             if not tag:
                 return None
-            if tag in self.map:
-                return self.map[tag]
-            for key, speeds in self.map.items():
-                if key.startswith(tag + " ") or tag.startswith(key + " "):
-                    return speeds
-            return None
+            return _cue.markers._get_or_create_entry(create_vid_key(tag))
+
+        # ==================================================================
+        # Mutation (persist on every change)
+        # ==================================================================
+
+        def append_speed(self, speed):
+            """Append a speed to the current video's sequence. Persists immediately."""
+            tag = _cue.current_file
+            _cue_log("VQ-APPEND tag={} speed={}".format(tag, speed))
+            if not tag:
+                return
+            entry = self._get_entry(tag)
+            _cue_log("VQ-APPEND entry_ok={}".format(entry is not None))
+            if entry is None:
+                return
+            seq = entry.setdefault("speed_sequence", [])
+            seq.append(speed)
+            _cue_log("VQ-APPEND seq={}".format(seq))
+            if len(seq) >= 1:
+                self.start(tag)
+
+            _cue.markers.save_persistent()
+            renpy.restart_interaction()
+
+        def remove_at(self, index):
+            """Remove the speed at index from the current video's sequence."""
+            tag = _cue.current_file
+            if not tag:
+                return
+            entry = _cue.markers.get(create_vid_key(tag))
+            if entry is None:
+                return
+            seq = entry.get("speed_sequence")
+            if not seq or not (0 <= index < len(seq)):
+                return
+            seq.pop(index)
+            if not seq:
+                entry.pop("speed_sequence", None)
+
+            _cue.markers.save_persistent()
+            if self.active_tag == tag:
+                self.start(tag)
+            else:
+                renpy.restart_interaction()
+
+        def move(self, index, delta):
+            """Swap the speed at index with its neighbor (delta = -1 or 1)."""
+            tag = _cue.current_file
+            if not tag:
+                return
+            entry = _cue.markers.get(create_vid_key(tag))
+            if entry is None:
+                return
+            seq = entry.get("speed_sequence")
+            if not seq:
+                return
+            new_index = index + delta
+            if new_index < 0 or new_index >= len(seq):
+                return
+            seq[index], seq[new_index] = seq[new_index], seq[index]
+
+            _cue.markers.save_persistent()
+            if self.active_tag == tag:
+                self.start(tag)
+            else:
+                renpy.restart_interaction()
+
+        def clear_sequence(self, tag=None):
+            """Remove the entire speed sequence for the current video."""
+            if tag is None:
+                tag = _cue.current_file
+            if not tag:
+                return
+            entry = _cue.markers.get(create_vid_key(tag))
+            if entry is not None and "speed_sequence" in entry:
+                del entry["speed_sequence"]
+                _cue.markers.save_persistent()
+
+            self.cancel()
+            renpy.restart_interaction()
+
+        # ==================================================================
+        # Mode (speed vs sequence)
+        # ==================================================================
+
+        def get_mode(self, tag=None):
+            """Return 'speed' or 'sequence' for the current or given tag."""
+            if tag is None:
+                tag = _cue.current_file
+            if not tag:
+                return SpeedMode.SINGLE
+            entry = _cue.markers.get(create_vid_key(tag))
+            if entry is None:
+                return SpeedMode.SINGLE
+            return entry.get("speed_mode", SpeedMode.SINGLE)
+
+        def set_mode(self, mode, tag=None):
+            """Set playback mode. Persists immediately."""
+            if tag is None:
+                tag = _cue.current_file
+            if not tag or mode not in (SpeedMode.SINGLE, SpeedMode.SEQUENCE):
+                return
+            entry = self._get_entry(tag)
+            if entry is None:
+                return
+            entry["speed_mode"] = mode
+            
+            _cue.markers.save_persistent()
+            if mode == SpeedMode.SEQUENCE:
+                self.start(tag)
+            else:
+                self.cancel()
+                renpy.restart_interaction()
+
+        # ==================================================================
+        # Playback
+        # ==================================================================
 
         def paths_for(self, tag):
             """Resolved file list for the tag's sequence, or None if unusable.
-            1.0 entries use the base path; other speeds use generated variants.
+            Default speed entries use the base path; others use generated variants.
             Missing variant files are skipped (renpy.loadable handles .rpa)."""
             speeds = self.speeds_for(tag)
             base_path = self.resolver.base_path_for(tag)
-            if not speeds or len(speeds) < 2 or not base_path:
+            if not speeds or len(speeds) < 1 or not base_path:
                 return None
-            paths = python_list([])
+            paths = []
             for sp in speeds:
-                if abs(sp - 1.0) < 0.05:
+                if sp == _cue.DEFAULT_VIDEO_SPEED:
                     paths.append(base_path)
                 else:
                     vpath = self.resolver.variant_path(base_path, sp)
                     if renpy.loadable(vpath):
                         paths.append(vpath)
-            if len(paths) < 2 or len(python_set(paths)) < 2:
+            if len(paths) < 1:
                 return None
             return paths
 
@@ -403,11 +548,11 @@ init -999 python:
             renpy.restart_interaction()
 
         def handle(self, tag):
-            """Context-change hook. Starts the sequence for a mapped tag;
-            clears the active tag when leaving a queued scene."""
+            """Context-change hook. Starts the sequence when mode is 'sequence'
+            and a sequence exists for the tag."""
             old_tag = self.active_tag
             speeds = self.speeds_for(tag)
-            if speeds:
+            if speeds and self.get_mode(tag) == SpeedMode.SEQUENCE:
                 if not old_tag or old_tag != tag:
                     self.start(tag)
             elif old_tag:

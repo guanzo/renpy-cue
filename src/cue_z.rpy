@@ -31,6 +31,7 @@ init -900 python:
 
     # Volume constants (clamp range + UI quick-set targets)
     _cue.VOL_DEFAULT = 1.0   # default volume; "--" reset target
+    _cue.DEFAULT_VIDEO_SPEED = 1.0
 
     # Key prefix constants for _cue.markers trigger keys
     _cue.IMG_KEY_PREFIX = "i:"
@@ -59,7 +60,7 @@ init -900 python:
     _cue.ffmpeg = CueFFmpeg()
     _cue.video_editor = CueVideoEditor()
 
-    # Speed resolver + hardcoded speed-sequence experiment
+    # Speed resolver + user-defined speed sequences (marker-backed)
     # (see cue_vid_speed_manager.rpy)
     _cue.speed_resolver = CueVidSpeedResolver()
     _cue.video_sequence = CueVidSpeedSequence(_cue.speed_resolver)
@@ -291,7 +292,7 @@ init python:
             if _cue.is_overlay_visible:
                 _cue.video_editor.refresh()
 
-            # Hardcoded speed-queue experiment
+            # User-defined speed sequence (auto-activates when present)
             _cue.video_sequence.handle(_cue.current_file)
 
         if _cue.active_channel != old_channel:
@@ -880,17 +881,6 @@ screen cue_overlay():
     if _tt:
         add _Tooltip(_tt)
 
-    # --- Speed overlay badge ---
-    if _cue.top_layer_type == 'movie' and _cue.current_file:
-        $ _sp = _cue.speed_resolver.speed_for(_cue.current_file)
-        if abs(_sp - 1.0) > 0.05:
-            frame:
-                xalign 1.0
-                yalign 0.0
-                xpadding 6
-                ypadding 3
-                background "#446644"
-                text "{:.1f}x".format(_sp) style "cue_txt" size 14
 
     # --- Marker timeline tooltip (rendered last so it's always on top) ---
     add _MarkerTooltipOverlay()

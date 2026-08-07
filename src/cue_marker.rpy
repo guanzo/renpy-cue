@@ -1121,15 +1121,15 @@ init -999 python:
                 _cue_log("SAVE-MARKERS: sanitized {} malformed video pool(s)".format(stripped))
 
             # Per-video edit history
-            _edit_history = python_dict()
+            _edit_history = {}
             for _vp, _st in _cue.video_editor._states.items():
                 if _st.last_factor is not None:
-                    _edit_history[_vp] = python_dict({
+                    _edit_history[_vp] = {
                         "factor": _st.last_factor,
                         "encode_mode": _st.last_encode_mode,
-                    })
+                    }
 
-            data = python_dict({
+            data = {
                 "markers": _cue_unwrap_persistent(self._data),
                 "presets": _cue_unwrap_persistent(self._presets),
                 "video_presets": _cue_unwrap_persistent(self._video_presets),
@@ -1138,7 +1138,7 @@ init -999 python:
                 "encode_mode": _cue.video_editor.encode_mode,
                 "video_edit_history": _cue_unwrap_persistent(_edit_history),
                 "speed_prefs": _cue_unwrap_persistent(_cue.speed_resolver.speed_prefs),
-            })
+            }
             persistent._cue_config = data
 
             # Autosave backup to disk (throttled to once per 5 min)

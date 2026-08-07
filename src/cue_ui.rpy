@@ -4,6 +4,7 @@
 ###############################################################################
 
 define _cue_tab_active_bg = "#669966"
+define _cue_tab_inactive_bg = "#666666"
 define _cue_color_error = "#ff6666"
 define _cue_color_bg_panel = "#222222"
 define _cue_color_divider = "#555555"
@@ -83,6 +84,12 @@ style cue_input is cue_txt:
 
 style cue_vscrollbar:
     xsize 4
+    base_bar Solid("#1a1a1a")
+    thumb Solid(_cue_color_divider)
+    hover_thumb Solid("#888888")
+
+style cue_scrollbar:
+    ysize 4
     base_bar Solid("#1a1a1a")
     thumb Solid(_cue_color_divider)
     hover_thumb Solid("#888888")
@@ -332,6 +339,7 @@ screen cue_section_frame(header_text):
         yminimum 0
         vbox:
             spacing 8
+            xfill True
             button:
                 style "cue_section_hdr_btn"
                 action Function(_cue.file_tree.toggle_section, header_text)
@@ -539,34 +547,110 @@ screen cue_overlay_content():
                 $ _vid_name = _cue.current_file if _cue.current_file else "?"
                 text "Video: [_vid_name]" style "cue_txt"
 
-                # --- Speed selector (shared between SFX / VFX tabs) ---
+                # --- Speed / Sequence tabs ---
                 $ _vid_path = _cue.speed_resolver.base_path_for(_cue.current_file)
                 if _vid_path:
                     $ _avail = _cue.speed_resolver.get_available_speeds(_vid_path)
-                    if len(_avail) > 1:
-                        $ _cur = _cue.speed_resolver.speed_for(_cue.current_file)
-                        hbox:
-                            spacing 3
-                            text "Speeds:" style "cue_txt" size 11
-                            for _sp in _avail:
-                                $ _label = "1.0x" if abs(_sp - 1.0) < 0.05 else "{:.1f}x".format(_sp)
-                                textbutton _label:
-                                    style "cue_btn"
-                                    text_style "cue_btn_text"
-                                    background ("#446644" if abs(_cur - _sp) < 0.05 else "#444444")
-                                    action Function(_cue.speed_resolver.set_speed, _sp)
-                                    tooltip ("Switch to {:.1f}x speed. Use . and , keys to cycle.".format(_sp) if abs(_sp - 1.0) > 0.05 else "Switch back to the original video.")
-                            if _cur != 1.0:
-                                fixed:
-                                    ysize 14
-                                    xsize 2
-                                    add Solid(_cue_color_divider)
-                                textbutton "Delete {:.1f}x".format(_cur):
-                                    style "cue_btn"
-                                    text_style "cue_btn_text"
-                                    action Function(_cue.speed_resolver.delete_variant, _vid_path, _cur)
-                                    tooltip "Delete the {:.1f}x file.".format(_cur)
+                    $ _seq = _cue.video_sequence.speeds_for(_cue.current_file)
+                    $ _mode = _cue.video_sequence.get_mode()
 
+                    if len(_avail) > 1 or _seq:
+                        hbox:
+                            spacing 5
+                            textbutton "Speeds":
+                                style "cue_btn"
+                                text_style "cue_btn_text"
+                                if _mode == SpeedMode.SINGLE:
+                                    background _cue_tab_active_bg
+                                    action NullAction()
+                                else:
+                                    action Function(_cue.video_sequence.set_mode, SpeedMode.SINGLE)
+                            textbutton "Sequence":
+                                style "cue_btn"
+                                text_style "cue_btn_text"
+                                if _mode == SpeedMode.SEQUENCE:
+                                    background _cue_tab_active_bg
+                                    action NullAction()
+                                else:
+                                    action Function(_cue.video_sequence.set_mode, SpeedMode.SEQUENCE)
+
+                    # --- Speeds tab ---
+                    if _mode == SpeedMode.SINGLE and len(_avail) > 1:
+                        $ _cur = _cue.speed_resolver.speed_for(_cue.current_file)
+                        vbox:
+                            spacing 5
+                            hbox:
+                                spacing 3
+                                for _sp in _avail:
+                                    $ _label = _cue_speed_label(_sp)
+                                    textbutton _label:
+                                        style "cue_btn"
+                                        text_style "cue_btn_text"
+                                        background ("#446644" if abs(_cur - _sp) < 0.05 else "#444444")
+                                        action Function(_cue.speed_resolver.set_speed, _sp)
+                                        tooltip ("Play at " + _cue_speed_label(_sp) + " speed"
+                                            if _sp != _cue.DEFAULT_VIDEO_SPEED
+                                            else "Play at original video speed")
+                                if _cur != _cue.DEFAULT_VIDEO_SPEED:
+                                    fixed:
+                                        ysize 14
+                                        xsize 2
+                                        add Solid(_cue_color_divider)
+                                    textbutton "Delete " + _cue_speed_label(_cur):
+                                        style "cue_btn"
+                                        text_style "cue_btn_text"
+                                        action Function(_cue.speed_resolver.delete_variant, _vid_path, _cur)
+                                        tooltip "Delete the " + _cue_speed_label(_cur) + " file."
+                            text "The video will only play at the selected speed" style "cue_help"
+
+                    # --- Sequence tab ---
+                    if _mode == SpeedMode.SEQUENCE:
+                        if len(_avail) > 1:
+                            hbox:
+                                spacing 3
+                                text "Add:" style "cue_txt" size 11
+                                for _sp in _avail:
+                                    $ _a_label = _cue_speed_label(_sp)
+                                    textbutton  _a_label:
+                                        style "cue_btn"
+                                        text_style "cue_btn_text"
+                                        action Function(_cue.video_sequence.append_speed, _sp)
+                                        tooltip "Append " + _cue_speed_label(_sp) + " to the end of the sequence"
+                                if _seq:
+                                    fixed:
+                                        ysize 14
+                                        xsize 2
+                                        add Solid(_cue_color_divider)
+                                    textbutton "Clear":
+                                        style "cue_btn"
+                                        text_style "cue_btn_text"
+                                        action Function(_cue.video_sequence.clear_sequence, None)
+                                        tooltip "Remove the entire speed sequence"
+                        if _seq:
+                            viewport:
+                                xfill True
+                                xmaximum 476
+                                ysize 25
+                                mousewheel True
+                                scrollbars "horizontal"
+                                style_group "cue"
+
+                                hbox:
+                                    spacing 5
+                                    for _si in range(len(_seq)):
+                                        $ _sp = _seq[_si]
+                                        $ _s_label = _cue_speed_label(_sp)
+                                        textbutton _s_label:
+                                            style "cue_btn"
+                                            text_style "cue_btn_text"
+                                            background _cue_tab_active_bg
+                                            action NullAction()
+                                            tooltip "Sequence position {}. Cycles in order.".format(_si + 1)
+                        text "The video plays through each speed in order, then loops." style "cue_help"
+
+
+                add Solid(_cue_color_divider) ysize 1
+                
                 # --- SFX Tab ---
                 if not _cue.video_editor.active:
                     hbox:
@@ -733,18 +817,18 @@ screen cue_overlay_content():
                             spacing 5
                             text "New Speed:" style "cue_txt"
                             $ _commit = Function(_cue.video_editor.commit_text)
-                            $ _display = "{:.1f}x".format(float(_ved.factor_text))
+                            $ _display = _cue_speed_label(float(_ved.factor_text))
                             use cue_icon_button("-", Function(_cue.video_editor.nudge, -0.1))
                             use cue_float_input("_cue.video_editor.factor_text", _commit, _display)
                             use cue_icon_button("+", Function(_cue.video_editor.nudge, 0.1))
                             $ _ov_presets = _cue.speed_resolver.preset_speeds()
                             if _ov_presets:
                                 for _sp in _ov_presets:
-                                    textbutton "{:.1f}x".format(_sp):
+                                    textbutton _cue_speed_label(_sp):
                                         style "cue_btn"
                                         text_style "cue_btn_text"
                                         action Function(_cue.video_editor.set_quick, _sp)
-                                        tooltip "Set speed to {:.1f}x".format(_sp)
+                                        tooltip "Set speed to " + _cue_speed_label(_sp)
                         text "Speed multiplier is based on original video" style "cue_help" size 10 yalign 0.5
 
                     # --- Encode mode radio buttons ---
