@@ -5,6 +5,7 @@
 ###############################################################################
 
 init -999 python:
+    import random as _random
 
     # --------------------------------------------------------------------------
     # Dialog state classes (UI state for popup dialogs)
@@ -134,7 +135,6 @@ init -999 python:
             all_files.extend(pool.get("files", []))
         resolved = _cue_resolve_files(all_files)
         if resolved:
-            import random as _random
             f = _random.choice(resolved)
             _cue_preview_sfx(f)
 

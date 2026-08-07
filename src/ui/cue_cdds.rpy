@@ -3,6 +3,9 @@
 # =============================================================================
 
 init python:
+    import pygame
+    from renpy.text.text import Text as Txt
+
     class SelfUpdatingLabel(renpy.Displayable):
         """A text label that calls renpy.redraw() to update itself periodically.
 
@@ -19,7 +22,6 @@ init python:
             self.interval = interval
 
         def render(self, width, height, st, at):
-            from renpy.text.text import Text as Txt
             text = self.getter()
             t = Txt(text, style=self._text_style)
             cr = renpy.render(t, width, height, st, at)
@@ -105,7 +107,6 @@ init python:
             return r
 
         def event(self, ev, x, y, st):
-            import pygame
             if ev.type == pygame.MOUSEMOTION:
                 mx, my = renpy.get_mouse_pos()
                 _cue._vtl_screen_x = mx - x
@@ -323,7 +324,6 @@ init python:
             speed = _cue.speed_resolver.get_current_speed()
             is_scaled = speed != 1.0
 
-            import pygame
             if ev.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP):
                 mx, my = renpy.get_mouse_pos()
                 self._screen_x = mx - x

@@ -187,6 +187,9 @@ init 999 python:
 
 init python:
     import os
+    import random as _random
+    import time as _time
+    import renpy.audio.audio as _aaudio
 
     # --------------------------------------------------------------------------
     # Visibility
@@ -516,10 +519,9 @@ init python:
             candidates = []
 
             try:
-                import renpy.audio.audio as aaudio
-                for ch_name in aaudio.channels:
+                for ch_name in _aaudio.channels:
                     try:
-                        ch = aaudio.channels.get(ch_name)
+                        ch = _aaudio.channels.get(ch_name)
                         if ch is None or not getattr(ch, 'movie', False):
                             continue
                         path = renpy.music.get_playing(channel=ch_name)
@@ -562,7 +564,6 @@ init python:
 
     def _cue_tick_trigger():
         """SFX trigger engine — runs always (even when overlay is hidden)."""
-        import time as _time
 
         # Catches context changes caused by ATL child transitions, which aren't
         # caused by user interactions or have callbacks.
@@ -738,7 +739,6 @@ init python:
 
         # Preview marker triggers (repeat-pattern dialog, when SFX checkbox is on)
         if _cue.beat.dialog_visible and _cue.beat.preview_sfx_enabled:
-            import random as _random
             for ptime, pfiles, pvol, pkey in _cue.beat.compute_preview_pools():
                 if pkey in _cue.beat._preview_marker_played:
                     continue
@@ -759,7 +759,6 @@ init python:
             return
         files = _cue_resolve_files(preset.get("files", []))
         if files:
-            import random as _random
             f = _random.choice(files)
             _cue_preview_sfx(f)
 

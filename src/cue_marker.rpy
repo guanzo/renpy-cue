@@ -14,6 +14,11 @@
 ###############################################################################
 
 init -999 python:
+    import copy as _copy
+    import random as _random
+    import time as _time
+    import json as _json
+    import glob as _glob
 
     # =========================================================================
     # CueMarkerContext — pool-based markers (shared by .image and .dialogue)
@@ -359,7 +364,6 @@ init -999 python:
         def duplicate_pool(self, ts_index):
             """Clone a pool with all settings (time, volume, file list).
             Appends the clone, sorts by time, and switches to the new pool."""
-            import copy as _copy
             vid_key = self._key()
             entry = self._mgr.get(vid_key, {})
             pools = entry.get("pools", [])
@@ -589,15 +593,14 @@ init -999 python:
         def get_delay(frequency=1):
             """Return random breathing room (silence) between SFX.
             This is the gap AFTER an SFX finishes before the next one starts."""
-            import random
             if frequency == 3:
-                return 0.15 + random.uniform(0.0, 0.05)
+                return 0.15 + _random.uniform(0.0, 0.05)
             elif frequency == 2:
-                return 0.5 + random.uniform(0.0, 0.15)
+                return 0.5 + _random.uniform(0.0, 0.15)
             elif frequency == 1:
-                return 1.7 + random.uniform(0.0, .75)
+                return 1.7 + _random.uniform(0.0, .75)
             else:
-                return 3.0 + random.uniform(0.0, 1.5)
+                return 3.0 + _random.uniform(0.0, 1.5)
 
     # =========================================================================
     # CueMarkerManager — top-level marker database
@@ -666,7 +669,6 @@ init -999 python:
 
         def create_preset(self, name, pool_dict):
             """Save a pool dict as a named preset. Overwrites if name exists."""
-            import copy as _copy
             self._presets[name] = _copy.deepcopy(pool_dict)
             self.save_persistent()
             _cue_log("CREATE-PRESET name={} files={} vol={:.1f}".format(
@@ -716,7 +718,6 @@ init -999 python:
 
         def create_video_preset(self, name, entry):
             """Save video pools as a named preset. Overwrites if name exists."""
-            import copy as _copy
             pools = entry.get("pools", [])
             if not pools:
                 return
@@ -776,7 +777,6 @@ init -999 python:
             """Copy a video preset's pools into the current video entry.
             Silently drops markers that don't fit the target video duration.
             Resets UI state so the timeline re-renders correctly."""
-            import copy as _copy
             preset = self._video_presets.get(name)
             if preset is None:
                 return
@@ -1189,10 +1189,6 @@ init -999 python:
             Saves to auto_backups/ with a Unix timestamp suffix. Keeps the last
             50 copies, deleting older ones.
             """
-            import time as _time
-            import json as _json
-            import glob as _glob
-
             now = _time.time()
             if now - self._last_autosave_time < 300:
                 return
@@ -1228,7 +1224,6 @@ init -999 python:
         def backup_to_file(self):
             """Dump entire persistent._cue_config to disk."""
             try:
-                import json as _json
                 dump_dir = os.path.join(renpy.config.gamedir, _cue.base_dir)
 
                 if not os.path.isdir(dump_dir):
@@ -1251,7 +1246,6 @@ init -999 python:
         def restore_from_file(self):
             """Restore markers from a disk backup, replacing persistent and in-memory state."""
             try:
-                import json as _json
                 dump_path = _cue.config_path
 
                 if not os.path.isfile(dump_path):
@@ -1273,7 +1267,6 @@ init -999 python:
 
         def copy_context(self):
             """Copy all markers for the current context to the clipboard."""
-            import copy as _copy
             ctx_file = _cue.current_file
             ctx_dlg = _cue.current_dialogue
             copied = {}
@@ -1298,7 +1291,6 @@ init -999 python:
 
         def paste_context(self):
             """Paste clipboard markers into the current context, remapping keys."""
-            import copy as _copy
             if self.clipboard is None:
                 return
             ctx_file = _cue.current_file

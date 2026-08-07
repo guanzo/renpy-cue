@@ -14,6 +14,7 @@
 init -999 python:
     import os as _os
     import time as _time
+    import renpy.audio.audio as _aaudio
 
     class SpeedMode:
         """Playback mode for video speed control."""
@@ -347,7 +348,6 @@ init -999 python:
             # original first.  This releases the file handle so the delete
             # won't fail with a lock error on Windows.
             try:
-                import renpy.audio.audio as _aaudio
                 for _ch_name in _aaudio.channels:
                     _playing = renpy.music.get_playing(channel=_ch_name)
                     if _playing:

@@ -20,6 +20,9 @@ init -999 python:
 init python:
     import os
     import time as _time
+    import time as _logtime
+    import random as _random
+    import functools as _functools
 
     # --------------------------------------------------------------------------
     # Key Utility Functions
@@ -345,7 +348,6 @@ init python:
         try:
             if not _cue.debug:
                 return
-            import time as _logtime
             log_dir = os.path.join(renpy.config.gamedir, _cue.base_dir)
             if not os.path.isdir(log_dir):
                 os.makedirs(log_dir)
@@ -381,7 +383,6 @@ init python:
         Repeat avoidance is shared across all non-video contexts.
         Video markers should pass avoid_repeats=False — they always fire.
         """
-        import random as _random
         if not files:
             return None
         if len(files) == 1:
@@ -450,12 +451,11 @@ init python:
     def _is_screenshake(trans):
         """Detect whether a transition is a screenshake (Move with bounce,
         repeat, and short delay). Used to trigger SFX on shake events."""
-        import functools
         try:
             if trans is None:
                 return False
 
-            if not isinstance(trans, functools.partial):
+            if not isinstance(trans, _functools.partial):
                 return False
 
             func_name = getattr(trans.func, "__name__", "")

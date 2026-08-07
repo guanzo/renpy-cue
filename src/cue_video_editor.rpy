@@ -11,6 +11,7 @@
 init -999 python:
     import threading as _threading
     import time as _time
+    import renpy.audio.audio as _aaudio
 
     # Encode mode constants (global — shared with cue_marker.rpy)
     CUE_VE_MODE_NORMAL = 0
@@ -240,7 +241,6 @@ init -999 python:
 
             # Stop channels playing the variant we're about to replace
             try:
-                import renpy.audio.audio as _aaudio
                 for _ch_name in _aaudio.channels:
                     _playing = renpy.music.get_playing(channel=_ch_name)
                     if _playing:
