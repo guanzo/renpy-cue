@@ -174,8 +174,6 @@ init 999 python:
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
         _cue.markers.load_persistent()
         _cue_scan_audio()
-        _cue.video_editor.cleanup_orphans()
-
         _cue_log("INIT: Done")
         _cue.initialized = True
 

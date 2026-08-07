@@ -825,31 +825,6 @@ init -999 python:
                 job_id, speed, os.path.basename(out_fspath)))
 
         # ==================================================================
-        # Orphan cleanup
-        # ==================================================================
-
-        @staticmethod
-        def cleanup_orphans():
-            """Remove leftover tmp and passlog files from interrupted encodes.
-            Called once on init. Never touches *.bak* backups."""
-            import glob as _glob
-            removed = 0
-            try:
-                gamedir = renpy.config.gamedir
-                for dirpath, _dirnames, _filenames in os.walk(gamedir):
-                    for pattern in ("*__cue_tmp_*",):
-                        for f in _glob.glob(os.path.join(dirpath, pattern)):
-                            try:
-                                os.remove(f)
-                                removed += 1
-                            except Exception:
-                                pass
-            except Exception:
-                pass
-            if removed:
-                _cue_log("CLEANUP-ORPHANS: removed {} leftover temp file(s)".format(removed))
-
-        # ==================================================================
         # Refresh (called when overlay is shown)
         # ==================================================================
 
