@@ -202,6 +202,14 @@ screen cue_select_btn(label, selected, action, tt=None, sensitive=True,
     $ _bg = (active_color or _cue_color_active) if selected else _cue_color_bg_btn
     use cue_txt_button(label, action, bg=_bg, tt=tt, sensitive=sensitive)
 
+# Tab textbutton: selected tab is highlighted and non-interactive.
+# switch_action fires when an inactive tab is clicked.
+screen cue_tab_btn(label, selected, switch_action, tt=None):
+    if selected:
+        use cue_txt_button(label, NullAction(), bg=_cue_color_active, tt=tt)
+    else:
+        use cue_txt_button(label, switch_action, tt=tt)
+
 # Float input: textbutton that becomes an input on click, Enter to confirm.
 # field_name: string for VariableInputValue
 # commit_action: Function() called on Enter — must return True (valid) or False (invalid)
@@ -572,22 +580,10 @@ screen cue_overlay_content():
                 # --- Tab buttons ---
                 hbox:
                     spacing 5
-                    textbutton "SFX":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        if not _cue.video_editor.active:
-                            background _cue_color_active
-                            action NullAction()
-                        else:
-                            action Function(_cue.video_editor.close_editor)
-                    textbutton "VFX":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        if _cue.video_editor.active:
-                            background _cue_color_active
-                            action NullAction()
-                        else:
-                            action Function(_cue.video_editor.open_editor)
+                    use cue_tab_btn("SFX", not _cue.video_editor.active,
+                        Function(_cue.video_editor.close_editor))
+                    use cue_tab_btn("VFX", _cue.video_editor.active,
+                        Function(_cue.video_editor.open_editor))
                 $ _vid_name = _cue.current_file if _cue.current_file else "?"
                 text "Video: [_vid_name]" style "cue_txt"
 
@@ -601,22 +597,10 @@ screen cue_overlay_content():
                     if len(_avail) > 1 or _seq:
                         hbox:
                             spacing 5
-                            textbutton "Single Speed":
-                                style "cue_btn"
-                                text_style "cue_btn_text"
-                                if _mode == SpeedMode.SINGLE:
-                                    background _cue_color_active
-                                    action NullAction()
-                                else:
-                                    action Function(_cue.video_sequence.set_mode, SpeedMode.SINGLE)
-                            textbutton "Sequence":
-                                style "cue_btn"
-                                text_style "cue_btn_text"
-                                if _mode == SpeedMode.SEQUENCE:
-                                    background _cue_color_active
-                                    action NullAction()
-                                else:
-                                    action Function(_cue.video_sequence.set_mode, SpeedMode.SEQUENCE)
+                            use cue_tab_btn("Single Speed", _mode == SpeedMode.SINGLE,
+                                Function(_cue.video_sequence.set_mode, SpeedMode.SINGLE))
+                            use cue_tab_btn("Sequence", _mode == SpeedMode.SEQUENCE,
+                                Function(_cue.video_sequence.set_mode, SpeedMode.SEQUENCE))
 
                     # --- Speeds tab ---
                     if _mode == SpeedMode.SINGLE and len(_avail) > 1:
