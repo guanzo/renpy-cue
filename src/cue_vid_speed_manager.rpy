@@ -18,7 +18,7 @@ init -999 python:
     class SpeedMode:
         """Playback mode for video speed control."""
         SINGLE = "single"       # play at one fixed speed (from marker entry speed_pref)
-        SEQUENCE = "sequence"   # loop through the user-defined speed sequence
+        MULTI = "multi"         # cycle through a user-defined list of speeds
 
     class CueVidSpeedResolver:
         """Per-tag speed preferences and memoized variant/queue Movies.
@@ -535,7 +535,7 @@ init -999 python:
         # ==================================================================
 
         def get_mode(self, tag=None):
-            """Return 'speed' or 'sequence' for the current or given tag."""
+            """Return SpeedMode.SINGLE or SpeedMode.MULTI for the current or given tag."""
             if tag is None:
                 tag = _cue.current_file
             if not tag:
@@ -549,7 +549,7 @@ init -999 python:
             """Set playback mode. Persists immediately."""
             if tag is None:
                 tag = _cue.current_file
-            if not tag or mode not in (SpeedMode.SINGLE, SpeedMode.SEQUENCE):
+            if not tag or mode not in (SpeedMode.SINGLE, SpeedMode.MULTI):
                 return
             entry = self._get_entry(tag)
             if entry is None:
@@ -557,7 +557,7 @@ init -999 python:
             entry["speed_mode"] = mode
             
             _cue.markers.save_persistent()
-            if mode == SpeedMode.SEQUENCE:
+            if mode == SpeedMode.MULTI:
                 self.start(tag)
             else:
                 self.cancel()
@@ -621,11 +621,11 @@ init -999 python:
             renpy.restart_interaction()
 
         def handle(self, tag):
-            """Context-change hook. Starts the sequence when mode is 'sequence'
-            and a sequence exists for the tag."""
+            """Context-change hook. Starts the multi-speed sequence when
+            mode is MULTI and a sequence exists for the tag."""
             old_tag = self.active_tag
             speeds = self.speeds_for(tag)
-            if speeds and self.get_mode(tag) == SpeedMode.SEQUENCE:
+            if speeds and self.get_mode(tag) == SpeedMode.MULTI:
                 if not old_tag or old_tag != tag:
                     self.start(tag)
             elif old_tag:

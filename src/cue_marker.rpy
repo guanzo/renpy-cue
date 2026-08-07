@@ -1069,6 +1069,17 @@ init -999 python:
                     changed = True
             return changed
 
+        def _migrate_speed_mode_rename(self):
+            """One-time: rename speed_mode 'sequence' -> 'multi' in all video
+            entries. Runs every load; idempotent — safe to call repeatedly."""
+            for key, entry in list(self._data.items()):
+                if is_vid_key(key) and entry.get("speed_mode") == "sequence":
+                    entry["speed_mode"] = "multi"
+            # Also check video_presets (unlikely but harmless)
+            for preset in self._video_presets.values():
+                if preset.get("speed_mode") == "sequence":
+                    preset["speed_mode"] = "multi"
+
         def _migrate_video_timestamps_to_pools(self):
             """One-time: rename 'timestamps' key to 'pools' in video entries
             and video presets. Idempotent — safe to run every load.
@@ -1163,6 +1174,7 @@ init -999 python:
             self._sanitize_video_pools()
             self._sanitize_video_presets()
             self._normalize_all()
+            self._migrate_speed_mode_rename()
 
         def load_persistent(self):
             """Load markers from persistent storage into internal state."""

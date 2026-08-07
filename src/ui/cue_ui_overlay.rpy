@@ -99,7 +99,7 @@ screen cue_overlay_content():
                 $ _vid_name = _cue.current_file if _cue.current_file else "?"
                 text "Video: [_vid_name]" style "cue_txt"
 
-                # --- Speed / Sequence tabs ---
+                # --- Speed / Multi Speed tabs ---
                 $ _vid_path = _cue.speed_resolver.base_path_for(_cue.current_file)
                 if _vid_path:
                     $ _avail = _cue.speed_resolver.get_available_speeds(_vid_path)
@@ -111,8 +111,8 @@ screen cue_overlay_content():
                             spacing 5
                             use cue_tab_btn("Single Speed", _mode == SpeedMode.SINGLE,
                                 Function(_cue.video_sequence.set_mode, SpeedMode.SINGLE))
-                            use cue_tab_btn("Sequence", _mode == SpeedMode.SEQUENCE,
-                                Function(_cue.video_sequence.set_mode, SpeedMode.SEQUENCE))
+                            use cue_tab_btn("Multi Speed", _mode == SpeedMode.MULTI,
+                                Function(_cue.video_sequence.set_mode, SpeedMode.MULTI))
 
                     # --- Speeds tab ---
                     if _mode == SpeedMode.SINGLE and len(_avail) > 1:
@@ -136,8 +136,8 @@ screen cue_overlay_content():
                                         tt="Delete the " + _cue_speed_label(_cur) + " file.")
                             text "The video will only play at the selected speed" style "cue_help"
 
-                    # --- Sequence tab ---
-                    if _mode == SpeedMode.SEQUENCE:
+                    # --- Multi Speed tab ---
+                    if _mode == SpeedMode.MULTI:
                         if len(_avail) > 1:
                             hbox:
                                 spacing 3
@@ -157,7 +157,7 @@ screen cue_overlay_content():
                             viewport:
                                 xalign 0.5
                                 xsize 425
-                                ysize 40
+                                ysize 30
                                 mousewheel True
                                 scrollbars "horizontal"
                                 style_group "cue"
@@ -168,13 +168,10 @@ screen cue_overlay_content():
                                         $ _sp = _seq[_si]
                                         $ _s_label = _cue_speed_label(_sp)
                                         $ _is_current = (_cue.video_sequence.current_step_index() == _si)
-                                        vbox:
-                                            spacing 0
-                                            xalign 0.5
-                                            use cue_txt_button(_s_label, NullAction(),
-                                                tt="Sequence position {}. Cycles in order.".format(_si + 1))
-                                            if _is_current:
-                                                text "▴" style "cue_txt" size 14 xalign 0.5 color _cue_color_active
+                                        $ _bg = _cue_color_active if _is_current else None
+                                        use cue_txt_button(_s_label, NullAction(),
+                                            bg=_bg, sensitive=False,
+                                            tt="Multi speed position {}. Cycles in order.".format(_si + 1))
 
                         text "The video plays through each speed in order, then loops." style "cue_help"
 
