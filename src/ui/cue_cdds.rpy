@@ -258,11 +258,11 @@ init python:
             ghost_times = _cue.beat.compute_ghost_times()
             for gtime in ghost_times:
                 gpx = self._time_to_x(gtime, dur, inner_w)
-                c.rect("#3a5060", (gpx - 1, 0, 2, self.TRACK_H + self.LINE_H))
+                c.rect("#5c7a8c", (gpx - 1, 0, 2, self.TRACK_H + self.LINE_H))
                 gbx = gpx - self.TAB_W // 2
                 gby = self.TRACK_H - 2
-                c.rect("#2a3a44", (gbx, gby, self.TAB_W, self.TAB_H))
-                gtxt = Text("?", style="cue_btn_text", size=12, color="#888888")
+                c.rect("#4a606e", (gbx, gby, self.TAB_W, self.TAB_H))
+                gtxt = Text("?", style="cue_btn_text", size=12, color="#ffffff")
                 gtr = renpy.render(gtxt, self.TAB_W, self.TAB_H, st, at)
                 gtw, _ = gtr.get_size()
                 r.blit(gtr, (gbx + (self.TAB_W - gtw) // 2, gby))
