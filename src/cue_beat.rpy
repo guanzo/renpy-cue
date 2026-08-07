@@ -18,7 +18,7 @@ init -999 python:
             self.interval_text = ""
             self.count_text = ""
             self.dialog_visible = False
-            self.preview_sfx_enabled = False
+            self.preview_sfx_enabled = True
             self._preview_marker_played = python_set()
 
         def open(self):
@@ -125,7 +125,6 @@ init -999 python:
         def hide(self):
             """Hide the repeat pattern dialog."""
             self.dialog_visible = False
-            self.preview_sfx_enabled = False
             self._preview_marker_played.clear()
             renpy.hide_screen("cue_repeat_pattern_dialog", layer="cue_layer")
 

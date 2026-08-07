@@ -371,7 +371,7 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
 
 # Toggle textbutton: ☑ label when checked, ☐ when unchecked.
 # on_bg/on_hover/off_bg/off_hover override backgrounds per state (None = style default).
-screen cue_toggle_btn(checked, label, action, tt_on, tt_off=None,
+screen cue_toggle_btn(checked, label, action, tt_on=None, tt_off=None,
                        on_bg=None, on_hover=None, off_bg=None, off_hover=None,
                        enabled=True):
     if checked:
@@ -379,23 +379,25 @@ screen cue_toggle_btn(checked, label, action, tt_on, tt_off=None,
             style "cue_btn"
             text_style "cue_btn_text"
             sensitive enabled
-            if on_bg is not None:
+            if on_bg:
                 background on_bg
-            if on_hover is not None:
+            if on_hover:
                 hover_background on_hover
             action action
-            tooltip tt_on
+            if tt_on:
+                tooltip tt_on
     else:
         textbutton "☐ " + label:
             style "cue_btn"
             text_style "cue_btn_text"
             sensitive enabled
-            if off_bg is not None:
+            if off_bg:
                 background off_bg
-            if off_hover is not None:
+            if off_hover:
                 hover_background off_hover
             action action
-            tooltip (tt_on if tt_off is None else tt_off)
+            if tt_off or tt_on:
+                tooltip (tt_on if tt_off is None else tt_off)
 
 # Radio textbutton: ● label when selected, ○ when not.
 # Exclusivity within a group is enforced by the shared action target.
