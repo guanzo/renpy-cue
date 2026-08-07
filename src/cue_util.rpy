@@ -19,6 +19,7 @@ init -999 python:
 
 init python:
     import os
+    import time as _time
 
     # --------------------------------------------------------------------------
     # Key Utility Functions
@@ -151,6 +152,7 @@ init python:
 
     def _cue_scan_audio():
         """Scan audio dir and build folder tree."""
+        _t0 = _time.time()
 
         search_path = _cue.audio_dir
         if not search_path.endswith("/"):
@@ -240,6 +242,8 @@ init python:
 
         # Rebuild visible tree for sidebar
         _cue.file_tree.rebuild_tree()
+
+        _cue_log("SCAN-AUDIO: {:.3f}s {} files".format(_time.time() - _t0, len(results)))
 
 
     # --------------------------------------------------------------------------

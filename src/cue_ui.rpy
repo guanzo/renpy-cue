@@ -105,13 +105,13 @@ style cue_input is cue_txt:
     ypadding 2
 
 style cue_vscrollbar:
-    xsize 4
+    xsize 6
     base_bar Solid(_cue_color_bg_scrollbar)
     thumb Solid(_cue_color_divider)
     hover_thumb Solid(_cue_color_text_dim)
 
 style cue_scrollbar:
-    ysize 4
+    ysize 6
     base_bar Solid(_cue_color_bg_scrollbar)
     thumb Solid(_cue_color_divider)
     hover_thumb Solid(_cue_color_text_dim)
@@ -121,6 +121,18 @@ style cue_scrollbar:
 # SECTION 4.5: Reusable Component Screens
 ###############################################################################
 
+
+
+# Vertical divider: thin line for visual separation between controls.
+screen cue_v_divider(height=14, width=2, color=None):
+    fixed:
+        ysize height
+        xsize width
+        add Solid(color or _cue_color_divider)
+
+# Horizontal divider: thin full-width line.
+screen cue_h_divider(color=None):
+    add Solid(color or _cue_color_divider) ysize 1
 
 
 # Volume row: label + - button + slider bar + + button
@@ -390,10 +402,7 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
     $ _target = max(0, min(_target, len(_pools) - 1)) if _pools else 0
     use cue_section_frame(section_title):
         if subtitle is not None:
-            fixed:
-                xfill True
-                ysize 1
-                add Solid(_cue_color_divider)
+            use cue_h_divider()
             vbox:
                 spacing 5
                 text subtitle style "cue_txt"
@@ -614,10 +623,7 @@ screen cue_overlay_content():
                                             if _sp != _cue.DEFAULT_VIDEO_SPEED
                                             else "Play at original video speed")
                                 if _cur != _cue.DEFAULT_VIDEO_SPEED:
-                                    fixed:
-                                        ysize 14
-                                        xsize 2
-                                        add Solid(_cue_color_divider)
+                                    use cue_v_divider()
                                     textbutton "Delete " + _cue_speed_label(_cur):
                                         style "cue_btn"
                                         text_style "cue_btn_text"
@@ -639,20 +645,18 @@ screen cue_overlay_content():
                                         action Function(_cue.video_sequence.append_speed, _sp)
                                         tooltip "Append " + _cue_speed_label(_sp) + " to the end of the sequence"
                                 if _seq:
-                                    fixed:
-                                        ysize 14
-                                        xsize 2
-                                        add Solid(_cue_color_divider)
+                                    use cue_v_divider()
                                     textbutton "Clear":
                                         style "cue_btn"
                                         text_style "cue_btn_text"
                                         action Function(_cue.video_sequence.clear_sequence, None)
                                         tooltip "Remove the entire speed sequence"
                         if _seq:
+                            null height 3
                             viewport:
-                                xfill True
-                                xmaximum 476
-                                ysize 25
+                                xalign 0.5
+                                xsize 425
+                                ysize 40
                                 mousewheel True
                                 scrollbars "horizontal"
                                 style_group "cue"
@@ -662,17 +666,23 @@ screen cue_overlay_content():
                                     for _si in range(len(_seq)):
                                         $ _sp = _seq[_si]
                                         $ _s_label = _cue_speed_label(_sp)
-                                        textbutton _s_label:
-                                            style "cue_btn"
-                                            text_style "cue_btn_text"
-                                            background _cue_color_active
-                                            action NullAction()
-                                            tooltip "Sequence position {}. Cycles in order.".format(_si + 1)
+                                        $ _is_current = (_cue.video_sequence.current_step_index() == _si)
+                                        vbox:
+                                            spacing 0
+                                            xalign 0.5
+                                            textbutton _s_label:
+                                                style "cue_btn"
+                                                text_style "cue_btn_text"
+                                                action NullAction()
+                                                tooltip "Sequence position {}. Cycles in order.".format(_si + 1)
+                                            if _is_current:
+                                                text "▴" style "cue_txt" size 14 xalign 0.5 color _cue_color_active
+
                         text "The video plays through each speed in order, then loops." style "cue_help"
 
 
-                add Solid(_cue_color_divider) ysize 1
-                
+                use cue_h_divider()
+
                 # --- SFX Tab ---
                 if not _cue.video_editor.active:
                     hbox:
@@ -702,10 +712,7 @@ screen cue_overlay_content():
                             action Function(_cue.vid_manager.seek_frame, 1)
                             tooltip "Seek forward 1 frame (inaccurate)"
 
-                        fixed:
-                            ysize 14
-                            xsize 2
-                            add Solid(_cue_color_divider)
+                        use cue_v_divider()
                         textbutton "Repeat":
                             style "cue_btn"
                             text_style "cue_btn_text"
@@ -845,6 +852,7 @@ screen cue_overlay_content():
                             use cue_icon_button("+", Function(_cue.video_editor.nudge, 0.1))
                             $ _ov_presets = _cue.speed_resolver.preset_speeds()
                             if _ov_presets:
+                                use cue_v_divider()
                                 for _sp in _ov_presets:
                                     textbutton _cue_speed_label(_sp):
                                         style "cue_btn"
@@ -885,7 +893,7 @@ screen cue_overlay_content():
 
                     # --- Edit queue ---
                     if _ved.job_queue.jobs:
-                        add Solid(_cue_color_divider) ysize 1
+                        use cue_h_divider()
                         timer 0.2 repeat True action [
                             Function(_cue.video_editor.job_queue.poll),
                             Function(_cue.video_editor.job_queue.refresh_ui),

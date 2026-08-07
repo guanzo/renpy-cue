@@ -119,7 +119,6 @@ init 999 python:
 
     renpy.with_statement = _cue_with_hook
 
-    _cue.speed_resolver.wrap_all_movies()
 
     if not _cue.initialized:
         # Detect Ren'Py version for relative_volume support (added in 7.5)
@@ -135,6 +134,8 @@ init 999 python:
                 renpy.music.register_channel(
                     ch_name, "sfx", loop=False, stop_on_mute=True, tight=False
                 )
+
+        _cue.speed_resolver.wrap_all_movies()
 
         # Create a layer above screens for the Cue UI.
         renpy.add_layer("cue_layer", above="screens")
@@ -216,8 +217,6 @@ init python:
 
     def _cue_show_overlay():
         _cue.is_overlay_visible = True
-        # Load persisted config
-        _cue.markers.load_persistent()
         # Scan audio on first open (cached thereafter)
         if not _cue.available_files:
             _cue_scan_audio()
@@ -228,6 +227,7 @@ init python:
 
         # Refresh video editor backup state
         _cue.video_editor.refresh()
+        
         renpy.show_screen("cue_overlay", _layer="cue_layer")
         renpy.restart_interaction()
 
