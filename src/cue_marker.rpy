@@ -142,12 +142,13 @@ init -999 python:
 
     class ResolvedPool:
         """Immutable snapshot of a resolved pool. Fields:
-        files, volume, frequency, trigger_on_shake."""
-        def __init__(self, files, volume, frequency, trigger_on_shake):
+        files, volume, frequency, trigger_on_shake, no_overlap."""
+        def __init__(self, files, volume, frequency, trigger_on_shake, no_overlap=False):
             self.files = files
             self.volume = volume
             self.frequency = frequency
             self.trigger_on_shake = trigger_on_shake
+            self.no_overlap = no_overlap
 
 
     # =========================================================================
@@ -589,11 +590,25 @@ init -999 python:
                     pools[target]["frequency"] = int(freq)
                     self._mgr.save_persistent()
 
+        def set_no_overlap(self, value):
+            """Set no_overlap flag for the active loop pool.
+            When True, this pool only plays when no other SFX audio is active."""
+            key = self._key()
+            target = self.get_active()
+            entry = self._mgr.get(key)
+            if entry:
+                pools = entry.get("pools", [])
+                if pools and 0 <= target < len(pools):
+                    pools[target]["no_overlap"] = bool(value)
+                    self._mgr.save_persistent()
+
         @staticmethod
         def get_delay(frequency=1):
             """Return random breathing room (silence) between SFX.
             This is the gap AFTER an SFX finishes before the next one starts."""
-            if frequency == 3:
+            if frequency == 4:
+                return 5.0 + _random.uniform(0.0, 2.5)
+            elif frequency == 3:
                 return 0.15 + _random.uniform(0.0, 0.05)
             elif frequency == 2:
                 return 0.5 + _random.uniform(0.0, 0.15)
@@ -889,12 +904,14 @@ init -999 python:
                 volume = pool.get("volume", preset.get("volume", _cue.VOL_DEFAULT))
                 frequency = pool.get("frequency", preset.get("frequency", 1))
                 trigger_on_shake = pool.get("trigger_on_shake", preset.get("trigger_on_shake", False))
-                return ResolvedPool(list(files), volume, frequency, trigger_on_shake)
+                no_overlap = pool.get("no_overlap", preset.get("no_overlap", False))
+                return ResolvedPool(list(files), volume, frequency, trigger_on_shake, no_overlap)
             files = pool.get("files", [])
             volume = pool.get("volume", _cue.VOL_DEFAULT)
             frequency = pool.get("frequency", 1)
             trigger_on_shake = pool.get("trigger_on_shake", False)
-            return ResolvedPool(files, volume, frequency, trigger_on_shake)
+            no_overlap = pool.get("no_overlap", False)
+            return ResolvedPool(files, volume, frequency, trigger_on_shake, no_overlap)
 
         def _detach_pool(self, trigger_key, pool_index):
             """If the pool at pool_index is preset-backed, resolve it to explicit

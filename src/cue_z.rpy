@@ -628,73 +628,100 @@ init python:
         if not freqs:
             return
 
-        freq = int(round(sum(freqs) / float(len(freqs))))
-        # Init pool state if needed
+        # Init per-pool states under the loop key
         if loop_key not in _cue.loop_states:
-            _cue.loop_states[loop_key] = {
-                "state": 0,
-                "channels": [],
-                "ready_at": 0.0,
-                "play_start": 0.0,
-            }
+            _cue.loop_states[loop_key] = {}
         ps = _cue.loop_states[loop_key]
 
-        if ps["state"] == 1:
-            if not _cue_loop_still_playing(ps.get("channels", [])):
-                dur = now - ps["play_start"]
-                breathing = _cue.markers.loop.get_delay(freq)
-                ps["ready_at"] = now + breathing
-                ps["channels"] = []
-                ps["state"] = 0
-                _cue.loop_current = None
-                _cue_log("TICK#{} POOL-DONE  key={} dur={:.2f}s next_in={:.2f}s".format(
-                    tick, loop_key, dur, breathing))
+        # Collect all active loop channels and dead-air channels
+        all_active = []
+        no_overlap_channels = []
+        for pst in ps.values():
+            if isinstance(pst, dict) and "channels" in pst:
+                all_active.extend(pst.get("channels", []))
+                if pst.get("is_no_overlap"):
+                    no_overlap_channels.extend(pst.get("channels", []))
 
-        if ps["state"] == 0:
-            if ps["ready_at"] == 0:
-                ps["ready_at"] = now + 0.5
-            elif now >= ps["ready_at"]:
-                # --- Cross-context overlap gate ---
-                block = _cue.loop_current
-                blocking = False
-                if block and block.get("key") != loop_key:
-                    if _cue_loop_still_playing(block.get("channels", [])):
-                        blocking = True
-                    else:
-                        _cue.loop_current = None  # stale
-                if blocking:
-                    ps["ready_at"] = now + 0.1
-                else:
-                    channels = []
-                    picked = []
-                    for pi, pool in enumerate(pools):
-                        resolved = _cue.markers.resolve_pool(pool)
-                        files = _cue_resolve_files(resolved.files)
-                        if not files:
-                            continue
-                        picked_file = _cue_pick_file(files)
-                        tries = 0
-                        while picked_file in picked and len(files) > 1 and tries < 3:
-                            picked_file = _cue_pick_file(files)
-                            tries += 1
-                        if picked_file in picked:
-                            continue
-                        picked.append(picked_file)
-                        ch_used = _cue_play_pool(entry, loop_key, pool, pi, file=picked_file)
-                        if ch_used:
-                            channels.append(ch_used)
-                    if channels:
-                        ps["state"] = 1
-                        ps["channels"] = channels
-                        ps["play_start"] = now
-                        _cue.loop_current = {
-                            "key": loop_key,
-                            "channels": list(channels),
-                        }
-                        _cue_log("TICK#{} POOL-PLAY  key={} files={} chs={}".format(
-                            tick, loop_key, len(channels), ",".join(channels)))
-                    else:
-                        ps["ready_at"] = now + 0.5
+        # Post-dead-air breathing window (50-100ms) — no pool fires during this
+        _no_overlap_done_at = ps.get("_no_overlap_done_at", 0.0)
+
+        picked = []
+        for pi, pool in enumerate(pools):
+            resolved = _cue.markers.resolve_pool(pool)
+            files = _cue_resolve_files(resolved.files)
+            if not files:
+                continue
+
+            pst = ps.get(pi)
+            if pst is None:
+                init_delay = _random.uniform(0.0, _cue.markers.loop.get_delay(resolved.frequency))
+                ps[pi] = {"ready_at": now + init_delay, "channels": [], "play_start": 0.0, "is_no_overlap": False}
+                pst = ps[pi]
+
+            # If this pool's channels are done playing, reset for next cycle
+            if pst["channels"] and not _cue_loop_still_playing(pst["channels"]):
+                dur = now - pst["play_start"]
+                was_no_overlap = pst.get("is_no_overlap", False)
+                breathing = _cue.markers.loop.get_delay(resolved.frequency)
+                pst["ready_at"] = now + breathing
+                pst["channels"] = []
+                pst["is_no_overlap"] = False
+                if was_no_overlap:
+                    ps["_no_overlap_done_at"] = now + 0.05 + _random.uniform(0.0, 0.05)
+                _cue_log("TICK#{} POOL-DONE  key={} pool={} dur={:.2f}s next_in={:.2f}s{}".format(
+                    tick, loop_key, pi, dur, breathing,
+                    " no_overlap" if was_no_overlap else ""))
+
+            # Skip if not ready yet
+            if pst["channels"]:
+                continue
+            if now < pst["ready_at"]:
+                continue
+
+            # Gate: no pool fires while dead-air SFX is playing
+            if _cue_loop_still_playing(no_overlap_channels):
+                pst["ready_at"] = now + 0.1
+                continue
+
+            # Gate: no pool fires during post-dead-air breathing window
+            if now < _no_overlap_done_at:
+                pst["ready_at"] = _no_overlap_done_at
+                continue
+
+            # Dead-air-specific gate: skip if any loop channel is busy
+            if resolved.no_overlap and (
+                _cue_loop_still_playing(all_active)
+                or _cue_loop_still_playing(getattr(_cue, 'loop_current', {}).get('channels', []))
+            ):
+                #_cue_log("TICK#{} DEAD-AIR-WAIT  key={} pool={}".format(tick, loop_key, pi))
+                pst["ready_at"] = now + 0.1
+                continue
+
+            # Pick a file and play
+            picked_file = _cue_pick_file(files)
+            tries = 0
+            while picked_file in picked and len(files) > 1 and tries < 3:
+                picked_file = _cue_pick_file(files)
+                tries += 1
+            if picked_file in picked:
+                continue
+            picked.append(picked_file)
+            ch_used = _cue_play_pool(entry, loop_key, pool, pi, file=picked_file)
+            if ch_used:
+                pst["channels"] = [ch_used]
+                pst["play_start"] = now
+                if resolved.no_overlap:
+                    pst["is_no_overlap"] = True
+                    no_overlap_channels.append(ch_used)
+                all_active.append(ch_used)
+                _cue.loop_current = {
+                    "key": loop_key,
+                    "channels": python_list(all_active),
+                }
+                _cue_log("TICK#{} POOL-PLAY  key={} pool={} ch={} dur={:.2f}s next_in={:.2f}s".format(
+                    tick, loop_key, pi, ch_used,
+                    renpy.music.get_duration(channel=ch_used) or 0.0,
+                    _cue.markers.loop.get_delay(resolved.frequency)))
 
 
     def _cue_tick_video_triggers():
