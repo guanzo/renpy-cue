@@ -898,20 +898,13 @@ init -999 python:
             tweak volume/frequency/shake on a preset-backed pool without
             detaching. Only file mutations (add/remove) trigger a detach.
             """
-            if "preset" in pool:
-                preset = self._presets.get(pool["preset"], {})
-                files = pool.get("files", preset.get("files", []))
-                volume = pool.get("volume", preset.get("volume", _cue.VOL_DEFAULT))
-                frequency = pool.get("frequency", preset.get("frequency", 1))
-                trigger_on_shake = pool.get("trigger_on_shake", preset.get("trigger_on_shake", False))
-                no_overlap = pool.get("no_overlap", preset.get("no_overlap", False))
-                return ResolvedPool(list(files), volume, frequency, trigger_on_shake, no_overlap)
-            files = pool.get("files", [])
-            volume = pool.get("volume", _cue.VOL_DEFAULT)
-            frequency = pool.get("frequency", 1)
-            trigger_on_shake = pool.get("trigger_on_shake", False)
-            no_overlap = pool.get("no_overlap", False)
-            return ResolvedPool(files, volume, frequency, trigger_on_shake, no_overlap)
+            defaults = self._presets.get(pool["preset"], {}) if "preset" in pool else {}
+            files = pool.get("files", defaults.get("files", []))
+            volume = pool.get("volume", defaults.get("volume", _cue.VOL_DEFAULT))
+            frequency = pool.get("frequency", defaults.get("frequency", 1))
+            trigger_on_shake = pool.get("trigger_on_shake", defaults.get("trigger_on_shake", False))
+            no_overlap = pool.get("no_overlap", defaults.get("no_overlap", False))
+            return ResolvedPool(python_list(files), volume, frequency, trigger_on_shake, no_overlap)
 
         def _detach_pool(self, trigger_key, pool_index):
             """If the pool at pool_index is preset-backed, resolve it to explicit
