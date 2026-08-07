@@ -18,8 +18,7 @@ init -999 python:
         def reset(self, channel=None):
             """Reinitialize playback state (video changed).
             Keeps the current channel unless a new one is given."""
-            if channel is not None:
-                self.channel = channel
+            self.channel = channel
             self.paused = False
             self.refreshing = False
             self.fps = 30
