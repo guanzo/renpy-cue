@@ -260,7 +260,8 @@ screen cue_overlay_content():
                     # Active pool display
                     if _vid_entries and 0 <= _vid_target < _vid_count:
                         $ _active_pool = _vid_entries[_vid_target]
-                        $ _active_files = _cue_resolve_files(_active_pool.get("files", []))
+                        $ _raw_files = _active_pool.get("files", [])
+                        $ _active_files = _cue_resolve_files(_raw_files)
                         $ _active_vol = _active_pool.get("volume", _cue.VOL_DEFAULT)
                         $ _active_eff = _cue.volume.get_effective(_vid_entry, _vid_key, pool_index=_vid_target)
                         # Detect preset-backed pool
@@ -314,8 +315,8 @@ screen cue_overlay_content():
                                 folder_label=_preset_name, folder_children=_active_files,
                                 trigger_key=_vid_key, pool_index=_vid_target,
                                 folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
-                        elif _active_files:
-                            use cue_file_list(_active_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 5,
+                        elif _raw_files:
+                            use cue_file_list(_raw_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 5,
                                 trigger_key=_vid_key, pool_index=_vid_target,
                                 folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
                         else:
