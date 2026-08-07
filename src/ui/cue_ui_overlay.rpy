@@ -160,6 +160,7 @@ screen cue_overlay_content():
                                 ysize 30
                                 mousewheel True
                                 scrollbars "horizontal"
+                                scrollbar_unscrollable "hide"
                                 style_group "cue"
 
                                 hbox:
@@ -619,6 +620,9 @@ screen cue_repeat_pattern_dialog():
                     use cue_icon_button("-", _dec)
                     use cue_float_input("_cue.beat.count_text", _commit, _display)
                     use cue_icon_button("+", _inc)
+
+                use cue_toggle_btn(_cue.beat.preview_sfx_enabled, "Preview markers trigger SFX",
+                    Function(_cue.beat.toggle_preview_sfx))
 
                 $ _preview_label = _cue.beat.preview_text()
                 text _preview_label style "cue_help"

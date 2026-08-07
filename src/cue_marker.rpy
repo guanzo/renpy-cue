@@ -359,17 +359,14 @@ init -999 python:
         def duplicate_pool(self, ts_index):
             """Clone a pool with all settings (time, volume, file list).
             Appends the clone, sorts by time, and switches to the new pool."""
+            import copy as _copy
             vid_key = self._key()
             entry = self._mgr.get(vid_key, {})
             pools = entry.get("pools", [])
             if not (0 <= ts_index < len(pools)):
                 return
             original = pools[ts_index]
-            clone = {
-                "time": original["time"],
-                "volume": original.get("volume", _cue.VOL_DEFAULT),
-                "files": list(original.get("files", [])),
-            }
+            clone = _copy.deepcopy(original)
             pools.append(clone)
             pools.sort(key=lambda e: e["time"])
             self.target_pool = next(i for i, pool in enumerate(pools) if pool is clone)
@@ -529,8 +526,8 @@ init -999 python:
             return self.selected
 
         def get_duration(self):
-            """Return video duration, floored at 0.001."""
-            return max(0.001, _cue.vid_manager.get_duration())
+            """Return current video duration, or 0.0 when unavailable."""
+            return _cue.vid_manager.get_duration()
 
     # =========================================================================
     # CueLoopContext — pool-based (l: prefix), mirrors image/dialogue

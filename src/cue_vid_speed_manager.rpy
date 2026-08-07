@@ -73,6 +73,21 @@ init -999 python:
             """Current speed for a scene-list name (_cue.DEFAULT_VIDEO_SPEED if unknown)."""
             return self._get_speed_pref(tag)
 
+        def get_current_speed(self):
+            """Effective playback speed right now, accounting for both SINGLE
+            and MULTI modes. Returns 1.0 (original speed) when unknown."""
+            tag = _cue.current_file
+            if not tag:
+                return _cue.DEFAULT_VIDEO_SPEED
+            seq = self.sequence
+            if seq is not None and seq.active_tag:
+                speeds = seq.speeds_for(tag)
+                if speeds:
+                    si = seq.current_step_index()
+                    if 0 <= si < len(speeds):
+                        return speeds[si]
+            return self.speed_for(tag)
+
         def base_path_for(self, tag):
             """Original base video path for a scene-list name."""
             if not tag:
@@ -367,15 +382,15 @@ init -999 python:
             # file handle takes a moment to release (Windows especially).
             fspath = _os.path.join(renpy.config.gamedir, vpath)
             deleted = False
-            for _attempt in range(4):
+            for _attempt in range(3):
                 try:
                     if _os.path.exists(fspath):
                         _os.remove(fspath)
                     deleted = True
                     break
                 except Exception:
-                    if _attempt < 3:
-                        _time.sleep(0.5)
+                    if _attempt < 2:
+                        _time.sleep(0.1)
 
             if not deleted:
                 _cue_log("DELETE-VARIANT: all attempts failed to remove {}".format(fspath))

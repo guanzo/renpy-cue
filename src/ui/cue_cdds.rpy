@@ -177,9 +177,25 @@ init python:
             return self.TAB_H + self.TRACK_H + 4
 
         def _time_to_x(self, t, dur, w):
-            """Map a time to pixel x within the padded timeline."""
-            frac = max(0.0, min(1.0, t / float(dur)))
-            return self.PAD_X + int(frac * w)
+            """Map a time to pixel x within the padded timeline.
+            Marker times are stored at 1x reference — scale to variant
+            time so positions align with the speed-variant timeline.
+
+            When duration is unavailable (video change / seek), returns
+            the last known position so markers don't teleport."""
+            if dur <= 0.0:
+                if hasattr(self, '_px_cache'):
+                    return self._px_cache.get(t, self.PAD_X)
+                return self.PAD_X
+
+            speed = _cue.speed_resolver.get_current_speed()
+            frac = max(0.0, min(1.0, (t / speed) / float(dur)))
+            px = self.PAD_X + int(frac * w)
+
+            if not hasattr(self, '_px_cache'):
+                self._px_cache = {}
+            self._px_cache[t] = px
+            return px
 
         def _x_to_frac(self, x, w):
             """Map an inner-space pixel x to fraction [0, 1]."""
@@ -190,10 +206,14 @@ init python:
             return _cue.markers.video.get_selected()
 
         def _hit_test(self, markers, dur, w, x, y):
-            """Return the index of the marker tab under (x,y), or -1."""
+            """Return the index of the marker tab under (x,y), or -1.
+            Autoscales marker times so hit-testing aligns with displayed positions."""
+            if dur <= 0.0:
+                return -1
+            speed = _cue.speed_resolver.get_current_speed()
             for i, m in enumerate(markers):
                 t = m.get("time", 0.0)
-                px = int((t / dur) * w)
+                px = int(((t / speed) / dur) * w)
                 bx = px - self.TAB_W // 2
                 by = self.TRACK_H - 2
                 if bx <= x <= bx + self.TAB_W and by <= y <= by + self.TAB_H:
@@ -205,11 +225,13 @@ init python:
             self._w = inner_w
             r = renpy.Render(width, self._total_h())
             c = r.canvas()
-            dur = max(0.001, self.get_dur())
+            dur = self.get_dur()
             markers = self.get_markers()
             active = self.get_active()
             sel = self._get_selected()
             multi_active = len(sel) > 1
+            speed = _cue.speed_resolver.get_current_speed()
+            is_scaled = speed != 1.0
 
             # Draw marker lines and tabs (hover state managed by event())
             for i, m in enumerate(markers):
@@ -218,34 +240,46 @@ init python:
 
                 in_sel = i in sel
 
-                # Vertical line colour
-                if i == self._drag_idx and self._drag_on:
-                    lc = "#7777cc"
-                elif i == active and multi_active:
-                    lc = "#5599cc"  # active + multi-selected
-                elif i == active:
-                    lc = "#669966"  # active, single
-                elif in_sel:
-                    lc = self.SEL_LINE  # selected but not active
+                # Colours when autoscaled (speed != 1.0): all purple, no
+                # selection/drag distinction since markers are locked.
+                if is_scaled:
+                    if i == active:
+                        lc = "#9966aa"
+                        bg = "#664466"
+                    else:
+                        lc = "#775588"
+                        bg = "#554455"
                 else:
-                    lc = "#666666"
+                    # Vertical line colour
+                    if i == self._drag_idx and self._drag_on:
+                        lc = "#7777cc"
+                    elif i == active and multi_active:
+                        lc = "#5599cc"  # active + multi-selected
+                    elif i == active:
+                        lc = "#669966"  # active, single
+                    elif in_sel:
+                        lc = self.SEL_LINE  # selected but not active
+                    else:
+                        lc = "#666666"
+
+                    # Tab background colour
+                    if i == self._drag_idx and self._drag_on:
+                        bg = "#7777cc"  # purple = dragging
+                    elif i == active:
+                        bg = "#669966"  # green = active pool
+                    elif in_sel:
+                        bg = self.SEL_BG  # blue = selected but not active
+                    elif self._hover_idx == i:
+                        bg = "#666666"
+                    else:
+                        bg = "#444444"
+
+                # Vertical line
                 c.rect(lc, (px - 1, 0, 2, self.TRACK_H + self.LINE_H))
 
                 # Tab button geometry
                 bx_pos = px - self.TAB_W // 2
                 by_pos = self.TRACK_H - 2
-
-                # Tab background colour
-                if i == self._drag_idx and self._drag_on:
-                    bg = "#7777cc"  # purple = dragging
-                elif i == active:
-                    bg = "#669966"  # green = active pool
-                elif in_sel:
-                    bg = self.SEL_BG  # blue = selected but not active
-                elif self._hover_idx == i:
-                    bg = "#666666"
-                else:
-                    bg = "#444444"
                 c.rect(bg, (bx_pos, by_pos, self.TAB_W, self.TAB_H))
 
                 # Tab number
@@ -254,18 +288,21 @@ init python:
                 tw, _ = tr.get_size()
                 r.blit(tr, (bx_pos + (self.TAB_W - tw) // 2, by_pos))
 
-            # --- Ghost marker preview (repeat-pattern dialog) ---
-            ghost_times = _cue.beat.compute_ghost_times()
-            for gtime in ghost_times:
-                gpx = self._time_to_x(gtime, dur, inner_w)
-                c.rect("#5c7a8c", (gpx - 1, 0, 2, self.TRACK_H + self.LINE_H))
-                gbx = gpx - self.TAB_W // 2
-                gby = self.TRACK_H - 2
-                c.rect("#4a606e", (gbx, gby, self.TAB_W, self.TAB_H))
-                gtxt = Text("?", style="cue_btn_text", size=12, color="#ffffff")
-                gtr = renpy.render(gtxt, self.TAB_W, self.TAB_H, st, at)
-                gtw, _ = gtr.get_size()
-                r.blit(gtr, (gbx + (self.TAB_W - gtw) // 2, gby))
+            # --- Preview marker overlay (repeat-pattern dialog) ---
+            if dur > 0.0:
+                preview_times = _cue.beat.compute_preview_times()
+            else:
+                preview_times = []
+            for ptime in preview_times:
+                ppx = self._time_to_x(ptime, dur, inner_w)
+                c.rect("#5c7a8c", (ppx - 1, 0, 2, self.TRACK_H + self.LINE_H))
+                pbx = ppx - self.TAB_W // 2
+                pby = self.TRACK_H - 2
+                c.rect("#4a606e", (pbx, pby, self.TAB_W, self.TAB_H))
+                ptxt = Text("?", style="cue_btn_text", size=12, color="#ffffff")
+                ptr = renpy.render(ptxt, self.TAB_W, self.TAB_H, st, at)
+                ptw, _ = ptr.get_size()
+                r.blit(ptr, (pbx + (self.TAB_W - ptw) // 2, pby))
 
             # Store marker tooltip state for the overlay to render on top
             if self._tip_text:
@@ -279,10 +316,12 @@ init python:
             return r
 
         def event(self, ev, x, y, st):
-            dur = max(0.001, self.get_dur())
+            dur = self.get_dur()
             markers = self.get_markers()
             w = getattr(self, '_w', 1)
             inner_x = x - self.PAD_X  # offset for padding
+            speed = _cue.speed_resolver.get_current_speed()
+            is_scaled = speed != 1.0
 
             import pygame
             if ev.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP):
@@ -290,7 +329,7 @@ init python:
                 self._screen_x = mx - x
                 self._screen_y = my - y
             if ev.type == pygame.MOUSEMOTION:
-                if self._drag_idx >= 0:
+                if not is_scaled and self._drag_idx >= 0:
                     if not self._drag_on and abs(inner_x - self._drag_start_x) > self.DRAG_THRESH:
                         self._drag_on = True
                         
@@ -353,6 +392,8 @@ init python:
                             sign = "+" if offset >= 0 else "-"
                             self._tip_text += "\nOffset from Pool {}: {}{}".format(
                                 ref_idx + 1, sign, _cue_format_time(abs(offset)))
+                    if is_scaled:
+                        self._tip_text += "\n[auto-scaled from 1.0x, locked]"
                     self._tip_x = x
                     self._tip_y = y
                     self._hover_idx = hit_idx
@@ -361,6 +402,10 @@ init python:
                 return None
 
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                # When autoscaled (speed != 1.0), markers are display-only
+                if is_scaled:
+                    return None
+
                 mods = pygame.key.get_mods()
                 alt_held = bool(mods & (pygame.KMOD_LALT | pygame.KMOD_RALT))
                 shift_held = bool(mods & (pygame.KMOD_LSHIFT | pygame.KMOD_RSHIFT))

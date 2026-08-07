@@ -28,8 +28,7 @@ init -999 python:
             self.step_target = 0.0
             self.pause_target = 0.0
             self.pause_origin = 0.0
-            self.total_offset = 0.0
-            self.cached_dur = 0.0
+            self.total_offset = 0.0  # deprecated, kept for attribute compatibility
 
         def set_fps(self, fps):
             """Apply the detected video framerate."""
@@ -54,18 +53,17 @@ init -999 python:
 
         def get_duration(self):
             """Get total duration of the current video in seconds.
-            Caches the last valid duration so transient dropouts during seek
-            (stop/play restart) don't return 0 and blow up marker x-positions."""
+            Returns 0.0 when the channel is unavailable or duration cannot
+            be queried."""
             if not self.channel:
-                return self.cached_dur
+                return 0.0
             try:
                 dur = renpy.music.get_duration(channel=self.channel)
                 if dur is not None and dur > 0:
-                    self.cached_dur = dur
                     return dur
             except Exception:
                 pass
-            return self.cached_dur
+            return 0.0
 
         def get_video_path(self):
             """Get the filepath of the currently playing video."""

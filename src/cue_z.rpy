@@ -705,6 +705,11 @@ init python:
         elapsed = _cue.vid_manager.get_elapsed()
         marker_tolerance = 0.08
 
+        # Autoscale: markers are stored at 1x reference time, so convert
+        # variant elapsed to reference time when speed != 1.0.
+        speed = _cue.speed_resolver.get_current_speed()
+        effective_elapsed = elapsed * speed
+
         # Video markers
         if _cue.current_file:
             vid_key = create_vid_key(_cue.current_file)
@@ -719,7 +724,7 @@ init python:
                             _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(pool_entry))
                             continue
                         mt = pool_entry["time"]
-                        if mt <= elapsed < mt + marker_tolerance:
+                        if mt <= effective_elapsed < mt + marker_tolerance:
                             f = _cue_play_pool(vid_entry, vid_key, pool_entry, idx, avoid_repeats=False)
                             if f:
                                 _cue.played_video_keys.add(ts_key)
@@ -728,7 +733,23 @@ init python:
         # Detect video loop (markers only, pool uses wall clock)
         if _cue.vid_manager.last_elapsed > 0 and elapsed < _cue.vid_manager.last_elapsed - 0.3:
             _cue.played_video_keys.clear()
+            _cue.beat.clear_preview_marker_played()
         _cue.vid_manager.last_elapsed = elapsed
+
+        # Preview marker triggers (repeat-pattern dialog, when SFX checkbox is on)
+        if _cue.beat.dialog_visible and _cue.beat.preview_sfx_enabled:
+            import random as _random
+            for ptime, pfiles, pvol, pkey in _cue.beat.compute_preview_pools():
+                if pkey in _cue.beat._preview_marker_played:
+                    continue
+                if not (ptime <= effective_elapsed < ptime + marker_tolerance):
+                    continue
+                resolved = _cue_resolve_files(pfiles)
+                if not resolved:
+                    continue
+                f = _random.choice(resolved)
+                if _cue_play_sfx(f, "preview", volume=pvol):
+                    _cue.beat._preview_marker_played.add(pkey)
 
 
     def _cue_preview_preset(preset_name):

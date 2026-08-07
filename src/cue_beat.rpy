@@ -18,6 +18,8 @@ init -999 python:
             self.interval_text = ""
             self.count_text = ""
             self.dialog_visible = False
+            self.preview_sfx_enabled = False
+            self._preview_marker_played = python_set()
 
         def open(self):
             """Open the Repeat Pattern dialog for the current selection.
@@ -123,10 +125,21 @@ init -999 python:
         def hide(self):
             """Hide the repeat pattern dialog."""
             self.dialog_visible = False
+            self.preview_sfx_enabled = False
+            self._preview_marker_played.clear()
             renpy.hide_screen("cue_repeat_pattern_dialog", layer="cue_layer")
 
-        def compute_ghost_times(self):
-            """Return sorted list of ghost marker times for the preview overlay.
+        def toggle_preview_sfx(self):
+            """Toggle whether preview markers trigger SFX during playback."""
+            self.preview_sfx_enabled = not self.preview_sfx_enabled
+            self._preview_marker_played.clear()
+
+        def clear_preview_marker_played(self):
+            """Clear played state for preview markers (called on video loop)."""
+            self._preview_marker_played.clear()
+
+        def compute_preview_times(self):
+            """Return sorted list of preview marker times for the overlay.
             Called by CueVideoMarkerTimeline.render() while dialog is visible."""
             if not self.dialog_visible:
                 return []
@@ -140,7 +153,7 @@ init -999 python:
             if not self.offsets:
                 return []
             dur = _cue.vid_manager.get_duration()
-            ghost = []
+            previews = []
             for beat_idx in range(1, count + 1):
                 beat_anchor = self.anchor + interval * beat_idx
                 for o in self.offsets:
@@ -149,13 +162,44 @@ init -999 python:
                         continue
                     if t < 0:
                         continue
-                    ghost.append(t)
-            ghost.sort()
-            return ghost
+                    previews.append(t)
+            previews.sort()
+            return previews
+
+        def compute_preview_pools(self):
+            """Return [(time, files, volume, key), ...] for SFX-triggerable
+            preview markers. Mirrors compute_preview_times() with file data."""
+            if not self.dialog_visible:
+                return []
+            try:
+                interval = float(self.interval_text)
+                count = int(self.count_text)
+            except (ValueError, TypeError):
+                return []
+            if interval <= 0 or count < 1:
+                return []
+            if not self.offsets:
+                return []
+            dur = _cue.vid_manager.get_duration()
+            pools = []
+            for beat_idx in range(1, count + 1):
+                beat_anchor = self.anchor + interval * beat_idx
+                for oi, o in enumerate(self.offsets):
+                    t = beat_anchor + o["offset"]
+                    if dur > 0 and t > dur:
+                        continue
+                    if t < 0:
+                        continue
+                    files = o.get("files", [])
+                    volume = o.get("volume", _cue.VOL_DEFAULT)
+                    key = "preview@{}@{}".format(beat_idx, oi)
+                    pools.append((t, files, volume, key))
+            pools.sort(key=lambda x: x[0])
+            return pools
 
         def preview_text(self):
             """Return a preview string for the repeat pattern dialog."""
-            new_markers = len(self.compute_ghost_times())
+            new_markers = len(self.compute_preview_times())
             if new_markers > 0:
                 return "Creates {} new marker(s)".format(new_markers)
             return "No new markers to create"
