@@ -202,34 +202,60 @@ init -999 python:
         # Variant path utilities
         # ==================================================================
 
-        @staticmethod
-        def variant_path(base_path, speed):
-            """Build the virtual path for a speed variant.
-            Example: 'movies/ep1.webm' + 1.5 -> 'movies/ep1.1.5x.webm'"""
-            base, ext = _os.path.splitext(base_path)
-            if not ext:
-                ext = ".webm"
-            return "{}.{:.1f}x{}".format(base, speed, ext)
+        # ------------------------------------------------------------------
+        # Variant path helpers — all variant file I/O goes through these.
+        # Format: {base}_cue{speed:.1f}x{ext}  (e.g. ep1_cue1.5x.webm)
+        # ------------------------------------------------------------------
+
+        _VARIANT_PREFIX = "_cue"
 
         @staticmethod
-        def is_variant_of(path, base_path):
-            """True if path is base_path itself or a speed variant of it
-            (movies/ep1.webm -> movies/ep1.2.0x.webm)."""
+        def _suffix_variant(speed, ext):
+            """Return the variant suffix for a given speed and extension.
+            Example: 1.5, '.webm' -> '_cue1.5x.webm'"""
+            return "_{cue}{speed:.1f}x{ext}".format(
+                cue=CueVidSpeedResolver._VARIANT_PREFIX, speed=speed, ext=ext)
+
+        @staticmethod
+        def _parse_variant_speed(filename, base_no_ext, ext):
+            """If filename is a variant of base_no_ext+ext, return the speed
+            as a float. Otherwise return None.
+            Example: 'ep1_cue1.5x.webm', 'ep1', '.webm' -> 1.5"""
+            prefix = base_no_ext + CueVidSpeedResolver._VARIANT_PREFIX
+            suffix = "x" + ext
+            if not (filename.startswith(prefix) and filename.endswith(suffix)):
+                return None
+            middle = filename[len(prefix):-len(suffix)]
+            try:
+                return float(middle)
+            except ValueError:
+                return None
+
+        @staticmethod
+        def _split_ext(path):
+            """Return (base_no_ext, ext). Defaults ext to '.webm' if missing."""
+            base, ext = _os.path.splitext(path)
+            if not ext:
+                ext = ".webm"
+            return base, ext
+
+        @classmethod
+        def variant_path(cls, base_path, speed):
+            """Build the virtual path for a speed variant.
+            Example: 'movies/ep1.webm' + 1.5 -> 'movies/ep1_cue1.5x.webm'"""
+            base, ext = cls._split_ext(base_path)
+            return base + cls._suffix_variant(speed, ext)
+
+        @classmethod
+        def is_variant_of(cls, path, base_path):
+            """True if path is base_path itself or a speed variant of it."""
             if not path or not base_path:
                 return False
             if path == base_path:
                 return True
-            base, ext = _os.path.splitext(base_path)
-            if not ext:
-                ext = ".webm"
-            if not (path.startswith(base + ".") and path.endswith("x" + ext)):
-                return False
-            middle = path[len(base) + 1:-len("x" + ext)]
-            try:
-                sp = float(middle)
-            except ValueError:
-                return False
-            return 0.25 <= sp <= 4.0
+            base, ext = cls._split_ext(base_path)
+            sp = cls._parse_variant_speed(path, base, ext)
+            return sp is not None and 0.25 <= sp <= 4.0
 
         def get_available_speeds(self, base_path):
             """Return sorted list of speeds that have variant files on disk.
@@ -237,20 +263,13 @@ init -999 python:
             speeds = [_cue.DEFAULT_VIDEO_SPEED]
             base_dir = _os.path.dirname(_os.path.join(renpy.config.gamedir, base_path))
             base_name = _os.path.basename(base_path)
-            base_no_ext, ext = _os.path.splitext(base_name)
-            if not ext:
-                ext = ".webm"
+            base_no_ext, ext = self._split_ext(base_name)
             try:
                 for f in _os.listdir(base_dir):
-                    if f.startswith(base_no_ext + ".") and f.endswith("x" + ext):
-                        middle = f[len(base_no_ext) + 1:-len("x" + ext)]
-                        try:
-                            sp = float(middle)
-                            if 0.25 <= sp <= 4.0 and abs(sp - 1.0) > 0.05:
-                                if _os.path.isfile(_os.path.join(base_dir, f)):
-                                    speeds.append(sp)
-                        except ValueError:
-                            pass
+                    sp = self._parse_variant_speed(f, base_no_ext, ext)
+                    if sp is not None and 0.25 <= sp <= 4.0 and abs(sp - 1.0) > 0.05:
+                        if _os.path.isfile(_os.path.join(base_dir, f)):
+                            speeds.append(sp)
             except Exception:
                 pass
             speeds.sort()

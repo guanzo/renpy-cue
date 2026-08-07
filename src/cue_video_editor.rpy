@@ -752,11 +752,8 @@ init -999 python:
             orig_vpath = orig_vpath.replace("\\", "/")
             orig_fs = os.path.normpath(os.path.join(renpy.config.gamedir, orig_vpath))
 
-            # Build variant output path: movie.2.0x.webm
-            base, ext = os.path.splitext(orig_fs)
-            if not ext:
-                ext = ".webm"
-            out_fspath = "{}.{:.1f}x{}".format(base, factor, ext)
+            # Build variant output path: movie_cue2.0x.webm
+            out_fspath = _cue.speed_resolver.variant_path(orig_fs, factor)
 
             # Build temp path in same directory (atomic rename after success)
             temp_path = os.path.join(
