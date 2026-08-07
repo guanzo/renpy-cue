@@ -401,7 +401,8 @@ screen cue_toggle_btn(checked, label, action, tt_on, tt_off=None,
 # Exclusivity within a group is enforced by the shared action target.
 screen cue_radio_btn(checked, label, action, tt=None, enabled=True):
     if checked:
-        textbutton "● " + label:
+        $ _label = "{color=" + _cue_color_active + "}●{/color} " + label
+        textbutton _label:
             style "cue_btn"
             text_style "cue_btn_text"
             sensitive enabled

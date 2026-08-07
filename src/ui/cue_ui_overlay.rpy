@@ -128,7 +128,7 @@ screen cue_overlay_content():
                                         else "Play at original video speed")
                                     use cue_select_btn(_label, abs(_cur - _sp) < 0.05,
                                         Function(_cue.speed_resolver.set_speed, _sp),
-                                        tt=_tt, active_color=_cue_color_green)
+                                        tt=_tt, active_color=_cue_color_active)
                                 if _cur != _cue.DEFAULT_VIDEO_SPEED:
                                     use cue_v_divider()
                                     use cue_txt_button("Delete " + _cue_speed_label(_cur),

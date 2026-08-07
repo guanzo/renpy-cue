@@ -227,7 +227,7 @@ init -999 python:
         def _suffix_variant(speed, ext):
             """Return the variant suffix for a given speed and extension.
             Example: 1.5, '.webm' -> '_cue1.5x.webm'"""
-            return "_{cue}{speed:.1f}x{ext}".format(
+            return "{cue}{speed:.1f}x{ext}".format(
                 cue=CueVidSpeedResolver._VARIANT_PREFIX, speed=speed, ext=ext)
 
         @staticmethod
@@ -294,6 +294,30 @@ init -999 python:
             """Return hardcoded speed presets for the video editor UI (no default speed)."""
             return [0.5, 1.5, 2.0]
 
+        def _prune_deleted_speed_from_sequence(self, speed):
+            """Remove every occurrence of `speed` from the current video's
+            sequence. Restarts the sequence if it was active."""
+            if self.sequence is None:
+                return
+            tag = _cue.current_file
+            if not tag:
+                return
+            entry = _cue.markers.get(create_vid_key(tag))
+            if entry is None:
+                return
+            seq = entry.get("speed_sequence")
+            if not seq:
+                return
+            new_seq = [s for s in seq if abs(s - speed) >= 0.05]
+            if len(new_seq) == len(seq):
+                return
+            if new_seq:
+                entry["speed_sequence"] = new_seq
+            else:
+                entry.pop("speed_sequence", None)
+            if self.sequence.active_tag:
+                self.sequence.start(self.sequence.active_tag)
+
         def delete_variant(self, base_path, speed):
             """Delete a speed variant file from disk. If the variant is currently
             playing, switches to the 1.0x original first so the file handle is
@@ -326,8 +350,8 @@ init -999 python:
 
             # Update speed prefs before deleting so the resolver falls back
             # to default speed on the next interaction.
-            for tag, bp in self.paths.items():
-                if bp == base_path:
+            for tag, base in self.paths.items():
+                if base == base_path:
                     cur = self._get_speed_pref(tag)
                     if abs(cur - speed) < 0.05:
                         self._set_speed_pref(tag, _cue.DEFAULT_VIDEO_SPEED)
@@ -358,13 +382,15 @@ init -999 python:
 
             # Clear resolver cache entries for tags that use this base_path
             # so stale variant Movies aren't reused.
-            for tag, bp in self.paths.items():
-                if bp == base_path:
+            for tag, base in self.paths.items():
+                if base == base_path:
                     self.children.pop((tag, speed), None)
 
-            _cue.markers.save_persistent()
+            # Remove the deleted speed from the current video's sequence.
+            self._prune_deleted_speed_from_sequence(speed)
 
             _cue_log("DELETE-VARIANT: removed {} (speed={:.1f}x)".format(vpath, speed))
+            _cue.markers.save_persistent()
             renpy.restart_interaction()
 
 
