@@ -177,12 +177,30 @@ screen cue_icon_button(text, action, tt=None, xsize=16, enabled=True):
         sensitive enabled
         action action
 
-screen cue_folder_txt_button(label, action_fn, ysize=16):
+# Base text button: all textbuttons should use this so style/typography
+# live in one place. Pass bg/tooltip/sensitive/xsize/ysize to override.
+screen cue_txt_button(label, action, bg=None, tt=None, sensitive=True,
+                       xsize=0, ysize=0):
     textbutton label:
         style "cue_btn"
         text_style "cue_btn_text"
-        action action_fn
-        ysize ysize
+        action action
+        sensitive sensitive
+        if bg is not None:
+            background bg
+        if tt is not None:
+            tooltip tt
+        if xsize > 0:
+            xsize xsize
+        if ysize > 0:
+            ysize ysize
+
+# Selectable textbutton: highlights when selected, dims when not.
+# active_color overrides the highlight (default: _cue_color_active).
+screen cue_select_btn(label, selected, action, tt=None, sensitive=True,
+                       active_color=None):
+    $ _bg = (active_color or _cue_color_active) if selected else _cue_color_bg_btn
+    use cue_txt_button(label, action, bg=_bg, tt=tt, sensitive=sensitive)
 
 # Float input: textbutton that becomes an input on click, Enter to confirm.
 # field_name: string for VariableInputValue
@@ -200,12 +218,9 @@ screen cue_float_input(field_name, commit_action, display_text):
             xsize 80
             ysize 16
     else:
-        textbutton display_text:
-            style "cue_btn"
-            text_style "cue_btn_text"
-            ysize 16
-            action SetLocalVariable("editing", True)
-            tooltip "Click to edit. Press Enter to confirm."
+        use cue_txt_button(display_text,
+            SetLocalVariable("editing", True),
+            ysize=16, tt="Click to edit. Press Enter to confirm.")
 
 # Reusable time input: -- - [textbutton | input] + ++ with nudge buttons and Enter-to-commit.
 # field_name: string for VariableInputValue (e.g. "_cue.markers.video.edit_text")
@@ -227,11 +242,9 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
                 value VariableInputValue(field_name)
                 default True
         else:
-            textbutton display_text:
-                style "cue_btn"
-                text_style "cue_btn_text"
-                action [SetLocalVariable("editing", True), Function(_cue.markers.video.sync_text)]
-                tooltip "Click to edit. Press Enter to confirm."
+            use cue_txt_button(display_text,
+                [SetLocalVariable("editing", True), Function(_cue.markers.video.sync_text)],
+                tt="Click to edit. Press Enter to confirm.")
 
         use cue_icon_button("+", inc10_action)
         use cue_icon_button("++", inc100_action, None, 22)
@@ -285,7 +298,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                     Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
                 use cue_icon_button("✕", Function(remove_fn, *remove_args), "Remove preset", None)
                 use cue_icon_button("▶", Function(_cue_preview_sfx, (folder_children or [""])[0], preview_vol), "Preview random file from preset", None)
-                use cue_folder_txt_button(folder_label, Function(_cue.file_tree.toggle_file_ref_expand, folder_label))
+                use cue_txt_button(folder_label, Function(_cue.file_tree.toggle_file_ref_expand, folder_label))
                 text "({} files)".format(_count) style "cue_txt" color _cue_color_text_dim size 10
             if _is_expanded and folder_children:
                 for _child in folder_children:
@@ -309,7 +322,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                         Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
                     use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder ref", None)
                     use cue_icon_button("▶", Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol), "Preview random file from folder", None)
-                    use cue_folder_txt_button(f, Function(_cue.file_tree.toggle_file_ref_expand, f))
+                    use cue_txt_button(f, Function(_cue.file_tree.toggle_file_ref_expand, f))
                     text "({} files)".format(_count) style "cue_txt" color _cue_color_text_dim size 10
                 if _is_expanded:
                     for _child in _cue_resolve_files([f]):
@@ -614,21 +627,17 @@ screen cue_overlay_content():
                                 spacing 3
                                 for _sp in _avail:
                                     $ _label = _cue_speed_label(_sp)
-                                    textbutton _label:
-                                        style "cue_btn"
-                                        text_style "cue_btn_text"
-                                        background (_cue_color_green if abs(_cur - _sp) < 0.05 else _cue_color_bg_btn)
-                                        action Function(_cue.speed_resolver.set_speed, _sp)
-                                        tooltip ("Play at " + _cue_speed_label(_sp) + " speed"
-                                            if _sp != _cue.DEFAULT_VIDEO_SPEED
-                                            else "Play at original video speed")
+                                    $ _tt = ("Play at " + _cue_speed_label(_sp) + " speed"
+                                        if _sp != _cue.DEFAULT_VIDEO_SPEED
+                                        else "Play at original video speed")
+                                    use cue_select_btn(_label, abs(_cur - _sp) < 0.05,
+                                        Function(_cue.speed_resolver.set_speed, _sp),
+                                        tt=_tt, active_color=_cue_color_green)
                                 if _cur != _cue.DEFAULT_VIDEO_SPEED:
                                     use cue_v_divider()
-                                    textbutton "Delete " + _cue_speed_label(_cur):
-                                        style "cue_btn"
-                                        text_style "cue_btn_text"
-                                        action Function(_cue.speed_resolver.delete_variant, _vid_path, _cur)
-                                        tooltip "Delete the " + _cue_speed_label(_cur) + " file."
+                                    use cue_txt_button("Delete " + _cue_speed_label(_cur),
+                                        Function(_cue.speed_resolver.delete_variant, _vid_path, _cur),
+                                        tt="Delete the " + _cue_speed_label(_cur) + " file.")
                             text "The video will only play at the selected speed" style "cue_help"
 
                     # --- Sequence tab ---
@@ -639,18 +648,14 @@ screen cue_overlay_content():
                                 text "Add:" style "cue_txt" size 11
                                 for _sp in _avail:
                                     $ _a_label = _cue_speed_label(_sp)
-                                    textbutton  _a_label:
-                                        style "cue_btn"
-                                        text_style "cue_btn_text"
-                                        action Function(_cue.video_sequence.append_speed, _sp)
-                                        tooltip "Append " + _cue_speed_label(_sp) + " to the end of the sequence"
+                                    use cue_txt_button(_a_label,
+                                        Function(_cue.video_sequence.append_speed, _sp),
+                                        tt="Append " + _cue_speed_label(_sp) + " to the end of the sequence")
                                 if _seq:
                                     use cue_v_divider()
-                                    textbutton "Clear":
-                                        style "cue_btn"
-                                        text_style "cue_btn_text"
-                                        action Function(_cue.video_sequence.clear_sequence, None)
-                                        tooltip "Remove the entire speed sequence"
+                                    use cue_txt_button("Clear",
+                                        Function(_cue.video_sequence.clear_sequence, None),
+                                        tt="Remove the entire speed sequence")
                         if _seq:
                             null height 3
                             viewport:
@@ -670,11 +675,8 @@ screen cue_overlay_content():
                                         vbox:
                                             spacing 0
                                             xalign 0.5
-                                            textbutton _s_label:
-                                                style "cue_btn"
-                                                text_style "cue_btn_text"
-                                                action NullAction()
-                                                tooltip "Sequence position {}. Cycles in order.".format(_si + 1)
+                                            use cue_txt_button(_s_label, NullAction(),
+                                                tt="Sequence position {}. Cycles in order.".format(_si + 1))
                                             if _is_current:
                                                 text "▴" style "cue_txt" size 14 xalign 0.5 color _cue_color_active
 
@@ -697,27 +699,18 @@ screen cue_overlay_content():
                             add SelfUpdatingLabel(_cue.vid_manager.frame_label, style="cue_txt")
                     hbox:
                         spacing 5
-                        textbutton ("▶" if _cue.vid_manager.paused else "⏸"):
-                            style "cue_btn"
-                            text_style "cue_btn_text"
-                            action Function(_cue.vid_manager.toggle_pause)
-                        textbutton "-1f":
-                            style "cue_btn"
-                            text_style "cue_btn_text"
-                            action Function(_cue.vid_manager.seek_frame, -1)
-                            tooltip "Seek backwards 1 frame (inaccurate and requires restarting video)"
-                        textbutton "+1f":
-                            style "cue_btn"
-                            text_style "cue_btn_text"
-                            action Function(_cue.vid_manager.seek_frame, 1)
-                            tooltip "Seek forward 1 frame (inaccurate)"
+                        use cue_txt_button(("▶" if _cue.vid_manager.paused else "⏸"),
+                            Function(_cue.vid_manager.toggle_pause))
+                        use cue_txt_button("-1f",
+                            Function(_cue.vid_manager.seek_frame, -1),
+                            tt="Seek backwards 1 frame (inaccurate and requires restarting video)")
+                        use cue_txt_button("+1f",
+                            Function(_cue.vid_manager.seek_frame, 1),
+                            tt="Seek forward 1 frame (inaccurate)")
 
                         use cue_v_divider()
-                        textbutton "Repeat":
-                            style "cue_btn"
-                            text_style "cue_btn_text"
-                            action Function(_cue.beat.open)
-                            tooltip "Repeat selected markers at regular intervals across the video"
+                        use cue_txt_button("Repeat", Function(_cue.beat.open),
+                            tt="Repeat selected markers at regular intervals across the video")
                         $ _has_markers = _cue.markers.video.has_markers()
                         use cue_icon_button("💾", Function(_cue.video_preset_dialog.open), "Save all video markers as a preset", None)
                         use cue_icon_button("✕",
@@ -854,11 +847,9 @@ screen cue_overlay_content():
                             if _ov_presets:
                                 use cue_v_divider()
                                 for _sp in _ov_presets:
-                                    textbutton _cue_speed_label(_sp):
-                                        style "cue_btn"
-                                        text_style "cue_btn_text"
-                                        action Function(_cue.video_editor.set_quick, _sp)
-                                        tooltip "Set speed to " + _cue_speed_label(_sp)
+                                    use cue_txt_button(_cue_speed_label(_sp),
+                                        Function(_cue.video_editor.set_quick, _sp),
+                                        tt="Set speed to " + _cue_speed_label(_sp))
                         text "Speed multiplier is based on original video" style "cue_help" size 10 yalign 0.5
 
                     # --- Encode mode radio buttons ---
@@ -883,11 +874,9 @@ screen cue_overlay_content():
                         else:
                             text "Match original quality" style "cue_help"
                     null height 2
-                    textbutton "Create":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        sensitive _ved._ready
-                        action Function(_cue.video_editor.prepare_create)
+                    use cue_txt_button("Create",
+                        Function(_cue.video_editor.prepare_create),
+                        sensitive=_ved._ready)
                     if _ved.last_error:
                         text _ved.last_error style "cue_txt" color _cue_color_error
 
@@ -924,10 +913,8 @@ screen cue_overlay_content():
                                             spacing 4
                                             null width 20
                                             text _job.error_msg style "cue_txt" size 10 color _cue_color_error
-                                            textbutton "Retry":
-                                                style "cue_btn"
-                                                text_style "cue_btn_text"
-                                                action Function(_cue.video_editor.job_queue.retry, _job.job_id)
+                                            use cue_txt_button("Retry",
+                                                Function(_cue.video_editor.job_queue.retry, _job.job_id))
 
         # --- Image UI ---
         $ _has_image = bool(_cue.current_file) and not _is_video
@@ -958,30 +945,10 @@ screen cue_overlay_content():
             hbox:
                 spacing 5
                 text "Interval:" style "cue_txt" size 11
-                $ slow_selected = (_freq == 0)
-                $ normal_selected = (_freq == 1)
-                $ fast_selected = (_freq == 2)
-                $ fastest_selected = (_freq == 3)
-                textbutton "Slow":
-                    style "cue_btn"
-                    text_style "cue_btn_text"
-                    background (_cue_color_active if slow_selected else _cue_color_bg_btn)
-                    action Function(_cue.markers.loop.set_frequency, 0)
-                textbutton "Normal":
-                    style "cue_btn"
-                    text_style "cue_btn_text"
-                    background (_cue_color_active if normal_selected else _cue_color_bg_btn)
-                    action Function(_cue.markers.loop.set_frequency, 1)
-                textbutton "Fast":
-                    style "cue_btn"
-                    text_style "cue_btn_text"
-                    background (_cue_color_active if fast_selected else _cue_color_bg_btn)
-                    action Function(_cue.markers.loop.set_frequency, 2)
-                textbutton "Fastest":
-                    style "cue_btn"
-                    text_style "cue_btn_text"
-                    background (_cue_color_active if fastest_selected else _cue_color_bg_btn)
-                    action Function(_cue.markers.loop.set_frequency, 3)
+                use cue_select_btn("Slow", _freq == 0, Function(_cue.markers.loop.set_frequency, 0))
+                use cue_select_btn("Normal", _freq == 1, Function(_cue.markers.loop.set_frequency, 1))
+                use cue_select_btn("Fast", _freq == 2, Function(_cue.markers.loop.set_frequency, 2))
+                use cue_select_btn("Fastest", _freq == 3, Function(_cue.markers.loop.set_frequency, 3))
 
         # Audio file browser
         use cue_section_frame("SFX Library"):
@@ -1005,7 +972,7 @@ screen cue_overlay_content():
                                 ("▾" if _cue.file_tree.presets_expanded else "▸"),
                                 Function(_cue.file_tree.toggle_presets_expand), None, None)
                             $ _preset_names = _cue.markers.list_presets()
-                            use cue_folder_txt_button("Presets/", Function(_cue.file_tree.toggle_presets_expand))
+                            use cue_txt_button("Presets/", Function(_cue.file_tree.toggle_presets_expand))
                         if _cue.file_tree.presets_expanded:
                             for _pname in _preset_names:
                                 $ _pdata = _cue.markers.get_preset(_pname)
@@ -1024,7 +991,7 @@ screen cue_overlay_content():
                                     use cue_icon_button("I", Function(_cue.markers.image.apply_preset, _pname), "Apply preset to active Image SFX pool", None, enabled=_has_image)
                                     use cue_icon_button("D", Function(_cue.markers.dialogue.apply_preset, _pname), "Apply preset to active Dialogue SFX pool", None, enabled=_is_dialogue)
                                     use cue_icon_button("L", Function(_cue.markers.loop.apply_preset, _pname), "Apply preset to active Loop SFX pool", None)
-                                    use cue_folder_txt_button(_pname, Function(_cue.file_tree.toggle_preset_expand, _pname))
+                                    use cue_txt_button(_pname, Function(_cue.file_tree.toggle_preset_expand, _pname))
                                 if _p_expanded:
                                     for _child in _p_files:
                                         hbox:
@@ -1040,7 +1007,7 @@ screen cue_overlay_content():
                                 ("▾" if _cue.file_tree.video_presets_expanded else "▸"),
                                 Function(_cue.file_tree.toggle_video_presets_expand), None, None)
                             $ _vp_names = _cue.markers.list_video_presets()
-                            use cue_folder_txt_button("Video Presets/", Function(_cue.file_tree.toggle_video_presets_expand))
+                            use cue_txt_button("Video Presets/", Function(_cue.file_tree.toggle_video_presets_expand))
                         if _cue.file_tree.video_presets_expanded:
                             for _vpname in _vp_names:
                                 $ _vpdata = _cue.markers.get_video_preset(_vpname)
@@ -1058,7 +1025,7 @@ screen cue_overlay_content():
                                     use cue_icon_button("✕", Function(_cue_confirm_delete_video_preset, _vpname), "Delete video preset", None)
                                     use cue_icon_button("▶", Function(_cue_preview_video_preset, _vpname), "Preview random file from video preset", None)
                                     use cue_icon_button("V", Function(_cue_maybe_apply_video_preset, _vpname), "Apply video markers to the current video", None, enabled=_is_video)
-                                    use cue_folder_txt_button(_vpname, Function(_cue.file_tree.toggle_video_preset_expand, _vpname))
+                                    use cue_txt_button(_vpname, Function(_cue.file_tree.toggle_video_preset_expand, _vpname))
                                 if _vp_expanded:
                                     for _pool in _vp_pools:
                                         $ _pool_time = _pool.get("time", 0)
@@ -1084,7 +1051,7 @@ screen cue_overlay_content():
                                         use cue_icon_button("I", Function(_cue.markers.image.add_folder, item["full_path"]), "Add folder to Image SFX pool", None, enabled=_has_image)
                                         use cue_icon_button("D", Function(_cue.markers.dialogue.add_folder, item["full_path"]), "Add folder to Dialogue SFX pool", None, enabled=_is_dialogue)
                                         use cue_icon_button("L", Function(_cue.markers.loop.add_folder, item["full_path"]), "Add folder to Loop SFX Pool", None)
-                                    use cue_folder_txt_button(item["name"], Function(_cue.file_tree.toggle_folder, item["full_path"]))
+                                    use cue_txt_button(item["name"], Function(_cue.file_tree.toggle_folder, item["full_path"]))
                                 else:
                                     # Play preview
                                     use cue_icon_button("▶", Function(_cue_preview_sfx, item["full_path"]), "Preview audio", None)
@@ -1167,17 +1134,11 @@ screen cue_repeat_pattern_dialog():
 
                 hbox:
                     spacing 8
-                    textbutton "Cancel":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        action Function(_cue.beat.hide)
-                    textbutton "Apply":
-                        style "cue_btn"
-                        text_style "cue_btn_text"
-                        action [
-                            Function(_cue.beat.apply),
-                            Function(_cue.beat.hide),
-                        ]
+                    use cue_txt_button("Cancel", Function(_cue.beat.hide))
+                    use cue_txt_button("Apply", [
+                        Function(_cue.beat.apply),
+                        Function(_cue.beat.hide),
+                    ])
 
 
 ###############################################################################
@@ -1235,16 +1196,8 @@ screen cue_save_preset_dialog():
             hbox:
                 spacing 8
                 xalign 0.5
-                textbutton "Cancel":
-                    style "cue_btn"
-                    text_style "cue_btn_text"
-                    action Function(_d.cancel)
-                textbutton "Save":
-                    style "cue_btn"
-                    text_style "cue_btn_text"
-                    action [
-                        Function(_d.commit),
-                    ]
+                use cue_txt_button("Cancel", Function(_d.cancel))
+                use cue_txt_button("Save", Function(_d.commit))
 
 
 ###############################################################################
@@ -1314,16 +1267,8 @@ screen cue_save_video_preset_dialog():
             hbox:
                 spacing 8
                 xalign 0.5
-                textbutton "Cancel":
-                    style "cue_btn"
-                    text_style "cue_btn_text"
-                    action Function(_d.cancel)
-                textbutton "Save":
-                    style "cue_btn"
-                    text_style "cue_btn_text"
-                    action [
-                        Function(_d.commit),
-                    ]
+                use cue_txt_button("Cancel", Function(_d.cancel))
+                use cue_txt_button("Save", Function(_d.commit))
 
 
 ###############################################################################
@@ -1354,15 +1299,6 @@ screen cue_confirm_dialog():
             hbox:
                 spacing 8
                 xalign 0.5
-                textbutton "Cancel":
-                    style "cue_btn"
-                    text_style "cue_btn_text"
-                    action Function(_d.hide)
-                textbutton "OK":
-                    style "cue_btn"
-                    text_style "cue_btn_text"
-                    action [
-                        Function(_d.hide),
-                        _d.on_confirm,
-                    ]
+                use cue_txt_button("Cancel", Function(_d.hide))
+                use cue_txt_button("OK", [Function(_d.hide), _d.on_confirm])
 
