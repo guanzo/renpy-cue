@@ -32,8 +32,6 @@ init -999 python:
             self.vpath = vpath
             self.factor_text = "1.00"
             self.last_error = ""
-            self.last_factor = None    # float set on edit completion, None = never edited
-            self.last_encode_mode = CUE_VE_MODE_NORMAL  # 0 normal, 1 interpolate, 2 fast preview
 
 
     class CueVideoJob:
@@ -262,8 +260,6 @@ init -999 python:
                     job.status = "done"
                     state = self._editor._ensure_state(vp)
                     state.last_error = ""
-                    state.last_factor = job.factor
-                    state.last_encode_mode = job.encode_mode
                     _cue_log("Variant: generated {:.1f}x at {} (job_id={})".format(
                         speed, os.path.basename(out), job.job_id))
                     _cue.markers.save_persistent()
@@ -454,21 +450,6 @@ init -999 python:
             s = self._get_state()
             if s is not None:
                 s.last_error = _cue_esc(value)
-
-        @property
-        def config_label(self):
-            """Human-readable summary of the last edit config for the current
-            video, e.g. '1.5x interpolated' or '2.0x'. Returns '' if the
-            current video has never been edited."""
-            s = self._get_state()
-            if s is None or s.last_factor is None:
-                return ""
-            label = "{:.1f}x".format(s.last_factor)
-            if s.last_encode_mode == self.MODE_FAST_PREVIEW:
-                label += " fast preview"
-            elif s.last_encode_mode == self.MODE_INTERPOLATE:
-                label += " interpolated"
-            return label
 
         # ==================================================================
         # Helpers

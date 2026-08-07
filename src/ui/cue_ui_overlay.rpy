@@ -328,7 +328,6 @@ screen cue_overlay_content():
                 # --- Video Editor Tab ---
                 if _cue.video_editor.active:
                     $ _ved = _cue.video_editor
-                    $ _cfg_label = _ved.config_label
                     vbox:
                         spacing 2
                         hbox:

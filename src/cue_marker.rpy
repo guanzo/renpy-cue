@@ -1120,15 +1120,6 @@ init -999 python:
             if stripped:
                 _cue_log("SAVE-MARKERS: sanitized {} malformed video pool(s)".format(stripped))
 
-            # Per-video edit history
-            _edit_history = {}
-            for _vp, _st in _cue.video_editor._states.items():
-                if _st.last_factor is not None:
-                    _edit_history[_vp] = {
-                        "factor": _st.last_factor,
-                        "encode_mode": _st.last_encode_mode,
-                    }
-
             data = {
                 "markers": _cue_unwrap_persistent(self._data),
                 "presets": _cue_unwrap_persistent(self._presets),
@@ -1136,7 +1127,6 @@ init -999 python:
                 "disabled_files": list(_cue_unwrap_persistent(_cue.file_tree.disabled_files)),
                 "triggers_active": _cue.triggers_active,
                 "encode_mode": _cue.video_editor.encode_mode,
-                "video_edit_history": _cue_unwrap_persistent(_edit_history),
             }
             persistent._cue_config = data
 
@@ -1169,23 +1159,6 @@ init -999 python:
                 else:
                     _mode = _ved.MODE_NORMAL
             _ved.set_encode_mode(_mode, save=False, restart=False)
-            # Restore per-video edit history
-            _edit_history = _cue_unwrap_persistent(data.get("video_edit_history", {}))
-            for _vp, _cfg in _edit_history.items():
-                _st = _cue.video_editor._ensure_state(_vp)
-                _st.last_factor = float(_cfg.get("factor", 1.0))
-                if "encode_mode" in _cfg:
-                    _st.last_encode_mode = int(_cfg["encode_mode"])
-                else:
-                    # Legacy history entries stored two mutually-exclusive bools
-                    if _cfg.get("fast_preview"):
-                        _st.last_encode_mode = _ved.MODE_FAST_PREVIEW
-                    elif _cfg.get("interpolate"):
-                        _st.last_encode_mode = _ved.MODE_INTERPOLATE
-                    else:
-                        _st.last_encode_mode = _ved.MODE_NORMAL
-                _st.factor_text = "{:.2f}".format(_st.last_factor)
-
             self._migrate_video_timestamps_to_pools()
             self._sanitize_video_pools()
             self._sanitize_video_presets()
