@@ -81,7 +81,7 @@ init -900 python:
     _cue.audio_tree = []
 
     # Internal
-    _cue.__cue_channel_idx = 0
+    _cue._cue_next_sfx_channel = 0
     _cue._shake_just_happened = False
 
     # Preview state: channel the last user preview played on (None if none)
@@ -776,12 +776,12 @@ init python:
                 break
 
         if target_ch is None:
-            idx = _cue.__cue_channel_idx
+            idx = _cue._cue_next_sfx_channel
             target_ch = "_cue_{}".format(idx + 1)
-            _cue.__cue_channel_idx = (idx + 1) % 8
+            _cue._cue_next_sfx_channel = (idx + 1) % 8
         else:
             ch_num = int(target_ch.split("_")[-1])
-            _cue.__cue_channel_idx = ch_num % 8
+            _cue._cue_next_sfx_channel = ch_num % 8
 
         try:
             # Context mismatch warning: compare source context with current state
