@@ -17,7 +17,7 @@ init -999 python:
 
     class SpeedMode:
         """Playback mode for video speed control."""
-        SINGLE = "single"       # play at one fixed speed (from speed_prefs)
+        SINGLE = "single"       # play at one fixed speed (from marker entry speed_pref)
         SEQUENCE = "sequence"   # loop through the user-defined speed sequence
 
     class CueVidSpeedResolver:
@@ -28,7 +28,6 @@ init -999 python:
         screen actions via Function(_cue.speed_resolver.method, ...)."""
 
         def __init__(self):
-            self.speed_prefs = {}    # tag -> float speed
             self.paths = {}          # tag -> original base video path
             self.children = {}       # (tag, speed) -> memoized variant Movie
             self.sequence = None                # CueVidSpeedSequence back-ref
@@ -37,24 +36,42 @@ init -999 python:
         # Lookup helpers
         # ==================================================================
 
-        def key_for(self, tag):
-            """Map a scene-list name to the speed_prefs key.
-            Exact match first, then longest-prefix match."""
+        def _get_speed_pref(self, tag):
+            """Read the speed_pref from the tag's marker entry. Fuzzy: if the
+            exact tag has no pref, tries the longest prefix match so attribute
+            shows share the same speed. Returns DEFAULT_VIDEO_SPEED if unset."""
             if not tag:
-                return tag
-            if tag in self.speed_prefs:
-                return tag
-            best_key = tag
+                return _cue.DEFAULT_VIDEO_SPEED
+
+            def _read(entry):
+                return entry.get("speed_pref", _cue.DEFAULT_VIDEO_SPEED)
+
+            entry = _cue.markers.get(create_vid_key(tag))
+            if entry is not None and "speed_pref" in entry:
+                return _read(entry)
+
+            # Prefix-match fallback (longest match wins)
+            best = _cue.DEFAULT_VIDEO_SPEED
             best_len = -1
-            for key in self.speed_prefs:
+            for key in self.paths:
                 if key.startswith(tag + " ") and len(key) > best_len:
-                    best_key = key
-                    best_len = len(key)
-            return best_key
+                    e = _cue.markers.get(create_vid_key(key))
+                    if e is not None and "speed_pref" in e:
+                        best = _read(e)
+                        best_len = len(key)
+            return best
+
+        def _set_speed_pref(self, tag, speed):
+            """Write speed_pref into the tag's marker entry and persist."""
+            if not tag:
+                return
+            entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
+            entry["speed_pref"] = speed
+            _cue.markers.save_persistent()
 
         def speed_for(self, tag):
             """Current speed for a scene-list name (_cue.DEFAULT_VIDEO_SPEED if unknown)."""
-            return self.speed_prefs.get(self.key_for(tag), _cue.DEFAULT_VIDEO_SPEED)
+            return self._get_speed_pref(tag)
 
         def base_path_for(self, tag):
             """Original base video path for a scene-list name."""
@@ -80,21 +97,19 @@ init -999 python:
             tag = _cue.current_file
             if not tag:
                 return
-            key = self.key_for(tag)
             base_path = self.base_path_for(tag)
             if not base_path:
                 return
             available = self.get_available_speeds(base_path)
             if len(available) <= 1:
                 return
-            current = self.speed_prefs.get(key, _cue.DEFAULT_VIDEO_SPEED)
+            current = self._get_speed_pref(tag)
             try:
                 idx = available.index(current)
             except ValueError:
                 idx = 0
             new_idx = max(0, min(idx + delta, len(available) - 1))
-            new_speed = available[new_idx]
-            self.speed_prefs[key] = new_speed
+            self._set_speed_pref(tag, available[new_idx])
             renpy.restart_interaction()
 
         def set_speed(self, speed):
@@ -106,8 +121,7 @@ init -999 python:
             tag = _cue.current_file
             if not tag:
                 return
-            key = self.key_for(tag)
-            self.speed_prefs[key] = speed
+            self._set_speed_pref(tag, speed)
             renpy.restart_interaction()
 
         # ==================================================================
@@ -132,7 +146,7 @@ init -999 python:
             Called by the module-level _cue_resolver wrapper so the DD
             callback stays picklable by name reference."""
             try:
-                speed = self.speed_prefs.get(tag, _cue.DEFAULT_VIDEO_SPEED)
+                speed = self._get_speed_pref(tag)
             except Exception:
                 speed = _cue.DEFAULT_VIDEO_SPEED
 
@@ -314,17 +328,15 @@ init -999 python:
             # to default speed on the next interaction.
             for tag, bp in self.paths.items():
                 if bp == base_path:
-                    key = self.key_for(tag)
-                    cur = self.speed_prefs.get(key, _cue.DEFAULT_VIDEO_SPEED)
+                    cur = self._get_speed_pref(tag)
                     if abs(cur - speed) < 0.05:
-                        self.speed_prefs[key] = _cue.DEFAULT_VIDEO_SPEED
+                        self._set_speed_pref(tag, _cue.DEFAULT_VIDEO_SPEED)
 
             tag = _cue.current_file
             if tag:
-                key = self.key_for(tag)
-                cur = self.speed_prefs.get(key, _cue.DEFAULT_VIDEO_SPEED)
+                cur = self._get_speed_pref(tag)
                 if abs(cur - speed) < 0.05:
-                    self.speed_prefs[key] = _cue.DEFAULT_VIDEO_SPEED
+                    self._set_speed_pref(tag, _cue.DEFAULT_VIDEO_SPEED)
 
             # Now delete the variant file with a few retries in case the
             # file handle takes a moment to release (Windows especially).
@@ -349,6 +361,8 @@ init -999 python:
             for tag, bp in self.paths.items():
                 if bp == base_path:
                     self.children.pop((tag, speed), None)
+
+            _cue.markers.save_persistent()
 
             _cue_log("DELETE-VARIANT: removed {} (speed={:.1f}x)".format(vpath, speed))
             renpy.restart_interaction()

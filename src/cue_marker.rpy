@@ -1137,7 +1137,6 @@ init -999 python:
                 "triggers_active": _cue.triggers_active,
                 "encode_mode": _cue.video_editor.encode_mode,
                 "video_edit_history": _cue_unwrap_persistent(_edit_history),
-                "speed_prefs": _cue_unwrap_persistent(_cue.speed_resolver.speed_prefs),
             }
             persistent._cue_config = data
 
@@ -1170,8 +1169,6 @@ init -999 python:
                 else:
                     _mode = _ved.MODE_NORMAL
             _ved.set_encode_mode(_mode, save=False, restart=False)
-            _cue.speed_resolver.speed_prefs = _cue_unwrap_persistent(data.get("speed_prefs", {}))
-
             # Restore per-video edit history
             _edit_history = _cue_unwrap_persistent(data.get("video_edit_history", {}))
             for _vp, _cfg in _edit_history.items():
