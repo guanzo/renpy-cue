@@ -60,6 +60,7 @@ init -900 python:
     _cue.speed_resolver = CueVidSpeedResolver()
     _cue.video_sequence = CueVidSpeedSequence(_cue.speed_resolver)
     _cue.speed_resolver.sequence = _cue.video_sequence
+    _cue.speed_toast = CueSpeedToast()
 
     # UI state
     _cue.is_overlay_visible = False
@@ -156,6 +157,9 @@ init 999 python:
             # Ensure key listeners are always active.
             if not renpy.get_screen("cue_key_listener", layer="cue_layer"):
                 renpy.show_screen("cue_key_listener", _layer="cue_layer")
+            # Speed-change toast indicator (always shown, renders conditionally).
+            if not renpy.get_screen("cue_speed_toast", layer="cue_layer"):
+                renpy.show_screen("cue_speed_toast", _layer="cue_layer")
             # Keep overlay screen in sync with the NoRollback flag.
             # Rollback can undo renpy.hide_screen, so re-hide when the
             # flag says the overlay should not be visible.

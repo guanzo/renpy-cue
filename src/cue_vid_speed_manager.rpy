@@ -126,6 +126,7 @@ init -999 python:
                 idx = 0
             new_idx = max(0, min(idx + delta, len(available) - 1))
             self._set_speed_pref(tag, available[new_idx])
+            _cue.speed_toast.show(tag)
             renpy.restart_interaction()
 
         def set_speed(self, speed):
@@ -138,6 +139,7 @@ init -999 python:
             if not tag:
                 return
             self._set_speed_pref(tag, speed)
+            _cue.speed_toast.show(tag)
             renpy.restart_interaction()
 
         # ==================================================================
@@ -741,3 +743,28 @@ init -999 python:
         if hasattr(movie, "group"):
             kwargs["group"] = movie.group
         return kwargs
+
+
+    class CueSpeedToast:
+        """Transient speed-change indicator shown top-left on screen.
+
+        State lives on this instance (reachable through _cue.speed_toast) so it
+        survives rollback.  The screen cue_speed_toast reads from this instance."""
+
+        def __init__(self):
+            self.toast_speeds = None       # list of available speeds; None = hidden
+            self.toast_current = None      # currently selected speed (float)
+            self.toast_timestamp = 0.0     # _time.time() when toast was triggered
+
+        def show(self, tag):
+            """Record toast state for the given video tag so the screen renders it."""
+            resolver = _cue.speed_resolver
+            base_path = resolver.base_path_for(tag)
+            if not base_path:
+                return
+            speeds = resolver.get_available_speeds(base_path)
+            if len(speeds) <= 1:
+                return
+            self.toast_speeds = speeds
+            self.toast_current = resolver._get_speed_pref(tag)
+            self.toast_timestamp = _time.time()

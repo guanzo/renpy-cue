@@ -811,3 +811,36 @@ screen cue_confirm_dialog():
                 use cue_txt_button("OK", [Function(_d.hide), _d.on_confirm])
 
 
+###############################################################################
+# Speed-change toast — subtle indicator in the top-left corner
+###############################################################################
+
+transform cue_speed_toast_fade:
+    alpha 0.55
+    pause 1.5
+    linear 0.5 alpha 0.0
+
+screen cue_speed_toast():
+    zorder 10001
+    if _cue.speed_toast.toast_speeds is not None:
+        $ _elapsed = _time.time() - _cue.speed_toast.toast_timestamp
+        if _elapsed < 2.5:
+            hbox:
+                at cue_speed_toast_fade
+                xpos 14
+                ypos 14
+                spacing 8
+                for _sp in _cue.speed_toast.toast_speeds:
+                    $ _label = _cue_speed_label(_sp)
+                    $ _is_current = abs(_sp - _cue.speed_toast.toast_current) < 0.05
+                    if _is_current:
+                        text _label:
+                            color "#cccccc"
+                            size 14
+                            bold True
+                    else:
+                        text _label:
+                            color "#666666"
+                            size 12
+
+
