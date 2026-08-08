@@ -46,7 +46,7 @@ screen cue_vol_row(label_text, dec_action, entry_dict, inc_action):
 # Icon button: tiny button with cue_btn_icon / cue_btn_icon_text styles.
 # Most callers don't need xsize (style default is 14); pass an int to override.
 # Pass tt=None to skip the tooltip.
-screen cue_icon_button(text, action, tt=None, xsize=16, enabled=True):
+screen cue_icon_btn(text, action, tt=None, xsize=16, enabled=True):
     textbutton text:
         style "cue_btn_icon"
         text_style "cue_btn_icon_text"
@@ -122,8 +122,8 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
     key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
     hbox:
         spacing 3
-        use cue_icon_button("--", dec100_action, None, 22)
-        use cue_icon_button("-", dec10_action)
+        use cue_icon_btn("--", dec100_action, None, 22)
+        use cue_icon_btn("-", dec10_action)
 
         if editing:
             input:
@@ -135,8 +135,8 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
                 [SetLocalVariable("editing", True), Function(_cue.markers.video.sync_text)],
                 tt="Click to edit. Press Enter to confirm.")
 
-        use cue_icon_button("+", inc10_action)
-        use cue_icon_button("++", inc100_action, None, 22)
+        use cue_icon_btn("+", inc10_action)
+        use cue_icon_btn("++", inc100_action, None, 22)
 
 # Pool tab row: optional Delete button, + Pool button, numbered tabs [1][2]...
 # tab_action_fn(tab_action_args..., pi) is called when tab pi is clicked.
@@ -147,7 +147,7 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
     hbox:
         spacing 5
         if show_delete:
-            use cue_icon_button("✕", Function(_cue.confirm_dialog.show, delete_confirm, delete_action), delete_tt, None)
+            use cue_icon_btn("✕", Function(_cue.confirm_dialog.show, delete_confirm, delete_action), delete_tt, None)
         textbutton "+ Pool":
             style "cue_btn"
             text_style "cue_btn_text"
@@ -183,10 +183,10 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
             $ _count = len(folder_children) if folder_children else 0
             hbox:
                 spacing row_spacing
-                use cue_icon_button(("▾" if _is_expanded else "▸"),
+                use cue_icon_btn(("▾" if _is_expanded else "▸"),
                     Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
-                use cue_icon_button("✕", Function(remove_fn, *remove_args), "Remove preset", None)
-                use cue_icon_button("▶", Function(_cue_preview_sfx, (folder_children or [""])[0], preview_vol), "Preview random file from preset", None)
+                use cue_icon_btn("✕", Function(remove_fn, *remove_args), "Remove preset", None)
+                use cue_icon_btn("▶", Function(_cue_preview_sfx, (folder_children or [""])[0], preview_vol), "Preview random file from preset", None)
                 use cue_txt_button(folder_label, Function(_cue.file_tree.toggle_file_ref_expand, folder_label))
                 text "({} files)".format(_count) style "cue_txt" color _cue_color_text_dim size 10
             if _is_expanded and folder_children:
@@ -195,10 +195,10 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                         spacing row_spacing
                         text "    " style "cue_txt"  # indent
                         if folder_child_remove_fn is not None:
-                            use cue_icon_button("✕",
+                            use cue_icon_btn("✕",
                                 Function(folder_child_remove_fn, trigger_key, pool_index, 0, _child),
                                 "Remove file from pool", None)
-                        use cue_icon_button("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
+                        use cue_icon_btn("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
                         text _child style "cue_txt" color _cue_color_text_accent size 11
         for fi, f in enumerate(files):
             if f.endswith("/"):
@@ -207,10 +207,10 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 $ _count = len(_cue_resolve_files([f]))
                 hbox:
                     spacing row_spacing
-                    use cue_icon_button(("▾" if _is_expanded else "▸"),
+                    use cue_icon_btn(("▾" if _is_expanded else "▸"),
                         Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
-                    use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder", None)
-                    use cue_icon_button("▶", Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol), "Preview random file from folder", None)
+                    use cue_icon_btn("✕", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder", None)
+                    use cue_icon_btn("▶", Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol), "Preview random file from folder", None)
                     use cue_txt_button(f, Function(_cue.file_tree.toggle_file_ref_expand, f))
                     text "({} files)".format(_count) style "cue_txt" color _cue_color_text_dim size 10
                 if _is_expanded:
@@ -219,18 +219,18 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                             spacing row_spacing
                             text "    " style "cue_txt"  # indent
                             if folder_child_remove_fn is not None:
-                                use cue_icon_button("✕",
+                                use cue_icon_btn("✕",
                                     Function(folder_child_remove_fn, trigger_key, pool_index, fi, _child),
                                     "Remove file from the folder", None)
-                            use cue_icon_button("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
+                            use cue_icon_btn("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
                             $ _display = _child[len(f):]  # strip folder prefix
                             text _display style "cue_txt" color _cue_color_text_accent size 11
             else:
                 # --- Regular file ---
                 hbox:
                     spacing row_spacing
-                    use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), None, None)
-                    use cue_icon_button("▶", Function(_cue_preview_sfx, f, preview_vol), None, None)
+                    use cue_icon_btn("✕", _cue_make_tab_action(remove_fn, remove_args, fi), None, None)
+                    use cue_icon_btn("▶", Function(_cue_preview_sfx, f, preview_vol), None, None)
                     text f style "cue_txt" color _cue_color_text_accent size 11
 
 # Scrollable file list: only wraps in a viewport when content exceeds ~6 rows (120 px).
@@ -336,8 +336,8 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
                 spacing 5
                 text _active_label style "cue_txt"
                 null width 5
-                use cue_icon_button("💾", Function(_cue.preset_dialog.open, vol_key, _target), "Save pool as a preset", None)
-                use cue_icon_button("✕", Function(ctx.remove_pool, _target), "Delete pool", None)
+                use cue_icon_btn("💾", Function(_cue.preset_dialog.open, vol_key, _target), "Save pool as a preset", None)
+                use cue_icon_btn("✕", Function(ctx.remove_pool, _target), "Delete pool", None)
                 $ _dec = Function(_cue.volume.adjust, vol_key, -0.1, _target)
                 $ _inc = Function(_cue.volume.adjust, vol_key, 0.1, _target)
                 null width 5
