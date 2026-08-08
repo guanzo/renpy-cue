@@ -36,6 +36,11 @@ style cue_frame is empty:
     padding (8, 6)
     xfill True
 
+style cue_popper_frame is empty:
+    background _cue_color_bg_overlay
+    padding (8, 6)
+    xfill False
+
 style cue_btn is empty:
     background _cue_color_bg_btn
     hover_background _cue_color_bg_btn_hover
@@ -116,4 +121,8 @@ style cue_scrollbar:
     thumb Solid(_cue_color_divider)
     hover_thumb Solid(_cue_color_text_dim)
 
+style cue_popper_frame is empty:
+    background "#2a2a2af2"
+    padding (8, 6)
+    xfill False
 
