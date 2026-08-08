@@ -18,7 +18,7 @@ screen cue_key_listener():
     key "shift_K_2" action Function(_cue.markers.paste_context)
     key "K_PERIOD" action Function(_cue.speed_resolver.cycle_speed, 1)
     key "K_COMMA" action Function(_cue.speed_resolver.cycle_speed, -1)
-    timer 0.025 repeat True action Function(_cue_tick_trigger, _update_screens=False)
+    timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
 
 ###############################################################################
 # Main Overlay — the sidebar frame.

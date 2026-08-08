@@ -291,6 +291,7 @@ init python:
             # Clean up stale data
             _cue.loop_states = {}
             _cue.played_video_keys.clear()
+            _cue._prev_tick_effective_elapsed = -1.0
             # Refresh video editor for the new file (backup state, etc.)
             if _cue.is_overlay_visible:
                 _cue.video_editor.refresh()
@@ -725,7 +726,15 @@ init python:
 
 
     def _cue_tick_video_triggers():
-        """Video pool triggers for v: keys — fires SFX at marked times."""
+        """Video pool triggers for v: keys — fires SFX at marked times.
+
+        Uses two complementary checks so markers aren't missed when playback
+        position jumps more than marker_tolerance between ticks (common on
+        short videos, high-speed playback, or coarse get_pos() steps):
+
+          1. Forward window:  mt <= eff < mt + tolerance    (stationary / first tick)
+          2. Cross check:     prev_eff < mt <= eff           (jumped past marker)
+        """
         ch = _cue.vid_manager.channel
         if not ch or _cue.top_layer_type != 'movie':
             return
@@ -737,6 +746,24 @@ init python:
         # variant elapsed to reference time when speed != 1.0.
         speed = _cue.speed_resolver.get_current_speed()
         effective_elapsed = elapsed * speed
+
+        # Previous tick's effective position for cross-between-ticks detection.
+        # Initialized to -1.0 so markers at time 0 trigger on the first tick
+        # via:  prev_eff(-1) < mt(0) <= eff(0).
+        prev_eff = getattr(_cue, '_prev_tick_effective_elapsed', -1.0)
+
+        # --- Helper: did we reach or cross this marker time? ---
+        def _cue_marker_reached(mt):
+            """Return True if the marker at mt was reached or crossed since
+            the last tick, either within the forward tolerance window or by
+            jumping past it between ticks."""
+            # Forward window: current position is within tolerance past the marker
+            if mt <= effective_elapsed < mt + marker_tolerance:
+                return True
+            # Cross check: we jumped past the marker since the last tick
+            if prev_eff < mt <= effective_elapsed:
+                return True
+            return False
 
         # Video markers
         if _cue.current_file:
@@ -752,16 +779,19 @@ init python:
                             _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(pool_entry))
                             continue
                         mt = pool_entry["time"]
-                        if mt <= effective_elapsed < mt + marker_tolerance:
+                        if _cue_marker_reached(mt):
                             f = _cue_play_pool(vid_entry, vid_key, pool_entry, idx, avoid_repeats=False)
                             if f:
                                 _cue.played_video_keys.add(ts_key)
-                        
 
-        # Detect video loop (markers only, pool uses wall clock)
+        # Detect video loop — Ren'Py can't seek backwards, so any backward
+        # jump in elapsed is a loop restart from time 0.
         if _cue.vid_manager.last_elapsed > 0 and elapsed < _cue.vid_manager.last_elapsed - 0.3:
             _cue.played_video_keys.clear()
             _cue.beat.clear_preview_marker_played()
+            # Reset cross-check anchor so the stale pre-loop position doesn't
+            # affect the first tick of the new loop.
+            _cue._prev_tick_effective_elapsed = -1.0
         _cue.vid_manager.last_elapsed = elapsed
 
         # Preview marker triggers (repeat-pattern dialog, when SFX checkbox is on)
@@ -769,7 +799,7 @@ init python:
             for ptime, pfiles, pvol, pkey in _cue.beat.compute_preview_pools():
                 if pkey in _cue.beat._preview_marker_played:
                     continue
-                if not (ptime <= effective_elapsed < ptime + marker_tolerance):
+                if not _cue_marker_reached(ptime):
                     continue
                 resolved = _cue_resolve_files(pfiles)
                 if not resolved:
@@ -777,6 +807,9 @@ init python:
                 f = _random.choice(resolved)
                 if _cue_play_sfx(f, "preview", volume=pvol):
                     _cue.beat._preview_marker_played.add(pkey)
+
+        # Store for next tick's cross-between-ticks detection
+        _cue._prev_tick_effective_elapsed = effective_elapsed
 
 
     def _cue_preview_preset(preset_name):
