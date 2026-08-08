@@ -38,16 +38,11 @@ init -900 python:
     _cue.DLG_KEY_PREFIX = "d:"
     _cue.VID_KEY_PREFIX = "v:"
 
-    # Pool state machine (multi-instance: one per active l: key)
-    _cue.loop_states = {}
-    _cue.loop_current = {}   # {key, channels} of currently-playing loop SFX
-    _cue.last_played = []
-
-    _cue.triggers_active = True
+    # Trigger engine (loop/video/context dispatch)
+    _cue.trigger = CueTriggerEngine()
 
     # Video state (per-video playback tracking)
     _cue.vid_manager = CueVideoManager()
-    _cue.played_video_keys = set()  # tracks which v: markers have already fired this playback
 
     # Volume manager (per-entry volume read/write)
     _cue.volume = CueVolumeManager()
@@ -206,7 +201,7 @@ init python:
     def _cue_toggle_active():
         """Toggle active state — when False, no triggers fire. Persisted.
         Called from Ctrl+` key binding and the Active checkbox."""
-        _cue.triggers_active = not _cue.triggers_active
+        _cue.trigger.active = not _cue.trigger.active
         _cue.markers.save_persistent()
 
     def _cue_toggle_shake_trigger():
@@ -289,9 +284,9 @@ init python:
                 img_key = create_img_key(_cue.current_file) 
             
             # Clean up stale data
-            _cue.loop_states = {}
-            _cue.played_video_keys.clear()
-            _cue._prev_tick_effective_elapsed = -1.0
+            _cue.trigger.loop_states = {}
+            _cue.trigger.played_video_keys.clear()
+            _cue.trigger._prev_eff_elapsed = -1.0
             # Refresh video editor for the new file (backup state, etc.)
             if _cue.is_overlay_visible:
                 _cue.video_editor.refresh()
@@ -313,7 +308,7 @@ init python:
 
         if changed:
             _cue_log("CTX-CHANGE{}".format(changed))
-            _cue_fire_context_triggers(img_key, dlg_key)
+            _cue.trigger.fire_context(img_key, dlg_key)
             renpy.restart_interaction()
 
         # 5. Screenshake trigger — fires independently of context changes,
@@ -329,7 +324,7 @@ init python:
             if _cue.current_file:
                 shake_key = create_img_key(_cue.current_file)
                 if shake_key != img_key:
-                    _cue_fire_context_triggers(shake_key, only_shake_pools=True)
+                    _cue.trigger.fire_context(shake_key, only_shake_pools=True)
 
 
     def _cue_log_context():
@@ -371,52 +366,6 @@ init python:
         f = file if file is not None else _cue_pick_file(files, avoid_repeats=avoid_repeats)
         vol = _cue.volume.get_effective(entry, key, pool_index=pool_index)
         return _cue_play_sfx(f, key, volume=vol)
-
-    def _cue_fire_context_triggers(*keys, **kwargs):
-        """Fire markers for the given trigger keys.
-        Multi-pool entries play one random file from EACH pool concurrently.
-        Dedupe guard: same file in two pools of the same trigger is re-picked
-        up to 3 times, then skipped to avoid echo artifacts.
-
-        When only_shake_pools is True, pool without the trigger_on_shake flag
-        are skipped — used by screenshake triggers so each pool independently
-        opts in to firing on shake."""
-        
-        only_shake_pools = kwargs.get("only_shake_pools", False)
-        if not _cue.triggers_active:
-            return
-        for key in keys:
-            if not key:
-                continue
-            entry = _cue.markers.get(key)
-            if not entry:
-                continue
-            pools = entry.get("pools", [])
-            if not pools:
-                continue
-            vol = entry.get("volume", 1.0)
-            total = sum(len(_cue.markers.resolve_pool(p).files) for p in pools)
-
-            _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(
-                key, len(pools), total, vol))
-
-            picked = []
-            for pi, pool in enumerate(pools):
-                resolved = _cue.markers.resolve_pool(pool)
-                if only_shake_pools and not resolved.trigger_on_shake:
-                    continue
-                files = _cue_resolve_files(resolved.files)
-                if not files:
-                    continue
-                file = _cue_pick_file(files)
-                tries = 0
-                while file in picked and len(files) > 1 and tries < 3:
-                    file = _cue_pick_file(files)
-                    tries += 1
-                if file in picked:
-                    continue
-                picked.append(file)
-                _cue_play_pool(entry, key, pool, pi, file=file)
 
 
     # --------------------------------------------------------------------------
@@ -602,227 +551,7 @@ init python:
         # --- Play-count tracker: logs each new play via elapsed wrap-around ---
         _cue.video_sequence.tick()
 
-        if not _cue.triggers_active:
-            return
-
-        _cue.__tick_count = getattr(_cue, '__tick_count', 0) + 1
-        tick = _cue.__tick_count
-
-        now = _time.time()
-        _cue_tick_loop_triggers(now, tick)
-        _cue_tick_video_triggers()
-
-    def _cue_tick_loop_triggers(now, tick):
-        """Loop state machine for l: keys — fires pooled SFX on a frequency cycle."""
-        loop_key = create_loop_key(_cue.current_file or "")
-
-        entry = _cue.markers.get(loop_key)
-        if entry is None:
-            return
-        pools = entry.get("pools", [])
-        # Collect frequencies from resolved pools with files, default 1
-        freqs = []
-        for p in pools:
-            resolved = _cue.markers.resolve_pool(p)
-            if resolved.files:
-                freqs.append(resolved.frequency)
-        if not freqs:
-            return
-
-        # Init per-pool states under the loop key
-        if loop_key not in _cue.loop_states:
-            _cue.loop_states[loop_key] = {}
-        ps = _cue.loop_states[loop_key]
-
-        # Collect all active loop channels and dead-air channels
-        all_active = []
-        exclusive_channels = []
-        for pst in ps.values():
-            if isinstance(pst, dict) and "channels" in pst:
-                all_active.extend(pst.get("channels", []))
-                if pst.get("exclusive"):
-                    exclusive_channels.extend(pst.get("channels", []))
-
-        # Post-dead-air breathing window (50-100ms) — no pool fires during this
-        _exclusive_done_at = ps.get("_exclusive_done_at", 0.0)
-
-        picked = []
-        for pi, pool in enumerate(pools):
-            resolved = _cue.markers.resolve_pool(pool)
-            files = _cue_resolve_files(resolved.files)
-            if not files:
-                continue
-
-            pst = ps.get(pi)
-            if pst is None:
-                init_delay = _random.uniform(0.0, _cue.markers.loop.get_delay(resolved.frequency))
-                ps[pi] = {"ready_at": now + init_delay, "channels": [], "play_start": 0.0, "exclusive": False}
-                pst = ps[pi]
-
-            # If this pool's channels are done playing, reset for next cycle
-            if pst["channels"] and not _cue_loop_still_playing(pst["channels"]):
-                dur = now - pst["play_start"]
-                was_exclusive = pst.get("exclusive", False)
-                breathing = _cue.markers.loop.get_delay(resolved.frequency)
-                pst["ready_at"] = now + breathing
-                pst["channels"] = []
-                pst["exclusive"] = False
-                if was_exclusive:
-                    ps["_exclusive_done_at"] = now + 0.05 + _random.uniform(0.0, 0.05)
-                _cue_log("TICK#{} POOL-DONE  key={} pool={} dur={:.2f}s next_in={:.2f}s{}".format(
-                    tick, loop_key, pi, dur, breathing,
-                    " exclusive" if was_exclusive else ""))
-
-            # Skip if not ready yet
-            if pst["channels"]:
-                continue
-            if now < pst["ready_at"]:
-                continue
-
-            # Gate: no pool fires while dead-air SFX is playing
-            if _cue_loop_still_playing(exclusive_channels):
-                pst["ready_at"] = now + 0.1
-                continue
-
-            # Gate: no pool fires during post-dead-air breathing window
-            if now < _exclusive_done_at:
-                pst["ready_at"] = _exclusive_done_at
-                continue
-
-            # Dead-air-specific gate: skip if any loop channel is busy
-            if resolved.exclusive and (
-                _cue_loop_still_playing(all_active)
-                or _cue_loop_still_playing(getattr(_cue, 'loop_current', {}).get('channels', []))
-            ):
-                #_cue_log("TICK#{} DEAD-AIR-WAIT  key={} pool={}".format(tick, loop_key, pi))
-                pst["ready_at"] = now + 0.1
-                continue
-
-            # Pick a file and play
-            picked_file = _cue_pick_file(files)
-            tries = 0
-            while picked_file in picked and len(files) > 1 and tries < 3:
-                picked_file = _cue_pick_file(files)
-                tries += 1
-            if picked_file in picked:
-                continue
-            picked.append(picked_file)
-            ch_used = _cue_play_pool(entry, loop_key, pool, pi, file=picked_file)
-            if ch_used:
-                pst["channels"] = [ch_used]
-                pst["play_start"] = now
-                if resolved.exclusive:
-                    pst["exclusive"] = True
-                    exclusive_channels.append(ch_used)
-                all_active.append(ch_used)
-                _cue.loop_current = {
-                    "key": loop_key,
-                    "channels": python_list(all_active),
-                }
-                _cue_log("TICK#{} POOL-PLAY  key={} pool={} ch={} dur={:.2f}s next_in={:.2f}s".format(
-                    tick, loop_key, pi, ch_used,
-                    renpy.music.get_duration(channel=ch_used) or 0.0,
-                    _cue.markers.loop.get_delay(resolved.frequency)))
-
-
-    def _cue_tick_video_triggers():
-        """Video pool triggers for v: keys — fires SFX at marked times.
-
-        Uses two complementary checks so markers aren't missed when playback
-        position jumps more than marker_tolerance between ticks (common on
-        short videos, high-speed playback, or coarse get_pos() steps):
-
-          1. Forward window:  mt <= eff < mt + tolerance    (stationary / first tick)
-          2. Cross check:     prev_eff < mt <= eff           (jumped past marker)
-        """
-        ch = _cue.vid_manager.channel
-        if not ch or _cue.top_layer_type != 'movie':
-            return
-
-        elapsed = _cue.vid_manager.get_elapsed()
-        marker_tolerance = 0.08
-
-        # Autoscale: markers are stored at 1x reference time, so convert
-        # variant elapsed to reference time when speed != 1.0.
-        speed = _cue.speed_resolver.get_current_speed()
-        effective_elapsed = elapsed * speed
-
-        # Previous tick's effective position for cross-between-ticks detection.
-        # Initialized to -1.0 so markers at time 0 trigger on the first tick
-        # via:  prev_eff(-1) < mt(0) <= eff(0).
-        prev_eff = getattr(_cue, '_prev_tick_effective_elapsed', -1.0)
-
-        # --- Helper: did we reach or cross this marker time? ---
-        def _cue_marker_reached(mt):
-            """Return True if the marker at mt was reached or crossed since
-            the last tick, either within the forward tolerance window or by
-            jumping past it between ticks."""
-            # Forward window: current position is within tolerance past the marker
-            if mt <= effective_elapsed < mt + marker_tolerance:
-                return True
-            # Cross check: we jumped past the marker since the last tick
-            if prev_eff < mt <= effective_elapsed:
-                return True
-            return False
-
-        # Video markers
-        if _cue.current_file:
-            vid_key = create_vid_key(_cue.current_file)
-            markers = _cue.markers.video.get_markers()
-            vid_entry = _cue.markers.get(vid_key)
-
-            # Tack preview markers onto the list — they're already pool dicts
-            # shaped like real video markers (time/files/volume).
-            _preview_count = 0
-            if _cue.beat.dialog_visible and _cue.beat.preview_sfx_enabled:
-                preview_pools = _cue.beat.compute_preview_pools()
-                markers.extend(preview_pools)
-                _preview_count = len(preview_pools)
-
-            if markers:
-                # Per-time counter so same-time markers get unique stable keys.
-                # Keyed by time instead of list index — adding/removing markers
-                # at other timestamps doesn't invalidate already-fired keys.
-                time_counts = {}
-                for idx, pool_entry in enumerate(markers):
-                    is_preview = idx >= len(markers) - _preview_count
-                    if is_preview:
-                        entry = {"pools": [pool_entry]}
-                        pool_index = 0
-                    else:
-                        entry = vid_entry
-                        pool_index = idx
-
-                    t = pool_entry["time"]
-                    count = time_counts.setdefault(t, 0) + 1
-                    time_counts[t] = count
-                    ts_key = "{}@{:.3f}#{}".format(vid_key, t, count)
-
-                    if ts_key in _cue.played_video_keys:
-                        continue
-
-                    if "time" not in pool_entry:
-                        if not is_preview:
-                            _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(pool_entry))
-                        continue
-
-                    if _cue_marker_reached(pool_entry["time"]):
-                        f = _cue_play_pool(entry, vid_key, pool_entry, pool_index, avoid_repeats=False)
-                        if f:
-                            _cue.played_video_keys.add(ts_key)
-
-        # Detect video loop — Ren'Py can't seek backwards, so any backward
-        # jump in elapsed is a loop restart from time 0.
-        if _cue.vid_manager.last_elapsed > 0 and elapsed < _cue.vid_manager.last_elapsed - 0.3:
-            _cue.played_video_keys.clear()
-            # Reset cross-check anchor so the stale pre-loop position doesn't
-            # affect the first tick of the new loop.
-            _cue._prev_tick_effective_elapsed = -1.0
-        _cue.vid_manager.last_elapsed = elapsed
-
-        # Store for next tick's cross-between-ticks detection
-        _cue._prev_tick_effective_elapsed = effective_elapsed
-
+        _cue.trigger.tick(_cue.current_file, _cue.top_layer_type)
 
     def _cue_preview_preset(preset_name):
         """Preview a random file from a preset. Resolves folder refs first."""

@@ -568,7 +568,7 @@ init -999 python:
             """Remove loop markers for the current context."""
             key = self._key()
             self._mgr.pop(key, None)
-            _cue.loop_states.pop(key, None)
+            _cue.trigger.loop_states.pop(key, None)
             self._mgr.save_persistent()
 
         def set_frequency(self, freq):
@@ -1142,7 +1142,7 @@ init -999 python:
                 "presets": _cue_unwrap_persistent(self._presets),
                 "video_presets": _cue_unwrap_persistent(self._video_presets),
                 "disabled_files": list(_cue_unwrap_persistent(_cue.file_tree.disabled_files)),
-                "triggers_active": _cue.triggers_active,
+                "triggers_active": _cue.trigger.active,
                 "encode_mode": _cue.video_editor.encode_mode,
             }
             persistent._cue_config = data
@@ -1158,7 +1158,7 @@ init -999 python:
             self._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
             
             _cue.file_tree.disabled_files = python_set(_cue_unwrap_persistent(data.get("disabled_files", set())))
-            _cue.triggers_active = bool(data.get("triggers_active", True))
+            _cue.trigger.active = bool(data.get("triggers_active", True))
             _ved = _cue.video_editor
             if "encode_mode" in data:
                 _mode = int(data["encode_mode"])
@@ -1339,5 +1339,5 @@ init -999 python:
                             t = max(0.0, t)
                         pool_entry["time"] = t
 
-            _cue.loop_states = {}
+            _cue.trigger.loop_states = {}
             self.save_persistent()

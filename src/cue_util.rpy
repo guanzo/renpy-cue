@@ -388,7 +388,7 @@ init python:
         if len(files) == 1:
             f = files[0]
         elif avoid_repeats:
-            last = _cue.last_played
+            last = _cue.trigger.last_played
             f = _random.choice(files)
             tries = 0
             while f in last and tries < 10:

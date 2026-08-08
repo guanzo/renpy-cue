@@ -64,7 +64,7 @@ screen cue_overlay_content():
         # --- Top bar: active checkbox + copy + paste + dump + restore + refresh + close ---
         hbox:
             spacing 2
-            use cue_toggle_btn(_cue.triggers_active, "SFX Active",
+            use cue_toggle_btn(_cue.trigger.active, "SFX Active",
                 Function(_cue_toggle_active),
                 "SFX triggers are ON (F4 to toggle)",
                 "SFX triggers are OFF (F4 to toggle)",
