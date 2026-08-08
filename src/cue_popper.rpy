@@ -44,10 +44,7 @@ init python:
 
     def _cue_store_focus_rect(name):
         """Capture current focus rect under `name`.
-        Call from anchor hovered/action via
-            properties _cue_popper_anchor_props(name)
-        or directly:
-            hovered Function(_cue_store_focus_rect, name)
+        Called from cue_popper_anchor
 
         Uses built-in capture_focus on 8.x; manual fallback on 7.4.x.
         """
@@ -66,8 +63,6 @@ init python:
                 anchors[name] = rect
             else:
                 anchors.pop(name, None)
-
-
 
     def _cue_clear_focus_rect(name):
         """Clear stored focus rect for `name`."""
@@ -93,30 +88,6 @@ init python:
             if anchors is None:
                 return (None, None, None, None)
             return anchors.get(name, (None, None, None, None))
-
-
-    # --- Anchor properties helper -----------------------------------------
-
-    def _cue_popper_anchor_props(name):
-        """Return a dict of screen-language properties for a popper anchor.
-        Sets id=name, hovered to _cue_store_focus_rect(name), and
-        action=NullAction() (required — Ren'Py ignores hovered on buttons
-        without an action).
-
-        To override with a real click action, put it AFTER properties:
-            textbutton "Click me":
-                properties _cue_popper_anchor_props("btn")
-                action Function(my_click_handler)
-
-        Usage:
-            textbutton "Hover me":
-                properties _cue_popper_anchor_props(anchor_id)
-        """
-        d = python_dict()
-        d["id"] = name
-        d["hovered"] = Function(_cue_store_focus_rect, name)
-        #d["action"] = NullAction()
-        return d
 
 
     # --- Placement algorithm ----------------------------------------------
@@ -231,6 +202,8 @@ init python:
             rect = _cue_get_focus_rect(self.target)
             if rect[0] is not None:
                 self._stored_rect = rect
+            else:
+                self._stored_rect = None
 
             if self._stored_rect is None:
                 self._hide_st = None
@@ -252,7 +225,7 @@ init python:
             # Compute popup position against game window bounds.
             vw = renpy.config.screen_width
             vh = renpy.config.screen_height
-            
+
             x, y, arrow_dir = _cue_compute_popup_position(
                 ax, ay, aw, ah, cw, ch,
                 vw, vh,

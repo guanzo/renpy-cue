@@ -47,22 +47,29 @@ screen cue_overlay():
 
     # --- Floating tooltip near mouse (auto-sizes to fit text) ---
     $ _tt = GetTooltip()
+
+
+    # --- Sequence button popup (edit actions) ---
+    popper target "seq_btn" placement "top":
+        hbox:
+            spacing 2
+            use cue_txt_button("❮", Function(_cue_seq_move_left), tt="Move left")
+            use cue_txt_button("✕", Function(_cue_seq_delete), tt="Delete")
+            use cue_txt_button("❯", Function(_cue_seq_move_right), tt="Move right")
+
+    # --- Tooltip overlay (after poppers so it draws above them) ---
     if _tt:
         add _Tooltip(_tt)
 
     # --- Marker timeline tooltip (rendered last so it's always on top) ---
     add _MarkerTooltipOverlay()
 
-    popper target "my_anchor" placement "top":
-        use cue_txt_button("Clear",
-            Function(_cue_TEST),
-            tt="Remove the entire speed sequence")
 
-
-screen cue_popper_anchor(name):
+screen cue_popper_anchor(name, hover_fn):
     button:
+        padding (0, 0)
         action NullAction()
-        hovered Function(_cue_store_focus_rect, name)
+        hovered [Function(_cue_store_focus_rect, name), hover_fn]
         background None
         transclude
 
@@ -157,7 +164,7 @@ screen cue_overlay_content():
                         if len(_avail) > 1:
                             hbox:
                                 spacing 3
-                                text "Add:" style "cue_txt" size 11
+                                text "Speeds:" style "cue_txt" size 11
                                 for _sp in _avail:
                                     $ _a_label = _cue_speed_label(_sp)
                                     use cue_txt_button(_a_label,
@@ -180,15 +187,20 @@ screen cue_overlay_content():
                                 style_group "cue"
 
                                 hbox:
-                                    spacing 5
+                                    spacing 4
                                     for _si in range(len(_seq)):
                                         $ _sp = _seq[_si]
                                         $ _s_label = _cue_speed_label(_sp)
                                         $ _is_current = (_cue.video_sequence.current_step_index() == _si)
                                         $ _bg = _cue_color_active if _is_current else None
-                                        
-                                        use cue_popper_anchor("my_anchor"):
-                                            use cue_txt_button(_s_label, NullAction(), bg=_bg, sensitive=False)
+                                        use cue_popper_anchor("seq_btn", Function(_cue_seq_btn_hovered, _si)):
+                                            textbutton _s_label:
+                                                style "cue_btn"
+                                                text_style "cue_btn_text"
+                                                if _bg is not None:
+                                                    background _bg
+                        else: 
+                            text "Click the speed buttons to create a sequence." style "cue_help"
 
                         text "The video plays through each speed in order, then loops." style "cue_help"
 
@@ -360,7 +372,7 @@ screen cue_overlay_content():
                                     use cue_txt_button(_cue_speed_label(_sp),
                                         Function(_cue.video_editor.set_quick, _sp),
                                         tt="Set speed to " + _cue_speed_label(_sp))
-                        text "Speed multiplier is based on original video" style "cue_help" size 10 yalign 0.5
+                        text "Speed multiplier is based on original video" style "cue_help" yalign 0.5
 
                     # --- Encode mode radio buttons ---
                     vbox:
@@ -422,7 +434,7 @@ screen cue_overlay_content():
                                         hbox:
                                             spacing 4
                                             null width 20
-                                            text _job.error_msg style "cue_txt" size 10 color _cue_color_error
+                                            text _job.error_msg style "cue_txt" size 11 color _cue_color_error
                                             use cue_txt_button("Retry",
                                                 Function(_cue.video_editor.job_queue.retry, _job.job_id))
 
@@ -468,9 +480,6 @@ screen cue_overlay_content():
 
         # Audio file browser
         use cue_section_frame("SFX Library"): 
-            use cue_popper_anchor("my_anchor"):
-                use cue_txt_button("CLICK ME", NullAction())
-
             if not _cue.audio_tree:
                 text "[_cue.scan_error]" style "cue_help" color _cue_color_error
                 text "Place .ogg, .mp3, .wav, .opus, or .flac files there and click ⟳ to refresh." style "cue_help"

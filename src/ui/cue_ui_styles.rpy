@@ -59,9 +59,6 @@ style cue_btn_text is empty:
     yanchor 0.5
     adjust_spacing False
 
-style cue_btn_text_sm is cue_btn_text:
-    size 10
-
 style cue_btn_icon is empty:
     xysize (16, 16)
     padding (0, 0)

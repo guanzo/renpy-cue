@@ -782,3 +782,36 @@ init -999 python:
             """Hide the toast screen (called by the screen's auto-hide timer)."""
             renpy.hide_screen("cue_speed_toast", layer="cue_layer")
             self.toast_speeds = None
+
+
+    # ==========================================================================
+    # Sequence button popup — hovered callback + button actions
+    # ==========================================================================
+
+    def _cue_seq_btn_hovered(index):
+        _cue._seq_popup_index = index
+
+    def _cue_seq_popup_dismiss():
+        _cue_clear_focus_rect("seq_btn")
+        _cue._seq_popup_index = -1
+
+    def _cue_seq_delete():
+        idx = getattr(_cue, '_seq_popup_index', -1)
+        if idx < 0:
+            return
+        _cue_seq_popup_dismiss()
+        _cue.video_sequence.remove_at(idx)
+
+    def _cue_seq_move_left():
+        idx = getattr(_cue, '_seq_popup_index', -1)
+        if idx < 1:
+            return
+        _cue_seq_popup_dismiss()
+        _cue.video_sequence.move(idx, -1)
+
+    def _cue_seq_move_right():
+        idx = getattr(_cue, '_seq_popup_index', -1)
+        if idx < 0:
+            return
+        _cue_seq_popup_dismiss()
+        _cue.video_sequence.move(idx, 1)
