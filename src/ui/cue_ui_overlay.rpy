@@ -150,8 +150,8 @@ screen cue_overlay_content():
                                         if _sp != _cue.DEFAULT_VIDEO_SPEED
                                         else "Play at original video speed")
                                     $ _is_pending = (_cue.speed_resolver._pending_speed is not None
-                                        and abs(_sp - _cue.speed_resolver._pending_speed) < 0.05)
-                                    $ _is_selected = abs(_cur - _sp) < 0.05 or _is_pending
+                                        and _sp == _cue.speed_resolver._pending_speed)
+                                    $ _is_selected = _cur == _sp or _is_pending
                                     $ _btn_color = ("#886600" if _is_pending else _cue_color_active)
                                     use cue_select_btn(_label, _is_selected,
                                         Function(_cue.speed_resolver.set_speed, _sp),
@@ -866,8 +866,8 @@ screen cue_speed_toast():
             $ _playing = (_cue.speed_resolver._pre_pending_speed
                 if _pending is not None
                 else _cue.speed_resolver._get_speed_pref(_cue.speed_toast.toast_tag))
-            $ _is_pending = _pending is not None and abs(_sp - _pending) < 0.05
-            $ _is_active = abs(_sp - _playing) < 0.05
+            $ _is_pending = _pending is not None and _sp == _pending
+            $ _is_active = _sp == _playing
             text _cue_speed_label(_sp):
                 style "cue_txt"
                 color ("#ffcc00" if _is_pending

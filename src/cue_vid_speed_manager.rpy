@@ -145,7 +145,7 @@ init -999 python:
                 # Compare against last requested, not what's playing, so rapid
                 # clicks (including cycling back to original) always win.
                 last_requested = self._pending_speed or self._get_speed_pref(tag)
-                if abs(last_requested - speed) < 0.05:
+                if last_requested == speed:
                     return
                 base_path = self.base_path_for(tag)
                 if not base_path:
@@ -166,6 +166,7 @@ init -999 python:
                         renpy.music.queue(
                             new_variant, channel=ch,
                             loop=True, clear_queue=True)
+
                         _cue_log("VQ-SEAMLESS queue={} last_req={} new={}".format(
                             new_variant, last_requested, speed))
                     except Exception:
@@ -375,7 +376,7 @@ init -999 python:
             try:
                 for f in _os.listdir(base_dir):
                     sp = self._parse_variant_speed(f, base_no_ext, ext)
-                    if sp is not None and abs(sp - 1.0) > 0.05:
+                    if sp is not None and sp != 1.0:
                         if _os.path.isfile(_os.path.join(base_dir, f)):
                             speeds.append(sp)
             except Exception:
@@ -402,7 +403,7 @@ init -999 python:
             seq = entry.get("speed_sequence")
             if not seq:
                 return
-            new_seq = [s for s in seq if abs(s - speed) >= 0.05]
+            new_seq = [s for s in seq if s != speed]
             if len(new_seq) == len(seq):
                 return
             if new_seq:
@@ -446,13 +447,13 @@ init -999 python:
             for tag, base in self.paths.items():
                 if base == base_path:
                     cur = self._get_speed_pref(tag)
-                    if abs(cur - speed) < 0.05:
+                    if cur == speed:
                         self._set_speed_pref(tag, _cue.DEFAULT_VIDEO_SPEED)
 
             tag = _cue.current_file
             if tag:
                 cur = self._get_speed_pref(tag)
-                if abs(cur - speed) < 0.05:
+                if cur == speed:
                     self._set_speed_pref(tag, _cue.DEFAULT_VIDEO_SPEED)
 
             # Now delete the variant file with a few retries in case the
@@ -542,19 +543,19 @@ init -999 python:
                 start = i
                 count = 1
                 i += 1
-                while i < len(seq) and abs(seq[i] - sp) < 0.05:
+                while i < len(seq) and seq[i] == sp:
                     count += 1
                     i += 1
                 groups.append((sp, count, start))
             return groups
 
         def contains(self, speed):
-            """True if speed (within 0.05) appears in the current video's sequence."""
+            """True if speed appears in the current video's sequence."""
             seq = self.speeds_for(_cue.current_file)
             if not seq:
                 return False
             for s in seq:
-                if abs(s - speed) < 0.05:
+                if s == speed:
                     return True
             return False
 
