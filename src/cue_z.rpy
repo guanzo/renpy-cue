@@ -193,6 +193,9 @@ init python:
     # Visibility
     # --------------------------------------------------------------------------
 
+    def _cue_TEST():
+        """Toggle the overlay on/off. Called from the key-listener screen."""
+        _cue_log("TESTTTTTT")
     def _cue_toggle_overlay():
         """Toggle the overlay on/off. Called from the key-listener screen."""
         if _cue.is_overlay_visible:

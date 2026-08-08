@@ -37,7 +37,7 @@ style cue_frame is empty:
     xfill True
 
 style cue_popper_frame is empty:
-    background _cue_color_bg_overlay
+    background "#000000ee"
     padding (8, 6)
     xfill False
 
@@ -120,9 +120,3 @@ style cue_scrollbar:
     base_bar Solid(_cue_color_bg_scrollbar)
     thumb Solid(_cue_color_divider)
     hover_thumb Solid(_cue_color_text_dim)
-
-style cue_popper_frame is empty:
-    background "#2a2a2af2"
-    padding (8, 6)
-    xfill False
-

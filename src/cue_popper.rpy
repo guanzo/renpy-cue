@@ -1,18 +1,19 @@
 # CuePopper — Reusable positioned popup for Ren'Py.
+# =============================================================================
 #
 # Usage:
 #   screen my_screen():
-#       $ anchor_id = "my_anchor"
-#       textbutton "Hover me":
-#           properties _cue_popper_anchor_props(anchor_id)
-#       popper target anchor_id placement "top" offset 8:
-#           frame:
-#               text "Tooltip content"
+#       use cue_popper_anchor("my_anchor"):
+#           textbutton "Hover me"
 #
-# The anchor calls _cue_store_focus_rect(name) on hovered (via the
-# properties helper). The popper positions its child relative to the
-# anchor with flip + clamp, and auto-dismisses 300ms after the mouse
-# leaves both the anchor and popup area.
+#       popper target "my_anchor":
+#           use cue_txt_button("Clear", Function(my_handler))
+#
+# - cue_popper_anchor wraps the element in a button so hovered fires.
+# - popper positions the child relative to the anchor with flip + clamp,
+#   draws an arrow, and auto-dismisses 300ms after the mouse leaves.
+# - Frame chrome, click-blocking, and default placement/offset are all
+#   handled automatically.
 # =============================================================================
 
 python early:
@@ -131,15 +132,10 @@ init python:
 
     def _cue_compute_popup_position(ax, ay, aw, ah, cw, ch, vw, vh,
                                     placement, offset, margin):
-        """Compute (x, y) for popup relative to anchor rect.
-        Implements popper.js-style preferred placement + flip + clamp.
+        """Compute (x, y, effective_placement) for popup relative to anchor.
 
-        ax, ay, aw, ah — anchor rect in screen coords
-        cw, ch — popup content size
-        vw, vh — viewport size (game window)
-        placement — "top" | "bottom" | "left" | "right"
-        offset — gap between anchor edge and popup edge
-        margin — minimum distance from viewport edge
+        Returns (x, y, dir) where dir is the edge of the popup that faces
+        the anchor — "down", "up", "right", or "left" (for arrow drawing).
         """
 
         if placement == "top":
@@ -147,31 +143,64 @@ init python:
             y = ay - ch - offset
             if y < margin:
                 y = ay + ah + offset
+                arrow_dir = "up"
+            else:
+                arrow_dir = "down"
         elif placement == "bottom":
             x = ax + (aw - cw) // 2
             y = ay + ah + offset
             if y + ch > vh - margin:
                 y = ay - ch - offset
+                arrow_dir = "down"
+            else:
+                arrow_dir = "up"
         elif placement == "left":
             x = ax - cw - offset
             y = ay + (ah - ch) // 2
             if x < margin:
                 x = ax + aw + offset
+                arrow_dir = "left"
+            else:
+                arrow_dir = "right"
         elif placement == "right":
             x = ax + aw + offset
             y = ay + (ah - ch) // 2
             if x + cw > vw - margin:
                 x = ax - cw - offset
+                arrow_dir = "right"
+            else:
+                arrow_dir = "left"
         else:
-            # Unknown placement — default to top.
             x = ax + (aw - cw) // 2
             y = ay - ch - offset
+            arrow_dir = "down"
 
         # Clamp within viewport.
         x = max(margin, min(x, vw - cw - margin))
         y = max(margin, min(y, vh - ch - margin))
 
-        return int(x), int(y)
+        return int(x), int(y), arrow_dir
+
+
+    # --- Arrow drawing ------------------------------------------------------
+
+    ARROW_SZ = 6  # half-base of the arrow triangle
+
+    def _cue_draw_arrow(r, px, py, pw, ph, arrow_dir):
+        """Draw a small triangle on the popup edge facing the anchor."""
+        cx, cy = px + pw // 2, py + ph // 2
+        color = "#000000ee"
+
+        if arrow_dir == "down":
+            pts = [(cx - ARROW_SZ, py + ph), (cx, py + ph + ARROW_SZ), (cx + ARROW_SZ, py + ph)]
+        elif arrow_dir == "up":
+            pts = [(cx - ARROW_SZ, py), (cx, py - ARROW_SZ), (cx + ARROW_SZ, py)]
+        elif arrow_dir == "right":
+            pts = [(px + pw, cy - ARROW_SZ), (px + pw + ARROW_SZ, cy), (px + pw, cy + ARROW_SZ)]
+        else:  # left
+            pts = [(px, cy - ARROW_SZ), (px - ARROW_SZ, cy), (px, cy + ARROW_SZ)]
+
+        r.canvas().polygon(color, pts)
 
 
     # --- CuePopper displayable --------------------------------------------
@@ -239,11 +268,14 @@ init python:
             # Compute popup position against game window bounds.
             vw = renpy.config.screen_width
             vh = renpy.config.screen_height
-            x, y = _cue_compute_popup_position(
+            x, y, arrow_dir = _cue_compute_popup_position(
                 ax, ay, aw, ah, cw, ch,
                 vw, vh,
                 self.placement, self.offset, self.viewport_margin,
             )
+
+            # Draw arrow pointing at the anchor.
+            _cue_draw_arrow(r, x, y, cw, ch, arrow_dir)
 
             # Hover-zone check: is mouse over anchor or popup?
             mx, my = renpy.get_mouse_pos()
@@ -277,7 +309,7 @@ init python:
             frame = Window(style="cue_popper_frame")
             frame.add(child)
 
-            btn = Button(action=NullAction())
+            btn = Button(action=NullAction(), padding=(0, 0))
             btn.add(frame)
             super(CuePopper, self).add(btn)
 

@@ -53,7 +53,18 @@ screen cue_overlay():
     # --- Marker timeline tooltip (rendered last so it's always on top) ---
     add _MarkerTooltipOverlay()
 
+    popper target "my_anchor" placement "top":
+        use cue_txt_button("Clear",
+            Function(_cue_TEST),
+            tt="Remove the entire speed sequence")
 
+
+screen cue_popper_anchor(name):
+    button:
+        action NullAction()
+        hovered Function(_cue_store_focus_rect, name)
+        background None
+        transclude
 
 # =============================================================================
 # SUB-SCREEN: Sidebar content (shared between normal and fullscreen frames)
@@ -175,9 +186,9 @@ screen cue_overlay_content():
                                         $ _s_label = _cue_speed_label(_sp)
                                         $ _is_current = (_cue.video_sequence.current_step_index() == _si)
                                         $ _bg = _cue_color_active if _is_current else None
-                                        use cue_txt_button(_s_label, NullAction(),
-                                            bg=_bg, sensitive=False,
-                                            tt="Multi speed position {}. Cycles in order.".format(_si + 1))
+                                        
+                                        use cue_popper_anchor("my_anchor"):
+                                            use cue_txt_button(_s_label, NullAction(), bg=_bg, sensitive=False)
 
                         text "The video plays through each speed in order, then loops." style "cue_help"
 
@@ -456,7 +467,10 @@ screen cue_overlay_content():
                     "Prevents other loop SFX from playing at the same time")
 
         # Audio file browser
-        use cue_section_frame("SFX Library"):
+        use cue_section_frame("SFX Library"): 
+            use cue_popper_anchor("my_anchor"):
+                use cue_txt_button("CLICK ME", NullAction())
+
             if not _cue.audio_tree:
                 text "[_cue.scan_error]" style "cue_help" color _cue_color_error
                 text "Place .ogg, .mp3, .wav, .opus, or .flac files there and click ⟳ to refresh." style "cue_help"
