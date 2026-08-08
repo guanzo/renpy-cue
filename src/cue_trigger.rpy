@@ -288,14 +288,20 @@ init -999 python:
                             if f:
                                 self.played_video_keys.add(ts_key)
 
-            # Detect video loop — Ren'Py can't seek backwards, so any backward
-            # jump in elapsed is a loop restart from time 0.
-            if _cue.vid_manager.last_elapsed > 0 and elapsed < _cue.vid_manager.last_elapsed - 0.3:
+            # Detect video restart — two cases clear the dedup set:
+            #   1) last_elapsed == 0: video manager was just reset (new channel
+            #      or fresh playback, e.g. after editing the multi-speed queue).
+            #   2) elapsed < last_elapsed: playback looped/restarted (Ren'Py
+            #      can't seek backwards, so a large backward jump means restart).
+            is_fresh_reset = _cue.vid_manager.last_elapsed == 0
+            is_backward_jump = (
+                _cue.vid_manager.last_elapsed > 0
+                and elapsed < _cue.vid_manager.last_elapsed - 0.3
+            )
+            if is_fresh_reset or is_backward_jump:
                 self.played_video_keys.clear()
-                # Reset cross-check anchor so the stale pre-loop position doesn't
-                # affect the first tick of the new loop.
                 self._prev_eff_elapsed = -1.0
-            _cue.vid_manager.last_elapsed = elapsed
 
+            _cue.vid_manager.last_elapsed = elapsed
             # Store for next tick's cross-between-ticks detection
             self._prev_eff_elapsed = effective_elapsed
