@@ -90,17 +90,19 @@ init -999 python:
             Pool volumes default to VOL_DEFAULT (1.0 identity) so master
             is never double-counted. For entry-only queries returns master alone."""
             master = entry.get("volume", self.VOL_DEFAULT) if entry is not None else self.VOL_DEFAULT
-            if pool_index is not None:
-                pools = entry.get("pools")
+            
+            if pool_index is None:
+                return master
+            
+            pools = entry.get("pools")
+            if pools:
+                idx = pool_index
+                if 0 <= idx < len(pools):
+                    resolved = _cue.markers.resolve_pool(pools[idx])
+                    return max(self.VOL_MIN, min(self.VOL_MAX, master * resolved.volume))
                 if pools:
-                    idx = pool_index
-                    if 0 <= idx < len(pools):
-                        resolved = _cue.markers.resolve_pool(pools[idx])
-                        return max(self.VOL_MIN, min(self.VOL_MAX, master * resolved.volume))
-                    if pools:
-                        resolved = _cue.markers.resolve_pool(pools[0])
-                        return max(self.VOL_MIN, min(self.VOL_MAX, master * resolved.volume))
-            return master
+                    resolved = _cue.markers.resolve_pool(pools[0])
+                    return max(self.VOL_MIN, min(self.VOL_MAX, master * resolved.volume))
 
         # --- Convenience: video pool volume ---
 

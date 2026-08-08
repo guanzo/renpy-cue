@@ -276,7 +276,7 @@ screen cue_overlay_content():
                             $ _active_label = "Pool " + str(_vid_target + 1) + " (" + str(len(_active_files)) + " files)"
                         hbox:
                             spacing 5
-                            text _active_label style "cue_txt" size 11
+                            text _active_label style "cue_txt"
 
                             null width 5
 
@@ -444,10 +444,11 @@ screen cue_overlay_content():
                 use cue_select_btn("Normal", _freq == 1, Function(_cue.markers.loop.set_frequency, 1), tt="~2.1s between plays")
                 use cue_select_btn("Fast", _freq == 2, Function(_cue.markers.loop.set_frequency, 2), tt="~0.6s between plays")
                 use cue_select_btn("Fastest", _freq == 3, Function(_cue.markers.loop.set_frequency, 3), tt="~0.2s between plays")
-            $ _no_overlap = _cue._pool_ui.get("no_overlap", False)
-            use cue_toggle_btn(_no_overlap, "Don't overlap",
-                Function(_cue.markers.loop.set_no_overlap, not _no_overlap),
-                "Waits for other loop SFX to finish before playing.")
+                use cue_v_divider()
+                $ _no_overlap = _cue._pool_ui.get("no_overlap", False)
+                use cue_toggle_btn(_no_overlap, "Don't overlap",
+                    Function(_cue.markers.loop.set_no_overlap, not _no_overlap),
+                    "Waits for other loop SFX to finish before playing.")
 
         # Audio file browser
         use cue_section_frame("SFX Library"):

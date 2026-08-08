@@ -769,44 +769,56 @@ init python:
         if _cue.current_file:
             vid_key = create_vid_key(_cue.current_file)
             markers = _cue.markers.video.get_markers()
+            vid_entry = _cue.markers.get(vid_key)
+
+            # Tack preview markers onto the list — they're already pool dicts
+            # shaped like real video markers (time/files/volume).
+            _preview_count = 0
+            if _cue.beat.dialog_visible and _cue.beat.preview_sfx_enabled:
+                preview_pools = _cue.beat.compute_preview_pools()
+                markers.extend(preview_pools)
+                _preview_count = len(preview_pools)
 
             if markers:
-                vid_entry = _cue.markers.get(vid_key)
+                # Per-time counter so same-time markers get unique stable keys.
+                # Keyed by time instead of list index — adding/removing markers
+                # at other timestamps doesn't invalidate already-fired keys.
+                time_counts = {}
                 for idx, pool_entry in enumerate(markers):
-                    ts_key = "{}@{}".format(vid_key, idx)
-                    if ts_key not in _cue.played_video_keys:
-                        if "time" not in pool_entry:
+                    is_preview = idx >= len(markers) - _preview_count
+                    if is_preview:
+                        entry = {"pools": [pool_entry]}
+                        pool_index = 0
+                    else:
+                        entry = vid_entry
+                        pool_index = idx
+
+                    t = pool_entry["time"]
+                    count = time_counts.setdefault(t, 0) + 1
+                    time_counts[t] = count
+                    ts_key = "{}@{:.3f}#{}".format(vid_key, t, count)
+
+                    if ts_key in _cue.played_video_keys:
+                        continue
+
+                    if "time" not in pool_entry:
+                        if not is_preview:
                             _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(pool_entry))
-                            continue
-                        mt = pool_entry["time"]
-                        if _cue_marker_reached(mt):
-                            f = _cue_play_pool(vid_entry, vid_key, pool_entry, idx, avoid_repeats=False)
-                            if f:
-                                _cue.played_video_keys.add(ts_key)
+                        continue
+
+                    if _cue_marker_reached(pool_entry["time"]):
+                        f = _cue_play_pool(entry, vid_key, pool_entry, pool_index, avoid_repeats=False)
+                        if f:
+                            _cue.played_video_keys.add(ts_key)
 
         # Detect video loop — Ren'Py can't seek backwards, so any backward
         # jump in elapsed is a loop restart from time 0.
         if _cue.vid_manager.last_elapsed > 0 and elapsed < _cue.vid_manager.last_elapsed - 0.3:
             _cue.played_video_keys.clear()
-            _cue.beat.clear_preview_marker_played()
             # Reset cross-check anchor so the stale pre-loop position doesn't
             # affect the first tick of the new loop.
             _cue._prev_tick_effective_elapsed = -1.0
         _cue.vid_manager.last_elapsed = elapsed
-
-        # Preview marker triggers (repeat-pattern dialog, when SFX checkbox is on)
-        if _cue.beat.dialog_visible and _cue.beat.preview_sfx_enabled:
-            for ptime, pfiles, pvol, pkey in _cue.beat.compute_preview_pools():
-                if pkey in _cue.beat._preview_marker_played:
-                    continue
-                if not _cue_marker_reached(ptime):
-                    continue
-                resolved = _cue_resolve_files(pfiles)
-                if not resolved:
-                    continue
-                f = _random.choice(resolved)
-                if _cue_play_sfx(f, "preview", volume=pvol):
-                    _cue.beat._preview_marker_played.add(pkey)
 
         # Store for next tick's cross-between-ticks detection
         _cue._prev_tick_effective_elapsed = effective_elapsed

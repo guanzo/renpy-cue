@@ -293,7 +293,6 @@ init -999 python:
             files = pools[ts_index].get("files", [])
             if 0 <= file_index < len(files):
                 files.pop(file_index)
-                _cue.played_video_keys.clear()
                 self._mgr.save_persistent()
 
         def add_folder(self, folder_path):
@@ -323,7 +322,6 @@ init -999 python:
             """Remove all video markers for the current context."""
             super(CueVideoContext, self).clear()
             self.target_pool = 0
-            _cue.played_video_keys.clear()
             self.selected = set()
 
         def add_pool(self):
@@ -353,13 +351,11 @@ init -999 python:
             self._append_pool(entry, pools,
                 {"time": elapsed, "preset": preset_name})
             self.sync_text()
-            _cue.played_video_keys.clear()
             self._mgr.save_persistent()
 
         def remove_pool(self, ts_index):
             """Delete a pool by index. Clamps target_pool."""
             super(CueVideoContext, self).remove_pool(ts_index)
-            _cue.played_video_keys.clear()
             self.selected = set()
 
         def duplicate_pool(self, ts_index):
@@ -394,7 +390,6 @@ init -999 python:
                         self.target_pool = 0
                     else:
                         self.target_pool = min(self.target_pool, len(pools) - 1)
-                _cue.played_video_keys.clear()
                 self.selected = set()
                 self._mgr.save_persistent()
             else:
@@ -448,7 +443,6 @@ init -999 python:
             pool_entry["time"] = new_time
             self._sort_and_track(pools, pool_entry)
             self.edit_text = _cue_format_time(new_time)
-            _cue.played_video_keys.clear()
             self.selected = set()
             self._mgr.save_persistent()
 
@@ -510,7 +504,6 @@ init -999 python:
                     new_time = _cue_clamp_time(new_time, dur)
                 edited_entry["time"] = new_time
                 self._sort_and_track(pools, edited_entry)
-                _cue.played_video_keys.clear()
                 self.selected = set()
                 self._mgr.save_persistent()
             # Reformat buffer — shows current value, or feedback on parse failure
@@ -793,14 +786,17 @@ init -999 python:
             Silently drops markers that don't fit the target video duration.
             Resets UI state so the timeline re-renders correctly."""
             preset = self._video_presets.get(name)
+
             if preset is None:
                 return
             if not _cue.current_file:
                 return
+
             vid_key = create_vid_key(_cue.current_file)
             dur = _cue.vid_manager.get_duration()
-            new_pools = []
             dropped = 0
+            new_pools = []
+
             for pool in preset.get("pools", []):
                 t = pool.get("time")
                 if t is None:
@@ -814,14 +810,17 @@ init -999 python:
                     "files": python_list(pool.get("files", [])),
                     "volume": pool.get("volume", _cue.VOL_DEFAULT),
                 })
+
             new_pools.sort(key=lambda e: e["time"])
+
             entry = self._get_or_create_entry(vid_key)
             entry["pools"] = new_pools
             entry["volume"] = preset.get("volume", _cue.VOL_DEFAULT)
+
             self.video.target_pool = 0
             self.video.selected = set()
             self.video.sync_text()
-            _cue.played_video_keys.clear()
+
             self.save_persistent()
             _cue_log("APPLY-VIDEO-PRESET key={} preset={} markers={} dropped={}".format(
                 vid_key, name, len(new_pools), dropped))
@@ -1340,6 +1339,5 @@ init -999 python:
                             t = max(0.0, t)
                         pool_entry["time"] = t
 
-            _cue.played_video_keys.clear()
             _cue.loop_states = {}
             self.save_persistent()

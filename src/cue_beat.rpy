@@ -19,7 +19,6 @@ init -999 python:
             self.count_text = ""
             self.dialog_visible = False
             self.preview_sfx_enabled = True
-            self._preview_marker_played = python_set()
 
         def open(self):
             """Open the Repeat Pattern dialog for the current selection.
@@ -125,17 +124,12 @@ init -999 python:
         def hide(self):
             """Hide the repeat pattern dialog."""
             self.dialog_visible = False
-            self._preview_marker_played.clear()
             renpy.hide_screen("cue_repeat_pattern_dialog", layer="cue_layer")
 
         def toggle_preview_sfx(self):
             """Toggle whether preview markers trigger SFX during playback."""
             self.preview_sfx_enabled = not self.preview_sfx_enabled
-            self._preview_marker_played.clear()
 
-        def clear_preview_marker_played(self):
-            """Clear played state for preview markers (called on video loop)."""
-            self._preview_marker_played.clear()
 
         def compute_preview_times(self):
             """Return sorted list of preview marker times for the overlay.
@@ -170,9 +164,8 @@ init -999 python:
             return previews
 
         def compute_preview_pools(self):
-            """Return a list of fake pool dicts shaped like real video marker pools:
-            [{"time": t, "files": [...], "volume": v, "_key": k}, ...].
-            The _key field carries the dedupe identifier used by the trigger loop."""
+            """Return a list of pool dicts shaped like real video marker pools:
+            [{"time": t, "files": [...], "volume": v}, ...]."""
             if not self.dialog_visible:
                 return []
             try:
@@ -200,7 +193,6 @@ init -999 python:
                         "time": time,
                         "files": python_list(offset.get("files", [])),
                         "volume": offset.get("volume", _cue.VOL_DEFAULT),
-                        "key": "preview@{}@{}".format(beat_idx, offset_idx),
                     })
 
             pools.sort(key=lambda e: e["time"])

@@ -169,7 +169,7 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
 # preview_vol is the effective volume passed to _cue_preview_sfx.
 # row_spacing controls horizontal gap in each row (5 for most, 2 for loop).
 # folder_child_remove_fn(trigger_key, pool_index, fi, child_file) is called when
-#   removing a single file from an expanded folder ref (detach operation).
+#   removing a single file from an expanded folder (detach operation).
 #   Pass None to hide ✕ on folder children (e.g. for video pools).
 # Inner vbox — extracted so cue_file_list can conditionally wrap it in a viewport.
 screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
@@ -202,14 +202,14 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                         text _child style "cue_txt" color _cue_color_text_accent size 11
         for fi, f in enumerate(files):
             if f.endswith("/"):
-                # --- Folder ref: expandable (matches SFX Library folder UI) ---
+                # --- Folder: expandable (matches SFX Library folder UI) ---
                 $ _is_expanded = _cue.file_tree.expanded_file_refs.get(f, False)
                 $ _count = len(_cue_resolve_files([f]))
                 hbox:
                     spacing row_spacing
                     use cue_icon_button(("▾" if _is_expanded else "▸"),
                         Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
-                    use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder ref", None)
+                    use cue_icon_button("✕", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder", None)
                     use cue_icon_button("▶", Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol), "Preview random file from folder", None)
                     use cue_txt_button(f, Function(_cue.file_tree.toggle_file_ref_expand, f))
                     text "({} files)".format(_count) style "cue_txt" color _cue_color_text_dim size 10
@@ -221,9 +221,9 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                             if folder_child_remove_fn is not None:
                                 use cue_icon_button("✕",
                                     Function(folder_child_remove_fn, trigger_key, pool_index, fi, _child),
-                                    "Remove file from the folder ref", None)
+                                    "Remove file from the folder", None)
                             use cue_icon_button("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
-                            $ _display = _child[len(f):]  # strip folder ref prefix
+                            $ _display = _child[len(f):]  # strip folder prefix
                             text _display style "cue_txt" color _cue_color_text_accent size 11
             else:
                 # --- Regular file ---
@@ -334,7 +334,7 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
             $ _cue._pool_ui = {"pool": _active_pool, "files": _r.files, "target": _target, "freq": _r.frequency, "no_overlap": _r.no_overlap}
             hbox:
                 spacing 5
-                text _active_label style "cue_txt" size 11
+                text _active_label style "cue_txt"
                 null width 5
                 use cue_icon_button("💾", Function(_cue.preset_dialog.open, vol_key, _target), "Save pool as a preset", None)
                 use cue_icon_button("✕", Function(ctx.remove_pool, _target), "Delete pool", None)
