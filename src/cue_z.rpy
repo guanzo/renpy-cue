@@ -27,6 +27,7 @@ init -900 python:
     _cue.config_path = os.path.join(renpy.config.gamedir, _cue.base_dir, _cue.config_filename)
     _cue.debug_log_filename = "debug.log"
     _cue.markers = CueMarkerManager()  # Unified marker CRUD with typed accessors
+    _cue.undo = CueUndoManager()      # Undo/redo for markers, presets, video_presets
 
     # Volume constants (clamp range + UI quick-set targets)
     _cue.VOL_DEFAULT = 1.0   # default volume; "--" reset target
@@ -169,6 +170,7 @@ init 999 python:
 
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
         _cue.markers.load_persistent()
+        _cue.undo.seed()  # seed undo baseline after initial load
         _cue.speed_resolver.wrap_all_movies()
         _cue_scan_audio()
         

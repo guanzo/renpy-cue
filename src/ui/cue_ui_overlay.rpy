@@ -16,6 +16,8 @@ screen cue_key_listener():
     key "K_F4" action Function(_cue_toggle_active)
     key "shift_K_1" action Function(_cue.markers.copy_context)
     key "shift_K_2" action Function(_cue.markers.paste_context)
+    key "shift_K_q" action Function(_cue.undo.undo)
+    key "shift_K_w" action Function(_cue.undo.redo)
     key "K_PERIOD" action Function(_cue.speed_resolver.cycle_speed, 1)
     key "K_COMMA" action Function(_cue.speed_resolver.cycle_speed, -1)
     timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
@@ -72,6 +74,9 @@ screen cue_overlay_content():
             null width 5
             use cue_icon_btn("📋", Function(_cue.markers.copy_context), "Copy current context config (Shift + 1)", None)
             use cue_icon_btn("📄", Function(_cue.markers.paste_context), "Paste context config (Shift + 2)", None)
+            null width 5
+            use cue_icon_btn("↩", Function(_cue.undo.undo), "Undo (Shift + Q)", None, enabled=_cue.undo.can_undo())
+            use cue_icon_btn("↪", Function(_cue.undo.redo), "Redo (Shift + W)", None, enabled=_cue.undo.can_redo())
             null width 5
             $ _backup_tooltip = "Backup config to " + _cue.config_filename
             use cue_icon_btn("💾", Function(_cue.markers.backup_to_file), _backup_tooltip, None)

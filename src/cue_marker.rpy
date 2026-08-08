@@ -1150,6 +1150,9 @@ init -999 python:
             # Autosave backup to disk (throttled to once per 5 min)
             self._autosave_backup()
 
+            # Undo/redo capture — snapshot post-mutation state
+            _cue.undo.capture()
+
         def _populate_config(self, data):
             """Populate all internal state from a plain data dict.
             Called by both load() (from persistent) and restore() (from disk)."""
