@@ -566,10 +566,6 @@ init -999 python:
                 self._states[vpath] = CueVideoEditorState(vpath)
             return self._states[vpath]
 
-        def _save_encode_settings(self):
-            """Persist encode mode via the shared markers key."""
-            _cue.markers.save_persistent()
-
         def _state_for_vpath(self, vpath):
             """Return the state for vpath, or None if it doesn't exist."""
             return self._states.get(vpath)
@@ -639,17 +635,15 @@ init -999 python:
             except (ValueError, TypeError):
                 return 1.0
 
-        def set_encode_mode(self, mode, save=True, restart=True):
+        def set_encode_mode(self, mode):
             """Select the encode mode for new jobs: 0=normal, 1=interpolate,
             2=fast preview. Invalid modes are ignored (mode unchanged)."""
             mode = int(mode)
             if mode not in (self.MODE_NORMAL, self.MODE_INTERPOLATE, self.MODE_FAST_PREVIEW):
                 return
             self.encode_mode = mode
-            if save:
-                self._save_encode_settings()
-            if restart:
-                renpy.restart_interaction()
+            _cue.markers.save_persistent()
+            renpy.restart_interaction()
 
         def close_editor(self):
             """Return to the normal Video SFX section."""

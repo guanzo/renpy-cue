@@ -149,18 +149,22 @@ screen cue_overlay_content():
                                     $ _tt = ("Play at " + _cue_speed_label(_sp) + " speed"
                                         if _sp != _cue.DEFAULT_VIDEO_SPEED
                                         else "Play at original video speed")
-                                    use cue_select_btn(_label, abs(_cur - _sp) < 0.05,
+                                    $ _is_pending = (_cue.speed_resolver._pending_speed is not None
+                                        and abs(_sp - _cue.speed_resolver._pending_speed) < 0.05)
+                                    $ _is_selected = abs(_cur - _sp) < 0.05 or _is_pending
+                                    $ _btn_color = ("#886600" if _is_pending else _cue_color_active)
+                                    use cue_select_btn(_label, _is_selected,
                                         Function(_cue.speed_resolver.set_speed, _sp),
-                                        tt=_tt, active_color=_cue_color_active)
+                                        tt=_tt, active_color=_btn_color)
                                 if _cur != _cue.DEFAULT_VIDEO_SPEED:
                                     use cue_v_divider()
                                     use cue_txt_button("Delete " + _cue_speed_label(_cur),
                                         Function(_cue.speed_resolver.delete_variant, _vid_path, _cur),
                                         tt="Delete the " + _cue_speed_label(_cur) + " file.")
                             use cue_select_btn(
-                                ("[✓] Wait for loop to finish"
+                                ("☑ Seamless Transition"
                                  if _cue.speed_resolver.seamless_transition
-                                 else "[  ] Wait for loop to finish"),
+                                 else "☐  Seamless Transition"),
                                 _cue.speed_resolver.seamless_transition,
                                 Function(_cue.speed_resolver.toggle_seamless),
                                 tt="When enabled, changing speeds waits for the current video loop to finish before switching.")
@@ -854,14 +858,23 @@ screen cue_speed_toast():
     zorder 10001
     hbox:
         at cue_speed_toast_fade
-        xpos 14
+        xalign 0.5
         ypos 14
-        spacing 8
+        spacing 12
         for _sp in _cue.speed_toast.toast_speeds:
+            $ _pending = _cue.speed_resolver._pending_speed
+            $ _playing = (_cue.speed_resolver._pre_pending_speed
+                if _pending is not None
+                else _cue.speed_resolver._get_speed_pref(_cue.speed_toast.toast_tag))
+            $ _is_pending = _pending is not None and abs(_sp - _pending) < 0.05
+            $ _is_active = abs(_sp - _playing) < 0.05
             text _cue_speed_label(_sp):
-                color ("#ffffff" if abs(_sp - _cue.speed_toast.toast_current) < 0.05 else "#cccccc")
-                size (28 if abs(_sp - _cue.speed_toast.toast_current) < 0.05 else 26)
-                bold (abs(_sp - _cue.speed_toast.toast_current) < 0.05)
+                style "cue_txt"
+                color ("#ffcc00" if _is_pending
+                    else "#ffffff" if _is_active
+                    else "#cccccc")
+                size (28 if _is_active else 26)
+                bold _is_active
     # Auto-hide after the fade completes.  show() always calls
     # hide_screen first, so the next speed change creates a fresh
     # displayable tree with a restarted transform.

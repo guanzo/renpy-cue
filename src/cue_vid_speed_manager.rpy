@@ -122,15 +122,13 @@ init -999 python:
             available = self.get_available_speeds(base_path)
             if len(available) <= 1:
                 return
-            current = self._get_speed_pref(tag)
+            current = self._pending_speed or self._get_speed_pref(tag)
             try:
                 idx = available.index(current)
             except ValueError:
                 idx = 0
             new_idx = max(0, min(idx + delta, len(available) - 1))
-            self._set_speed_pref(tag, available[new_idx])
-            _cue.speed_toast.show(tag)
-            renpy.restart_interaction()
+            self.set_speed(available[new_idx])
 
         def set_speed(self, speed):
             """Set playback speed to a specific value."""
@@ -144,10 +142,10 @@ init -999 python:
 
             # --- Seamless transition: queue the new variant instead of restarting ---
             if self.seamless_transition:
-                cur_speed = (self._pre_pending_speed
-                             if self._pending_speed is not None
-                             else self._get_speed_pref(tag))
-                if abs(cur_speed - speed) < 0.05:
+                # Compare against last requested, not what's playing, so rapid
+                # clicks (including cycling back to original) always win.
+                last_requested = self._pending_speed or self._get_speed_pref(tag)
+                if abs(last_requested - speed) < 0.05:
                     return
                 base_path = self.base_path_for(tag)
                 if not base_path:
@@ -156,9 +154,11 @@ init -999 python:
                 if not renpy.loadable(new_variant):
                     return
 
-                self._pre_pending_speed = cur_speed
+                # Anchor _pre_pending_speed to what's actually playing (once).
+                # resolve() uses it to keep returning the old Movie while pending.
+                if self._pending_speed is None:
+                    self._pre_pending_speed = last_requested
                 self._pending_speed = speed
-                self._set_speed_pref(tag, speed)
 
                 ch = _cue.vid_manager.channel
                 if ch and new_variant:
@@ -166,15 +166,13 @@ init -999 python:
                         renpy.music.queue(
                             new_variant, channel=ch,
                             loop=True, clear_queue=True)
-                        _cue_log("VQ-SEAMLESS queue={} cur={} new={}".format(
-                            new_variant, cur_speed, speed))
+                        _cue_log("VQ-SEAMLESS queue={} last_req={} new={}".format(
+                            new_variant, last_requested, speed))
                     except Exception:
                         pass
-                renpy.restart_interaction()
-                return
+            else:
+                self._set_speed_pref(tag, speed)
 
-            # --- Immediate switch (existing behavior) ---
-            self._set_speed_pref(tag, speed)
             _cue.speed_toast.show(tag)
             renpy.restart_interaction()
 
@@ -184,7 +182,6 @@ init -999 python:
             if not self.seamless_transition:
                 self._pending_speed = None
                 self._pre_pending_speed = None
-            _cue_log("VQ-SEAMLESS mode={}".format(self.seamless_transition))
             renpy.restart_interaction()
 
         def clear_pending(self):
@@ -227,7 +224,6 @@ init -999 python:
                 kwargs["play"] = play_value
                 child = renpy.display.video.Movie(**kwargs)
                 self.children[cache_key] = child
-                _cue_log("VQ-BUILD cache_key={}".format(cache_key))
                 return child
 
             # --- Active speed sequence overrides normal speed resolution ---
@@ -250,13 +246,15 @@ init -999 python:
                 except Exception:
                     now_playing = None
 
-                if (now_playing and pending_variant
-                        and _os.path.normpath(now_playing) == _os.path.normpath(pending_variant)):
-                    # Transition complete — clear pending and fall through
+                transitioned = (now_playing and pending_variant
+                    and _os.path.normpath(now_playing) == _os.path.normpath(pending_variant))
+                if transitioned:
+                    # Transition complete — persist the new speed and fall through
                     _cue_log("VQ-SEAMLESS complete, switching to normal resolution")
+                    speed = self._pending_speed
+                    self._set_speed_pref(tag, speed)
                     self._pending_speed = None
                     self._pre_pending_speed = None
-                    speed = self._get_speed_pref(tag)
                 else:
                     # Still waiting — return OLD Movie so playback is not disrupted
                     if self._pre_pending_speed == _cue.DEFAULT_VIDEO_SPEED:
@@ -350,6 +348,8 @@ init -999 python:
         def variant_path(cls, base_path, speed):
             """Build the virtual path for a speed variant.
             Example: 'movies/ep1.webm' + 1.5 -> 'movies/ep1_cue1.5x.webm'"""
+            if speed == _cue.DEFAULT_VIDEO_SPEED:
+                return base_path
             base, ext = cls._split_ext(base_path)
             return base + cls._suffix_variant(speed, ext)
 
@@ -795,9 +795,10 @@ init -999 python:
     # ==========================================================================
 
     def _cue_resolver(st, at, tag, base_path, orig_movie):
-        """DynamicDisplayable callback — delegates to the resolver instance
-        so the callback pickles by module+name reference instead of through
-        the instance (which holds live Movie displayables in children)."""
+        """DynamicDisplayable callback. Ren'Py snapshots every displayable
+        on save, so we delegate through this module-level function instead
+        of pointing directly at the resolver instance — the instance holds
+        live Movie objects in its cache that can't be saved."""
         return _cue.speed_resolver.resolve(st, at, tag, base_path, orig_movie)
 
     def _cue_capture_kwargs(movie):
@@ -832,6 +833,7 @@ init -999 python:
         def __init__(self):
             self.toast_speeds = None       # list of available speeds; None = hidden
             self.toast_current = None      # currently selected speed (float)
+            self.toast_tag = None          # tag for the current toast
             self.toast_timestamp = 0.0     # _time.time() when toast was triggered
 
         def show(self, tag):
@@ -850,6 +852,7 @@ init -999 python:
             renpy.hide_screen("cue_speed_toast", layer="cue_layer")
             self.toast_speeds = speeds
             self.toast_current = resolver._get_speed_pref(tag)
+            self.toast_tag = tag
             self.toast_timestamp = _time.time()
             renpy.show_screen("cue_speed_toast", _layer="cue_layer")
 
