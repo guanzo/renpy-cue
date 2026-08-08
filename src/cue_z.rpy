@@ -300,6 +300,9 @@ init python:
             # User-defined speed sequence (auto-activates when present)
             _cue.video_sequence.handle(_cue.current_file)
 
+            # Cancel any pending seamless speed change from the old file
+            _cue.speed_resolver.clear_pending()
+
         if _cue.vid_manager.channel != old_channel:
             changed += " ch:{}->{}".format(old_channel, _cue.vid_manager.channel)
 

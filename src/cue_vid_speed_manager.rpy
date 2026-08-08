@@ -32,6 +32,9 @@ init -999 python:
             self.paths = {}          # tag -> original base video path
             self.children = {}       # (tag, speed) -> memoized variant Movie
             self.sequence = None                # CueVidSpeedSequence back-ref
+            self.seamless_transition = False    # "Wait for loop to finish" checkbox
+            self._pending_speed = None          # speed queued via music.queue()
+            self._pre_pending_speed = None      # speed currently playing (before pending)
 
         # ==================================================================
         # Lookup helpers
@@ -138,9 +141,56 @@ init -999 python:
             tag = _cue.current_file
             if not tag:
                 return
+
+            # --- Seamless transition: queue the new variant instead of restarting ---
+            if self.seamless_transition:
+                cur_speed = (self._pre_pending_speed
+                             if self._pending_speed is not None
+                             else self._get_speed_pref(tag))
+                if abs(cur_speed - speed) < 0.05:
+                    return
+                base_path = self.base_path_for(tag)
+                if not base_path:
+                    return
+                new_variant = self.variant_path(base_path, speed)
+                if not renpy.loadable(new_variant):
+                    return
+
+                self._pre_pending_speed = cur_speed
+                self._pending_speed = speed
+                self._set_speed_pref(tag, speed)
+
+                ch = _cue.vid_manager.channel
+                if ch and new_variant:
+                    try:
+                        renpy.music.queue(
+                            new_variant, channel=ch,
+                            loop=True, clear_queue=True)
+                        _cue_log("VQ-SEAMLESS queue={} cur={} new={}".format(
+                            new_variant, cur_speed, speed))
+                    except Exception:
+                        pass
+                renpy.restart_interaction()
+                return
+
+            # --- Immediate switch (existing behavior) ---
             self._set_speed_pref(tag, speed)
             _cue.speed_toast.show(tag)
             renpy.restart_interaction()
+
+        def toggle_seamless(self):
+            """Toggle seamless transition mode."""
+            self.seamless_transition = not self.seamless_transition
+            if not self.seamless_transition:
+                self._pending_speed = None
+                self._pre_pending_speed = None
+            _cue_log("VQ-SEAMLESS mode={}".format(self.seamless_transition))
+            renpy.restart_interaction()
+
+        def clear_pending(self):
+            """Cancel any pending seamless speed change (called on context switch)."""
+            self._pending_speed = None
+            self._pre_pending_speed = None
 
         # ==================================================================
         # Cache management
@@ -190,6 +240,31 @@ init -999 python:
                     queue_paths = seq.paths_for(active)
                     if queue_paths:
                         return _build_or_cache((tag, "__queue__"), queue_paths), None
+
+            # --- Seamless transition: hold old Movie until queue flips ---
+            if self._pending_speed is not None:
+                pending_variant = self.variant_path(base_path, self._pending_speed)
+                try:
+                    ch = _cue.vid_manager.channel
+                    now_playing = renpy.music.get_playing(channel=ch) if ch else None
+                except Exception:
+                    now_playing = None
+
+                if (now_playing and pending_variant
+                        and _os.path.normpath(now_playing) == _os.path.normpath(pending_variant)):
+                    # Transition complete — clear pending and fall through
+                    _cue_log("VQ-SEAMLESS complete, switching to normal resolution")
+                    self._pending_speed = None
+                    self._pre_pending_speed = None
+                    speed = self._get_speed_pref(tag)
+                else:
+                    # Still waiting — return OLD Movie so playback is not disrupted
+                    if self._pre_pending_speed == _cue.DEFAULT_VIDEO_SPEED:
+                        return orig_movie, None
+                    old_variant = self.variant_path(base_path, self._pre_pending_speed)
+                    if not renpy.loadable(old_variant):
+                        return orig_movie, None
+                    return _build_or_cache((tag, self._pre_pending_speed), old_variant), None
 
             # --- Normal speed resolution ---
             if speed == _cue.DEFAULT_VIDEO_SPEED:

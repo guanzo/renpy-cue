@@ -157,6 +157,13 @@ screen cue_overlay_content():
                                     use cue_txt_button("Delete " + _cue_speed_label(_cur),
                                         Function(_cue.speed_resolver.delete_variant, _vid_path, _cur),
                                         tt="Delete the " + _cue_speed_label(_cur) + " file.")
+                            use cue_select_btn(
+                                ("[✓] Wait for loop to finish"
+                                 if _cue.speed_resolver.seamless_transition
+                                 else "[  ] Wait for loop to finish"),
+                                _cue.speed_resolver.seamless_transition,
+                                Function(_cue.speed_resolver.toggle_seamless),
+                                tt="When enabled, changing speeds waits for the current video loop to finish before switching.")
                             text "The video will only play at the selected speed" style "cue_help"
 
                     # --- Multi Speed tab ---
