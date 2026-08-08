@@ -749,7 +749,10 @@ init -999 python:
         """Transient speed-change indicator shown top-left on screen.
 
         State lives on this instance (reachable through _cue.speed_toast) so it
-        survives rollback.  The screen cue_speed_toast reads from this instance."""
+        survives rollback.  The screen cue_speed_toast reads from this instance.
+        The screen is shown/hidden explicitly (not always-on) so each toast
+        creates a fresh displayable tree — Ren'Py wouldn't update text
+        properties in-place on a reused tree."""
 
         def __init__(self):
             self.toast_speeds = None       # list of available speeds; None = hidden
@@ -757,7 +760,8 @@ init -999 python:
             self.toast_timestamp = 0.0     # _time.time() when toast was triggered
 
         def show(self, tag):
-            """Record toast state for the given video tag so the screen renders it."""
+            """Show the toast for the given video tag. Hides any existing toast
+            first so the screen rebuilds from scratch with the new speed."""
             resolver = _cue.speed_resolver
             base_path = resolver.base_path_for(tag)
             if not base_path:
@@ -765,6 +769,16 @@ init -999 python:
             speeds = resolver.get_available_speeds(base_path)
             if len(speeds) <= 1:
                 return
+            # Hide first so re-showing creates a fresh displayable tree
+            # (Ren'Py reuses cached trees otherwise, and text properties
+            #  like color/size get baked in).
+            renpy.hide_screen("cue_speed_toast", layer="cue_layer")
             self.toast_speeds = speeds
             self.toast_current = resolver._get_speed_pref(tag)
             self.toast_timestamp = _time.time()
+            renpy.show_screen("cue_speed_toast", _layer="cue_layer")
+
+        def clear(self):
+            """Hide the toast screen (called by the screen's auto-hide timer)."""
+            renpy.hide_screen("cue_speed_toast", layer="cue_layer")
+            self.toast_speeds = None
