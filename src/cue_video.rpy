@@ -186,12 +186,13 @@ init -999 python:
                 pos = renpy.music.get_pos(channel=self.channel)
             except Exception:
                 return
-            if self.pause_target > 0 and pos is not None and pos >= self.pause_target:
+            has_pos = pos is not None
+            if has_pos and self.pause_target > 0 and pos >= self.pause_target:
                 renpy.music.set_pause(True, channel=self.channel)
                 self.pause_target = 0.0
                 self.paused = True
                 self.time_offset = 0.0
-            if self.step_target > 0 and pos is not None and pos >= self.step_target:
+            if has_pos and self.step_target > 0 and pos >= self.step_target:
                 renpy.music.set_pause(True, channel=self.channel)
                 self.step_target = 0.0
                 self.paused = True

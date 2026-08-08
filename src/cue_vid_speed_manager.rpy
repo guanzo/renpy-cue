@@ -451,6 +451,26 @@ init -999 python:
             or -1 if the sequence isn't active."""
             return self._step_index
 
+        def speeds_grouped(self, tag):
+            """Consolidate adjacent duplicate speeds for UI display.
+            Returns a list of (speed, count, start_index) tuples, or None
+            if no sequence exists."""
+            seq = self.speeds_for(tag)
+            if not seq:
+                return None
+            groups = []
+            i = 0
+            while i < len(seq):
+                sp = seq[i]
+                start = i
+                count = 1
+                i += 1
+                while i < len(seq) and abs(seq[i] - sp) < 0.05:
+                    count += 1
+                    i += 1
+                groups.append((sp, count, start))
+            return groups
+
         def contains(self, speed):
             """True if speed (within 0.05) appears in the current video's sequence."""
             seq = self.speeds_for(_cue.current_file)
@@ -588,7 +608,7 @@ init -999 python:
             Missing variant files are skipped (renpy.loadable handles .rpa)."""
             speeds = self.speeds_for(tag)
             base_path = self.resolver.base_path_for(tag)
-            if not speeds or len(speeds) < 1 or not base_path:
+            if not speeds or not base_path:
                 return None
             paths = []
             for sp in speeds:

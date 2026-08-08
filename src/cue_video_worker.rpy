@@ -137,7 +137,8 @@ init -999 python:
                 return
 
             # All passes completed with rc=0
-            if not job.error_msg and os.path.exists(temp_path) and os.path.getsize(temp_path) > 0:
+            output_ok = os.path.exists(temp_path) and os.path.getsize(temp_path) > 0
+            if not job.error_msg and output_ok:
                 job._ok = True
                 job.progress = 1.0
                 _cue_log("Speed worker: ffmpeg succeeded")

@@ -167,10 +167,12 @@ init -999 python:
                     continue
 
                 # Dead-air-specific gate: skip if any loop channel is busy
-                if resolved.exclusive and (
+                loop_channels = self.loop_current.get("channels", []) if self.loop_current else []
+                any_busy = (
                     _cue_loop_still_playing(all_active)
-                    or _cue_loop_still_playing(self.loop_current.get("channels", []) if self.loop_current else [])
-                ):
+                    or _cue_loop_still_playing(loop_channels)
+                )
+                if resolved.exclusive and any_busy:
                     pst["ready_at"] = now + 0.1
                     continue
 
