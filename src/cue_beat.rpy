@@ -103,16 +103,16 @@ init -999 python:
             new_count = 0
             for beat_idx in range(1, count + 1):
                 beat_anchor = self.anchor + interval * beat_idx
-                for o in self.offsets:
-                    new_time = beat_anchor + o["offset"]
+                for offset in self.offsets:
+                    new_time = beat_anchor + offset["offset"]
                     if dur > 0 and new_time > dur:
                         continue
                     if new_time < 0:
                         continue
                     clone = {
                         "time": new_time,
-                        "files": list(o["files"]),
-                        "volume": o["volume"],
+                        "files": list(offset["files"]),
+                        "volume": offset["volume"],
                     }
                     pools.append(clone)
                     new_count += 1
@@ -151,23 +151,28 @@ init -999 python:
                 return []
             if not self.offsets:
                 return []
+
             dur = _cue.vid_manager.get_duration()
             previews = []
+
             for beat_idx in range(1, count + 1):
                 beat_anchor = self.anchor + interval * beat_idx
-                for o in self.offsets:
-                    t = beat_anchor + o["offset"]
-                    if dur > 0 and t > dur:
+                for offset in self.offsets:
+                    time = beat_anchor + offset["offset"]
+                    if dur > 0 and time > dur:
                         continue
-                    if t < 0:
+                    if time < 0:
                         continue
-                    previews.append(t)
+                    previews.append(time)
+
             previews.sort()
+
             return previews
 
         def compute_preview_pools(self):
-            """Return [(time, files, volume, key), ...] for SFX-triggerable
-            preview markers. Mirrors compute_preview_times() with file data."""
+            """Return a list of fake pool dicts shaped like real video marker pools:
+            [{"time": t, "files": [...], "volume": v, "_key": k}, ...].
+            The _key field carries the dedupe identifier used by the trigger loop."""
             if not self.dialog_visible:
                 return []
             try:
@@ -179,21 +184,27 @@ init -999 python:
                 return []
             if not self.offsets:
                 return []
+
             dur = _cue.vid_manager.get_duration()
             pools = []
+
             for beat_idx in range(1, count + 1):
                 beat_anchor = self.anchor + interval * beat_idx
-                for oi, o in enumerate(self.offsets):
-                    t = beat_anchor + o["offset"]
-                    if dur > 0 and t > dur:
+                for offset_idx, offset in enumerate(self.offsets):
+                    time = beat_anchor + offset["offset"]
+                    if dur > 0 and time > dur:
                         continue
-                    if t < 0:
+                    if time < 0:
                         continue
-                    files = o.get("files", [])
-                    volume = o.get("volume", _cue.VOL_DEFAULT)
-                    key = "preview@{}@{}".format(beat_idx, oi)
-                    pools.append((t, files, volume, key))
-            pools.sort(key=lambda x: x[0])
+                    pools.append({
+                        "time": time,
+                        "files": python_list(offset.get("files", [])),
+                        "volume": offset.get("volume", _cue.VOL_DEFAULT),
+                        "key": "preview@{}@{}".format(beat_idx, offset_idx),
+                    })
+
+            pools.sort(key=lambda e: e["time"])
+
             return pools
 
         def preview_text(self):
