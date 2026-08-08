@@ -72,8 +72,8 @@ screen cue_overlay_content():
                 "SFX triggers are OFF (F4 to toggle)",
                 _cue_color_active, _cue_color_green_hover, _cue_color_red, _cue_color_red_hover)
             null width 5
-            use cue_icon_btn("📋", Function(_cue.markers.copy_context), "Copy current context config (Shift + 1)", None)
-            use cue_icon_btn("📄", Function(_cue.markers.paste_context), "Paste context config (Shift + 2)", None)
+            use cue_icon_btn("📋", Function(_cue.markers.copy_context), "Copy current config (Shift + 1)", None)
+            use cue_icon_btn("📄", Function(_cue.markers.paste_context), "Paste config (Shift + 2)", None)
             null width 5
             use cue_icon_btn("↩", Function(_cue.undo.undo), "Undo (Shift + Q)", None, enabled=_cue.undo.can_undo())
             use cue_icon_btn("↪", Function(_cue.undo.redo), "Redo (Shift + W)", None, enabled=_cue.undo.can_redo())
