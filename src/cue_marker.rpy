@@ -142,13 +142,13 @@ init -999 python:
 
     class ResolvedPool:
         """Immutable snapshot of a resolved pool. Fields:
-        files, volume, frequency, trigger_on_shake, no_overlap."""
-        def __init__(self, files, volume, frequency, trigger_on_shake, no_overlap=False):
+        files, volume, frequency, trigger_on_shake, exclusive."""
+        def __init__(self, files, volume, frequency, trigger_on_shake, exclusive=False):
             self.files = files
             self.volume = volume
             self.frequency = frequency
             self.trigger_on_shake = trigger_on_shake
-            self.no_overlap = no_overlap
+            self.exclusive = exclusive
 
 
     # =========================================================================
@@ -583,8 +583,8 @@ init -999 python:
                     pools[target]["frequency"] = int(freq)
                     self._mgr.save_persistent()
 
-        def set_no_overlap(self, value):
-            """Set no_overlap flag for the active loop pool.
+        def set_exclusive(self, value):
+            """Set exclusive flag for the active loop pool.
             When True, this pool only plays when no other SFX audio is active."""
             key = self._key()
             target = self.get_active()
@@ -592,7 +592,7 @@ init -999 python:
             if entry:
                 pools = entry.get("pools", [])
                 if pools and 0 <= target < len(pools):
-                    pools[target]["no_overlap"] = bool(value)
+                    pools[target]["exclusive"] = bool(value)
                     self._mgr.save_persistent()
 
         @staticmethod
@@ -902,8 +902,8 @@ init -999 python:
             volume = pool.get("volume", defaults.get("volume", _cue.VOL_DEFAULT))
             frequency = pool.get("frequency", defaults.get("frequency", 1))
             trigger_on_shake = pool.get("trigger_on_shake", defaults.get("trigger_on_shake", False))
-            no_overlap = pool.get("no_overlap", defaults.get("no_overlap", False))
-            return ResolvedPool(python_list(files), volume, frequency, trigger_on_shake, no_overlap)
+            exclusive = pool.get("exclusive", defaults.get("exclusive", False))
+            return ResolvedPool(python_list(files), volume, frequency, trigger_on_shake, exclusive)
 
         def _detach_pool(self, trigger_key, pool_index):
             """If the pool at pool_index is preset-backed, resolve it to explicit

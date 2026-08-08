@@ -445,10 +445,10 @@ screen cue_overlay_content():
                 use cue_select_btn("Fast", _freq == 2, Function(_cue.markers.loop.set_frequency, 2), tt="~0.6s between plays")
                 use cue_select_btn("Fastest", _freq == 3, Function(_cue.markers.loop.set_frequency, 3), tt="~0.2s between plays")
                 use cue_v_divider()
-                $ _no_overlap = _cue._pool_ui.get("no_overlap", False)
-                use cue_toggle_btn(_no_overlap, "Don't overlap",
-                    Function(_cue.markers.loop.set_no_overlap, not _no_overlap),
-                    "Waits for other loop SFX to finish before playing.")
+                $ _is_exclusive = _cue._pool_ui.get("exclusive", False)
+                use cue_toggle_btn(_is_exclusive, "Exclusive playback",
+                    Function(_cue.markers.loop.set_exclusive, not _is_exclusive),
+                    "Prevents other loop SFX from playing at the same time")
 
         # Audio file browser
         use cue_section_frame("SFX Library"):

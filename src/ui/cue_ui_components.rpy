@@ -331,7 +331,7 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
                 $ _active_label = "Pool " + str(_target + 1) + " (Preset: " + _active_pool["preset"] + ")"
             else:
                 $ _active_label = "Pool " + str(_target + 1) + " (" + str(len(_cue_resolve_files(_r.files))) + " files)"
-            $ _cue._pool_ui = {"pool": _active_pool, "files": _r.files, "target": _target, "freq": _r.frequency, "no_overlap": _r.no_overlap}
+            $ _cue._pool_ui = {"pool": _active_pool, "files": _r.files, "target": _target, "freq": _r.frequency, "exclusive": _r.exclusive}
             hbox:
                 spacing 5
                 text _active_label style "cue_txt"

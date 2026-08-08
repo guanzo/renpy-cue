@@ -40,7 +40,7 @@ init -900 python:
 
     # Pool state machine (multi-instance: one per active l: key)
     _cue.loop_states = {}
-    _cue.loop_current = None   # {key, channels} of currently-playing loop SFX
+    _cue.loop_current = {}   # {key, channels} of currently-playing loop SFX
     _cue.last_played = []
 
     _cue.triggers_active = True
@@ -636,15 +636,15 @@ init python:
 
         # Collect all active loop channels and dead-air channels
         all_active = []
-        no_overlap_channels = []
+        exclusive_channels = []
         for pst in ps.values():
             if isinstance(pst, dict) and "channels" in pst:
                 all_active.extend(pst.get("channels", []))
-                if pst.get("is_no_overlap"):
-                    no_overlap_channels.extend(pst.get("channels", []))
+                if pst.get("exclusive"):
+                    exclusive_channels.extend(pst.get("channels", []))
 
         # Post-dead-air breathing window (50-100ms) — no pool fires during this
-        _no_overlap_done_at = ps.get("_no_overlap_done_at", 0.0)
+        _exclusive_done_at = ps.get("_exclusive_done_at", 0.0)
 
         picked = []
         for pi, pool in enumerate(pools):
@@ -656,22 +656,22 @@ init python:
             pst = ps.get(pi)
             if pst is None:
                 init_delay = _random.uniform(0.0, _cue.markers.loop.get_delay(resolved.frequency))
-                ps[pi] = {"ready_at": now + init_delay, "channels": [], "play_start": 0.0, "is_no_overlap": False}
+                ps[pi] = {"ready_at": now + init_delay, "channels": [], "play_start": 0.0, "exclusive": False}
                 pst = ps[pi]
 
             # If this pool's channels are done playing, reset for next cycle
             if pst["channels"] and not _cue_loop_still_playing(pst["channels"]):
                 dur = now - pst["play_start"]
-                was_no_overlap = pst.get("is_no_overlap", False)
+                was_exclusive = pst.get("exclusive", False)
                 breathing = _cue.markers.loop.get_delay(resolved.frequency)
                 pst["ready_at"] = now + breathing
                 pst["channels"] = []
-                pst["is_no_overlap"] = False
-                if was_no_overlap:
-                    ps["_no_overlap_done_at"] = now + 0.05 + _random.uniform(0.0, 0.05)
+                pst["exclusive"] = False
+                if was_exclusive:
+                    ps["_exclusive_done_at"] = now + 0.05 + _random.uniform(0.0, 0.05)
                 _cue_log("TICK#{} POOL-DONE  key={} pool={} dur={:.2f}s next_in={:.2f}s{}".format(
                     tick, loop_key, pi, dur, breathing,
-                    " no_overlap" if was_no_overlap else ""))
+                    " exclusive" if was_exclusive else ""))
 
             # Skip if not ready yet
             if pst["channels"]:
@@ -680,17 +680,17 @@ init python:
                 continue
 
             # Gate: no pool fires while dead-air SFX is playing
-            if _cue_loop_still_playing(no_overlap_channels):
+            if _cue_loop_still_playing(exclusive_channels):
                 pst["ready_at"] = now + 0.1
                 continue
 
             # Gate: no pool fires during post-dead-air breathing window
-            if now < _no_overlap_done_at:
-                pst["ready_at"] = _no_overlap_done_at
+            if now < _exclusive_done_at:
+                pst["ready_at"] = _exclusive_done_at
                 continue
 
             # Dead-air-specific gate: skip if any loop channel is busy
-            if resolved.no_overlap and (
+            if resolved.exclusive and (
                 _cue_loop_still_playing(all_active)
                 or _cue_loop_still_playing(getattr(_cue, 'loop_current', {}).get('channels', []))
             ):
@@ -711,9 +711,9 @@ init python:
             if ch_used:
                 pst["channels"] = [ch_used]
                 pst["play_start"] = now
-                if resolved.no_overlap:
-                    pst["is_no_overlap"] = True
-                    no_overlap_channels.append(ch_used)
+                if resolved.exclusive:
+                    pst["exclusive"] = True
+                    exclusive_channels.append(ch_used)
                 all_active.append(ch_used)
                 _cue.loop_current = {
                     "key": loop_key,
