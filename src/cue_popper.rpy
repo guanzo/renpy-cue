@@ -17,20 +17,14 @@
 # =============================================================================
 
 python early:
-    def _cue_popper_factory(target, placement, offset, viewport_margin, **kwargs):
+    def _cue_popper_factory(*args, **kwargs):
         """Factory for register_sl_displayable. Returns a CuePopper instance.
 
         Defined in python early so it exists when register_sl_displayable
         is called. CuePopper is resolved at call time (screen execution),
         by which point the init python block has defined it.
         """
-        return CuePopper(
-            target=target,
-            placement=placement,
-            offset=offset,
-            viewport_margin=viewport_margin,
-            style=kwargs.get("style", "default"),
-        )
+        return CuePopper(*args, **kwargs)
 
     renpy.register_sl_displayable(
         "popper",
@@ -39,10 +33,10 @@ python early:
         nchildren=1,
         default_keywords={
             "placement": "top",
-            "offset": 0,
+            "offset": 5,
             "viewport_margin": 8,
         },
-    ).add_property("target").add_property("placement")
+    ).add_property("target").add_property("placement").add_property("offset").add_property("viewport_margin")
 
 
 init python:
@@ -62,8 +56,6 @@ init python:
             before = renpy.focus_coordinates()
             renpy.capture_focus(name)
             after = renpy.get_focus_rect(name)
-            _cue_log("[popper.store] v={} name={} before={} after={}".format(
-                _v, name, before, after))
         else:
             rect = renpy.focus_coordinates()
             anchors = getattr(_cue, '_popper_anchors', None)
@@ -74,8 +66,7 @@ init python:
                 anchors[name] = rect
             else:
                 anchors.pop(name, None)
-            _cue_log("[popper.store] v={} name={} rect={}".format(
-                _v, name, rect))
+
 
 
     def _cue_clear_focus_rect(name):
@@ -217,7 +208,7 @@ init python:
         MAX_POPUP_W = 400
         MAX_POPUP_H = 300
 
-        def __init__(self, target, placement="top", offset=0,
+        def __init__(self, target, placement="top", offset=5,
                      viewport_margin=8, **kwargs):
             super(CuePopper, self).__init__(**kwargs)
             self.target = target
@@ -233,8 +224,6 @@ init python:
             r = renpy.Render(width, height)
 
             if not self.children:
-                if self._frame == 1:
-                    _cue_log("[popper t={}] no children".format(self.target))
                 self.offsets = [(0, 0)]
                 return renpy.Render(1, 1)
 
@@ -242,11 +231,6 @@ init python:
             rect = _cue_get_focus_rect(self.target)
             if rect[0] is not None:
                 self._stored_rect = rect
-
-            if self._frame <= 3 or self._frame % 120 == 0:
-                _cue_log("[popper t={}] frame={} has_children={} rect={}".format(
-                    self.target, self._frame, bool(self.children),
-                    self._stored_rect is not None))
 
             if self._stored_rect is None:
                 self._hide_st = None
@@ -268,6 +252,7 @@ init python:
             # Compute popup position against game window bounds.
             vw = renpy.config.screen_width
             vh = renpy.config.screen_height
+            
             x, y, arrow_dir = _cue_compute_popup_position(
                 ax, ay, aw, ah, cw, ch,
                 vw, vh,
