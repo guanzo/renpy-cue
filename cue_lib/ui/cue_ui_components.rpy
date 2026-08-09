@@ -20,7 +20,11 @@ init -900 python:
             else:
                 self._obj_expr = dotted_path[:_dot]
                 self._field = dotted_path[_dot + 1:]
-            FieldInputValue.__init__(self, self._obj_expr, self._field, default=default)
+            # Evaluate now so FieldInputValue gets the actual object, not
+            # a string. In Python 2 screen strings are unicode, which fails
+            # FieldInputValue's isinstance(obj, str) gate in get_text/set_text.
+            _obj = renpy.python.py_eval(self._obj_expr)
+            FieldInputValue.__init__(self, _obj, self._field, default=default)
 
 
 

@@ -19,8 +19,8 @@ screen cue_key_listener():
     key "shift_K_2" action Function(_cue.markers.paste_context)
     key "shift_K_q" action Function(_cue.undo.undo)
     key "shift_K_w" action Function(_cue.undo.redo)
-    key "K_PERIOD" action Function(_cue.speed_resolver.cycle_speed, 1)
-    key "K_COMMA" action Function(_cue.speed_resolver.cycle_speed, -1)
+    key "K_m" action Function(_cue.speed_resolver.cycle_speed, 1)
+    key "K_n" action Function(_cue.speed_resolver.cycle_speed, -1)
     timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
 
 ###############################################################################

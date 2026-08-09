@@ -545,6 +545,8 @@ class CueLoopContext(CueMarkerContext):
 # =========================================================================
 
 class CueMarkerManager(object):
+    MAX_BACKUPS = 100
+
     def __init__(self):
         self._data = {}
         self._presets = {}
@@ -1059,13 +1061,12 @@ class CueMarkerManager(object):
             dump_path = os.path.join(backup_dir, "cue_config_{}.json".format(int(now)))
             data = getattr(persistent, '_cue_config', None)
             if data is None:
-                self.save_persistent()
-                data = getattr(persistent, '_cue_config', {})
+                return
             with open(dump_path, "w") as f:
                 _json.dump(data, f, indent=2, sort_keys=True)
             backups = sorted(_glob.glob(os.path.join(backup_dir, "cue_config_*.json")))
-            if len(backups) > 50:
-                for old in backups[:-50]:
+            if len(backups) > self.MAX_BACKUPS:
+                for old in backups[:-self.MAX_BACKUPS]:
                     try:
                         os.remove(old)
                     except Exception:
@@ -1082,8 +1083,7 @@ class CueMarkerManager(object):
             dump_path = os.path.join(dump_dir, _cue.config_filename)
             data = getattr(persistent, '_cue_config', None)
             if data is None:
-                self.save_persistent()
-                data = getattr(persistent, '_cue_config', {})
+                return
             with open(dump_path, "w") as f:
                 _json.dump(data, f, indent=2, sort_keys=True)
             _cue_log("DUMP-MARKERS total_keys={} path={}".format(

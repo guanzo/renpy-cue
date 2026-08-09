@@ -8,6 +8,7 @@ import subprocess
 import renpy.config as _config
 
 from cue_lib.ffmpeg import CREATIONFLAGS
+from cue_lib.util import _cue_log
 
 MYPY = False
 if MYPY:
@@ -38,7 +39,6 @@ def _cue_run_encode(ffmpeg, job, dur_ms, base_dir, kill_fn):
                 acodec = ffmpeg.pick_encoder(ac_in, "audio") or ""
             # Probe source bitrate for quality matching
             target_bitrate = ffmpeg.probe_bitrate(input_fs)
-            from cue_lib.util import _cue_log
             _cue_log("probed vcodec: {} -> {}, acodec: {} -> {}, audio: {}, bitrate: {}".format(
                 vc_in, vcodec, ac_in, acodec, has_audio, target_bitrate))
 
@@ -67,6 +67,10 @@ def _cue_run_encode(ffmpeg, job, dur_ms, base_dir, kill_fn):
             fast=(job.encode_mode == CUE_VE_MODE_FAST_PREVIEW),
         )
         job.passlog = passlog
+
+        _cue_log("Encoding {} -> {} at {:.1f}x ({})".format(
+            os.path.basename(input_fs), os.path.basename(temp_path),
+            factor, "2-pass" if len(cmds) == 2 else "1-pass"))
 
         # --- Run ffmpeg (1 or 2 passes) ---
         # Log file next to debug.log for troubleshooting
@@ -136,8 +140,20 @@ def _cue_run_encode(ffmpeg, job, dur_ms, base_dir, kill_fn):
                 break
             if rc != 0:
                 kill_fn()
-                job.error_msg = "ffmpeg pass {} exited with code {}".format(
-                    pass_idx + 1, rc)
+                # Capture last meaningful stderr line for the overlay
+                _err_tail = ""
+                if err_out:
+                    if isinstance(err_out, bytes):
+                        _err_tail = err_out.decode("utf-8", errors="replace")
+                    else:
+                        _err_tail = str(err_out)
+                    _err_tail = _err_tail.strip().split("\n")[-1]
+                    if len(_err_tail) > 120:
+                        _err_tail = _err_tail[-120:]
+                job.error_msg = "ffmpeg pass {} rc={}: {}".format(
+                    pass_idx + 1, rc, _err_tail)
+                _cue_log("ffmpeg FAILED pass {} rc={}: {}".format(
+                    pass_idx + 1, rc, _err_tail))
                 break
 
         # --- Clean up 2-pass artifacts ---
@@ -158,16 +174,13 @@ def _cue_run_encode(ffmpeg, job, dur_ms, base_dir, kill_fn):
         if not job.error_msg and output_ok:
             job._ok = True
             job.progress = 1.0
-            from cue_lib.util import _cue_log
             _cue_log("Speed worker: ffmpeg succeeded")
         elif not job.error_msg:
             job.error_msg = "ffmpeg produced no output"
-            from cue_lib.util import _cue_log
             _cue_log("Speed worker: FAILED -- no output file")
     except Exception as e:
         if not job.cancelled:
             job.error_msg = "ffmpeg error: {}".format(e)
-            from cue_lib.util import _cue_log
             _cue_log("Speed worker: exception -- {}".format(e))
     finally:
         kill_fn()
