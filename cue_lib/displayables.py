@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Creator-Defined Displayables for the Cue overlay.
 # SelfUpdatingLabel, VideoTimeline, CueVideoMarkerTimeline, _Tooltip, _MarkerTooltipOverlay.
 

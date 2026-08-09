@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # CueVideoManager -- per-video playback state and control.
 # Instantiated once at _cue.vid_manager, lives on the NoRollback _cue object.
 

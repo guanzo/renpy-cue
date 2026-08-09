@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # CueUndoManager -- snapshot-on-save undo/redo for markers, presets, and
 # video_presets.
 #

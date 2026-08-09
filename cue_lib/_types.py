@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # cue_lib/_types.py
 # This file is NEVER imported at runtime under Python 2 (see MYPY guard
 # pattern in consuming files). It exists purely so a type checker has a

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # CueFileTreeManager -- folder/file tree UI state: expand/collapse, disabled
 # files, and visible tree building for the SFX Library sidebar.
 # Instantiated once at _cue.file_tree, lives on the NoRollback _cue object.

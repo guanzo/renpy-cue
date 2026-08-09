@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Runtime drivers -- overlay show/hide, context detection, tick engine, SFX playback.
 # Extracted from cue_z.rpy Section 3 (init python: free functions).
 

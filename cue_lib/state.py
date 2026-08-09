@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # cue_lib/state.py -- _cue singleton + bootstrap wiring.
 # The _cue object is created at module level (Python import time) and is
 # therefore invisible to Ren'Py's rollback system.  The bootstrap() function

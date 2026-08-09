@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # CueVideoEditor -- edit the currently-playing video file.
 # Currently supports: playback speed change via ffmpeg.
 

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Cue Editor -- Utility Functions
 # Key helpers, persistent unwrap, audio scanning, time formatting,
 # debug logging, file resolution, displayable name helpers.

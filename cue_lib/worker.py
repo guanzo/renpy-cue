@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # CueVideoWorker -- background ffmpeg encode thread.
 # Module-level function so the editor class doesn't carry the whole
 # subprocess dance. All Ren'Py calls happen on the main thread via the

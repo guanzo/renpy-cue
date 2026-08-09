@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # CueTriggerEngine -- trigger dispatch for i:, d:, l:, v: keys and shake.
 # Instantiated once at _cue.trigger, lives on the NoRollback _cue object.
 

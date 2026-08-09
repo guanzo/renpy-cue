@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # CueFFmpeg -- low-level ffmpeg/ffprobe backend.
 # Binary detection, encoder discovery, media probing, filter/command building.
 # All subprocess calls for probing live here; the actual encode subprocess

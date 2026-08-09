@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Python logic backing the overlay UI screens.
 # Dialog state classes, tab-action builder, file-list row counter, and
 # preset/video-preset helper functions.

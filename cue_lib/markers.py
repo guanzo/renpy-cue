@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # CueMarkerManager -- unified marker CRUD with typed context accessors.
 # Instantiated once at _cue.markers, lives on the NoRollback _cue object.
 

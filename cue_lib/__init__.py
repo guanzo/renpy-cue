@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # cue_lib -- Ren'Py mod logic migrated from .rpy to .py.
 # Modules are listed in dependency order (leaf-first, hub-last).
 # Importing this package loads all submodules; the store bridge in
