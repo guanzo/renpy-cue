@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # CueVidSpeedResolver -- per-tag speed preferences and variant Movie resolution.
 # Wraps every Movie image in a DynamicDisplayable that swaps in speed variants
 # without touching the registry entry.
@@ -221,6 +222,11 @@ class CueVidSpeedResolver(object):
                 self._set_speed_pref(tag, speed)
                 self._pending_speed = None
                 self._pre_pending_speed = None
+                # Refresh the toast briefly (1.5s) after the
+                # seamless change completes — the user has already
+                # been looking at the toast during the pending phase.
+                _cue.speed_toast.show(tag, duration=1.6)
+                renpy.restart_interaction()
             else:
                 if self._pre_pending_speed == _cue.DEFAULT_VIDEO_SPEED:
                     return orig_movie, None
@@ -650,9 +656,10 @@ class CueSpeedToast(object):
         self.toast_current = None
         self.toast_tag = None
         self.toast_timestamp = 0.0
+        self.toast_duration = 4.1
 
-    def show(self, tag):
-        # type: (str) -> None
+    def show(self, tag, duration=4.1):
+        # type: (str, float) -> None
         resolver = _cue.speed_resolver
         base_path = resolver.base_path_for(tag)
         if not base_path:
@@ -665,6 +672,7 @@ class CueSpeedToast(object):
         self.toast_current = resolver._get_speed_pref(tag)
         self.toast_tag = tag
         self.toast_timestamp = _time.time()
+        self.toast_duration = duration
         renpy.show_screen("cue_speed_toast", _layer="cue_layer")
 
     def clear(self):

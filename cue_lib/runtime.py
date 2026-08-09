@@ -116,8 +116,8 @@ def _cue_refresh_context():
         changed += " ch:{}->{}".format(old_channel, _cue.vid_manager.channel)
 
     if _cue.current_dialogue != _cue.prev_dialogue:
-        changed += " dlg:{}->{}".format(_cue.prev_dialogue[:20] if _cue.prev_dialogue else "",
-            _cue.current_dialogue[:20] if _cue.current_dialogue else "")
+        changed += " dlg:{}->{}".format(_cue.prev_dialogue[:20] if _cue.prev_dialogue else "(null)",
+            _cue.current_dialogue[:20] if _cue.current_dialogue else "(null)")
         if _cue.current_dialogue:
             dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
 

@@ -850,15 +850,15 @@ screen cue_confirm_dialog():
 # Speed-change toast — subtle indicator in the top-left corner
 ###############################################################################
 
-transform cue_speed_toast_fade:
+transform cue_speed_toast_fade(duration=4.1):
     alpha 0.7
-    pause 3.5
+    pause (duration - 0.6)
     linear 0.5 alpha 0.0
 
 screen cue_speed_toast():
     zorder 10001
     hbox:
-        at cue_speed_toast_fade
+        at cue_speed_toast_fade(_cue.speed_toast.toast_duration)
         xalign 0.5
         ypos 14
         spacing 12
@@ -876,9 +876,12 @@ screen cue_speed_toast():
                     else "#cccccc")
                 size (28 if _is_active else 26)
                 bold _is_active
-    # Auto-hide after the fade completes.  show() always calls
-    # hide_screen first, so the next speed change creates a fresh
-    # displayable tree with a restarted transform.
-    timer 4.1 action Function(_cue.speed_toast.clear)
+    # Auto-hide after the fade completes, but only when there is no
+    # pending seamless transition.  While a speed change is queued,
+    # the toast stays visible so the user can see what speed they
+    # selected.  When the transition completes, resolve() calls
+    # show() again, which restarts the timer.
+    if _cue.speed_resolver._pending_speed is None:
+        timer _cue.speed_toast.toast_duration action Function(_cue.speed_toast.clear)
 
 
