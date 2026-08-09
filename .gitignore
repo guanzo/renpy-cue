@@ -2,6 +2,7 @@ audio/
 *.rpyc
 *.pyc
 notes.txt
+bin/install_to_game.bat
 
 .claude__pycache__/
 .claude
