@@ -1,5 +1,9 @@
 # Renpy Cue
 
+### FFmpeg
+
+Minimum version 5.x
+
 ### Useful commands
 
 Run in debug.log dir for color coded logs.

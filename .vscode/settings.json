@@ -5,7 +5,8 @@
         "**/*.rpymc": true,
         "**/cache/": true,
         "**/__pycache__/": true,
-        "**/*.pyi": true
+        "**/*.pyi": true,
+        "**/*.pyo": true
     },
     "search.exclude": {
         "**/*.pyi": true
