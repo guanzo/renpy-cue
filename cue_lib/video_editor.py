@@ -9,8 +9,10 @@ import renpy.audio.music as _music
 import renpy.config as _config
 import renpy.audio.audio as _aaudio
 
+from renpy.store import persistent
+
 from cue_lib.state import _cue
-from cue_lib.util import _cue_log, _cue_ui_refresh
+from cue_lib.util import _cue_log, _cue_ui_refresh, _cue_unwrap_persistent
 
 MYPY = False
 if MYPY:
@@ -61,6 +63,7 @@ class CueVideoJob(object):
         self.proc = None
         self._done = False
         self._ok = False
+        self._resume_pass2 = False
 
     def elapsed(self):
         # type: () -> float
@@ -127,6 +130,7 @@ class CueVideoEditQueue(object):
         # type: (CueVideoJob) -> None
         self._jobs.append(job)
         self._start_if_idle()
+        self.save_to_persistent()
 
     def _find(self, job_id):
         # type: (int) -> Optional[CueVideoJob]
@@ -178,6 +182,7 @@ class CueVideoEditQueue(object):
         # type: () -> None
         job = self._current
         if job is None:
+            self._start_if_idle()
             return
         if not job._done:
             if job.cancelled:
@@ -197,6 +202,7 @@ class CueVideoEditQueue(object):
             self._finish(job)
         self._current = None
         self._start_next()
+        self.save_to_persistent()
         renpy.restart_interaction()
 
     def _finish(self, job):
@@ -271,6 +277,7 @@ class CueVideoEditQueue(object):
             job.progress = 0.0
             job.error_msg = ""
             self._start_if_idle()
+        self.save_to_persistent()
         renpy.restart_interaction()
 
     def cancel(self, job_id):
@@ -287,6 +294,7 @@ class CueVideoEditQueue(object):
             _cue_log("Speed: cancel requested for job_id={}".format(job_id))
         elif job.status in ("done", "error"):
             self.remove(job_id)
+        self.save_to_persistent()
         renpy.restart_interaction()
 
     def remove(self, job_id):
@@ -295,6 +303,7 @@ class CueVideoEditQueue(object):
         if job is not None and job.status in ("done", "error"):
             self._jobs.remove(job)
             _cue_log("Speed: removed job_id={} from list".format(job_id))
+        self.save_to_persistent()
         renpy.restart_interaction()
 
     def _kill_proc(self, job):
@@ -325,6 +334,140 @@ class CueVideoEditQueue(object):
                 os.remove(tmp)
         except Exception:
             pass
+
+    def save_to_persistent(self):
+        # type: () -> None
+        """Persist actionable jobs (queued + current) to persistent._cue_jobs."""
+        if not _cue.initialized:
+            return
+        try:
+            serialized = []
+            # Collect queued jobs
+            for j in self._jobs:
+                if j.status in ("queued",):
+                    serialized.append({
+                        "job_id": j.job_id,
+                        "vpath": j.vpath,
+                        "fspath_in": j.fspath_in,
+                        "fspath_tmp": j.fspath_tmp,
+                        "factor": j.factor,
+                        "encode_mode": j.encode_mode,
+                        "fspath_out": j.fspath_out,
+                        "passlog": j.passlog,
+                    })
+            # Include current (in-progress) job
+            cur = self._current
+            if cur is not None and cur.status in ("analyzing", "encoding"):
+                serialized.append({
+                    "job_id": cur.job_id,
+                    "vpath": cur.vpath,
+                    "fspath_in": cur.fspath_in,
+                    "fspath_tmp": cur.fspath_tmp,
+                    "factor": cur.factor,
+                    "encode_mode": cur.encode_mode,
+                    "fspath_out": cur.fspath_out,
+                    "passlog": cur.passlog,
+                })
+            if serialized:
+                persistent._cue_jobs = serialized
+            else:
+                persistent._cue_jobs = None
+        except Exception:
+            _cue_log("SAVE-JOBS: failed to persist queue")
+            persistent._cue_jobs = None
+
+    def load_from_persistent(self):
+        # type: () -> None
+        """Restore persisted jobs from persistent._cue_jobs.
+        Called once at init 999 after bootstrap."""
+        raw = getattr(persistent, '_cue_jobs', None)
+        if raw is None:
+            return
+        try:
+            data = _cue_unwrap_persistent(raw)
+            if not hasattr(data, "__iter__") or isinstance(data, (str, bytes)):
+                _cue_log("LOAD-JOBS: unexpected type, clearing")
+                persistent._cue_jobs = None
+                return
+            max_id = 0
+            count = 0
+            for d in data:
+                try:
+                    job_id = int(d.get("job_id", 0))
+                    fspath_out = d.get("fspath_out", "")
+                    fspath_in = d.get("fspath_in", "")
+                    fspath_tmp = d.get("fspath_tmp", "")
+                    vpath = d.get("vpath", "")
+                    factor = float(d.get("factor", 1.0))
+                    encode_mode = int(d.get("encode_mode", 0))
+                except (ValueError, TypeError):
+                    _cue_log("LOAD-JOBS: skipping malformed entry")
+                    continue
+
+                # Already completed?
+                if fspath_out and os.path.exists(fspath_out) and os.path.getsize(fspath_out) > 0:
+                    _cue_log("LOAD-JOBS: skipping job_id={} -- output already exists".format(job_id))
+                    continue
+
+                # Input file gone?
+                if not os.path.exists(fspath_in):
+                    _cue_log("LOAD-JOBS: skipping job_id={} -- input file missing: {}".format(
+                        job_id, os.path.basename(fspath_in)))
+                    if fspath_tmp and os.path.exists(fspath_tmp):
+                        try:
+                            os.remove(fspath_tmp)
+                        except Exception:
+                            pass
+                    _logbase = fspath_tmp + ".passlog" if fspath_tmp else None
+                    if _logbase:
+                        for _suffix in ("-0.log", "-1.log"):
+                            _pf = _logbase + _suffix
+                            if os.path.exists(_pf):
+                                try:
+                                    os.remove(_pf)
+                                except Exception:
+                                    pass
+                    continue
+
+                # Detect if pass1 already completed by checking for the
+                # passlog file on disk. Path is deterministic:
+                # fspath_tmp + ".passlog" + "-0.log".
+                # We derive instead of reading persisted passlog because
+                # save_to_persistent() runs before the worker thread
+                # finishes probing -- the persisted value races.
+                _passlog = fspath_tmp + ".passlog" if fspath_tmp else None
+                _passlog0 = _passlog + "-0.log" if _passlog else None
+                resume_pass2 = False
+                if _passlog0 and os.path.exists(_passlog0) and os.path.getsize(_passlog0) > 0:
+                    resume_pass2 = True
+
+                job = CueVideoJob(
+                    job_id=job_id,
+                    vpath=vpath,
+                    fspath_in=fspath_in,
+                    fspath_tmp=fspath_tmp,
+                    factor=factor,
+                    encode_mode=encode_mode,
+                    fspath_out=fspath_out,
+                )
+                job._resume_pass2 = resume_pass2
+                if resume_pass2:
+                    _cue_log("LOAD-JOBS: job_id={} resuming from pass2".format(job_id))
+                else:
+                    _cue_log("LOAD-JOBS: job_id={} restarting full encode".format(job_id))
+                # Append directly -- don't call enqueue() during init,
+                # since _start_if_idle() would call renpy.restart_interaction()
+                # before the game loop is ready. poll() will kick-start.
+                self._jobs.append(job)
+                count += 1
+                if job_id > max_id:
+                    max_id = job_id
+            if max_id >= self._next_job_id:
+                self._next_job_id = max_id + 1
+            if count:
+                _cue_log("LOAD-JOBS: restored {} job(s)".format(count))
+        except Exception as e:
+            _cue_log("LOAD-JOBS: error restoring queue: {}".format(e))
 
     def get_elapsed(self):
         # type: () -> float

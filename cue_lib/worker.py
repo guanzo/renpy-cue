@@ -68,6 +68,25 @@ def _cue_run_encode(ffmpeg, job, dur_ms, base_dir, kill_fn):
         )
         job.passlog = passlog
 
+        # --- Resume from pass2 if pass1 already completed ---
+        if getattr(job, '_resume_pass2', False):
+            if len(cmds) == 2:
+                cmds = cmds[1:]
+                job.status = "encoding"
+                _cue_log("Resuming from pass2 for job_id={}".format(getattr(job, 'job_id', '?')))
+            else:
+                # Was 2-pass originally but codec choice changed.
+                # Clean up stale passlog files from the previous run.
+                _cue_log("Pass2 resume requested but cmds are single-pass; cleaning up")
+                if passlog:
+                    for _suffix in ("-0.log", "-1.log"):
+                        try:
+                            _pf = passlog + _suffix
+                            if os.path.exists(_pf):
+                                os.remove(_pf)
+                        except Exception:
+                            pass
+
         _cue_log("Encoding {} -> {} at {:.1f}x ({})".format(
             os.path.basename(input_fs), os.path.basename(temp_path),
             factor, "2-pass" if len(cmds) == 2 else "1-pass"))
