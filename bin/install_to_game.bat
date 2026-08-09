@@ -22,7 +22,7 @@ if not exist "%GAME_DIR%" (
 
 set "CUE_DIR=%GAME_DIR%\game\renpy_cue"
 set "AUDIO_SRC=E:\Davinci Resolve Media\Sex Sounds"
-set "SRC_SRC=E:\Porn\pGames\renpy_cue\src"
+set "SRC_SRC=E:\Porn\pGames\renpy_cue\cue_lib"
 
 echo Game dir : %GAME_DIR%
 echo Cue dir  : %CUE_DIR%
@@ -55,7 +55,7 @@ if exist "%SRC_LINK%" (
     rmdir "%SRC_LINK%" 2>nul
     del "%SRC_LINK%" 2>nul
 )
-echo Linking src ...
+echo Linking cue_lib ...
 echo   %SRC_LINK%
 echo   -^> %SRC_SRC%
 mklink /D "%SRC_LINK%" "%SRC_SRC%"
