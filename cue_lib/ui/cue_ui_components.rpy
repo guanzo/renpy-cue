@@ -2,6 +2,26 @@
 # Reusable Component Screens
 ###############################################################################
 
+init -900 python:
+    class _CueFieldValue(FieldInputValue):
+        """Like FieldInputValue but takes a dotted path string.
+
+        _CueFieldValue("_cue.video_editor.factor_text") is equivalent to
+        FieldInputValue("_cue.video_editor", "factor_text") — it splits
+        on the LAST dot and treats everything before it as the object
+        expression, everything after as the field name.
+        """
+        def __init__(self, dotted_path, default=True):
+            _dot = dotted_path.rfind(".")
+            if _dot == -1:
+                # No dot: treat as a simple store variable
+                self._obj_expr = "store"
+                self._field = dotted_path
+            else:
+                self._obj_expr = dotted_path[:_dot]
+                self._field = dotted_path[_dot + 1:]
+            FieldInputValue.__init__(self, self._obj_expr, self._field, default=default)
+
 
 
 # Vertical divider: thin line for visual separation between controls.
@@ -102,7 +122,7 @@ screen cue_float_input(field_name, commit_action, display_text):
     if editing:
         input:
             style "cue_input"
-            value VariableInputValue(field_name)
+            value _CueFieldValue(field_name)
             default True
             xsize 80
             ysize 16
@@ -128,7 +148,7 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
         if editing:
             input:
                 style "cue_input"
-                value VariableInputValue(field_name)
+                value _CueFieldValue(field_name)
                 default True
         else:
             use cue_txt_button(display_text,

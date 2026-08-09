@@ -41,6 +41,11 @@ E:\Porn\pGames\Dreamland-v0.6.0p-pc
   screen statement arguments — Ren'Py 7.4's parser misinterprets the
   expression as a keyword argument. Wrap in parens:
   `use foo_btn(label, (_x == some_val), action)`
+- `VariableInputValue()` does NOT support dotted attribute paths like
+  `"_cue.foo.bar"` — it calls `globals()[self.variable]` which only
+  resolves flat names. Use `_CueFieldValue("_cue.foo.bar")` instead
+  (defined in `cue_ui_components.rpy`).  Under the hood it splits on
+  the last `.` and uses `FieldInputValue`.
 
 ### SAFE across all versions:
 - `store._last_say_what` — current dialogue text

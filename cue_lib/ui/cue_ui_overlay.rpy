@@ -729,7 +729,7 @@ screen cue_save_preset_dialog():
                 text "Name:" style "cue_txt" size 12
                 input:
                     style "cue_input"
-                    value VariableInputValue("_cue.preset_dialog.name")
+                    value _CueFieldValue("_cue.preset_dialog.name")
                     default True
                     xsize 200
                     copypaste True
@@ -800,7 +800,7 @@ screen cue_save_video_preset_dialog():
                 text "Name:" style "cue_txt" size 12
                 input:
                     style "cue_input"
-                    value VariableInputValue("_cue.video_preset_dialog.name")
+                    value _CueFieldValue("_cue.video_preset_dialog.name")
                     default True
                     xsize 200
                     copypaste True

@@ -93,6 +93,7 @@ class CueFFmpeg(object):
         self._ffmpeg_path = "ffmpeg"
         self._ffprobe_path = "ffprobe"
         self._encoder_cache = None      # None=not loaded, set when populated
+        self._has_rubberband = False    # proven True after probe in load_encoders
 
     # ==================================================================
     # Binary detection
@@ -170,6 +171,24 @@ class CueFFmpeg(object):
                     parts = line.split()
                     if len(parts) >= 2:
                         self._encoder_cache.add(parts[1])
+        except Exception:
+            pass
+
+        # Probe for librubberband filter (pitch-corrected time-stretch)
+        try:
+            p = subprocess.Popen(
+                [self._ffmpeg_path, "-filters"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                creationflags=CREATIONFLAGS,
+            )
+            out, _ = p.communicate()
+            if isinstance(out, bytes):
+                out = out.decode("utf-8", errors="replace")
+            for line in out.split("\n"):
+                if "rubberband" in line:
+                    self._has_rubberband = True
+                    break
         except Exception:
             pass
 
@@ -336,12 +355,15 @@ class CueFFmpeg(object):
     # atempo chain builder
     # ==================================================================
 
-    @staticmethod
-    def build_atempo(speed):
-        # type: (float) -> List[str]
-        """Build ffmpeg atempo filter chain for the given speed factor.
-        ffmpeg atempo is limited to [0.5, 2.0] per instance, so we chain
-        multiple filters for speeds outside that range."""
+    def build_audio_filter(self, speed):
+        # type: (float) -> str
+        """Build the audio tempo filter string for the given speed factor.
+        Uses librubberband (pitch-corrected) when available; falls back to
+        atempo (pitch changes with speed)."""
+        self.load_encoders()  # ensures _has_rubberband is probed
+        if self._has_rubberband:
+            return "rubberband=tempo={:.4f}".format(speed)
+        # atempo fallback -- chained for speeds outside [0.5, 2.0]
         f = speed
         parts = []
         while f > 2.0:
@@ -351,7 +373,7 @@ class CueFFmpeg(object):
             parts.append("atempo=0.5000")
             f = f / 0.5
         parts.append("atempo={:.4f}".format(f))
-        return parts
+        return ",".join(parts)
 
     # ==================================================================
     # ffmpeg command builder
@@ -365,7 +387,7 @@ class CueFFmpeg(object):
 
         For VP8/VP9: 2-pass encoding with probed source bitrate.
         For other codecs: single pass.
-        setpts adjusts video PTS; atempo adjusts audio tempo."""
+        setpts adjusts video PTS; atempo adjusts audio tempo to match."""
 
         # Null device for pass 1
         null_dev = "NUL" if os.name == "nt" else "/dev/null"
@@ -377,8 +399,8 @@ class CueFFmpeg(object):
             _vf += ",minterpolate=fps={}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1".format(_target_fps)
         filters = ["[0:v]{}[v]".format(_vf)]
         if has_audio:
-            atempo_chain = self.build_atempo(speed)
-            filters.append("[0:a]{}[a]".format(",".join(atempo_chain)))
+            _af = self.build_audio_filter(speed)
+            filters.append("[0:a]{}[a]".format(_af))
 
         # Shared output args (except pass-specific ones)
         shared = [
@@ -407,11 +429,14 @@ class CueFFmpeg(object):
             vq = self._VIDEO_QUALITY.get(vcodec, [])
             aq = self._AUDIO_QUALITY.get(acodec, [])
 
+            # Pass 1: video only. Don't include the audio filter since
+            # -an discards audio and unconnected [a] output is an error.
+            _video_filter = filters[0] if filters else ""
             pass1 = [
                 self._ffmpeg_path, "-y",
                 "-v", "error",
                 "-i", fspath,
-                "-filter_complex", ";".join(filters),
+                "-filter_complex", _video_filter,
                 "-map", "[v]",
                 "-c:v", vcodec,
                 "-b:v", target_bitrate,
