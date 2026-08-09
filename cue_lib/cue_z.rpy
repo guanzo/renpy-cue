@@ -148,10 +148,11 @@ init 999 python:
         # Character callback — updates dialogue text only (context change
         # detection now lives in start_interact_callbacks below).
         def _cue_char_callback(event, interact=True, **kwargs):
-            _cue.prev_dialogue = _cue.current_dialogue
             if event == "show":
+                _cue.prev_dialogue = _cue.current_dialogue
                 _cue.current_dialogue = getattr(store, '_last_say_what', '')
             elif event == "end":
+                _cue.prev_dialogue = _cue.current_dialogue
                 _cue.current_dialogue = ""
 
         config.all_character_callbacks.append(_cue_char_callback)
