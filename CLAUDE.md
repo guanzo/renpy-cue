@@ -35,9 +35,9 @@ E:\Porn\pGames\Dreamland-v0.6.0p-pc
 ### SAFE across all versions:
 - `store._last_say_what` — current dialogue text
 - `store._last_say_who` — current speaker
-- `renpy.music.get_pos()` / `get_duration()` / `is_playing()` / `get_playing()`
-- `renpy.music.set_pause()` / `set_volume()`
-- `renpy.music.register_channel()` / `channel_defined()`
+- `renpy.audio.music.get_pos()` / `get_duration()` / `is_playing()` / `get_playing()`
+- `renpy.audio.music.set_pause()` / `set_volume()`
+- `renpy.audio.music.register_channel()` / `channel_defined()`
 - `renpy.get_showing_tags()` / `renpy.showing()`
 - `renpy.list_files()`
 - `config.overlay_screens` — persistent screen injection
@@ -48,14 +48,16 @@ E:\Porn\pGames\Dreamland-v0.6.0p-pc
 - `renpy.restart_interaction()`
 - `renpy.add_layer()`
 
+**NOTE**: In `.py` files, use the real module path `renpy.audio.music` (not `renpy.music`). `renpy.music` is a `sys.modules` alias set up at runtime by `import_all()` — it doesn't exist as a file on disk and won't resolve during `init -999` before the alias is created.
+
 ## Naming Conventions
 
-Ren'Py concatenates all `.rpy` files into a single flat namespace. To avoid collisions with other mods and built-in game code, module-level names MUST be prefixed:
+Most logic lives in `.py` files under `cue_lib/`, which have their own module-level namespaces. However, `cue_z.rpy` bridges ~55 names into the Ren'Py store for screen actions (`Function()` calls) — and those names share a flat namespace with the game. To avoid collisions:
 
 - **Module-level functions**: `_cue_` prefix — `_cue_play_sfx()`, `_cue_refresh_context()`, `_cue_tick_trigger()`
 - **Module-level classes**: `Cue` prefix — `CueBeatManager`, `CueMarkerManager`, `CueVideoManager`
-- **Module-level singleton**: `_cue` (the `NoRollback` instance)
-- **`init python:` block imports**: `import foo as _foo` — keeps the import local to the block
+- **Module-level singleton**: `_cue` (the `NoRollback` instance, created in `cue_lib/state.py`)
+- **`.py` file imports**: `import foo as _foo` — ensures the import is module-local, not exposed to the store
 
 Function-local variables do NOT need underscores — they're scoped to their function and can't collide.
 
@@ -64,15 +66,25 @@ Function-local variables do NOT need underscores — they're scoped to their fun
 ## Code Organization
 
 - **Encapsulate features as classes.** When adding a new UI component, dialog, or feature, create a dedicated class that owns its state, logic, and screen hooks. Prefer `_cue.thing = ThingManager()` over scattered `_cue._thing_var1`, `_cue._thing_var2` and global `_cue_do_thing()` functions.
-- **One class, one file** (in `src/`) when the class is substantial enough to stand alone (e.g. `cue_beat.rpy` for `CueBeatManager`, `cue_volume.rpy` for `CueVolumeManager`).
-- **Screen code in `cue_editor_ui.rpy`** reads from the class instance; the class handles `renpy.show_screen`/`hide_screen` and provides callable methods for `Function()` screen actions.
+- **One class, one file** in `cue_lib/` when the class is substantial enough to stand alone (e.g. `beat.py` for `CueBeatManager`, `volume.py` for `CueVolumeManager`).
+- **Screen code** lives in `cue_lib/ui/*.rpy` (screens + styles). The manager classes in `cue_lib/*.py` handle `renpy.show_screen`/`hide_screen` and provide callable methods for `Function()` screen actions.
+- **Bootstrap** lives in `cue_lib/cue_z.rpy` (python early import-path setup + init blocks for bridge + callbacks) and `cue_lib/cue_popper.rpy` (sl-displayable registration). All other `.rpy` files under `src/` have been deleted. See `_typing/cue_lib/` for type stubs.
 - **Ren'Py constraint**: `Function()` in screen actions can only reference module-level Python objects (no lambdas/closures), so the class instance must be reachable at a stable path — typically as an attribute of `_cue` (the `NoRollback` singleton).
 
 ## Ren'Py Rollback Rules
 
-- `_cue` is a `NoRollback()` instance. Never reassign `_cue` itself — only mutate its attributes.
-- Anything reachable ONLY through `_cue` is excluded from rollback, regardless of its type (plain or Revertable). It only becomes rollback-tracked if it's ALSO reachable from another path (e.g. aliased from `persistent.x`) — so never alias `persistent.*` into `_cue.*`, always deep-copy via `_cue_unwrap_persistent`.
-- Inside `.rpy` files, `dict`, `list`, `set` (including `{}`/`[]` literals) are shadowed to return `RevertableDict`/`RevertableList`/`RevertableSet`, even when called as `dict(...)`/`list(...)`/`set(...)`.
-- To get real plain Python types in `.rpy` code, use `python_dict(...)` / `python_list(...)` / `python_set(...)` (aliases to the true builtins, defined in `cue_editor.rpy`). Never use bare `dict`/`list`/`set`/`{}`/`[]` when a plain type is required.
-- **Prefer duck typing over `isinstance` for collection checks.** `isinstance(x, list)` fails on both plain lists (when `list` is shadowed to `RevertableList`) and RevertableLists (when comparing against the real `list` type). Use `hasattr(x, "__iter__") and not isinstance(x, (str, bytes))` to check for list-like types. Precedent: `_cue_unwrap_persistent` in `src/cue_util.rpy`.
-- `.py` files imported into the game don't have this shadowing issue — `dict`/`list`/`set` work normally there.
+- `_cue` is a `NoRollback()` instance created at module level in `cue_lib/state.py`. Never reassign `_cue` itself — only mutate its attributes.
+- `.py` modules under `cue_lib/` are invisible to rollback (Python module state is not tracked by Ren'Py). The store binding `from cue_lib.state import _cue` in `cue_z.rpy` init -900 is an import — not a `default` or `$` assignment — so no Ren'Py state is created.
+- `.rpy` files still use shadowed `dict`/`list`/`set` (Revertable variants). `.py` files use real builtins — `dict`/`list`/`set` work normally there.
+- **Prefer duck typing over `isinstance` for collection checks.** `isinstance(x, list)` fails on both plain lists (when `list` is shadowed to `RevertableList`) and RevertableLists (when comparing against the real `list` type). Use `hasattr(x, "__iter__") and not isinstance(x, (str, bytes))` to check for list-like types. Precedent: `_cue_unwrap_persistent` in `cue_lib/util.py`.
+
+## Type Stubs (`_typing/`)
+
+Pylance can't resolve most `renpy.*` names (Ren'Py uses dynamic `import *` from `renpy.exports`). To get autocomplete and type-checking:
+
+- **`_typing/renpy/`** — stubs for the Ren'Py runtime. Declares submodules (`renpy.music`, `renpy.display.core`, etc.) plus top-level functions re-exported from `renpy.exports` (`renpy.show_screen`, `renpy.Render`, etc.).
+- **`_typing/cue_lib/`** — stubs for our own modules. One `.pyi` per `.py` source file.
+
+**CRITICAL**: When you add, remove, or rename a function/class/method/signature in `cue_lib/*.py`, you MUST update the corresponding `_typing/cue_lib/*.pyi` file. The stubs must stay in sync with the source — Pylance uses the `.pyi` for type information, and outdated stubs produce wrong diagnostics.
+
+The `_typing/` directory is in `python.analysis.extraPaths` (`.vscode/settings.json`). Pylance finds stub files there alongside the real SDK paths.
