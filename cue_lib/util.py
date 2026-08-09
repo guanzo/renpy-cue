@@ -257,7 +257,7 @@ def _cue_scan_audio():
             os.path.normpath(os.path.join(_config.gamedir, _cue.audio_dir))
         )
     else:
-        _cue.scan_error = None
+        _cue.scan_error = ""
 
     # Rebuild visible tree for sidebar
     _cue.file_tree.rebuild_tree()

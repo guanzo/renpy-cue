@@ -1,7 +1,99 @@
 # Type stub for cue_lib.markers
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, TypedDict
+
+# =========================================================================
+# TypedDicts — data structures passed between modules
+# =========================================================================
+
+class PoolDict(TypedDict, total=False):
+    """A single pool within a MarkerEntry. Keys vary by context."""
+    files: List[str]
+    volume: float
+    frequency: int              # loop pools only
+    trigger_on_shake: bool      # image pools only
+    exclusive: bool             # loop pools only
+    preset: str                 # preset-backed pools (written, replaced on detach)
+
+class VideoPoolDict(TypedDict, total=False):
+    """A video marker pool. Always has a time key."""
+    time: float
+    files: List[str]
+    volume: float
+    preset: str                 # preset-backed (detached on mutation)
+
+class MarkerEntry(TypedDict, total=False):
+    """Returned by CueMarkerManager.get()."""
+    pools: List[PoolDict]
+    volume: float               # entry-level master volume (default 1.0)
+    replay: str                 # replay label
+    speed_pref: float           # per-video speed preference
+    speed_sequence: List[float] # per-video speed sequence
+    speed_mode: str             # "single" or "multi"
+    timestamps: List[PoolDict]  # migration: old name for pools
+    files: List[str]            # migration: old flat format
+    frequency: int              # migration: old entry-level frequency
+
+class VideoPreset(TypedDict):
+    """A saved video preset."""
+    pools: List[PoolDict]
+    volume: float
+    source_duration: float
+
+class BeatOffset(TypedDict):
+    """One offset in a CueBeatManager repeat pattern."""
+    offset: float
+    files: List[str]
+    volume: float
+
+class UndoSnapshot(TypedDict):
+    """Snapshot taken by CueUndoManager on every save."""
+    markers: Dict[str, MarkerEntry]
+    presets: Dict[str, PoolDict]
+    video_presets: Dict[str, VideoPreset]
+
+class ClipboardData(TypedDict):
+    """Copy/paste clipboard for context markers."""
+    markers: Dict[str, MarkerEntry]
+    source_file: str
+    source_dialogue: str
+
+class CuePersistentData(TypedDict):
+    """Shape of persistent._cue_config."""
+    markers: Dict[str, MarkerEntry]
+    presets: Dict[str, PoolDict]
+    video_presets: Dict[str, VideoPreset]
+    disabled_files: List[str]
+    triggers_active: bool
+    encode_mode: int
+    seamless_transition: bool
+
+class AudioTreeFolderNode(TypedDict):
+    """Folder node in _cue.audio_tree / visible_tree."""
+    type: str
+    name: str
+    full_path: str
+    depth: int
+    expanded: bool
+    has_files: bool
+
+class AudioTreeFileNode(TypedDict):
+    """File node in _cue.audio_tree / visible_tree."""
+    type: str
+    name: str
+    full_path: str
+    depth: int
+    index: int
+    enabled: bool
+
+AudioTreeNode = AudioTreeFolderNode | AudioTreeFileNode
+
+
+# =========================================================================
+# ResolvedPool
+# =========================================================================
 
 class ResolvedPool:
+    """Immutable pool snapshot after resolving presets."""
     files: List[str]
     volume: float
     frequency: int
@@ -9,8 +101,13 @@ class ResolvedPool:
     exclusive: bool
     def __init__(self, files: List[str], volume: float, frequency: int, trigger_on_shake: bool, exclusive: bool = False) -> None: ...
 
+
+# =========================================================================
+# Context classes
+# =========================================================================
+
 class CueMarkerContext:
-    def __init__(self, manager: Any) -> None: ...
+    def __init__(self, manager: "CueMarkerManager") -> None: ...
     def add_file(self, file_index: int) -> None: ...
     def remove_file(self, pool_index: int, file_index: int) -> None: ...
     def clear(self) -> None: ...
@@ -29,7 +126,7 @@ class CueVideoContext(CueMarkerContext):
     selected: Set[int]
     edit_text: str
 
-    def __init__(self, manager: Any) -> None: ...
+    def __init__(self, manager: "CueMarkerManager") -> None: ...
     def add_file(self, file_index: int) -> None: ...
     def add_folder(self, folder_path: str) -> None: ...
     def add_pool(self) -> None: ...
@@ -40,7 +137,7 @@ class CueVideoContext(CueMarkerContext):
     def finalize_drag(self) -> None: ...
     def get_delete_message(self) -> str: ...
     def get_duration(self) -> float: ...
-    def get_markers(self) -> List[Dict[str, Any]]: ...
+    def get_markers(self) -> List[VideoPoolDict]: ...
     def get_selected(self) -> Set[int]: ...
     def has_markers(self) -> bool: ...
     def nudge(self, delta: float) -> None: ...
@@ -53,7 +150,7 @@ class CueVideoContext(CueMarkerContext):
     def sync_text(self) -> None: ...
 
 class CueLoopContext(CueMarkerContext):
-    def __init__(self, manager: Any) -> None: ...
+    def __init__(self, manager: "CueMarkerManager") -> None: ...
     def add_pool(self) -> None: ...
     def clear(self) -> None: ...
     def set_frequency(self, freq: int) -> None: ...
@@ -62,34 +159,39 @@ class CueLoopContext(CueMarkerContext):
     @staticmethod
     def get_delay(frequency: int = 1) -> float: ...
 
+
+# =========================================================================
+# CueMarkerManager
+# =========================================================================
+
 class CueMarkerManager:
     image: CueImageContext
     dialogue: CueDialogueContext
     video: CueVideoContext
     loop: CueLoopContext
-    clipboard: Optional[Dict[str, Any]]
+    clipboard: Optional[ClipboardData]
 
     def __init__(self) -> None: ...
-    def get(self, key: str, default: Any = None) -> Optional[Dict[str, Any]]: ...
-    def setdefault(self, key: str, default: Any) -> Any: ...
-    def pop(self, key: str, *args: Any) -> Any: ...
-    def items(self) -> Any: ...
-    def keys(self) -> Any: ...
+    def get(self, key: str, default: Optional[MarkerEntry] = None) -> Optional[MarkerEntry]: ...
+    def setdefault(self, key: str, default: MarkerEntry) -> MarkerEntry: ...
+    def pop(self, key: str, *args: MarkerEntry) -> MarkerEntry: ...
+    def items(self) -> List[Tuple[str, MarkerEntry]]: ...
+    def keys(self) -> List[str]: ...
 
-    def create_preset(self, name: str, pool_dict: Dict[str, Any]) -> None: ...
+    def create_preset(self, name: str, pool_dict: PoolDict) -> None: ...
     def delete_preset(self, name: str) -> None: ...
     def preset_remove_file(self, name: str, file_path: str) -> None: ...
-    def get_preset(self, name: str) -> Optional[Dict[str, Any]]: ...
+    def get_preset(self, name: str) -> Optional[PoolDict]: ...
     def list_presets(self) -> List[str]: ...
 
-    def create_video_preset(self, name: str, entry: Dict[str, Any]) -> None: ...
+    def create_video_preset(self, name: str, entry: MarkerEntry) -> None: ...
     def delete_video_preset(self, name: str) -> None: ...
-    def get_video_preset(self, name: str) -> Optional[Dict[str, Any]]: ...
+    def get_video_preset(self, name: str) -> Optional[VideoPreset]: ...
     def list_video_presets(self) -> List[str]: ...
     def video_preset_out_of_range(self, name: str) -> int: ...
     def apply_video_preset(self, name: str) -> None: ...
 
-    def resolve_pool(self, pool: Dict[str, Any]) -> ResolvedPool: ...
+    def resolve_pool(self, pool: PoolDict) -> ResolvedPool: ...
 
     def save_persistent(self) -> None: ...
     def load_persistent(self) -> None: ...
@@ -103,9 +205,9 @@ class CueMarkerManager:
     _img_target: int
     _dlg_target: int
     _loop_target: int
-    _data: Dict[str, Any]
-    _presets: Dict[str, Any]
-    _video_presets: Dict[str, Any]
-    def _get_or_create_entry(self, trigger_key: str) -> Dict[str, Any]: ...
-    def _ensure_pool(self, trigger_key: str, pool_index: int) -> Dict[str, Any]: ...
+    _data: Dict[str, MarkerEntry]
+    _presets: Dict[str, PoolDict]
+    _video_presets: Dict[str, VideoPreset]
+    def _get_or_create_entry(self, trigger_key: str) -> MarkerEntry: ...
+    def _ensure_pool(self, trigger_key: str, pool_index: int) -> PoolDict: ...
     def _detach_pool(self, trigger_key: str, pool_index: int) -> bool: ...

@@ -714,6 +714,7 @@ class CueMarkerManager:
         self.save_persistent()
 
     def resolve_pool(self, pool):
+        # type: (PoolDict) -> ResolvedPool
         defaults = self._presets.get(pool["preset"], {}) if "preset" in pool else {}
         files = pool.get("files", defaults.get("files", []))
         volume = pool.get("volume", defaults.get("volume", _cue.VOL_DEFAULT))

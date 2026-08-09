@@ -1,8 +1,10 @@
 # Type stub for cue_lib.file_tree
-from typing import Any, Dict, List, Set
+from typing import Dict, List, Set
+
+from cue_lib.markers import AudioTreeNode
 
 class CueFileTreeManager:
-    visible_tree: List[Dict[str, Any]]
+    visible_tree: List[AudioTreeNode]
     expanded_folders: Dict[str, bool]
     expanded_file_refs: Dict[str, bool]
     presets_expanded: bool

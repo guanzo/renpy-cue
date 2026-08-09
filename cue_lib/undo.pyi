@@ -1,8 +1,12 @@
 # Type stub for cue_lib.undo
+from typing import Optional
+
+from cue_lib.markers import UndoSnapshot
 
 class CueUndoManager:
     MAX_UNDO: int
     DEDUPE_WINDOW: float
+    _previous: Optional[UndoSnapshot]
 
     def __init__(self) -> None: ...
     def seed(self) -> None: ...
