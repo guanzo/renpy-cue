@@ -25,12 +25,12 @@ if MYPY:
     from cue_lib._types import MarkerEntry
 
 
-class SpeedMode:
+class SpeedMode(object):
     SINGLE = "single"
     MULTI = "multi"
 
 
-class CueVidSpeedResolver:
+class CueVidSpeedResolver(object):
     def __init__(self):
         self.paths = {}
         self.children = {}
@@ -401,7 +401,7 @@ class CueVidSpeedResolver:
         renpy.restart_interaction()
 
 
-class CueVidSpeedSequence:
+class CueVidSpeedSequence(object):
     def __init__(self, resolver):
         self.resolver = resolver
         self.active_tag = None
@@ -644,7 +644,7 @@ class CueVidSpeedSequence:
         self.last_elapsed = now_elapsed
 
 
-class CueSpeedToast:
+class CueSpeedToast(object):
     def __init__(self):
         self.toast_speeds = None
         self.toast_current = None

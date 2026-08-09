@@ -31,7 +31,7 @@ def _cue_esc(text):
     return text
 
 
-class CueVideoEditorState:
+class CueVideoEditorState(object):
     """Editing state for a single video file."""
     def __init__(self, vpath):
         self.vpath = vpath
@@ -39,7 +39,7 @@ class CueVideoEditorState:
         self.last_error = ""
 
 
-class CueVideoJob:
+class CueVideoJob(object):
     """One ffmpeg encode job in the queue."""
     def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, encode_mode,
                  fspath_out=None):
@@ -99,7 +99,7 @@ class CueVideoJob:
         return "{:.1f}x".format(self.factor)
 
 
-class CueVideoEditQueue:
+class CueVideoEditQueue(object):
     """Job queue for ffmpeg encode jobs."""
 
     def __init__(self, editor):
@@ -338,7 +338,7 @@ class CueVideoEditQueue:
             renpy.restart_interaction()
 
 
-class CueVideoEditor:
+class CueVideoEditor(object):
     """Change the playback speed of the currently-playing video."""
 
     SPEED_MIN = 0.1

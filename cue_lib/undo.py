@@ -19,7 +19,7 @@ if MYPY:
     from cue_lib._types import UndoSnapshot
 
 
-class CueUndoManager:
+class CueUndoManager(object):
     """Undo/redo via post-mutation state snapshots. Max 50 steps; any new
     mutation invalidates the redo stack."""
 

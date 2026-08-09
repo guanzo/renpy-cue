@@ -22,6 +22,9 @@ E:\Porn\pGames\Dreamland-v0.6.0p-pc
 - No non-ASCII characters in `.py` files: Ren'Py 7.x uses Python 2 which
   defaults to ASCII encoding. Use `--` instead of em dashes (`—`), straight
   quotes instead of curly quotes, etc.
+- All classes MUST inherit from `object` (or another new-style class):
+  `class Foo(object):` not `class Foo:`.  Python 2 old-style classes
+  don't support `super()`, descriptors, or `__class__` assignment.
 
 ### FORBIDDEN (not in all versions):
 - Character callback kwargs `what`/`start`/`end` — only in Ren'Py 8.2+

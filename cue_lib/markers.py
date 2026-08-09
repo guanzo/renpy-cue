@@ -31,7 +31,7 @@ if MYPY:
 # CueMarkerContext -- pool-based markers (shared by .image and .dialogue)
 # =========================================================================
 
-class CueMarkerContext:
+class CueMarkerContext(object):
     """Abstract base for pool-based marker contexts."""
 
     def __init__(self, manager):
@@ -127,7 +127,7 @@ class CueMarkerContext:
         self._mgr.save_persistent()
 
 
-class ResolvedPool:
+class ResolvedPool(object):
     """Immutable snapshot of a resolved pool."""
     def __init__(self, files, volume, frequency, trigger_on_shake, exclusive=False):
         self.files = files
@@ -544,7 +544,7 @@ class CueLoopContext(CueMarkerContext):
 # CueMarkerManager
 # =========================================================================
 
-class CueMarkerManager:
+class CueMarkerManager(object):
     def __init__(self):
         self._data = {}
         self._presets = {}

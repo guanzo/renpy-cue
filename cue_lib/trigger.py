@@ -16,7 +16,7 @@ if MYPY:
     from typing import Any, Optional
 
 
-class CueTriggerEngine:
+class CueTriggerEngine(object):
     """Owns trigger dispatch state and logic.
 
     Called by:

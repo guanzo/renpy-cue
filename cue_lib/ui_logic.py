@@ -14,7 +14,7 @@ if MYPY:
     from typing import Any, Callable, Optional
 
 
-class CuePresetDialog:
+class CuePresetDialog(object):
     """Self-contained state for the Save Preset popup."""
     def __init__(self):
         self.trigger_key = None
@@ -53,7 +53,7 @@ class CuePresetDialog:
         renpy.hide_screen("cue_save_preset_dialog", layer="cue_layer")
 
 
-class CueVideoPresetDialog:
+class CueVideoPresetDialog(object):
     """Self-contained state for the Save Video Preset popup."""
     def __init__(self):
         self.name = ""
@@ -88,7 +88,7 @@ class CueVideoPresetDialog:
         renpy.hide_screen("cue_save_video_preset_dialog", layer="cue_layer")
 
 
-class CueConfirmDialog:
+class CueConfirmDialog(object):
     """Reusable confirmation popup matching the overlay UI style."""
     def __init__(self):
         self.message = ""

@@ -11,7 +11,7 @@ if MYPY:
     from typing import Optional
 
 
-class CueVideoManager:
+class CueVideoManager(object):
     """Per-video playback state and control.
     Methods act on self.channel (the movie channel this state tracks);
     _cue.vid_manager.channel is kept in sync by _cue_refresh_channel."""

@@ -1,6 +1,7 @@
 audio/
 *.rpyc
 *.pyc
+*.pyo
 notes.txt
 bin/install_to_game.bat
 

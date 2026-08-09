@@ -12,7 +12,7 @@ if MYPY:
     from cue_lib._types import MarkerEntry
 
 
-class CueVolumeManager:
+class CueVolumeManager(object):
     """Volume read/write for marker entries and pools.
 
     Each marker entry has an optional "volume" key (master level).

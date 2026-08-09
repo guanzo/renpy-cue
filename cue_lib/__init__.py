@@ -9,25 +9,16 @@
 # In .rpy init blocks, Ren'Py's exec context makes every renpy.exports name
 # available as a bare renpy.xxx() call.  Regular Python imports don't get
 # that treatment -- renpy.image, renpy.Render, renpy.get_screen, etc. raise
-# AttributeError.  We fix this by giving the renpy module a __getattr__
-# that falls back to renpy.exports, exactly mirroring .rpy behavior.
+# AttributeError.  We fix this by copying any missing names from
+# renpy.exports onto the renpy module.
 import renpy
 import renpy.exports as _renpy_exports
 
-class _RenPyModule(type(renpy)):
-    def __getattr__(cls, name):
-        # Module.__getattr__ is only invoked when normal lookup fails.
-        # Fall back to renpy.exports -- this is what Ren'Py's exec context
-        # effectively does in .rpy init blocks.
-        try:
-            return getattr(_renpy_exports, name)
-        except AttributeError:
-            raise AttributeError(
-                "module 'renpy' has no attribute {!r}".format(name))
-
-renpy.__class__ = _RenPyModule  # pyright: ignore[reportAttributeAccessIssue]
-# NOTE: _renpy_exports and _RenPyModule must stay alive -- __getattr__
-# reads _renpy_exports from this module's globals at call time.
+for _name in dir(_renpy_exports):
+    if _name.startswith("_"):
+        continue
+    if not hasattr(renpy, _name):
+        setattr(renpy, _name, getattr(_renpy_exports, _name))
 
 # ---------------------------------------------------------------------------
 # Load submodules in dependency order

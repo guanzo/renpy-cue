@@ -12,7 +12,7 @@ if MYPY:
     from cue_lib._types import AudioTreeNode
 
 
-class CueFileTreeManager:
+class CueFileTreeManager(object):
     """Folder/file tree visibility, expand/collapse state, and disabled files.
 
     Owns all UI state for the SFX Library audio tree, preset folders,

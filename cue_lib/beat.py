@@ -11,7 +11,7 @@ if MYPY:
     from cue_lib._types import BeatOffset, VideoPoolDict
 
 
-class CueBeatManager:
+class CueBeatManager(object):
     """Dialog state machine for repeating video marker patterns.
 
     Opens over the selected video markers, lets the user set an interval

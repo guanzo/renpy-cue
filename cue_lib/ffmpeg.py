@@ -20,7 +20,7 @@ else:
     CREATIONFLAGS = 0
 
 
-class CueFFmpeg:
+class CueFFmpeg(object):
     """Stateless ffmpeg/ffprobe backend -- detection, probing, command building.
 
     All subprocess calls are blocking (called from background threads by
