@@ -133,9 +133,9 @@ screen cue_overlay_content():
                     if len(_avail) > 1:
                         hbox:
                             spacing 5
-                            use cue_tab_btn("Single Speed", _mode == SpeedMode.SINGLE,
+                            use cue_tab_btn("Single Speed", (_mode == SpeedMode.SINGLE),
                                 Function(_cue.video_sequence.set_mode, SpeedMode.SINGLE))
-                            use cue_tab_btn("Multi Speed", _mode == SpeedMode.MULTI,
+                            use cue_tab_btn("Multi Speed", (_mode == SpeedMode.MULTI),
                                 Function(_cue.video_sequence.set_mode, SpeedMode.MULTI))
 
                     # --- Speeds tab ---
@@ -248,7 +248,7 @@ screen cue_overlay_content():
                         $ _has_markers = _cue.markers.video.has_markers()
                         use cue_icon_btn("💾", Function(_cue.video_preset_dialog.open), "Save all video markers as a preset", None)
                         use cue_icon_btn("✕",
-                            Function(_cue.markers.video.remove_selected) if _has_markers else NullAction(),
+                            (Function(_cue.markers.video.remove_selected) if _has_markers else NullAction()),
                             "Delete selected markers" if _has_markers else "No markers to delete", None)
                         use cue_icon_btn("?",
                             NullAction(),
@@ -392,13 +392,13 @@ screen cue_overlay_content():
                         hbox:
                             spacing 4
                             text "Quality:" style "cue_txt"
-                            use cue_radio_btn(_ved.encode_mode == _ved.MODE_FAST_PREVIEW, "Fast Preview",
+                            use cue_radio_btn((_ved.encode_mode == _ved.MODE_FAST_PREVIEW), "Fast Preview",
                                 Function(_cue.video_editor.set_encode_mode, _ved.MODE_FAST_PREVIEW),
                                 tt="Fast low-quality encode to judge the edited speed.")
-                            use cue_radio_btn(_ved.encode_mode == _ved.MODE_NORMAL, "Normal",
+                            use cue_radio_btn((_ved.encode_mode == _ved.MODE_NORMAL), "Normal",
                                 Function(_cue.video_editor.set_encode_mode, _ved.MODE_NORMAL),
                                 tt="Standard encode at the original quality — no extra processing.")
-                            use cue_radio_btn(_ved.encode_mode == _ved.MODE_INTERPOLATE, "Interpolate Frames",
+                            use cue_radio_btn((_ved.encode_mode == _ved.MODE_INTERPOLATE), "Interpolate Frames",
                                 Function(_cue.video_editor.set_encode_mode, _ved.MODE_INTERPOLATE),
                                 tt="Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to encode.")
                         if _ved.encode_mode == _ved.MODE_INTERPOLATE:
@@ -479,11 +479,11 @@ screen cue_overlay_content():
             hbox:
                 spacing 5
                 text "Interval:" style "cue_txt" size 11
-                use cue_select_btn("Slowest", _freq == 4, Function(_cue.markers.loop.set_frequency, 4), tt="~6.3s between plays")
-                use cue_select_btn("Slow", _freq == 0, Function(_cue.markers.loop.set_frequency, 0), tt="~3.8s between plays")
-                use cue_select_btn("Normal", _freq == 1, Function(_cue.markers.loop.set_frequency, 1), tt="~2.1s between plays")
-                use cue_select_btn("Fast", _freq == 2, Function(_cue.markers.loop.set_frequency, 2), tt="~0.6s between plays")
-                use cue_select_btn("Fastest", _freq == 3, Function(_cue.markers.loop.set_frequency, 3), tt="~0.2s between plays")
+                use cue_select_btn("Slowest", (_freq == 4), Function(_cue.markers.loop.set_frequency, 4), tt="~6.3s between plays")
+                use cue_select_btn("Slow", (_freq == 0), Function(_cue.markers.loop.set_frequency, 0), tt="~3.8s between plays")
+                use cue_select_btn("Normal", (_freq == 1), Function(_cue.markers.loop.set_frequency, 1), tt="~2.1s between plays")
+                use cue_select_btn("Fast", (_freq == 2), Function(_cue.markers.loop.set_frequency, 2), tt="~0.6s between plays")
+                use cue_select_btn("Fastest", (_freq == 3), Function(_cue.markers.loop.set_frequency, 3), tt="~0.2s between plays")
                 use cue_v_divider()
                 $ _is_exclusive = _cue._pool_ui.get("exclusive", False)
                 use cue_toggle_btn(_is_exclusive, "Exclusive playback",
