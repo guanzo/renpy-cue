@@ -1,4 +1,4 @@
-# CueVidSpeedResolver — per-tag speed preferences and variant Movie resolution.
+# CueVidSpeedResolver -- per-tag speed preferences and variant Movie resolution.
 # Wraps every Movie image in a DynamicDisplayable that swaps in speed variants
 # without touching the registry entry.
 

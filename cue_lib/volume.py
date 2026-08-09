@@ -1,4 +1,4 @@
-# CueVolumeManager — per-entry volume read/write with master x target multiplier.
+# CueVolumeManager -- per-entry volume read/write with master x target multiplier.
 # Instantiated once at _cue.volume, lives on the NoRollback _cue object.
 
 import renpy

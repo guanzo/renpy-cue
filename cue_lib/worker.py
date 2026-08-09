@@ -1,4 +1,4 @@
-# CueVideoWorker — background ffmpeg encode thread.
+# CueVideoWorker -- background ffmpeg encode thread.
 # Module-level function so the editor class doesn't carry the whole
 # subprocess dance. All Ren'Py calls happen on the main thread via the
 # caller's queue.poll; this function is pure Python + ffmpeg subprocess I/O.
@@ -19,7 +19,7 @@ def _cue_run_encode(ffmpeg, job, dur_ms, base_dir, kill_fn):
     # type: (CueFFmpeg, Any, int, str, Callable[[], None]) -> None
     """Background thread: probe codecs, build command, run ffmpeg.
     Reads -progress pipe:1 line by line to update job.progress.
-    All subprocess calls are off the main thread — no game freeze."""
+    All subprocess calls are off the main thread -- no game freeze."""
     input_fs = job.fspath_in
     temp_path = job.fspath_tmp
     factor = job.factor
@@ -163,12 +163,12 @@ def _cue_run_encode(ffmpeg, job, dur_ms, base_dir, kill_fn):
         elif not job.error_msg:
             job.error_msg = "ffmpeg produced no output"
             from cue_lib.util import _cue_log
-            _cue_log("Speed worker: FAILED — no output file")
+            _cue_log("Speed worker: FAILED -- no output file")
     except Exception as e:
         if not job.cancelled:
             job.error_msg = "ffmpeg error: {}".format(e)
             from cue_lib.util import _cue_log
-            _cue_log("Speed worker: exception — {}".format(e))
+            _cue_log("Speed worker: exception -- {}".format(e))
     finally:
         kill_fn()
         job._done = True

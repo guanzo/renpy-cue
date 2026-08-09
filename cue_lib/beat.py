@@ -1,4 +1,4 @@
-# CueBeatManager — repeat-pattern dialog for video marker pools.
+# CueBeatManager -- repeat-pattern dialog for video marker pools.
 # Instantiated once at _cue.beat, lives on the NoRollback _cue object.
 
 import renpy

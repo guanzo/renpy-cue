@@ -1,4 +1,4 @@
-# CueVideoManager — per-video playback state and control.
+# CueVideoManager -- per-video playback state and control.
 # Instantiated once at _cue.vid_manager, lives on the NoRollback _cue object.
 
 import renpy.audio.music as _music
@@ -97,7 +97,7 @@ class CueVideoManager:
             new_state = not currently_paused
             _music.set_pause(new_state, channel=self.channel)
             self.paused = new_state
-            if new_state:  # Just paused — save origin
+            if new_state:  # Just paused -- save origin
                 self.pause_origin = _music.get_pos(channel=self.channel) or 0.0
                 self.total_offset = 0.0
                 _cue_log("pause: origin={:.3f}".format(self.pause_origin))
@@ -118,7 +118,7 @@ class CueVideoManager:
         """Step forward/backward.
         Forward: briefly unpause, auto-re-pause via tick timer.
         Backward: restart from 0, auto-pause at origin + accumulated offset.
-        Does not wrap around — clamps at 0 and duration."""
+        Does not wrap around -- clamps at 0 and duration."""
         if not self.channel:
             return
         frame_seconds = self.frame_time
@@ -160,7 +160,7 @@ class CueVideoManager:
         # type: (float) -> None
         """Seek to an absolute timestamp and pause there.
         Forward (target >= current pos): pause, set step_target, unpause.
-        The tick auto-pauses when pos reaches the target — no restart.
+        The tick auto-pauses when pos reaches the target -- no restart.
         Backward (target < current pos): restart from 0 with pause_target."""
         if not self.channel:
             return

@@ -1,7 +1,7 @@
 # cue_lib/_types.py
 # This file is NEVER imported at runtime under Python 2 (see MYPY guard
 # pattern in consuming files). It exists purely so a type checker has a
-# real, resolvable module to import TypedDict names from — both for .pyi
+# real, resolvable module to import TypedDict names from -- both for .pyi
 # stub authoring and for in-source `# type:` comments. Because it's never
 # executed at runtime, it is free to use TypedDict/modern syntax with no
 # Python 2.7 constraint.
@@ -14,7 +14,7 @@ from typing import Dict, List, TypedDict, Union
 
 
 # =========================================================================
-# Pool dicts — the shape of a single pool within a MarkerEntry
+# Pool dicts -- the shape of a single pool within a MarkerEntry
 # =========================================================================
 
 class PoolDict(TypedDict, total=False):
@@ -36,7 +36,7 @@ class VideoPoolDict(TypedDict, total=False):
 
 
 # =========================================================================
-# Marker entry — the top-level value in the markers dict
+# Marker entry -- the top-level value in the markers dict
 # =========================================================================
 
 class MarkerEntry(TypedDict, total=False):

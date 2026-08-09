@@ -1,4 +1,4 @@
-# CueMarkerManager — unified marker CRUD with typed context accessors.
+# CueMarkerManager -- unified marker CRUD with typed context accessors.
 # Instantiated once at _cue.markers, lives on the NoRollback _cue object.
 
 import os
@@ -28,7 +28,7 @@ if MYPY:
     )
 
 # =========================================================================
-# CueMarkerContext — pool-based markers (shared by .image and .dialogue)
+# CueMarkerContext -- pool-based markers (shared by .image and .dialogue)
 # =========================================================================
 
 class CueMarkerContext:

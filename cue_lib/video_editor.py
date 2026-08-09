@@ -1,4 +1,4 @@
-# CueVideoEditor — edit the currently-playing video file.
+# CueVideoEditor -- edit the currently-playing video file.
 # Currently supports: playback speed change via ffmpeg.
 
 import os
@@ -206,14 +206,14 @@ class CueVideoEditQueue:
         speed = job.factor
         vp = job.vpath
         if not tmp or not out:
-            _cue_log("Variant: FAILED — missing tmp or out path (job_id={})".format(job.job_id))
+            _cue_log("Variant: FAILED -- missing tmp or out path (job_id={})".format(job.job_id))
             job.status = "error"
             job.error_msg = "Missing paths"
             return
         try:
             if not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
                 self._cleanup_temp(job)
-                _cue_log("Variant: FAILED — empty or missing temp (job_id={})".format(job.job_id))
+                _cue_log("Variant: FAILED -- empty or missing temp (job_id={})".format(job.job_id))
                 job.status = "error"
                 job.error_msg = "Empty output"
                 return
@@ -252,8 +252,8 @@ class CueVideoEditQueue:
             "The game still has this video file open. "
             "Advance past this video scene, then try again.")
         job.status = "error"
-        job.error_msg = "File locked — retry later"
-        _cue_log("Variant: swap FAILED — file locked (job_id={})".format(job.job_id))
+        job.error_msg = "File locked -- retry later"
+        _cue_log("Variant: swap FAILED -- file locked (job_id={})".format(job.job_id))
 
     def retry(self, job_id):
         # type: (int) -> None
@@ -461,7 +461,7 @@ class CueVideoEditor:
         fs = self._get_video_fspath()
         if fs is None:
             if self._is_in_rpa():
-                return ("rpa", "Video is inside an .rpa archive — extract it first.")
+                return ("rpa", "Video is inside an .rpa archive -- extract it first.")
             return ("error", "Video file not found on disk.")
         if not os.access(fs, os.W_OK):
             return ("error", "Video file is read-only.")
@@ -556,7 +556,7 @@ class CueVideoEditor:
     def prepare_create(self):
         # type: () -> None
         if not self._ready:
-            self.last_error = "Checking ffmpeg — try again in a moment."
+            self.last_error = "Checking ffmpeg -- try again in a moment."
             return
         if self._warm_cache_error:
             self.last_error = "ffmpeg check failed: {}".format(self._warm_cache_error)
@@ -633,7 +633,7 @@ class CueVideoEditor:
         vp = self._get_video_vpath()
         fs = self._get_video_fspath()
         if not fs:
-            _cue_log("SPEED-VARIANT: apply_variant failed — no filesystem path")
+            _cue_log("SPEED-VARIANT: apply_variant failed -- no filesystem path")
             renpy.restart_interaction()
             return
         orig_vpath = _cue.speed_resolver.base_path_for(_cue.current_file) or vp

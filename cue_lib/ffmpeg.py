@@ -1,10 +1,10 @@
-# CueFFmpeg — low-level ffmpeg/ffprobe backend.
+# CueFFmpeg -- low-level ffmpeg/ffprobe backend.
 # Binary detection, encoder discovery, media probing, filter/command building.
 # All subprocess calls for probing live here; the actual encode subprocess
 # is run by _cue_run_encode (in worker.py).
 #
 # Instantiated once at _cue.ffmpeg, lives on the NoRollback _cue object.
-# No Ren'Py API calls — safe to use from any thread.
+# No Ren'Py API calls -- safe to use from any thread.
 
 import os
 import subprocess
@@ -21,10 +21,10 @@ else:
 
 
 class CueFFmpeg:
-    """Stateless ffmpeg/ffprobe backend — detection, probing, command building.
+    """Stateless ffmpeg/ffprobe backend -- detection, probing, command building.
 
     All subprocess calls are blocking (called from background threads by
-    the video editor). No Ren'Py API calls — safe to use from any thread."""
+    the video editor). No Ren'Py API calls -- safe to use from any thread."""
 
     # Codec maps: input codec name -> list of encoders to try in order.
     # The first encoder that ffmpeg supports will be used.
@@ -53,7 +53,7 @@ class CueFFmpeg:
         "flac": ["flac"],
     }
 
-    # Quality flags per encoder — "visually transparent" without
+    # Quality flags per encoder -- "visually transparent" without
     # ballooning file size or encode time.
     _VIDEO_QUALITY = {
         "libx264":     ["-crf", "15", "-preset", "slower"],
@@ -66,7 +66,7 @@ class CueFFmpeg:
         "h263":        ["-q:v", "2"],
         "wmv2":        ["-q:v", "2"],
     }
-    # Lower quality for fast preview — decent enough to judge
+    # Lower quality for fast preview -- decent enough to judge
     # speed changes, much faster to encode.
     _VIDEO_QUALITY_FAST = {
         "libx264":     ["-crf", "23", "-preset", "veryfast"],

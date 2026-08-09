@@ -1,4 +1,4 @@
-# Cue Editor — Utility Functions
+# Cue Editor -- Utility Functions
 # Key helpers, persistent unwrap, audio scanning, time formatting,
 # debug logging, file resolution, displayable name helpers.
 
@@ -31,7 +31,7 @@ def _cue_ui_refresh(fn):
     # type: (Callable[..., Any]) -> Callable[..., Any]
     """Decorator for screen-action methods. Calls renpy.restart_interaction()
     in a finally block so every return/exception path gets a UI refresh
-    automatically — methods can drop their explicit restart calls."""
+    automatically -- methods can drop their explicit restart calls."""
     def _wrapper(*args, **kwargs):
         # type: (*Any, **Any) -> Any
         try:
@@ -168,7 +168,7 @@ def _cue_unwrap_persistent(data):
     """Recursively convert Ren'Py RevertableDict/RevertableList/RevertableSet
     wrappers to plain Python dict/list/set. Duck-typing avoids isinstance
     which fails on wrapped types; json.dumps also fails for the same reason.
-    Strings/basestrings must be guarded — they are iterable."""
+    Strings/basestrings must be guarded -- they are iterable."""
     if isinstance(data, (str, bytes)):
         return data
     try:
@@ -178,7 +178,7 @@ def _cue_unwrap_persistent(data):
         pass
     if hasattr(data, "items") and hasattr(data, "keys"):
         return dict((k, _cue_unwrap_persistent(v)) for k, v in data.items())
-    # Set before list — sets are also iterable but have add/discard
+    # Set before list -- sets are also iterable but have add/discard
     if hasattr(data, "add") and hasattr(data, "discard"):
         return set(_cue_unwrap_persistent(v) for v in data)
     if hasattr(data, "__iter__"):
@@ -414,7 +414,7 @@ def _cue_resolve_files(files):
     result = []
     for item in files:
         if item.endswith("/"):
-            # Folder reference — expand to all matching available files
+            # Folder reference -- expand to all matching available files
             for f in _cue.available_files:
                 if f.startswith(item) and f not in _cue.file_tree.disabled_files and f not in result:
                     result.append(f)
@@ -427,7 +427,7 @@ def _cue_pick_file(files, avoid_repeats=True):
     """Pick a random file from a list.
     If avoid_repeats is True, avoids files in the global last_played list.
     Repeat avoidance is shared across all non-video contexts.
-    Video markers should pass avoid_repeats=False — they always fire.
+    Video markers should pass avoid_repeats=False -- they always fire.
     """
     if not files:
         return None
@@ -455,7 +455,7 @@ def _cue_pick_file(files, avoid_repeats=True):
 def _cue_top_layer_name(name):
     # type: (Any) -> Optional[str]
     """Normalize a displayable name to a single string.
-    Image names are tuples like ('bg', 'forest') — use the tag ('bg')."""
+    Image names are tuples like ('bg', 'forest') -- use the tag ('bg')."""
     if name is None:
         return None
     if isinstance(name, tuple) and name:
@@ -469,7 +469,7 @@ def _cue_top_layer_name(name):
 def _cue_top_movie_name(movie):
     # type: (Movie) -> Optional[str]
     """Context name for a Movie on the master layer.
-    Movie has no 'name' in Ren'Py 7/8 — fall back to the file basename
+    Movie has no 'name' in Ren'Py 7/8 -- fall back to the file basename
     from its 'play' attribute (which may be a list of paths)."""
     name = _cue_top_layer_name(getattr(movie, "name", None))
     if name:

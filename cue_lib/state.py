@@ -1,7 +1,7 @@
-# cue_lib/state.py — _cue singleton + bootstrap wiring.
+# cue_lib/state.py -- _cue singleton + bootstrap wiring.
 # The _cue object is created at module level (Python import time) and is
 # therefore invisible to Ren'Py's rollback system.  The bootstrap() function
-# wires any remaining Ren'Py-dependent state — called once from
+# wires any remaining Ren'Py-dependent state -- called once from
 # cue_z.rpy init -900.
 
 import os
@@ -14,22 +14,9 @@ if MYPY:
 
 
 class Cue(_renpy_python.NoRollback):
-    """Root object for the Cue mod — state, managers, constants, and caches."""
+    """Root object for the Cue mod -- state, managers, constants, and caches."""
 
     def __init__(self):
-        # --- Imports (function-level to avoid circular deps at module load) ---
-        from cue_lib.markers import CueMarkerManager
-        from cue_lib.undo import CueUndoManager
-        from cue_lib.trigger import CueTriggerEngine
-        from cue_lib.video import CueVideoManager
-        from cue_lib.volume import CueVolumeManager
-        from cue_lib.beat import CueBeatManager
-        from cue_lib.ffmpeg import CueFFmpeg
-        from cue_lib.video_editor import CueVideoEditor
-        from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
-        from cue_lib.file_tree import CueFileTreeManager
-        from cue_lib.ui_logic import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
-
         # --- Paths ---
         self.debug = True
         self.base_dir = "renpy_cue"
@@ -58,23 +45,22 @@ class Cue(_renpy_python.NoRollback):
         self.scan_error = ""
         self._has_relative_volume = False
 
-        # --- Managers ---
-        self.markers = CueMarkerManager()
-        self.undo = CueUndoManager()
-        self.trigger = CueTriggerEngine()
-        self.vid_manager = CueVideoManager()
-        self.volume = CueVolumeManager()
-        self.beat = CueBeatManager()
-        self.ffmpeg = CueFFmpeg()
-        self.video_editor = CueVideoEditor()
-        self.speed_resolver = CueVidSpeedResolver()
-        self.video_sequence = CueVidSpeedSequence(self.speed_resolver)
-        self.speed_resolver.sequence = self.video_sequence
-        self.speed_toast = CueSpeedToast()
-        self.file_tree = CueFileTreeManager()
-        self.preset_dialog = CuePresetDialog()
-        self.video_preset_dialog = CueVideoPresetDialog()
-        self.confirm_dialog = CueConfirmDialog()
+        # --- Managers (set by bootstrap) ---
+        self.markers = None
+        self.undo = None
+        self.trigger = None
+        self.vid_manager = None
+        self.volume = None
+        self.beat = None
+        self.ffmpeg = None
+        self.video_editor = None
+        self.speed_resolver = None
+        self.video_sequence = None
+        self.speed_toast = None
+        self.file_tree = None
+        self.preset_dialog = None
+        self.video_preset_dialog = None
+        self.confirm_dialog = None
 
         # --- Audio cache ---
         self.available_files = []
@@ -101,4 +87,35 @@ def bootstrap():
     # type: () -> None
     """Wire Ren'Py-dependent state once renpy.config is available.
     Called from cue_z.rpy init -900."""
+
+    # --- Imports (function-level -- no module-level deps on submodules) ---
+    from cue_lib.markers import CueMarkerManager
+    from cue_lib.undo import CueUndoManager
+    from cue_lib.trigger import CueTriggerEngine
+    from cue_lib.video import CueVideoManager
+    from cue_lib.volume import CueVolumeManager
+    from cue_lib.beat import CueBeatManager
+    from cue_lib.ffmpeg import CueFFmpeg
+    from cue_lib.video_editor import CueVideoEditor
+    from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
+    from cue_lib.file_tree import CueFileTreeManager
+    from cue_lib.ui_logic import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
+
+    _cue.markers = CueMarkerManager()
+    _cue.undo = CueUndoManager()
+    _cue.trigger = CueTriggerEngine()
+    _cue.vid_manager = CueVideoManager()
+    _cue.volume = CueVolumeManager()
+    _cue.beat = CueBeatManager()
+    _cue.ffmpeg = CueFFmpeg()
+    _cue.video_editor = CueVideoEditor()
+    _cue.speed_resolver = CueVidSpeedResolver()
+    _cue.video_sequence = CueVidSpeedSequence(_cue.speed_resolver)
+    _cue.speed_resolver.sequence = _cue.video_sequence
+    _cue.speed_toast = CueSpeedToast()
+    _cue.file_tree = CueFileTreeManager()
+    _cue.preset_dialog = CuePresetDialog()
+    _cue.video_preset_dialog = CueVideoPresetDialog()
+    _cue.confirm_dialog = CueConfirmDialog()
+
     _cue.config_path = os.path.join(renpy.config.gamedir, _cue.base_dir, _cue.config_filename)

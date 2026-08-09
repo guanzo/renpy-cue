@@ -1,4 +1,4 @@
-# CueUndoManager — snapshot-on-save undo/redo for markers, presets, and
+# CueUndoManager -- snapshot-on-save undo/redo for markers, presets, and
 # video_presets.
 #
 # Hooks into CueMarkerManager.save_persistent(): every time data is persisted,
@@ -24,7 +24,7 @@ class CueUndoManager:
     mutation invalidates the redo stack."""
 
     MAX_UNDO = 20
-    DEDUPE_WINDOW = 0.15  # seconds — saves within this window share a slot
+    DEDUPE_WINDOW = 0.15  # seconds -- saves within this window share a slot
 
     def __init__(self):
         self._undo = []          # list of {"markers","presets","video_presets"}
@@ -59,7 +59,7 @@ class CueUndoManager:
         (pre-mutation) onto the undo stack. Called at the end of every
         save_persistent(). Time-window dedupe merges rapid saves."""
         if not self._recording:
-            # Restore just re-persisted — re-enable and skip.
+            # Restore just re-persisted -- re-enable and skip.
             self._recording = True
             return
         snap = self._snapshot()          # post-mutation state

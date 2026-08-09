@@ -1,4 +1,4 @@
-# CuePopper — Reusable positioned popup for Ren'Py.
+# CuePopper -- Reusable positioned popup for Ren'Py.
 # Focus rect helpers and the CuePopper displayable class.
 # The sl-displayable registration stays in cue_z.rpy (python early).
 
@@ -165,7 +165,7 @@ class CuePopper(Container):
 
         ax, ay, aw, ah = self._stored_rect
         # _stored_rect is only ever set when the focus rect is fully
-        # populated (all elements non-None) — see the guard above.
+        # populated (all elements non-None) -- see the guard above.
         assert ax is not None and ay is not None and aw is not None and ah is not None
 
         child = self.children[0]

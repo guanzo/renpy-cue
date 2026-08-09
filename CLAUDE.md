@@ -19,6 +19,9 @@ E:\Porn\pGames\Dreamland-v0.6.0p-pc
 - No type hints: def foo(x: int) -> str
 - No from __future__ import annotations
 - No matmul operator (@)
+- No non-ASCII characters in `.py` files: Ren'Py 7.x uses Python 2 which
+  defaults to ASCII encoding. Use `--` instead of em dashes (`—`), straight
+  quotes instead of curly quotes, etc.
 
 ### FORBIDDEN (not in all versions):
 - Character callback kwargs `what`/`start`/`end` — only in Ren'Py 8.2+
@@ -31,6 +34,10 @@ E:\Porn\pGames\Dreamland-v0.6.0p-pc
   when the entire expression is wrapped in parentheses:
   `property ("#446644" if cond else "#444444")`.
   Without parens the parser reads `if` as a screen-language block.
+- The same applies to `==` (and likely other comparison operators) in
+  screen statement arguments — Ren'Py 7.4's parser misinterprets the
+  expression as a keyword argument. Wrap in parens:
+  `use foo_btn(label, (_x == some_val), action)`
 
 ### SAFE across all versions:
 - `store._last_say_what` — current dialogue text

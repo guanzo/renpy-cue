@@ -1,4 +1,4 @@
-# CueTriggerEngine — trigger dispatch for i:, d:, l:, v: keys and shake.
+# CueTriggerEngine -- trigger dispatch for i:, d:, l:, v: keys and shake.
 # Instantiated once at _cue.trigger, lives on the NoRollback _cue object.
 
 import time as _time
@@ -59,7 +59,7 @@ class CueTriggerEngine:
         up to 3 times, then skipped to avoid echo artifacts.
 
         When only_shake_pools is True, pools without the trigger_on_shake flag
-        are skipped — used by screenshake triggers so each pool independently
+        are skipped -- used by screenshake triggers so each pool independently
         opts in to firing on shake."""
         only_shake_pools = kwargs.get("only_shake_pools", False)
         if not self.active:
@@ -103,7 +103,7 @@ class CueTriggerEngine:
 
     def _tick_loop(self, now, tick, current_file):
         # type: (float, int, str) -> None
-        """Loop state machine for l: keys — fires pooled SFX on a frequency cycle."""
+        """Loop state machine for l: keys -- fires pooled SFX on a frequency cycle."""
         loop_key = create_loop_key(current_file or "")
 
         entry = _cue.markers.get(loop_key)
@@ -133,7 +133,7 @@ class CueTriggerEngine:
                 if pst.get("is_exclusive"):
                     exclusive_channels.extend(pst.get("channels", []))
 
-        # Post-dead-air breathing window (50-100ms) — no pool fires during this
+        # Post-dead-air breathing window (50-100ms) -- no pool fires during this
         _exclusive_done_at = ps.get("_exclusive_done_at", 0.0)
 
         picked = []
@@ -221,7 +221,7 @@ class CueTriggerEngine:
 
     def _tick_video(self, current_file, top_layer_type):
         # type: (str, str) -> None
-        """Video pool triggers for v: keys — fires SFX at marked times.
+        """Video pool triggers for v: keys -- fires SFX at marked times.
 
         Uses two complementary checks so markers aren't missed when playback
         position jumps more than marker_tolerance between ticks (common on
@@ -267,7 +267,7 @@ class CueTriggerEngine:
             markers = _cue.markers.video.get_markers()
             vid_entry = _cue.markers.get(vid_key)
 
-            # Tack preview markers onto the list — they're already pool dicts
+            # Tack preview markers onto the list -- they're already pool dicts
             # shaped like real video markers (time/files/volume).
             _preview_count = 0
             if _cue.beat.dialog_visible and _cue.beat.preview_sfx_enabled:
@@ -277,7 +277,7 @@ class CueTriggerEngine:
 
             if markers:
                 # Per-time counter so same-time markers get unique stable keys.
-                # Keyed by time instead of list index — adding/removing markers
+                # Keyed by time instead of list index -- adding/removing markers
                 # at other timestamps doesn't invalidate already-fired keys.
                 time_counts = {}
                 for idx, pool_entry in enumerate(markers):
@@ -308,7 +308,7 @@ class CueTriggerEngine:
                         if f:
                             self.played_video_keys.add(ts_key)
 
-        # Detect video restart — two cases clear the dedup set:
+        # Detect video restart -- two cases clear the dedup set:
         #   1) last_elapsed == 0: video manager was just reset (new channel
         #      or fresh playback, e.g. after editing the multi-speed queue).
         #   2) elapsed < last_elapsed: playback looped/restarted (Ren'Py
