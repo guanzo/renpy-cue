@@ -32,7 +32,7 @@ class CuePresetDialog:
 
     def commit(self):
         name = self.name.strip()
-        if name:
+        if name and self.trigger_key is not None:
             entry = _cue.markers.get(self.trigger_key)
             if entry:
                 pools = entry.get("pools", [])

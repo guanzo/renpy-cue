@@ -6,6 +6,7 @@ CREATIONFLAGS: int
 class CueFFmpeg:
     VIDEO_ENCODERS: Dict[str, List[str]]
     AUDIO_ENCODERS: Dict[str, List[str]]
+    _ffmpeg_cache: int
 
     def __init__(self) -> None: ...
     def ffmpeg_available(self) -> bool: ...

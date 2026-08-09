@@ -79,6 +79,12 @@ def _cue_run_encode(ffmpeg, job, dur_ms, base_dir, kill_fn):
                 stderr=subprocess.PIPE,
                 creationflags=CREATIONFLAGS,
             )
+            if job.proc.stdout is None or job.proc.stderr is None:
+                job.error_msg = "ffmpeg produced no pipes"
+                kill_fn()
+                job._done = True
+                return
+
             all_out = []
             for line in iter(job.proc.stdout.readline, b""):
                 if job.cancelled:

@@ -78,13 +78,11 @@ Function-local variables do NOT need underscores — they're scoped to their fun
 - `.rpy` files still use shadowed `dict`/`list`/`set` (Revertable variants). `.py` files use real builtins — `dict`/`list`/`set` work normally there.
 - **Prefer duck typing over `isinstance` for collection checks.** `isinstance(x, list)` fails on both plain lists (when `list` is shadowed to `RevertableList`) and RevertableLists (when comparing against the real `list` type). Use `hasattr(x, "__iter__") and not isinstance(x, (str, bytes))` to check for list-like types. Precedent: `_cue_unwrap_persistent` in `cue_lib/util.py`.
 
-## Type Stubs (`_typing/`)
+## Type Stubs
 
 Pylance can't resolve most `renpy.*` names (Ren'Py uses dynamic `import *` from `renpy.exports`). To get autocomplete and type-checking:
 
-- **`_typing/renpy/`** — stubs for the Ren'Py runtime. Declares submodules (`renpy.music`, `renpy.display.core`, etc.) plus top-level functions re-exported from `renpy.exports` (`renpy.show_screen`, `renpy.Render`, etc.).
-- **`_typing/cue_lib/`** — stubs for our own modules. One `.pyi` per `.py` source file.
-
-**CRITICAL**: When you add, remove, or rename a function/class/method/signature in `cue_lib/*.py`, you MUST update the corresponding `_typing/cue_lib/*.pyi` file. The stubs must stay in sync with the source — Pylance uses the `.pyi` for type information, and outdated stubs produce wrong diagnostics.
-
-The `_typing/` directory is in `python.analysis.extraPaths` (`.vscode/settings.json`). Pylance finds stub files there alongside the real SDK paths.
+- **`pyrightconfig.json`** — ALL Pylance/Pyright config lives here (`stubPath`, `extraPaths`, `pythonVersion`). Do NOT put `python.analysis.*` settings in `.vscode/settings.json` — they conflict with pyrightconfig.json.
+- **`typings/renpy/`** — stubs for the Ren'Py runtime (third-party). Declares submodules plus top-level functions re-exported from `renpy.exports`. Configured via `stubPath` in pyrightconfig.json.
+- **`cue_lib/*.pyi`** — stubs for our own modules, living alongside their `.py` counterparts. Pylance finds them automatically via PEP 561.
+- **AFTER editing any `cue_lib/*.py`** — check whether the corresponding `cue_lib/*.pyi` needs updating (new/renamed/deleted functions, classes, or method signatures). Keep them in sync.

@@ -4,7 +4,7 @@
 import pygame
 import renpy
 from renpy.text.text import Text as Txt
-from renpy.display.core import Displayable
+from renpy.display.core import Displayable, IgnoreEvent
 
 from cue_lib.state import _cue
 from cue_lib.util import _cue_format_time
@@ -114,7 +114,7 @@ class VideoTimeline(Displayable):
                         frac = max(0.0, min(1.0, x / float(w)))
                         vs.seek_to(frac * dur)
                         renpy.redraw(self, 0)
-                        raise renpy.display.core.IgnoreEvent()
+                        raise IgnoreEvent()
             return None
         return None
 
@@ -325,7 +325,7 @@ class CueVideoMarkerTimeline(Displayable):
                     self._tip_x = x
                     self._tip_y = y
                 renpy.redraw(self, 0)
-                raise renpy.display.core.IgnoreEvent()
+                raise IgnoreEvent()
             self._hover_idx = -1
             hit_idx = self._hit_test(markers, dur, w, inner_x, y)
             if hit_idx >= 0:
@@ -390,7 +390,7 @@ class CueVideoMarkerTimeline(Displayable):
                 _cue.markers.video.selected = sel
                 renpy.redraw(self, 0)
                 renpy.restart_interaction()
-                raise renpy.display.core.IgnoreEvent()
+                raise IgnoreEvent()
 
             elif shift_held:
                 if sel:
@@ -412,7 +412,7 @@ class CueVideoMarkerTimeline(Displayable):
                 _cue.markers.video.selected = sel
                 renpy.redraw(self, 0)
                 renpy.restart_interaction()
-                raise renpy.display.core.IgnoreEvent()
+                raise IgnoreEvent()
 
             elif hit_idx >= 0:
                 if hit_idx not in sel:
@@ -423,7 +423,7 @@ class CueVideoMarkerTimeline(Displayable):
                 self._reset_drag_state()
                 self.set_active(hit_idx)
                 renpy.redraw(self, 0)
-                raise renpy.display.core.IgnoreEvent()
+                raise IgnoreEvent()
 
         elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:
             if self._drag_idx >= 0:
@@ -440,7 +440,7 @@ class CueVideoMarkerTimeline(Displayable):
                         _cue.markers.video.selected = set()
                 renpy.redraw(self, 0)
                 renpy.restart_interaction()
-                raise renpy.display.core.IgnoreEvent()
+                raise IgnoreEvent()
             return None
 
         return None

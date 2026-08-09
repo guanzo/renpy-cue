@@ -213,7 +213,7 @@ def _cue_refresh_channel(displayable=None):
                         val = getattr(ch_obj, attr, None)
                         if callable(val):
                             val = val()
-                        if val and val > 0:
+                        if val is not None and val > 0:
                             fps = int(round(val))
                             break
                     except Exception:
@@ -275,7 +275,7 @@ def _cue_tick_trigger():
         _cue.video_editor.job_queue.poll()
     _cue.vid_manager.poll_autopause()
     _cue.video_sequence.tick()
-    _cue.trigger.tick(_cue.current_file, _cue.top_layer_type)
+    _cue.trigger.tick(_cue.current_file, _cue.top_layer_type or "")
 
 
 def _cue_preview_preset(preset_name):

@@ -4,16 +4,13 @@
         "**/*.rpa": true,
         "**/*.rpymc": true,
         "**/cache/": true,
-        "**/__pycache__/": true
+        "**/__pycache__/": true,
+        "**/*.pyi": true
     },
-    "python.analysis.extraPaths": [
-        "_typing",
-        "C:/Program Files/renpy-8.5.3-sdk/renpy",
-        "C:/Program Files/renpy-8.5.3-sdk",
-        "/mnt/c/Program Files/renpy-8.5.3-sdk/renpy",
-        "/mnt/c/Program Files/renpy-8.5.3-sdk"
-    ],
-    "python.defaultInterpreterPath": "C:/Program Files/renpy-8.5.3-sdk/lib/py3-windows-x86_64/python.exe",
+    "search.exclude": {
+        "**/*.pyi": true
+    },
+    "python.analysis.diagnosticMode": "workspace",
     "editor.tokenColorCustomizations": {
         "textMateRules": [
             {

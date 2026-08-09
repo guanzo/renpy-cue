@@ -6,6 +6,7 @@ import os
 import time
 import random as _random
 import functools as _functools
+import renpy
 import renpy.config as _config
 import renpy.display.video as _video
 import renpy.display.im as _im
@@ -481,7 +482,7 @@ def _is_screenshake(trans):
         return (
             kw.get("bounce", False) == True
             and kw.get("repeat", False) == True
-            and kw.get("delay") is not None
+            and type(kw.get("delay")) in (int, float)
             and kw.get("delay") < 0.5
         )
     except Exception:

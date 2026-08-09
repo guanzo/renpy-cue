@@ -140,7 +140,7 @@ class CueVideoEditQueue:
 
         dur_ms = 0
         try:
-            dur_ms = int(_music.get_duration(channel=_cue.vid_manager.channel) * 1000)
+            dur_ms = int(_music.get_duration(channel=_cue.vid_manager.channel or "") * 1000)
         except Exception:
             pass
 
@@ -556,8 +556,9 @@ class CueVideoEditor:
             self.last_error = "Video file disappeared."
             return
         vp = _cue.speed_resolver.base_path_for(_cue.current_file) or self._get_video_vpath()
-        orig_vpath = vp
-        orig_vpath = orig_vpath.replace("\\", "/")
+        if not vp:
+            return
+        orig_vpath = vp.replace("\\", "/")
         orig_fs = os.path.normpath(os.path.join(_config.gamedir, orig_vpath))
         out_fspath = _cue.speed_resolver.variant_path(orig_fs, factor)
         _base, _ext = _cue.speed_resolver._split_ext(os.path.basename(orig_fs))
@@ -584,6 +585,8 @@ class CueVideoEditor:
             renpy.restart_interaction()
             return
         orig_vpath = _cue.speed_resolver.base_path_for(_cue.current_file) or vp
+        if not orig_vpath:
+            return
         orig_vpath = orig_vpath.replace("\\", "/")
         orig_fs = os.path.normpath(os.path.join(_config.gamedir, orig_vpath))
         base, ext = os.path.splitext(os.path.basename(orig_fs))

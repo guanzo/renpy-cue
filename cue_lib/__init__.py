@@ -25,7 +25,7 @@ class _RenPyModule(type(renpy)):
             raise AttributeError(
                 "module 'renpy' has no attribute {!r}".format(name))
 
-renpy.__class__ = _RenPyModule
+renpy.__class__ = _RenPyModule  # pyright: ignore[reportAttributeAccessIssue]
 # NOTE: _renpy_exports and _RenPyModule must stay alive — __getattr__
 # reads _renpy_exports from this module's globals at call time.
 

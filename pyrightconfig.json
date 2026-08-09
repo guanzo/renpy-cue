@@ -1,0 +1,17 @@
+{
+  "stubPath": "typings",
+  "extraPaths": [
+    "C:/Program Files/renpy-8.5.3-sdk/renpy",
+    "C:/Program Files/renpy-8.5.3-sdk",
+    "/mnt/c/Program Files/renpy-8.5.3-sdk/renpy",
+    "/mnt/c/Program Files/renpy-8.5.3-sdk"
+  ],
+  "diagnosticMode": "workspace",
+  "pythonVersion": "3.9",
+  "typeCheckingMode": "basic",
+  "exclude": ["**/__pycache__"],
+  "include": ["cue_lib"],
+  "reportMissingModuleSource": false,
+  "reportUnusedImport": "warning",
+  "reportUnusedVariable": "warning"
+}

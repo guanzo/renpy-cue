@@ -172,7 +172,7 @@ class CueFFmpeg:
         maps = self.VIDEO_ENCODERS if category == "video" else self.AUDIO_ENCODERS
         candidates = maps.get(codec_name, [])
         for enc in candidates:
-            if enc in self._encoder_cache:
+            if self._encoder_cache is not None and enc in self._encoder_cache:
                 return enc
         return None
 

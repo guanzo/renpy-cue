@@ -784,8 +784,6 @@ class CueMarkerManager:
         self.save_persistent()
 
     def _normalize_entry(self, entry):
-        if entry is None:
-            return entry
         if "pools" not in entry:
             entry["pools"] = [{"files": entry.pop("files", [])}]
         entry.setdefault("replay", _cue.current_replay)

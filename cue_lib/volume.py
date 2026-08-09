@@ -96,7 +96,7 @@ class CueVolumeManager:
         if pool_index is None:
             return master
 
-        pools = entry.get("pools")
+        pools = entry.get("pools") if entry is not None else None
         if pools:
             idx = pool_index
             if 0 <= idx < len(pools):
