@@ -14,6 +14,7 @@ screen cue_key_listener():
     key "K_BACKQUOTE" action Function(_cue_toggle_overlay)
     key "K_F3" action Function(renpy.invoke_in_new_context, renpy.pause)
     key "K_F4" action Function(_cue_toggle_active)
+    key "K_F5" action Function(renpy.quit, relaunch=True)
     key "shift_K_1" action Function(_cue.markers.copy_context)
     key "shift_K_2" action Function(_cue.markers.paste_context)
     key "shift_K_q" action Function(_cue.undo.undo)
