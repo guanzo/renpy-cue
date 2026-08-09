@@ -20,7 +20,6 @@ from cue_lib.util import (
     get_key_file,
 )
 
-
 # =========================================================================
 # CueMarkerContext — pool-based markers (shared by .image and .dialogue)
 # =========================================================================
@@ -215,14 +214,14 @@ class CueVideoContext(CueMarkerContext):
                 {"time": elapsed, "files": [filename]})
         self._mgr.save_persistent()
 
-    def remove_file(self, ts_index, file_index):
+    def remove_file(self, pool_index, file_index):
         vid_key = self._key()
         entry = self._mgr.get(vid_key, {})
         pools = entry.get("pools", [])
-        if not (0 <= ts_index < len(pools)):
+        if not (0 <= pool_index < len(pools)):
             return
-        self._mgr._detach_pool(vid_key, ts_index)
-        files = pools[ts_index].get("files", [])
+        self._mgr._detach_pool(vid_key, pool_index)
+        files = pools[pool_index].get("files", [])
         if 0 <= file_index < len(files):
             files.pop(file_index)
             self._mgr.save_persistent()
@@ -274,8 +273,8 @@ class CueVideoContext(CueMarkerContext):
         self.sync_text()
         self._mgr.save_persistent()
 
-    def remove_pool(self, ts_index):
-        super(CueVideoContext, self).remove_pool(ts_index)
+    def remove_pool(self, pool_index):
+        super(CueVideoContext, self).remove_pool(pool_index)
         self.selected = set()
 
     def duplicate_pool(self, ts_index):
@@ -714,7 +713,6 @@ class CueMarkerManager:
         self.save_persistent()
 
     def resolve_pool(self, pool):
-        # type: (PoolDict) -> ResolvedPool
         defaults = self._presets.get(pool["preset"], {}) if "preset" in pool else {}
         files = pool.get("files", defaults.get("files", []))
         volume = pool.get("volume", defaults.get("volume", _cue.VOL_DEFAULT))
