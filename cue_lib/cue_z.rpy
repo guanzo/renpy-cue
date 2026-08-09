@@ -98,6 +98,8 @@ init 999 python:
     config.developer = True
     config.console = True
 
+    config.keymap['console'].append('shift_K_t')
+
     # Clear debug log for fresh session
     try:
         log_dir = os.path.join(renpy.config.gamedir, _cue.base_dir)
