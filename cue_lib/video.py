@@ -1,7 +1,7 @@
 # CueVideoManager — per-video playback state and control.
 # Instantiated once at _cue.vid_manager, lives on the NoRollback _cue object.
 
-import renpy.music as _music
+import renpy.audio.music as _music
 
 from cue_lib.state import _cue
 from cue_lib.util import _cue_log, _cue_format_time, _cue_clamp_time

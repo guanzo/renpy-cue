@@ -1,5 +1,7 @@
 audio/
 *.rpyc
+*.pyc
 notes.txt
 
+.claude__pycache__/
 .claude

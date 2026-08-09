@@ -1,0 +1,13 @@
+"""Minimal stub so Pylance can resolve Displayable + IgnoreEvent."""
+
+from typing import Any
+
+class Displayable:
+    def __init__(self, **properties: Any) -> None: ...
+    def render(self, width: int, height: int, st: float, at: float) -> Any: ...
+    def event(self, ev: Any, x: int, y: int, st: float) -> Optional[Any]: ...
+    def visit(self) -> list[Any]: ...
+    style: Any
+
+class IgnoreEvent(Exception):
+    pass

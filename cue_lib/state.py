@@ -5,6 +5,7 @@
 # cue_z.rpy init -900.
 
 import os
+import renpy
 import renpy.python as _renpy_python
 
 _cue = _renpy_python.NoRollback()

@@ -6,8 +6,12 @@
 ###############################################################################
 
 python early:
-    import renpy.loader
-    renpy.loader.add_python_directory("renpy_cue/cue_lib")
+    import sys
+    import os
+
+    _cue_lib_parent = os.path.join(renpy.config.gamedir, "renpy_cue")
+    if _cue_lib_parent not in sys.path:
+        sys.path.insert(0, _cue_lib_parent)
 
 
 init -999 python:

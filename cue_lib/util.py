@@ -9,7 +9,7 @@ import functools as _functools
 import renpy.config as _config
 import renpy.display.video as _video
 import renpy.display.im as _im
-import renpy.music as _music
+import renpy.audio.music as _music
 
 from cue_lib.state import _cue
 

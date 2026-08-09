@@ -5,8 +5,8 @@ setlocal enabledelayedexpansion
 :: Usage: install_to_game.bat "E:\Porn\pGames\FreshWomen"
 ::
 :: Creates %1\game\renpy_cue\ with directory symlinks for:
-::   audio  -> E:\Davinci Resolve Media\Sex Sounds
-::   src    -> E:\Porn\pGames\renpy_cue\src
+::   audio    -> E:\Davinci Resolve Media\Sex Sounds
+::   cue_lib  -> E:\Porn\pGames\renpy_cue\cue_lib
 
 set "GAME_DIR=%~1"
 if "%GAME_DIR%"=="" (
@@ -22,7 +22,7 @@ if not exist "%GAME_DIR%" (
 
 set "CUE_DIR=%GAME_DIR%\game\renpy_cue"
 set "AUDIO_SRC=E:\Davinci Resolve Media\Sex Sounds"
-set "SRC_SRC=E:\Porn\pGames\renpy_cue\cue_lib"
+set "CUE_LIB_SRC=E:\Porn\pGames\renpy_cue\cue_lib"
 
 echo Game dir : %GAME_DIR%
 echo Cue dir  : %CUE_DIR%
@@ -48,17 +48,17 @@ echo   %AUDIO_LINK%
 echo   -^> %AUDIO_SRC%
 mklink /D "%AUDIO_LINK%" "%AUDIO_SRC%"
 
-:: --- src symlink ---
-set "SRC_LINK=%CUE_DIR%\src"
-if exist "%SRC_LINK%" (
-    echo Removing existing src link/dir ...
-    rmdir "%SRC_LINK%" 2>nul
-    del "%SRC_LINK%" 2>nul
+:: --- cue_lib symlink ---
+set "CUE_LIB_LINK=%CUE_DIR%\cue_lib"
+if exist "%CUE_LIB_LINK%" (
+    echo Removing existing cue_lib link/dir ...
+    rmdir "%CUE_LIB_LINK%" 2>nul
+    del "%CUE_LIB_LINK%" 2>nul
 )
 echo Linking cue_lib ...
-echo   %SRC_LINK%
-echo   -^> %SRC_SRC%
-mklink /D "%SRC_LINK%" "%SRC_SRC%"
+echo   %CUE_LIB_LINK%
+echo   -^> %CUE_LIB_SRC%
+mklink /D "%CUE_LIB_LINK%" "%CUE_LIB_SRC%"
 
 echo.
 echo Done. Verify with: dir "%CUE_DIR%"

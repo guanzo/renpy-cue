@@ -5,7 +5,7 @@ import os
 import random as _random
 import time as _time
 import renpy
-import renpy.music as _music
+import renpy.audio.music as _music
 import renpy.audio.audio as _aaudio
 
 from cue_lib.state import _cue

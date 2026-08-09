@@ -5,7 +5,7 @@ import os
 import threading
 import time as _time
 import renpy
-import renpy.music as _music
+import renpy.audio.music as _music
 import renpy.config as _config
 import renpy.audio.audio as _aaudio
 

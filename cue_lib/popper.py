@@ -4,6 +4,7 @@
 
 import renpy
 from renpy.store import NullAction
+from renpy.display.layout import Container
 
 from cue_lib.state import _cue
 
@@ -116,7 +117,7 @@ def _cue_draw_arrow(r, px, py, pw, ph, arrow_dir):
 
 # --- CuePopper displayable ---
 
-class CuePopper(renpy.display.layout.Container):
+class CuePopper(Container):
     HIDE_DELAY = 0.1
     MAX_POPUP_W = 400
     MAX_POPUP_H = 300

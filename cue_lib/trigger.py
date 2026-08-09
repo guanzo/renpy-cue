@@ -3,7 +3,7 @@
 
 import time as _time
 import random as _random
-import renpy.music as _music
+import renpy.audio.music as _music
 
 from cue_lib.state import _cue
 from cue_lib.util import (

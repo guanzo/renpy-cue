@@ -4,12 +4,13 @@
 import pygame
 import renpy
 from renpy.text.text import Text as Txt
+from renpy.display.core import Displayable
 
 from cue_lib.state import _cue
 from cue_lib.util import _cue_format_time
 
 
-class SelfUpdatingLabel(renpy.Displayable):
+class SelfUpdatingLabel(Displayable):
     """A text label that calls renpy.redraw() to update itself periodically."""
 
     def __init__(self, getter, style="default", interval=0.05, **properties):
@@ -29,7 +30,7 @@ class SelfUpdatingLabel(renpy.Displayable):
         return r
 
 
-class VideoTimeline(renpy.Displayable):
+class VideoTimeline(Displayable):
     """Video-editor-style timeline bar with a playhead line."""
 
     BAR_H = 16
@@ -118,7 +119,7 @@ class VideoTimeline(renpy.Displayable):
         return None
 
 
-class CueVideoMarkerTimeline(renpy.Displayable):
+class CueVideoMarkerTimeline(Displayable):
     """Timeline with draggable marker tabs."""
 
     TRACK_H = 10
@@ -445,7 +446,7 @@ class CueVideoMarkerTimeline(renpy.Displayable):
         return None
 
 
-class _Tooltip(renpy.Displayable):
+class _Tooltip(Displayable):
     """Hover tooltip that auto-sizes to fit text."""
 
     def __init__(self, text, **properties):
@@ -474,7 +475,7 @@ class _Tooltip(renpy.Displayable):
         return r
 
 
-class _MarkerTooltipOverlay(renpy.Displayable):
+class _MarkerTooltipOverlay(Displayable):
     """Renders the marker timeline tooltip on top of all other UI."""
 
     def __init__(self, **properties):

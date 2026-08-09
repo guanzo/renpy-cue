@@ -5,10 +5,12 @@
 import os
 import time as _time
 import renpy
-import renpy.music as _music
+import renpy.audio.music as _music
 import renpy.config as _config
 import renpy.audio.audio as _aaudio
 from renpy.display.layout import DynamicDisplayable
+from renpy.display.video import Movie
+from renpy.display.image import images as _display_images
 
 from cue_lib.state import _cue
 from cue_lib.util import (
@@ -170,7 +172,7 @@ class CueVidSpeedResolver:
                 return cached
             kwargs = _cue_capture_kwargs(orig_movie)
             kwargs["play"] = play_value
-            child = renpy.display.video.Movie(**kwargs)
+            child = Movie(**kwargs)
             self.children[cache_key] = child
             return child
 
@@ -220,11 +222,11 @@ class CueVidSpeedResolver:
     def wrap_all_movies(self):
         _start = _time.time()
         _count = 0
-        for name_tuple, d in list(renpy.display.image.images.items()):
+        for name_tuple, d in list(_display_images.items()):
             if isinstance(d, DynamicDisplayable):
                 continue
             unwrapped = _cue_unwrap_displayable(d)
-            if not isinstance(unwrapped, renpy.display.video.Movie):
+            if not isinstance(unwrapped, Movie):
                 continue
             tag = " ".join(name_tuple)
             base_path = _cue_get_movie_play(unwrapped)
