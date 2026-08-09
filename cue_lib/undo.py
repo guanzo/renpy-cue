@@ -36,6 +36,7 @@ class CueUndoManager:
     # -- snapshot helpers --
 
     def _snapshot(self):
+        # type: () -> UndoSnapshot
         """Deep-copy the three marker stores to plain dicts."""
         m = _cue.markers
         return {
@@ -47,11 +48,13 @@ class CueUndoManager:
     # -- capture (called from save_persistent) --
 
     def seed(self):
+        # type: () -> None
         """Capture the initial state so the first user action is undoable.
         Called once after load_persistent() during init."""
         self._previous = self._snapshot()
 
     def capture(self):
+        # type: () -> None
         """Snapshot post-mutation state and push the PREVIOUS snapshot
         (pre-mutation) onto the undo stack. Called at the end of every
         save_persistent(). Time-window dedupe merges rapid saves."""
@@ -76,14 +79,17 @@ class CueUndoManager:
     # -- undo / redo --
 
     def can_undo(self):
+        # type: () -> bool
         """True if there is at least one undo step available."""
         return len(self._undo) > 0
 
     def can_redo(self):
+        # type: () -> bool
         """True if there is at least one redo step available."""
         return len(self._redo) > 0
 
     def undo(self):
+        # type: () -> None
         """Shift+Q: restore the previous snapshot from the undo stack."""
         if not self._undo:
             return
@@ -93,6 +99,7 @@ class CueUndoManager:
         self._restore(prev)
 
     def redo(self):
+        # type: () -> None
         """Shift+W: re-apply a snapshot that was previously undone."""
         if not self._redo:
             return
@@ -106,6 +113,7 @@ class CueUndoManager:
     # -- restore --
 
     def _restore(self, snap):
+        # type: (UndoSnapshot) -> None
         """Replace live stores with the snapshot, re-persist without
         recording a new undo entry, and clamp UI state."""
         self._recording = False
@@ -126,11 +134,13 @@ class CueUndoManager:
         renpy.restart_interaction()
 
     def _clamp_ui(self):
+        # type: () -> None
         """Clamp active pool indices after a restore so they don't point
         past the end of the restored pool lists."""
         m = _cue.markers
 
         def _count(key):
+            # type: (str) -> int
             entry = m._data.get(key)
             return len(entry.get("pools", [])) if entry else 0
 

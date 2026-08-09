@@ -12,6 +12,10 @@ import renpy.audio.audio as _aaudio
 from cue_lib.state import _cue
 from cue_lib.util import _cue_log, _cue_ui_refresh
 
+MYPY = False
+if MYPY:
+    from typing import Optional
+
 # Encode mode constants
 CUE_VE_MODE_NORMAL = 0
 CUE_VE_MODE_INTERPOLATE = 1
@@ -19,6 +23,7 @@ CUE_VE_MODE_FAST_PREVIEW = 2
 
 
 def _cue_esc(text):
+    # type: (str) -> str
     """Escape square brackets so Ren'Py text interpolation doesn't
     try to resolve them as variable references."""
     if text:
@@ -58,6 +63,7 @@ class CueVideoJob:
         self._ok = False
 
     def elapsed(self):
+        # type: () -> float
         if not self.start_time:
             return 0.0
         if self.status in ("done", "error") and self.end_time:
@@ -65,6 +71,7 @@ class CueVideoJob:
         return _time.time() - self.start_time
 
     def status_text(self):
+        # type: () -> str
         if self.status == "queued":
             return "Queued"
         if self.status == "analyzing":
@@ -81,12 +88,14 @@ class CueVideoJob:
         return self.status
 
     def filename(self):
+        # type: () -> str
         if self.vpath:
             return os.path.basename(self.vpath)
         return "?"
 
     @property
     def speed_label(self):
+        # type: () -> str
         return "{:.1f}x".format(self.factor)
 
 
@@ -101,31 +110,38 @@ class CueVideoEditQueue:
 
     @property
     def processing(self):
+        # type: () -> bool
         return self._current is not None
 
     @property
     def current_job(self):
+        # type: () -> Optional[CueVideoJob]
         return self._current
 
     @property
     def jobs(self):
+        # type: () -> list[CueVideoJob]
         return self._jobs
 
     def enqueue(self, job):
+        # type: (CueVideoJob) -> None
         self._jobs.append(job)
         self._start_if_idle()
 
     def _find(self, job_id):
+        # type: (int) -> Optional[CueVideoJob]
         for j in self._jobs:
             if j.job_id == job_id:
                 return j
         return None
 
     def _start_if_idle(self):
+        # type: () -> None
         if self._current is None:
             self._start_next()
 
     def _start_next(self):
+        # type: () -> None
         job = None
         for j in self._jobs:
             if j.status == "queued":
@@ -159,6 +175,7 @@ class CueVideoEditQueue:
         renpy.restart_interaction()
 
     def poll(self):
+        # type: () -> None
         job = self._current
         if job is None:
             return
@@ -183,6 +200,7 @@ class CueVideoEditQueue:
         renpy.restart_interaction()
 
     def _finish(self, job):
+        # type: (CueVideoJob) -> None
         tmp = job.fspath_tmp
         out = job.fspath_out
         speed = job.factor
@@ -238,6 +256,7 @@ class CueVideoEditQueue:
         _cue_log("Variant: swap FAILED — file locked (job_id={})".format(job.job_id))
 
     def retry(self, job_id):
+        # type: (int) -> None
         job = self._find(job_id)
         if job is None or job.status != "error":
             return
@@ -255,6 +274,7 @@ class CueVideoEditQueue:
         renpy.restart_interaction()
 
     def cancel(self, job_id):
+        # type: (int) -> None
         job = self._find(job_id)
         if job is None:
             return
@@ -270,6 +290,7 @@ class CueVideoEditQueue:
         renpy.restart_interaction()
 
     def remove(self, job_id):
+        # type: (int) -> None
         job = self._find(job_id)
         if job is not None and job.status in ("done", "error"):
             self._jobs.remove(job)
@@ -277,6 +298,7 @@ class CueVideoEditQueue:
         renpy.restart_interaction()
 
     def _kill_proc(self, job):
+        # type: (CueVideoJob) -> None
         try:
             if job.proc is not None:
                 p = job.proc
@@ -296,6 +318,7 @@ class CueVideoEditQueue:
         job.proc = None
 
     def _cleanup_temp(self, job):
+        # type: (CueVideoJob) -> None
         try:
             tmp = job.fspath_tmp
             if tmp and os.path.exists(tmp):
@@ -304,11 +327,13 @@ class CueVideoEditQueue:
             pass
 
     def get_elapsed(self):
+        # type: () -> float
         if self._current is not None:
             return self._current.elapsed()
         return 0.0
 
     def refresh_ui(self):
+        # type: () -> None
         if self._current is not None or self._jobs:
             renpy.restart_interaction()
 
@@ -333,40 +358,49 @@ class CueVideoEditor:
 
     @property
     def processing(self):
+        # type: () -> bool
         return self.job_queue.processing
 
     def _get_state(self):
+        # type: () -> Optional[CueVideoEditorState]
         return self._current
 
     def _get_state_or_dummy(self):
+        # type: () -> CueVideoEditorState
         if self._current is not None:
             return self._current
         return CueVideoEditorState("")
 
     @property
     def factor_text(self):
+        # type: () -> str
         return self._get_state_or_dummy().factor_text
 
     @factor_text.setter
     def factor_text(self, value):
+        # type: (str) -> None
         s = self._get_state()
         if s is not None:
             s.factor_text = value
 
     @property
     def last_error(self):
+        # type: () -> str
         return self._get_state_or_dummy().last_error
 
     @last_error.setter
     def last_error(self, value):
+        # type: (str) -> None
         s = self._get_state()
         if s is not None:
             s.last_error = _cue_esc(value)
 
     def _get_video_vpath(self):
+        # type: () -> Optional[str]
         return _cue.vid_manager.get_video_path()
 
     def _get_video_fspath(self):
+        # type: () -> Optional[str]
         vp = self._get_video_vpath()
         if not vp:
             return None
@@ -377,12 +411,14 @@ class CueVideoEditor:
         return None
 
     def _is_in_rpa(self):
+        # type: () -> bool
         vp = self._get_video_vpath()
         if not vp:
             return False
         return self._get_video_fspath() is None
 
     def extract_from_rpa(self):
+        # type: () -> tuple[str, str]
         vp = self._get_video_vpath()
         if not vp:
             return ("error", "No video is currently playing.")
@@ -419,6 +455,7 @@ class CueVideoEditor:
         return ("ok", fspath)
 
     def check_prerequisites(self):
+        # type: () -> tuple[str, str]
         if not self._get_video_vpath():
             return ("error", "No video is currently playing.")
         fs = self._get_video_fspath()
@@ -436,20 +473,24 @@ class CueVideoEditor:
         return ("ok", "")
 
     def _ensure_state(self, vpath):
+        # type: (str) -> CueVideoEditorState
         if vpath not in self._states:
             self._states[vpath] = CueVideoEditorState(vpath)
         return self._states[vpath]
 
     def _state_for_vpath(self, vpath):
+        # type: (str) -> Optional[CueVideoEditorState]
         return self._states.get(vpath)
 
     def set_quick(self, mult):
+        # type: (float) -> None
         mult = max(self.SPEED_MIN, min(self.SPEED_MAX, float(mult)))
         self.factor_text = "{:.1f}".format(mult)
         self.last_error = ""
         renpy.restart_interaction()
 
     def commit_text(self):
+        # type: () -> None
         try:
             v = float(self.factor_text)
         except (ValueError, TypeError):
@@ -460,6 +501,7 @@ class CueVideoEditor:
         renpy.restart_interaction()
 
     def nudge(self, delta):
+        # type: (float) -> None
         try:
             v = float(self.factor_text)
         except (ValueError, TypeError):
@@ -470,11 +512,13 @@ class CueVideoEditor:
         renpy.restart_interaction()
 
     def _warm_cache(self):
+        # type: () -> None
         _cue.ffmpeg.ffmpeg_available()
         _cue.ffmpeg.ffprobe_available()
         _cue.ffmpeg.load_encoders()
 
     def _warm_tools(self):
+        # type: () -> None
         try:
             self._warm_cache()
         except Exception as e:
@@ -482,16 +526,19 @@ class CueVideoEditor:
         self._ready = True
 
     def open_editor(self):
+        # type: () -> None
         self.active = True
         self.refresh()
 
     def get_factor(self):
+        # type: () -> float
         try:
             return float(self.factor_text)
         except (ValueError, TypeError):
             return 1.0
 
     def set_encode_mode(self, mode):
+        # type: (int) -> None
         mode = int(mode)
         if mode not in (self.MODE_NORMAL, self.MODE_INTERPOLATE, self.MODE_FAST_PREVIEW):
             return
@@ -500,12 +547,14 @@ class CueVideoEditor:
         renpy.restart_interaction()
 
     def close_editor(self):
+        # type: () -> None
         self.active = False
         self._current = None
         renpy.restart_interaction()
 
     @_cue_ui_refresh
     def prepare_create(self):
+        # type: () -> None
         if not self._ready:
             self.last_error = "Checking ffmpeg — try again in a moment."
             return
@@ -532,6 +581,7 @@ class CueVideoEditor:
 
     @_cue_ui_refresh
     def _extract_then_create(self):
+        # type: () -> None
         self.last_error = ""
         ok, msg = self.extract_from_rpa()
         if ok == "error":
@@ -551,6 +601,7 @@ class CueVideoEditor:
 
     @_cue_ui_refresh
     def create(self, factor):
+        # type: (float) -> None
         fs = self._get_video_fspath()
         if not fs:
             self.last_error = "Video file disappeared."
@@ -576,6 +627,7 @@ class CueVideoEditor:
             job_id, factor, os.path.basename(out_fspath)))
 
     def apply_variant(self, speed, out_fspath):
+        # type: (float, str) -> None
         if self.job_queue.processing:
             return
         vp = self._get_video_vpath()
@@ -609,6 +661,7 @@ class CueVideoEditor:
             job_id, speed, os.path.basename(out_fspath)))
 
     def refresh(self):
+        # type: () -> None
         vp = self._get_video_vpath()
         if vp:
             self._current = self._ensure_state(vp)

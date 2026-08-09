@@ -11,6 +11,7 @@ from cue_lib.util import _cue_format_time
 
 MYPY = False
 if MYPY:
+    from typing import Any, List, Optional
     from cue_lib._types import VideoPoolDict
 
 
@@ -24,6 +25,7 @@ class SelfUpdatingLabel(Displayable):
         self.interval = interval
 
     def render(self, width, height, st, at):
+        # type: (int, int, float, float) -> Any
         text = self.getter()
         t = Txt(text, style=self._text_style)
         cr = renpy.render(t, width, height, st, at)
@@ -46,6 +48,7 @@ class VideoTimeline(Displayable):
         self._bar_y = 0
 
     def render(self, width, height, st, at):
+        # type: (int, int, float, float) -> Any
         self._w = width
         r = renpy.Render(width, height)
 
@@ -101,6 +104,7 @@ class VideoTimeline(Displayable):
         return r
 
     def event(self, ev, x, y, st):
+        # type: (Any, int, int, float) -> Optional[Any]
         if ev.type == pygame.MOUSEMOTION:
             mx, my = renpy.get_mouse_pos()
             _cue._vtl_screen_x = mx - x
@@ -157,14 +161,17 @@ class CueVideoMarkerTimeline(Displayable):
         self._screen_y = 0
 
     def _reset_drag_state(self):
+        # type: () -> None
         self._drag_orig_times = {}
         self._drag_group_min = 0.0
         self._drag_group_max = 0.0
 
     def _total_h(self):
+        # type: () -> int
         return self.TAB_H + self.TRACK_H + 4
 
     def _time_to_x(self, t, dur, w):
+        # type: (float, float, int) -> int
         if dur <= 0.0:
             if hasattr(self, '_px_cache'):
                 return self._px_cache.get(t, self.PAD_X)
@@ -178,12 +185,15 @@ class CueVideoMarkerTimeline(Displayable):
         return px
 
     def _x_to_frac(self, x, w):
+        # type: (int, int) -> float
         return max(0.0, min(1.0, x / float(max(1, w))))
 
     def _get_selected(self):
+        # type: () -> set
         return _cue.markers.video.get_selected()
 
     def _hit_test(self, markers, dur, w, x, y):
+        # type: (List[VideoPoolDict], float, int, int, int) -> int
         if dur <= 0.0:
             return -1
         speed = _cue.speed_resolver.get_current_speed()
@@ -197,6 +207,7 @@ class CueVideoMarkerTimeline(Displayable):
         return -1
 
     def render(self, width, height, st, at):
+        # type: (int, int, float, float) -> Any
         inner_w = max(1, width - 2 * self.PAD_X)
         self._w = inner_w
         r = renpy.Render(width, self._total_h())
@@ -282,6 +293,7 @@ class CueVideoMarkerTimeline(Displayable):
         return r
 
     def event(self, ev, x, y, st):
+        # type: (Any, int, int, float) -> Optional[Any]
         dur = self.get_dur()
         markers = self.get_markers()
         w = getattr(self, '_w', 1)
@@ -458,6 +470,7 @@ class _Tooltip(Displayable):
         self._text = text
 
     def render(self, width, height, st, at):
+        # type: (int, int, float, float) -> Any
         text_widget = Txt(
             self._text, style="cue_txt", size=12, color="#cccccc",
             italic=False, substitute=False,
@@ -486,6 +499,7 @@ class _MarkerTooltipOverlay(Displayable):
         super(_MarkerTooltipOverlay, self).__init__(**properties)
 
     def render(self, width, height, st, at):
+        # type: (int, int, float, float) -> Any
         renpy.redraw(self, 0.05)
         text = getattr(_cue, '_marker_tip_text', None) or ""
         if not text:

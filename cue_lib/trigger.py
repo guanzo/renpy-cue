@@ -11,6 +11,10 @@ from cue_lib.util import (
     create_loop_key, create_vid_key,
 )
 
+MYPY = False
+if MYPY:
+    from typing import Any, Optional
+
 
 class CueTriggerEngine:
     """Owns trigger dispatch state and logic.
@@ -32,6 +36,7 @@ class CueTriggerEngine:
     # -- tick entry point --
 
     def tick(self, current_file, top_layer_type):
+        # type: (str, str) -> None
         """Called every frame. Handles loop (l:) and video (v:) triggers."""
         if not self.active:
             return
@@ -46,6 +51,7 @@ class CueTriggerEngine:
     # -- context triggers (i:, d:, shake) --
 
     def fire_context(self, *keys, **kwargs):
+        # type: (*Optional[str], **Any) -> None
         """Fire i:, d:, or shake triggers for the given keys.
 
         Multi-pool entries play one random file from EACH pool concurrently.
@@ -96,6 +102,7 @@ class CueTriggerEngine:
     # -- loop triggers (l: keys) --
 
     def _tick_loop(self, now, tick, current_file):
+        # type: (float, int, str) -> None
         """Loop state machine for l: keys — fires pooled SFX on a frequency cycle."""
         loop_key = create_loop_key(current_file or "")
 
@@ -213,6 +220,7 @@ class CueTriggerEngine:
     # -- video triggers (v: keys) --
 
     def _tick_video(self, current_file, top_layer_type):
+        # type: (str, str) -> None
         """Video pool triggers for v: keys — fires SFX at marked times.
 
         Uses two complementary checks so markers aren't missed when playback
@@ -241,6 +249,7 @@ class CueTriggerEngine:
 
         # --- Helper: did we reach or cross this marker time? ---
         def _marker_reached(mt):
+            # type: (float) -> bool
             """Return True if the marker at mt was reached or crossed since
             the last tick, either within the forward tolerance window or by
             jumping past it between ticks."""

@@ -8,6 +8,7 @@ from cue_lib.state import _cue
 
 MYPY = False
 if MYPY:
+    from typing import List
     from cue_lib._types import AudioTreeNode
 
 
@@ -43,6 +44,7 @@ class CueFileTreeManager:
     # ------------------------------------------------------------------
 
     def rebuild_tree(self):
+        # type: () -> None
         """Rebuild self.visible_tree from _cue.audio_tree.
         Only expanded folders are recursed into."""
         result = []
@@ -50,6 +52,7 @@ class CueFileTreeManager:
         self.visible_tree = result
 
     def _walk_tree(self, items, prefix, depth, result):
+        # type: (List[AudioTreeNode], str, int, List[AudioTreeNode]) -> None
         """Recursively walk tree, only descending into expanded folders."""
         for item in items:
             full = prefix + item["name"]
@@ -84,6 +87,7 @@ class CueFileTreeManager:
     # ------------------------------------------------------------------
 
     def toggle_folder(self, folder_path):
+        # type: (str) -> None
         """Toggle expand/collapse for a folder in the audio tree."""
         if folder_path in self.expanded_folders:
             self.expanded_folders[folder_path] = not self.expanded_folders[folder_path]
@@ -96,6 +100,7 @@ class CueFileTreeManager:
     # ------------------------------------------------------------------
 
     def toggle_file_enabled(self, full_path):
+        # type: (str) -> None
         """Toggle whether a file is enabled for marker addition."""
         if full_path in self.disabled_files:
             self.disabled_files.discard(full_path)
@@ -109,6 +114,7 @@ class CueFileTreeManager:
     # ------------------------------------------------------------------
 
     def toggle_file_ref_expand(self, folder_ref):
+        # type: (str) -> None
         """Toggle expand/collapse for a folder ref in a pool file list."""
         if folder_ref in self.expanded_file_refs:
             self.expanded_file_refs[folder_ref] = not self.expanded_file_refs[folder_ref]
@@ -120,10 +126,12 @@ class CueFileTreeManager:
     # ------------------------------------------------------------------
 
     def toggle_presets_expand(self):
+        # type: () -> None
         """Toggle expand/collapse for the Presets/ folder in the SFX Library."""
         self.presets_expanded = not self.presets_expanded
 
     def toggle_preset_expand(self, preset_name):
+        # type: (str) -> None
         """Toggle expand/collapse for a single preset in the SFX Library."""
         if preset_name in self.expanded_presets:
             self.expanded_presets[preset_name] = not self.expanded_presets[preset_name]
@@ -135,10 +143,12 @@ class CueFileTreeManager:
     # ------------------------------------------------------------------
 
     def toggle_video_presets_expand(self):
+        # type: () -> None
         """Toggle expand/collapse for the Video Presets/ folder in the SFX Library."""
         self.video_presets_expanded = not self.video_presets_expanded
 
     def toggle_video_preset_expand(self, preset_name):
+        # type: (str) -> None
         """Toggle expand/collapse for a single video preset in the SFX Library."""
         if preset_name in self.expanded_video_presets:
             self.expanded_video_presets[preset_name] = not self.expanded_video_presets[preset_name]
@@ -150,6 +160,7 @@ class CueFileTreeManager:
     # ------------------------------------------------------------------
 
     def toggle_section(self, section_name):
+        # type: (str) -> None
         """Toggle expand/collapse for a cue_section_frame."""
         self.collapsed_sections[section_name] = not self.collapsed_sections.get(section_name, False)
         renpy.restart_interaction()

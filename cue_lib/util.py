@@ -17,16 +17,23 @@ from cue_lib.state import _cue
 # Import time again for _logtime alias used by _cue_log
 _logtime = time
 
+MYPY = False
+if MYPY:
+    from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+    from renpy.display.video import Movie
+
 
 # --------------------------------------------------------------------------
 # UI Refresh Decorator
 # --------------------------------------------------------------------------
 
 def _cue_ui_refresh(fn):
+    # type: (Callable[..., Any]) -> Callable[..., Any]
     """Decorator for screen-action methods. Calls renpy.restart_interaction()
     in a finally block so every return/exception path gets a UI refresh
     automatically — methods can drop their explicit restart calls."""
     def _wrapper(*args, **kwargs):
+        # type: (*Any, **Any) -> Any
         try:
             return fn(*args, **kwargs)
         finally:
@@ -39,40 +46,49 @@ def _cue_ui_refresh(fn):
 # --------------------------------------------------------------------------
 
 def create_img_key(file):
+    # type: (str) -> str
     """Build an image trigger key: 'i:<file>'."""
     return _cue.IMG_KEY_PREFIX + file
 
 def create_vid_key(file):
+    # type: (str) -> str
     """Build a video trigger key: 'v:<file>'."""
     return _cue.VID_KEY_PREFIX + file
 
 def create_loop_key(file):
+    # type: (str) -> str
     """Build a loop trigger key: 'l:<file>'. file may be '' for global pool."""
     return _cue.LOOP_KEY_PREFIX + file
 
 def create_dlg_key(dlg_pair):
+    # type: (Tuple[str, str]) -> str
     """Build a dialogue trigger key from a (file, dialogue) pair.
     Usage: create_dlg_key((_cue.current_file, _cue.current_dialogue))"""
     file, dialogue = dlg_pair
     return _cue.DLG_KEY_PREFIX + file + "|" + dialogue
 
 def is_img_key(key):
+    # type: (str) -> bool
     """Check if key is an image trigger key."""
     return key.startswith(_cue.IMG_KEY_PREFIX)
 
 def is_vid_key(key):
+    # type: (str) -> bool
     """Check if key is a video trigger key."""
     return key.startswith(_cue.VID_KEY_PREFIX)
 
 def is_dlg_key(key):
+    # type: (str) -> bool
     """Check if key is a dialogue trigger key."""
     return key.startswith(_cue.DLG_KEY_PREFIX)
 
 def is_loop_key(key):
+    # type: (str) -> bool
     """Check if key is a loop trigger key."""
     return key.startswith(_cue.LOOP_KEY_PREFIX)
 
 def get_key_file(key):
+    # type: (str) -> str
     """Strip the 2-char prefix from any key, returning the file portion."""
     file_part = key[len(_cue.IMG_KEY_PREFIX):]
     if key.startswith("d:"):
@@ -80,6 +96,7 @@ def get_key_file(key):
     return file_part
 
 def get_key_dialogue(key):
+    # type: (str) -> str
     file_part = key[len(_cue.DLG_KEY_PREFIX):]
     parts = file_part.split("|", 1)
     if len(parts) < 2:
@@ -87,6 +104,7 @@ def get_key_dialogue(key):
     return parts[1]
 
 def get_key_prefix(key):
+    # type: (str) -> str
     """Return the 2-char prefix of a key ('i:', 'v:', 'd:', or 'l:')."""
     return key[:len(_cue.IMG_KEY_PREFIX)]
 
@@ -96,6 +114,7 @@ def get_key_prefix(key):
 # --------------------------------------------------------------------------
 
 def _cue_unwrap_displayable(name_or_displayable):
+    # type: (Union[str, Any]) -> Any
     """Recursively unwrap Transform (.child) and ImageReference (.target)
     wrappers to find the underlying Image/Movie displayable.
     Returns the unwrapped displayable, or None if input was None.
@@ -126,6 +145,7 @@ def _cue_unwrap_displayable(name_or_displayable):
 
 
 def _cue_get_movie_or_image(name_or_displayable):
+    # type: (Union[str, Any]) -> Tuple[Any, Any]
     """Given an image tag/name (str) or a displayable object, returns
     (kind, displayable) where kind is 'movie', 'image', or None if
     neither could be resolved."""
@@ -144,6 +164,7 @@ def _cue_get_movie_or_image(name_or_displayable):
 # --------------------------------------------------------------------------
 
 def _cue_unwrap_persistent(data):
+    # type: (Any) -> Any
     """Recursively convert Ren'Py RevertableDict/RevertableList/RevertableSet
     wrappers to plain Python dict/list/set. Duck-typing avoids isinstance
     which fails on wrapped types; json.dumps also fails for the same reason.
@@ -170,6 +191,7 @@ def _cue_unwrap_persistent(data):
 # --------------------------------------------------------------------------
 
 def _cue_scan_audio():
+    # type: () -> None
     """Scan audio dir and build folder tree."""
     _t0 = time.time()
 
@@ -231,6 +253,7 @@ def _cue_scan_audio():
 
     # Convert to sorted tree list
     def _build_tree(node):
+        # type: (Dict[str, Any]) -> List
         items = []
         # Folders first
         for name in sorted(node.keys()):
@@ -270,12 +293,14 @@ def _cue_scan_audio():
 # --------------------------------------------------------------------------
 
 def _cue_clamp_time(t, dur):
+    # type: (float, float) -> float
     """Clamp time t to [0, dur], handling dur <= 0."""
     if dur > 0:
         return max(0.0, min(t, dur))
     return max(0.0, t)
 
 def _cue_format_time(seconds):
+    # type: (Optional[float]) -> str
     """Format seconds as MM:SS.cs (centiseconds).
 
     For durations >= 60 min: HH:MM:SS.cs
@@ -300,11 +325,13 @@ def _cue_format_time(seconds):
         )
 
 def _cue_speed_label(sp):
+    # type: (float) -> str
     """Format a speed multiplier for UI display: 1.0 -> '1.0x', 1.5 -> '1.5x'."""
     return "{:.1f}x".format(sp)
 
 
 def _cue_parse_time(time_str):
+    # type: (Optional[str]) -> Optional[float]
     """Parse a time string back to float seconds.
 
     Accepts:
@@ -360,6 +387,7 @@ def _cue_parse_time(time_str):
 # --------------------------------------------------------------------------
 
 def _cue_log(msg):
+    # type: (str) -> None
     """Append a debug message to renpy_cue/debug.log."""
     try:
         if not _cue.debug:
@@ -380,6 +408,7 @@ def _cue_log(msg):
 # --------------------------------------------------------------------------
 
 def _cue_resolve_files(files):
+    # type: (List[str]) -> List[str]
     """Resolve a files list: expand folder refs (trailing '/') to matching
     available files, skip disabled files, pass through direct references."""
     result = []
@@ -394,6 +423,7 @@ def _cue_resolve_files(files):
     return result
 
 def _cue_pick_file(files, avoid_repeats=True):
+    # type: (List[str], bool) -> Optional[str]
     """Pick a random file from a list.
     If avoid_repeats is True, avoids files in the global last_played list.
     Repeat avoidance is shared across all non-video contexts.
@@ -423,6 +453,7 @@ def _cue_pick_file(files, avoid_repeats=True):
 # --------------------------------------------------------------------------
 
 def _cue_top_layer_name(name):
+    # type: (Any) -> Optional[str]
     """Normalize a displayable name to a single string.
     Image names are tuples like ('bg', 'forest') — use the tag ('bg')."""
     if name is None:
@@ -436,6 +467,7 @@ def _cue_top_layer_name(name):
 
 
 def _cue_top_movie_name(movie):
+    # type: (Movie) -> Optional[str]
     """Context name for a Movie on the master layer.
     Movie has no 'name' in Ren'Py 7/8 — fall back to the file basename
     from its 'play' attribute (which may be a list of paths)."""
@@ -451,13 +483,16 @@ def _cue_top_movie_name(movie):
 
 # _original_play only exists in Ren'Py 8.x; fall back to _play for 7.x
 def _cue_get_movie_play(movie):
+    # type: (Movie) -> str
     raw_play = getattr(movie, '_original_play', None)
     if raw_play is None:
         raw_play = getattr(movie, '_play', None)
     # Duck typing: isinstance(x, list) fails when Ren'Py shadows list->RevertableList
     if hasattr(raw_play, "__iter__") and not isinstance(raw_play, (str, bytes)):
         raw_play = raw_play[0] if raw_play else ""
-    return raw_play or ""
+    # str() is a no-op for every reachable value (str or None) and lets
+    # pyright drop the bytes member of the negated-isinstance narrowing.
+    return str(raw_play or "")
 
 
 # --------------------------------------------------------------------------
@@ -465,6 +500,7 @@ def _cue_get_movie_play(movie):
 # --------------------------------------------------------------------------
 
 def _is_screenshake(trans):
+    # type: (Any) -> bool
     """Detect whether a transition is a screenshake (Move with bounce,
     repeat, and short delay). Used to trigger SFX on shake events."""
     try:
@@ -494,6 +530,7 @@ def _is_screenshake(trans):
 # --------------------------------------------------------------------------
 
 def _cue_loop_still_playing(channels):
+    # type: (List[str]) -> bool
     """True if any channel in the list is currently playing.
     Unknown/unregistered channels are treated as silent."""
     for ch in channels:

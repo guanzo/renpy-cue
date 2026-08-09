@@ -98,6 +98,7 @@ _cue = Cue()
 
 
 def bootstrap():
+    # type: () -> None
     """Wire Ren'Py-dependent state once renpy.config is available.
     Called from cue_z.rpy init -900."""
     _cue.config_path = os.path.join(renpy.config.gamedir, _cue.base_dir, _cue.config_filename)

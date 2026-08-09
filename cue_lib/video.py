@@ -6,6 +6,10 @@ import renpy.audio.music as _music
 from cue_lib.state import _cue
 from cue_lib.util import _cue_log, _cue_format_time, _cue_clamp_time
 
+MYPY = False
+if MYPY:
+    from typing import Optional
+
 
 class CueVideoManager:
     """Per-video playback state and control.
@@ -18,6 +22,7 @@ class CueVideoManager:
     # --- Playback control ---
 
     def reset(self, channel=None):
+        # type: (Optional[str]) -> None
         """Reinitialize playback state (video changed).
         Keeps the current channel unless a new one is given."""
         self.channel = channel
@@ -33,15 +38,18 @@ class CueVideoManager:
         self.total_offset = 0.0  # deprecated, kept for attribute compatibility
 
     def set_fps(self, fps):
+        # type: (int) -> None
         """Apply the detected video framerate."""
         self.fps = fps
         self.frame_time = 1.0 / fps
 
     def reset_pause(self):
+        # type: () -> None
         """Clear the paused flag without touching playback (after load)."""
         self.paused = False
 
     def get_elapsed(self):
+        # type: () -> float
         """Get current playback position (real pos + virtual offset)."""
         if not self.channel:
             return 0.0
@@ -54,6 +62,7 @@ class CueVideoManager:
         return 0.0
 
     def get_duration(self):
+        # type: () -> float
         """Get total duration of the current video in seconds.
         Returns 0.0 when the channel is unavailable or duration cannot
         be queried."""
@@ -68,6 +77,7 @@ class CueVideoManager:
         return 0.0
 
     def get_video_path(self):
+        # type: () -> Optional[str]
         """Get the filepath of the currently playing video."""
         if not self.channel:
             return None
@@ -77,6 +87,7 @@ class CueVideoManager:
             return None
 
     def toggle_pause(self):
+        # type: () -> None
         """Toggle pause on the active video channel."""
         if not self.channel:
             return
@@ -103,6 +114,7 @@ class CueVideoManager:
                 self.paused = False
 
     def seek_frame(self, delta_frames):
+        # type: (int) -> None
         """Step forward/backward.
         Forward: briefly unpause, auto-re-pause via tick timer.
         Backward: restart from 0, auto-pause at origin + accumulated offset.
@@ -145,6 +157,7 @@ class CueVideoManager:
                 _music.play(filepath, channel=self.channel, loop=True)
 
     def seek_to(self, target_time):
+        # type: (float) -> None
         """Seek to an absolute timestamp and pause there.
         Forward (target >= current pos): pause, set step_target, unpause.
         The tick auto-pauses when pos reaches the target — no restart.
@@ -181,6 +194,7 @@ class CueVideoManager:
     # --- Tick hooks ---
 
     def poll_autopause(self):
+        # type: () -> None
         """Tick hook: auto-re-pause when a seek target is reached."""
         if not self.channel or _cue.top_layer_type != 'movie':
             return
@@ -201,6 +215,7 @@ class CueVideoManager:
             self.time_offset = 0.0
 
     def sync_paused(self):
+        # type: () -> None
         """Mirror the channel's real pause state (UI play/pause buttons)."""
         if not self.channel:
             return
@@ -212,6 +227,7 @@ class CueVideoManager:
     # --- Label getters (zero-arg callables for SelfUpdatingLabel) ---
 
     def time_label(self):
+        # type: () -> str
         """Return 'elapsed / duration' formatted for the live time display."""
         if _cue.top_layer_type != 'movie':
             return "--:--.-- / --:--.--"
@@ -223,6 +239,7 @@ class CueVideoManager:
         )
 
     def frame_label(self):
+        # type: () -> str
         """Return 'frame / total' formatted for the live frame display."""
         if _cue.top_layer_type != 'movie':
             return "---/---"

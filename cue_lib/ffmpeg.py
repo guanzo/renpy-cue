@@ -9,6 +9,10 @@
 import os
 import subprocess
 
+MYPY = False
+if MYPY:
+    from typing import List, Optional, Tuple
+
 # Suppress console window flash on Windows for all ffmpeg/ffprobe calls
 if os.name == "nt":
     CREATIONFLAGS = 0x08000000  # CREATE_NO_WINDOW
@@ -95,6 +99,7 @@ class CueFFmpeg:
     # ==================================================================
 
     def _probe_exe(self, exe_name):
+        # type: (str) -> bool
         """Return True if exe_name is runnable. Called from background thread."""
         try:
             p = subprocess.Popen(
@@ -109,6 +114,7 @@ class CueFFmpeg:
             return False
 
     def ffmpeg_available(self):
+        # type: () -> bool
         """Check ffmpeg once and cache the result."""
         if self._ffmpeg_cache != -1:
             return self._ffmpeg_cache == 1
@@ -122,6 +128,7 @@ class CueFFmpeg:
         return ok
 
     def ffprobe_available(self):
+        # type: () -> bool
         """Check ffprobe once."""
         exe = os.environ.get("RENPY_CUE_FFPROBE", "ffprobe")
         if self._probe_exe(exe):
@@ -139,6 +146,7 @@ class CueFFmpeg:
     # ==================================================================
 
     def load_encoders(self):
+        # type: () -> None
         """Cache the set of available encoders from ffmpeg -encoders output."""
         if self._encoder_cache is not None:
             return
@@ -166,6 +174,7 @@ class CueFFmpeg:
             pass
 
     def pick_encoder(self, codec_name, category):
+        # type: (str, str) -> Optional[str]
         """Pick an available encoder for the given input codec.
         category: 'video' or 'audio'. Returns the encoder name or None."""
         self.load_encoders()
@@ -181,6 +190,7 @@ class CueFFmpeg:
     # ==================================================================
 
     def probe_codecs(self, fspath):
+        # type: (str) -> Tuple[str, str]
         """Return (video_codec, audio_codec) from ffprobe, or ('', '') on failure."""
         vc, ac = "", ""
         if not self.ffprobe_available():
@@ -222,6 +232,7 @@ class CueFFmpeg:
         return vc, ac
 
     def probe_has_audio(self, fspath):
+        # type: (str) -> bool
         """Return True if the file has at least one audio stream."""
         if not self.ffprobe_available():
             return True
@@ -244,6 +255,7 @@ class CueFFmpeg:
             return True
 
     def probe_fps(self, fspath):
+        # type: (str) -> int
         """Probe source video framerate. Returns int fps, default 30."""
         if not self.ffprobe_available():
             return 30
@@ -270,6 +282,7 @@ class CueFFmpeg:
         return 30
 
     def probe_bitrate(self, fspath):
+        # type: (str) -> Optional[str]
         """Probe the source video bitrate for quality matching.
         Returns a string like '6000k' or None if probe fails."""
         if not self.ffprobe_available():
@@ -325,6 +338,7 @@ class CueFFmpeg:
 
     @staticmethod
     def build_atempo(speed):
+        # type: (float) -> List[str]
         """Build ffmpeg atempo filter chain for the given speed factor.
         ffmpeg atempo is limited to [0.5, 2.0] per instance, so we chain
         multiple filters for speeds outside that range."""
@@ -346,6 +360,7 @@ class CueFFmpeg:
     def build_ffmpeg_cmds(self, fspath, temp_path, speed, vcodec, acodec,
                            has_audio, target_bitrate, interpolate=False,
                            source_fps=30, fast=False):
+        # type: (str, str, float, str, str, bool, Optional[str], bool, int, bool) -> Tuple[List[List[str]], Optional[str]]
         """Build ffmpeg command(s). Returns list of arg lists.
 
         For VP8/VP9: 2-pass encoding with probed source bitrate.

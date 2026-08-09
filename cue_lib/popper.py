@@ -1,6 +1,6 @@
 # CuePopper — Reusable positioned popup for Ren'Py.
 # Focus rect helpers and the CuePopper displayable class.
-# The sl-displayable registration stays in cue_popper.rpy (python early).
+# The sl-displayable registration stays in cue_z.rpy (python early).
 
 import renpy
 from renpy.store import NullAction
@@ -8,10 +8,15 @@ from renpy.display.layout import Container
 
 from cue_lib.state import _cue
 
+MYPY = False
+if MYPY:
+    from typing import Any, Optional, Tuple
+
 
 # --- Focus rect helpers (version-adaptive) ---
 
 def _cue_store_focus_rect(name):
+    # type: (str) -> None
     _v = getattr(renpy, 'version_tuple', (0, 0, 0))
     if _v >= (8, 0, 0):
         before = renpy.focus_coordinates()
@@ -29,6 +34,7 @@ def _cue_store_focus_rect(name):
             anchors.pop(name, None)
 
 def _cue_clear_focus_rect(name):
+    # type: (str) -> None
     _v = getattr(renpy, 'version_tuple', (0, 0, 0))
     if _v >= (8, 0, 0):
         renpy.clear_capture_focus(name)
@@ -38,6 +44,7 @@ def _cue_clear_focus_rect(name):
             anchors.pop(name, None)
 
 def _cue_get_focus_rect(name):
+    # type: (str) -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]
     _v = getattr(renpy, 'version_tuple', (0, 0, 0))
     if _v >= (8, 0, 0):
         rect = renpy.get_focus_rect(name)
@@ -55,6 +62,7 @@ def _cue_get_focus_rect(name):
 
 def _cue_compute_popup_position(ax, ay, aw, ah, cw, ch, vw, vh,
                                 placement, offset, margin):
+    # type: (int, int, int, int, int, int, int, int, str, int, int) -> Tuple[int, int, str]
     if placement == "top":
         x = ax + (aw - cw) // 2
         y = ay - ch - offset
@@ -102,6 +110,7 @@ def _cue_compute_popup_position(ax, ay, aw, ah, cw, ch, vw, vh,
 ARROW_SZ = 6
 
 def _cue_draw_arrow(r, px, py, pw, ph, arrow_dir):
+    # type: (Any, int, int, int, int, str) -> None
     cx, cy = px + pw // 2, py + ph // 2
     color = "#000000ee"
     if arrow_dir == "down":
@@ -134,6 +143,7 @@ class CuePopper(Container):
         self._frame = 0
 
     def render(self, width, height, st, at):
+        # type: (int, int, float, float) -> Any
         self._frame += 1
         r = renpy.Render(width, height)
 
@@ -154,6 +164,9 @@ class CuePopper(Container):
             return renpy.Render(1, 1)
 
         ax, ay, aw, ah = self._stored_rect
+        # _stored_rect is only ever set when the focus rect is fully
+        # populated (all elements non-None) — see the guard above.
+        assert ax is not None and ay is not None and aw is not None and ah is not None
 
         child = self.children[0]
         measure_w = min(width, self.MAX_POPUP_W)
@@ -193,6 +206,7 @@ class CuePopper(Container):
         return r
 
     def add(self, child):
+        # type: (Any) -> None
         from renpy.display.behavior import Button
         from renpy.display.layout import Window
 
@@ -204,4 +218,5 @@ class CuePopper(Container):
         super(CuePopper, self).add(btn)
 
     def visit(self):
+        # type: () -> list
         return list(self.children)

@@ -27,6 +27,7 @@ class CueBeatManager:
         self.preview_sfx_enabled = True
 
     def open(self):
+        # type: () -> None
         """Open the Repeat Pattern dialog for the current selection.
         Falls back to the active pool if nothing is selected."""
         markers = _cue.markers.video.get_markers()
@@ -84,6 +85,7 @@ class CueBeatManager:
         renpy.show_screen("cue_repeat_pattern_dialog", _layer="cue_layer")
 
     def apply(self):
+        # type: () -> None
         """Apply the repeat pattern: clone markers for each beat beyond
         the first, using the interval and count from the dialog."""
         try:
@@ -127,11 +129,13 @@ class CueBeatManager:
         _cue.markers.save_persistent()
 
     def hide(self):
+        # type: () -> None
         """Hide the repeat pattern dialog."""
         self.dialog_visible = False
         renpy.hide_screen("cue_repeat_pattern_dialog", layer="cue_layer")
 
     def toggle_preview_sfx(self):
+        # type: () -> None
         """Toggle whether preview markers trigger SFX during playback."""
         self.preview_sfx_enabled = not self.preview_sfx_enabled
 
@@ -206,6 +210,7 @@ class CueBeatManager:
         return pools
 
     def preview_text(self):
+        # type: () -> str
         """Return a preview string for the repeat pattern dialog."""
         new_markers = len(self.compute_preview_times())
         if new_markers > 0:
@@ -213,6 +218,7 @@ class CueBeatManager:
         return "No new markers to create"
 
     def commit_interval(self):
+        # type: () -> None
         """Commit interval text; resets to 1.00 on invalid input."""
         try:
             val = float(self.interval_text)
@@ -223,6 +229,7 @@ class CueBeatManager:
         renpy.restart_interaction()
 
     def nudge_interval(self, delta):
+        # type: (float) -> None
         """Nudge interval by delta seconds, clamped to >= 0.01."""
         try:
             val = float(self.interval_text)
@@ -233,6 +240,7 @@ class CueBeatManager:
         renpy.restart_interaction()
 
     def nudge_count(self, delta):
+        # type: (int) -> None
         """Nudge repeat count by delta, clamped to >= 0."""
         try:
             val = int(self.count_text)
@@ -243,6 +251,7 @@ class CueBeatManager:
         renpy.restart_interaction()
 
     def commit_count(self):
+        # type: () -> None
         """Commit count text; resets to 0 on invalid input."""
         try:
             val = int(self.count_text)

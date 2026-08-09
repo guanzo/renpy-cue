@@ -68,7 +68,7 @@ Function-local variables do NOT need underscores — they're scoped to their fun
 - **Encapsulate features as classes.** When adding a new UI component, dialog, or feature, create a dedicated class that owns its state, logic, and screen hooks. Prefer `_cue.thing = ThingManager()` over scattered `_cue._thing_var1`, `_cue._thing_var2` and global `_cue_do_thing()` functions.
 - **One class, one file** in `cue_lib/` when the class is substantial enough to stand alone (e.g. `beat.py` for `CueBeatManager`, `volume.py` for `CueVolumeManager`).
 - **Screen code** lives in `cue_lib/ui/*.rpy` (screens + styles). The manager classes in `cue_lib/*.py` handle `renpy.show_screen`/`hide_screen` and provide callable methods for `Function()` screen actions.
-- **Bootstrap** lives in `cue_lib/cue_z.rpy` (python early import-path setup + init blocks for bridge + callbacks) and `cue_lib/cue_popper.rpy` (sl-displayable registration). All other `.rpy` files under `src/` have been deleted. See `cue_lib/*.pyi` for type stubs.
+- **Bootstrap** lives in `cue_lib/cue_z.rpy` (python early import-path setup + sl-displayable registration + init blocks for bridge + callbacks). All other `.rpy` files under `src/` have been deleted. See `cue_lib/*.pyi` for type stubs.
 - **Ren'Py constraint**: `Function()` in screen actions can only reference module-level Python objects (no lambdas/closures), so the class instance must be reachable at a stable path — typically as an attribute of `_cue` (the `NoRollback` singleton).
 
 ## Ren'Py Rollback Rules

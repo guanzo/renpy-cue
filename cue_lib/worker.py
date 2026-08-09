@@ -9,8 +9,14 @@ import renpy.config as _config
 
 from cue_lib.ffmpeg import CREATIONFLAGS
 
+MYPY = False
+if MYPY:
+    from typing import Any, Callable
+    from cue_lib.ffmpeg import CueFFmpeg
+
 
 def _cue_run_encode(ffmpeg, job, dur_ms, base_dir, kill_fn):
+    # type: (CueFFmpeg, Any, int, str, Callable[[], None]) -> None
     """Background thread: probe codecs, build command, run ffmpeg.
     Reads -progress pipe:1 line by line to update job.progress.
     All subprocess calls are off the main thread — no game freeze."""

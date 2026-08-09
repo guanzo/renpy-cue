@@ -42,6 +42,7 @@ class CueVolumeManager:
         return entry.get("volume", self.VOL_DEFAULT)
 
     def write(self, trigger_key, new_vol, pool_index=None):
+        # type: (str, float, Optional[int]) -> None
         """Clamp and persist a volume, then save + refresh.
         With pool_index writes that specific pool; otherwise entry-level."""
         entry = _cue.markers.get(trigger_key)
@@ -58,6 +59,7 @@ class CueVolumeManager:
         renpy.restart_interaction()
 
     def adjust(self, trigger_key, delta, pool_index=None):
+        # type: (str, float, Optional[int]) -> None
         """Adjust volume up/down by delta, clamped to [MIN, MAX].
         pool_index targets one pool; None = entry-level."""
         entry = _cue.markers.get(trigger_key)
@@ -69,6 +71,7 @@ class CueVolumeManager:
     # --- Master volume (entry-level multiplier) ---
 
     def get_master(self, trigger_key):
+        # type: (str) -> float
         """Entry-level master volume for a key. Returns VOL_DEFAULT if unset."""
         entry = _cue.markers.get(trigger_key)
         if entry is None:
@@ -76,6 +79,7 @@ class CueVolumeManager:
         return entry.get("volume", self.VOL_DEFAULT)
 
     def set_master(self, trigger_key, value):
+        # type: (str, float) -> None
         """Set entry-level master volume (clamped, persisted).
         Writes entry["volume"] directly so it works for all key types."""
         entry = _cue.markers.get(trigger_key)
@@ -87,6 +91,7 @@ class CueVolumeManager:
         renpy.restart_interaction()
 
     def adjust_master(self, trigger_key, delta):
+        # type: (str, float) -> None
         """Adjust master volume by delta (reads raw master, not effective)."""
         self.set_master(trigger_key,
             self.get_master(trigger_key) + delta)
@@ -116,6 +121,7 @@ class CueVolumeManager:
     # --- Convenience: video pool volume ---
 
     def adjust_video(self, delta):
+        # type: (float) -> None
         """Adjust volume on the active video pool."""
         vid_key = create_vid_key(_cue.current_file)
         entry = _cue.markers.get(vid_key)
@@ -128,6 +134,7 @@ class CueVolumeManager:
     # --- Bar changed callback ---
 
     def on_bar_changed(self):
+        # type: () -> None
         """Called after any volume bar is dragged. Saves and refreshes the UI."""
         _cue.markers.save_persistent()
         renpy.restart_interaction()

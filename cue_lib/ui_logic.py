@@ -9,6 +9,10 @@ from renpy.store import Function
 from cue_lib.state import _cue
 from cue_lib.util import _cue_resolve_files, create_vid_key
 
+MYPY = False
+if MYPY:
+    from typing import Any, Callable, Optional
+
 
 class CuePresetDialog:
     """Self-contained state for the Save Preset popup."""
@@ -18,6 +22,7 @@ class CuePresetDialog:
         self.name = ""
 
     def open(self, trigger_key, pool_idx):
+        # type: (str, int) -> None
         entry = _cue.markers.get(trigger_key)
         if entry is None:
             return
@@ -31,6 +36,7 @@ class CuePresetDialog:
         renpy.show_screen("cue_save_preset_dialog", _layer="cue_layer")
 
     def commit(self):
+        # type: () -> None
         name = self.name.strip()
         if name and self.trigger_key is not None:
             entry = _cue.markers.get(self.trigger_key)
@@ -42,6 +48,7 @@ class CuePresetDialog:
         renpy.hide_screen("cue_save_preset_dialog", layer="cue_layer")
 
     def cancel(self):
+        # type: () -> None
         self.trigger_key = None
         renpy.hide_screen("cue_save_preset_dialog", layer="cue_layer")
 
@@ -52,6 +59,7 @@ class CueVideoPresetDialog:
         self.name = ""
 
     def open(self):
+        # type: () -> None
         vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
         if not vid_key:
             return
@@ -65,6 +73,7 @@ class CueVideoPresetDialog:
         renpy.show_screen("cue_save_video_preset_dialog", _layer="cue_layer")
 
     def commit(self):
+        # type: () -> None
         name = self.name.strip()
         if name:
             vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
@@ -75,6 +84,7 @@ class CueVideoPresetDialog:
         renpy.hide_screen("cue_save_video_preset_dialog", layer="cue_layer")
 
     def cancel(self):
+        # type: () -> None
         renpy.hide_screen("cue_save_video_preset_dialog", layer="cue_layer")
 
 
@@ -85,29 +95,34 @@ class CueConfirmDialog:
         self.on_confirm = None
 
     def show(self, message, confirm_action):
+        # type: (str, Callable[..., None]) -> None
         self.message = message
         self.on_confirm = confirm_action
         renpy.show_screen("cue_confirm_dialog", _layer="cue_layer")
 
     def hide(self):
+        # type: () -> None
         self.message = ""
         self.on_confirm = None
         renpy.hide_screen("cue_confirm_dialog", layer="cue_layer")
 
 
 def _cue_confirm_delete_preset(preset_name):
+    # type: (str) -> None
     _cue.confirm_dialog.show(
         "Delete preset '{}'?".format(preset_name),
         Function(_cue.markers.delete_preset, preset_name),
     )
 
 def _cue_confirm_delete_video_preset(preset_name):
+    # type: (str) -> None
     _cue.confirm_dialog.show(
         "Delete video preset '{}'?".format(preset_name),
         Function(_cue.markers.delete_video_preset, preset_name),
     )
 
 def _cue_maybe_apply_video_preset(preset_name):
+    # type: (str) -> None
     out_count = _cue.markers.video_preset_out_of_range(preset_name)
     if out_count > 0:
         preset = _cue.markers.get_video_preset(preset_name)
@@ -122,6 +137,7 @@ def _cue_maybe_apply_video_preset(preset_name):
         _cue.markers.apply_video_preset(preset_name)
 
 def _cue_preview_video_preset(preset_name):
+    # type: (str) -> None
     preset = _cue.markers.get_video_preset(preset_name)
     if preset is None:
         return
@@ -135,6 +151,7 @@ def _cue_preview_video_preset(preset_name):
         _cue_preview_sfx(f)
 
 def _cue_detach_active_video_ts(*args):
+    # type: (*Any) -> None
     vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
     if not vid_key:
         return
@@ -145,13 +162,16 @@ def _cue_detach_active_video_ts(*args):
     _cue.markers.save_persistent()
 
 def _cue_detach_pool_at(trigger_key, pool_index):
+    # type: (str, int) -> None
     _cue.markers._detach_pool(trigger_key, pool_index)
     _cue.markers.save_persistent()
 
 def _cue_make_tab_action(fn, args_tuple, pi):
+    # type: (Callable[..., None], tuple, int) -> Callable[..., None]
     return Function(fn, *(tuple(args_tuple) + (pi,)))
 
 def _cue_count_file_list_rows(folder_label, folder_children, files):
+    # type: (Optional[str], Optional[list[str]], list[str]) -> int
     rows = 0
     if folder_label is not None:
         rows += 1

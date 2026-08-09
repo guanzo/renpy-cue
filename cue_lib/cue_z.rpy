@@ -13,6 +13,25 @@ python early:
     if _cue_lib_parent not in sys.path:
         sys.path.insert(0, _cue_lib_parent)
 
+python early:
+    def _cue_popper_factory(*args, **kwargs):
+        """Factory for register_sl_displayable. Returns a CuePopper instance.
+        CuePopper is resolved at call time (screen execution), by which point
+        the init -999 bridge has imported it into store."""
+        return CuePopper(*args, **kwargs)
+
+    renpy.register_sl_displayable(
+        "popper",
+        _cue_popper_factory,
+        style="default",
+        nchildren=1,
+        default_keywords={
+            "placement": "top",
+            "offset": 5,
+            "viewport_margin": 8,
+        },
+    ).add_property("target").add_property("placement").add_property("offset").add_property("viewport_margin")
+
 
 init -999 python:
     import cue_lib

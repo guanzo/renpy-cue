@@ -19,7 +19,7 @@ from cue_lib.util import (
 
 MYPY = False
 if MYPY:
-    from typing import Optional
+    from typing import Any, Optional, Tuple
     from cue_lib._types import MarkerEntry, PoolDict, VideoPoolDict
 
 
@@ -28,19 +28,23 @@ if MYPY:
 # --------------------------------------------------------------------------
 
 def _cue_TEST():
+    # type: () -> None
     _cue_log("TESTTTTTT")
 
 def _cue_toggle_overlay():
+    # type: () -> None
     if _cue.is_overlay_visible:
         _cue_hide_overlay()
     else:
         _cue_show_overlay()
 
 def _cue_toggle_active():
+    # type: () -> None
     _cue.trigger.active = not _cue.trigger.active
     _cue.markers.save_persistent()
 
 def _cue_toggle_shake_trigger():
+    # type: () -> None
     if not _cue.current_file:
         return
     shake_key = create_img_key(_cue.current_file)
@@ -49,6 +53,7 @@ def _cue_toggle_shake_trigger():
     _cue.markers.save_persistent()
 
 def _cue_show_overlay():
+    # type: () -> None
     _cue.is_overlay_visible = True
     if not _cue.available_files:
         _cue_scan_audio()
@@ -59,6 +64,7 @@ def _cue_show_overlay():
     renpy.restart_interaction()
 
 def _cue_hide_overlay():
+    # type: () -> None
     _cue.is_overlay_visible = False
     _cue.markers.save_persistent()
     renpy.hide_screen("cue_overlay", layer="cue_layer")
@@ -69,6 +75,7 @@ def _cue_hide_overlay():
 # --------------------------------------------------------------------------
 
 def _cue_refresh_context():
+    # type: () -> None
     _cue.current_replay = renpy.store._in_replay
     old_file = _cue.current_file
     old_channel = _cue.vid_manager.channel
@@ -131,6 +138,7 @@ def _cue_refresh_context():
 
 
 def _cue_log_context():
+    # type: () -> None
     vpath = _cue.vid_manager.get_video_path()
     vname = vpath.rsplit("/", 1)[-1] if vpath else "(none)"
     playing = "?"
@@ -158,7 +166,7 @@ def _cue_play_pool(entry, key, pool, pool_index, file=None, avoid_repeats=True):
     files = _cue_resolve_files(resolved.files)
     if not files:
         return None
-    f = file if file is not None else _cue_pick_file(files, avoid_repeats=avoid_repeats)
+    f = file if file is not None else _cue_pick_file(files, avoid_repeats=avoid_repeats)  # type: Any
     vol = _cue.volume.get_effective(entry, key, pool_index=pool_index)
     return _cue_play_sfx(f, key, volume=vol)
 
@@ -168,6 +176,7 @@ def _cue_play_pool(entry, key, pool, pool_index, file=None, avoid_repeats=True):
 # --------------------------------------------------------------------------
 
 def _cue_get_top_layer():
+    # type: () -> Tuple[Optional[str], Optional[str], Any]
     try:
         tags = renpy.get_showing_tags(layer="master")
         if not tags:
@@ -204,6 +213,7 @@ def _cue_get_top_layer():
 # --------------------------------------------------------------------------
 
 def _cue_refresh_channel(displayable=None):
+    # type: (Any) -> None
     if _cue.vid_manager.refreshing:
         return
     _cue.vid_manager.refreshing = True
@@ -212,11 +222,12 @@ def _cue_refresh_channel(displayable=None):
         old_ch = _cue.vid_manager.channel
 
         def _apply_channel(ch_name, ch_obj=None):
+            # type: (str, Any) -> None
             fps = 30
             if ch_obj is not None:
                 for attr in ('framerate', 'fps', 'frame_rate'):
                     try:
-                        val = getattr(ch_obj, attr, None)
+                        val = getattr(ch_obj, attr, None)  # type: Any
                         if callable(val):
                             val = val()
                         if val is not None and val > 0:
@@ -270,6 +281,7 @@ def _cue_refresh_channel(displayable=None):
 # --------------------------------------------------------------------------
 
 def _cue_tick_trigger():
+    # type: () -> None
     if _cue.current_file is not None:
         top_name, top_type, __ = _cue_get_top_layer()
         if top_name != _cue.current_file or top_type != _cue.top_layer_type:
@@ -285,6 +297,7 @@ def _cue_tick_trigger():
 
 
 def _cue_preview_preset(preset_name):
+    # type: (str) -> None
     preset = _cue.markers.get_preset(preset_name)
     if preset is None:
         return
@@ -299,6 +312,7 @@ def _cue_preview_preset(preset_name):
 # --------------------------------------------------------------------------
 
 def _cue_preview_sfx(filename, volume=1.0):
+    # type: (str, float) -> None
     prev_ch = _cue._preview_channel
     if prev_ch is not None and _music.is_playing(channel=prev_ch):
         _music.stop(channel=prev_ch, fadeout=0)
@@ -306,6 +320,7 @@ def _cue_preview_sfx(filename, volume=1.0):
 
 
 def _cue_play_sfx(filename, source="", volume=1.0):
+    # type: (str, str, float) -> Optional[str]
     base_dir = _cue.audio_dir
     if not base_dir.endswith("/"):
         base_dir = base_dir + "/"
