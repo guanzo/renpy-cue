@@ -6,6 +6,11 @@ import renpy
 from cue_lib.state import _cue
 from cue_lib.util import create_vid_key
 
+MYPY = False
+if MYPY:
+    from typing import Optional
+    from cue_lib._types import MarkerEntry
+
 
 class CueVolumeManager:
     """Volume read/write for marker entries and pools.
@@ -19,6 +24,7 @@ class CueVolumeManager:
     VOL_MAX = 5.0
 
     def get(self, entry, trigger_key=None, pool_index=None):
+        # type: (Optional[MarkerEntry], Optional[str], Optional[int]) -> float
         """Raw stored volume for the target (pool or entry).
         Pool volumes default to VOL_DEFAULT (1.0 identity) so
         they multiply correctly with the master (entry-level) volume.
@@ -88,6 +94,7 @@ class CueVolumeManager:
     # --- Effective volume (master x target) ---
 
     def get_effective(self, entry, trigger_key=None, pool_index=None):
+        # type: (Optional[MarkerEntry], Optional[str], Optional[int]) -> float
         """Effective playback volume = master (entry-level) x target volume, clamped.
         Pool volumes default to VOL_DEFAULT (1.0 identity) so master
         is never double-counted. For entry-only queries returns master alone."""

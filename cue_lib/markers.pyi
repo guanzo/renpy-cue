@@ -1,91 +1,15 @@
 # Type stub for cue_lib.markers
-from typing import Any, Dict, List, Optional, Set, Tuple, TypedDict
+from typing import Dict, List, Optional, Set, Tuple
 
-# =========================================================================
-# TypedDicts — data structures passed between modules
-# =========================================================================
-
-class PoolDict(TypedDict, total=False):
-    """A single pool within a MarkerEntry. Keys vary by context."""
-    files: List[str]
-    volume: float
-    frequency: int              # loop pools only
-    trigger_on_shake: bool      # image pools only
-    exclusive: bool             # loop pools only
-    preset: str                 # preset-backed pools (written, replaced on detach)
-
-class VideoPoolDict(TypedDict, total=False):
-    """A video marker pool. Always has a time key."""
-    time: float
-    files: List[str]
-    volume: float
-    preset: str                 # preset-backed (detached on mutation)
-
-class MarkerEntry(TypedDict, total=False):
-    """Returned by CueMarkerManager.get()."""
-    pools: List[PoolDict]
-    volume: float               # entry-level master volume (default 1.0)
-    replay: str                 # replay label
-    speed_pref: float           # per-video speed preference
-    speed_sequence: List[float] # per-video speed sequence
-    speed_mode: str             # "single" or "multi"
-    timestamps: List[PoolDict]  # migration: old name for pools
-    files: List[str]            # migration: old flat format
-    frequency: int              # migration: old entry-level frequency
-
-class VideoPreset(TypedDict):
-    """A saved video preset."""
-    pools: List[PoolDict]
-    volume: float
-    source_duration: float
-
-class BeatOffset(TypedDict):
-    """One offset in a CueBeatManager repeat pattern."""
-    offset: float
-    files: List[str]
-    volume: float
-
-class UndoSnapshot(TypedDict):
-    """Snapshot taken by CueUndoManager on every save."""
-    markers: Dict[str, MarkerEntry]
-    presets: Dict[str, PoolDict]
-    video_presets: Dict[str, VideoPreset]
-
-class ClipboardData(TypedDict):
-    """Copy/paste clipboard for context markers."""
-    markers: Dict[str, MarkerEntry]
-    source_file: str
-    source_dialogue: str
-
-class CuePersistentData(TypedDict):
-    """Shape of persistent._cue_config."""
-    markers: Dict[str, MarkerEntry]
-    presets: Dict[str, PoolDict]
-    video_presets: Dict[str, VideoPreset]
-    disabled_files: List[str]
-    triggers_active: bool
-    encode_mode: int
-    seamless_transition: bool
-
-class AudioTreeFolderNode(TypedDict):
-    """Folder node in _cue.audio_tree / visible_tree."""
-    type: str
-    name: str
-    full_path: str
-    depth: int
-    expanded: bool
-    has_files: bool
-
-class AudioTreeFileNode(TypedDict):
-    """File node in _cue.audio_tree / visible_tree."""
-    type: str
-    name: str
-    full_path: str
-    depth: int
-    index: int
-    enabled: bool
-
-AudioTreeNode = AudioTreeFolderNode | AudioTreeFileNode
+# All TypedDicts are defined in cue_lib._types (the single canonical source)
+# and re-exported here for consumers that import from cue_lib.markers.
+from cue_lib._types import (
+    ClipboardData,
+    MarkerEntry,
+    PoolDict,
+    VideoPoolDict,
+    VideoPreset,
+)
 
 
 # =========================================================================
@@ -141,8 +65,8 @@ class CueVideoContext(CueMarkerContext):
     def get_selected(self) -> Set[int]: ...
     def has_markers(self) -> bool: ...
     def nudge(self, delta: float) -> None: ...
-    def remove_file(self, ts_index: int, file_index: int) -> None: ...
-    def remove_pool(self, ts_index: int) -> None: ...
+    def remove_file(self, pool_index: int, file_index: int) -> None: ...
+    def remove_pool(self, pool_index: int) -> None: ...
     def remove_selected(self) -> None: ...
     def select_tab(self, pool_index: int) -> None: ...
     def set_active(self, pool_index: int) -> None: ...

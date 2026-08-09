@@ -17,6 +17,11 @@ from cue_lib.util import (
     get_key_file, get_key_dialogue,
 )
 
+MYPY = False
+if MYPY:
+    from typing import Optional
+    from cue_lib._types import MarkerEntry, PoolDict, VideoPoolDict
+
 
 # --------------------------------------------------------------------------
 # Visibility
@@ -148,6 +153,7 @@ def _cue_log_context():
 
 
 def _cue_play_pool(entry, key, pool, pool_index, file=None, avoid_repeats=True):
+    # type: (Optional[MarkerEntry], str, PoolDict, int, Optional[str], bool) -> Optional[str]
     resolved = _cue.markers.resolve_pool(pool)
     files = _cue_resolve_files(resolved.files)
     if not files:

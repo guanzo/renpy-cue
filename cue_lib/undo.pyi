@@ -1,7 +1,7 @@
 # Type stub for cue_lib.undo
 from typing import Optional
 
-from cue_lib.markers import UndoSnapshot
+from cue_lib._types import UndoSnapshot
 
 class CueUndoManager:
     MAX_UNDO: int

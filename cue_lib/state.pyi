@@ -3,8 +3,9 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from cue_lib.beat import CueBeatManager
 from cue_lib.ffmpeg import CueFFmpeg
 from cue_lib.file_tree import CueFileTreeManager
-from cue_lib.markers import (
-    AudioTreeNode, CueMarkerManager, MarkerEntry, PoolDict,
+from cue_lib.markers import CueMarkerManager
+from cue_lib._types import (
+    AudioTreeNode, MarkerEntry, PoolDict,
     UndoSnapshot, VideoPreset,
 )
 from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast

@@ -20,6 +20,10 @@ from cue_lib.util import (
     get_key_file,
 )
 
+MYPY = False
+if MYPY:
+    from cue_lib._types import PoolDict
+
 # =========================================================================
 # CueMarkerContext — pool-based markers (shared by .image and .dialogue)
 # =========================================================================
@@ -713,6 +717,7 @@ class CueMarkerManager:
         self.save_persistent()
 
     def resolve_pool(self, pool):
+        # type: (PoolDict) -> ResolvedPool
         defaults = self._presets.get(pool["preset"], {}) if "preset" in pool else {}
         files = pool.get("files", defaults.get("files", []))
         volume = pool.get("volume", defaults.get("volume", _cue.VOL_DEFAULT))

@@ -68,7 +68,7 @@ Function-local variables do NOT need underscores — they're scoped to their fun
 - **Encapsulate features as classes.** When adding a new UI component, dialog, or feature, create a dedicated class that owns its state, logic, and screen hooks. Prefer `_cue.thing = ThingManager()` over scattered `_cue._thing_var1`, `_cue._thing_var2` and global `_cue_do_thing()` functions.
 - **One class, one file** in `cue_lib/` when the class is substantial enough to stand alone (e.g. `beat.py` for `CueBeatManager`, `volume.py` for `CueVolumeManager`).
 - **Screen code** lives in `cue_lib/ui/*.rpy` (screens + styles). The manager classes in `cue_lib/*.py` handle `renpy.show_screen`/`hide_screen` and provide callable methods for `Function()` screen actions.
-- **Bootstrap** lives in `cue_lib/cue_z.rpy` (python early import-path setup + init blocks for bridge + callbacks) and `cue_lib/cue_popper.rpy` (sl-displayable registration). All other `.rpy` files under `src/` have been deleted. See `_typing/cue_lib/` for type stubs.
+- **Bootstrap** lives in `cue_lib/cue_z.rpy` (python early import-path setup + init blocks for bridge + callbacks) and `cue_lib/cue_popper.rpy` (sl-displayable registration). All other `.rpy` files under `src/` have been deleted. See `cue_lib/*.pyi` for type stubs.
 - **Ren'Py constraint**: `Function()` in screen actions can only reference module-level Python objects (no lambdas/closures), so the class instance must be reachable at a stable path — typically as an attribute of `_cue` (the `NoRollback` singleton).
 
 ## Ren'Py Rollback Rules
@@ -85,4 +85,50 @@ Pylance can't resolve most `renpy.*` names (Ren'Py uses dynamic `import *` from 
 - **`pyrightconfig.json`** — ALL Pylance/Pyright config lives here (`stubPath`, `extraPaths`, `pythonVersion`). Do NOT put `python.analysis.*` settings in `.vscode/settings.json` — they conflict with pyrightconfig.json.
 - **`typings/renpy/`** — stubs for the Ren'Py runtime (third-party). Declares submodules plus top-level functions re-exported from `renpy.exports`. Configured via `stubPath` in pyrightconfig.json.
 - **`cue_lib/*.pyi`** — stubs for our own modules, living alongside their `.py` counterparts. Pylance finds them automatically via PEP 561.
+- **`cue_lib/_types.py`** — CANONICAL source for all TypedDict definitions (PoolDict, MarkerEntry, etc.). This is a real `.py` module that `.pyi` stubs import from. It is NEVER executed at runtime (only imported inside `if MYPY:` guards and by `.pyi` files), so it freely uses modern syntax (TypedDict, `from __future__ import annotations`). ONE definition per TypedDict — no duplication across `.pyi` files.
 - **AFTER editing any `cue_lib/*.py`** — check whether the corresponding `cue_lib/*.pyi` needs updating (new/renamed/deleted functions, classes, or method signatures). Keep them in sync.
+- **AFTER adding/changing a TypedDict** — update `cue_lib/_types.py` (the single source of truth). All `.pyi` files import from there.
+
+### Self-File Hover (type info when viewing a function's own source file)
+
+Pyright does NOT consult a module's `.pyi` stub when analyzing the module's own `.py` source. A `.pyi` describes the public contract for CONSUMERS; the module analyzing itself only sees its own source. Since our `.py` files have zero inline type annotations (Python 2.7/Ren'Py 7.x constraint — no `def foo(x: int)` syntax), self-file hover shows `Unknown` without extra help.
+
+The fix: **PEP 484 function-signature type comments** (`# type:`) backed by a **MYPY guard** that makes TypedDict names visible to the type checker without triggering a runtime import.
+
+#### Pattern
+
+In each `.py` file that needs self-file hover, add after the last real import:
+
+```python
+MYPY = False
+if MYPY:
+    from typing import Optional  # only if needed
+    from cue_lib._types import PoolDict, MarkerEntry  # whatever TypedDicts are referenced
+```
+
+Then add `# type:` comments to method signatures:
+
+```python
+def resolve_pool(self, pool):
+    # type: (PoolDict) -> ResolvedPool
+    ...
+```
+
+#### How it works
+
+- `MYPY = False` makes this a dead block at runtime — Python 2.7 never enters it, so it never tries to import `_types.py` (which uses Python 3 syntax).
+- Type checkers (Pyright, mypy) **special-case** `if MYPY:` / `if TYPE_CHECKING:` blocks — they are statically analyzed as if always taken, making the imported names available for `# type:` comment resolution.
+- This is the standard, checker-endorsed idiom — NOT a workaround.
+
+#### What needs a `# type:` comment
+
+- Any function whose `.pyi` stub declares types involving TypedDicts (PoolDict, MarkerEntry, VideoPoolDict, BeatOffset, UndoSnapshot, etc.)
+- Functions using only built-in types (str, int, float, bool, list) DON'T need a MYPY guard — `# type:` comments with builtins work without imports
+- Internal helpers (`_foo`) can be annotated but it's lower priority — focus on public API methods first
+
+#### The `_types.py` module
+
+- NEVER imported at runtime — only by `.pyi` files and inside `if MYPY:` guards
+- Uses `from __future__ import annotations` and `typing.TypedDict` — no Python 2.7 constraint
+- One canonical definition per TypedDict — `.pyi` stubs import from here, never redeclare
+- Located at `cue_lib/_types.py` (a real `.py` module) so Pyright can resolve it as an import target

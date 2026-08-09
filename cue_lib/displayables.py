@@ -9,6 +9,10 @@ from renpy.display.core import Displayable, IgnoreEvent
 from cue_lib.state import _cue
 from cue_lib.util import _cue_format_time
 
+MYPY = False
+if MYPY:
+    from cue_lib._types import VideoPoolDict
+
 
 class SelfUpdatingLabel(Displayable):
     """A text label that calls renpy.redraw() to update itself periodically."""

@@ -1,7 +1,7 @@
 # Type stub for cue_lib.volume
 from typing import Optional
 
-from cue_lib.markers import MarkerEntry
+from cue_lib._types import MarkerEntry
 
 class CueVolumeManager:
     VOL_MIN: float

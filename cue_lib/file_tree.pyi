@@ -1,7 +1,7 @@
 # Type stub for cue_lib.file_tree
 from typing import Dict, List, Set
 
-from cue_lib.markers import AudioTreeNode
+from cue_lib._types import AudioTreeNode
 
 class CueFileTreeManager:
     visible_tree: List[AudioTreeNode]

@@ -1,7 +1,7 @@
 # Type stub for cue_lib.beat
 from typing import List
 
-from cue_lib.markers import BeatOffset, VideoPoolDict
+from cue_lib._types import BeatOffset, VideoPoolDict
 
 class CueBeatManager:
     anchor: float

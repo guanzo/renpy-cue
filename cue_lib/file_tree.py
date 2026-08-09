@@ -6,6 +6,10 @@ import renpy
 
 from cue_lib.state import _cue
 
+MYPY = False
+if MYPY:
+    from cue_lib._types import AudioTreeNode
+
 
 class CueFileTreeManager:
     """Folder/file tree visibility, expand/collapse state, and disabled files.

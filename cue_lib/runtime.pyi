@@ -1,7 +1,7 @@
 # Type stub for cue_lib.runtime
 from typing import Any, Optional, Tuple
 
-from cue_lib.markers import MarkerEntry, PoolDict, VideoPoolDict
+from cue_lib._types import MarkerEntry, PoolDict, VideoPoolDict
 
 def _cue_TEST() -> None: ...
 def _cue_toggle_overlay() -> None: ...

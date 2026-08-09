@@ -6,6 +6,10 @@ import renpy
 from cue_lib.state import _cue
 from cue_lib.util import create_vid_key
 
+MYPY = False
+if MYPY:
+    from cue_lib._types import BeatOffset, VideoPoolDict
+
 
 class CueBeatManager:
     """Dialog state machine for repeating video marker patterns.
@@ -132,6 +136,7 @@ class CueBeatManager:
         self.preview_sfx_enabled = not self.preview_sfx_enabled
 
     def compute_preview_times(self):
+        # type: () -> list
         """Return sorted list of preview marker times for the overlay.
         Called by CueVideoMarkerTimeline.render() while dialog is visible."""
         if not self.dialog_visible:
@@ -164,6 +169,7 @@ class CueBeatManager:
         return previews
 
     def compute_preview_pools(self):
+        # type: () -> list
         """Return a list of pool dicts shaped like real video marker pools:
         [{"time": t, "files": [...], "volume": v}, ...]."""
         if not self.dialog_visible:

@@ -8,6 +8,10 @@ import os
 import renpy
 import renpy.python as _renpy_python
 
+MYPY = False
+if MYPY:
+    from cue_lib._types import AudioTreeNode
+
 
 class Cue(_renpy_python.NoRollback):
     """Root object for the Cue mod — state, managers, constants, and caches."""

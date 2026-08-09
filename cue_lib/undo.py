@@ -14,6 +14,10 @@ import renpy
 from cue_lib.state import _cue
 from cue_lib.util import create_img_key, create_dlg_key, create_loop_key, create_vid_key
 
+MYPY = False
+if MYPY:
+    from cue_lib._types import UndoSnapshot
+
 
 class CueUndoManager:
     """Undo/redo via post-mutation state snapshots. Max 50 steps; any new

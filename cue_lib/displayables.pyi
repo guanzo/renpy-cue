@@ -2,7 +2,7 @@
 from typing import Any, Callable, List, Optional, Tuple
 from renpy.display.core import Displayable
 
-from cue_lib.markers import VideoPoolDict
+from cue_lib._types import VideoPoolDict
 
 class SelfUpdatingLabel(Displayable):
     def __init__(self, getter: Callable[[], str], style: str = "default", interval: float = 0.05, **properties: Any) -> None: ...

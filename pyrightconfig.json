@@ -6,11 +6,9 @@
     "/mnt/c/Program Files/renpy-8.5.3-sdk/renpy",
     "/mnt/c/Program Files/renpy-8.5.3-sdk"
   ],
-  "diagnosticMode": "workspace",
   "pythonVersion": "3.9",
-  "typeCheckingMode": "basic",
-  "exclude": ["**/__pycache__"],
-  "include": ["cue_lib"],
+  "typeCheckingMode": "standard",
+  "exclude": ["**/__pycache__", "audio"],
   "reportMissingModuleSource": false,
   "reportUnusedImport": "warning",
   "reportUnusedVariable": "warning"
