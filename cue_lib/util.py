@@ -499,7 +499,7 @@ def _cue_get_movie_play(movie):
 # Transition Helpers
 # --------------------------------------------------------------------------
 
-def _is_screenshake(trans):
+def _cue_is_screenshake(trans):
     # type: (Any) -> bool
     """Detect whether a transition is a screenshake (Move with bounce,
     repeat, and short delay). Used to trigger SFX on shake events."""
@@ -507,14 +507,23 @@ def _is_screenshake(trans):
         if trans is None:
             return False
 
-        if not isinstance(trans, _functools.partial):
+        # Ren'Py wraps Move in either functools.partial (8.x) or
+        # renpy.curry.Curry (7.x).  They have the same shape but
+        # different attribute names -- duck-type to handle both.
+        if isinstance(trans, _functools.partial):
+            func = trans.func
+            kw = trans.keywords or {}
+        elif hasattr(trans, "callable") and hasattr(trans, "kwargs"):
+            # renpy.curry.Curry
+            func = trans.callable
+            kw = trans.kwargs or {}
+        else:
             return False
 
-        func_name = getattr(trans.func, "__name__", "")
+        func_name = getattr(func, "__name__", "")
         if func_name != "Move":
             return False
 
-        kw = trans.keywords or {}
         return (
             kw.get("bounce", False) == True
             and kw.get("repeat", False) == True

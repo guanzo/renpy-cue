@@ -45,7 +45,7 @@ init -999 python:
         get_key_file, get_key_dialogue, get_key_prefix,
         _cue_format_time, _cue_parse_time, _cue_clamp_time, _cue_speed_label,
         _cue_log, _cue_scan_audio, _cue_resolve_files, _cue_pick_file,
-        _cue_unwrap_displayable, _cue_ui_refresh, _is_screenshake,
+        _cue_unwrap_displayable, _cue_ui_refresh, _cue_is_screenshake,
         _cue_loop_still_playing, _cue_get_movie_or_image,
         _cue_top_layer_name, _cue_top_movie_name, _cue_get_movie_play,
         _cue_unwrap_persistent,
@@ -114,11 +114,29 @@ init 999 python:
     _original_with_statement = renpy.with_statement
 
     def _cue_with_hook(trans, always=False, paired=None, clear=True):
-        if _is_screenshake(trans):
+        if _cue_is_screenshake(trans):
             _cue._shake_just_happened = True
         return _original_with_statement(trans, always=always, paired=paired, clear=clear)
 
     renpy.with_statement = _cue_with_hook
+
+    # Hook config.show to detect vpunch/hpunch applied as at-transforms
+    # (e.g. "scene foo at vpunch, cum1").  When shakes are applied via "at"
+    # instead of "with", they bypass with_statement entirely.
+    _original_config_show = renpy.config.show
+
+    def _cue_config_show(name, at_list=None, layer='master', what=None,
+                         zorder=None, tag=None, behind=None, atl=None):
+        if at_list:
+            for t in at_list:
+                if _cue_is_screenshake(t):
+                    _cue._shake_just_happened = True
+                    break
+        return _original_config_show(name, at_list=at_list, layer=layer,
+                                     what=what, zorder=zorder, tag=tag,
+                                     behind=behind, atl=atl)
+
+    renpy.config.show = _cue_config_show
 
 
     if not _cue.initialized:
