@@ -27,16 +27,28 @@ screen cue_key_listener():
 # Main Overlay — the sidebar frame.
 ###############################################################################
 
+init python:
+    # Scale up UI as window shrinks.
+    def _cue_overlay_zoom():
+        pw, _ph = renpy.get_physical_size()
+        vw = renpy.config.screen_width
+        if pw > 0 and vw > 0:
+            return max(1.0, float(vw) / float(pw))
+        return 1.0
+
 screen cue_overlay():
 
     zorder 9999
     modal False
 
+    $ _z = _cue_overlay_zoom()
+
     button:
+        at Transform(zoom=_z)
         xalign 0.0
         yalign 0.0
-        xsize 500
-        yfill True
+        xsize int(500 / _z)
+        ysize int(renpy.config.screen_height / _z)
         action NullAction()
         background None
         hover_background None
@@ -68,6 +80,7 @@ screen cue_overlay():
 
 screen cue_popper_anchor(name, hover_fn):
     button:
+        style "empty"
         padding (0, 0)
         action NullAction()
         hovered [Function(_cue_store_focus_rect, name), hover_fn]
@@ -176,7 +189,6 @@ screen cue_overlay_content():
                         if len(_avail) > 1:
                             hbox:
                                 spacing 3
-                                text "Speeds:" style "cue_txt" size 11
                                 for _sp in _avail:
                                     $ _a_label = _cue_speed_label(_sp)
                                     use cue_txt_button(_a_label,
