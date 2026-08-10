@@ -54,42 +54,29 @@ def _cue_get_shared_dir():
 # Key sanitisation for filesystem safety
 # ---------------------------------------------------------------------------
 # Marker keys contain ':' and dialogue text (e.g. "d:file:hello world").
-# Windows forbids these characters in filenames, so we encode unsafe chars.
+# ':' and unsafe chars are replaced with '_' for filesystem safety.
+# Full key is stored in the JSON's "_key" field.
 
-import hashlib as _hashlib
-
+_MAX_LEN = 80
 _UNSAFE = set('<>:"/\\|?*')
-_HASHED_PREFIX = "h:"
 
 
 def _key_to_filename(key):
     # type: (str) -> str
-    """Convert a marker key to a safe filename.
-
-    Short keys with only safe chars are returned as-is with ':' replaced
-    by '~'.  Long keys or keys with unsafe chars are hashed.
-    """
-    # Replace colons (safe for us but awkward on Windows) with tilde
-    safe = key.replace(":", "~")
-    # If key is short and contains no truly unsafe chars, use it directly
-    if len(safe) <= 80 and not any(c in _UNSAFE for c in safe):
-        return safe + ".json"
-    # Otherwise hash it
-    h = _hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
-    # Keep the prefix (v~, i~, d~, l~) for readability
-    prefix = key[:2].replace(":", "~")
-    return "{}_{}.json".format(prefix, h)
+    safe = key.replace(":", "_")
+    safe = "".join(c for c in safe if c not in _UNSAFE)
+    if len(safe) > _MAX_LEN:
+        safe = safe[:_MAX_LEN]
+    return safe + ".json"
 
 
 def _filename_to_key(filename):
     # type: (str) -> str
-    """Reconstruct a marker key from its filename.  Hashed keys cannot be
-    reversed, but the stored JSON contains the key itself, so this is only
-    used as a fallback."""
+    """Fallback key reconstruction from filename. The _key field in the
+    JSON is authoritative -- this is only used if _key is missing."""
     if filename.endswith(".json"):
         filename = filename[:-5]
-    # Hashed filenames have the prefix like v~_abc123
-    return filename.replace("~", ":")
+    return filename.replace("_", ":")
 
 
 # ---------------------------------------------------------------------------
@@ -199,10 +186,10 @@ class CueDatabase(object):
 
     def _preset_path(self, preset_type, name):
         # type: (str, str) -> str
-        safe = name.replace(":", "~")
-        if len(safe) > 80 or any(c in _UNSAFE for c in safe):
-            h = _hashlib.sha1(name.encode("utf-8")).hexdigest()[:16]
-            safe = "h_{}".format(h)
+        safe = name.replace(":", "_")
+        safe = "".join(c for c in safe if c not in _UNSAFE)
+        if len(safe) > _MAX_LEN:
+            safe = safe[:_MAX_LEN]
         return os.path.join(self._preset_dir(preset_type), safe + ".json")
 
     # ------------------------------------------------------------------
