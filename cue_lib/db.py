@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
-# cue_lib/db.py -- SQLite-backed persistence for markers and presets.
+# cue_lib/db.py -- File-backed persistence for markers and presets.
 #
-# Replaces the monolithic cue_config.json blob with per-row writes so only
-# changed data hits disk.  Markers and presets live in the DB; lightweight
-# scalars (triggers_active, encode_mode, seamless_transition, disabled_files)
-# stay on Ren'Py persistent.
+# Each marker entry is one JSON file under data/markers/{game_id}/.
+# Each preset is one JSON file under data/presets/{preset_type}/.
 #
-# The DB file lives in a platform-standard application-data directory so
-# multiple games can share one database (partitioned by config.save_directory).
+# Replaces the monolithic cue_config.json with per-entity writes so only
+# changed data hits disk.  Lightweight scalars (triggers_active, encode_mode,
+# seamless_transition, disabled_files) stay on Ren'Py persistent.
+#
+# Pure Python stdlib -- no C extensions.  Works on any Ren'Py build.
 
 import os
 import json as _json
 import time as _time
-import sqlite3 as _sqlite3
 import threading as _threading
 
 MYPY = False
@@ -51,6 +51,48 @@ def _cue_get_shared_dir():
 
 
 # ---------------------------------------------------------------------------
+# Key sanitisation for filesystem safety
+# ---------------------------------------------------------------------------
+# Marker keys contain ':' and dialogue text (e.g. "d:file:hello world").
+# Windows forbids these characters in filenames, so we encode unsafe chars.
+
+import hashlib as _hashlib
+
+_UNSAFE = set('<>:"/\\|?*')
+_HASHED_PREFIX = "h:"
+
+
+def _key_to_filename(key):
+    # type: (str) -> str
+    """Convert a marker key to a safe filename.
+
+    Short keys with only safe chars are returned as-is with ':' replaced
+    by '~'.  Long keys or keys with unsafe chars are hashed.
+    """
+    # Replace colons (safe for us but awkward on Windows) with tilde
+    safe = key.replace(":", "~")
+    # If key is short and contains no truly unsafe chars, use it directly
+    if len(safe) <= 80 and not any(c in _UNSAFE for c in safe):
+        return safe + ".json"
+    # Otherwise hash it
+    h = _hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]
+    # Keep the prefix (v~, i~, d~, l~) for readability
+    prefix = key[:2].replace(":", "~")
+    return "{}_{}.json".format(prefix, h)
+
+
+def _filename_to_key(filename):
+    # type: (str) -> str
+    """Reconstruct a marker key from its filename.  Hashed keys cannot be
+    reversed, but the stored JSON contains the key itself, so this is only
+    used as a fallback."""
+    if filename.endswith(".json"):
+        filename = filename[:-5]
+    # Hashed filenames have the prefix like v~_abc123
+    return filename.replace("~", ":")
+
+
+# ---------------------------------------------------------------------------
 # Python 2 unicode safety
 # ---------------------------------------------------------------------------
 
@@ -59,13 +101,11 @@ def _to_str(obj):
     """Recursively encode unicode keys and values to UTF-8 str (Python 2).
 
     In Python 3 this is a no-op -- str and unicode are the same type.
-    In Python 2, json.loads returns unicode objects which will not compare
-    equal to the native str keys used throughout the codebase.
     """
     try:
         unicode  # Python 2 only
     except NameError:
-        return obj  # Python 3 -- str is already str
+        return obj
 
     if isinstance(obj, unicode):
         return obj.encode("utf-8")
@@ -83,21 +123,24 @@ def _to_str(obj):
 # =========================================================================
 
 class CueDatabase(object):
-    """SQLite-backed store for markers and presets.
+    """File-backed store for markers and presets.
 
-    Markers are namespaced by config.save_directory (game_id).
-    Presets are shared across all games (game-agnostic).
+    Directory layout:
+        {root}/data/markers/{game_id}/  -- one .json file per marker key
+        {root}/data/presets/audio/      -- one .json file per audio preset
+        {root}/data/presets/video/      -- one .json file per video preset
+        {root}/backups/                 -- daily full-dump JSON snapshots
+
+    Markers are namespaced by game_id.  Presets are game-agnostic.
     """
 
-    SCHEMA_VERSION = 1
     BACKUP_RETENTION_DAYS = 30
 
     def __init__(self, path, game_id):
         # type: (str, str) -> None
-        self._path = path
+        self._path = path          # root dir (e.g. %APPDATA%/renpy_cue)
         self._game_id = game_id
-        self._conn = None  # type: Optional[_sqlite3.Connection]
-        self._lock = _threading.Lock()
+        self._open = False
         self._last_backup_date = ""  # type: str
 
     # ------------------------------------------------------------------
@@ -106,45 +149,27 @@ class CueDatabase(object):
 
     def open(self):
         # type: () -> None
-        """Open the database (creating it if necessary), enable PRAGMAs,
-        and create tables."""
-        try:
-            _dir = os.path.dirname(self._path)
-            if _dir and not os.path.isdir(_dir):
-                os.makedirs(_dir)
-        except Exception:
-            pass
-
-        self._conn = _sqlite3.connect(self._path)
-        self._conn.row_factory = _sqlite3.Row
-        try:
-            self._conn.execute("PRAGMA busy_timeout = 10000")
-        except Exception:
-            pass
-        try:
-            self._conn.execute("PRAGMA synchronous = NORMAL")
-        except Exception:
-            pass
-        try:
-            self._conn.execute("PRAGMA journal_mode = WAL")
-        except Exception:
-            pass
-
-        self._create_tables()
-        self._maybe_recover()
+        """Ensure directory structure exists."""
+        for sub in [
+            os.path.join("data", "markers", self._game_id),
+            os.path.join("data", "presets", "audio"),
+            os.path.join("data", "presets", "video"),
+        ]:
+            _dir = os.path.join(self._path, sub)
+            if not os.path.isdir(_dir):
+                try:
+                    os.makedirs(_dir)
+                except Exception:
+                    raise
+        self._open = True
 
     def close(self):
         # type: () -> None
-        if self._conn is not None:
-            try:
-                self._conn.close()
-            except Exception:
-                pass
-            self._conn = None
+        self._open = False
 
     def is_open(self):
         # type: () -> bool
-        return self._conn is not None
+        return self._open
 
     @property
     def path(self):
@@ -157,59 +182,28 @@ class CueDatabase(object):
         return self._game_id
 
     # ------------------------------------------------------------------
-    # Schema
+    # Paths
     # ------------------------------------------------------------------
 
-    def _create_tables(self):
-        # type: () -> None
-        self._conn.executescript("""
-            CREATE TABLE IF NOT EXISTS markers (
-                game_id    TEXT NOT NULL,
-                marker_key TEXT NOT NULL,
-                replay_id  TEXT,
-                data       TEXT NOT NULL,
-                updated_at INTEGER NOT NULL,
-                PRIMARY KEY (game_id, marker_key)
-            );
+    def _marker_dir(self):
+        # type: () -> str
+        return os.path.join(self._path, "data", "markers", self._game_id)
 
-            CREATE TABLE IF NOT EXISTS presets (
-                preset_type TEXT NOT NULL,
-                name        TEXT NOT NULL,
-                data        TEXT NOT NULL,
-                updated_at  INTEGER NOT NULL,
-                PRIMARY KEY (preset_type, name)
-            );
-        """)
-        self._conn.commit()
+    def _preset_dir(self, preset_type):
+        # type: (str) -> str
+        return os.path.join(self._path, "data", "presets", preset_type)
 
-    def _maybe_recover(self):
-        # type: () -> None
-        """If the DB is corrupt, quarantine it and recreate."""
-        try:
-            self._conn.execute("SELECT count(*) FROM markers")
-        except _sqlite3.DatabaseError:
-            self._quarantine()
-            self._conn = _sqlite3.connect(self._path)
-            self._conn.row_factory = _sqlite3.Row
-            self._create_tables()
+    def _marker_path(self, key):
+        # type: (str) -> str
+        return os.path.join(self._marker_dir(), _key_to_filename(key))
 
-    def _quarantine(self):
-        # type: () -> None
-        """Rename the corrupt DB file out of the way."""
-        import shutil as _shutil
-        ts = int(_time.time())
-        try:
-            self._conn.close()
-        except Exception:
-            pass
-        for suffix in ("", "-wal", "-shm"):
-            src = self._path + suffix
-            if os.path.isfile(src):
-                dst = "{}.corrupt.{}".format(src, ts)
-                try:
-                    _shutil.move(src, dst)
-                except Exception:
-                    pass
+    def _preset_path(self, preset_type, name):
+        # type: (str, str) -> str
+        safe = name.replace(":", "~")
+        if len(safe) > 80 or any(c in _UNSAFE for c in safe):
+            h = _hashlib.sha1(name.encode("utf-8")).hexdigest()[:16]
+            safe = "h_{}".format(h)
+        return os.path.join(self._preset_dir(preset_type), safe + ".json")
 
     # ------------------------------------------------------------------
     # Freshness / migration
@@ -217,25 +211,25 @@ class CueDatabase(object):
 
     def is_fresh(self):
         # type: () -> bool
-        """True if this game_id has no marker rows yet."""
-        row = self._conn.execute(
-            "SELECT count(*) AS cnt FROM markers WHERE game_id = ?",
-            (self._game_id,),
-        ).fetchone()
-        return row is not None and row["cnt"] == 0
+        """True if this game_id has no marker files yet."""
+        try:
+            for _name in os.listdir(self._marker_dir()):
+                if _name.endswith(".json"):
+                    return False
+        except Exception:
+            pass
+        return True
 
     def migrate_markers_and_presets(self, markers, presets, video_presets):
         # type: (Dict[str, Any], Dict[str, Any], Dict[str, Any]) -> None
-        """Bulk-import markers and presets from a legacy dict."""
-        now = int(_time.time())
-        with self._lock:
-            with self._conn:
-                for key, entry in markers.items():
-                    self._upsert_marker(key, entry, now)
-                for name, entry in presets.items():
-                    self._upsert_preset("audio", name, entry, now)
-                for name, entry in video_presets.items():
-                    self._upsert_preset("video", name, entry, now)
+        """Bulk-write markers and presets from a legacy dict (one-time migration)."""
+        # We intentionally avoid atomic writes here -- this is a bulk import.
+        for key, entry in markers.items():
+            self._write_file(self._marker_path(key), entry)
+        for name, entry in presets.items():
+            self._write_file(self._preset_path("audio", name), entry)
+        for name, entry in video_presets.items():
+            self._write_file(self._preset_path("video", name), entry)
 
     # ------------------------------------------------------------------
     # Markers
@@ -244,45 +238,41 @@ class CueDatabase(object):
     def load_markers(self):
         # type: () -> Dict[str, Any]
         """Return {marker_key: MarkerEntry} for this game_id."""
-        rows = self._conn.execute(
-            "SELECT marker_key, replay_id, data FROM markers WHERE game_id = ?",
-            (self._game_id,),
-        ).fetchall()
         result = {}
-        for row in rows:
-            entry = _json.loads(row["data"])
+        mdir = self._marker_dir()
+        try:
+            names = os.listdir(mdir)
+        except Exception:
+            return result
+        for name in names:
+            if not name.endswith(".json"):
+                continue
+            fpath = os.path.join(mdir, name)
+            entry = self._read_file(fpath)
+            if entry is None:
+                continue
             entry = _to_str(entry)
-            if row["replay_id"]:
-                entry["replay"] = _to_str(row["replay_id"])
-            result[_to_str(row["marker_key"])] = entry
+            # Reconstruct the real key from the stored entry, falling back
+            # to the filename heuristic.
+            key = _to_str(entry.get("_key", _filename_to_key(name)))
+            if "replay_id" in entry:
+                entry["replay"] = _to_str(entry.pop("replay_id"))
+            result[key] = entry
         return result
 
     def save_marker(self, key, entry):
         # type: (str, Any) -> None
-        """INSERT OR REPLACE one marker row."""
-        with self._lock:
-            self._upsert_marker(key, entry, int(_time.time()))
+        """Write one marker to its JSON file."""
+        self._write_file_atomic(self._marker_path(key), key, entry)
 
     def delete_marker(self, key):
         # type: (str) -> None
-        """DELETE one marker row."""
-        with self._lock:
-            self._conn.execute(
-                "DELETE FROM markers WHERE game_id = ? AND marker_key = ?",
-                (self._game_id, key),
-            )
-            self._conn.commit()
-
-    def _upsert_marker(self, key, entry, ts):
-        # type: (str, Any, int) -> None
-        replay_id = entry.get("replay") or None
-        data = _json.dumps(entry, sort_keys=True)
-        self._conn.execute(
-            "INSERT OR REPLACE INTO markers "
-            "(game_id, marker_key, replay_id, data, updated_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (self._game_id, key, replay_id, data, ts),
-        )
+        """Remove one marker JSON file."""
+        fpath = self._marker_path(key)
+        try:
+            os.remove(fpath)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Presets (game-agnostic -- shared across all games)
@@ -290,45 +280,86 @@ class CueDatabase(object):
 
     def load_presets(self):
         # type: () -> Tuple[Dict[str, Any], Dict[str, Any]]
-        """Return (audio_presets, video_presets) -- shared across all games."""
-        rows = self._conn.execute(
-            "SELECT preset_type, name, data FROM presets"
-        ).fetchall()
-        audio = {}
-        video = {}
-        for row in rows:
-            entry = _to_str(_json.loads(row["data"]))
-            name = _to_str(row["name"])
-            if row["preset_type"] == "video":
-                video[name] = entry
-            else:
-                audio[name] = entry
+        """Return (audio_presets, video_presets)."""
+        audio = self._load_preset_dir("audio")
+        video = self._load_preset_dir("video")
         return audio, video
+
+    def _load_preset_dir(self, preset_type):
+        # type: (str) -> Dict[str, Any]
+        result = {}
+        pdir = self._preset_dir(preset_type)
+        try:
+            names = os.listdir(pdir)
+        except Exception:
+            return result
+        for name in names:
+            if not name.endswith(".json"):
+                continue
+            fpath = os.path.join(pdir, name)
+            entry = self._read_file(fpath)
+            if entry is None:
+                continue
+            entry = _to_str(entry)
+            preset_name = _to_str(entry.get("_key", _filename_to_key(name)))
+            result[preset_name] = entry
+        return result
 
     def save_preset(self, preset_type, name, data):
         # type: (str, str, Any) -> None
-        """INSERT OR REPLACE one preset row."""
-        with self._lock:
-            self._upsert_preset(preset_type, name, data, int(_time.time()))
+        """Write one preset to its JSON file."""
+        fpath = self._preset_path(preset_type, name)
+        self._write_file_atomic(fpath, name, data)
 
     def delete_preset(self, preset_type, name):
         # type: (str, str) -> None
-        """DELETE one preset row."""
-        with self._lock:
-            self._conn.execute(
-                "DELETE FROM presets WHERE preset_type = ? AND name = ?",
-                (preset_type, name),
-            )
-            self._conn.commit()
+        """Remove one preset JSON file."""
+        fpath = self._preset_path(preset_type, name)
+        try:
+            os.remove(fpath)
+        except Exception:
+            pass
 
-    def _upsert_preset(self, preset_type, name, data, ts):
-        # type: (str, str, Any, int) -> None
-        json_data = _json.dumps(data, sort_keys=True)
-        self._conn.execute(
-            "INSERT OR REPLACE INTO presets (preset_type, name, data, updated_at) "
-            "VALUES (?, ?, ?, ?)",
-            (preset_type, name, json_data, ts),
-        )
+    # ------------------------------------------------------------------
+    # Low-level file I/O
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _read_file(fpath):
+        # type: (str) -> Optional[Any]
+        try:
+            with open(fpath, "r") as f:
+                return _json.load(f)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _write_file(fpath, entry):
+        # type: (str, Any) -> None
+        with open(fpath, "w") as f:
+            _json.dump(entry, f, sort_keys=True)
+
+    def _write_file_atomic(self, fpath, key, data):
+        # type: (str, str, Any) -> None
+        """Write via temp file + rename for atomicity."""
+        # Store the original key so it can be recovered on load
+        entry = dict(data)
+        if "_key" not in entry:
+            entry["_key"] = key
+        # Hoist replay into its own field for the stored record
+        if "replay" in entry:
+            entry["replay_id"] = entry.pop("replay")
+
+        tmp = fpath + ".tmp"
+        try:
+            with open(tmp, "w") as f:
+                _json.dump(entry, f, sort_keys=True)
+            os.rename(tmp, fpath)
+        except Exception:
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # Daily backups (JSON format, 30-day retention)
@@ -336,7 +367,7 @@ class CueDatabase(object):
 
     def maybe_backup(self, markers, presets, video_presets):
         # type: (Dict[str, Any], Dict[str, Any], Dict[str, Any]) -> None
-        """Write a daily JSON backup to {shared_dir}/backups/.
+        """Write a daily JSON backup to {root}/backups/.
 
         Throttled by the existing 300-second timer in CueMarkerManager.
         Only writes once per calendar day.
@@ -346,7 +377,7 @@ class CueDatabase(object):
             return
         self._last_backup_date = today
 
-        backup_dir = os.path.join(os.path.dirname(self._path), "backups")
+        backup_dir = os.path.join(self._path, "backups")
         try:
             if not os.path.isdir(backup_dir):
                 os.makedirs(backup_dir)
@@ -371,7 +402,6 @@ class CueDatabase(object):
 
     def _prune_backups(self, backup_dir):
         # type: (str) -> None
-        """Remove backup files older than BACKUP_RETENTION_DAYS."""
         cutoff = _time.time() - (self.BACKUP_RETENTION_DAYS * 86400)
         try:
             for name in os.listdir(backup_dir):
@@ -399,20 +429,13 @@ def _cue_open_database(game_id):
     """
     import renpy.config as _config
     shared = _cue_get_shared_dir()
-    db_path = os.path.join(shared, "cue.db")
-    db = CueDatabase(db_path, game_id)
+    db = CueDatabase(shared, game_id)
     try:
         db.open()
     except Exception:
         gamedir = _config.gamedir
-        fallback_dir = os.path.join(gamedir, "renpy_cue")
-        fallback_path = os.path.join(fallback_dir, "cue.db")
-        try:
-            if not os.path.isdir(fallback_dir):
-                os.makedirs(fallback_dir)
-        except Exception:
-            pass
-        db = CueDatabase(fallback_path, game_id)
+        fallback = os.path.join(gamedir, "renpy_cue", "cue_data")
+        db = CueDatabase(fallback, game_id)
         try:
             db.open()
         except Exception:

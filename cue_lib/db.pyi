@@ -1,7 +1,6 @@
 from typing import Any, Dict, Tuple
 
 class CueDatabase(object):
-    SCHEMA_VERSION: int
     BACKUP_RETENTION_DAYS: int
 
     def __init__(self, path: str, game_id: str) -> None: ...
