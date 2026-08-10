@@ -12,7 +12,6 @@ import random as _random
 
 from cue_lib.state import _cue
 from cue_lib.util import _cue_log, create_vid_key
-from cue_lib.markers import _cue_markers  # save_persistent
 
 
 # ==========================================================================
