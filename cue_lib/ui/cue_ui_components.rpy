@@ -335,6 +335,10 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
     $ _pools = _entry.get("pools", [])
     $ _target = ctx.get_active()
     $ _target = max(0, min(_target, len(_pools) - 1)) if _pools else 0
+    
+    # sync back: clamps stale target after file switch so set_frequency/set_exclusive don't no-op
+    $ ctx.set_active(_target)  
+
     use cue_section_frame(section_title):
         if subtitle is not None:
             use cue_h_divider()
