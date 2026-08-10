@@ -65,6 +65,11 @@ def _cue_show_overlay():
     renpy.show_screen("cue_overlay", _layer="cue_layer")
     renpy.restart_interaction()
 
+def _cue_reload_presets():
+    # type: () -> None
+    """Re-read shared presets from disk (picks up changes from other games)."""
+    _cue.markers.reload_presets()
+
 def _cue_hide_overlay():
     # type: () -> None
     _cue.is_overlay_visible = False

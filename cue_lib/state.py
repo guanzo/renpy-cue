@@ -21,11 +21,10 @@ class Cue(_renpy_python.NoRollback):
         # --- Paths ---
         self.debug = True
         self.base_dir = "renpy_cue"
-        self.audio_dir = self.base_dir + "/audio"
+        self.audio_dir = ""  # set by bootstrap()
         self.config_filename = "cue_config.json"
         self.config_path = ""  # set by bootstrap() once renpy.config is ready
         self.shared_dir = ""   # set by bootstrap()
-        self.db_path = ""      # set by bootstrap()
         self.debug_log_filename = "debug.log"
 
         # --- Constants ---
@@ -104,6 +103,7 @@ def bootstrap():
     from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
     from cue_lib.file_tree import CueFileTreeManager
     from cue_lib.ui_logic import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
+    from cue_lib.db import _cue_get_shared_dir, CueDatabase
 
     _cue.markers = CueMarkerManager()
     _cue.undo = CueUndoManager()
@@ -124,8 +124,8 @@ def bootstrap():
 
     _cue.config_path = os.path.join(renpy.config.gamedir, _cue.base_dir, _cue.config_filename)
 
-    # Set up the shared SQLite database (one DB for all games, partitioned by save_directory)
-    from cue_lib.db import _cue_open_database
-    _cue.db = _cue_open_database(renpy.config.save_directory)
-    _cue.shared_dir = os.path.dirname(_cue.db.path)
-    _cue.db_path = _cue.db.path
+    # Set up the shared data store (one dir tree for all games, partitioned by save_directory)
+    _cue.shared_dir = _cue_get_shared_dir()
+    _cue.db = CueDatabase(_cue.shared_dir, renpy.config.save_directory)
+    _cue.db.open()
+    _cue.audio_dir = _cue.shared_dir + "/audio"

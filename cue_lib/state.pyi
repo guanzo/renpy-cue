@@ -25,7 +25,6 @@ class Cue:
     debug_log_filename: str
     config_path: str
     shared_dir: str
-    db_path: str
 
     DEFAULT_VIDEO_SPEED: float
     VOL_DEFAULT: float

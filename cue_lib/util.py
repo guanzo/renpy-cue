@@ -66,7 +66,7 @@ def create_dlg_key(dlg_pair):
     """Build a dialogue trigger key from a (file, dialogue) pair.
     Usage: create_dlg_key((_cue.current_file, _cue.current_dialogue))"""
     file, dialogue = dlg_pair
-    return _cue.DLG_KEY_PREFIX + file + "|" + dialogue
+    return _cue.DLG_KEY_PREFIX + file + "__" + dialogue
 
 def is_img_key(key):
     # type: (str) -> bool
@@ -93,13 +93,13 @@ def get_key_file(key):
     """Strip the 2-char prefix from any key, returning the file portion."""
     file_part = key[len(_cue.IMG_KEY_PREFIX):]
     if key.startswith("d:"):
-        file_part = file_part.split("|", 1)[0]
+        file_part = file_part.rsplit("__", 1)[0]
     return file_part
 
 def get_key_dialogue(key):
     # type: (str) -> str
     file_part = key[len(_cue.DLG_KEY_PREFIX):]
-    parts = file_part.split("|", 1)
+    parts = file_part.split("__", 1)
     if len(parts) < 2:
         return ""
     return parts[1]
@@ -278,7 +278,7 @@ def _cue_scan_audio():
 
     if not results:
         _cue.scan_error = "No audio files found in: {}".format(
-            os.path.normpath(os.path.join(_config.gamedir, _cue.audio_dir))
+            os.path.normpath(_cue.audio_dir)
         )
     else:
         _cue.scan_error = ""

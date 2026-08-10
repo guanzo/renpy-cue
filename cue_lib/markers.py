@@ -5,7 +5,6 @@
 import os
 import copy as _copy
 import random as _random
-import time as _time
 import json as _json
 import renpy.config as _config
 
@@ -554,7 +553,6 @@ class CueMarkerManager(object):
         self._img_target = 0
         self._dlg_target = 0
         self._loop_target = 0
-        self._last_autosave_time = 0
         self.image = CueImageContext(self)
         self.dialogue = CueDialogueContext(self)
         self.video = CueVideoContext(self)
@@ -1019,23 +1017,34 @@ class CueMarkerManager(object):
 
     # -- persistence --
 
+    def reload_presets(self):
+        # type: () -> None
+        """Re-read presets from the shared data store. Merges new/updated
+        presets from disk (other games may have added them). Never deletes."""
+        db = _cue.db
+        if db is None or not db.is_open():
+            return
+        audio, video = db.load_presets()
+        self._presets.update(audio)
+        self._video_presets.update(video)
+
     # ------------------------------------------------------------------
-    # Public save API -- targeted DB writes for routine mutations
+    # Public save API -- targeted data store writes for routine mutations
     # ------------------------------------------------------------------
 
     def save_marker(self, key):
         # type: (str) -> None
-        """Persist one marker entry to SQLite. Call after mutating self._data[key]."""
+        """Persist one marker entry to data store. Call after mutating self._data[key]."""
         self._db_save_marker(key)
 
     def save_preset(self, name):
         # type: (str) -> None
-        """Persist one audio preset to SQLite."""
+        """Persist one audio preset to data store."""
         self._db_save_preset(name)
 
     def save_video_preset(self, name):
         # type: (str) -> None
-        """Persist one video preset to SQLite."""
+        """Persist one video preset to data store."""
         self._db_save_video_preset(name)
 
     # ------------------------------------------------------------------
@@ -1081,7 +1090,6 @@ class CueMarkerManager(object):
             for key in stripped_keys:
                 if key in self._data:
                     db.save_marker(key, self._data[key])
-        self._autosave_backup()
         _cue.undo.capture()
 
     def _sanitize_video_pools_tracked(self):
@@ -1114,7 +1122,6 @@ class CueMarkerManager(object):
                 db.save_preset("audio", name, data)
             for name, data in self._video_presets.items():
                 db.save_preset("video", name, data)
-        self._autosave_backup()
         _cue.undo.capture()
 
     # ------------------------------------------------------------------
@@ -1144,7 +1151,7 @@ class CueMarkerManager(object):
 
     def load_persistent(self):
         # type: () -> None
-        """Load markers + presets from SQLite; scalars from persistent."""
+        """Load markers + presets from data store; scalars from persistent."""
         db = _cue.db
         if db is None or not db.is_open():
             data = getattr(persistent, '_cue_config', None)
@@ -1209,19 +1216,6 @@ class CueMarkerManager(object):
     # ------------------------------------------------------------------
     # Backup / restore
     # ------------------------------------------------------------------
-
-    def _autosave_backup(self):
-        # type: () -> None
-        now = _time.time()
-        if now - self._last_autosave_time < 300:
-            return
-        self._last_autosave_time = now
-        db = _cue.db
-        if db is not None and db.is_open():
-            try:
-                db.maybe_backup(self._data, self._presets, self._video_presets)
-            except Exception:
-                pass
 
     def backup_to_file(self):
         # type: () -> None

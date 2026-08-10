@@ -12,8 +12,6 @@
 
 import os
 import json as _json
-import time as _time
-import threading as _threading
 
 MYPY = False
 if MYPY:
@@ -47,7 +45,7 @@ def _cue_get_shared_dir():
             "XDG_DATA_HOME",
             os.path.expanduser("~/.local/share"),
         )
-    return os.path.normpath(os.path.join(base, "renpy_cue"))
+    return os.path.normpath(os.path.join(base, "renpy_cue")).replace("\\", "/")
 
 
 # ---------------------------------------------------------------------------
@@ -60,26 +58,17 @@ def _cue_get_shared_dir():
 
 import hashlib as _hashlib
 
-
 def _key_to_filename(key):
     # type: (str) -> str
-    # Split dialogue key: d_file|dialogue -> d_file_{hash}
+    # Dialogue key: d_file__dialogue -> d_{file}_{hash}
     if key.startswith("d_"):
-        pipe = key.find("|")
-        if pipe != -1:
-            file_part = key[2:pipe]
+        sep = key.find("__")
+        if sep != -1:
+            file_part = key[2:sep]
             dlg_hash = _hashlib.sha1(key.encode("utf-8")).hexdigest()[:8]
-            safe = "d_{}_{}".format(_strip_unsafe(file_part), dlg_hash)
-            return safe + ".json"
-    # Other keys: just strip unsafe chars from the key itself
-    safe = _strip_unsafe(key)
-    return safe + ".json"
-
-
-def _strip_unsafe(s):
-    # type: (str) -> str
-    unsafe = set('<>:"/\\|?*')
-    return "".join(c for c in s if c not in unsafe)
+            return "d_{}_{}.json".format(file_part, dlg_hash)
+    # Other keys: just the key itself
+    return key + ".json"
 
 
 def _filename_to_key(filename):
@@ -125,19 +114,15 @@ class CueDatabase(object):
         {root}/data/markers/{game_id}/  -- one .json file per marker key
         {root}/data/presets/audio/      -- one .json file per audio preset
         {root}/data/presets/video/      -- one .json file per video preset
-        {root}/backups/                 -- daily full-dump JSON snapshots
 
     Markers are namespaced by game_id.  Presets are game-agnostic.
     """
-
-    BACKUP_RETENTION_DAYS = 30
 
     def __init__(self, path, game_id):
         # type: (str, str) -> None
         self._path = path          # root dir (e.g. %APPDATA%/renpy_cue)
         self._game_id = game_id
         self._open = False
-        self._last_backup_date = ""  # type: str
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -195,7 +180,7 @@ class CueDatabase(object):
 
     def _preset_path(self, preset_type, name):
         # type: (str, str) -> str
-        safe = _strip_unsafe(name)
+        safe = name.replace("/", "_").replace("\\", "_")
         h = _hashlib.sha1(name.encode("utf-8")).hexdigest()[:8]
         return os.path.join(self._preset_dir(preset_type),
                             "{}_{}.json".format(safe, h))
@@ -218,13 +203,12 @@ class CueDatabase(object):
     def migrate_markers_and_presets(self, markers, presets, video_presets):
         # type: (Dict[str, Any], Dict[str, Any], Dict[str, Any]) -> None
         """Bulk-write markers and presets from a legacy dict (one-time migration)."""
-        # We intentionally avoid atomic writes here -- this is a bulk import.
         for key, entry in markers.items():
-            self._write_file(self._marker_path(key), entry)
+            self._write_file_atomic(self._marker_path(key), key, entry)
         for name, entry in presets.items():
-            self._write_file(self._preset_path("audio", name), entry)
+            self._write_file_atomic(self._preset_path("audio", name), name, entry)
         for name, entry in video_presets.items():
-            self._write_file(self._preset_path("video", name), entry)
+            self._write_file_atomic(self._preset_path("video", name), name, entry)
 
     # ------------------------------------------------------------------
     # Markers
@@ -356,83 +340,3 @@ class CueDatabase(object):
             except Exception:
                 pass
 
-    # ------------------------------------------------------------------
-    # Daily backups (JSON format, 30-day retention)
-    # ------------------------------------------------------------------
-
-    def maybe_backup(self, markers, presets, video_presets):
-        # type: (Dict[str, Any], Dict[str, Any], Dict[str, Any]) -> None
-        """Write a daily JSON backup to {root}/backups/.
-
-        Throttled by the existing 300-second timer in CueMarkerManager.
-        Only writes once per calendar day.
-        """
-        today = _time.strftime("%Y-%m-%d")
-        if today == self._last_backup_date:
-            return
-        self._last_backup_date = today
-
-        backup_dir = os.path.join(self._path, "backups")
-        try:
-            if not os.path.isdir(backup_dir):
-                os.makedirs(backup_dir)
-        except Exception:
-            return
-
-        dump_path = os.path.join(backup_dir, "{}.json".format(today))
-
-        from cue_lib.util import _cue_unwrap_persistent
-        data = {
-            "markers": _cue_unwrap_persistent(markers),
-            "presets": _cue_unwrap_persistent(presets),
-            "video_presets": _cue_unwrap_persistent(video_presets),
-            "_format": "daily_backup_v1",
-        }
-        try:
-            with open(dump_path, "w") as f:
-                _json.dump(data, f, indent=2, sort_keys=True)
-            self._prune_backups(backup_dir)
-        except Exception:
-            pass
-
-    def _prune_backups(self, backup_dir):
-        # type: (str) -> None
-        cutoff = _time.time() - (self.BACKUP_RETENTION_DAYS * 86400)
-        try:
-            for name in os.listdir(backup_dir):
-                if not name.endswith(".json"):
-                    continue
-                fpath = os.path.join(backup_dir, name)
-                try:
-                    if os.path.getmtime(fpath) < cutoff:
-                        os.remove(fpath)
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-
-# ---------------------------------------------------------------------------
-# Factory
-# ---------------------------------------------------------------------------
-
-def _cue_open_database(game_id):
-    # type: (str) -> CueDatabase
-    """Create and open a CueDatabase at the platform-standard path.
-
-    Falls back to a per-game path if the shared directory is not writable.
-    """
-    import renpy.config as _config
-    shared = _cue_get_shared_dir()
-    db = CueDatabase(shared, game_id)
-    try:
-        db.open()
-    except Exception:
-        gamedir = _config.gamedir
-        fallback = os.path.join(gamedir, "renpy_cue", "cue_data")
-        db = CueDatabase(fallback, game_id)
-        try:
-            db.open()
-        except Exception:
-            pass
-    return db

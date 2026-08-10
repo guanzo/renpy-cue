@@ -116,7 +116,7 @@ screen cue_overlay_content():
             use cue_icon_btn("📂", Function(_cue.markers.restore_from_file), _restore_tooltip, None)
             null width 5
             use cue_icon_btn("⏸", Function(renpy.invoke_in_new_context, renpy.pause), "Pause game (F3)", None)
-            use cue_icon_btn("⟳", [Function(_cue_refresh_context), Function(_cue_scan_audio)], "Refresh overlay", None)
+            use cue_icon_btn("⟳", [Function(_cue_reload_presets), Function(_cue_refresh_context), Function(_cue_scan_audio)], "Refresh overlay", None)
             use cue_icon_btn("✕", Function(_cue_hide_overlay), "Close overlay", None)
 
         # --- Mode detection ---
