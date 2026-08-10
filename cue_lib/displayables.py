@@ -523,3 +523,135 @@ class CueMarkerTooltipOverlay(Displayable):
         r = renpy.Render(1, 1)
         r.blit(tip, (tx, ty))
         return r
+
+
+class CueAutoSpeedChart(Displayable):
+    """Line chart that visualizes a speed sequence with a progress dot.
+
+    Draws a polyline across all speed steps. The portion before the
+    current index is drawn bright, the portion after is dim. A filled
+    dot marks the current position.
+
+    Usage in screen:  add CueAutoSpeedChart()  -- reads from _cue directly."""
+
+    PAD_X = 10
+    PAD_Y = 8
+    DOT_R = 4
+    LINE_W = 2
+
+    COLOR_DIM = "#3a3a3a"
+    COLOR_BRIGHT = "#ffffff"
+    COLOR_DOT = "#ffaa00"
+
+    def __init__(self, interval=0.1, **properties):
+        # type: (float, **Any) -> None
+        super(CueAutoSpeedChart, self).__init__(**properties)
+        self.interval = interval
+
+    @staticmethod
+    def _compute_points(speeds, width, height):
+        # type: (List[float], int, int) -> List[Tuple[int, int]]
+        """Map speed values to (x, y) pixel coordinates."""
+        n = len(speeds)
+        if n < 2:
+            return []
+        sp_min = min(speeds)
+        sp_max = max(speeds)
+        sp_range = sp_max - sp_min if sp_max > sp_min else 1.0
+        w = width - CueAutoSpeedChart.PAD_X * 2
+        h = height - CueAutoSpeedChart.PAD_Y * 2
+        points = []
+        for i, sp in enumerate(speeds):
+            x = CueAutoSpeedChart.PAD_X + int((float(i) / max(1, n - 1)) * w)
+            y = CueAutoSpeedChart.PAD_Y + int((1.0 - (sp - sp_min) / sp_range) * h)
+            points.append((x, y))
+        return points
+
+    def visit(self):
+        # type: () -> List[Displayable]
+        return []
+
+    def render(self, width, height, st, at):
+        # type: (int, int, float, float) -> Any
+        r = renpy.Render(width, height)
+
+        if width < 20 or height < 10:
+            renpy.redraw(self, self.interval)
+            return r
+
+        tag = _cue.current_file
+        speeds = None
+        if tag and _cue.video_sequence:
+            speeds = _cue.video_sequence.speeds_for(tag)
+
+        if not speeds or len(speeds) < 2:
+            renpy.redraw(self, self.interval)
+            return r
+
+        current_idx = _cue.video_sequence.current_step_index()
+        points = self._compute_points(speeds, width, height)
+        if len(points) < 2:
+            renpy.redraw(self, self.interval)
+            return r
+
+        canvas = r.canvas()
+
+        # --- Dim line: full sequence ---
+        for i in range(len(points) - 1):
+            canvas.line(self.COLOR_DIM, points[i], points[i + 1], self.LINE_W)
+
+        # --- Bright line: played portion ---
+        if current_idx > 0:
+            for i in range(min(current_idx, len(points) - 1)):
+                canvas.line(self.COLOR_BRIGHT, points[i], points[i + 1], self.LINE_W)
+
+        # --- Progress dot ---
+        if 0 <= current_idx < len(points):
+            cx, cy = points[current_idx]
+            canvas.circle(self.COLOR_DOT, (cx, cy), self.DOT_R)
+
+        # --- Hover tooltip ---
+        try:
+            mx, my = renpy.get_mouse_pos()
+            bx = getattr(_cue, '_chart_screen_x', -9999)
+            by_ = getattr(_cue, '_chart_screen_y', -9999)
+            rx, ry = mx - bx, my - by_
+            nearest_idx = -1
+            nearest_dist = 9999
+            for i, (px, py) in enumerate(points):
+                dist = (rx - px) * (rx - px) + (ry - py) * (ry - py)
+                if dist < nearest_dist and dist < 400:  # ~20px radius
+                    nearest_dist = dist
+                    nearest_idx = i
+            if nearest_idx >= 0:
+                sp = speeds[nearest_idx]
+                tip_text = "{:.1f}x  step {}/{}".format(sp, nearest_idx + 1, len(speeds))
+                tip_widget = Txt(tip_text, style="cue_txt", size=10,
+                                  color="#cccccc", italic=False, substitute=False)
+                tip_render = renpy.render(tip_widget, 200, 50, st, at)
+                tw, th = tip_render.get_size()
+                fw = min(tw + 8, 200)
+                fh = th + 4
+                tip = renpy.Render(fw, fh)
+                tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))
+                tip.blit(tip_render, (4, 2))
+                px, py = points[nearest_idx]
+                tx = px + 12
+                ty = py - fh - 4
+                tx = max(0, min(tx, width - fw))
+                ty = max(0, ty)
+                r.blit(tip, (tx, ty))
+        except Exception:
+            pass
+
+        renpy.redraw(self, self.interval)
+        return r
+
+    def event(self, ev, x, y, st):
+        # type: (Any, int, int, float) -> Optional[Any]
+        if ev.type == pygame.MOUSEMOTION:
+            mx, my = renpy.get_mouse_pos()
+            _cue._chart_screen_x = mx - x
+            _cue._chart_screen_y = my - y
+            renpy.redraw(self, 0)
+        return None

@@ -307,31 +307,10 @@ screen cue_overlay_content():
 
                             null height 5
 
-                            # --- Sequence display ---
-                            $ _groups = _cue.video_sequence.speeds_grouped(_cue.current_file)
-                            if _groups:
-                                viewport:
-                                    xalign 0.5
-                                    xsize 440
-                                    ysize 30
-                                    mousewheel True
-                                    scrollbars "horizontal"
-                                    scrollbar_unscrollable "hide"
-                                    style_group "cue"
-
-                                    hbox:
-                                        spacing 5
-                                        for _gi in range(len(_groups)):
-                                            $ _sp, _count, _start = _groups[_gi]
-                                            $ _s_label = _cue_speed_label(_sp)
-                                            if _count > 1:
-                                                $ _s_label += " (" + str(_count) + ")"
-                                            $ _cur_idx = _cue.video_sequence.current_step_index()
-                                            $ _is_current = (_start <= _cur_idx < _start + _count)
-                                            $ _bg = _cue_color_active if _is_current else None
-                                            use cue_txt_button(_s_label, NullAction(),
-                                                bg=_bg, sensitive=False,
-                                                tt="Speed {} (x{})".format(_gi + 1, _count))
+                            # --- Sequence chart ---
+                            $ _seq = _cue.video_sequence.speeds_for(_cue.current_file)
+                            if _seq and len(_seq) >= 2:
+                                add CueAutoSpeedChart() xsize 440 ysize 55
 
                             null height 3
 
