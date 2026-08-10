@@ -121,9 +121,9 @@ screen cue_tab_btn(label, selected, switch_action, tt=None):
 # display_text: the label shown on the textbutton
 screen cue_float_input(field_name, commit_action, display_text):
     default editing = False
-    key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
-    key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
     if editing:
+        key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
+        key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
         input:
             style "cue_input"
             value _CueFieldValue(field_name)
@@ -142,14 +142,14 @@ screen cue_float_input(field_name, commit_action, display_text):
 screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
                       inc10_action, inc100_action, display_text):
     default editing = False
-    key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
-    key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
     hbox:
         spacing 3
         use cue_icon_btn("--", dec100_action, None, 22)
         use cue_icon_btn("-", dec10_action)
 
         if editing:
+            key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
+            key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
             input:
                 style "cue_input"
                 value _CueFieldValue(field_name)
