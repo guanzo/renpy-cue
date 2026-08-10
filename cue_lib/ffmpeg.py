@@ -382,16 +382,24 @@ class CueFFmpeg(object):
 
     def build_ffmpeg_cmds(self, fspath, temp_path, speed, vcodec, acodec,
                            has_audio, target_bitrate, interpolate=False,
-                           source_fps=30, fast=False):
-        # type: (str, str, float, str, str, bool, Optional[str], bool, int, bool) -> Tuple[List[List[str]], Optional[str]]
+                           source_fps=30, fast=False, progress_path=None):
+        # type: (str, str, float, str, str, bool, Optional[str], bool, int, bool, Optional[str]) -> Tuple[List[List[str]], Optional[str]]
         """Build ffmpeg command(s). Returns list of arg lists.
 
         For VP8/VP9: 2-pass encoding with probed source bitrate.
         For other codecs: single pass.
-        setpts adjusts video PTS; atempo adjusts audio tempo to match."""
+        setpts adjusts video PTS; atempo adjusts audio tempo to match.
+        progress_path: if provided, use '-progress <path>' instead of '-progress pipe:1'."""
+
+        # Normalize Windows paths for ffmpeg (it parses the value as a URL)
+        if progress_path:
+            progress_path = progress_path.replace("\\", "/")
 
         # Null device for pass 1
         null_dev = "NUL" if os.name == "nt" else "/dev/null"
+
+        # Progress argument
+        _prog = ["-progress", progress_path] if progress_path else ["-progress", "pipe:1"]
 
         # Build video filter: setpts, optionally frame interpolation
         _vf = "setpts=PTS/{:.4f}".format(speed)
@@ -449,7 +457,7 @@ class CueFFmpeg(object):
 
             pass2 = [
                 self._ffmpeg_path, "-y",
-                "-progress", "pipe:1",
+            ] + _prog + [
                 "-nostats",
                 "-loglevel", "error",
                 "-i", fspath,
@@ -481,7 +489,7 @@ class CueFFmpeg(object):
 
         # Single-pass
         args = [self._ffmpeg_path, "-y",
-                "-progress", "pipe:1",
+                ] + _prog + [
                 "-nostats",
                 "-loglevel", "error",
                 "-i", fspath,

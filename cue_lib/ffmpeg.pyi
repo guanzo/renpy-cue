@@ -33,4 +33,5 @@ class CueFFmpeg:
         interpolate: bool = False,
         source_fps: int = 30,
         fast: bool = False,
+        progress_path: Optional[str] = None,
     ) -> Tuple[List[List[str]], Optional[str]]: ...

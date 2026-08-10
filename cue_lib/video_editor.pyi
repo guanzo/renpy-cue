@@ -30,7 +30,16 @@ class CueVideoJob:
     passlog: Optional[str]
     cancelled: bool
     proc: Optional[Any]
+    _done: bool
+    _ok: bool
     _resume_pass2: bool
+    _launched: bool
+    _cmds: list
+    _pass_idx: int
+    _num_passes: int
+    _log_path: str
+    _progress_path: str
+    _progress_offset: int
 
     def __init__(self, job_id: int, vpath: str, fspath_in: str, fspath_tmp: str, factor: float, encode_mode: int, fspath_out: Optional[str] = None) -> None: ...
     def elapsed(self) -> float: ...

@@ -3,6 +3,7 @@
 # Currently supports: playback speed change via ffmpeg.
 
 import os
+import subprocess
 import threading
 import time as _time
 import renpy
@@ -12,12 +13,13 @@ import renpy.audio.audio as _aaudio
 
 from renpy.store import persistent
 
+from cue_lib.ffmpeg import CREATIONFLAGS
 from cue_lib.state import _cue
 from cue_lib.util import _cue_log, _cue_ui_refresh, _cue_unwrap_persistent
 
 MYPY = False
 if MYPY:
-    from typing import Optional
+    from typing import Any, Optional
 
 # Encode mode constants
 CUE_VE_MODE_NORMAL = 0
@@ -61,10 +63,18 @@ class CueVideoJob(object):
         self.total_frames = 0
         self.passlog = None
         self.cancelled = False
-        self.proc = None
+        self.proc = None  # type: Optional[Any]
         self._done = False
         self._ok = False
         self._resume_pass2 = False
+        # Staging fields: set by probe thread, consumed by main-thread poll()
+        self._launched = False
+        self._cmds = []             # type: list
+        self._pass_idx = 0
+        self._num_passes = 0
+        self._log_path = ""
+        self._progress_path = ""
+        self._progress_offset = 0
 
     def elapsed(self):
         # type: () -> float
@@ -166,45 +176,226 @@ class CueVideoEditQueue(object):
             pass
 
         # Lazy import to avoid circular dependency with worker
-        from cue_lib.worker import _cue_run_encode
+        from cue_lib.worker import _cue_probe_job
 
         t = threading.Thread(
-            target=_cue_run_encode,
-            args=(_cue.ffmpeg, job, dur_ms, _cue.base_dir,
-                  lambda _j=job: self._kill_proc(_j)),
+            target=_cue_probe_job,
+            args=(_cue.ffmpeg, job, dur_ms, _cue.base_dir),
         )
         t.daemon = True
         t.start()
-        _cue_log("Speed worker started: job_id={}, factor={:.1f}, file={}".format(
+        _cue_log("Speed worker probing: job_id={}, factor={:.1f}, file={}".format(
             job.job_id, job.factor, os.path.basename(job.fspath_in)))
         renpy.restart_interaction()
 
+    # ==================================================================
+    # Encode state machine helpers (called from poll() on main thread)
+    # ==================================================================
+
+    def _launch_pass(self, job):
+        # type: (CueVideoJob) -> None
+        """Launch the next ffmpeg pass from job._cmds. Pops the command,
+        spawns subprocess with stdout->log file. Only writer of job.proc."""
+        if job.cancelled or not job._cmds:
+            return
+        cmd = job._cmds.pop(0)
+        job._pass_idx += 1
+        job.status = "encoding"
+        job.progress = 0.0
+        job._progress_offset = 0   # ffmpeg truncates progress file per pass
+        job.proc = None
+        logf = None
+        try:
+            # Truncate on first pass, append on subsequent passes
+            _mode = "wb" if job._pass_idx == 1 else "ab"
+            logf = open(job._log_path, _mode)
+            _header = "--- pass {} ---\ncmd: {}\n".format(
+                job._pass_idx, " ".join(cmd))
+            if not isinstance(_header, bytes):
+                _header = _header.encode("utf-8")
+            logf.write(_header)
+            logf.flush()
+            job.proc = subprocess.Popen(
+                cmd, stdout=logf, stderr=subprocess.STDOUT,
+                creationflags=CREATIONFLAGS,
+            )
+        except Exception as e:
+            if job.cancelled:
+                job._done = True
+            else:
+                job.error_msg = "ffmpeg error: {}".format(e)
+                _cue_log("Speed worker: launch failed -- {}".format(e))
+                job._done = True
+        finally:
+            if logf is not None:
+                try:
+                    logf.close()  # child holds its own dup
+                except Exception:
+                    pass
+        if job.cancelled and job.proc is not None:
+            self._kill_proc(job)
+            job._done = True
+
+    def _read_progress(self, job):
+        # type: (CueVideoJob) -> None
+        """Read frame= value from ffmpeg -progress file (main thread)."""
+        pp = job._progress_path
+        if not pp or not os.path.exists(pp):
+            return
+        try:
+            with open(pp, "rb") as f:
+                f.seek(job._progress_offset)
+                data = f.read(65536)
+            job._progress_offset += len(data)
+        except Exception:
+            return
+        last_frame = None
+        for raw in data.split(b"\n"):
+            if raw.startswith(b"frame="):
+                try:
+                    last_frame = int(raw.split(b"=", 1)[1].strip())
+                except (ValueError, IndexError):
+                    pass
+        if last_frame is not None and job.total_frames > 0:
+            job.progress = min(1.0, float(last_frame) / job.total_frames)
+
+    def _append_pass_footer(self, job, rc):
+        # type: (CueVideoJob, int) -> None
+        """Write the pass completion footer to the log file."""
+        try:
+            _footer = "--- pass {} rc={} ---\n".format(job._pass_idx, rc)
+            with open(job._log_path, "ab") as f:
+                if not isinstance(_footer, bytes):
+                    _footer = _footer.encode("utf-8")
+                f.write(_footer)
+        except Exception:
+            pass
+
+    def _error_tail(self, job, rc):
+        # type: (CueVideoJob, int) -> str
+        """Extract last meaningful error line from the log file."""
+        tail = ""
+        try:
+            with open(job._log_path, "rb") as f:
+                f.seek(0, os.SEEK_END)
+                size = f.tell()
+                f.seek(max(0, size - 4096))
+                data = f.read()
+            if isinstance(data, bytes):
+                data = data.decode("utf-8", errors="replace")
+            for line in reversed(data.split("\n")):
+                line = line.strip()
+                if line:
+                    tail = line
+                    break
+            if len(tail) > 120:
+                tail = tail[-120:]
+        except Exception:
+            pass
+        return "ffmpeg pass {} rc={}: {}".format(job._pass_idx, rc, tail)
+
+    def _finalize_encode(self, job):
+        # type: (CueVideoJob) -> None
+        """Check output and set _ok/_done after all passes succeed."""
+        # Clean up 2-pass artifacts
+        if job.passlog:
+            try:
+                for _suffix in ("-0.log", "-1.log"):
+                    _pf = job.passlog + _suffix
+                    if os.path.exists(_pf):
+                        os.remove(_pf)
+            except Exception:
+                pass
+        # Clean up progress file
+        if job._progress_path and os.path.exists(job._progress_path):
+            try:
+                os.remove(job._progress_path)
+            except Exception:
+                pass
+        output_ok = os.path.exists(job.fspath_tmp) and os.path.getsize(job.fspath_tmp) > 0
+        if not job.error_msg and output_ok:
+            job._ok = True
+            job.progress = 1.0
+            _cue_log("Speed worker: ffmpeg succeeded")
+        elif not job.error_msg:
+            job.error_msg = "ffmpeg produced no output"
+            _cue_log("Speed worker: FAILED -- no output file")
+        job._done = True
+
     def poll(self):
         # type: () -> None
+        """Main-thread encode state machine. Called at ~50Hz by the tick timer.
+        Handles: probe completion, ffmpeg launch, progress reading,
+        pass transitions, and finalization."""
         job = self._current
         if job is None:
             self._start_if_idle()
             return
-        if not job._done:
+
+        # ---- 1. Encode fully finished (all passes done / error / cancelled) ----
+        if job._done:
+            job.end_time = _time.time()
+            if job.cancelled:
+                self._cleanup_temp(job)
+                job.status = "error"
+                job.error_msg = "Cancelled"
+                _cue_log("Speed: cancelled by user (job_id={})".format(job.job_id))
+            elif not job._ok:
+                self._cleanup_temp(job)
+                job.status = "error"
+                _cue_log("Speed: job failed (job_id={})".format(job.job_id))
+            else:
+                self._finish(job)
+            self._current = None
+            self._start_next()
+            self.save_to_persistent()
+            renpy.restart_interaction()
+            return
+
+        # ---- 2. Probe thread still staging (status "analyzing") ----
+        if not job._launched:
             if job.cancelled:
                 renpy.restart_interaction()
             return
-        job.end_time = _time.time()
+
+        # ---- 3. Cancellation requested while encoding ----
         if job.cancelled:
-            self._cleanup_temp(job)
-            job.status = "error"
-            job.error_msg = "Cancelled"
-            _cue_log("Speed: cancelled by user (job_id={})".format(job.job_id))
-        elif not job._ok:
-            self._cleanup_temp(job)
-            job.status = "error"
-            _cue_log("Speed: job failed (job_id={})".format(job.job_id))
-        else:
-            self._finish(job)
-        self._current = None
-        self._start_next()
-        self.save_to_persistent()
-        renpy.restart_interaction()
+            self._kill_proc(job)       # no-op if proc is None (between passes)
+            job._done = True
+            renpy.restart_interaction()
+            return
+
+        # ---- 4. Current pass running: refresh progress ----
+        proc = job.proc
+        if proc is not None and proc.poll() is None:
+            self._read_progress(job)
+            return
+
+        # ---- 5. Current pass exited ----
+        if proc is not None:
+            rc = proc.returncode
+            job.proc = None             # reaped; _kill_proc must not see it
+            self._append_pass_footer(job, rc)
+            if rc != 0:
+                job.error_msg = self._error_tail(job, rc)
+                _cue_log("ffmpeg FAILED pass {} rc={}: {}".format(
+                    job._pass_idx, rc, job.error_msg))
+                job._done = True
+                renpy.restart_interaction()
+                return
+            if job._cmds:               # 2-pass: launch the next pass
+                self._launch_pass(job)
+                renpy.restart_interaction()
+                return
+            self._finalize_encode(job)  # last pass ok: output check + cleanup
+            renpy.restart_interaction()
+            return
+
+        # ---- 6. Not yet launched (first pass) ----
+        if job._cmds:
+            self._launch_pass(job)
+            renpy.restart_interaction()
+            return
 
     def _finish(self, job):
         # type: (CueVideoJob) -> None
@@ -275,6 +466,11 @@ class CueVideoEditQueue(object):
             job.status = "queued"
             job._done = False
             job._ok = False
+            job._launched = False
+            job._cmds = []
+            job._pass_idx = 0
+            job._num_passes = 0
+            job._progress_offset = 0
             job.progress = 0.0
             job.error_msg = ""
             self._start_if_idle()
@@ -313,12 +509,8 @@ class CueVideoEditQueue(object):
             if job.proc is not None:
                 p = job.proc
                 p.kill()
-                for _pipe in (p.stdout, p.stderr):
-                    if _pipe is not None:
-                        try:
-                            _pipe.close()
-                        except Exception:
-                            pass
+                # stdout/stderr are file handles (not pipes), so p.stdout
+                # and p.stderr are None. Just wait for the process to exit.
                 try:
                     p.wait()
                 except Exception:
@@ -333,6 +525,22 @@ class CueVideoEditQueue(object):
             tmp = job.fspath_tmp
             if tmp and os.path.exists(tmp):
                 os.remove(tmp)
+        except Exception:
+            pass
+        # Clean up 2-pass artifacts (same as old worker's unconditional
+        # post-loop cleanup on cancel/error)
+        try:
+            if job.passlog:
+                for _suffix in ("-0.log", "-1.log"):
+                    _pf = job.passlog + _suffix
+                    if os.path.exists(_pf):
+                        os.remove(_pf)
+        except Exception:
+            pass
+        # Clean up progress file
+        try:
+            if job._progress_path and os.path.exists(job._progress_path):
+                os.remove(job._progress_path)
         except Exception:
             pass
 
