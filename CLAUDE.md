@@ -70,7 +70,7 @@ E:\Porn\pGames\Dreamland-v0.6.0p-pc
 Most logic lives in `.py` files under `cue_lib/`, which have their own module-level namespaces. However, `cue_z.rpy` bridges ~55 names into the Ren'Py store for screen actions (`Function()` calls) — and those names share a flat namespace with the game. To avoid collisions:
 
 - **Module-level functions**: `_cue_` prefix — `_cue_play_sfx()`, `_cue_refresh_context()`, `_cue_tick_trigger()`
-- **Module-level classes**: `Cue` prefix — `CueBeatManager`, `CueMarkerManager`, `CueVideoManager`
+- **Module-level classes**: `Cue` prefix — `CueMarkerRepeater`, `CueMarkerManager`, `CueVideoManager`
 - **Module-level singleton**: `_cue` (the `NoRollback` instance, created in `cue_lib/state.py`)
 - **`.py` file imports**: `import foo as _foo` — ensures the import is module-local, not exposed to the store
 
@@ -81,7 +81,7 @@ Function-local variables do NOT need underscores — they're scoped to their fun
 ## Code Organization
 
 - **Encapsulate features as classes.** When adding a new UI component, dialog, or feature, create a dedicated class that owns its state, logic, and screen hooks. Prefer `_cue.thing = ThingManager()` over scattered `_cue._thing_var1`, `_cue._thing_var2` and global `_cue_do_thing()` functions.
-- **One class, one file** in `cue_lib/` when the class is substantial enough to stand alone (e.g. `beat.py` for `CueBeatManager`, `volume.py` for `CueVolumeManager`).
+- **One class, one file** in `cue_lib/` when the class is substantial enough to stand alone (e.g. `repeater.py` for `CueMarkerRepeater`, `volume.py` for `CueVolumeManager`).
 - **Screen code** lives in `cue_lib/ui/*.rpy` (screens + styles). The manager classes in `cue_lib/*.py` handle `renpy.show_screen`/`hide_screen` and provide callable methods for `Function()` screen actions.
 - **Bootstrap** lives in `cue_lib/cue_z.rpy` (python early import-path setup + sl-displayable registration + init blocks for bridge + callbacks). All other `.rpy` files under `src/` have been deleted. See `cue_lib/*.pyi` for type stubs.
 - **Ren'Py constraint**: `Function()` in screen actions can only reference module-level Python objects (no lambdas/closures), so the class instance must be reachable at a stable path — typically as an attribute of `_cue` (the `NoRollback` singleton).
@@ -137,7 +137,7 @@ def resolve_pool(self, pool):
 
 #### What needs a `# type:` comment
 
-- Any function whose `.pyi` stub declares types involving TypedDicts (PoolDict, MarkerEntry, VideoPoolDict, BeatOffset, UndoSnapshot, etc.)
+- Any function whose `.pyi` stub declares types involving TypedDicts (PoolDict, MarkerEntry, VideoPoolDict, RepeaterOffset, UndoSnapshot, etc.)
 - Functions using only built-in types (str, int, float, bool, list) DON'T need a MYPY guard — `# type:` comments with builtins work without imports
 - Internal helpers (`_foo`) can be annotated but it's lower priority — focus on public API methods first
 

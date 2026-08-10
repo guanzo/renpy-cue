@@ -271,8 +271,8 @@ class CueTriggerEngine(object):
             # Tack preview markers onto the list -- they're already pool dicts
             # shaped like real video markers (time/files/volume).
             _preview_count = 0
-            if _cue.beat.dialog_visible and _cue.beat.preview_sfx_enabled:
-                preview_pools = _cue.beat.compute_preview_pools()
+            if _cue.repeater.dialog_visible and _cue.repeater.preview_sfx_enabled:
+                preview_pools = _cue.repeater.compute_preview_pools()
                 markers.extend(preview_pools)
                 _preview_count = len(preview_pools)
 

@@ -33,7 +33,7 @@ from cue_lib import undo
 from cue_lib import volume
 from cue_lib import file_tree
 from cue_lib import video
-from cue_lib import beat
+from cue_lib import repeater
 from cue_lib import markers
 from cue_lib import trigger
 from cue_lib import video_editor

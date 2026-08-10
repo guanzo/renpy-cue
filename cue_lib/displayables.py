@@ -269,7 +269,7 @@ class CueVideoMarkerTimeline(Displayable):
 
         # Preview marker overlay
         if dur > 0.0:
-            preview_times = _cue.beat.compute_preview_times()
+            preview_times = _cue.repeater.compute_preview_times()
         else:
             preview_times = []
         for ptime in preview_times:

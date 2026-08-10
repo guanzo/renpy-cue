@@ -1,11 +1,11 @@
-# Type stub for cue_lib.beat
+# Type stub for cue_lib.repeater
 from typing import List
 
-from cue_lib._types import BeatOffset, VideoPoolDict
+from cue_lib._types import RepeaterOffset, VideoPoolDict
 
-class CueBeatManager:
+class CueMarkerRepeater:
     anchor: float
-    offsets: List[BeatOffset]
+    offsets: List[RepeaterOffset]
     sel_count: int
     interval_text: str
     count_text: str

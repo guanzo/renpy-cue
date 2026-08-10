@@ -243,7 +243,7 @@ screen cue_overlay_content():
                             tt="Seek forward 1 frame (inaccurate)")
 
                         use cue_v_divider()
-                        use cue_txt_button("Repeat", Function(_cue.beat.open),
+                        use cue_txt_button("Repeat", Function(_cue.repeater.open),
                             tt="Repeat selected markers at regular intervals across the video")
                         $ _has_markers = _cue.markers.video.has_markers()
                         use cue_icon_btn("💾", Function(_cue.video_preset_dialog.open), "Save all video markers as a preset", None)
@@ -255,7 +255,7 @@ screen cue_overlay_content():
                             ("• Markers and marker groups are draggable.\n"
                             + "• (Alt + Click) or (Shift + Click) to create a marker group.\n"
                             + "• Use Repeat to copy selected markers at an interval.\n"
-                            + "• Get your markers timed to the first 'beat', find the interval to the next 'beat', then use Repeat to finish."),
+                            + "• Get your markers timed to the first position, find the interval to the next position, then use Repeat to finish."),
                             None)
                     # --- Timeline visualizer ---
                     frame:
@@ -615,10 +615,10 @@ screen cue_overlay_content():
 # Repeat Pattern Dialog
 ###############################################################################
 
-screen cue_repeat_pattern_dialog():
-    $ anchor = _cue.beat.anchor
-    $ offsets = _cue.beat.offsets
-    $ sel_count = _cue.beat.sel_count
+screen cue_repeat_markers_dialog():
+    $ anchor = _cue.repeater.anchor
+    $ offsets = _cue.repeater.offsets
+    $ sel_count = _cue.repeater.sel_count
 
     button:
         xpos 500
@@ -631,7 +631,7 @@ screen cue_repeat_pattern_dialog():
 
         vbox:
                 spacing 8
-                text "Repeat Pattern" style "cue_hdr"
+                text "Repeat Markers" style "cue_hdr"
 
                 hbox:
                     spacing 5
@@ -641,48 +641,48 @@ screen cue_repeat_pattern_dialog():
                 hbox:
                     spacing 5
                     text "Anchor:" style "cue_txt"
-                    $ _anchor_dec = Function(_cue.beat.nudge_anchor, -0.01)
-                    $ _anchor_inc = Function(_cue.beat.nudge_anchor, 0.01)
-                    $ _anchor_commit = Function(_cue.beat.commit_anchor)
-                    $ _anchor_display = _cue.beat.anchor_text
-                    use cue_float_input("_cue.beat.anchor_text", _anchor_commit, _anchor_display,
+                    $ _anchor_dec = Function(_cue.repeater.nudge_anchor, -0.01)
+                    $ _anchor_inc = Function(_cue.repeater.nudge_anchor, 0.01)
+                    $ _anchor_commit = Function(_cue.repeater.commit_anchor)
+                    $ _anchor_display = _cue.repeater.anchor_text
+                    use cue_float_input("_cue.repeater.anchor_text", _anchor_commit, _anchor_display,
                         dec_action=_anchor_dec, inc_action=_anchor_inc)
 
                 hbox:
                     spacing 3
                     xalign 0.0
                     text "Interval:" style "cue_txt" size 12
-                    $ _commit = Function(_cue.beat.commit_interval)
-                    $ _display = _cue.beat.interval_text
-                    use cue_float_input("_cue.beat.interval_text", _commit, _display,
-                        dec_action=Function(_cue.beat.nudge_interval, -0.1),
-                        inc_action=Function(_cue.beat.nudge_interval, 0.1))
+                    $ _commit = Function(_cue.repeater.commit_interval)
+                    $ _display = _cue.repeater.interval_text
+                    use cue_float_input("_cue.repeater.interval_text", _commit, _display,
+                        dec_action=Function(_cue.repeater.nudge_interval, -0.1),
+                        inc_action=Function(_cue.repeater.nudge_interval, 0.1))
 
                 hbox:
                     spacing 3
                     xalign 0.0
                     text "Repeat:" style "cue_txt" size 12
-                    $ _dec = Function(_cue.beat.nudge_count, -1)
-                    $ _inc = Function(_cue.beat.nudge_count, 1)
-                    $ _commit = Function(_cue.beat.commit_count)
-                    $ _display = _cue.beat.count_text
-                    use cue_float_input("_cue.beat.count_text", _commit, _display,
+                    $ _dec = Function(_cue.repeater.nudge_count, -1)
+                    $ _inc = Function(_cue.repeater.nudge_count, 1)
+                    $ _commit = Function(_cue.repeater.commit_count)
+                    $ _display = _cue.repeater.count_text
+                    use cue_float_input("_cue.repeater.count_text", _commit, _display,
                         dec_action=_dec, inc_action=_inc)
 
-                use cue_toggle_btn(_cue.beat.preview_sfx_enabled, "Preview markers trigger SFX",
-                    Function(_cue.beat.toggle_preview_sfx))
+                use cue_toggle_btn(_cue.repeater.preview_sfx_enabled, "Preview markers trigger SFX",
+                    Function(_cue.repeater.toggle_preview_sfx))
 
-                $ _preview_label = _cue.beat.preview_text()
+                $ _preview_label = _cue.repeater.preview_text()
                 text _preview_label style "cue_help"
 
                 null height 5
 
                 hbox:
                     spacing 8
-                    use cue_txt_button("Cancel", Function(_cue.beat.hide))
+                    use cue_txt_button("Cancel", Function(_cue.repeater.hide))
                     use cue_txt_button("Apply", [
-                        Function(_cue.beat.apply),
-                        Function(_cue.beat.hide),
+                        Function(_cue.repeater.apply),
+                        Function(_cue.repeater.hide),
                     ])
 
 

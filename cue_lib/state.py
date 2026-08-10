@@ -52,7 +52,7 @@ class Cue(_renpy_python.NoRollback):
         self.trigger = None
         self.vid_manager = None
         self.volume = None
-        self.beat = None
+        self.repeater = None
         self.ffmpeg = None
         self.video_editor = None
         self.speed_resolver = None
@@ -95,7 +95,7 @@ def bootstrap():
     from cue_lib.trigger import CueTriggerEngine
     from cue_lib.video import CueVideoManager
     from cue_lib.volume import CueVolumeManager
-    from cue_lib.beat import CueBeatManager
+    from cue_lib.repeater import CueMarkerRepeater
     from cue_lib.ffmpeg import CueFFmpeg
     from cue_lib.video_editor import CueVideoEditor
     from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
@@ -107,7 +107,7 @@ def bootstrap():
     _cue.trigger = CueTriggerEngine()
     _cue.vid_manager = CueVideoManager()
     _cue.volume = CueVolumeManager()
-    _cue.beat = CueBeatManager()
+    _cue.repeater = CueMarkerRepeater()
     _cue.ffmpeg = CueFFmpeg()
     _cue.video_editor = CueVideoEditor()
     _cue.speed_resolver = CueVidSpeedResolver()

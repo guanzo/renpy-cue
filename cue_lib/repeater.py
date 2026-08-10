@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# CueBeatManager -- repeat-pattern dialog for video marker pools.
-# Instantiated once at _cue.beat, lives on the NoRollback _cue object.
+# CueMarkerRepeater -- repeat-pattern dialog for video marker pools.
+# Instantiated once at _cue.repeater, lives on the NoRollback _cue object.
 
 import renpy
 
@@ -9,10 +9,10 @@ from cue_lib.util import create_vid_key, _cue_format_time, _cue_parse_time, _cue
 
 MYPY = False
 if MYPY:
-    from cue_lib._types import BeatOffset, VideoPoolDict
+    from cue_lib._types import RepeaterOffset, VideoPoolDict
 
 
-class CueBeatManager(object):
+class CueMarkerRepeater(object):
     """Dialog state machine for repeating video marker patterns.
 
     Opens over the selected video markers, lets the user set an interval
@@ -115,11 +115,11 @@ class CueBeatManager(object):
             self.count_text = str(max_count)
 
         self.dialog_visible = True
-        renpy.show_screen("cue_repeat_pattern_dialog", _layer="cue_layer")
+        renpy.show_screen("cue_repeat_markers_dialog", _layer="cue_layer")
 
     def apply(self):
         # type: () -> None
-        """Apply the repeat pattern: clone markers for each beat beyond
+        """Apply the repeat pattern: clone markers for each repeat beyond
         the first, using the interval and count from the dialog."""
         try:
             interval = float(self.interval_text)
@@ -140,10 +140,10 @@ class CueBeatManager(object):
         dur = _cue.vid_manager.get_duration()
 
         new_count = 0
-        for beat_idx in range(1, count + 1):
-            beat_anchor = self.anchor + interval * beat_idx
+        for rep_idx in range(1, count + 1):
+            rep_anchor = self.anchor + interval * rep_idx
             for offset in self.offsets:
-                new_time = beat_anchor + offset["offset"]
+                new_time = rep_anchor + offset["offset"]
                 if dur > 0 and new_time > dur:
                     continue
                 if new_time < 0:
@@ -165,7 +165,7 @@ class CueBeatManager(object):
         # type: () -> None
         """Hide the repeat pattern dialog."""
         self.dialog_visible = False
-        renpy.hide_screen("cue_repeat_pattern_dialog", layer="cue_layer")
+        renpy.hide_screen("cue_repeat_markers_dialog", layer="cue_layer")
 
     def toggle_preview_sfx(self):
         # type: () -> None
@@ -191,10 +191,10 @@ class CueBeatManager(object):
         dur = _cue.vid_manager.get_duration()
         previews = []
 
-        for beat_idx in range(1, count + 1):
-            beat_anchor = self.anchor + interval * beat_idx
+        for rep_idx in range(1, count + 1):
+            rep_anchor = self.anchor + interval * rep_idx
             for offset in self.offsets:
-                time = beat_anchor + offset["offset"]
+                time = rep_anchor + offset["offset"]
                 if dur > 0 and time > dur:
                     continue
                 if time < 0:
@@ -224,10 +224,10 @@ class CueBeatManager(object):
         dur = _cue.vid_manager.get_duration()
         pools = []
 
-        for beat_idx in range(1, count + 1):
-            beat_anchor = self.anchor + interval * beat_idx
+        for rep_idx in range(1, count + 1):
+            rep_anchor = self.anchor + interval * rep_idx
             for offset_idx, offset in enumerate(self.offsets):
-                time = beat_anchor + offset["offset"]
+                time = rep_anchor + offset["offset"]
                 if dur > 0 and time > dur:
                     continue
                 if time < 0:

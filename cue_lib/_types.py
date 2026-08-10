@@ -65,11 +65,11 @@ class VideoPreset(TypedDict):
 
 
 # =========================================================================
-# Beat manager
+# Repeater manager
 # =========================================================================
 
-class BeatOffset(TypedDict):
-    """One offset in a CueBeatManager repeat pattern."""
+class RepeaterOffset(TypedDict):
+    """One offset in a CueMarkerRepeater repeat pattern."""
     offset: float
     files: List[str]
     volume: float
