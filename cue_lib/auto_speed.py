@@ -10,6 +10,8 @@
 
 import random as _random
 
+import renpy
+
 from cue_lib.state import _cue
 from cue_lib.util import _cue_log, create_vid_key
 
