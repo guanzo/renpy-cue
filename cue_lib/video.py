@@ -225,7 +225,7 @@ class CueVideoManager(object):
         except Exception:
             pass
 
-    # --- Label getters (zero-arg callables for SelfUpdatingLabel) ---
+    # --- Label getters (zero-arg callables for CueSelfUpdatingLabel) ---
 
     def time_label(self):
         # type: () -> str

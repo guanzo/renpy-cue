@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Creator-Defined Displayables for the Cue overlay.
-# SelfUpdatingLabel, VideoTimeline, CueVideoMarkerTimeline, _Tooltip, _MarkerTooltipOverlay.
+# CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline, CueTooltip, CueMarkerTooltipOverlay.
 
 import pygame
 import renpy
@@ -16,11 +16,11 @@ if MYPY:
     from cue_lib._types import VideoPoolDict
 
 
-class SelfUpdatingLabel(Displayable):
+class CueSelfUpdatingLabel(Displayable):
     """A text label that calls renpy.redraw() to update itself periodically."""
 
     def __init__(self, getter, style="default", interval=0.05, **properties):
-        super(SelfUpdatingLabel, self).__init__(style=style, **properties)
+        super(CueSelfUpdatingLabel, self).__init__(style=style, **properties)
         self._text_style = style
         self.getter = getter
         self.interval = interval
@@ -37,13 +37,13 @@ class SelfUpdatingLabel(Displayable):
         return r
 
 
-class VideoTimeline(Displayable):
+class CueVideoTimeline(Displayable):
     """Video-editor-style timeline bar with a playhead line."""
 
     BAR_H = 16
 
     def __init__(self, interval=0.016, **properties):
-        super(VideoTimeline, self).__init__(**properties)
+        super(CueVideoTimeline, self).__init__(**properties)
         self.interval = interval
         self._w = 1
         self._bar_y = 0
@@ -463,11 +463,11 @@ class CueVideoMarkerTimeline(Displayable):
         return None
 
 
-class _Tooltip(Displayable):
+class CueTooltip(Displayable):
     """Hover tooltip that auto-sizes to fit text."""
 
     def __init__(self, text, **properties):
-        super(_Tooltip, self).__init__(**properties)
+        super(CueTooltip, self).__init__(**properties)
         self._text = text
 
     def render(self, width, height, st, at):
@@ -493,11 +493,11 @@ class _Tooltip(Displayable):
         return r
 
 
-class _MarkerTooltipOverlay(Displayable):
+class CueMarkerTooltipOverlay(Displayable):
     """Renders the marker timeline tooltip on top of all other UI."""
 
     def __init__(self, **properties):
-        super(_MarkerTooltipOverlay, self).__init__(**properties)
+        super(CueMarkerTooltipOverlay, self).__init__(**properties)
 
     def render(self, width, height, st, at):
         # type: (int, int, float, float) -> Any

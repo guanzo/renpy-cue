@@ -72,10 +72,10 @@ screen cue_overlay():
 
     # --- Tooltip overlay (after poppers so it draws above them) ---
     if _tt:
-        add _Tooltip(_tt)
+        add CueTooltip(_tt)
 
     # --- Marker timeline tooltip (rendered last so it's always on top) ---
-    add _MarkerTooltipOverlay()
+    add CueMarkerTooltipOverlay()
 
 
 screen cue_popper_anchor(name, hover_fn):
@@ -388,11 +388,11 @@ screen cue_overlay_content():
                         hbox:
                             spacing 0
                             text "Time: " style "cue_txt"
-                            add SelfUpdatingLabel(_cue.vid_manager.time_label, style="cue_txt")
+                            add CueSelfUpdatingLabel(_cue.vid_manager.time_label, style="cue_txt")
                         hbox:
                             spacing 0
                             text "Frames: " style "cue_txt"
-                            add SelfUpdatingLabel(_cue.vid_manager.frame_label, style="cue_txt")
+                            add CueSelfUpdatingLabel(_cue.vid_manager.frame_label, style="cue_txt")
                     hbox:
                         spacing 5
                         use cue_txt_button(("▶" if _cue.vid_manager.paused else "⏸"),
@@ -428,7 +428,7 @@ screen cue_overlay_content():
                         fixed:
                             xfill True
                             ysize 18
-                            add VideoTimeline()
+                            add CueVideoTimeline()
                     # Video marker tabs + active pool
                     $ _vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
                     $ _vid_entry = _cue.markers.get(_vid_key, {})

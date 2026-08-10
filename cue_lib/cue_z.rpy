@@ -80,8 +80,8 @@ init -999 python:
     )
 
     from cue_lib.displayables import (
-        SelfUpdatingLabel, VideoTimeline, CueVideoMarkerTimeline,
-        _Tooltip, _MarkerTooltipOverlay,
+        CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline,
+        CueTooltip, CueMarkerTooltipOverlay,
     )
 
     from cue_lib.speed import SpeedMode
