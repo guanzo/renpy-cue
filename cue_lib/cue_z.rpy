@@ -85,6 +85,7 @@ init -999 python:
     )
 
     from cue_lib.speed import SpeedMode
+    from cue_lib.auto_speed import _cue_auto_preset_label, _cue_auto_preset_description
     from cue_lib.video_editor import CUE_VE_MODE_NORMAL, CUE_VE_MODE_INTERPOLATE, CUE_VE_MODE_FAST_PREVIEW
 
 

@@ -31,7 +31,7 @@ if MYPY:
 class SpeedMode(object):
     SINGLE = "single"
     MULTI = "multi"
-    SMART = "smart"
+    AUTO = "auto"
 
 
 class CueVidSpeedResolver(object):
@@ -582,7 +582,7 @@ class CueVidSpeedSequence(object):
         # type: (str, Optional[str]) -> None
         if tag is None:
             tag = _cue.current_file
-        if not tag or mode not in (SpeedMode.SINGLE, SpeedMode.MULTI, SpeedMode.SMART):
+        if not tag or mode not in (SpeedMode.SINGLE, SpeedMode.MULTI, SpeedMode.AUTO):
             return
         entry = self._get_entry(tag)
         if entry is None:
@@ -591,8 +591,8 @@ class CueVidSpeedSequence(object):
         _cue.markers.save_marker(create_vid_key(tag))
         if mode == SpeedMode.MULTI:
             self.start(tag)
-        elif mode == SpeedMode.SMART:
-            self._start_smart(tag)
+        elif mode == SpeedMode.AUTO:
+            self._start_auto(tag)
         else:
             self.cancel()
             renpy.restart_interaction()

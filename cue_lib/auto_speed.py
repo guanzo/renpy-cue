@@ -15,7 +15,7 @@ from cue_lib.util import _cue_log, create_vid_key
 
 
 # ==========================================================================
-# Module-level helpers
+# Module-level helpers (imported into store by cue_z.rpy for screen access)
 # ==========================================================================
 
 def _cue_auto_preset_label(preset_name):
@@ -57,8 +57,6 @@ def _cue_auto_preset_description(preset_name):
     return descs.get(preset_name, "")
 
 
-# ==========================================================================
-# CueAutoSpeedGenerator
 # ==========================================================================
 
 class CueAutoSpeedGenerator(object):
