@@ -24,6 +24,8 @@ class Cue(_renpy_python.NoRollback):
         self.audio_dir = self.base_dir + "/audio"
         self.config_filename = "cue_config.json"
         self.config_path = ""  # set by bootstrap() once renpy.config is ready
+        self.shared_dir = ""   # set by bootstrap()
+        self.db_path = ""      # set by bootstrap()
         self.debug_log_filename = "debug.log"
 
         # --- Constants ---
@@ -47,6 +49,7 @@ class Cue(_renpy_python.NoRollback):
         self._has_relative_volume = False
 
         # --- Managers (set by bootstrap) ---
+        self.db = None
         self.markers = None
         self.undo = None
         self.trigger = None
@@ -120,3 +123,9 @@ def bootstrap():
     _cue.confirm_dialog = CueConfirmDialog()
 
     _cue.config_path = os.path.join(renpy.config.gamedir, _cue.base_dir, _cue.config_filename)
+
+    # Set up the shared SQLite database (one DB for all games, partitioned by save_directory)
+    from cue_lib.db import _cue_open_database
+    _cue.db = _cue_open_database(renpy.config.save_directory)
+    _cue.shared_dir = os.path.dirname(_cue.db.path)
+    _cue.db_path = _cue.db.path
