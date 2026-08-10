@@ -19,14 +19,42 @@ class CueBeatManager(object):
     and repeat count, then clones the pattern N times at that spacing."""
 
     def __init__(self):
-        self.anchor = 0.0
-        self.anchor_text = ""
+        self._anchor_pool = None  # type: Optional[dict]
+        self._selected_pools = []  # type: list
+        self._anchor_text = ""
         self.offsets = []
         self.sel_count = 0
         self.interval_text = ""
         self.count_text = ""
         self.dialog_visible = False
         self.preview_sfx_enabled = True
+
+    @property
+    def anchor(self):
+        # type: () -> float
+        """Live reference to the first selected marker's time."""
+        if self._anchor_pool is not None:
+            return self._anchor_pool.get("time", 0.0)
+        return 0.0
+
+    @property
+    def anchor_text(self):
+        # type: () -> str
+        """Formatted anchor time, auto-synced from the live pool reference."""
+        return _cue_format_time(self.anchor)
+
+    @anchor_text.setter
+    def anchor_text(self, value):
+        # type: (str) -> None
+        self._anchor_text = value
+
+    def _shift_selected(self, delta):
+        # type: (float) -> None
+        """Shift every selected marker by *delta* seconds, clamped per marker."""
+        dur = _cue.vid_manager.get_duration()
+        for pool in self._selected_pools:
+            val = pool.get("time", 0.0) + delta
+            pool["time"] = _cue_clamp_time(val, dur)
 
     def open(self):
         # type: () -> None
@@ -56,8 +84,8 @@ class CueBeatManager(object):
                 "volume": pool.get("volume", _cue.volume.VOL_DEFAULT),
             })
 
-        self.anchor = anchor_time
-        self.anchor_text = _cue_format_time(anchor_time)
+        self._anchor_pool = markers[sorted_sel[0]]
+        self._selected_pools = [markers[i] for i in sorted_sel]
         self.offsets = offsets
         self.sel_count = len(sorted_sel)
 
@@ -220,30 +248,20 @@ class CueBeatManager(object):
             return "Creates {} new marker(s)".format(new_markers)
         return "No new markers to create"
 
-    def sync_anchor(self):
-        # type: () -> None
-        """Sync anchor_text from the current anchor value."""
-        self.anchor_text = _cue_format_time(self.anchor)
-
     def nudge_anchor(self, delta):
         # type: (float) -> None
-        """Nudge anchor by delta seconds, clamped to >= 0 and <= video duration."""
-        dur = _cue.vid_manager.get_duration()
-        val = self.anchor + delta
-        val = _cue_clamp_time(val, dur)
-        self.anchor = val
-        self.anchor_text = _cue_format_time(val)
+        """Nudge the entire selected group by *delta* seconds."""
+        self._shift_selected(delta)
         renpy.restart_interaction()
 
     def commit_anchor(self):
         # type: () -> None
-        """Commit anchor text; clamps to [0, video duration] on invalid input."""
-        new_time = _cue_parse_time(self.anchor_text)
+        """Commit anchor text; shifts the entire selected group."""
+        new_time = _cue_parse_time(self._anchor_text)
         if new_time is not None and new_time >= 0:
-            dur = _cue.vid_manager.get_duration()
-            new_time = _cue_clamp_time(new_time, dur)
-            self.anchor = new_time
-        self.anchor_text = _cue_format_time(self.anchor)
+            delta = new_time - self.anchor
+            if delta:
+                self._shift_selected(delta)
         renpy.restart_interaction()
 
     def commit_interval(self):

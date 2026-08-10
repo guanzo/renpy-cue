@@ -648,8 +648,6 @@ screen cue_repeat_pattern_dialog():
                     use cue_float_input("_cue.beat.anchor_text", _anchor_commit, _anchor_display,
                         dec_action=_anchor_dec, inc_action=_anchor_inc)
 
-                null height 5
-
                 hbox:
                     spacing 3
                     xalign 0.0
