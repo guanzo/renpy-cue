@@ -119,21 +119,30 @@ screen cue_tab_btn(label, selected, switch_action, tt=None):
 # field_name: string for VariableInputValue
 # commit_action: Function() called on Enter — must return True (valid) or False (invalid)
 # display_text: the label shown on the textbutton
-screen cue_float_input(field_name, commit_action, display_text):
+screen cue_float_input(field_name, commit_action, display_text,
+                       dec_action=None, inc_action=None):
     default editing = False
-    if editing:
-        key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
-        key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
-        input:
-            style "cue_input"
-            value _CueFieldValue(field_name)
-            default True
-            xsize 80
-            ysize 16
-    else:
-        use cue_txt_button(display_text,
-            SetLocalVariable("editing", True),
-            ysize=16, tt="Click to edit. Press Enter to confirm.")
+    hbox:
+        spacing 3
+        if dec_action is not None:
+            use cue_icon_btn("-", dec_action)
+
+        if editing:
+            key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
+            key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
+            input:
+                style "cue_input"
+                value _CueFieldValue(field_name)
+                default True
+                xsize 80
+                ysize 16
+        else:
+            use cue_txt_button(display_text,
+                SetLocalVariable("editing", True),
+                ysize=16, tt="Click to edit. Press Enter to confirm.")
+
+        if inc_action is not None:
+            use cue_icon_btn("+", inc_action)
 
 # Reusable time input: -- - [textbutton | input] + ++ with nudge buttons and Enter-to-commit.
 # field_name: string for VariableInputValue (e.g. "_cue.markers.video.edit_text")

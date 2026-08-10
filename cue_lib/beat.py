@@ -5,7 +5,7 @@
 import renpy
 
 from cue_lib.state import _cue
-from cue_lib.util import create_vid_key
+from cue_lib.util import create_vid_key, _cue_format_time, _cue_parse_time, _cue_clamp_time
 
 MYPY = False
 if MYPY:
@@ -20,6 +20,7 @@ class CueBeatManager(object):
 
     def __init__(self):
         self.anchor = 0.0
+        self.anchor_text = ""
         self.offsets = []
         self.sel_count = 0
         self.interval_text = ""
@@ -56,6 +57,7 @@ class CueBeatManager(object):
             })
 
         self.anchor = anchor_time
+        self.anchor_text = _cue_format_time(anchor_time)
         self.offsets = offsets
         self.sel_count = len(sorted_sel)
 
@@ -217,6 +219,32 @@ class CueBeatManager(object):
         if new_markers > 0:
             return "Creates {} new marker(s)".format(new_markers)
         return "No new markers to create"
+
+    def sync_anchor(self):
+        # type: () -> None
+        """Sync anchor_text from the current anchor value."""
+        self.anchor_text = _cue_format_time(self.anchor)
+
+    def nudge_anchor(self, delta):
+        # type: (float) -> None
+        """Nudge anchor by delta seconds, clamped to >= 0 and <= video duration."""
+        dur = _cue.vid_manager.get_duration()
+        val = self.anchor + delta
+        val = _cue_clamp_time(val, dur)
+        self.anchor = val
+        self.anchor_text = _cue_format_time(val)
+        renpy.restart_interaction()
+
+    def commit_anchor(self):
+        # type: () -> None
+        """Commit anchor text; clamps to [0, video duration] on invalid input."""
+        new_time = _cue_parse_time(self.anchor_text)
+        if new_time is not None and new_time >= 0:
+            dur = _cue.vid_manager.get_duration()
+            new_time = _cue_clamp_time(new_time, dur)
+            self.anchor = new_time
+        self.anchor_text = _cue_format_time(self.anchor)
+        renpy.restart_interaction()
 
     def commit_interval(self):
         # type: () -> None

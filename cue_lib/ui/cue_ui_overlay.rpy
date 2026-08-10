@@ -374,9 +374,9 @@ screen cue_overlay_content():
                             text "New Speed:" style "cue_txt"
                             $ _commit = Function(_cue.video_editor.commit_text)
                             $ _display = _cue_speed_label(float(_ved.factor_text))
-                            use cue_icon_btn("-", Function(_cue.video_editor.nudge, -0.1))
-                            use cue_float_input("_cue.video_editor.factor_text", _commit, _display)
-                            use cue_icon_btn("+", Function(_cue.video_editor.nudge, 0.1))
+                            use cue_float_input("_cue.video_editor.factor_text", _commit, _display,
+                                dec_action=Function(_cue.video_editor.nudge, -0.1),
+                                inc_action=Function(_cue.video_editor.nudge, 0.1))
                             $ _ov_presets = _cue.speed_resolver.preset_speeds()
                             if _ov_presets:
                                 use cue_v_divider()
@@ -641,7 +641,12 @@ screen cue_repeat_pattern_dialog():
                 hbox:
                     spacing 5
                     text "Anchor:" style "cue_txt"
-                    text _cue_format_time(anchor) style "cue_txt" color _cue_color_text_accent
+                    $ _anchor_dec = Function(_cue.beat.nudge_anchor, -0.01)
+                    $ _anchor_inc = Function(_cue.beat.nudge_anchor, 0.01)
+                    $ _anchor_commit = Function(_cue.beat.commit_anchor)
+                    $ _anchor_display = _cue.beat.anchor_text
+                    use cue_float_input("_cue.beat.anchor_text", _anchor_commit, _anchor_display,
+                        dec_action=_anchor_dec, inc_action=_anchor_inc)
 
                 null height 5
 
@@ -651,9 +656,9 @@ screen cue_repeat_pattern_dialog():
                     text "Interval:" style "cue_txt" size 12
                     $ _commit = Function(_cue.beat.commit_interval)
                     $ _display = _cue.beat.interval_text
-                    use cue_icon_btn("-", Function(_cue.beat.nudge_interval, -0.1))
-                    use cue_float_input("_cue.beat.interval_text", _commit, _display)
-                    use cue_icon_btn("+", Function(_cue.beat.nudge_interval, 0.1))
+                    use cue_float_input("_cue.beat.interval_text", _commit, _display,
+                        dec_action=Function(_cue.beat.nudge_interval, -0.1),
+                        inc_action=Function(_cue.beat.nudge_interval, 0.1))
 
                 hbox:
                     spacing 3
@@ -663,9 +668,8 @@ screen cue_repeat_pattern_dialog():
                     $ _inc = Function(_cue.beat.nudge_count, 1)
                     $ _commit = Function(_cue.beat.commit_count)
                     $ _display = _cue.beat.count_text
-                    use cue_icon_btn("-", _dec)
-                    use cue_float_input("_cue.beat.count_text", _commit, _display)
-                    use cue_icon_btn("+", _inc)
+                    use cue_float_input("_cue.beat.count_text", _commit, _display,
+                        dec_action=_dec, inc_action=_inc)
 
                 use cue_toggle_btn(_cue.beat.preview_sfx_enabled, "Preview markers trigger SFX",
                     Function(_cue.beat.toggle_preview_sfx))
