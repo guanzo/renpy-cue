@@ -100,17 +100,19 @@ class CueBeatManager(object):
         if default_interval <= 0:
             default_interval = 1.0
 
-        self.interval_text = "{:.2f}".format(default_interval)
+        if not self.interval_text:
+            self.interval_text = "{:.2f}".format(default_interval)
 
         # Max repeats that fit in video duration
-        dur = _cue.vid_manager.get_duration()
-        if dur > 0 and default_interval > 0:
-            max_count = int((dur - anchor_time - max_offset) / default_interval)
-            if max_count < 0:
+        if not self.count_text:
+            dur = _cue.vid_manager.get_duration()
+            if dur > 0 and default_interval > 0:
+                max_count = int((dur - anchor_time - max_offset) / default_interval)
+                if max_count < 0:
+                    max_count = 0
+            else:
                 max_count = 0
-        else:
-            max_count = 0
-        self.count_text = str(max_count)
+            self.count_text = str(max_count)
 
         self.dialog_visible = True
         renpy.show_screen("cue_repeat_pattern_dialog", _layer="cue_layer")
