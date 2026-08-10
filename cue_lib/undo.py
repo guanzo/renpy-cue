@@ -2,7 +2,7 @@
 # CueUndoManager -- snapshot-on-save undo/redo for markers, presets, and
 # video_presets.
 #
-# Hooks into CueMarkerManager.save_persistent(): every time data is persisted,
+# Hooks into CueMarkerManager._post_save(): every time data is persisted,
 # we snapshot the three stores. A short time window dedupes compound operations
 # (e.g. remove_file where _detach_pool saves mid-flight) into a single undo step.
 #
@@ -46,7 +46,7 @@ class CueUndoManager(object):
             "video_presets": _copy.deepcopy(m._video_presets),
         }
 
-    # -- capture (called from save_persistent) --
+    # -- capture (called from save_marker / save_all / _post_save) --
 
     def seed(self):
         # type: () -> None
@@ -58,7 +58,7 @@ class CueUndoManager(object):
         # type: () -> None
         """Snapshot post-mutation state and push the PREVIOUS snapshot
         (pre-mutation) onto the undo stack. Called at the end of every
-        save_persistent(). Time-window dedupe merges rapid saves."""
+        save_marker() / save_all(). Time-window dedupe merges rapid saves."""
         if not self._recording:
             # Restore just re-persisted -- re-enable and skip.
             self._recording = True
