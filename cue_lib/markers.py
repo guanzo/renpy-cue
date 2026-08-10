@@ -7,7 +7,6 @@ import copy as _copy
 import random as _random
 import time as _time
 import json as _json
-import glob as _glob
 import renpy.config as _config
 
 from renpy.store import persistent
@@ -71,7 +70,7 @@ class CueMarkerContext(object):
         # type: () -> None
         key = self._key()
         self._mgr.pop(key, None)
-        self._mgr.save_persistent()
+        self._mgr._db_save_marker(key)
 
     def add_pool(self):
         # type: () -> None
@@ -82,7 +81,7 @@ class CueMarkerContext(object):
             "volume": _cue.VOL_DEFAULT,
         })
         self._set_target(len(entry["pools"]) - 1)
-        self._mgr.save_persistent()
+        self._mgr._db_save_marker(key)
 
     def remove_pool(self, pool_index):
         # type: (int) -> None
@@ -101,7 +100,7 @@ class CueMarkerContext(object):
             self._set_target(min(self._get_target(), remaining - 1))
         else:
             self._set_target(0)
-        self._mgr.save_persistent()
+        self._mgr._db_save_marker(key)
 
     def get_active(self):
         # type: () -> int
@@ -125,7 +124,7 @@ class CueMarkerContext(object):
         files = pool.setdefault("files", [])
         if folder_ref not in files:
             files.append(folder_ref)
-        self._mgr.save_persistent()
+        self._mgr._db_save_marker(key)
 
 
 class ResolvedPool(object):
@@ -245,7 +244,7 @@ class CueVideoContext(CueMarkerContext):
             elapsed = _cue.vid_manager.get_elapsed()
             self._append_pool(entry, pools,
                 {"time": elapsed, "files": [filename]})
-        self._mgr.save_persistent()
+        self._mgr._db_save_marker(vid_key)
 
     def remove_file(self, pool_index, file_index):
         # type: (int, int) -> None
@@ -258,7 +257,7 @@ class CueVideoContext(CueMarkerContext):
         files = pools[pool_index].get("files", [])
         if 0 <= file_index < len(files):
             files.pop(file_index)
-            self._mgr.save_persistent()
+            self._mgr._db_save_marker(vid_key)
 
     def add_folder(self, folder_path):
         # type: (str) -> None
@@ -277,7 +276,7 @@ class CueVideoContext(CueMarkerContext):
             elapsed = _cue.vid_manager.get_elapsed()
             self._append_pool(entry, pools,
                 {"time": elapsed, "files": [folder_ref]})
-        self._mgr.save_persistent()
+        self._mgr._db_save_marker(vid_key)
 
     def clear(self):
         # type: () -> None
@@ -293,7 +292,7 @@ class CueVideoContext(CueMarkerContext):
         pools = entry["pools"]
         self._append_pool(entry, pools,
             {"time": elapsed, "files": []})
-        self._mgr.save_persistent()
+        self._mgr._db_save_marker(vid_key)
 
     def apply_preset(self, preset_name):
         # type: (str) -> None
@@ -309,7 +308,7 @@ class CueVideoContext(CueMarkerContext):
         self._append_pool(entry, pools,
             {"time": elapsed, "preset": preset_name})
         self.sync_text()
-        self._mgr.save_persistent()
+        self._mgr._db_save_marker(vid_key)
 
     def remove_pool(self, pool_index):
         # type: (int) -> None
@@ -329,7 +328,7 @@ class CueVideoContext(CueMarkerContext):
         pools.sort(key=lambda e: e["time"])
         self.target_pool = next(i for i, pool in enumerate(pools) if pool is clone)
         self.selected = set()
-        self._mgr.save_persistent()
+        self._mgr._db_save_marker(vid_key)
 
     def remove_selected(self):
         # type: () -> None
@@ -347,7 +346,7 @@ class CueVideoContext(CueMarkerContext):
                 else:
                     self.target_pool = min(self.target_pool, len(pools) - 1)
             self.selected = set()
-            self._mgr.save_persistent()
+            self._mgr._db_save_marker(self._key())
         else:
             self.remove_pool(self.target_pool)
 
@@ -394,7 +393,7 @@ class CueVideoContext(CueMarkerContext):
         self._sort_and_track(pools, pool_entry)
         self.edit_text = _cue_format_time(new_time)
         self.selected = set()
-        self._mgr.save_persistent()
+        self._mgr._db_save_marker(self._key())
 
     def set_time(self, idx, new_time):
         # type: (int, float) -> None
@@ -424,7 +423,7 @@ class CueVideoContext(CueMarkerContext):
             self.selected = new_sel
             if new_sel:
                 self.target_pool = min(new_sel)
-        self._mgr.save_persistent()
+        self._mgr._db_save_marker(self._key())
 
     def sync_text(self):
         # type: () -> None
@@ -446,7 +445,7 @@ class CueVideoContext(CueMarkerContext):
             edited_entry["time"] = new_time
             self._sort_and_track(pools, edited_entry)
             self.selected = set()
-            self._mgr.save_persistent()
+            self._mgr._db_save_marker(self._key())
         self.edit_text = _cue_format_time(pools[self.target_pool]["time"])
 
     def get_markers(self):
@@ -495,14 +494,14 @@ class CueLoopContext(CueMarkerContext):
             "frequency": 1,
         })
         self._set_target(len(entry["pools"]) - 1)
-        self._mgr.save_persistent()
+        self._mgr._db_save_marker(key)
 
     def clear(self):
         # type: () -> None
         key = self._key()
         self._mgr.pop(key, None)
         _cue.trigger.loop_states.pop(key, None)
-        self._mgr.save_persistent()
+        self._mgr._db_save_marker(key)
 
     def set_frequency(self, freq):
         # type: (int) -> None
@@ -513,7 +512,7 @@ class CueLoopContext(CueMarkerContext):
             pools = entry.get("pools", [])
             if pools and 0 <= target < len(pools):
                 pools[target]["frequency"] = int(freq)
-                self._mgr.save_persistent()
+                self._mgr._db_save_marker(key)
 
     def set_exclusive(self, value):
         # type: (bool) -> None
@@ -524,7 +523,7 @@ class CueLoopContext(CueMarkerContext):
             pools = entry.get("pools", [])
             if pools and 0 <= target < len(pools):
                 pools[target]["exclusive"] = bool(value)
-                self._mgr.save_persistent()
+                self._mgr._db_save_marker(key)
 
     @staticmethod
     def get_delay(frequency=1):
@@ -612,7 +611,7 @@ class CueMarkerManager(object):
     def create_preset(self, name, pool_dict):
         # type: (str, PoolDict) -> None
         self._presets[name] = _copy.deepcopy(pool_dict)
-        self.save_persistent()
+        self._db_save_preset(name)
         _cue_log("CREATE-PRESET name={} files={} vol={:.1f}".format(
             name, len(pool_dict.get("files", [])), pool_dict.get("volume", _cue.VOL_DEFAULT)))
 
@@ -620,7 +619,7 @@ class CueMarkerManager(object):
         # type: (str) -> None
         if name in self._presets:
             del self._presets[name]
-            self.save_persistent()
+            self._db_save_preset(name)
             _cue_log("DELETE-PRESET name={}".format(name))
 
     def preset_remove_file(self, name, file_path):
@@ -631,7 +630,7 @@ class CueMarkerManager(object):
         files = preset.get("files", [])
         if file_path in files:
             files.remove(file_path)
-            self.save_persistent()
+            self._db_save_preset(name)
             return
         for fi, f in enumerate(files):
             if f.endswith("/") and file_path.startswith(f):
@@ -642,7 +641,7 @@ class CueMarkerManager(object):
                 if file_path in resolved:
                     resolved.remove(file_path)
                 files[fi:fi + 1] = resolved
-                self.save_persistent()
+                self._db_save_preset(name)
                 return
 
     def get_preset(self, name):
@@ -677,7 +676,7 @@ class CueMarkerManager(object):
             "volume": entry.get("volume", _cue.VOL_DEFAULT),
             "source_duration": max(source_dur, 0.0),
         }
-        self.save_persistent()
+        self._db_save_video_preset(name)
         _cue_log("CREATE-VIDEO-PRESET name={} markers={} dur={:.1f}".format(
             name, len(clean), source_dur))
 
@@ -685,7 +684,7 @@ class CueMarkerManager(object):
         # type: (str) -> None
         if name in self._video_presets:
             del self._video_presets[name]
-            self.save_persistent()
+            self._db_save_video_preset(name)
             _cue_log("DELETE-VIDEO-PRESET name={}".format(name))
 
     def get_video_preset(self, name):
@@ -742,7 +741,7 @@ class CueMarkerManager(object):
         self.video.target_pool = 0
         self.video.selected = set()
         self.video.sync_text()
-        self.save_persistent()
+        self._db_save_marker(vid_key)
         _cue_log("APPLY-VIDEO-PRESET key={} preset={} markers={} dropped={}".format(
             vid_key, name, len(new_pools), dropped))
 
@@ -798,7 +797,7 @@ class CueMarkerManager(object):
             files = pools[pool_index].get("files", [])
             if child_file in files:
                 files.remove(child_file)
-        self.save_persistent()
+        self._db_save_marker(trigger_key)
 
     def resolve_pool(self, pool):
         # type: (PoolDict) -> ResolvedPool
@@ -831,7 +830,7 @@ class CueMarkerManager(object):
             pool["frequency"] = r.frequency
         if "trigger_on_shake" in preset:
             pool["trigger_on_shake"] = r.trigger_on_shake
-        self.save_persistent()
+        self._db_save_marker(trigger_key)
         _cue_log("DETACH-POOL key={} pi={} preset={} files={}".format(
             trigger_key, pool_index, preset_name, len(r.files)))
         return True
@@ -843,7 +842,7 @@ class CueMarkerManager(object):
         while len(pools) <= pool_index:
             pools.append({"files": [], "volume": _cue.VOL_DEFAULT})
         pools[pool_index] = {"preset": preset_name}
-        self.save_persistent()
+        self._db_save_marker(trigger_key)
         _cue_log("STAMP-PRESET key={} pi={} preset={}".format(
             trigger_key, pool_index, preset_name))
 
@@ -873,7 +872,7 @@ class CueMarkerManager(object):
         if file_index >= len(files):
             return
         self._detach_folder_ref_in_files(files, file_index, child_file)
-        self.save_persistent()
+        self._db_save_marker(trigger_key)
 
     def _normalize_entry(self, entry):
         # type: (Any) -> MarkerEntry
@@ -913,7 +912,7 @@ class CueMarkerManager(object):
         files = pool.setdefault("files", [])
         if filename not in files:
             files.append(filename)
-        self.save_persistent()
+        self._db_save_marker(trigger_key)
 
     def _remove_file_from_pool(self, trigger_key, file_index, pool_index=0):
         # type: (str, int, int) -> None
@@ -933,14 +932,14 @@ class CueMarkerManager(object):
                 pools.pop(pool_index)
             if not pools:
                 del self._data[trigger_key]
-            self.save_persistent()
+            self._db_save_marker(trigger_key)
         elif "files" in entry:
             files = entry["files"]
             if 0 <= file_index < len(files):
                 files.pop(file_index)
                 if not files:
                     del self._data[trigger_key]
-                self.save_persistent()
+                self._db_save_marker(trigger_key)
 
     def _normalize_all(self):
         # type: () -> bool
@@ -1006,26 +1005,111 @@ class CueMarkerManager(object):
 
     # -- persistence --
 
-    def save_persistent(self):
+    # ------------------------------------------------------------------
+    # Public save API -- targeted DB writes for routine mutations
+    # ------------------------------------------------------------------
+
+    def save_marker(self, key):
+        # type: (str) -> None
+        """Persist one marker entry to SQLite. Call after mutating self._data[key]."""
+        self._db_save_marker(key)
+
+    def save_preset(self, name):
+        # type: (str) -> None
+        """Persist one audio preset to SQLite."""
+        self._db_save_preset(name)
+
+    def save_video_preset(self, name):
+        # type: (str) -> None
+        """Persist one video preset to SQLite."""
+        self._db_save_video_preset(name)
+
+    # ------------------------------------------------------------------
+    # Internal helpers -- write one item to DB, then run side effects
+    # ------------------------------------------------------------------
+
+    def _db_save_marker(self, key):
+        # type: (str) -> None
+        db = _cue.db
+        if db is not None and db.is_open():
+            if key in self._data:
+                db.save_marker(key, self._data[key])
+            else:
+                db.delete_marker(key)
+        self._post_save()
+
+    def _db_save_preset(self, name):
+        # type: (str) -> None
+        db = _cue.db
+        if db is not None and db.is_open():
+            if name in self._presets:
+                db.save_preset("audio", name, self._presets[name])
+            else:
+                db.delete_preset("audio", name)
+        self._post_save()
+
+    def _db_save_video_preset(self, name):
+        # type: (str) -> None
+        db = _cue.db
+        if db is not None and db.is_open():
+            if name in self._video_presets:
+                db.save_preset("video", name, self._video_presets[name])
+            else:
+                db.delete_preset("video", name)
+        self._post_save()
+
+    def _post_save(self):
         # type: () -> None
-        stripped = self._sanitize_video_pools()
-        if stripped:
-            _cue_log("SAVE-MARKERS: sanitized {} malformed video pool(s)".format(stripped))
-        data = {
-            "markers": _cue_unwrap_persistent(self._data),
-            "presets": _cue_unwrap_persistent(self._presets),
-            "video_presets": _cue_unwrap_persistent(self._video_presets),
-            "disabled_files": list(_cue_unwrap_persistent(_cue.file_tree.disabled_files)),
-            "triggers_active": _cue.trigger.active,
-            "encode_mode": _cue.video_editor.encode_mode,
-            "seamless_transition": _cue.speed_resolver.seamless_transition,
-        }
-        persistent._cue_config = data
+        """Common side effects after any DB write."""
+        stripped_keys = self._sanitize_video_pools_tracked()
+        db = _cue.db
+        if db is not None and db.is_open():
+            for key in stripped_keys:
+                if key in self._data:
+                    db.save_marker(key, self._data[key])
         self._autosave_backup()
         _cue.undo.capture()
 
+    def _sanitize_video_pools_tracked(self):
+        # type: () -> Set[str]
+        modified = set()
+        for key, entry in list(self._data.items()):
+            if not is_vid_key(key):
+                continue
+            pools = entry.get("pools")
+            if not pools:
+                continue
+            clean, stripped = self._clean_pool_list(pools)
+            if stripped:
+                entry["pools"] = clean
+                modified.add(key)
+        total = len(modified)
+        if total:
+            _cue_log("SAVE-MARKERS: sanitized {} malformed video pool(s)".format(total))
+        return modified
+
+    def save_all(self):
+        # type: () -> None
+        """Full save of all markers + presets to DB.
+        Used by migration, restore, and undo/redo."""
+        db = _cue.db
+        if db is not None and db.is_open():
+            for key in self._data:
+                db.save_marker(key, self._data[key])
+            for name, data in self._presets.items():
+                db.save_preset("audio", name, data)
+            for name, data in self._video_presets.items():
+                db.save_preset("video", name, data)
+        self._autosave_backup()
+        _cue.undo.capture()
+
+    # ------------------------------------------------------------------
+    # Load / migration
+    # ------------------------------------------------------------------
+
     def _populate_config(self, data):
         # type: (Any) -> None
+        """Populate in-memory stores from a legacy dict (migration only)."""
         self._data = _cue_unwrap_persistent(data.get("markers", {}))
         self._presets = _cue_unwrap_persistent(data.get("presets", {}))
         self._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
@@ -1033,6 +1117,10 @@ class CueMarkerManager(object):
         _cue.trigger.active = data.get("triggers_active", True)
         _cue.video_editor.encode_mode = data.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
         _cue.speed_resolver.seamless_transition = data.get("seamless_transition", False)
+        persistent._cue_triggers_active = _cue.trigger.active
+        persistent._cue_encode_mode = _cue.video_editor.encode_mode
+        persistent._cue_seamless_transition = _cue.speed_resolver.seamless_transition
+        persistent._cue_disabled_files = set(_cue.file_tree.disabled_files)
         self._migrate_video_timestamps_to_pools()
         self._sanitize_video_pools()
         self._sanitize_video_presets()
@@ -1041,13 +1129,71 @@ class CueMarkerManager(object):
 
     def load_persistent(self):
         # type: () -> None
-        data = getattr(persistent, '_cue_config', None)
-        if data is None:
-            self._data = {}
-            self._video_presets = {}
+        """Load markers + presets from SQLite; scalars from persistent."""
+        db = _cue.db
+        if db is None or not db.is_open():
+            data = getattr(persistent, '_cue_config', None)
+            if data is None:
+                self._data = {}
+                self._video_presets = {}
+            else:
+                self._populate_config(data)
+            self._load_scalars_from_persistent()
             return
-        self._populate_config(data)
+
+        if db.is_fresh():
+            data = self._load_legacy_json()
+            source = "json" if data is not None else None
+            if data is None:
+                data = getattr(persistent, '_cue_config', None)
+                source = "persistent" if data is not None else None
+            if data is not None:
+                self._populate_config(data)
+                db.migrate_markers_and_presets(
+                    self._data, self._presets, self._video_presets,
+                )
+                _cue_log("MIGRATE-DB source={} keys={}".format(
+                    source, len(self._data)))
+            else:
+                self._data = {}
+                self._video_presets = {}
+        else:
+            self._data = db.load_markers()
+            self._presets, self._video_presets = db.load_presets()
+            self._migrate_video_timestamps_to_pools()
+            self._sanitize_video_pools()
+            self._sanitize_video_presets()
+            self._normalize_all()
+            self._migrate_speed_mode_rename()
+
+        self._load_scalars_from_persistent()
         _cue_log("LOAD-MARKERS total_keys={}".format(len(self._data)))
+
+    def _load_scalars_from_persistent(self):
+        # type: () -> None
+        _cue.file_tree.disabled_files = set(
+            getattr(persistent, '_cue_disabled_files', set()))
+        _cue.trigger.active = getattr(
+            persistent, '_cue_triggers_active', True)
+        _cue.video_editor.encode_mode = getattr(
+            persistent, '_cue_encode_mode', _cue.video_editor.MODE_INTERPOLATE)
+        _cue.speed_resolver.seamless_transition = getattr(
+            persistent, '_cue_seamless_transition', False)
+
+    def _load_legacy_json(self):
+        # type: () -> Optional[Any]
+        dump_path = _cue.config_path
+        if not os.path.isfile(dump_path):
+            return None
+        try:
+            with open(dump_path, "r") as f:
+                return _json.load(f)
+        except Exception:
+            return None
+
+    # ------------------------------------------------------------------
+    # Backup / restore
+    # ------------------------------------------------------------------
 
     def _autosave_backup(self):
         # type: () -> None
@@ -1055,25 +1201,12 @@ class CueMarkerManager(object):
         if now - self._last_autosave_time < 300:
             return
         self._last_autosave_time = now
-        try:
-            backup_dir = os.path.join(_config.gamedir, _cue.base_dir, "auto_backups")
-            if not os.path.isdir(backup_dir):
-                os.makedirs(backup_dir)
-            dump_path = os.path.join(backup_dir, "cue_config_{}.json".format(int(now)))
-            data = getattr(persistent, '_cue_config', None)
-            if data is None:
-                return
-            with open(dump_path, "w") as f:
-                _json.dump(data, f, indent=2, sort_keys=True)
-            backups = sorted(_glob.glob(os.path.join(backup_dir, "cue_config_*.json")))
-            if len(backups) > self.MAX_BACKUPS:
-                for old in backups[:-self.MAX_BACKUPS]:
-                    try:
-                        os.remove(old)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+        db = _cue.db
+        if db is not None and db.is_open():
+            try:
+                db.maybe_backup(self._data, self._presets, self._video_presets)
+            except Exception:
+                pass
 
     def backup_to_file(self):
         # type: () -> None
@@ -1082,15 +1215,25 @@ class CueMarkerManager(object):
             if not os.path.isdir(dump_dir):
                 os.makedirs(dump_dir)
             dump_path = os.path.join(dump_dir, _cue.config_filename)
-            data = getattr(persistent, '_cue_config', None)
-            if data is None:
-                return
+            data = self._build_config_dict()
             with open(dump_path, "w") as f:
                 _json.dump(data, f, indent=2, sort_keys=True)
             _cue_log("DUMP-MARKERS total_keys={} path={}".format(
                 len(self._data), _cue.config_filename))
         except Exception as e:
             _cue_log("DUMP-MARKERS-ERROR {}".format(str(e)))
+
+    def _build_config_dict(self):
+        # type: () -> Dict[str, Any]
+        return {
+            "markers": _cue_unwrap_persistent(self._data),
+            "presets": _cue_unwrap_persistent(self._presets),
+            "video_presets": _cue_unwrap_persistent(self._video_presets),
+            "disabled_files": list(_cue_unwrap_persistent(_cue.file_tree.disabled_files)),
+            "triggers_active": _cue.trigger.active,
+            "encode_mode": _cue.video_editor.encode_mode,
+            "seamless_transition": _cue.speed_resolver.seamless_transition,
+        }
 
     def restore_from_file(self):
         # type: () -> None
@@ -1101,9 +1244,8 @@ class CueMarkerManager(object):
                 return
             with open(dump_path, "r") as f:
                 data = _json.load(f)
-            persistent._cue_config = data
             self._populate_config(data)
-            self.save_persistent()
+            self.save_all()
             _cue_log("RESTORE-MARKERS total_keys={} path={}".format(
                 len(self._data), _cue.config_filename))
         except Exception as e:
@@ -1166,4 +1308,4 @@ class CueMarkerManager(object):
                         t = max(0.0, t)
                     pool_entry["time"] = t
         _cue.trigger.loop_states = {}
-        self.save_persistent()
+        self.save_all()
