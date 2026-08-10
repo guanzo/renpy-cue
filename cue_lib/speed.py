@@ -67,7 +67,7 @@ class CueVidSpeedResolver(object):
             return
         entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
         entry["speed_pref"] = speed
-        _cue.markers.save_persistent()
+        _cue.markers.save_marker(create_vid_key(tag))
 
     def speed_for(self, tag):
         # type: (str) -> float
@@ -161,6 +161,7 @@ class CueVidSpeedResolver(object):
     def toggle_seamless(self):
         # type: () -> None
         self.seamless_transition = not self.seamless_transition
+        persistent._cue_seamless_transition = self.seamless_transition
         if not self.seamless_transition:
             self._pending_speed = None
             self._pre_pending_speed = None
@@ -409,7 +410,7 @@ class CueVidSpeedResolver(object):
                 self.children.pop((tag, speed), None)
         self._prune_deleted_speed_from_sequence(speed)
         _cue_log("DELETE-VARIANT: removed {} (speed={:.1f}x)".format(vpath, speed))
-        _cue.markers.save_persistent()
+        _cue.markers.save_all()
         renpy.restart_interaction()
 
 
@@ -485,7 +486,7 @@ class CueVidSpeedSequence(object):
         _cue_log("VQ-APPEND tag={} speed={} seq={}".format(tag, speed, seq))
         if len(seq) >= 1:
             self.start(tag)
-        _cue.markers.save_persistent()
+        _cue.markers.save_marker(create_vid_key(tag))
         renpy.restart_interaction()
 
     def remove_at(self, index):
@@ -502,7 +503,7 @@ class CueVidSpeedSequence(object):
         seq.pop(index)
         if not seq:
             entry.pop("speed_sequence", None)
-        _cue.markers.save_persistent()
+        _cue.markers.save_marker(create_vid_key(tag))
         if self.active_tag == tag:
             self.start(tag)
         else:
@@ -523,7 +524,7 @@ class CueVidSpeedSequence(object):
         if new_index < 0 or new_index >= len(seq):
             return
         seq[index], seq[new_index] = seq[new_index], seq[index]
-        _cue.markers.save_persistent()
+        _cue.markers.save_marker(create_vid_key(tag))
         if self.active_tag == tag:
             self.start(tag)
         else:
@@ -538,7 +539,7 @@ class CueVidSpeedSequence(object):
         entry = _cue.markers.get(create_vid_key(tag))
         if entry is not None and "speed_sequence" in entry:
             del entry["speed_sequence"]
-            _cue.markers.save_persistent()
+            _cue.markers.save_marker(create_vid_key(tag))
         self.cancel()
         renpy.restart_interaction()
 
@@ -563,7 +564,7 @@ class CueVidSpeedSequence(object):
         if entry is None:
             return
         entry["speed_mode"] = mode
-        _cue.markers.save_persistent()
+        _cue.markers.save_marker(create_vid_key(tag))
         if mode == SpeedMode.MULTI:
             self.start(tag)
         else:

@@ -9,6 +9,7 @@ import renpy
 import renpy.audio.music as _music
 import renpy.audio.audio as _aaudio
 
+from renpy.store import persistent
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_unwrap_displayable, _cue_get_movie_play,
@@ -42,7 +43,7 @@ def _cue_toggle_overlay():
 def _cue_toggle_active():
     # type: () -> None
     _cue.trigger.active = not _cue.trigger.active
-    _cue.markers.save_persistent()
+    persistent._cue_triggers_active = _cue.trigger.active
 
 def _cue_toggle_shake_trigger():
     # type: () -> None
@@ -51,7 +52,7 @@ def _cue_toggle_shake_trigger():
     shake_key = create_img_key(_cue.current_file)
     pool = _cue.markers._ensure_pool(shake_key, _cue.markers._img_target)
     pool["trigger_on_shake"] = not pool.get("trigger_on_shake", False)
-    _cue.markers.save_persistent()
+    _cue.markers.save_marker(shake_key)
 
 def _cue_show_overlay():
     # type: () -> None
@@ -67,7 +68,6 @@ def _cue_show_overlay():
 def _cue_hide_overlay():
     # type: () -> None
     _cue.is_overlay_visible = False
-    _cue.markers.save_persistent()
     renpy.hide_screen("cue_overlay", layer="cue_layer")
 
 

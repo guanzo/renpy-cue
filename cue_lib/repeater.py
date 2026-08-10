@@ -159,7 +159,7 @@ class CueMarkerRepeater(object):
         if new_count > 0:
             pools.sort(key=lambda e: e["time"])
         _cue.markers.video.selected = set()
-        _cue.markers.save_persistent()
+        _cue.markers.save_marker(vid_key)
 
     def hide(self):
         # type: () -> None

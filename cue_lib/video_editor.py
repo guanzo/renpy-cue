@@ -440,7 +440,7 @@ class CueVideoEditQueue(object):
                 state.last_error = ""
                 _cue_log("Variant: generated {:.1f}x at {} (job_id={})".format(
                     speed, os.path.basename(out), job.job_id))
-                _cue.markers.save_persistent()
+                _cue.markers.save_all()
                 return
             except Exception:
                 if _attempt < 3:
@@ -895,7 +895,7 @@ class CueVideoEditor(object):
         if mode not in (self.MODE_NORMAL, self.MODE_INTERPOLATE, self.MODE_FAST_PREVIEW):
             return
         self.encode_mode = mode
-        _cue.markers.save_persistent()
+        persistent._cue_encode_mode = mode
         renpy.restart_interaction()
 
     def close_editor(self):

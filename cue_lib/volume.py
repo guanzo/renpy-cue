@@ -56,7 +56,7 @@ class CueVolumeManager(object):
                 pools[pool_index]["volume"] = new_vol
         else:
             entry["volume"] = new_vol
-        _cue.markers.save_persistent()
+        _cue.markers.save_marker(trigger_key)
         renpy.restart_interaction()
 
     def adjust(self, trigger_key, delta, pool_index=None):
@@ -88,7 +88,7 @@ class CueVolumeManager(object):
             return
         new_vol = max(self.VOL_MIN, min(self.VOL_MAX, round(value, 1)))
         entry["volume"] = new_vol
-        _cue.markers.save_persistent()
+        _cue.markers.save_marker(trigger_key)
         renpy.restart_interaction()
 
     def adjust_master(self, trigger_key, delta):
@@ -137,5 +137,5 @@ class CueVolumeManager(object):
     def on_bar_changed(self):
         # type: () -> None
         """Called after any volume bar is dragged. Saves and refreshes the UI."""
-        _cue.markers.save_persistent()
+        _cue.markers.save_all()
         renpy.restart_interaction()

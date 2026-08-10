@@ -123,7 +123,7 @@ class CueUndoManager(object):
             m._data = snap["markers"]
             m._presets = snap["presets"]
             m._video_presets = snap["video_presets"]
-            m.save_persistent()
+            m.save_all()
         finally:
             self._recording = True
         # Seed _previous so the next real mutation pushes the correct

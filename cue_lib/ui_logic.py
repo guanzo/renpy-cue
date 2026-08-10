@@ -160,12 +160,12 @@ def _cue_detach_active_video_ts(*args):
     if entry is None:
         return
     _cue.markers._detach_pool(vid_key, _cue.markers.video.target_pool)
-    _cue.markers.save_persistent()
+    _cue.markers.save_marker(vid_key)
 
 def _cue_detach_pool_at(trigger_key, pool_index):
     # type: (str, int) -> None
     _cue.markers._detach_pool(trigger_key, pool_index)
-    _cue.markers.save_persistent()
+    _cue.markers.save_marker(trigger_key)
 
 def _cue_make_tab_action(fn, args_tuple, pi):
     # type: (Callable[..., None], tuple, int) -> Callable[..., None]
