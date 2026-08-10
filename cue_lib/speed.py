@@ -178,29 +178,29 @@ class CueVidSpeedResolver(object):
         for k in keys_to_pop:
             self.children.pop(k, None)
 
+    def _movie_for(self, tag, base_path, orig_movie):
+        # type: (str, str, Movie) -> Movie
+        """Return (or create) the single Movie instance for *tag*.
+
+        The same object is returned every frame -- no identity change,
+        no ``update_playing()`` restart, no render cold-start during
+        speed switches.  Speed changes are handled by
+        ``music.queue()`` on the channel, not by swapping Movie objects.
+        """
+        cached = self.children.get(tag, None)
+        if cached is not None:
+            return cached
+        kwargs = _cue_capture_kwargs(orig_movie)
+        kwargs["play"] = base_path
+        if kwargs.get("play_callback", None) is None:
+            kwargs["play_callback"] = _cue_seamless_play_callback
+        child = Movie(**kwargs)
+        self.children[tag] = child
+        _cue_log("VQ-MOVIE-CREATE tag={} ch={}".format(tag, child.channel))
+        return child
+
     def resolve(self, st, at, tag, base_path, orig_movie):
         # type: (float, float, str, str, Movie) -> Tuple[Any, Any]
-        try:
-            speed = self._get_speed_pref(tag)
-        except Exception:
-            speed = _cue.DEFAULT_VIDEO_SPEED
-
-        def _movie_for(tag):
-            # type: (str) -> Movie
-            """Return the single Movie instance for this tag.  The same
-            object is returned every frame -- no identity change, no
-            ``update_playing()`` restart, no render cold-start."""
-            cached = self.children.get(tag, None)
-            if cached is not None:
-                return cached
-            kwargs = _cue_capture_kwargs(orig_movie)
-            kwargs["play"] = base_path
-            if kwargs.get("play_callback", None) is None:
-                kwargs["play_callback"] = _cue_seamless_play_callback
-            child = Movie(**kwargs)
-            self.children[tag] = child
-            _cue_log("VQ-MOVIE-CREATE tag={} ch={}".format(tag, child.channel))
-            return child
 
         # Active speed sequence overrides
         seq = self.sequence
@@ -243,7 +243,7 @@ class CueVidSpeedResolver(object):
 
         # Always return the same Movie -- the channel produces frames
         # for whichever file is currently playing.
-        return _movie_for(tag), None
+        return self._movie_for(tag, base_path, orig_movie), None
 
     def wrap_all_movies(self):
         # type: () -> None
