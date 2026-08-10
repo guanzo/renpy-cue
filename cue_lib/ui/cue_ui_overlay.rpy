@@ -150,7 +150,7 @@ screen cue_overlay_content():
                                 Function(_cue.video_sequence.set_mode, SpeedMode.SINGLE))
                             use cue_tab_btn("Multi Speed", (_mode == SpeedMode.MULTI),
                                 Function(_cue.video_sequence.set_mode, SpeedMode.MULTI))
-                            use cue_tab_btn("Auto Speed", _mode == SpeedMode.AUTO,
+                            use cue_tab_btn("Auto Speed", (_mode == SpeedMode.AUTO),
                                 Function(_cue.video_sequence.set_mode, SpeedMode.AUTO))
 
                     # --- Speeds tab ---
@@ -298,11 +298,11 @@ screen cue_overlay_content():
                                 spacing 3
                                 text "Length:" style "cue_txt" size 11
                                 $ _len_key = _auto.get_active_length_key()
-                                use cue_tab_btn("Short", _len_key == "short",
+                                use cue_tab_btn("Short", (_len_key == "short"),
                                     Function(_auto.set_length, "short"))
-                                use cue_tab_btn("Medium", _len_key == "medium",
+                                use cue_tab_btn("Medium", (_len_key == "medium"),
                                     Function(_auto.set_length, "medium"))
-                                use cue_tab_btn("Long", _len_key == "long",
+                                use cue_tab_btn("Long", (_len_key == "long"),
                                     Function(_auto.set_length, "long"))
 
                             null height 5
