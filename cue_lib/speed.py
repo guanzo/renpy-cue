@@ -11,6 +11,7 @@ import renpy.config as _config
 import renpy.audio.audio as _aaudio
 from renpy.display.layout import DynamicDisplayable
 from renpy.display.video import Movie
+from renpy.display.video import default_play_callback as _default_play_callback
 from renpy.display.image import images as _display_images
 
 from cue_lib.state import _cue
@@ -173,7 +174,7 @@ class CueVidSpeedResolver(object):
     def invalidate(self, tag):
         # type: (str) -> None
         keys_to_pop = [k for k in self.children
-                       if (isinstance(k, tuple) and k[0] == tag)]
+                       if k == tag or (isinstance(k, tuple) and k[0] == tag)]
         for k in keys_to_pop:
             self.children.pop(k, None)
 
@@ -184,15 +185,21 @@ class CueVidSpeedResolver(object):
         except Exception:
             speed = _cue.DEFAULT_VIDEO_SPEED
 
-        def _build_or_cache(cache_key, play_value):
-            # type: (Tuple[str, object], object) -> Movie
-            cached = self.children.get(cache_key, None)
+        def _movie_for(tag):
+            # type: (str) -> Movie
+            """Return the single Movie instance for this tag.  The same
+            object is returned every frame -- no identity change, no
+            ``update_playing()`` restart, no render cold-start."""
+            cached = self.children.get(tag, None)
             if cached is not None:
                 return cached
             kwargs = _cue_capture_kwargs(orig_movie)
-            kwargs["play"] = play_value
+            kwargs["play"] = base_path
+            if kwargs.get("play_callback", None) is None:
+                kwargs["play_callback"] = _cue_seamless_play_callback
             child = Movie(**kwargs)
-            self.children[cache_key] = child
+            self.children[tag] = child
+            _cue_log("VQ-MOVIE-CREATE tag={} ch={}".format(tag, child.channel))
             return child
 
         # Active speed sequence overrides
@@ -204,9 +211,18 @@ class CueVidSpeedResolver(object):
                            tag.startswith(active + " ")):
                 queue_paths = seq.paths_for(active)
                 if queue_paths:
-                    return _build_or_cache((tag, "__queue__"), queue_paths), None
+                    cached = self.children.get((tag, "__queue__"), None)
+                    if cached is not None:
+                        return cached, None
+                    kwargs = _cue_capture_kwargs(orig_movie)
+                    kwargs["play"] = queue_paths
+                    kwargs["play_callback"] = None
+                    child = Movie(**kwargs)
+                    self.children[(tag, "__queue__")] = child
+                    return child, None
 
-        # Seamless transition: hold old Movie until queue flips
+        # Seamless transition: wait for queue flip, but always return
+        # the same Movie object so the display tree never changes.
         if self._pending_speed is not None:
             pending_variant = self.variant_path(base_path, self._pending_speed)
             try:
@@ -217,31 +233,17 @@ class CueVidSpeedResolver(object):
             transitioned = (now_playing and pending_variant
                 and os.path.normpath(now_playing) == os.path.normpath(pending_variant))
             if transitioned:
-                _cue_log("VQ-SEAMLESS complete, switching to normal resolution")
-                speed = self._pending_speed
-                self._set_speed_pref(tag, speed)
+                _cue_log("VQ-SEAMLESS complete tag={} speed={}".format(
+                    tag, self._pending_speed))
+                self._set_speed_pref(tag, self._pending_speed)
                 self._pending_speed = None
                 self._pre_pending_speed = None
-                # Refresh the toast briefly (1.5s) after the
-                # seamless change completes — the user has already
-                # been looking at the toast during the pending phase.
                 _cue.speed_toast.show(tag, duration=1.6)
                 renpy.restart_interaction()
-            else:
-                if self._pre_pending_speed == _cue.DEFAULT_VIDEO_SPEED:
-                    return orig_movie, None
-                old_variant = self.variant_path(base_path, self._pre_pending_speed)
-                if not renpy.loadable(old_variant):
-                    return orig_movie, None
-                return _build_or_cache((tag, self._pre_pending_speed), old_variant), None
 
-        # Normal speed resolution
-        if speed == _cue.DEFAULT_VIDEO_SPEED:
-            return orig_movie, None
-        variant = self.variant_path(base_path, speed)
-        if not renpy.loadable(variant):
-            return orig_movie, None
-        return _build_or_cache((tag, speed), variant), None
+        # Always return the same Movie -- the channel produces frames
+        # for whichever file is currently playing.
+        return _movie_for(tag), None
 
     def wrap_all_movies(self):
         # type: () -> None
@@ -690,6 +692,26 @@ def _cue_resolver(st, at, tag, base_path, orig_movie):
     """DynamicDisplayable callback. Delegates through this module-level
     function so Ren'Py can pickle it by name reference."""
     return _cue.speed_resolver.resolve(st, at, tag, base_path, orig_movie)
+
+
+def _cue_seamless_play_callback(old, new):
+    # type: (Any, Any) -> None
+    """Skip the redundant ``music.play()`` restart during seamless speed
+    switches.  The queued file is already playing on the channel by the
+    time ``update_playing()`` notices the Movie identity change; calling
+    ``default_play_callback`` would tear down the running decoder and
+    re-open it, causing a visible stutter."""
+    try:
+        ch = new.channel
+        now = _music.get_playing(channel=ch)
+        # Only skip for single-speed mode (string _play).  Sequence mode
+        # (list _play) needs music.play() to start the new path list.
+        if now and new._play and not isinstance(new._play, list):
+            if os.path.normpath(now) == os.path.normpath(new._play):
+                return
+    except Exception:
+        pass
+    _default_play_callback(old, new)
 
 
 def _cue_capture_kwargs(movie):
