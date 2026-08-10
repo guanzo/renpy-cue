@@ -214,7 +214,7 @@ class CuePopper(Container):
         frame = Window(style="cue_popper_frame")
         frame.add(child)
 
-        btn = Button(action=NullAction(), padding=(0, 0))
+        btn = Button(action=NullAction(), padding=(0, 0), style="empty")
         btn.add(frame)
         super(CuePopper, self).add(btn)
 
