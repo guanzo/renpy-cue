@@ -14,6 +14,7 @@ from cue_lib.ui_logic import CuePresetDialog, CueVideoPresetDialog, CueConfirmDi
 from cue_lib.undo import CueUndoManager
 from cue_lib.video import CueVideoManager
 from cue_lib.video_editor import CueVideoEditor
+from cue_lib.db import CueDatabase
 from cue_lib.volume import CueVolumeManager
 
 class Cue:
@@ -23,6 +24,8 @@ class Cue:
     config_filename: str
     debug_log_filename: str
     config_path: str
+    shared_dir: str
+    db_path: str
 
     DEFAULT_VIDEO_SPEED: float
     VOL_DEFAULT: float
@@ -42,6 +45,7 @@ class Cue:
     scan_error: Optional[str]
     _has_relative_volume: bool
 
+    db: CueDatabase
     markers: CueMarkerManager
     undo: CueUndoManager
     trigger: CueTriggerEngine
