@@ -106,10 +106,10 @@ def _cue_run_encode(ffmpeg, job, dur_ms, base_dir, kill_fn):
             job.proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
             )
-            if job.proc.stdout is None or job.proc.stderr is None:
+            if job.proc.stdout is None:
                 job.error_msg = "ffmpeg produced no pipes"
                 kill_fn()
                 job._done = True
@@ -133,13 +133,11 @@ def _cue_run_encode(ffmpeg, job, dur_ms, base_dir, kill_fn):
                     except (ValueError, IndexError):
                         pass
 
-            err_out = job.proc.stderr.read()
             job.proc.stdout.close()
-            job.proc.stderr.close()
             rc = job.proc.wait()
             job.proc = None  # child reaped; prevent finally from kill()ing stale pid
 
-            # Append pass output to log
+            # Append pass output to log (stderr merged into stdout)
             with open(log_path, "a") as _logf:
                 _logf.write("--- pass {} (rc={}) ---\n".format(pass_idx + 1, rc))
                 for line in all_out:
@@ -147,29 +145,23 @@ def _cue_run_encode(ffmpeg, job, dur_ms, base_dir, kill_fn):
                         _logf.write(line.decode("utf-8", errors="replace"))
                     else:
                         _logf.write(str(line))
-                if err_out:
-                    _logf.write("\n[stderr]\n")
-                    if isinstance(err_out, bytes):
-                        _logf.write(err_out.decode("utf-8", errors="replace"))
-                    else:
-                        _logf.write(str(err_out))
-                    _logf.write("\n")
 
             if job.cancelled:
                 kill_fn()
                 break
             if rc != 0:
                 kill_fn()
-                # Capture last meaningful stderr line for the overlay
+                # Capture last meaningful output line for the overlay
                 _err_tail = ""
-                if err_out:
-                    if isinstance(err_out, bytes):
-                        _err_tail = err_out.decode("utf-8", errors="replace")
-                    else:
-                        _err_tail = str(err_out)
-                    _err_tail = _err_tail.strip().split("\n")[-1]
-                    if len(_err_tail) > 120:
-                        _err_tail = _err_tail[-120:]
+                for _line in reversed(all_out):
+                    if isinstance(_line, bytes):
+                        _line = _line.decode("utf-8", errors="replace")
+                    _line = str(_line).strip()
+                    if _line:
+                        _err_tail = _line
+                        break
+                if len(_err_tail) > 120:
+                    _err_tail = _err_tail[-120:]
                 job.error_msg = "ffmpeg pass {} rc={}: {}".format(
                     pass_idx + 1, rc, _err_tail)
                 _cue_log("ffmpeg FAILED pass {} rc={}: {}".format(
