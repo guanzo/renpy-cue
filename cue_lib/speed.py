@@ -194,6 +194,10 @@ class CueVidSpeedResolver(object):
         kwargs["play"] = base_path
         if kwargs.get("play_callback", None) is None:
             kwargs["play_callback"] = _cue_seamless_play_callback
+        # 8.x: group_texture bridges the decoder cold-start on speed
+        # changes.  No-op on 7.x (swallowed by **properties).
+        if hasattr(Movie, "group"):
+            kwargs["group"] = tag
         child = Movie(**kwargs)
         self.children[tag] = child
         _cue_log("VQ-MOVIE-CREATE tag={} ch={}".format(tag, child.channel))
