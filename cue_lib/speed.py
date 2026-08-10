@@ -31,6 +31,7 @@ if MYPY:
 class SpeedMode(object):
     SINGLE = "single"
     MULTI = "multi"
+    SMART = "smart"
 
 
 class CueVidSpeedResolver(object):
@@ -581,7 +582,7 @@ class CueVidSpeedSequence(object):
         # type: (str, Optional[str]) -> None
         if tag is None:
             tag = _cue.current_file
-        if not tag or mode not in (SpeedMode.SINGLE, SpeedMode.MULTI):
+        if not tag or mode not in (SpeedMode.SINGLE, SpeedMode.MULTI, SpeedMode.SMART):
             return
         entry = self._get_entry(tag)
         if entry is None:
@@ -590,6 +591,8 @@ class CueVidSpeedSequence(object):
         _cue.markers.save_marker(create_vid_key(tag))
         if mode == SpeedMode.MULTI:
             self.start(tag)
+        elif mode == SpeedMode.SMART:
+            self._start_smart(tag)
         else:
             self.cancel()
             renpy.restart_interaction()
@@ -634,8 +637,9 @@ class CueVidSpeedSequence(object):
     def handle(self, tag):
         # type: (str) -> None
         old_tag = self.active_tag
+        mode = self.get_mode(tag)
         speeds = self.speeds_for(tag)
-        if speeds and self.get_mode(tag) == SpeedMode.MULTI:
+        if speeds and mode in (SpeedMode.MULTI, SpeedMode.AUTO):
             if not old_tag or old_tag != tag:
                 self.start(tag)
         elif old_tag:
@@ -669,7 +673,14 @@ class CueVidSpeedSequence(object):
             if self.play_count > 0:
                 seq = self.speeds_for(self.active_tag)
                 if seq:
-                    self._step_index = (self._step_index + 1) % len(seq)
+                    new_index = (self._step_index + 1) % len(seq)
+                    # AUTO mode: wrap-around triggers regeneration
+                    if (self.get_mode(self.active_tag) == SpeedMode.AUTO
+                            and new_index == 0
+                            and hasattr(_cue, 'auto_speed')):
+                        _cue.auto_speed.on_wrap_around()
+                    else:
+                        self._step_index = new_index
             self.play_count += 1
             _cue_log("VQ-PLAY #{} step={} file={}".format(
                 self.play_count, self._step_index,
@@ -677,6 +688,24 @@ class CueVidSpeedSequence(object):
             renpy.restart_interaction()
         self.last_playing = now_playing
         self.last_elapsed = now_elapsed
+
+    def _start_auto(self, tag):
+        # type: (str) -> None
+        """Generate a fresh auto sequence and start playback."""
+        if not hasattr(_cue, 'auto_speed'):
+            self.start(tag)
+            return
+        base_path = self.resolver.base_path_for(tag)
+        if not base_path:
+            return
+        available = self.resolver.get_available_speeds(base_path)
+        if len(available) < 2:
+            return
+        new_seq = _cue.auto_speed.generate(available, None)
+        entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
+        entry["speed_sequence"] = new_seq
+        _cue.markers.save_persistent()
+        self.start(tag)
 
 
 class CueSpeedToast(object):

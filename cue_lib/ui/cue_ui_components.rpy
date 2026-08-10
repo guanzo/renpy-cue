@@ -436,6 +436,38 @@ screen cue_toggle_btn(checked, label, action, tt_on=None, tt_off=None,
             if tt_off or tt_on:
                 tooltip (tt_on if tt_off is None else tt_off)
 
+# Auto Speed preset button: emoji + label chip. Highlights when selected.
+# extra_text appends after the preset name (e.g. "Surprise Me").
+screen cue_auto_preset_btn(preset_name, emoji, auto, extra_text=None):
+    $ _is_active = (auto.active_preset == preset_name)
+    $ _label = _cue_auto_preset_label(preset_name)
+    $ _desc = _cue_auto_preset_description(preset_name)
+    $ _display = emoji + " " + (extra_text if extra_text else _label)
+    if _is_active:
+        textbutton _display:
+            style "cue_btn"
+            text_style "cue_btn_text"
+            background _cue_color_active
+            action NullAction()
+            tooltip _desc
+    else:
+        textbutton _display:
+            style "cue_btn"
+            text_style "cue_btn_text"
+            action Function(auto.select_preset, preset_name)
+            tooltip _desc
+
+# Auto Speed modifier toggle: emoji + label, green when active, grey when off.
+screen cue_auto_toggle(label, checked, action, tt=None):
+    $ _bg = _cue_color_active if checked else "#444"
+    textbutton label:
+        style "cue_btn"
+        text_style "cue_btn_text"
+        background _bg
+        action action
+        if tt is not None:
+            tooltip tt
+
 # Radio textbutton: ● label when selected, ○ when not.
 # Exclusivity within a group is enforced by the shared action target.
 screen cue_radio_btn(checked, label, action, tt=None, enabled=True):

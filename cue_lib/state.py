@@ -101,6 +101,7 @@ def bootstrap():
     from cue_lib.ffmpeg import CueFFmpeg
     from cue_lib.video_editor import CueVideoEditor
     from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
+    from cue_lib.auto_speed import CueAutoSpeedGenerator
     from cue_lib.file_tree import CueFileTreeManager
     from cue_lib.ui_logic import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
     from cue_lib.db import _cue_get_shared_dir, CueDatabase
@@ -117,6 +118,8 @@ def bootstrap():
     _cue.video_sequence = CueVidSpeedSequence(_cue.speed_resolver)
     _cue.speed_resolver.sequence = _cue.video_sequence
     _cue.speed_toast = CueSpeedToast()
+    _cue.auto_speed = CueAutoSpeedGenerator()
+    _cue.auto_speed.sequence = _cue.video_sequence
     _cue.file_tree = CueFileTreeManager()
     _cue.preset_dialog = CuePresetDialog()
     _cue.video_preset_dialog = CueVideoPresetDialog()
