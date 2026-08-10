@@ -31,10 +31,10 @@ class Cue(_renpy_python.NoRollback):
         # --- Constants ---
         self.DEFAULT_VIDEO_SPEED = 1.0
         self.VOL_DEFAULT = 1.0
-        self.IMG_KEY_PREFIX = "i:"
-        self.LOOP_KEY_PREFIX = "l:"
-        self.DLG_KEY_PREFIX = "d:"
-        self.VID_KEY_PREFIX = "v:"
+        self.IMG_KEY_PREFIX = "i_"
+        self.LOOP_KEY_PREFIX = "l_"
+        self.DLG_KEY_PREFIX = "d_"
+        self.VID_KEY_PREFIX = "v_"
 
         # --- Runtime state ---
         self.initialized = False

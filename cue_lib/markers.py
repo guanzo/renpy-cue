@@ -956,6 +956,20 @@ class CueMarkerManager(object):
                 changed = True
         return changed
 
+    @staticmethod
+    def _migrate_colon_key(key):
+        # type: (str) -> str
+        """Convert legacy colon keys (v:file) to underscore (v_file)."""
+        if key.startswith("v:"):
+            return "v_" + key[2:]
+        if key.startswith("i:"):
+            return "i_" + key[2:]
+        if key.startswith("d:"):
+            return "d_" + key[2:]
+        if key.startswith("l:"):
+            return "l_" + key[2:]
+        return key
+
     def _migrate_speed_mode_rename(self):
         # type: () -> None
         for key, entry in list(self._data.items()):
@@ -1111,6 +1125,7 @@ class CueMarkerManager(object):
         # type: (Any) -> None
         """Populate in-memory stores from a legacy dict (migration only)."""
         self._data = _cue_unwrap_persistent(data.get("markers", {}))
+        self._data = {self._migrate_colon_key(k): v for k, v in self._data.items()}
         self._presets = _cue_unwrap_persistent(data.get("presets", {}))
         self._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
         _cue.file_tree.disabled_files = set(_cue_unwrap_persistent(data.get("disabled_files", set())))

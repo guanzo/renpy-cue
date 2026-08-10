@@ -53,30 +53,39 @@ def _cue_get_shared_dir():
 # ---------------------------------------------------------------------------
 # Key sanitisation for filesystem safety
 # ---------------------------------------------------------------------------
-# Marker keys contain ':' and dialogue text (e.g. "d:file:hello world").
-# ':' and unsafe chars are replaced with '_' for filesystem safety.
+# Marker keys: {prefix}_{file}, dialogue appends _{hash} for the text.
+#   v_anim_envy_bj3_ep10.json
+#   d_bg anim_jade_insert_ep9 movie_a1b2c3d4.json
 # Full key is stored in the JSON's "_key" field.
 
-_MAX_LEN = 80
-_UNSAFE = set('<>:"/\\|?*')
+import hashlib as _hashlib
 
 
 def _key_to_filename(key):
     # type: (str) -> str
-    safe = key.replace(":", "_")
-    safe = "".join(c for c in safe if c not in _UNSAFE)
-    if len(safe) > _MAX_LEN:
-        safe = safe[:_MAX_LEN]
+    # Split dialogue key: d_file|dialogue -> d_file_{hash}
+    if key.startswith("d_"):
+        pipe = key.find("|")
+        if pipe != -1:
+            file_part = key[2:pipe]
+            dlg_hash = _hashlib.sha1(key.encode("utf-8")).hexdigest()[:8]
+            safe = "d_{}_{}".format(_strip_unsafe(file_part), dlg_hash)
+            return safe + ".json"
+    # Other keys: just strip unsafe chars from the key itself
+    safe = _strip_unsafe(key)
     return safe + ".json"
+
+
+def _strip_unsafe(s):
+    # type: (str) -> str
+    unsafe = set('<>:"/\\|?*')
+    return "".join(c for c in s if c not in unsafe)
 
 
 def _filename_to_key(filename):
     # type: (str) -> str
-    """Fallback key reconstruction from filename. The _key field in the
-    JSON is authoritative -- this is only used if _key is missing."""
-    if filename.endswith(".json"):
-        filename = filename[:-5]
-    return filename.replace("_", ":")
+    """Fallback. The _key field in the JSON is authoritative."""
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -186,11 +195,10 @@ class CueDatabase(object):
 
     def _preset_path(self, preset_type, name):
         # type: (str, str) -> str
-        safe = name.replace(":", "_")
-        safe = "".join(c for c in safe if c not in _UNSAFE)
-        if len(safe) > _MAX_LEN:
-            safe = safe[:_MAX_LEN]
-        return os.path.join(self._preset_dir(preset_type), safe + ".json")
+        safe = _strip_unsafe(name)
+        h = _hashlib.sha1(name.encode("utf-8")).hexdigest()[:8]
+        return os.path.join(self._preset_dir(preset_type),
+                            "{}_{}.json".format(safe, h))
 
     # ------------------------------------------------------------------
     # Freshness / migration
