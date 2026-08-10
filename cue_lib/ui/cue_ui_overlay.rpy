@@ -244,31 +244,20 @@ screen cue_overlay_content():
                             text "Rhythm:" style "cue_txt" size 11
                             null height 2
 
-                            # Row 1
                             hbox:
                                 spacing 3
+                                box_wrap True
+                                box_wrap_spacing 3
                                 use cue_auto_preset_btn("roller_coaster", "🎢", _auto)
                                 use cue_auto_preset_btn("build_up", "📈", _auto)
                                 use cue_auto_preset_btn("cool_down", "📉", _auto)
                                 use cue_auto_preset_btn("slow_groove", "😌", _auto)
                                 use cue_auto_preset_btn("fast_frenzy", "🔥", _auto)
-
-                            null height 1
-
-                            # Row 2
-                            hbox:
-                                spacing 3
                                 use cue_auto_preset_btn("tease", "😏", _auto)
                                 use cue_auto_preset_btn("plateau", "🪜", _auto)
                                 use cue_auto_preset_btn("random_walk", "🎲", _auto)
                                 use cue_auto_preset_btn("edge", "💫", _auto)
                                 use cue_auto_preset_btn("anchor", "🧲", _auto)
-
-                            null height 1
-
-                            # Surprise me row
-                            hbox:
-                                spacing 3
                                 use cue_auto_preset_btn("surprise", "🎰", _auto,
                                     extra_text="Surprise Me")
 
