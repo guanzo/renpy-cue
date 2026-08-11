@@ -971,15 +971,20 @@ class CueMarkerManager(object):
     @staticmethod
     def _migrate_colon_key(key):
         # type: (str) -> str
-        """Convert legacy colon keys (v:file) to underscore (v_file)."""
+        """Convert legacy colon keys (v:file) to underscore (v_file).
+        Also normalizes dialogue pipe separator | to __."""
         if key.startswith("v:"):
             return "v_" + key[2:]
         if key.startswith("i:"):
             return "i_" + key[2:]
         if key.startswith("d:"):
-            return "d_" + key[2:]
-        if key.startswith("l:"):
+            key = "d_" + key[2:]
+        elif key.startswith("l:"):
             return "l_" + key[2:]
+        # Normalize legacy pipe separator in dialogue keys
+        if key.startswith("d_") and "|" in key:
+            file_part, dialogue = key[2:].split("|", 1)
+            key = "d_{}__{}".format(file_part, dialogue)
         return key
 
     def _migrate_speed_mode_rename(self):
@@ -1144,7 +1149,7 @@ class CueMarkerManager(object):
 
     def _populate_config(self, data):
         # type: (Any) -> None
-        """Populate in-memory stores from a legacy dict (migration only)."""
+        """Populate in-memory stores from a legacy dict (full replace)."""
         self._data = _cue_unwrap_persistent(data.get("markers", {}))
         self._data = {self._migrate_colon_key(k): v for k, v in self._data.items()}
         self._presets = _cue_unwrap_persistent(data.get("presets", {}))
@@ -1163,6 +1168,34 @@ class CueMarkerManager(object):
         self._normalize_all()
         self._migrate_speed_mode_rename()
 
+    def _merge_legacy_data(self, data):
+        # type: (Any) -> int
+        """Merge legacy markers/presets into in-memory stores, only adding
+        keys that are not already present.  Returns the number of new keys."""
+        added = 0
+
+        legacy_markers = _cue_unwrap_persistent(data.get("markers", {}))
+        legacy_markers = {self._migrate_colon_key(k): v for k, v in legacy_markers.items()}
+        for key, entry in legacy_markers.items():
+            if key not in self._data:
+                self._data[key] = entry
+                added += 1
+
+        legacy_presets = _cue_unwrap_persistent(data.get("presets", {}))
+        for name, entry in legacy_presets.items():
+            if name not in self._presets:
+                self._presets[name] = entry
+
+        legacy_vid_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
+        for name, entry in legacy_vid_presets.items():
+            if name not in self._video_presets:
+                self._video_presets[name] = entry
+
+        legacy_disabled = set(_cue_unwrap_persistent(data.get("disabled_files", set())))
+        _cue.file_tree.disabled_files |= legacy_disabled
+
+        return added
+
     def load_persistent(self):
         # type: () -> None
         """Load markers + presets from data store; scalars from persistent."""
@@ -1177,25 +1210,35 @@ class CueMarkerManager(object):
             self._load_scalars_from_persistent()
             return
 
+        # -- Load what's already on disk --
         if db.is_fresh():
-            data = self._load_legacy_json()
-            source = "json" if data is not None else None
-            if data is None:
-                data = getattr(persistent, '_cue_config', None)
-                source = "persistent" if data is not None else None
-            if data is not None:
-                self._populate_config(data)
-                db.migrate_markers_and_presets(
-                    self._data, self._presets, self._video_presets,
-                )
-                _cue_log("MIGRATE-DB source={} keys={}".format(
-                    source, len(self._data)))
-            else:
-                self._data = {}
-                self._video_presets = {}
+            self._data = {}
+            self._presets = {}
+            self._video_presets = {}
         else:
             self._data = db.load_markers()
             self._presets, self._video_presets = db.load_presets()
+            self._migrate_video_timestamps_to_pools()
+            self._sanitize_video_pools()
+            self._sanitize_video_presets()
+            self._normalize_all()
+            self._migrate_speed_mode_rename()
+
+        # -- Always check legacy data for keys still missing from disk --
+        data = self._load_legacy_json()
+        source = "json" if data is not None else None
+        if data is None:
+            data = getattr(persistent, '_cue_config', None)
+            source = "persistent" if data is not None else None
+        if data is not None:
+            added = self._merge_legacy_data(data)
+            if added:
+                # Write missing keys to disk (skips files that already exist)
+                written = db.migrate_markers_and_presets(
+                    self._data, self._presets, self._video_presets)
+                _cue_log("MIGRATE-DB source={} added={} written={} total={}".format(
+                    source, added, written, len(self._data)))
+            # Run migration passes on merged data
             self._migrate_video_timestamps_to_pools()
             self._sanitize_video_pools()
             self._sanitize_video_presets()

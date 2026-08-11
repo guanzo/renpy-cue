@@ -65,9 +65,11 @@ import hashlib as _hashlib
 
 def _key_to_filename(key):
     # type: (str) -> str
-    # Dialogue key: d_file__dialogue -> d_{file}_{hash}
+    # Dialogue key: d_file__dialogue or d_file|dialogue -> d_{file}_{hash}
     if key.startswith("d_"):
         sep = key.find("__")
+        if sep == -1:
+            sep = key.find("|")
         if sep != -1:
             file_part = key[2:sep]
             dlg_hash = _hashlib.sha1(key.encode("utf-8")).hexdigest()[:CUE_HASH_TRUNC_LEN]
@@ -214,14 +216,28 @@ class CueDatabase(object):
         return True
 
     def migrate_markers_and_presets(self, markers, presets, video_presets):
-        # type: (Dict[str, Any], Dict[str, Any], Dict[str, Any]) -> None
-        """Bulk-write markers and presets from a legacy dict (one-time migration)."""
+        # type: (Dict[str, Any], Dict[str, Any], Dict[str, Any]) -> int
+        """Write markers and presets from a legacy dict, skipping existing files.
+
+        Returns the number of files actually written.
+        """
+        written = 0
         for key, entry in markers.items():
-            self._write_entry(self._marker_path(key), key, entry)
+            fpath = self._marker_path(key)
+            if not os.path.isfile(fpath):
+                self._write_entry(fpath, key, entry)
+                written += 1
         for name, entry in presets.items():
-            self._write_entry(self._preset_path("audio", name), name, entry)
+            fpath = self._preset_path("audio", name)
+            if not os.path.isfile(fpath):
+                self._write_entry(fpath, name, entry)
+                written += 1
         for name, entry in video_presets.items():
-            self._write_entry(self._preset_path("video", name), name, entry)
+            fpath = self._preset_path("video", name)
+            if not os.path.isfile(fpath):
+                self._write_entry(fpath, name, entry)
+                written += 1
+        return written
 
     # ------------------------------------------------------------------
     # Markers

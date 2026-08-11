@@ -92,17 +92,24 @@ def get_key_file(key):
     # type: (str) -> str
     """Strip the 2-char prefix from any key, returning the file portion."""
     file_part = key[len(_cue.IMG_KEY_PREFIX):]
-    if key.startswith("d:"):
-        file_part = file_part.rsplit("__", 1)[0]
+    if is_dlg_key(key):
+        # Handle both legacy | and current __ separators
+        sep = file_part.find("__")
+        if sep == -1:
+            sep = file_part.find("|")
+        if sep != -1:
+            file_part = file_part[:sep]
     return file_part
 
 def get_key_dialogue(key):
     # type: (str) -> str
     file_part = key[len(_cue.DLG_KEY_PREFIX):]
-    parts = file_part.split("__", 1)
-    if len(parts) < 2:
-        return ""
-    return parts[1]
+    # Handle both legacy | and current __ separators
+    for sep_str in ("__", "|"):
+        parts = file_part.split(sep_str, 1)
+        if len(parts) == 2:
+            return parts[1]
+    return ""
 
 def get_key_prefix(key):
     # type: (str) -> str
