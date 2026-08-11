@@ -635,14 +635,30 @@ class CueVidSpeedSequence(object):
         self.active_tag = tag
         self.play_count = 0
         self._step_index = 0
+
         try:
             ch = _cue.vid_manager.channel
-            self.last_playing = _music.get_playing(channel=ch) if ch else None
+            now = _music.get_playing(channel=ch) if ch else None
         except Exception:
             _cue_log("SPEED-START: get_playing failed")
+            now = None
+
+        # If the new queue's first file is the same file already on the
+        # channel, tick() will never see now_playing change and the first
+        # play is invisible -- play_count stays 0, _step_index lags by 1.
+        # Force last_playing to None so tick() always detects the first
+        # play after a start().
+        _first = paths[0] if paths else None
+        if now and _first and os.path.normpath(now) == os.path.normpath(_first):
             self.last_playing = None
-        self.last_elapsed = 0.0
-        _cue_log("VQ-START tag={} paths={}".format(tag, ",".join(paths)))
+            self.last_elapsed = -1.0
+        else:
+            self.last_playing = now
+            self.last_elapsed = 0.0
+
+        _cue_log("VQ-START tag={} paths=[{}]".format(
+            tag, "][".join(os.path.basename(p) for p in paths)))
+        
         renpy.restart_interaction()
 
     def handle(self, tag):
@@ -679,9 +695,11 @@ class CueVidSpeedSequence(object):
             _cue_log("SPEED-TICK: playback query failed")
             now_playing = None
             now_elapsed = 0.0
+
         is_wrap_around = now_playing and now_elapsed < 0.2 and self.last_elapsed - now_elapsed > 0.2
         is_new_play = (now_playing != self.last_playing or is_wrap_around)
         if is_new_play:
+            _old_step = self._step_index
             if self.play_count > 0:
                 seq = self.speeds_for(self.active_tag)
                 if seq:
@@ -694,10 +712,14 @@ class CueVidSpeedSequence(object):
                     else:
                         self._step_index = new_index
             self.play_count += 1
-            _cue_log("VQ-PLAY #{} step={} file={}".format(
-                self.play_count, self._step_index,
-                now_playing.rsplit("/", 1)[-1] if now_playing else now_playing))
-            renpy.restart_interaction()
+
+            _cue_log(
+                "VQ-PLAY #{} step={}->{} wrap={} file={}".format(
+                    self.play_count, _old_step, self._step_index,
+                    1 if is_wrap_around else 0,
+                    os.path.basename(now_playing) if now_playing else "-"))
+            
+        self._debug_verify_step(now_playing)
         self.last_playing = now_playing
         self.last_elapsed = now_elapsed
 
@@ -707,17 +729,60 @@ class CueVidSpeedSequence(object):
         if not hasattr(_cue, 'auto_speed'):
             self.start(tag)
             return
+        
         base_path = _cue.speed_resolver.base_path_for(tag)
         if not base_path:
             return
+        
         available = _cue.speed_resolver.get_available_speeds(base_path)
         if len(available) < CUE_MIN_SPEEDS_FOR_SEQUENCE:
             return
+        
         new_seq = _cue.auto_speed.generate(available)
         entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
         entry["speed_sequence"] = new_seq
         _cue.markers.save_marker(create_vid_key(tag))
         self.start(tag)
+
+    def _debug_verify_step(self, now_playing):
+        # type: (Optional[str]) -> None
+        """Log a warning if the tracked step index disagrees with the file
+        actually playing on the channel.  Rate-limited to one log per step
+        to avoid flooding during fast timer ticks."""
+        if now_playing is None:
+            return
+        _tag = self.active_tag
+        if not _tag:
+            return
+        _seq = self.speeds_for(_tag)
+        if not _seq:
+            return
+        _base = _cue.speed_resolver.base_path_for(_tag)
+        if not _base:
+            return
+        
+        _now_name = os.path.basename(now_playing)
+        _matches = []
+        
+        for _i, _sp in enumerate(_seq):
+            _vp = _cue.speed_resolver.variant_path(_base, _sp)
+            if os.path.basename(_vp) == _now_name:
+                _matches.append(str(_i))
+
+        if not _matches:
+            return
+        
+        if str(self._step_index) in _matches:
+            return
+        
+        # Rate-limit: one log per (step, file) pair
+        _key = "{}|{}".format(self._step_index, _now_name)
+        if getattr(self, '_last_desync_key', None) == _key:
+            return
+        self._last_desync_key = _key
+        _cue_log(
+            "VQ-DESYNC step={} playing_matches=[{}] file={}".format(
+                self._step_index, ",".join(_matches), _now_name))
 
 
 class CueSpeedToast(object):
@@ -734,9 +799,11 @@ class CueSpeedToast(object):
         base_path = resolver.base_path_for(tag)
         if not base_path:
             return
+        
         speeds = resolver.get_available_speeds(base_path)
         if len(speeds) <= 1:
             return
+        
         renpy.hide_screen("cue_speed_toast", layer="cue_layer")
         self.toast_speeds = speeds
         self.toast_current = resolver._get_speed_pref(tag)
