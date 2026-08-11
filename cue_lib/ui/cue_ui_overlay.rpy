@@ -125,7 +125,7 @@ screen cue_overlay_content():
         # --- Top bar: active checkbox + copy + paste + dump + restore + refresh + close ---
         hbox:
             spacing 2
-            use cue_toggle_btn(_cue.trigger.active, "SFX Active",
+            use cue_checkbox(_cue.trigger.active, "SFX Active",
                 Function(_cue_toggle_active),
                 "SFX triggers are ON (F4 to toggle)",
                 "SFX triggers are OFF (F4 to toggle)",
@@ -205,13 +205,11 @@ screen cue_overlay_content():
                                     use cue_txt_button("Delete " + _cue_speed_label(_cur),
                                         Function(_cue.speed_resolver.delete_variant, _vid_path, _cur),
                                         tt="Delete the " + _cue_speed_label(_cur) + " file.")
-                            use cue_select_btn(
-                                ("☑ Seamless Transition"
-                                    if _cue.speed_resolver.seamless_transition
-                                    else "☐  Seamless Transition"),
+                            use cue_checkbox(
                                 _cue.speed_resolver.seamless_transition,
+                                "Seamless Transition",
                                 Function(_cue.speed_resolver.toggle_seamless),
-                                tt="When enabled, changing speeds waits for the current video loop to finish before switching.")
+                                tt_on="When enabled, changing speeds waits for the current video loop to finish before switching.")
 
                     # --- Multi Speed tab ---
                     if _mode == CueSpeedMode.MULTI:
@@ -496,7 +494,7 @@ screen cue_overlay_content():
                         else:
                             text "Match original quality" style "cue_help"
                     if _ved._current_has_audio:
-                        use cue_toggle_btn(_ved.remove_audio, "Remove audio track",
+                        use cue_checkbox(_ved.remove_audio, "Remove audio track",
                             Function(_cue.video_editor.toggle_remove_audio))
                     null height 2
                     use cue_txt_button("Create",
@@ -538,7 +536,7 @@ screen cue_overlay_content():
             "image", "I",
             "SFX plays when this image is displayed."):
             $ _p = _cue._pool_ui["pool"]
-            use cue_toggle_btn(_p.get("trigger_on_shake", False),
+            use cue_checkbox(_p.get("trigger_on_shake", False),
                 "Trigger on screen shake",
                 Function(_cue_toggle_shake_trigger),
                 "Play SFX when a screen shake occurs")
@@ -568,7 +566,7 @@ screen cue_overlay_content():
                 use cue_select_btn("Fastest", (_freq == CueLoopFrequency.FASTEST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FASTEST), tt="~0.2s between plays")
                 use cue_v_divider()
                 $ _is_exclusive = _cue._pool_ui.get("exclusive", False)
-                use cue_toggle_btn(_is_exclusive, "Exclusive playback",
+                use cue_checkbox(_is_exclusive, "Exclusive playback",
                     Function(_cue.markers.loop.set_exclusive, not _is_exclusive),
                     "Prevents other loop SFX from playing at the same time")
 
@@ -751,7 +749,7 @@ screen cue_repeat_markers_dialog():
                     use cue_float_input("_cue.repeater.count_text", _commit, _display,
                         dec_action=_dec, inc_action=_inc)
 
-                use cue_toggle_btn(_cue.repeater.preview_sfx_enabled, "Preview markers trigger SFX",
+                use cue_checkbox(_cue.repeater.preview_sfx_enabled, "Preview markers trigger SFX",
                     Function(_cue.repeater.toggle_preview_sfx))
 
                 $ _preview_label = _cue.repeater.preview_text()

@@ -420,9 +420,9 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
 
 # Toggle textbutton: ☑ label when checked, ☐ when unchecked.
 # on_bg/on_hover/off_bg/off_hover override backgrounds per state (None = style default).
-screen cue_toggle_btn(checked, label, action, tt_on=None, tt_off=None,
-                       on_bg=None, on_hover=None, off_bg=None, off_hover=None,
-                       enabled=True):
+screen cue_checkbox(checked, label, action, tt_on=None, tt_off=None,
+                    on_bg=None, on_hover=None, off_bg=None, off_hover=None,
+                    enabled=True):
     if checked:
         textbutton "☑ " + label:
             style "cue_btn"
