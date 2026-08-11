@@ -532,6 +532,31 @@ class CueVidSpeedSequence(object):
             return None
         return _cue.markers._get_or_create_entry(create_vid_key(tag))
 
+    def get_disabled_auto_speeds(self, tag):
+        # type: (str) -> set
+        """Return the set of speeds disabled for auto-speed generation."""
+        if not tag:
+            return set()
+        entry = _cue.markers.get(create_vid_key(tag))
+        if entry is None:
+            return set()
+        _stored = entry.get("disabled_auto_speeds", None)
+        return set(_stored) if _stored else set()
+
+    def set_disabled_auto_speeds(self, tag, speeds):
+        # type: (str, set) -> None
+        """Persist the set of disabled auto speeds for a video."""
+        if not tag:
+            return
+        entry = self._get_entry(tag)
+        if entry is None:
+            return
+        if speeds:
+            entry["disabled_auto_speeds"] = list(speeds)
+        else:
+            entry.pop("disabled_auto_speeds", None)
+        _cue.markers.save_marker(create_vid_key(tag))
+
     def append_speed(self, speed):
         # type: (float) -> None
         tag = _cue.current_file
@@ -627,7 +652,7 @@ class CueVidSpeedSequence(object):
         if mode == CueSpeedMode.MULTI:
             self.start(tag)
         elif mode == CueSpeedMode.AUTO:
-            self._start_auto(tag)
+            self.start_auto(tag)
         else:
             self.cancel()
             renpy.restart_interaction()
@@ -693,7 +718,10 @@ class CueVidSpeedSequence(object):
         speeds = self.speeds_for(tag)
         if speeds and mode in (CueSpeedMode.MULTI, CueSpeedMode.AUTO):
             if not old_tag or old_tag != tag:
-                self.start(tag)
+                if mode == CueSpeedMode.AUTO:
+                    self.start_auto(tag)
+                else:
+                    self.start(tag)
         elif old_tag:
             self.active_tag = None
             if _cue.top_layer_type != 'movie':
@@ -751,7 +779,7 @@ class CueVidSpeedSequence(object):
         self.last_playing = now_playing
         self.last_elapsed = now_elapsed
 
-    def _start_auto(self, tag):
+    def start_auto(self, tag):
         # type: (str) -> None
         """Generate a fresh auto sequence and start playback."""
         if not hasattr(_cue, 'auto_speed'):
@@ -762,10 +790,10 @@ class CueVidSpeedSequence(object):
         if not base_path:
             return
         
-        available = _cue.speed_resolver.get_available_speeds(base_path)
+        available = _cue.auto_speed.enabled_speeds
         if len(available) < CUE_MIN_SPEEDS_FOR_SEQUENCE:
             return
-        
+
         new_seq = _cue.auto_speed.generate(available)
         entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
         entry["speed_sequence"] = new_seq

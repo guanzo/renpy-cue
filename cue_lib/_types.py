@@ -57,6 +57,7 @@ class MarkerEntry(TypedDict, total=False):
     speed_pref: float           # per-video speed preference
     speed_sequence: List[float] # per-video speed sequence
     speed_mode: str             # "single" or "multi"
+    disabled_auto_speeds: List[float]  # speeds toggled off in auto-speed
     timestamps: List[PoolDict]  # migration: old name for pools
     files: List[str]            # migration: old flat format
     frequency: int              # migration: old entry-level frequency

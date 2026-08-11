@@ -164,31 +164,82 @@ class CueAutoSpeedGenerator(object):
         self._regenerate()
         renpy.restart_interaction()
 
+    def _get_disabled(self):
+        # type: () -> set
+        """Return the set of disabled speeds from marker data."""
+        tag = _cue.current_file
+        if not tag:
+            return set()
+        return _cue.video_sequence.get_disabled_auto_speeds(tag)
+
+    def toggle_speed(self, speed):
+        # type: (float) -> None
+        """Toggle a speed on/off for sequence generation."""
+        tag = _cue.current_file
+        disabled = self._get_disabled()
+
+        if speed in disabled:
+            disabled.discard(speed)
+        else:
+            # Refuse to disable if it would drop below the minimum.
+            if len(self.enabled_speeds) - 1 < CUE_AUTO_SPEED_MIN_VARIANTS:
+                return
+            disabled.add(speed)
+
+        if tag:
+            _cue.video_sequence.set_disabled_auto_speeds(tag, disabled)
+
+        self._regenerate()
+        renpy.restart_interaction()
+
+    def is_speed_enabled(self, speed):
+        # type: (float) -> bool
+        """Return True if this speed is enabled for generation."""
+        return speed not in self._get_disabled()
+
+    @property
+    def enabled_speeds(self):
+        # type: () -> list
+        """Enabled speeds for the current video (all - disabled)."""
+        tag = _cue.current_file
+        if not tag:
+            return []
+        base_path = _cue.speed_resolver.base_path_for(tag)
+        if not base_path:
+            return []
+        disabled = self._get_disabled()
+        all_speeds = _cue.speed_resolver.get_available_speeds(base_path)
+        return [s for s in all_speeds if s not in disabled]
+
     # ================================================================
     # Generation entry point
     # ================================================================
 
-    def generate(self, available_speeds):
+    def generate(self, speeds):
         # type: (list) -> list
         """Generate a new speed sequence.
 
         Each preset picks its own starting rung.  No continuity is
         enforced between successive sequences.
-        """
-        if not available_speeds or len(available_speeds) < CUE_AUTO_SPEED_MIN_VARIANTS:
-            return [available_speeds[0]] * 8 if available_speeds else [CUE_DEFAULT_VIDEO_SPEED]
 
-        n = len(available_speeds)
+        *speeds* should already be the enabled subset (pass
+        self.enabled_speeds).  If too few speeds remain the fallback
+        is used.
+        """
+        if not speeds or len(speeds) < CUE_AUTO_SPEED_MIN_VARIANTS:
+            return [speeds[0]] * 8 if speeds else [CUE_DEFAULT_VIDEO_SPEED]
+
+        n = len(speeds)
         target_tu = _random.uniform(self.min_duration_tu, self.max_duration_tu)
 
         method_name = _GEN_METHODS.get(self.active_preset)
         if method_name:
             gen = getattr(self, method_name)
-            seq = gen(available_speeds, n, target_tu)
+            seq = gen(speeds, n, target_tu)
         else:
             # Custom / fine-tuned -- use legacy walk
             seq = self._walk(
-                available_speeds, n,
+                speeds, n,
                 self.custom_drift, self.custom_intensity,
                 self.custom_volatility, self.custom_center,
                 target_tu
@@ -209,7 +260,7 @@ class CueAutoSpeedGenerator(object):
         parts = [_cue_speed_label(sp) + "x" + str(cnt) for sp, cnt in runs]
         actual_tu = sum(cnt / sp for sp, cnt in runs)
         preset = self.active_preset if self.active_preset else "custom"
-        rung_labels = ", ".join(_cue_speed_label(s) for s in available_speeds)
+        rung_labels = ", ".join(_cue_speed_label(s) for s in speeds)
         vid_dur = getattr(self, '_video_duration', 0) or 0
 
         _cue_log(
@@ -970,15 +1021,12 @@ class CueAutoSpeedGenerator(object):
         mode = _cue.video_sequence.get_mode(tag)
         if mode != CueSpeedMode.AUTO:
             return
-        base_path = _cue.speed_resolver.base_path_for(tag)
-        if not base_path:
-            return
-        available = _cue.speed_resolver.get_available_speeds(base_path)
-        if len(available) < CUE_MIN_SPEEDS_FOR_SEQUENCE:
+        speeds = self.enabled_speeds
+        if len(speeds) < CUE_MIN_SPEEDS_FOR_SEQUENCE:
             return
 
         self._video_duration = _cue.vid_manager.get_duration()
-        new_seq = self.generate(available)
+        new_seq = self.generate(speeds)
         entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
         entry["speed_sequence"] = new_seq
         _cue.markers.save_marker(create_vid_key(tag))
@@ -990,11 +1038,8 @@ class CueAutoSpeedGenerator(object):
         tag = _cue.current_file
         if not tag:
             return
-        base_path = _cue.speed_resolver.base_path_for(tag)
-        if not base_path:
-            return
-        available = _cue.speed_resolver.get_available_speeds(base_path)
-        if len(available) < CUE_MIN_SPEEDS_FOR_SEQUENCE:
+        speeds = self.enabled_speeds
+        if len(speeds) < CUE_MIN_SPEEDS_FOR_SEQUENCE:
             return
 
         # Surprise mode: pick a new random preset each loop
@@ -1002,7 +1047,7 @@ class CueAutoSpeedGenerator(object):
             self.active_preset = _random.choice(self.surprise_pool)
 
         self._video_duration = _cue.vid_manager.get_duration()
-        new_seq = self.generate(available)
+        new_seq = self.generate(speeds)
         entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
         entry["speed_sequence"] = new_seq
         _cue.markers.save_marker(create_vid_key(tag))

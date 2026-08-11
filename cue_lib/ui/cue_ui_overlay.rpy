@@ -187,7 +187,7 @@ screen cue_overlay_content():
                             spacing 5
                             text "The video will only play at the selected speed" style "cue_help"
                             hbox:
-                                spacing 3
+                                spacing 5
                                 for _sp in _avail:
                                     $ _label = _cue_speed_label(_sp)
                                     $ _tt = ("Play at " + _cue_speed_label(_sp) + " speed"
@@ -218,9 +218,9 @@ screen cue_overlay_content():
                         text "The video plays through each speed in order, then loops." style "cue_help"
                         if len(_avail) > 1:
                             hbox:
-                                spacing 3
+                                spacing 5
                                 box_wrap True
-                                box_wrap_spacing 3
+                                box_wrap_spacing 5
                                 for _sp in _avail:
                                     $ _a_label = _cue_speed_label(_sp)
                                     use cue_txt_button(_a_label,
@@ -245,8 +245,8 @@ screen cue_overlay_content():
                     # --- Auto Speed tab ---
                     if _mode == CueSpeedMode.AUTO:
                         $ _auto = _cue.auto_speed
-                        $ _avail_speeds = _cue.speed_resolver.get_available_speeds(_vid_path)
-                        $ _has_auto = len(_avail_speeds) >= CUE_AUTO_SPEED_MIN_VARIANTS
+                        $ _all_speeds = _cue.speed_resolver.get_available_speeds(_vid_path)
+                        $ _has_auto = len(_auto.enabled_speeds) >= CUE_AUTO_SPEED_MIN_VARIANTS
 
                         if _has_auto:
                             # --- Preset grid ---
@@ -259,10 +259,21 @@ screen cue_overlay_content():
 
                             null height 3
 
+                            # --- Speed toggles ---
                             hbox:
-                                spacing 3
+                                spacing 5
                                 box_wrap True
-                                box_wrap_spacing 3
+                                box_wrap_spacing 5
+                                text "Speeds:" style "cue_txt"
+                                for _sp in _all_speeds:
+                                    use cue_select_btn(_cue_speed_label(_sp), _auto.is_speed_enabled(_sp), Function(_auto.toggle_speed, _sp))
+
+                            null height 5
+
+                            hbox:
+                                spacing 5
+                                box_wrap True
+                                box_wrap_spacing 5
                                 use cue_auto_preset_btn("roller_coaster", _auto)
                                 use cue_auto_preset_btn("build_up", _auto)
                                 use cue_auto_preset_btn("cool_down", _auto)
