@@ -844,7 +844,6 @@ class CueVidSpeedSequence(object):
 class CueSpeedToast(object):
     def __init__(self):
         self.toast_speeds = None
-        self.toast_current = None
         self.toast_tag = None
         self.toast_timestamp = 0.0
         self.toast_duration = CUE_TOAST_DURATION
@@ -862,7 +861,6 @@ class CueSpeedToast(object):
         
         renpy.hide_screen("cue_speed_toast", layer="cue_layer")
         self.toast_speeds = speeds
-        self.toast_current = resolver._get_speed_pref(tag)
         self.toast_tag = tag
         self.toast_timestamp = _time.time()
         self.toast_duration = duration

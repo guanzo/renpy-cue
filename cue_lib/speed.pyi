@@ -14,7 +14,6 @@ class CueSpeedMode:
 
 class CueSpeedToast:
     toast_speeds: Optional[List[float]]
-    toast_current: Optional[float]
     toast_tag: Optional[str]
     toast_timestamp: float
     toast_duration: float
