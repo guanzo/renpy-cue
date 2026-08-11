@@ -12,7 +12,7 @@ from cue_lib.util import _cue_format_time
 
 MYPY = False
 if MYPY:
-    from typing import Any, List, Optional
+    from typing import Any, List, Optional, Tuple
     from cue_lib._types import VideoPoolDict
 
 

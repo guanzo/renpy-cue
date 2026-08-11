@@ -15,6 +15,10 @@ import renpy
 from cue_lib.state import _cue
 from cue_lib.util import _cue_log, create_vid_key
 
+MYPY = False
+if MYPY:
+    from typing import Optional
+
 
 # ==========================================================================
 # Module-level helpers (imported into store by cue_z.rpy for screen access)
@@ -263,7 +267,7 @@ class CueAutoSpeedGenerator(object):
     # ================================================================
 
     def generate(self, available_speeds, prev_sequence=None):
-        # type: (list, list) -> list
+        # type: (list, Optional[list]) -> list
         """Generate a new speed sequence.
 
         Args:
@@ -323,7 +327,7 @@ class CueAutoSpeedGenerator(object):
     # ================================================================
 
     def _pick_start_index(self, n, prev_sequence, available_speeds):
-        # type: (int, list, list) -> int
+        # type: (int, Optional[list], list) -> int
         """Pick a starting speed index, constrained by the previous
         sequence's last speed for continuity."""
         if not prev_sequence or len(prev_sequence) < 1:
@@ -425,8 +429,8 @@ class CueAutoSpeedGenerator(object):
                     momentum_steps_left -= 1
                 else:
                     momentum_dir = direction
-                    momentum_steps_left = _random.uniform(self.momentum_min_steps,
-                                                           self.momentum_max_steps)
+                    momentum_steps_left = int(_random.uniform(self.momentum_min_steps,
+                                                           self.momentum_max_steps))
 
             # -- Step size --
             # Volatility controls jump magnitude:

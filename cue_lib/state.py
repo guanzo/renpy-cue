@@ -78,6 +78,8 @@ class Cue(_renpy_python.NoRollback):
         self._seq_popup_index = -1
         self._vtl_screen_x = 0
         self._vtl_screen_y = 0
+        self._chart_screen_x = 0
+        self._chart_screen_y = 0
 
 
 _cue = Cue()

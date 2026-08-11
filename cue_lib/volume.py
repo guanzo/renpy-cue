@@ -30,6 +30,8 @@ class CueVolumeManager(object):
         Pool volumes default to VOL_DEFAULT (1.0 identity) so
         they multiply correctly with the master (entry-level) volume.
         Falls back to first pool when pool_index is out of range."""
+        if entry is None:
+            return self.VOL_DEFAULT
         if pool_index is not None:
             pools = entry.get("pools")
             if pools:
@@ -118,6 +120,7 @@ class CueVolumeManager(object):
             if pools:
                 resolved = _cue.markers.resolve_pool(pools[0])
                 return max(self.VOL_MIN, min(self.VOL_MAX, master * resolved.volume))
+        return master
 
     # --- Convenience: video pool volume ---
 

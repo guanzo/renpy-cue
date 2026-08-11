@@ -525,11 +525,13 @@ def _cue_is_screenshake(trans):
         if func_name != "Move":
             return False
 
+        _delay = kw.get("delay")
         return (
             kw.get("bounce", False) == True
             and kw.get("repeat", False) == True
-            and type(kw.get("delay")) in (int, float)
-            and kw.get("delay") < 0.5
+            and _delay is not None
+            and type(_delay) in (int, float)
+            and _delay < 0.5
         )
     except Exception:
         return False

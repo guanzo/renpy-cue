@@ -501,7 +501,7 @@ screen cue_overlay_content():
                             $ _commit = Function(_cue.markers.video.commit_text)
                             $ _display = _cue_format_time(_active_pool.get("time", 0))
                             use cue_time_input("_cue.markers.video.edit_text", _commit, _dec100, _dec10,
-                                               _inc10, _inc100, _display)
+                                                _inc10, _inc100, _display)
                         # File list
                         if _is_preset_ts:
                             # Preset-backed: render as expandable folder via cue_file_list

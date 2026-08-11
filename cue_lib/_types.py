@@ -28,8 +28,10 @@ class PoolDict(TypedDict, total=False):
     preset: str                 # preset-backed pools (written, replaced on detach)
 
 
-class VideoPoolDict(TypedDict, total=False):
-    """A video marker pool. Always has a time key."""
+class VideoPoolDict(TypedDict):
+    """A video marker pool.  ``time`` is always present;
+    ``files`` and ``volume`` are mandatory in new entries; ``preset``
+    and ``offset`` only appear in certain contexts."""
     time: float
     files: List[str]
     volume: float

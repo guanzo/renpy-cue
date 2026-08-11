@@ -5,6 +5,7 @@ from renpy.display.video import Movie
 class SpeedMode:
     SINGLE: str
     MULTI: str
+    AUTO: str
 
 class CueSpeedToast:
     toast_speeds: Optional[List[float]]

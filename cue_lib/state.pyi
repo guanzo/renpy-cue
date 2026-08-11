@@ -77,5 +77,7 @@ class Cue:
     _seq_popup_index: int
     _vtl_screen_x: int
     _vtl_screen_y: int
+    _chart_screen_x: int
+    _chart_screen_y: int
 
 _cue: Cue

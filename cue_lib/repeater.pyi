@@ -1,10 +1,12 @@
 # Type stub for cue_lib.repeater
-from typing import List
+from typing import List, Optional
 
-from cue_lib._types import RepeaterOffset, VideoPoolDict
+from cue_lib._types import PoolDict, RepeaterOffset, VideoPoolDict
 
 class CueMarkerRepeater:
     anchor: float
+    _anchor_pool: Optional[VideoPoolDict]
+    _selected_pools: List[VideoPoolDict]
     offsets: List[RepeaterOffset]
     sel_count: int
     interval_text: str

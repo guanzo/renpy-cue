@@ -9,7 +9,8 @@ from cue_lib.util import create_vid_key, _cue_format_time, _cue_parse_time, _cue
 
 MYPY = False
 if MYPY:
-    from cue_lib._types import RepeaterOffset, VideoPoolDict
+    from typing import List, Optional
+    from cue_lib._types import PoolDict, RepeaterOffset, VideoPoolDict
 
 
 class CueMarkerRepeater(object):
@@ -19,7 +20,7 @@ class CueMarkerRepeater(object):
     and repeat count, then clones the pattern N times at that spacing."""
 
     def __init__(self):
-        self._anchor_pool = None  # type: Optional[dict]
+        self._anchor_pool = None  # type: Optional[VideoPoolDict]
         self._selected_pools = []  # type: list
         self._anchor_text = ""
         self.offsets = []
