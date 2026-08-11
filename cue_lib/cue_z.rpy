@@ -168,15 +168,15 @@ init 999 python:
     _original_config_show = renpy.config.show
 
     def _cue_config_show(name, at_list=None, layer='master', what=None,
-                         zorder=None, tag=None, behind=None, atl=None):
+                            zorder=None, tag=None, behind=None, atl=None):
         if at_list:
             for t in at_list:
                 if _cue_is_screenshake(t):
                     _cue._shake_just_happened = True
                     break
         return _original_config_show(name, at_list=at_list, layer=layer,
-                                     what=what, zorder=zorder, tag=tag,
-                                     behind=behind, atl=atl)
+                                        what=what, zorder=zorder, tag=tag,
+                                        behind=behind, atl=atl)
 
     renpy.config.show = _cue_config_show
 

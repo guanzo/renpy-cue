@@ -1,7 +1,7 @@
 # Type stub for cue_lib.repeater
 from typing import List, Optional
 
-from cue_lib._types import PoolDict, RepeaterOffset, VideoPoolDict
+from cue_lib._types import RepeaterOffset, VideoPoolDict
 
 class CueMarkerRepeater:
     anchor: float

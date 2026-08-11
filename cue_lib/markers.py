@@ -13,7 +13,7 @@ from renpy.store import persistent
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_unwrap_persistent, _cue_format_time, _cue_parse_time,
-    _cue_clamp_time, _cue_resolve_files,
+    _cue_clamp_time,
     create_img_key, create_vid_key, create_dlg_key, create_loop_key,
     is_img_key, is_vid_key, is_dlg_key, is_loop_key,
     get_key_file,
@@ -21,9 +21,9 @@ from cue_lib.util import (
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, ItemsView, KeysView, List, Optional, Set, Tuple
+    from typing import Any, Dict, ItemsView, KeysView, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
     from cue_lib._types import (
-        ClipboardData, MarkerEntry, PoolDict, VideoPoolDict, VideoPreset,
+        ClipboardData, MarkerEntry, PoolDict, VideoPoolDict, VideoPreset,  # pyright: ignore[reportUnusedImport]
     )
 
 # =========================================================================
@@ -334,7 +334,7 @@ class CueVideoContext(CueMarkerContext):
         if not self.has_markers():
             return
         if len(self.selected) >= 1:
-            entry, pools = self._entry_and_pools()
+            _, pools = self._entry_and_pools()
             if pools:
                 for idx in sorted(self.selected, reverse=True):
                     if 0 <= idx < len(pools):
@@ -378,7 +378,7 @@ class CueVideoContext(CueMarkerContext):
 
     def nudge(self, delta):
         # type: (float) -> None
-        entry, pools = self._entry_and_pools()
+        _, pools = self._entry_and_pools()
         if not (0 <= self.target_pool < len(pools)):
             return
         pool_entry = pools[self.target_pool]
@@ -396,7 +396,7 @@ class CueVideoContext(CueMarkerContext):
 
     def set_time(self, idx, new_time):
         # type: (int, float) -> None
-        entry, pools = self._entry_and_pools()
+        _, pools = self._entry_and_pools()
         dur = self.get_duration()
         new_time = _cue_clamp_time(new_time, dur)
         if 0 <= idx < len(pools):
@@ -404,7 +404,7 @@ class CueVideoContext(CueMarkerContext):
 
     def finalize_drag(self):
         # type: () -> None
-        entry, pools = self._entry_and_pools()
+        _, pools = self._entry_and_pools()
         if not pools:
             return
         sel_objects = set()
@@ -426,13 +426,13 @@ class CueVideoContext(CueMarkerContext):
 
     def sync_text(self):
         # type: () -> None
-        entry, pools = self._entry_and_pools()
+        _, pools = self._entry_and_pools()
         if 0 <= self.target_pool < len(pools):
             self.edit_text = _cue_format_time(pools[self.target_pool]["time"])
 
     def commit_text(self):
         # type: () -> None
-        entry, pools = self._entry_and_pools()
+        _, pools = self._entry_and_pools()
         if not (0 <= self.target_pool < len(pools)):
             return
         new_time = _cue_parse_time(self.edit_text)
@@ -758,7 +758,7 @@ class CueMarkerManager(object):
     def _sanitize_video_presets(self):
         # type: () -> int
         total_stripped = 0
-        for name, preset in list(self._video_presets.items()):
+        for _, preset in list(self._video_presets.items()):
             pools = preset.get("pools")
             if not pools:
                 continue
@@ -988,7 +988,7 @@ class CueMarkerManager(object):
                     del entry["timestamps"]
                 entries_changed += 1
         presets_changed = 0
-        for name, preset in list(self._video_presets.items()):
+        for _, preset in list(self._video_presets.items()):
             if "timestamps" in preset:
                 if "pools" not in preset:
                     preset["pools"] = preset.pop("timestamps")

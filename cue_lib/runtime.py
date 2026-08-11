@@ -2,9 +2,7 @@
 # Runtime drivers -- overlay show/hide, context detection, tick engine, SFX playback.
 # Extracted from cue_z.rpy Section 3 (init python: free functions).
 
-import os
 import random as _random
-import time as _time
 import renpy
 import renpy.audio.music as _music
 import renpy.audio.audio as _aaudio
@@ -13,7 +11,7 @@ from renpy.store import persistent
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_unwrap_displayable, _cue_get_movie_play,
-    _cue_resolve_files, _cue_pick_file, _cue_format_time,
+    _cue_resolve_files, _cue_pick_file,
     create_img_key, create_dlg_key,
     is_vid_key, is_img_key, is_dlg_key,
     get_key_file, get_key_dialogue,
@@ -21,8 +19,8 @@ from cue_lib.util import (
 
 MYPY = False
 if MYPY:
-    from typing import Any, Optional, Tuple
-    from cue_lib._types import MarkerEntry, PoolDict, VideoPoolDict
+    from typing import Any, Optional, Tuple  # pyright: ignore[reportUnusedImport]
+    from cue_lib._types import MarkerEntry, PoolDict, VideoPoolDict  # pyright: ignore[reportUnusedImport]
 
 
 # --------------------------------------------------------------------------
@@ -153,7 +151,7 @@ def _cue_log_context():
             playing = "1" if _music.is_playing(channel=_cue.vid_manager.channel) else "0"
         except Exception:
             pass
-    top_name, top_type, _unused = _cue_get_top_layer()
+    _, top_type, _unused = _cue_get_top_layer()
     if top_type:
         ctx_type = top_type
     elif _cue.vid_manager.channel is not None and playing == "1":
@@ -224,7 +222,6 @@ def _cue_refresh_channel(displayable=None):
         return
     _cue.vid_manager.refreshing = True
     try:
-        video_exts = (".webm", ".mp4", ".mkv", ".avi", ".ogv", ".mpeg", ".mpg")
         old_ch = _cue.vid_manager.channel
 
         def _apply_channel(ch_name, ch_obj=None):

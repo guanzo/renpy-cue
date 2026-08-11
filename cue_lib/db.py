@@ -15,7 +15,7 @@ import json as _json
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List, Optional, Set, Tuple
+    from typing import Any, Dict, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
 
 
 # ---------------------------------------------------------------------------
@@ -88,11 +88,11 @@ def _to_str(obj):
     In Python 3 this is a no-op -- str and unicode are the same type.
     """
     try:
-        unicode  # Python 2 only
+        unicode  # pyright: ignore[reportUndefinedVariable, reportUnusedExpression]
     except NameError:
         return obj
 
-    if isinstance(obj, unicode):
+    if isinstance(obj, unicode):  # pyright: ignore[reportUndefinedVariable]
         return obj.encode("utf-8")
     if isinstance(obj, str):
         return obj

@@ -12,7 +12,7 @@ import renpy.audio.audio as _aaudio
 from renpy.store import persistent
 from renpy.display.layout import DynamicDisplayable
 from renpy.display.video import Movie
-from renpy.display.video import default_play_callback as _default_play_callback
+from renpy.display.video import default_play_callback as _default_play_callback  # pyright: ignore[reportAttributeAccessIssue]
 from renpy.display.image import images as _display_images
 
 from cue_lib.state import _cue

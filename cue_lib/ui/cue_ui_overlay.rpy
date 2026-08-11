@@ -179,8 +179,8 @@ screen cue_overlay_content():
                                         tt="Delete the " + _cue_speed_label(_cur) + " file.")
                             use cue_select_btn(
                                 ("☑ Seamless Transition"
-                                 if _cue.speed_resolver.seamless_transition
-                                 else "☐  Seamless Transition"),
+                                    if _cue.speed_resolver.seamless_transition
+                                    else "☐  Seamless Transition"),
                                 _cue.speed_resolver.seamless_transition,
                                 Function(_cue.speed_resolver.toggle_seamless),
                                 tt="When enabled, changing speeds waits for the current video loop to finish before switching.")

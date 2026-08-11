@@ -5,8 +5,7 @@ from cue_lib.ffmpeg import CueFFmpeg
 from cue_lib.file_tree import CueFileTreeManager
 from cue_lib.markers import CueMarkerManager
 from cue_lib._types import (
-    AudioTreeNode, MarkerEntry, PoolDict,
-    UndoSnapshot, VideoPreset,
+    AudioTreeNode, MarkerEntry, PoolDict, UndoSnapshot, VideoPreset,  # pyright: ignore[reportUnusedImport]
 )
 from cue_lib.auto_speed import CueAutoSpeedGenerator
 from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast

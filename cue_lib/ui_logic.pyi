@@ -1,7 +1,7 @@
 # Type stub for cue_lib.ui_logic
 from typing import Callable, Optional
 
-from cue_lib._types import MarkerEntry
+from cue_lib._types import MarkerEntry  # pyright: ignore[reportUnusedImport]
 
 class CuePresetDialog:
     trigger_key: Optional[str]

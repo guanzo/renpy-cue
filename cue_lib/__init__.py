@@ -4,6 +4,11 @@
 # Importing this package loads all submodules; the store bridge in
 # cue_z.rpy binds the necessary names into the Ren'Py store.
 
+# pyright: reportUnusedImport=false
+# Every import below is a side-effect import -- Ren'Py's import_all()
+# discovers modules through the package namespace, so they must be
+# listed here even though no symbol is referenced directly.
+
 # ---------------------------------------------------------------------------
 # Ren'Py exports bridge
 # ---------------------------------------------------------------------------

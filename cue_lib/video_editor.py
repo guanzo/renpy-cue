@@ -928,7 +928,6 @@ class CueVideoEditor(object):
         if abs(factor - 1.0) < 0.05 and self.encode_mode != self.MODE_INTERPOLATE:
             self.last_error = "Speed is already 1.00x."
             return
-        fs = self._get_video_fspath()
         self.create(factor)
 
     @_cue_ui_refresh
@@ -948,7 +947,6 @@ class CueVideoEditor(object):
         except (ValueError, TypeError):
             factor = 1.0
         factor = max(self.SPEED_MIN, min(self.SPEED_MAX, factor))
-        fs = self._get_video_fspath()
         self.create(factor)
 
     @_cue_ui_refresh

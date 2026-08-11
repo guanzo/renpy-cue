@@ -1,5 +1,5 @@
 # Type stub for cue_lib.ffmpeg
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
 CREATIONFLAGS: int
 

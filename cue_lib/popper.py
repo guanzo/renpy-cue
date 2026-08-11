@@ -20,9 +20,7 @@ def _cue_store_focus_rect(name):
     # type: (str) -> None
     _v = getattr(renpy, 'version_tuple', (0, 0, 0))
     if _v >= (8, 0, 0):
-        before = renpy.focus_coordinates()
         renpy.capture_focus(name)
-        after = renpy.get_focus_rect(name)
     else:
         rect = renpy.focus_coordinates()
         anchors = getattr(_cue, '_popper_anchors', None)

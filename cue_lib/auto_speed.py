@@ -13,11 +13,11 @@ import random as _random
 import renpy
 
 from cue_lib.state import _cue
-from cue_lib.util import _cue_log, create_vid_key
+from cue_lib.util import create_vid_key
 
 MYPY = False
 if MYPY:
-    from typing import Optional
+    from typing import Optional, List
 
 
 # ==========================================================================
@@ -73,7 +73,7 @@ class CueAutoSpeedGenerator(object):
 
     def __init__(self):
         # History
-        self.history = []       # list of {'speeds': [...], 'preset': '...'} dicts
+        self.history = []       # list of AutoSpeedHistoryEntry dicts
         self.max_history = 20
 
         # ================================================================
@@ -221,11 +221,13 @@ class CueAutoSpeedGenerator(object):
         tag = _cue.current_file
         if not tag:
             return
-        seq = _cue.video_sequence.speeds_for(tag) if _cue.video_sequence else None
-        if not seq:
+        speeds = None  # type: Optional[List[float]]
+        if _cue.video_sequence:
+            speeds = _cue.video_sequence.speeds_for(tag)
+        if not speeds:
             return
         preset_label = _cue_auto_preset_label(self.active_preset)
-        entry = dict(speeds=list(seq), preset=preset_label)
+        entry = {"speeds": speeds, "preset": preset_label}
         self.history.insert(0, entry)
         if len(self.history) > self.max_history:
             self.history.pop()
@@ -300,7 +302,7 @@ class CueAutoSpeedGenerator(object):
 
         # 5. History
         preset_label = _cue_auto_preset_label(self.active_preset)
-        h = dict(speeds=list(seq), preset=preset_label)
+        h = {"speeds": seq, "preset": preset_label}
         self.history.insert(0, h)
         if len(self.history) > self.max_history:
             self.history.pop()
@@ -358,7 +360,7 @@ class CueAutoSpeedGenerator(object):
 
     def _walk(self, speeds, n, start_idx, drift, intensity, volatility,
                center, target_tu):
-        # type: (list, int, int, float, float, float, float, float) -> list
+        # type: (list, int, int, float, float, float, float, float) -> List[float]
         """Walk through speed-space and return a list of speed values.
 
         At each step the walk decides:

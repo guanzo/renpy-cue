@@ -13,6 +13,10 @@
 from __future__ import annotations
 from typing import Dict, List, TypedDict, Union
 
+# typing_extensions is safe here -- _types.py is never imported at runtime
+# (see header comment).  Pyright understands NotRequired natively.
+from typing_extensions import NotRequired
+
 
 # =========================================================================
 # Pool dicts -- the shape of a single pool within a MarkerEntry
@@ -29,13 +33,16 @@ class PoolDict(TypedDict, total=False):
 
 
 class VideoPoolDict(TypedDict):
-    """A video marker pool.  ``time`` is always present;
-    ``files`` and ``volume`` are mandatory in new entries; ``preset``
-    and ``offset`` only appear in certain contexts."""
+    """A video marker pool.
+
+    ``time`` is always required -- every video pool has a timestamp.
+    ``files`` and ``volume`` are optional: preset-backed pools
+    (``{"time": t, "preset": name}``) delegate them to the preset.
+    ``preset`` is absent in resolved pools."""
     time: float
-    files: List[str]
-    volume: float
-    preset: str                 # preset-backed (detached on mutation)
+    files: NotRequired[List[str]]
+    volume: NotRequired[float]
+    preset: NotRequired[str]
 
 
 # =========================================================================
@@ -61,9 +68,11 @@ class MarkerEntry(TypedDict, total=False):
 
 class VideoPreset(TypedDict):
     """A saved video preset."""
-    pools: List[PoolDict]
+    pools: List[VideoPoolDict]
     volume: float
     source_duration: float
+    speed_mode: NotRequired[str]             # migration: "single" or "multi"
+    timestamps: NotRequired[List[PoolDict]]  # migration: old name for pools
 
 
 # =========================================================================
@@ -104,6 +113,24 @@ class CuePersistentData(TypedDict):
     triggers_active: bool
     encode_mode: int
     seamless_transition: bool
+
+
+# =========================================================================
+# Auto-speed generator
+# =========================================================================
+
+class AutoSpeedKnobs(TypedDict):
+    """Four-knob tuning dict for CueAutoSpeedGenerator presets and custom."""
+    drift: float
+    intensity: float
+    volatility: float
+    center: float
+
+
+class AutoSpeedHistoryEntry(TypedDict):
+    """One entry in CueAutoSpeedGenerator.history."""
+    speeds: List[float]
+    preset: str
 
 
 # =========================================================================

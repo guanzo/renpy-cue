@@ -305,7 +305,7 @@ class CueTriggerEngine(object):
 
                     if _marker_reached(pool_entry["time"]):
                         from cue_lib.runtime import _cue_play_pool
-                        f = _cue_play_pool(entry, vid_key, pool_entry, pool_index, avoid_repeats=False)
+                        f = _cue_play_pool(entry, vid_key, pool_entry, pool_index, avoid_repeats=False)  # pyright: ignore[reportArgumentType]
                         if f:
                             self.played_video_keys.add(ts_key)
 

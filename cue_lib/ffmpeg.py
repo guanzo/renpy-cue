@@ -435,8 +435,6 @@ class CueFFmpeg(object):
         is_vp = vcodec in ("libvpx-vp9", "libvpx")
         if is_vp and target_bitrate:
             passlog = temp_path + ".passlog"
-            vq = self._VIDEO_QUALITY.get(vcodec, [])
-            aq = self._AUDIO_QUALITY.get(acodec, [])
 
             # Pass 1: video only. Don't include the audio filter since
             # -an discards audio and unconnected [a] output is an error.

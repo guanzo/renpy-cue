@@ -9,8 +9,8 @@ from cue_lib.util import create_vid_key, _cue_format_time, _cue_parse_time, _cue
 
 MYPY = False
 if MYPY:
-    from typing import List, Optional
-    from cue_lib._types import PoolDict, RepeaterOffset, VideoPoolDict
+    from typing import List, Optional  # pyright: ignore[reportUnusedImport]
+    from cue_lib._types import PoolDict, RepeaterOffset, VideoPoolDict  # pyright: ignore[reportUnusedImport]
 
 
 class CueMarkerRepeater(object):
@@ -136,6 +136,8 @@ class CueMarkerRepeater(object):
             return
 
         entry = _cue.markers._get_or_create_entry(vid_key)
+        if "pools" not in entry:
+            return
         pools = entry["pools"]
 
         dur = _cue.vid_manager.get_duration()
@@ -154,11 +156,11 @@ class CueMarkerRepeater(object):
                     "files": list(offset["files"]),
                     "volume": offset["volume"],
                 }
-                pools.append(clone)
+                pools.append(clone)  # pyright: ignore[reportArgumentType]
                 new_count += 1
 
         if new_count > 0:
-            pools.sort(key=lambda e: e["time"])
+            pools.sort(key=lambda e: e["time"])  # pyright: ignore[reportGeneralTypeIssues]
         _cue.markers.video.selected = set()
         _cue.markers.save_marker(vid_key)
 
@@ -227,7 +229,7 @@ class CueMarkerRepeater(object):
 
         for rep_idx in range(1, count + 1):
             rep_anchor = self.anchor + interval * rep_idx
-            for offset_idx, offset in enumerate(self.offsets):
+            for _, offset in enumerate(self.offsets):
                 time = rep_anchor + offset["offset"]
                 if dur > 0 and time > dur:
                     continue

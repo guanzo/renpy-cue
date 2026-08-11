@@ -127,18 +127,18 @@ def _cue_unwrap_displayable(name_or_displayable):
 
     seen = 0
     while d is not None and seen < 50:
-        if hasattr(d, "child") and d.child is not None:
-            d = d.child
-        elif hasattr(d, "_target") and callable(d._target):
+        if hasattr(d, "child") and d.child is not None:  # pyright: ignore[reportAttributeAccessIssue]
+            d = d.child  # pyright: ignore[reportAttributeAccessIssue]
+        elif hasattr(d, "_target") and callable(d._target):  # pyright: ignore[reportAttributeAccessIssue]
             try:
-                resolved = d._target()
+                resolved = d._target()  # pyright: ignore[reportAttributeAccessIssue]
             except Exception:
                 resolved = None
             if resolved is None or resolved is d:
                 break
             d = resolved
-        elif hasattr(d, "target") and d.target is not None:
-            d = d.target
+        elif hasattr(d, "target") and d.target is not None:  # pyright: ignore[reportAttributeAccessIssue]
+            d = d.target  # pyright: ignore[reportAttributeAccessIssue]
         else:
             break
         seen += 1
@@ -173,7 +173,7 @@ def _cue_unwrap_persistent(data):
     if isinstance(data, (str, bytes)):
         return data
     try:
-        if isinstance(data, unicode):  # Python 2 only
+        if isinstance(data, unicode):  # pyright: ignore[reportUndefinedVariable]
             return data
     except NameError:
         pass

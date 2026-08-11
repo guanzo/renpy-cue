@@ -102,6 +102,7 @@ Pylance can't resolve most `renpy.*` names (Ren'Py uses dynamic `import *` from 
 - **`cue_lib/*.pyi`** — stubs for our own modules, living alongside their `.py` counterparts. Pylance finds them automatically via PEP 561.
 - **`cue_lib/_types.py`** — CANONICAL source for all TypedDict definitions (PoolDict, MarkerEntry, etc.). This is a real `.py` module that `.pyi` stubs import from. It is NEVER executed at runtime (only imported inside `if MYPY:` guards and by `.pyi` files), so it freely uses modern syntax (TypedDict, `from __future__ import annotations`). ONE definition per TypedDict — no duplication across `.pyi` files.
 - **AFTER editing any `cue_lib/*.py`** — check whether the corresponding `cue_lib/*.pyi` needs updating (new/renamed/deleted functions, classes, or method signatures). Keep them in sync.
+- **AFTER any changes to `cue_lib/`** — run `/lint`. It must return `CLEAN`. If it doesn't, fix or suppress the diagnostic (see `.claude/skills/lint/SKILL.md` for the unfixable-error table).
 - **AFTER adding a new manager to `bootstrap()` in `state.py`** — you MUST add it to `state.pyi` (both the import and the attribute on `class Cue`). Otherwise `_cue.new_manager` shows "unknown attribute" in every consumer.
 - **AFTER adding/changing a TypedDict** — update `cue_lib/_types.py` (the single source of truth). All `.pyi` files import from there.
 
@@ -149,30 +150,3 @@ def resolve_pool(self, pool):
 - One canonical definition per TypedDict — `.pyi` stubs import from here, never redeclare
 - Located at `cue_lib/_types.py` (a real `.py` module) so Pyright can resolve it as an import target
 
-## After editing any `.py` file
-
-Run `pyright cue_lib/` and check for these fatal-only rules — they crash at runtime:
-
-- `reportUndefinedVariable`
-- `reportUnboundVariable`
-- `reportMissingImports`
-- `reportUnusedImport` (removed import that other code relied on)
-
-Ignore all other diagnostics. Run with:
-
-```bash
-pyright cue_lib/ --outputjson | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-fatal={'reportUndefinedVariable','reportUnboundVariable','reportMissingImports','reportUnusedImport'}
-for diag in d.get('generalDiagnostics',[]):
-    if diag.get('rule') in fatal:
-        print(diag['file'],diag['range']['start']['line'],diag['message'])
-for f in d.get('diagnostics',[]):
-    for diag in f.get('diagnostics',[]):
-        if diag.get('rule') in fatal:
-            print(f['file'],diag['range']['start']['line'],diag['message'])
-"
-```
-
-If the command outputs nothing, there are no fatal errors.

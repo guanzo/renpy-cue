@@ -1,5 +1,5 @@
 # Type stub for cue_lib.displayables
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional
 from renpy.display.core import Displayable
 
 from cue_lib._types import VideoPoolDict
