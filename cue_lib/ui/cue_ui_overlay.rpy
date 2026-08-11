@@ -192,6 +192,8 @@ screen cue_overlay_content():
                         if len(_avail) > 1:
                             hbox:
                                 spacing 3
+                                box_wrap True
+                                box_wrap_spacing 3
                                 for _sp in _avail:
                                     $ _a_label = _cue_speed_label(_sp)
                                     use cue_txt_button(_a_label,
@@ -202,52 +204,30 @@ screen cue_overlay_content():
                                     use cue_txt_button("Clear",
                                         Function(_cue.video_sequence.clear_sequence, None),
                                         tt="Remove the entire speed sequence")
+
+                        null height 5
+
                         if _seq:
-                            # --- Sequence chart ---
                             if len(_seq) >= 2:
-                                add CueAutoSpeedChart() xsize 440 ysize 55
-
-                            $ _groups = _cue.video_sequence.speeds_grouped(_cue.current_file)
-                            null height 3
-                            viewport:
-                                xalign 0.5
-                                xsize 440
-                                ysize 30
-                                mousewheel True
-                                scrollbars "horizontal"
-                                scrollbar_unscrollable "hide"
-                                style_group "cue"
-
-                                hbox:
-                                    spacing 4
-                                    for _si in range(len(_seq)):
-                                        $ _sp = _seq[_si]
-                                        $ _s_label = _cue_speed_label(_sp)
-                                        $ _cur_idx = _cue.video_sequence.current_step_index()
-                                        $ _is_current = (_si == _cur_idx)
-                                        $ _bg = _cue_color_active if _is_current else None
-                                        use cue_popper_anchor("seq_btn", Function(_cue_seq_btn_hovered, _si)):
-                                            textbutton _s_label:
-                                                style "cue_btn"
-                                                text_style "cue_btn_text"
-                                                if _bg is not None:
-                                                    background _bg
+                                add CueAutoSpeedChart() xsize 440 ysize 80
+                            else:
+                                text "Click 1 more speed." style "cue_help"
                         else:
-                            text "Click the speed buttons to create a sequence." style "cue_help"
+                            text "Click the speed buttons to create a sequence. Minimum 2 speeds." style "cue_help"
 
                     # --- Auto Speed tab ---
                     if _mode == SpeedMode.AUTO:
                         $ _auto = _cue.auto_speed
                         $ _avail_speeds = _cue.speed_resolver.get_available_speeds(_vid_path)
-                        $ _has_auto = len(_avail_speeds) >= 2
+                        $ _has_auto = len(_avail_speeds) >= CUE_AUTO_SPEED_MIN_VARIANTS
 
                         if _has_auto:
                             # --- Preset grid ---
                             null height 3
                             $ _auto_help = (
-                                "Pick a rhythm — each rhythm varies playback speed with a different "
-                                "theme. Click a rhythm anytime to generate a fresh sequence. "
-                                "Minimum number of speeds is 4, recommended is 8. The more the better."
+                                "Pick a rhythm. Each rhythm varies playback speed with a different theme. "
+                                "Each playthrough of a rhythm is slightly different. "
+                                "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is 8. The more the better."
                             )
                             text _auto_help style "cue_help"
 
@@ -271,40 +251,13 @@ screen cue_overlay_content():
 
                             null height 5
 
-                            null height 5
-
                             # --- Sequence chart ---
                             $ _seq = _cue.video_sequence.speeds_for(_cue.current_file)
                             if _seq and len(_seq) >= 2:
-                                add CueAutoSpeedChart() xsize 440 ysize 55
+                                add CueAutoSpeedChart() xsize 440 ysize 80
 
-                            # --- Sequence buttons ---
-                            $ _groups = _cue.video_sequence.speeds_grouped(_cue.current_file)
-                            if _groups:
-                                viewport:
-                                    xalign 0.5
-                                    xsize 440
-                                    ysize 30
-                                    mousewheel True
-                                    scrollbars "horizontal"
-                                    scrollbar_unscrollable "hide"
-                                    style_group "cue"
-
-                                    hbox:
-                                        spacing 5
-                                        for _gi in range(len(_groups)):
-                                            $ _sp, _count, _start = _groups[_gi]
-                                            $ _s_label = _cue_speed_label(_sp)
-                                            if _count > 1:
-                                                $ _s_label += " (" + str(_count) + ")"
-                                            $ _cur_idx = _cue.video_sequence.current_step_index()
-                                            $ _is_current = (_start <= _cur_idx < _start + _count)
-                                            $ _bg = _cue_color_active if _is_current else None
-                                            use cue_txt_button(_s_label, NullAction(),
-                                                bg=_bg, sensitive=False,
-                                                tt="Speed {} (x{})".format(_gi + 1, _count))
                         else:
-                            text "Auto Speed needs at least 2 speed variants. Generate some in the VFX tab!" style "cue_help"
+                            text "Auto Speed needs at least [CUE_AUTO_SPEED_MIN_VARIANTS] speed variants. Generate some in the VFX tab!" style "cue_help"
 
                 use cue_h_divider()
 
@@ -405,6 +358,8 @@ screen cue_overlay_content():
                             $ _active_label = "Pool " + str(_vid_target + 1) + " (" + str(len(_active_files)) + " files)"
                         hbox:
                             spacing 5
+                            box_wrap True
+                            box_wrap_spacing 3
                             text _active_label style "cue_txt"
 
                             null width 5
@@ -567,6 +522,8 @@ screen cue_overlay_content():
             $ _freq = _cue._pool_ui.get("freq", 1)
             hbox:
                 spacing 5
+                box_wrap True
+                box_wrap_spacing 3
                 text "Interval:" style "cue_txt" size 11
                 use cue_select_btn("Slowest", (_freq == 4), Function(_cue.markers.loop.set_frequency, 4), tt="~6.3s between plays")
                 use cue_select_btn("Slow", (_freq == 0), Function(_cue.markers.loop.set_frequency, 0), tt="~3.8s between plays")

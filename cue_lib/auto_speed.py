@@ -27,6 +27,10 @@ if MYPY:
 # Module-level helpers (imported into store by cue_z.rpy for screen access)
 # ==========================================================================
 
+# Minimum number of speed variants required for Auto Speed mode.
+# Fewer than this and the generator can't produce meaningful variety.
+CUE_AUTO_SPEED_MIN_VARIANTS = 4
+
 def _cue_auto_preset_label(preset_name):
     # type: (str) -> str
     """Human-readable label for a preset key."""
@@ -90,14 +94,7 @@ _GEN_METHODS = {
 # ==========================================================================
 
 class CueAutoSpeedGenerator(object):
-    """Procedural speed sequence generator.
-
-    Each named preset has its own generator method that directly encodes
-    the desired rhythm shape.  Randomization within each method makes
-    every generation slightly different.
-
-    The legacy _walk algorithm is used for custom / fine-tune mode
-    (active_preset is None)."""
+    """Procedural speed sequence generator."""
 
     def __init__(self):
         # ================================================================
@@ -172,8 +169,7 @@ class CueAutoSpeedGenerator(object):
         Each preset picks its own starting rung.  No continuity is
         enforced between successive sequences.
         """
-        min_speeds = 4
-        if not available_speeds or len(available_speeds) < min_speeds:
+        if not available_speeds or len(available_speeds) < CUE_AUTO_SPEED_MIN_VARIANTS:
             return [available_speeds[0]] * 8 if available_speeds else [1.0]
 
         n = len(available_speeds)
@@ -249,9 +245,8 @@ class CueAutoSpeedGenerator(object):
         if hold_tu > remaining_tu:
             hold_tu = remaining_tu
 
-        # Cap real time: no single hold should exceed ~8 seconds of the
-        # same speed, regardless of the preset's preferred scale.
-        max_real_s = 8.0
+        # Cap real time per hold.
+        max_real_s = 10.0
         if (hasattr(self, '_video_duration')
                 and self._video_duration > 0):
             max_tu = max_real_s / self._video_duration
@@ -260,6 +255,13 @@ class CueAutoSpeedGenerator(object):
 
         return self._emit_hold(seq, speeds, idx, hold_tu)
 
+
+    def _should_stay(self, stay_count, stay_prob, max_stays=2):
+        # type: (int, float, int) -> bool
+        """Return True if we should stay on the current rung."""
+        if stay_count >= max_stays:
+            return False
+        return _random.random() < stay_prob
 
     # ================================================================
     # Per-preset generators
@@ -367,33 +369,32 @@ class CueAutoSpeedGenerator(object):
 
     def _gen_climb(self, speeds, n, target_tu):
         # type: (list, int, float) -> list
-        """Build Up: guaranteed climb from low to peak, then hold."""
+        """Build Up: 40-60% of the budget spent climbing, rest at peak."""
         seq = []
         tu = 0.0
 
         idx = _random.randint(0, n // 2)
         peak = n - 1
 
-        climb_eagerness = _random.uniform(0.35, 0.75)
-        climb_scale = 0.3 + (1.0 - climb_eagerness) * 0.7
+        # Build the list of rungs we'll visit during the climb.
+        stride = _random.randint(1, max(1, (n - 1) // 4))
+        climb_rungs = list(range(idx + stride, peak + 1, stride))
+        if not climb_rungs or climb_rungs[-1] != peak:
+            climb_rungs.append(peak)
 
-        # Stride: skip rungs so the climb doesn't drag on flat terrain.
-        stride = _random.randint(1, max(1, (n - 1) // 3))
+        # 40-60% of the budget goes to the climb phase.
+        climb_budget = target_tu * _random.uniform(0.4, 0.6)
+        per_rung = climb_budget / max(len(climb_rungs), 1)
+        avg_hold = (self.min_hold_tu + self.max_hold_tu) / 2.0
+        climb_scale = max(0.3, per_rung / max(avg_hold, 0.1))
 
-        # -- Climb phase, skipping by stride --
-        rung = idx + stride
-        while rung <= peak:
+        for rung in climb_rungs:
             remaining = target_tu - tu
             if remaining <= 0.1:
                 break
             tu += self._take_hold(seq, speeds, rung, remaining, scale=climb_scale)
-            rung += stride
 
-        # Always tag the peak if we didn't land exactly on it.
-        if rung - stride != peak:
-            tu += self._take_hold(seq, speeds, peak, target_tu - tu, scale=0.4)
-
-        # -- Peak phase: wiggle around the peak --
+        # -- Peak phase: wiggle with remaining budget --
         idx = peak
         while tu < target_tu:
             tu += self._take_hold(seq, speeds, idx, target_tu - tu, scale=1.2)
@@ -402,7 +403,6 @@ class CueAutoSpeedGenerator(object):
                 idx = max(peak - 1, idx - 1)
             elif r < 0.70:
                 idx = min(peak, idx + 1)
-            # Clamp to [peak-1, peak]
             idx = max(peak - 1, min(peak, idx))
         return seq
 
@@ -412,31 +412,31 @@ class CueAutoSpeedGenerator(object):
 
     def _gen_descend(self, speeds, n, target_tu):
         # type: (list, int, float) -> list
-        """Cool Down: guaranteed descent from high to low, then settle."""
+        """Cool Down: 40-60% of the budget spent descending, rest at bottom."""
         seq = []
         tu = 0.0
 
         idx = _random.randint(n // 2, n - 1)
         bottom = 0
 
-        descend_eagerness = _random.uniform(0.35, 0.75)
-        descend_scale = 0.3 + (1.0 - descend_eagerness) * 0.7
+        # Build the list of rungs we'll visit during the descent.
+        stride = _random.randint(1, max(1, (n - 1) // 4))
+        descend_rungs = list(range(idx - stride, bottom - 1, -stride))
+        if not descend_rungs or descend_rungs[-1] != bottom:
+            descend_rungs.append(bottom)
 
-        stride = _random.randint(1, max(1, (n - 1) // 3))
+        descend_budget = target_tu * _random.uniform(0.4, 0.6)
+        per_rung = descend_budget / max(len(descend_rungs), 1)
+        avg_hold = (self.min_hold_tu + self.max_hold_tu) / 2.0
+        descend_scale = max(0.3, per_rung / max(avg_hold, 0.1))
 
-        # -- Descent phase, skipping by stride --
-        rung = idx - stride
-        while rung >= bottom:
+        for rung in descend_rungs:
             remaining = target_tu - tu
             if remaining <= 0.1:
                 break
             tu += self._take_hold(seq, speeds, rung, remaining, scale=descend_scale)
-            rung -= stride
 
-        if rung + stride != bottom:
-            tu += self._take_hold(seq, speeds, bottom, target_tu - tu, scale=0.4)
-
-        # -- Bottom phase: wiggle around the bottom --
+        # -- Bottom phase: wiggle with remaining budget --
         idx = bottom
         while tu < target_tu:
             tu += self._take_hold(seq, speeds, idx, target_tu - tu, scale=1.2)
@@ -445,7 +445,6 @@ class CueAutoSpeedGenerator(object):
                 idx = min(bottom + 1, idx + 1)
             elif r < 0.70:
                 idx = max(bottom, idx - 1)
-            # Clamp to [bottom, bottom+1]
             idx = max(bottom, min(bottom + 1, idx))
         return seq
 
@@ -459,10 +458,9 @@ class CueAutoSpeedGenerator(object):
         seq = []
         tu = 0.0
 
-        # Explicitly start low
         idx = _random.randint(0, n // 2)
-        # Vary the ceiling within the lower half for variety.
         max_rung = _random.randint(1, n // 2)
+        stay_count = 0
 
         while tu < target_tu:
             remaining = target_tu - tu
@@ -471,12 +469,14 @@ class CueAutoSpeedGenerator(object):
             if tu >= target_tu:
                 break
 
-            r = _random.random()
-            if r < 0.35:
+            if self._should_stay(stay_count, 0.35):
+                stay_count += 1
+            elif _random.random() < 0.54:
                 idx = min(idx + 1, max_rung)
-            elif r < 0.65:
+                stay_count = 0
+            else:
                 idx = max(idx - 1, 0)
-            # else: stay (35%)
+                stay_count = 0
         return seq
 
     # ----------------------------------------------------------------
@@ -492,6 +492,7 @@ class CueAutoSpeedGenerator(object):
         # Explicitly start high
         hi_min = n // 2
         idx = _random.randint(hi_min, n - 1)
+        stay_count = 0
 
         while tu < target_tu:
             remaining = target_tu - tu
@@ -501,16 +502,19 @@ class CueAutoSpeedGenerator(object):
             if tu >= target_tu:
                 break
 
-            r = _random.random()
-            if r < 0.06:
-                idx = min(idx + 2, n - 1)
-            elif r < 0.12:
-                idx = max(idx - 2, hi_min)
-            elif r < 0.50:
-                idx = min(idx + 1, n - 1)
-            elif r < 0.88:
-                idx = max(idx - 1, hi_min)
-            # else: stay (12%)
+            if self._should_stay(stay_count, 0.12):
+                stay_count += 1
+            else:
+                r = _random.random()
+                if r < 0.068:
+                    idx = min(idx + 2, n - 1)
+                elif r < 0.136:
+                    idx = max(idx - 2, hi_min)
+                elif r < 0.568:
+                    idx = min(idx + 1, n - 1)
+                else:
+                    idx = max(idx - 1, hi_min)
+                stay_count = 0
         return seq
 
     # ----------------------------------------------------------------
@@ -519,22 +523,26 @@ class CueAutoSpeedGenerator(object):
 
     def _gen_spike(self, speeds, n, target_tu):
         # type: (list, int, float) -> list
-        """Tease: mostly slow with sudden brief spikes and cooldown."""
+        """Tease: baseline in the lowest fourth, sharp spikes into the
+        top third, with enforced cooldown between spikes."""
         seq = []
         tu = 0.0
 
-        # Explicitly start low
-        idx = _random.randint(0, n // 2)
-        spike_rungs = list(range(n // 2, n))
+        # Baseline: lowest fourth.  Spike: top third.
+        base_hi = max(0, n // 4)
+        spike_lo = n - max(1, n // 3)
+        spike_rungs = list(range(spike_lo, n))
         if not spike_rungs:
             spike_rungs = [n - 1]
+
+        idx = _random.randint(0, base_hi)
         spike_hold = _random.uniform(0.3, 0.8)
         cooldown_tu = _random.uniform(1.5, 4.0)
-        tu_since_spike = cooldown_tu  # allow first spike after some time
+        tu_since_spike = cooldown_tu
         spike_chance = _random.uniform(0.10, 0.25)
+        stay_count = 0
 
         while tu < target_tu:
-            # Try a spike if cooldown has elapsed
             if (tu_since_spike >= cooldown_tu
                     and _random.random() < spike_chance
                     and spike_rungs):
@@ -542,9 +550,9 @@ class CueAutoSpeedGenerator(object):
                 spike_tu = min(spike_hold, target_tu - tu)
                 if spike_tu > 0:
                     tu += self._emit_hold(seq, speeds, spike_idx, spike_tu)
-                    tu_since_spike = 0.0  # reset -- cooldown starts after spike
-                    # Drop back low
-                    idx = _random.randint(0, n // 2)
+                    tu_since_spike = 0.0
+                    idx = _random.randint(0, base_hi)
+                    stay_count = 0
                 if tu >= target_tu:
                     break
 
@@ -556,13 +564,15 @@ class CueAutoSpeedGenerator(object):
             if tu >= target_tu:
                 break
 
-            # Gentle low sway
-            r = _random.random()
-            if r < 0.30:
-                idx = min(idx + 1, n // 2)
-            elif r < 0.50:
+            # Baseline sway: stay at most twice, then forced move.
+            if self._should_stay(stay_count, 0.50):
+                stay_count += 1
+            elif _random.random() < 0.60:
+                idx = min(idx + 1, base_hi)
+                stay_count = 0
+            else:
                 idx = max(idx - 1, 0)
-            # else: stay (50%)
+                stay_count = 0
         return seq
 
     # ----------------------------------------------------------------
@@ -577,7 +587,7 @@ class CueAutoSpeedGenerator(object):
 
         idx = _random.randint(0, n - 1)
         last_idx = -1  # previous rung, to avoid immediate reversal
-        plateau_scale = _random.uniform(1.0, 2.5)
+        plateau_scale = _random.uniform(1, 3)
 
         while tu < target_tu:
             remaining = target_tu - tu
@@ -615,6 +625,7 @@ class CueAutoSpeedGenerator(object):
         tu = 0.0
 
         idx = _random.randint(0, n - 1)
+        stay_count = 0
 
         while tu < target_tu:
             remaining = target_tu - tu
@@ -623,16 +634,19 @@ class CueAutoSpeedGenerator(object):
             if tu >= target_tu:
                 break
 
-            r = _random.random()
-            if r < 0.25:
-                idx = min(idx + 1, n - 1)
-            elif r < 0.50:
-                idx = max(idx - 1, 0)
-            elif r < 0.55:
-                idx = min(idx + 2, n - 1)
-            elif r < 0.60:
-                idx = max(idx - 2, 0)
-            # else: stay (40%)
+            if self._should_stay(stay_count, 0.40):
+                stay_count += 1
+            else:
+                r = _random.random()
+                if r < 0.417:
+                    idx = min(idx + 1, n - 1)
+                elif r < 0.833:
+                    idx = max(idx - 1, 0)
+                elif r < 0.916:
+                    idx = min(idx + 2, n - 1)
+                else:
+                    idx = max(idx - 2, 0)
+                stay_count = 0
         return seq
 
     # ----------------------------------------------------------------
@@ -689,6 +703,7 @@ class CueAutoSpeedGenerator(object):
         )
         idx = anchor_rung
         max_drift = _random.randint(1, min(2, max(1, n // 2)))
+        stay_count = 0
 
         while tu < target_tu:
             remaining = target_tu - tu
@@ -697,36 +712,34 @@ class CueAutoSpeedGenerator(object):
             if tu >= target_tu:
                 break
 
-            dist = idx - anchor_rung  # negative = below, positive = above
+            dist = idx - anchor_rung
 
-            # Strong mean reversion: bias depends on distance from anchor
             if dist <= -2:
-                # Far below -- strong upward bias
                 up_p = 0.70
                 down_p = 0.05
             elif dist <= -1:
                 up_p = 0.45
                 down_p = 0.15
             elif dist >= 2:
-                # Far above -- strong downward bias
                 up_p = 0.05
                 down_p = 0.70
             elif dist >= 1:
                 up_p = 0.15
                 down_p = 0.45
             else:
-                # At anchor -- balanced
                 up_p = 0.30
                 down_p = 0.25
 
-            r = _random.random()
-            if r < up_p:
+            stay_prob = 1.0 - up_p - down_p
+            if self._should_stay(stay_count, stay_prob):
+                stay_count += 1
+            elif _random.random() < up_p / max(up_p + down_p, 0.01):
                 idx = min(idx + 1, anchor_rung + max_drift)
-            elif r < up_p + down_p:
+                stay_count = 0
+            else:
                 idx = max(idx - 1, anchor_rung - max_drift)
-            # else: stay
+                stay_count = 0
 
-            # Hard clamp
             idx = max(anchor_rung - max_drift, min(anchor_rung + max_drift, idx))
         return seq
 

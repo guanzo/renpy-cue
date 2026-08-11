@@ -8,7 +8,7 @@ from renpy.text.text import Text as Txt
 from renpy.display.core import Displayable, IgnoreEvent
 
 from cue_lib.state import _cue
-from cue_lib.util import _cue_format_time, _cue_log
+from cue_lib.util import _cue_format_time
 
 MYPY = False
 if MYPY:
@@ -528,14 +528,17 @@ class CueMarkerTooltipOverlay(Displayable):
 class CueAutoSpeedChart(Displayable):
     """Line chart that visualizes a speed sequence with a progress dot.
 
-    Draws a polyline across all speed steps. The portion before the
-    current index is drawn bright, the portion after is dim. A filled
-    dot marks the current position.
+    Draws a polyline across all speed steps.  The played portion is
+    bright, the remaining portion dim.  A filled dot marks the current
+    position.  Y-axis labels show min / max speed; the current speed
+    label tracks the progress dot.
 
     Usage in screen:  add CueAutoSpeedChart()  -- reads from _cue directly."""
 
-    PAD_X = 10
-    PAD_Y = 8
+    PAD_LEFT = 35
+    PAD_RIGHT = 8
+    PAD_TOP = 8
+    PAD_BOTTOM = 18
     DOT_R = 4
     LINE_W = 2
 
@@ -550,22 +553,23 @@ class CueAutoSpeedChart(Displayable):
 
     @staticmethod
     def _compute_points(speeds, width, height):
-        # type: (List[float], int, int) -> List[Tuple[int, int]]
-        """Map speed values to (x, y) pixel coordinates."""
+        # type: (List[float], int, int) -> Tuple[List[Tuple[int, int]], float, float]
+        """Map speed values to (x, y) pixel coordinates.
+        Returns (points, sp_min, sp_max)."""
         n = len(speeds)
         if n < 2:
-            return []
+            return ([], 0.0, 0.0)
         sp_min = min(speeds)
         sp_max = max(speeds)
         sp_range = sp_max - sp_min if sp_max > sp_min else 1.0
-        w = width - CueAutoSpeedChart.PAD_X * 2
-        h = height - CueAutoSpeedChart.PAD_Y * 2
+        w = width - CueAutoSpeedChart.PAD_LEFT - CueAutoSpeedChart.PAD_RIGHT
+        h = height - CueAutoSpeedChart.PAD_TOP - CueAutoSpeedChart.PAD_BOTTOM
         points = []
         for i, sp in enumerate(speeds):
-            x = CueAutoSpeedChart.PAD_X + int((float(i) / max(1, n - 1)) * w)
-            y = CueAutoSpeedChart.PAD_Y + int((1.0 - (sp - sp_min) / sp_range) * h)
+            x = CueAutoSpeedChart.PAD_LEFT + int((float(i) / max(1, n - 1)) * w)
+            y = CueAutoSpeedChart.PAD_TOP + int((1.0 - (sp - sp_min) / sp_range) * h)
             points.append((x, y))
-        return points
+        return points, sp_min, sp_max
 
     def visit(self):
         # type: () -> List[Displayable]
@@ -575,7 +579,7 @@ class CueAutoSpeedChart(Displayable):
         # type: (int, int, float, float) -> Any
         r = renpy.Render(width, height)
 
-        if width < 20 or height < 10:
+        if width < 60 or height < 30:
             renpy.redraw(self, self.interval)
             return r
 
@@ -589,7 +593,7 @@ class CueAutoSpeedChart(Displayable):
             return r
 
         current_idx = _cue.video_sequence.current_step_index()
-        points = self._compute_points(speeds, width, height)
+        points, sp_min, sp_max = self._compute_points(speeds, width, height)
         if len(points) < 2:
             renpy.redraw(self, self.interval)
             return r
@@ -606,9 +610,36 @@ class CueAutoSpeedChart(Displayable):
                 canvas.line(self.COLOR_BRIGHT, points[i], points[i + 1], self.LINE_W)
 
         # --- Progress dot ---
+        cx = cy = 0
         if 0 <= current_idx < len(points):
             cx, cy = points[current_idx]
             canvas.circle(self.COLOR_DOT, (cx, cy), self.DOT_R)
+
+        # --- Y-axis labels (min at bottom, max at top) ---
+        by_top = min(py for _, py in points)
+        by_bot = max(py for _, py in points)
+        def _fmt(sp):
+            return "{:.1f}x".format(sp)
+
+        y_style = dict(style="cue_txt", size=12, color="#888888",
+                       italic=False, substitute=False)
+        max_w = Txt(_fmt(sp_max), **y_style)
+        max_r = renpy.render(max_w, 60, 16, st, at)
+        # Top of the label aligns with the top of the y-axis.
+        r.blit(max_r, (2, by_top - 10))
+        min_w = Txt(_fmt(sp_min), **y_style)
+        min_r = renpy.render(min_w, 60, 16, st, at)
+        # Bottom of the label sits on the x-axis line.
+        r.blit(min_r, (2, by_bot - 16))
+
+        # --- Current speed below the dot ---
+        if 0 <= current_idx < len(speeds):
+            cur_sp = speeds[current_idx]
+            cur_w = Txt(_fmt(cur_sp), style="cue_txt", size=12,
+                        color="#ffaa00", italic=False, substitute=False)
+            cur_r = renpy.render(cur_w, 60, 16, st, at)
+            cw, _ch = cur_r.get_size()
+            r.blit(cur_r, (cx - cw // 2, height - 14))
 
         # --- Hover tooltip ---
         try:
@@ -616,13 +647,17 @@ class CueAutoSpeedChart(Displayable):
             bx = getattr(_cue, '_chart_screen_x', -9999)
             by_ = getattr(_cue, '_chart_screen_y', -9999)
             rx, ry = mx - bx, my - by_
-            nearest_idx = -1
-            nearest_dist = 9999
-            for i, (px, py) in enumerate(points):
-                dist = (rx - px) * (rx - px) + (ry - py) * (ry - py)
-                if dist < nearest_dist and dist < 400:  # ~20px radius
-                    nearest_dist = dist
-                    nearest_idx = i
+            # Only show tooltip when the mouse is inside the chart.
+            if 0 <= rx <= width and 0 <= ry <= height:
+                nearest_idx = -1
+                nearest_dist = 9999
+                for i, (px, py) in enumerate(points):
+                    dist = abs(rx - px)
+                    if dist < nearest_dist:
+                        nearest_dist = dist
+                        nearest_idx = i
+            else:
+                nearest_idx = -1
             if nearest_idx >= 0:
                 sp = speeds[nearest_idx]
                 tip_text = "{:.1f}x  step {}/{}".format(sp, nearest_idx + 1, len(speeds))

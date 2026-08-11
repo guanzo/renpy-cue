@@ -371,6 +371,8 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
             $ _cue._pool_ui = {"pool": _active_pool, "files": _r.files, "target": _target, "freq": _r.frequency, "exclusive": _r.exclusive}
             hbox:
                 spacing 5
+                box_wrap True
+                box_wrap_spacing 3
                 text _active_label style "cue_txt"
                 null width 5
                 use cue_icon_btn("💾", Function(_cue.preset_dialog.open, vol_key, _target), "Save pool as a preset", None)
