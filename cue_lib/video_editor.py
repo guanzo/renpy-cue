@@ -966,7 +966,7 @@ class CueVideoEditor(object):
         out_fspath = _cue.speed_resolver.variant_path(orig_fs, factor)
         _base, _ext = _cue.speed_resolver._split_ext(os.path.basename(orig_fs))
         temp_path = os.path.join(
-            os.path.dirname(orig_fs),
+            _cue.db.video_dir,
             "{}__cue_tmp_{:.1f}x{}".format(_base, factor, _ext),
         )
         input_fs = orig_fs
@@ -997,7 +997,7 @@ class CueVideoEditor(object):
         if not ext:
             ext = ".webm"
         temp_path = os.path.join(
-            os.path.dirname(out_fspath),
+            _cue.db.video_dir,
             "{}__cue_tmp_{:.1f}x{}".format(base, speed, ext),
         )
         input_fs = orig_fs

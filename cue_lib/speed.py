@@ -9,6 +9,7 @@ import renpy
 import renpy.audio.music as _music
 import renpy.config as _config
 import renpy.audio.audio as _aaudio
+from renpy.store import persistent
 from renpy.display.layout import DynamicDisplayable
 from renpy.display.video import Movie
 from renpy.display.video import default_play_callback as _default_play_callback
@@ -96,7 +97,14 @@ class CueVidSpeedResolver(object):
         for key, base in self.paths.items():
             if key.startswith(tag + " ") or tag.startswith(key + " "):
                 return base
-        return _cue.vid_manager.get_video_path()
+        raw = _cue.vid_manager.get_video_path()
+        if raw:
+            # raw may be a speed variant (e.g. in shared_dir).
+            # Resolve back to the original base path from self.paths.
+            for _key, _base in self.paths.items():
+                if self.is_variant_of(raw, _base):
+                    return _base
+        return raw
 
     def cycle_speed(self, delta):
         # type: (int) -> None
@@ -138,7 +146,7 @@ class CueVidSpeedResolver(object):
             if not base_path:
                 return
             new_variant = self.variant_path(base_path, speed)
-            if not renpy.loadable(new_variant):
+            if not os.path.exists(new_variant):
                 return
             if self._pending_speed is None:
                 self._pre_pending_speed = last_requested
@@ -303,33 +311,49 @@ class CueVidSpeedResolver(object):
     @classmethod
     def variant_path(cls, base_path, speed):
         # type: (Type[CueVidSpeedResolver], str, Any) -> str
+        """Return the absolute filesystem path for a speed variant.
+
+        At 1.0x the original file is returned (as an absolute path).
+        Other speeds go into ``shared_dir/video/<game_id>/`` so the
+        game directory is never modified.
+        """
         if speed == _cue.DEFAULT_VIDEO_SPEED:
-            return base_path
-        base, ext = cls._split_ext(base_path)
-        return base + cls._suffix_variant(speed, ext)
+            if os.path.isabs(base_path):
+                return os.path.normpath(base_path).replace("\\", "/")
+            return os.path.normpath(os.path.join(_config.gamedir, base_path)).replace("\\", "/")
+        base_name = os.path.basename(base_path)
+        base, ext = cls._split_ext(base_name)
+        filename = base + cls._suffix_variant(speed, ext)
+        return os.path.join(_cue.db.video_dir, filename).replace("\\", "/")
 
     @classmethod
     def is_variant_of(cls, path, base_path):
         # type: (Type[CueVidSpeedResolver], str, str) -> bool
         if not path or not base_path:
             return False
-        if path == base_path:
+        # Compare basenames because the variant may live in the shared
+        # video dir while base_path is a game-relative vpath.
+        path_name = os.path.basename(path)
+        base_name = os.path.basename(base_path)
+        if path_name == base_name:
             return True
-        base, ext = cls._split_ext(base_path)
-        sp = cls._parse_variant_speed(path, base, ext)
+        base, ext = cls._split_ext(base_name)
+        sp = cls._parse_variant_speed(path_name, base, ext)
         return sp is not None
 
     def get_available_speeds(self, base_path):
         # type: (str) -> List[float]
         speeds = [_cue.DEFAULT_VIDEO_SPEED]
-        base_dir = os.path.dirname(os.path.join(_config.gamedir, base_path))
+        if not base_path:
+            return speeds
         base_name = os.path.basename(base_path)
         base_no_ext, ext = self._split_ext(base_name)
         try:
-            for f in os.listdir(base_dir):
+            video_dir = _cue.db.video_dir
+            for f in os.listdir(video_dir):
                 sp = self._parse_variant_speed(f, base_no_ext, ext)
                 if sp is not None and sp != 1.0:
-                    if os.path.isfile(os.path.join(base_dir, f)):
+                    if os.path.isfile(os.path.join(video_dir, f)):
                         speeds.append(sp)
         except Exception:
             pass
@@ -374,8 +398,7 @@ class CueVidSpeedResolver(object):
                 _playing = _music.get_playing(channel=_ch_name)
                 if _playing:
                     _playing_fs = os.path.join(_config.gamedir, _playing)
-                    _target_fs = os.path.join(_config.gamedir, vpath)
-                    if os.path.normpath(_playing_fs) == os.path.normpath(_target_fs):
+                    if os.path.normpath(_playing_fs) == os.path.normpath(vpath):
                         _music.play(
                             base_path, channel=_ch_name,
                             loop=True, fadeout=0, synchro_start=True)
@@ -391,7 +414,7 @@ class CueVidSpeedResolver(object):
             cur = self._get_speed_pref(tag)
             if cur == speed:
                 self._set_speed_pref(tag, _cue.DEFAULT_VIDEO_SPEED)
-        fspath = os.path.join(_config.gamedir, vpath)
+        fspath = vpath  # already absolute from variant_path()
         deleted = False
         for _attempt in range(3):
             try:
@@ -579,12 +602,11 @@ class CueVidSpeedSequence(object):
             return None
         paths = []
         for sp in speeds:
-            if sp == _cue.DEFAULT_VIDEO_SPEED:
-                paths.append(base_path)
-            else:
-                vpath = self.resolver.variant_path(base_path, sp)
-                if renpy.loadable(vpath):
-                    paths.append(vpath)
+            vpath = self.resolver.variant_path(base_path, sp)
+            # variant_path returns absolute FS paths; 1.0x points to
+            # the original file, other speeds point into shared_dir.
+            if os.path.exists(vpath):
+                paths.append(vpath)
         if len(paths) < 1:
             return None
         return paths

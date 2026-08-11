@@ -147,3 +147,31 @@ def resolve_pool(self, pool):
 - Uses `from __future__ import annotations` and `typing.TypedDict` — no Python 2.7 constraint
 - One canonical definition per TypedDict — `.pyi` stubs import from here, never redeclare
 - Located at `cue_lib/_types.py` (a real `.py` module) so Pyright can resolve it as an import target
+
+## After editing any `.py` file
+
+Run `pyright cue_lib/` and check for these fatal-only rules — they crash at runtime:
+
+- `reportUndefinedVariable`
+- `reportUnboundVariable`
+- `reportMissingImports`
+- `reportUnusedImport` (removed import that other code relied on)
+
+Ignore all other diagnostics. Run with:
+
+```bash
+pyright cue_lib/ --outputjson | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+fatal={'reportUndefinedVariable','reportUnboundVariable','reportMissingImports','reportUnusedImport'}
+for diag in d.get('generalDiagnostics',[]):
+    if diag.get('rule') in fatal:
+        print(diag['file'],diag['range']['start']['line'],diag['message'])
+for f in d.get('diagnostics',[]):
+    for diag in f.get('diagnostics',[]):
+        if diag.get('rule') in fatal:
+            print(f['file'],diag['range']['start']['line'],diag['message'])
+"
+```
+
+If the command outputs nothing, there are no fatal errors.

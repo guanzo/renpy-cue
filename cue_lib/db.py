@@ -26,13 +26,13 @@ def _cue_get_shared_dir():
     # type: () -> str
     """Return the platform-standard shared directory for cue data.
 
-    Respects the CUE_DB_DIR environment override.  Otherwise:
+    Respects the RENPY_CUE_DIR environment override.  Otherwise:
       Windows : %%APPDATA%%/renpy_cue
       macOS   : ~/Library/Application Support/renpy_cue
       Linux   : $XDG_DATA_HOME/renpy_cue or ~/.local/share/renpy_cue
     """
     import sys as _sys
-    env = os.environ.get("CUE_DB_DIR", "")
+    env = os.environ.get("RENPY_CUE_DIR", "")
     if env:
         return os.path.normpath(env)
 
@@ -108,14 +108,15 @@ def _to_str(obj):
 # =========================================================================
 
 class CueDatabase(object):
-    """File-backed store for markers and presets.
+    """File-backed store for markers, presets, and speed-variant videos.
 
     Directory layout:
         {root}/data/markers/{game_id}/  -- one .json file per marker key
         {root}/data/presets/audio/      -- one .json file per audio preset
         {root}/data/presets/video/      -- one .json file per video preset
+        {root}/video/{game_id}/         -- speed-variant video files
 
-    Markers are namespaced by game_id.  Presets are game-agnostic.
+    Markers and videos are namespaced by game_id.  Presets are game-agnostic.
     """
 
     def __init__(self, path, game_id):
@@ -135,6 +136,7 @@ class CueDatabase(object):
             os.path.join("data", "markers", self._game_id),
             os.path.join("data", "presets", "audio"),
             os.path.join("data", "presets", "video"),
+            os.path.join("video", self._game_id),
         ]:
             _dir = os.path.join(self._path, sub)
             if not os.path.isdir(_dir):
@@ -161,6 +163,12 @@ class CueDatabase(object):
     def game_id(self):
         # type: () -> str
         return self._game_id
+
+    @property
+    def video_dir(self):
+        # type: () -> str
+        """Absolute path to the speed-variant video directory."""
+        return os.path.join(self._path, "video", self._game_id).replace("\\", "/")
 
     # ------------------------------------------------------------------
     # Paths
@@ -234,8 +242,6 @@ class CueDatabase(object):
             # Reconstruct the real key from the stored entry, falling back
             # to the filename heuristic.
             key = _to_str(entry.get("_key", _filename_to_key(name)))
-            if "replay_id" in entry:
-                entry["replay"] = _to_str(entry.pop("replay_id"))
             result[key] = entry
         return result
 
@@ -325,9 +331,6 @@ class CueDatabase(object):
         entry = dict(data)
         if "_key" not in entry:
             entry["_key"] = key
-        # Hoist replay into its own field for the stored record
-        if "replay" in entry:
-            entry["replay_id"] = entry.pop("replay")
 
         tmp = fpath + ".tmp"
         try:
