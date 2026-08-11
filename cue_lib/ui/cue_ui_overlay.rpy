@@ -87,6 +87,33 @@ screen cue_popper_anchor(name, hover_fn):
         background None
         transclude
 
+# Inner vbox for the edit queue — extracted so the parent can conditionally
+# wrap it in a viewport when there are more than 6 jobs.
+screen _cue_edit_queue_vbox():
+    vbox:
+        spacing 3
+        text "Edit Queue" style "cue_txt" size 14 bold True
+        null height 2
+        for job in _cue.video_editor.job_queue.jobs:
+            hbox:
+                spacing 4
+                if job.status in ("queued", "analyzing", "encoding"):
+                    use cue_icon_btn("✕", Function(_cue.video_editor.job_queue.cancel, job.job_id), "Cancel job", None)
+                else:
+                    use cue_icon_btn("✕", Function(_cue.video_editor.job_queue.remove, job.job_id), "Remove from queue", None)
+                text job.filename() + " " + job.speed_label style "cue_txt" size 11
+                text "(" + job.status_text() + ")" style "cue_txt" size 11
+                if job.status != "queued":
+                    $ _elapsed = int(job.elapsed())
+                    text ("%d:%02d" % (_elapsed // 60, _elapsed % 60)) style "cue_txt" size 11 color _cue_color_text_muted
+            if job.status == "error" and job.error_msg and not job.cancelled:
+                hbox:
+                    spacing 4
+                    null width 20
+                    text job.error_msg style "cue_txt" size 11 color _cue_color_error
+                    use cue_txt_button("Retry",
+                        Function(_cue.video_editor.job_queue.retry, job.job_id))
+
 # =============================================================================
 # SUB-SCREEN: Sidebar content (shared between normal and fullscreen frames)
 # =============================================================================
@@ -229,7 +256,7 @@ screen cue_overlay_content():
                                 "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is 8. The more the better."
                             )
                             text _auto_help style "cue_help"
-                            
+
                             null height 3
 
                             hbox:
@@ -298,7 +325,7 @@ screen cue_overlay_content():
                             ("• Markers and marker groups are draggable.\n"
                             + "• (Alt + Click) or (Shift + Click) to create a marker group.\n"
                             + "• Use Repeat to copy selected markers at an interval.\n"
-                            + "• Get your markers timed to the first position, find the interval to the next position, then use Repeat to finish."),
+                            + "• Get your markers timed to the first position, then use Repeat to find to right interval."),
                             None)
                     # --- Timeline visualizer ---
                     frame:
@@ -414,6 +441,7 @@ screen cue_overlay_content():
                     $ _ved = _cue.video_editor
                     vbox:
                         spacing 2
+                        text "Video markers placed on the original video (1.0x) will autoscale to any speed." style "cue_txt"
                         hbox:
                             spacing 5
                             text "New Speed:" style "cue_txt"
@@ -471,29 +499,18 @@ screen cue_overlay_content():
                             padding (4, 0)
                             yminimum 0
                             xfill True
-                            vbox:
-                                spacing 3
-                                text "Edit Queue" style "cue_txt" size 14 bold True
-                                null height 2
-                                for _job in _ved.job_queue.jobs:
-                                    hbox:
-                                        spacing 4
-                                        if _job.status in ("queued", "analyzing", "encoding"):
-                                            use cue_icon_btn("✕", Function(_cue.video_editor.job_queue.cancel, _job.job_id), "Cancel job", None)
-                                        else:
-                                            use cue_icon_btn("✕", Function(_cue.video_editor.job_queue.remove, _job.job_id), "Remove from queue", None)
-                                        text _job.filename() + " " + _job.speed_label style "cue_txt" size 11
-                                        text "(" + _job.status_text() + ")" style "cue_txt" size 11
-                                        if _job.status != "queued":
-                                            $ _elapsed = int(_job.elapsed())
-                                            text ("%d:%02d" % (_elapsed // 60, _elapsed % 60)) style "cue_txt" size 11 color _cue_color_text_muted
-                                    if _job.status == "error" and _job.error_msg and not _job.cancelled:
-                                        hbox:
-                                            spacing 4
-                                            null width 20
-                                            text _job.error_msg style "cue_txt" size 11 color _cue_color_error
-                                            use cue_txt_button("Retry",
-                                                Function(_cue.video_editor.job_queue.retry, _job.job_id))
+                            $ _queue_len = len(_ved.job_queue.jobs)
+                            if _queue_len > 6:
+                                viewport:
+                                    xfill True
+                                    ymaximum 200
+                                    mousewheel True
+                                    scrollbars "vertical"
+                                    style_group "cue"
+                                    vscrollbar_unscrollable "hide"
+                                    use _cue_edit_queue_vbox()
+                            else:
+                                use _cue_edit_queue_vbox()
 
         # --- Image UI ---
         $ _has_image = bool(_cue.current_file) and not _is_video
