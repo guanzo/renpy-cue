@@ -1,17 +1,13 @@
 # -*- coding: utf-8 -*-
-# cue_lib/state.py -- _cue singleton + bootstrap wiring.
+# cue_lib/state.py -- _cue singleton.
 # The _cue object is created at module level (Python import time) and is
-# therefore invisible to Ren'Py's rollback system.  The bootstrap() function
-# wires any remaining Ren'Py-dependent state -- called once from
-# cue_z.rpy init -900.
+# therefore invisible to Ren'Py's rollback system.
+#
+# Managers are wired externally by cue_z.rpy init -900 to avoid circular
+# imports — state.py imports nothing from cue_lib, while every manager
+# module imports _cue from here.
 
-import os
-import renpy
 import renpy.python as _renpy_python
-
-MYPY = False
-if MYPY:
-    from cue_lib._types import AudioTreeNode
 
 
 class Cue(_renpy_python.NoRollback):
@@ -21,10 +17,10 @@ class Cue(_renpy_python.NoRollback):
         # --- Paths ---
         self.debug = True
         self.base_dir = "renpy_cue"
-        self.audio_dir = ""  # set by bootstrap()
+        self.audio_dir = ""        # set by cue_z.rpy init -900
         self.config_filename = "cue_config.json"
-        self.config_path = ""  # set by bootstrap() once renpy.config is ready
-        self.shared_dir = ""   # set by bootstrap()
+        self.config_path = ""      # set by cue_z.rpy init -900
+        self.shared_dir = ""       # set by cue_z.rpy init -900
         self.debug_log_filename = "debug.log"
 
         # --- Constants ---
@@ -47,7 +43,7 @@ class Cue(_renpy_python.NoRollback):
         self.scan_error = ""
         self._has_relative_volume = False
 
-        # --- Managers (set by bootstrap) ---
+        # --- Manager slots (wired by cue_z.rpy init -900) ---
         self.db = None
         self.markers = None
         self.undo = None
@@ -60,6 +56,7 @@ class Cue(_renpy_python.NoRollback):
         self.speed_resolver = None
         self.video_sequence = None
         self.speed_toast = None
+        self.auto_speed = None
         self.file_tree = None
         self.preset_dialog = None
         self.video_preset_dialog = None
@@ -84,51 +81,3 @@ class Cue(_renpy_python.NoRollback):
 
 
 _cue = Cue()
-
-
-def bootstrap():
-    # type: () -> None
-    """Wire Ren'Py-dependent state once renpy.config is available.
-    Called from cue_z.rpy init -900."""
-
-    # --- Imports (function-level -- no module-level deps on submodules) ---
-    from cue_lib.markers import CueMarkerManager
-    from cue_lib.undo import CueUndoManager
-    from cue_lib.trigger import CueTriggerEngine
-    from cue_lib.video import CueVideoManager
-    from cue_lib.volume import CueVolumeManager
-    from cue_lib.repeater import CueMarkerRepeater
-    from cue_lib.ffmpeg import CueFFmpeg
-    from cue_lib.video_editor import CueVideoEditor
-    from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
-    from cue_lib.auto_speed import CueAutoSpeedGenerator
-    from cue_lib.file_tree import CueFileTreeManager
-    from cue_lib.ui_logic import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
-    from cue_lib.db import _cue_get_shared_dir, CueDatabase
-
-    _cue.markers = CueMarkerManager()
-    _cue.undo = CueUndoManager()
-    _cue.trigger = CueTriggerEngine()
-    _cue.vid_manager = CueVideoManager()
-    _cue.volume = CueVolumeManager()
-    _cue.repeater = CueMarkerRepeater()
-    _cue.ffmpeg = CueFFmpeg()
-    _cue.video_editor = CueVideoEditor()
-    _cue.speed_resolver = CueVidSpeedResolver()
-    _cue.video_sequence = CueVidSpeedSequence(_cue.speed_resolver)
-    _cue.speed_resolver.sequence = _cue.video_sequence
-    _cue.speed_toast = CueSpeedToast()
-    _cue.auto_speed = CueAutoSpeedGenerator()
-    _cue.auto_speed.sequence = _cue.video_sequence
-    _cue.file_tree = CueFileTreeManager()
-    _cue.preset_dialog = CuePresetDialog()
-    _cue.video_preset_dialog = CueVideoPresetDialog()
-    _cue.confirm_dialog = CueConfirmDialog()
-
-    _cue.config_path = os.path.join(renpy.config.gamedir, _cue.base_dir, _cue.config_filename)
-
-    # Set up the shared data store (one dir tree for all games, partitioned by save_directory)
-    _cue.shared_dir = _cue_get_shared_dir()
-    _cue.db = CueDatabase(_cue.shared_dir, renpy.config.save_directory)
-    _cue.db.open()
-    _cue.audio_dir = _cue.shared_dir + "/audio"

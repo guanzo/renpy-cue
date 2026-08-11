@@ -90,9 +90,49 @@ init -999 python:
 
 
 init -900 python:
-    from cue_lib import state
-    state.bootstrap()
+    # Wire managers onto _cue.  Imports are lazy (inside the init block,
+    # not at module level) to avoid circular refs — every manager module
+    # does "from cue_lib.state import _cue", so state.py itself must not
+    # import them.
+    from cue_lib.markers import CueMarkerManager
+    from cue_lib.undo import CueUndoManager
+    from cue_lib.trigger import CueTriggerEngine
+    from cue_lib.video import CueVideoManager
+    from cue_lib.volume import CueVolumeManager
+    from cue_lib.repeater import CueMarkerRepeater
+    from cue_lib.ffmpeg import CueFFmpeg
+    from cue_lib.video_editor import CueVideoEditor
+    from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
+    from cue_lib.auto_speed import CueAutoSpeedGenerator
+    from cue_lib.file_tree import CueFileTreeManager
+    from cue_lib.ui_logic import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
+    from cue_lib.db import _cue_get_shared_dir, CueDatabase
     from cue_lib.state import _cue
+    import os as _os
+
+    _cue.markers = CueMarkerManager()
+    _cue.undo = CueUndoManager()
+    _cue.trigger = CueTriggerEngine()
+    _cue.vid_manager = CueVideoManager()
+    _cue.volume = CueVolumeManager()
+    _cue.repeater = CueMarkerRepeater()
+    _cue.ffmpeg = CueFFmpeg()
+    _cue.video_editor = CueVideoEditor()
+    _cue.speed_resolver = CueVidSpeedResolver()
+    _cue.video_sequence = CueVidSpeedSequence()
+    _cue.speed_toast = CueSpeedToast()
+    _cue.auto_speed = CueAutoSpeedGenerator()
+    _cue.file_tree = CueFileTreeManager()
+    _cue.preset_dialog = CuePresetDialog()
+    _cue.video_preset_dialog = CueVideoPresetDialog()
+    _cue.confirm_dialog = CueConfirmDialog()
+
+    _cue.config_path = _os.path.join(renpy.config.gamedir, _cue.base_dir, _cue.config_filename)
+
+    _cue.shared_dir = _cue_get_shared_dir()
+    _cue.db = CueDatabase(_cue.shared_dir, renpy.config.save_directory)
+    _cue.db.open()
+    _cue.audio_dir = _cue.shared_dir + "/audio"
 
 
 init 999 python:

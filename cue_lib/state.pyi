@@ -8,6 +8,7 @@ from cue_lib._types import (
     AudioTreeNode, MarkerEntry, PoolDict,
     UndoSnapshot, VideoPreset,
 )
+from cue_lib.auto_speed import CueAutoSpeedGenerator
 from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
 from cue_lib.trigger import CueTriggerEngine
 from cue_lib.ui_logic import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
@@ -56,6 +57,7 @@ class Cue:
     speed_resolver: CueVidSpeedResolver
     video_sequence: CueVidSpeedSequence
     speed_toast: CueSpeedToast
+    auto_speed: CueAutoSpeedGenerator
     file_tree: CueFileTreeManager
     preset_dialog: CuePresetDialog
     video_preset_dialog: CueVideoPresetDialog
@@ -77,5 +79,3 @@ class Cue:
     _vtl_screen_y: int
 
 _cue: Cue
-
-def bootstrap() -> None: ...

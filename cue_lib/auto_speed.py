@@ -68,9 +68,6 @@ class CueAutoSpeedGenerator(object):
     their interpolation over the course of a sequence."""
 
     def __init__(self):
-        # Back-reference to CueVidSpeedSequence, set after init
-        self.sequence = None
-
         # History
         self.history = []       # list of {'speeds': [...], 'preset': '...'} dicts
         self.max_history = 20
@@ -220,7 +217,7 @@ class CueAutoSpeedGenerator(object):
         tag = _cue.current_file
         if not tag:
             return
-        seq = self.sequence.speeds_for(tag) if self.sequence else None
+        seq = _cue.video_sequence.speeds_for(tag) if _cue.video_sequence else None
         if not seq:
             return
         preset_label = _cue_auto_preset_label(self.active_preset)
@@ -244,9 +241,9 @@ class CueAutoSpeedGenerator(object):
             return
         entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
         entry["speed_sequence"] = list(saved)
-        _cue.markers.save_persistent()
-        if self.sequence:
-            self.sequence.start(tag)
+        _cue.markers.save_marker(create_vid_key(tag))
+        if _cue.video_sequence:
+            _cue.video_sequence.start(tag)
         renpy.restart_interaction()
 
     def remove_from_history(self, index):
@@ -559,10 +556,10 @@ class CueAutoSpeedGenerator(object):
     def _regenerate(self):
         """Re-generate the sequence now (called when knobs change)."""
         tag = _cue.current_file
-        if not tag or not self.sequence:
+        if not tag or not _cue.video_sequence:
             return
         from cue_lib.speed import SpeedMode
-        mode = self.sequence.get_mode(tag)
+        mode = _cue.video_sequence.get_mode(tag)
         if mode != SpeedMode.AUTO:
             return
         base_path = _cue.speed_resolver.base_path_for(tag)
@@ -572,12 +569,12 @@ class CueAutoSpeedGenerator(object):
         if len(available) < 2:
             return
 
-        prev = self.sequence.speeds_for(tag)
+        prev = _cue.video_sequence.speeds_for(tag)
         new_seq = self.generate(available, prev)
         entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
         entry["speed_sequence"] = new_seq
-        _cue.markers.save_persistent()
-        self.sequence.start(tag)
+        _cue.markers.save_marker(create_vid_key(tag))
+        _cue.video_sequence.start(tag)
 
     def on_wrap_around(self):
         """Called when an AUTO sequence finishes a full cycle.
@@ -592,9 +589,9 @@ class CueAutoSpeedGenerator(object):
         if len(available) < 2:
             return
 
-        prev = self.sequence.speeds_for(tag)
+        prev = _cue.video_sequence.speeds_for(tag)
         new_seq = self.generate(available, prev)
         entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
         entry["speed_sequence"] = new_seq
-        _cue.markers.save_persistent()
-        self.sequence.start(tag)
+        _cue.markers.save_marker(create_vid_key(tag))
+        _cue.video_sequence.start(tag)

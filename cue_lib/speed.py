@@ -38,7 +38,6 @@ class CueVidSpeedResolver(object):
     def __init__(self):
         self.paths = {}
         self.children = {}
-        self.sequence = None
         self.seamless_transition = False
         self._pending_speed = None
         self._pre_pending_speed = None
@@ -80,7 +79,7 @@ class CueVidSpeedResolver(object):
         tag = _cue.current_file
         if not tag:
             return _cue.DEFAULT_VIDEO_SPEED
-        seq = self.sequence
+        seq = _cue.video_sequence
         if seq is not None and seq.active_tag:
             speeds = seq.speeds_for(tag)
             if speeds:
@@ -109,8 +108,8 @@ class CueVidSpeedResolver(object):
 
     def cycle_speed(self, delta):
         # type: (int) -> None
-        if self.sequence is not None:
-            self.sequence.set_mode(SpeedMode.SINGLE)
+        if _cue.video_sequence is not None:
+            _cue.video_sequence.set_mode(SpeedMode.SINGLE)
         if _cue.top_layer_type != 'movie':
             return
         tag = _cue.current_file
@@ -132,8 +131,8 @@ class CueVidSpeedResolver(object):
 
     def set_speed(self, speed):
         # type: (float) -> None
-        if self.sequence is not None:
-            self.sequence.set_mode(SpeedMode.SINGLE)
+        if _cue.video_sequence is not None:
+            _cue.video_sequence.set_mode(SpeedMode.SINGLE)
         if _cue.top_layer_type != 'movie':
             return
         tag = _cue.current_file
@@ -217,7 +216,7 @@ class CueVidSpeedResolver(object):
         # type: (float, float, str, str, Movie) -> Tuple[Any, Any]
 
         # Active speed sequence overrides
-        seq = self.sequence
+        seq = _cue.video_sequence
         if seq is not None:
             active = seq.active_tag
             if active and (tag == active or
@@ -368,7 +367,7 @@ class CueVidSpeedResolver(object):
 
     def _prune_deleted_speed_from_sequence(self, speed):
         # type: (float) -> None
-        if self.sequence is None:
+        if _cue.video_sequence is None:
             return
         tag = _cue.current_file
         if not tag:
@@ -386,8 +385,8 @@ class CueVidSpeedResolver(object):
             entry["speed_sequence"] = new_seq
         else:
             entry.pop("speed_sequence", None)
-        if self.sequence.active_tag:
-            self.sequence.start(self.sequence.active_tag)
+        if _cue.video_sequence.active_tag:
+            _cue.video_sequence.start(_cue.video_sequence.active_tag)
 
     def delete_variant(self, base_path, speed):
         # type: (str, float) -> None
@@ -439,8 +438,7 @@ class CueVidSpeedResolver(object):
 
 
 class CueVidSpeedSequence(object):
-    def __init__(self, resolver):
-        self.resolver = resolver
+    def __init__(self):
         self.active_tag = None
         self.last_playing = None
         self.last_elapsed = 0.0
@@ -600,12 +598,12 @@ class CueVidSpeedSequence(object):
     def paths_for(self, tag):
         # type: (str) -> Optional[List[str]]
         speeds = self.speeds_for(tag)
-        base_path = self.resolver.base_path_for(tag)
+        base_path = _cue.speed_resolver.base_path_for(tag)
         if not speeds or not base_path:
             return None
         paths = []
         for sp in speeds:
-            vpath = self.resolver.variant_path(base_path, sp)
+            vpath = _cue.speed_resolver.variant_path(base_path, sp)
             # variant_path returns absolute FS paths; 1.0x points to
             # the original file, other speeds point into shared_dir.
             if os.path.exists(vpath):
@@ -621,7 +619,7 @@ class CueVidSpeedSequence(object):
             _cue_log("VQ-NOSTART tag={} paths={}".format(tag, paths is not None))
             self.active_tag = None
             return
-        self.resolver.invalidate(tag)
+        _cue.speed_resolver.invalidate(tag)
         self.active_tag = tag
         self.play_count = 0
         self._step_index = 0
@@ -695,16 +693,16 @@ class CueVidSpeedSequence(object):
         if not hasattr(_cue, 'auto_speed'):
             self.start(tag)
             return
-        base_path = self.resolver.base_path_for(tag)
+        base_path = _cue.speed_resolver.base_path_for(tag)
         if not base_path:
             return
-        available = self.resolver.get_available_speeds(base_path)
+        available = _cue.speed_resolver.get_available_speeds(base_path)
         if len(available) < 2:
             return
         new_seq = _cue.auto_speed.generate(available, None)
         entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
         entry["speed_sequence"] = new_seq
-        _cue.markers.save_persistent()
+        _cue.markers.save_marker(create_vid_key(tag))
         self.start(tag)
 
 

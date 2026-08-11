@@ -102,6 +102,7 @@ Pylance can't resolve most `renpy.*` names (Ren'Py uses dynamic `import *` from 
 - **`cue_lib/*.pyi`** — stubs for our own modules, living alongside their `.py` counterparts. Pylance finds them automatically via PEP 561.
 - **`cue_lib/_types.py`** — CANONICAL source for all TypedDict definitions (PoolDict, MarkerEntry, etc.). This is a real `.py` module that `.pyi` stubs import from. It is NEVER executed at runtime (only imported inside `if MYPY:` guards and by `.pyi` files), so it freely uses modern syntax (TypedDict, `from __future__ import annotations`). ONE definition per TypedDict — no duplication across `.pyi` files.
 - **AFTER editing any `cue_lib/*.py`** — check whether the corresponding `cue_lib/*.pyi` needs updating (new/renamed/deleted functions, classes, or method signatures). Keep them in sync.
+- **AFTER adding a new manager to `bootstrap()` in `state.py`** — you MUST add it to `state.pyi` (both the import and the attribute on `class Cue`). Otherwise `_cue.new_manager` shows "unknown attribute" in every consumer.
 - **AFTER adding/changing a TypedDict** — update `cue_lib/_types.py` (the single source of truth). All `.pyi` files import from there.
 
 ### Self-File Hover (type info when viewing a function's own source file)
