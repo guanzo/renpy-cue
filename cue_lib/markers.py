@@ -1159,8 +1159,11 @@ class CueMarkerManager(object):
         _cue.video_editor.encode_mode = data.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
         _cue.video_editor.remove_audio = data.get("remove_audio", True)
         _cue.speed_resolver.seamless_transition = data.get("seamless_transition", False)
+        # disabled_files lives in shared config, not persistent
+        _cue.db.update_shared_config({
+            "disabled_files": list(_cue.file_tree.disabled_files),
+        })
         persistent._cue = {
-            "disabled_files": set(_cue.file_tree.disabled_files),
             "triggers_active": _cue.trigger.active,
             "encode_mode": _cue.video_editor.encode_mode,
             "remove_audio": _cue.video_editor.remove_audio,
@@ -1214,7 +1217,16 @@ class CueMarkerManager(object):
             }
             persistent._cue = _cue_dict
 
-        _cue.file_tree.disabled_files = set(_cue_dict.get("disabled_files", set()))
+        # Migrate disabled_files from persistent._cue to shared config file.
+        # Shared config always wins if it already has the key.
+        shared = _cue.db.load_shared_config()
+        if "disabled_files" not in shared:
+            shared["disabled_files"] = list(_cue_dict.pop("disabled_files", set()))
+            _cue.db.save_shared_config(shared)
+        else:
+            _cue_dict.pop("disabled_files", None)
+
+        _cue.file_tree.disabled_files = set(shared.get("disabled_files", []))
         _cue.trigger.active = _cue_dict.get("triggers_active", True)
         _cue.video_editor.encode_mode = _cue_dict.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
         _cue.video_editor.remove_audio = _cue_dict.get("remove_audio", True)

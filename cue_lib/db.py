@@ -6,7 +6,8 @@
 #
 # Replaces the monolithic cue_config.json with per-entity writes so only
 # changed data hits disk.  Lightweight scalars (triggers_active, encode_mode,
-# seamless_transition, disabled_files) stay on Ren'Py persistent.
+# seamless_transition, remove_audio) stay on Ren'Py persistent.
+# disabled_files lives in shared config at data/cue_config.json.
 #
 # Pure Python stdlib -- no C extensions.  Works on any Ren'Py build.
 
@@ -324,10 +325,44 @@ class CueDatabase(object):
         with open(fpath, "w") as f:
             _json.dump(entry, f, sort_keys=True)
 
-    def _write_entry(self, fpath, key, data):
-        # type: (str, str, Any) -> None
-        entry = dict(data)
-        if "_key" not in entry:
-            entry["_key"] = key
-        self._write_file(fpath, entry)
+    # ------------------------------------------------------------------
+    # Shared config -- lightweight cross-game settings
+    # ------------------------------------------------------------------
+
+    def _shared_config_path(self):
+        # type: () -> str
+        return os.path.join(self._path, "data", "cue_config.json")
+
+    def load_shared_config(self):
+        # type: () -> Dict[str, Any]
+        """Load the shared config dict. Returns {} if the file does not exist."""
+        fpath = self._shared_config_path()
+        if not os.path.isfile(fpath):
+            return {}
+        try:
+            with open(fpath, "r") as f:
+                return _json.load(f)
+        except Exception:
+            _cue_log("SHARED-CONFIG: load failed for {}".format(fpath))
+            return {}
+
+    def save_shared_config(self, data):
+        # type: (Dict[str, Any]) -> None
+        """Write the shared config dict."""
+        fpath = self._shared_config_path()
+        dpath = os.path.dirname(fpath)
+        try:
+            if not os.path.isdir(dpath):
+                os.makedirs(dpath)
+            with open(fpath, "w") as f:
+                _json.dump(data, f, indent=2, sort_keys=True)
+        except Exception:
+            _cue_log("SHARED-CONFIG: save failed for {}".format(fpath))
+
+    def update_shared_config(self, data):
+        # type: (Dict[str, Any]) -> None
+        """Merge data into the shared config and save."""
+        config = self.load_shared_config()
+        config.update(data)
+        self.save_shared_config(config)
 

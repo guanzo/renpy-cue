@@ -5,7 +5,6 @@
 
 import renpy
 
-from renpy.store import persistent
 from cue_lib.state import _cue
 
 MYPY = False
@@ -109,7 +108,7 @@ class CueFileTreeManager(object):
         else:
             self.disabled_files.add(full_path)
         self.rebuild_tree()
-        persistent._cue["disabled_files"] = set(self.disabled_files)
+        _cue.db.update_shared_config({"disabled_files": list(self.disabled_files)})
 
     # ------------------------------------------------------------------
     # Toggle: pool file-list folder refs
