@@ -127,11 +127,6 @@ class AutoSpeedKnobs(TypedDict):
     center: float
 
 
-class AutoSpeedHistoryEntry(TypedDict):
-    """One entry in CueAutoSpeedGenerator.history."""
-    speeds: List[float]
-    preset: str
-
 
 # =========================================================================
 # Audio tree nodes

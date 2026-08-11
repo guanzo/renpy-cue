@@ -158,6 +158,7 @@ screen cue_overlay_content():
                         $ _cur = _cue.speed_resolver.speed_for(_cue.current_file)
                         vbox:
                             spacing 5
+                            text "The video will only play at the selected speed" style "cue_help"
                             hbox:
                                 spacing 3
                                 for _sp in _avail:
@@ -184,10 +185,10 @@ screen cue_overlay_content():
                                 _cue.speed_resolver.seamless_transition,
                                 Function(_cue.speed_resolver.toggle_seamless),
                                 tt="When enabled, changing speeds waits for the current video loop to finish before switching.")
-                            text "The video will only play at the selected speed" style "cue_help"
 
                     # --- Multi Speed tab ---
                     if _mode == SpeedMode.MULTI:
+                        text "The video plays through each speed in order, then loops." style "cue_help"
                         if len(_avail) > 1:
                             hbox:
                                 spacing 3
@@ -202,6 +203,10 @@ screen cue_overlay_content():
                                         Function(_cue.video_sequence.clear_sequence, None),
                                         tt="Remove the entire speed sequence")
                         if _seq:
+                            # --- Sequence chart ---
+                            if len(_seq) >= 2:
+                                add CueAutoSpeedChart() xsize 440 ysize 55
+
                             $ _groups = _cue.video_sequence.speeds_grouped(_cue.current_file)
                             null height 3
                             viewport:
@@ -230,8 +235,6 @@ screen cue_overlay_content():
                         else:
                             text "Click the speed buttons to create a sequence." style "cue_help"
 
-                        text "The video plays through each speed in order, then loops." style "cue_help"
-
                     # --- Auto Speed tab ---
                     if _mode == SpeedMode.AUTO:
                         $ _auto = _cue.auto_speed
@@ -241,58 +244,32 @@ screen cue_overlay_content():
                         if _has_auto:
                             # --- Preset grid ---
                             null height 3
-                            text "Rhythm:" style "cue_txt" size 11
-                            null height 2
+                            $ _auto_help = (
+                                "Pick a rhythm — each rhythm varies playback speed with a different "
+                                "theme. Click a rhythm anytime to generate a fresh sequence. "
+                                "Minimum number of speeds is 4, recommended is 8. The more the better."
+                            )
+                            text _auto_help style "cue_help"
 
                             hbox:
                                 spacing 3
                                 box_wrap True
                                 box_wrap_spacing 3
-                                use cue_auto_preset_btn("roller_coaster", "🎢", _auto)
-                                use cue_auto_preset_btn("build_up", "📈", _auto)
-                                use cue_auto_preset_btn("cool_down", "📉", _auto)
-                                use cue_auto_preset_btn("slow_groove", "😌", _auto)
-                                use cue_auto_preset_btn("fast_frenzy", "🔥", _auto)
-                                use cue_auto_preset_btn("tease", "😏", _auto)
-                                use cue_auto_preset_btn("plateau", "🪜", _auto)
-                                use cue_auto_preset_btn("random_walk", "🎲", _auto)
-                                use cue_auto_preset_btn("edge", "💫", _auto)
-                                use cue_auto_preset_btn("anchor", "🧲", _auto)
-                                use cue_auto_preset_btn("surprise", "🎰", _auto,
+                                use cue_auto_preset_btn("roller_coaster", _auto)
+                                use cue_auto_preset_btn("build_up", _auto)
+                                use cue_auto_preset_btn("cool_down", _auto)
+                                use cue_auto_preset_btn("slow_groove", _auto)
+                                use cue_auto_preset_btn("fast_frenzy", _auto)
+                                use cue_auto_preset_btn("tease", _auto)
+                                use cue_auto_preset_btn("plateau", _auto)
+                                use cue_auto_preset_btn("edge", _auto)
+                                use cue_auto_preset_btn("anchor", _auto)
+                                use cue_auto_preset_btn("pulse", _auto)
+                                use cue_auto_preset_btn("random_walk", _auto)
+                                use cue_auto_preset_btn("surprise", _auto,
                                     extra_text="Surprise Me")
 
                             null height 5
-
-                            # --- Modifiers ---
-                            hbox:
-                                spacing 8
-                                # Rest beats toggle
-                                $ _rest_active = _auto.rest_beats_enabled
-                                $ _rest_color = _cue_color_active if _rest_active else "#555"
-                                use cue_auto_toggle("😮‍💨 Breathing room", _rest_active,
-                                    Function(_auto.toggle_rest_beats),
-                                    tt="Short pauses at slowest speed between phrases")
-
-                                # Micro-bursts toggle
-                                $ _burst_active = _auto.micro_bursts_enabled
-                                $ _burst_color = _cue_color_active if _burst_active else "#555"
-                                use cue_auto_toggle("💨 Stutter", _burst_active,
-                                    Function(_auto.toggle_micro_bursts),
-                                    tt="Occasional rapid flutter between two speeds")
-
-                            null height 5
-
-                            # --- Length selector ---
-                            hbox:
-                                spacing 3
-                                text "Length:" style "cue_txt" size 11
-                                $ _len_key = _auto.get_active_length_key()
-                                use cue_tab_btn("Short", (_len_key == "short"),
-                                    Function(_auto.set_length, "short"))
-                                use cue_tab_btn("Medium", (_len_key == "medium"),
-                                    Function(_auto.set_length, "medium"))
-                                use cue_tab_btn("Long", (_len_key == "long"),
-                                    Function(_auto.set_length, "long"))
 
                             null height 5
 
@@ -326,50 +303,6 @@ screen cue_overlay_content():
                                             use cue_txt_button(_s_label, NullAction(),
                                                 bg=_bg, sensitive=False,
                                                 tt="Speed {} (x{})".format(_gi + 1, _count))
-
-                            null height 3
-
-                            # --- Save + History ---
-                            hbox:
-                                spacing 5
-                                use cue_txt_button("💾 Save this sequence",
-                                    Function(_auto.save_current),
-                                    tt="Save the current generated sequence to history")
-                                if _auto.history:
-                                    use cue_txt_button("🗑 Clear history",
-                                        Function(_auto.clear_history),
-                                        tt="Remove all saved sequences from history")
-
-                            # History list
-                            if _auto.history:
-                                null height 3
-                                text "History:" style "cue_txt" size 11
-                                viewport:
-                                    xalign 0.5
-                                    xsize 440
-                                    ysize 40
-                                    mousewheel True
-                                    scrollbars "vertical"
-                                    scrollbar_unscrollable "hide"
-                                    style_group "cue"
-
-                                    vbox:
-                                        spacing 2
-                                        for _hi in range(min(len(_auto.history), 15)):
-                                            $ _h = _auto.history[_hi]
-                                            $ _h_label = "Seq #{} — {}".format(
-                                                _hi + 1, _h.get("preset", "?"))
-                                            hbox:
-                                                spacing 3
-                                                use cue_txt_button(_h_label,
-                                                    Function(_auto.replay_history, _hi),
-                                                    tt="Replay this saved sequence")
-                                                use cue_txt_button("✕",
-                                                    Function(_auto.remove_from_history, _hi),
-                                                    tt="Remove from history")
-
-                            text "Each sequence is unique — a new one generates when the current one finishes." style "cue_help"
-
                         else:
                             text "Auto Speed needs at least 2 speed variants. Generate some in the VFX tab!" style "cue_help"
 

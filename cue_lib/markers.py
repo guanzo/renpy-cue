@@ -876,6 +876,7 @@ class CueMarkerManager(object):
         # type: (Any) -> MarkerEntry
         if "pools" not in entry:
             entry["pools"] = [{"files": entry.pop("files", [])}]
+        entry.pop('replay_id', None)
         entry.setdefault("replay", _cue.current_replay)
         return entry
 

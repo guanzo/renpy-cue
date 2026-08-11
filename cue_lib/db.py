@@ -212,11 +212,11 @@ class CueDatabase(object):
         # type: (Dict[str, Any], Dict[str, Any], Dict[str, Any]) -> None
         """Bulk-write markers and presets from a legacy dict (one-time migration)."""
         for key, entry in markers.items():
-            self._write_file_atomic(self._marker_path(key), key, entry)
+            self._write_entry(self._marker_path(key), key, entry)
         for name, entry in presets.items():
-            self._write_file_atomic(self._preset_path("audio", name), name, entry)
+            self._write_entry(self._preset_path("audio", name), name, entry)
         for name, entry in video_presets.items():
-            self._write_file_atomic(self._preset_path("video", name), name, entry)
+            self._write_entry(self._preset_path("video", name), name, entry)
 
     # ------------------------------------------------------------------
     # Markers
@@ -248,7 +248,7 @@ class CueDatabase(object):
     def save_marker(self, key, entry):
         # type: (str, Any) -> None
         """Write one marker to its JSON file."""
-        self._write_file_atomic(self._marker_path(key), key, entry)
+        self._write_entry(self._marker_path(key), key, entry)
 
     def delete_marker(self, key):
         # type: (str) -> None
@@ -294,7 +294,7 @@ class CueDatabase(object):
         # type: (str, str, Any) -> None
         """Write one preset to its JSON file."""
         fpath = self._preset_path(preset_type, name)
-        self._write_file_atomic(fpath, name, data)
+        self._write_entry(fpath, name, data)
 
     def delete_preset(self, preset_type, name):
         # type: (str, str) -> None
@@ -324,22 +324,10 @@ class CueDatabase(object):
         with open(fpath, "w") as f:
             _json.dump(entry, f, sort_keys=True)
 
-    def _write_file_atomic(self, fpath, key, data):
+    def _write_entry(self, fpath, key, data):
         # type: (str, str, Any) -> None
-        """Write via temp file + rename for atomicity."""
-        # Store the original key so it can be recovered on load
         entry = dict(data)
         if "_key" not in entry:
             entry["_key"] = key
-
-        tmp = fpath + ".tmp"
-        try:
-            with open(tmp, "w") as f:
-                _json.dump(entry, f, sort_keys=True)
-            os.rename(tmp, fpath)
-        except Exception:
-            try:
-                os.remove(tmp)
-            except Exception:
-                pass
+        self._write_file(fpath, entry)
 

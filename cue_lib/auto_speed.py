@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 # CueAutoSpeedGenerator -- procedural speed sequence generation.
 #
-# Generates "auto" speed sequences by walking through speed-space with
-# parameterized drift, intensity, volatility, and center-of-gravity.
-# Presets are saved knob values (data, not code paths), and modifiers
-# (rest beats, micro-bursts) stack on any preset.
+# Each preset has a macro rhythm / phase structure that directly encodes
+# its intended shape.  Randomization changes the details (hold durations,
+# exact peak / bottom rungs, climb eagerness) without destroying the
+# recognisable identity of the preset.
+#
+# The legacy _walk algorithm is kept for the "custom" fine-tune mode
+# (active_preset is None).
 #
 # Instantiated at _cue.auto_speed.
 
@@ -13,11 +16,11 @@ import random as _random
 import renpy
 
 from cue_lib.state import _cue
-from cue_lib.util import create_vid_key
+from cue_lib.util import create_vid_key, _cue_log, _cue_speed_label
 
 MYPY = False
 if MYPY:
-    from typing import Optional, List
+    from typing import List
 
 
 # ==========================================================================
@@ -38,6 +41,7 @@ def _cue_auto_preset_label(preset_name):
         "random_walk":    "Random Walk",
         "edge":           "Edge",
         "anchor":         "Anchor",
+        "pulse":          "Pulse",
         "surprise":       "Surprise Me",
         None:             "Custom",
     }
@@ -48,19 +52,39 @@ def _cue_auto_preset_description(preset_name):
     # type: (str) -> str
     """One-line description for a preset tooltip."""
     descs = {
-        "roller_coaster": "Full slow-fast-slow wave across the entire speed range",
-        "build_up":       "Steady climb from slow to fast, then holds at peak",
-        "cool_down":      "Starts fast, gently settles back down to slow",
-        "slow_groove":    "Stays in the lower speeds with a gentle sway",
-        "fast_frenzy":    "High-energy, stays in the upper speeds",
+        "roller_coaster": "Sweeps back and forth across the full speed range",
+        "build_up":       "Stair-steps upward from slow to fast, then holds at peak",
+        "cool_down":      "Stair-steps downward from fast to slow and settles",
+        "slow_groove":    "Lingers in the lower speeds with a gentle, lazy sway",
+        "fast_frenzy":    "High-energy, stays fast with frequent quick changes",
         "tease":          "Mostly slow with sudden, brief spikes of speed",
-        "plateau":        "Long, sustained holds at one speed before shifting",
-        "random_walk":    "Unpredictable drift with no fixed shape",
-        "edge":           "Builds toward peak, drops, builds again -- never quite gets there",
-        "anchor":         "Gravitates around a comfortable middle speed",
-        "surprise":       "Picks a random vibe each sequence -- expect anything!",
+        "plateau":        "Long, sustained holds at one speed, then jumps to another",
+        "random_walk":    "Unpredictable drift with no fixed direction or shape",
+        "edge":           "Climbs toward peak, then drops suddenly -- never quite gets there",
+        "anchor":         "Gravitates around a comfortable speed with small wobbles",
+        "pulse":          "Steady repetitive beat — alternates around a central speed",
+        "surprise":       "Picks a random rhythm each sequence -- expect anything!",
     }
     return descs.get(preset_name, "")
+
+
+# ==========================================================================
+# Generator dispatch -- maps preset name to method name on the class
+# ==========================================================================
+
+_GEN_METHODS = {
+    "roller_coaster": "_gen_wave",
+    "build_up":       "_gen_climb",
+    "cool_down":      "_gen_descend",
+    "slow_groove":    "_gen_low_sway",
+    "fast_frenzy":    "_gen_high_jitter",
+    "tease":          "_gen_spike",
+    "plateau":        "_gen_plateau",
+    "random_walk":    "_gen_random_walk",
+    "edge":           "_gen_edge",
+    "anchor":         "_gen_anchor",
+    "pulse":          "_gen_pulse",
+}
 
 
 # ==========================================================================
@@ -68,89 +92,46 @@ def _cue_auto_preset_description(preset_name):
 class CueAutoSpeedGenerator(object):
     """Procedural speed sequence generator.
 
-    One walk algorithm. All variety comes from parameter values and
-    their interpolation over the course of a sequence."""
+    Each named preset has its own generator method that directly encodes
+    the desired rhythm shape.  Randomization within each method makes
+    every generation slightly different.
+
+    The legacy _walk algorithm is used for custom / fine-tune mode
+    (active_preset is None)."""
 
     def __init__(self):
-        # History
-        self.history = []       # list of AutoSpeedHistoryEntry dicts
-        self.max_history = 20
-
         # ================================================================
         # Tunables -- tweak these to change the feel of generated sequences
         # ================================================================
 
         # Sequence length in time-units (1 TU = one play of 1.0x video)
-        self.min_duration_tu = 8.0
-        self.max_duration_tu = 25.0
+        self.min_duration_tu = 20.0
+        self.max_duration_tu = 30.0
 
         # Hold time per rung: how long to linger in time-units.
         # Shorter = snappy transitions. Longer = smooth, sustained holds.
-        self.min_hold_tu = 0.8
-        self.max_hold_tu = 3.5
+        self.min_hold_tu = 0.4
+        self.max_hold_tu = 1.5
 
         # Max rungs to jump in one step, 0 = no ceiling.
-        # When set (1+), caps volatility-driven jumps. When 0, full-range
-        # leaps are possible at high volatility. Default: 0 (uncapped).
+        # Used only by the legacy _walk (custom mode).
         self.max_step = 0
 
         # Momentum: once moving in a direction, keep going for this
         # many steps before the direction can reverse.
+        # Used only by the legacy _walk (custom mode).
         self.momentum_min_steps = 2
         self.momentum_max_steps = 5
 
-        # Chance per step to ignore momentum and drift (adds unpredictability)
+        # Chance per step to ignore momentum and drift (adds unpredictability).
+        # Used only by the legacy _walk (custom mode).
         self.momentum_drift_chance = 0.15
 
-        # Max rungs between end of prev sequence and start of next
-        self.max_start_delta = 2
-
-        # -- Rest beats --
-        # Chance a "phrase" is followed by a brief pause at the slowest speed.
-        self.rest_chance = 0.25
-        self.min_phrase_tu = 5.0    # min TU between rests
-        self.rest_hold_tu = 1.5     # how long the rest lasts
-
-        # -- Micro-bursts --
-        # Chance a normal hold is replaced by rapid alternation between
-        # two adjacent speeds (like a tremolo / shiver).
-        self.micro_burst_chance = 0.06
-        self.micro_burst_alternations = 3  # how many back-and-forth swaps
-
-        # ================================================================
-        # Presets -- named (drift, intensity, volatility, center) combos
-        # ================================================================
-        # drift:      -1.0 (trend down) .. +1.0 (trend up)
-        # intensity:   0.0 (tiny range) ..  1.0 (full range)
-        # volatility:  0.0 (plateau)    ..  1.0 (very twitchy)
-        # center:      0.0 (bottom)     ..  1.0 (top of speed range)
-
-        self.presets = {
-            "roller_coaster":  dict(drift= 0.0, intensity=1.0, volatility=0.40, center=0.50),
-            "build_up":        dict(drift= 0.8, intensity=0.8, volatility=0.15, center=0.20),
-            "cool_down":       dict(drift=-0.7, intensity=0.6, volatility=0.15, center=0.50),
-            "slow_groove":     dict(drift= 0.0, intensity=0.3, volatility=0.25, center=0.18),
-            "fast_frenzy":     dict(drift= 0.0, intensity=0.3, volatility=0.40, center=0.85),
-            "tease":           dict(drift= 0.0, intensity=0.8, volatility=0.85, center=0.12),
-            "plateau":         dict(drift= 0.0, intensity=0.6, volatility=0.06, center=0.50),
-            "random_walk":     dict(drift= 0.0, intensity=1.0, volatility=0.55, center=0.50),
-            "edge":            dict(drift= 0.8, intensity=0.9, volatility=0.55, center=0.18),
-            "anchor":          dict(drift= 0.0, intensity=0.5, volatility=0.18, center=0.35),
-        }
-
         # Which preset to use when "Surprise me" is selected (random each generation)
-        self.surprise_pool = [
-            "roller_coaster", "build_up", "cool_down", "slow_groove",
-            "fast_frenzy", "tease", "plateau", "random_walk",
-            "edge", "anchor",
-        ]
+        self.surprise_pool = list(_GEN_METHODS.keys())
 
         # Currently active preset name (or None for custom/fine-tuned)
         self.active_preset = "roller_coaster"
-
-        # Modifier toggles
-        self.rest_beats_enabled = True
-        self.micro_bursts_enabled = True
 
         # ================================================================
         # Fine-tune overrides (only used when active_preset is None)
@@ -167,48 +148,12 @@ class CueAutoSpeedGenerator(object):
     def select_preset(self, preset_name):
         # type: (str) -> None
         """Pick a named preset. Persists immediately."""
-        if preset_name in self.presets or preset_name == "surprise":
+        if preset_name == "surprise":
+            self.surprise_me()
+        elif preset_name in _GEN_METHODS:
             self.active_preset = preset_name
             self._regenerate()
             renpy.restart_interaction()
-
-    def toggle_rest_beats(self):
-        """Toggle rest-beat modifier."""
-        self.rest_beats_enabled = not self.rest_beats_enabled
-        self._regenerate()
-        renpy.restart_interaction()
-
-    def toggle_micro_bursts(self):
-        """Toggle micro-burst modifier."""
-        self.micro_bursts_enabled = not self.micro_bursts_enabled
-        self._regenerate()
-        renpy.restart_interaction()
-
-    def set_length(self, preset_key):
-        # type: (str) -> None
-        """Set length from a preset key: 'short', 'medium', 'long'."""
-        if preset_key == "short":
-            self.min_duration_tu = 5.0
-            self.max_duration_tu = 12.0
-        elif preset_key == "medium":
-            self.min_duration_tu = 8.0
-            self.max_duration_tu = 25.0
-        elif preset_key == "long":
-            self.min_duration_tu = 15.0
-            self.max_duration_tu = 45.0
-        self._regenerate()
-        renpy.restart_interaction()
-
-    def get_active_length_key(self):
-        # type: () -> str
-        """Return 'short', 'medium', or 'long' based on current duration range."""
-        avg = (self.min_duration_tu + self.max_duration_tu) / 2.0
-        if avg < 15:
-            return "short"
-        elif avg < 30:
-            return "medium"
-        else:
-            return "long"
 
     def surprise_me(self):
         """Pick a random preset from the surprise pool and regenerate."""
@@ -216,205 +161,634 @@ class CueAutoSpeedGenerator(object):
         self._regenerate()
         renpy.restart_interaction()
 
-    def save_current(self):
-        """Save the currently playing sequence to history."""
-        tag = _cue.current_file
-        if not tag:
-            return
-        speeds = None  # type: Optional[List[float]]
-        if _cue.video_sequence:
-            speeds = _cue.video_sequence.speeds_for(tag)
-        if not speeds:
-            return
-        preset_label = _cue_auto_preset_label(self.active_preset)
-        entry = {"speeds": speeds, "preset": preset_label}
-        self.history.insert(0, entry)
-        if len(self.history) > self.max_history:
-            self.history.pop()
-        renpy.restart_interaction()
-
-    def replay_history(self, index):
-        # type: (int) -> None
-        """Replay a saved sequence from history by writing it into the
-        marker entry and starting playback."""
-        if index < 0 or index >= len(self.history):
-            return
-        tag = _cue.current_file
-        if not tag:
-            return
-        saved = self.history[index].get("speeds")
-        if not saved:
-            return
-        entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
-        entry["speed_sequence"] = list(saved)
-        _cue.markers.save_marker(create_vid_key(tag))
-        if _cue.video_sequence:
-            _cue.video_sequence.start(tag)
-        renpy.restart_interaction()
-
-    def remove_from_history(self, index):
-        # type: (int) -> None
-        """Remove a single entry from history at the given index."""
-        if 0 <= index < len(self.history):
-            self.history.pop(index)
-            renpy.restart_interaction()
-
-    def clear_history(self):
-        """Clear the entire history."""
-        self.history = []
-        renpy.restart_interaction()
-
     # ================================================================
     # Generation entry point
     # ================================================================
 
-    def generate(self, available_speeds, prev_sequence=None):
-        # type: (list, Optional[list]) -> list
+    def generate(self, available_speeds):
+        # type: (list) -> list
         """Generate a new speed sequence.
 
-        Args:
-            available_speeds: sorted list of speeds from disk variants.
-            prev_sequence: the previous sequence (list of floats), used
-                           to constrain the start speed for continuity.
-        Returns:
-            list of floats -- the generated speed sequence.
+        Each preset picks its own starting rung.  No continuity is
+        enforced between successive sequences.
         """
-        if not available_speeds or len(available_speeds) < 2:
+        min_speeds = 4
+        if not available_speeds or len(available_speeds) < min_speeds:
             return [available_speeds[0]] * 8 if available_speeds else [1.0]
 
         n = len(available_speeds)
-
-        # 1. Resolve knobs
-        drift, intensity, volatility, center = self._resolve_knobs()
-
-        # 2. Pick target duration
         target_tu = _random.uniform(self.min_duration_tu, self.max_duration_tu)
 
-        # 3. Determine start index (continuity from prev sequence)
-        start_idx = self._pick_start_index(n, prev_sequence, available_speeds)
+        method_name = _GEN_METHODS.get(self.active_preset)
+        if method_name:
+            gen = getattr(self, method_name)
+            seq = gen(available_speeds, n, target_tu)
+        else:
+            # Custom / fine-tuned -- use legacy walk
+            seq = self._walk(
+                available_speeds, n,
+                self.custom_drift, self.custom_intensity,
+                self.custom_volatility, self.custom_center,
+                target_tu
+            )
 
-        # 4. Walk
-        seq = self._walk(
-            available_speeds, n, start_idx,
-            drift, intensity, volatility, center,
-            target_tu
+        # -- Debug: log the grouped sequence --
+        runs = []
+        i = 0
+        while i < len(seq):
+            sp = seq[i]
+            count = 1
+            i += 1
+            while i < len(seq) and seq[i] == sp:
+                count += 1
+                i += 1
+            runs.append((sp, count))
+
+        parts = [_cue_speed_label(sp) + "x" + str(cnt) for sp, cnt in runs]
+        actual_tu = sum(cnt / sp for sp, cnt in runs)
+        preset = self.active_preset if self.active_preset else "custom"
+        rung_labels = ", ".join(_cue_speed_label(s) for s in available_speeds)
+        vid_dur = getattr(self, '_video_duration', 0) or 0
+
+        _cue_log(
+            "[{}] {} rungs({}) | vid {:.1f}s | target {:.1f} TU"
+            " | actual {:.1f} TU | {} holds\n"
+            "    {}".format(
+                preset, n, rung_labels, vid_dur, target_tu, actual_tu,
+                len(runs), " -> ".join(parts)
+            )
         )
-
-        # 5. History
-        preset_label = _cue_auto_preset_label(self.active_preset)
-        h = {"speeds": seq, "preset": preset_label}
-        self.history.insert(0, h)
-        if len(self.history) > self.max_history:
-            self.history.pop()
 
         return seq
 
     # ================================================================
-    # Knob resolution
+    # Shared helper -- emit a hold at a given speed index
     # ================================================================
 
-    def _resolve_knobs(self):
-        # type: () -> tuple
-        """Return (drift, intensity, volatility, center) for the current
-        active preset, or custom values when active_preset is None."""
-        if self.active_preset and self.active_preset in self.presets:
-            p = self.presets[self.active_preset]
-            return (p["drift"], p["intensity"], p["volatility"], p["center"])
-        # Custom / fine-tuned
-        return (self.custom_drift, self.custom_intensity,
-                self.custom_volatility, self.custom_center)
+    @staticmethod
+    def _emit_hold(seq, speeds, idx, hold_tu):
+        # type: (list, list, int, float) -> float
+        """Append speed values to seq for a hold at rung idx lasting
+        hold_tu time-units.  Returns the actual TU emitted (plays / sp)."""
+        sp = speeds[idx]
+        plays = max(1, int(round(sp * hold_tu)))
+        for _ in range(plays):
+            seq.append(sp)
+        return float(plays) / sp
+
+    def _take_hold(self, seq, speeds, idx, remaining_tu, scale=1.0):
+        # type: (list, list, int, float, float) -> float
+        """Emit a single hold at rung idx and return the actual TU used.
+
+        hold_tu = random in [min_hold_tu*scale, max_hold_tu*scale],
+        clamped to remaining_tu.  Returns actual TU from _emit_hold."""
+        hold_tu = _random.uniform(
+            self.min_hold_tu * scale,
+            self.max_hold_tu * scale
+        )
+        if hold_tu > remaining_tu:
+            hold_tu = remaining_tu
+
+        # Cap real time: no single hold should exceed ~8 seconds of the
+        # same speed, regardless of the preset's preferred scale.
+        max_real_s = 8.0
+        if (hasattr(self, '_video_duration')
+                and self._video_duration > 0):
+            max_tu = max_real_s / self._video_duration
+            if hold_tu > max_tu:
+                hold_tu = max_tu
+
+        return self._emit_hold(seq, speeds, idx, hold_tu)
+
 
     # ================================================================
-    # Start-index selection (continuity)
+    # Per-preset generators
+    #
+    # Each generator receives (speeds, n, start_idx, target_tu).
+    #   speeds      -- sorted list of available speed floats
+    #   n           -- len(speeds), the number of rungs
+    #   start_idx   -- continuity-aware suggested start index (0..n-1)
+    #   target_tu   -- total time-units to fill
+    #
+    # Presets that need a specific starting region override start_idx.
+    # Presets that benefit from continuity (wave, plateau, random_walk)
+    # use it, clamped to their valid range.
     # ================================================================
 
-    def _pick_start_index(self, n, prev_sequence, available_speeds):
-        # type: (int, Optional[list], list) -> int
-        """Pick a starting speed index, constrained by the previous
-        sequence's last speed for continuity."""
-        if not prev_sequence or len(prev_sequence) < 1:
-            # First sequence: start anywhere in the bottom third
-            return _random.randint(0, max(0, n // 3))
+    # ----------------------------------------------------------------
+    # Roller Coaster -- explicit bottom <-> top sweeps
+    # ----------------------------------------------------------------
 
-        last_speed = prev_sequence[-1]
+    def _gen_wave(self, speeds, n, target_tu):
+        # type: (list, int, float) -> list
+        """Roller Coaster: 3-6 humps with peaks in the top fourth and
+        valleys in the bottom fourth.  Starts and ends near the bottom."""
+        seq = []
+        tu = 0.0
+        idx = 0
 
-        # Find the index closest to last_speed
-        last_idx = 0
-        best_dist = float('inf')
-        for i, sp in enumerate(available_speeds):
-            dist = abs(sp - last_speed)
-            if dist < best_dist:
-                best_dist = dist
-                last_idx = i
+        # Slow start at the bottom.
+        tu += self._take_hold(seq, speeds, idx, target_tu, scale=1.3)
 
-        # Clamp start to within max_start_delta of last_idx
-        lo = max(0, last_idx - self.max_start_delta)
-        hi = min(n - 1, last_idx + self.max_start_delta)
-        if lo >= hi:
-            return last_idx
-        return _random.randint(lo, hi)
+        # Regions (top / bottom fourth).
+        peak_lo = n - max(1, n // 4)
+        peak_hi = n - 1
+        valley_lo = 0
+        valley_hi = max(0, n // 4)
+
+        # How many humps?
+        num_humps = _random.randint(3, 6)
+
+        # Plan peak / valley pairs ahead so the last valley lands near
+        # the start (within 1 rung of 0).
+        peaks = []
+        valleys = []
+        for _i in range(num_humps):
+            peak = _random.randint(peak_lo, peak_hi)
+            v_hi = min(valley_hi, peak - 3)
+            if v_hi < valley_lo:
+                v_hi = valley_lo
+            valley = _random.randint(valley_lo, v_hi)
+            peaks.append(peak)
+            valleys.append(valley)
+
+        # Force the final valley within 1 rung of 0.
+        valleys[-1] = _random.randint(0, min(1, valley_hi))
+
+        min_stride = max(1, (n - 1) // 6)
+        _CLIMB_STYLES = (0.3, 0.6, 1.1)
+        _DESCEND_STYLES = (0.3, 0.6)
+
+        for i in range(num_humps):
+            peak = peaks[i]
+            valley = valleys[i]
+
+            climb_scale = _random.choice(_CLIMB_STYLES)
+            descend_scale = _random.choice(_DESCEND_STYLES)
+            # -- Climb (fresh stride per step) --
+            rung = idx
+            while rung < peak:
+                stride = _random.randint(min_stride, max(min_stride, (n - 1) // 3))
+                rung = min(rung + stride, peak)
+                if target_tu - tu <= 0.1:
+                    break
+                tu += self._take_hold(seq, speeds, rung, target_tu - tu,
+                                      scale=climb_scale)
+            if tu >= target_tu:
+                break
+            if rung != peak:
+                tu += self._take_hold(seq, speeds, peak,
+                                      target_tu - tu, scale=0.4)
+            if tu >= target_tu:
+                break
+
+            # -- Descend (fresh stride per step) --
+            rung = peak
+            while rung > valley:
+                stride = _random.randint(min_stride, max(min_stride, (n - 1) // 3))
+                rung = max(rung - stride, valley)
+                if target_tu - tu <= 0.1:
+                    break
+                tu += self._take_hold(seq, speeds, rung, target_tu - tu,
+                                      scale=descend_scale)
+            if tu >= target_tu:
+                break
+            if rung != valley:
+                tu += self._take_hold(seq, speeds, valley,
+                                      target_tu - tu, scale=0.4)
+
+            idx = valley
+
+        return seq
+
+    # ----------------------------------------------------------------
+    # Build Up -- guaranteed low -> peak climb, then hold
+    # ----------------------------------------------------------------
+
+    def _gen_climb(self, speeds, n, target_tu):
+        # type: (list, int, float) -> list
+        """Build Up: guaranteed climb from low to peak, then hold."""
+        seq = []
+        tu = 0.0
+
+        idx = _random.randint(0, n // 2)
+        peak = n - 1
+
+        climb_eagerness = _random.uniform(0.35, 0.75)
+        climb_scale = 0.3 + (1.0 - climb_eagerness) * 0.7
+
+        # Stride: skip rungs so the climb doesn't drag on flat terrain.
+        stride = _random.randint(1, max(1, (n - 1) // 3))
+
+        # -- Climb phase, skipping by stride --
+        rung = idx + stride
+        while rung <= peak:
+            remaining = target_tu - tu
+            if remaining <= 0.1:
+                break
+            tu += self._take_hold(seq, speeds, rung, remaining, scale=climb_scale)
+            rung += stride
+
+        # Always tag the peak if we didn't land exactly on it.
+        if rung - stride != peak:
+            tu += self._take_hold(seq, speeds, peak, target_tu - tu, scale=0.4)
+
+        # -- Peak phase: wiggle around the peak --
+        idx = peak
+        while tu < target_tu:
+            tu += self._take_hold(seq, speeds, idx, target_tu - tu, scale=1.2)
+            r = _random.random()
+            if r < 0.35:
+                idx = max(peak - 1, idx - 1)
+            elif r < 0.70:
+                idx = min(peak, idx + 1)
+            # Clamp to [peak-1, peak]
+            idx = max(peak - 1, min(peak, idx))
+        return seq
+
+    # ----------------------------------------------------------------
+    # Cool Down -- guaranteed high -> low descent, then settle
+    # ----------------------------------------------------------------
+
+    def _gen_descend(self, speeds, n, target_tu):
+        # type: (list, int, float) -> list
+        """Cool Down: guaranteed descent from high to low, then settle."""
+        seq = []
+        tu = 0.0
+
+        idx = _random.randint(n // 2, n - 1)
+        bottom = 0
+
+        descend_eagerness = _random.uniform(0.35, 0.75)
+        descend_scale = 0.3 + (1.0 - descend_eagerness) * 0.7
+
+        stride = _random.randint(1, max(1, (n - 1) // 3))
+
+        # -- Descent phase, skipping by stride --
+        rung = idx - stride
+        while rung >= bottom:
+            remaining = target_tu - tu
+            if remaining <= 0.1:
+                break
+            tu += self._take_hold(seq, speeds, rung, remaining, scale=descend_scale)
+            rung -= stride
+
+        if rung + stride != bottom:
+            tu += self._take_hold(seq, speeds, bottom, target_tu - tu, scale=0.4)
+
+        # -- Bottom phase: wiggle around the bottom --
+        idx = bottom
+        while tu < target_tu:
+            tu += self._take_hold(seq, speeds, idx, target_tu - tu, scale=1.2)
+            r = _random.random()
+            if r < 0.35:
+                idx = min(bottom + 1, idx + 1)
+            elif r < 0.70:
+                idx = max(bottom, idx - 1)
+            # Clamp to [bottom, bottom+1]
+            idx = max(bottom, min(bottom + 1, idx))
+        return seq
+
+    # ----------------------------------------------------------------
+    # Slow Groove -- lower rungs, lazy sway
+    # ----------------------------------------------------------------
+
+    def _gen_low_sway(self, speeds, n, target_tu):
+        # type: (list, int, float) -> list
+        """Slow Groove: lazy sway in the lower speeds, never reaches high."""
+        seq = []
+        tu = 0.0
+
+        # Explicitly start low
+        idx = _random.randint(0, n // 2)
+        # Vary the ceiling within the lower half for variety.
+        max_rung = _random.randint(1, n // 2)
+
+        while tu < target_tu:
+            remaining = target_tu - tu
+            tu += self._take_hold(seq, speeds, idx, remaining, scale=1.1)
+
+            if tu >= target_tu:
+                break
+
+            r = _random.random()
+            if r < 0.35:
+                idx = min(idx + 1, max_rung)
+            elif r < 0.65:
+                idx = max(idx - 1, 0)
+            # else: stay (35%)
+        return seq
+
+    # ----------------------------------------------------------------
+    # Fast Frenzy -- upper rungs, short holds, frequent changes
+    # ----------------------------------------------------------------
+
+    def _gen_high_jitter(self, speeds, n, target_tu):
+        # type: (list, int, float) -> list
+        """Fast Frenzy: high-energy upper speeds with quick changes."""
+        seq = []
+        tu = 0.0
+
+        # Explicitly start high
+        hi_min = n // 2
+        idx = _random.randint(hi_min, n - 1)
+
+        while tu < target_tu:
+            remaining = target_tu - tu
+            # Short holds for rapid change feel
+            tu += self._take_hold(seq, speeds, idx, remaining, scale=0.5)
+
+            if tu >= target_tu:
+                break
+
+            r = _random.random()
+            if r < 0.06:
+                idx = min(idx + 2, n - 1)
+            elif r < 0.12:
+                idx = max(idx - 2, hi_min)
+            elif r < 0.50:
+                idx = min(idx + 1, n - 1)
+            elif r < 0.88:
+                idx = max(idx - 1, hi_min)
+            # else: stay (12%)
+        return seq
+
+    # ----------------------------------------------------------------
+    # Tease -- mostly slow, rare sharp spikes with enforced cooldown
+    # ----------------------------------------------------------------
+
+    def _gen_spike(self, speeds, n, target_tu):
+        # type: (list, int, float) -> list
+        """Tease: mostly slow with sudden brief spikes and cooldown."""
+        seq = []
+        tu = 0.0
+
+        # Explicitly start low
+        idx = _random.randint(0, n // 2)
+        spike_rungs = list(range(n // 2, n))
+        if not spike_rungs:
+            spike_rungs = [n - 1]
+        spike_hold = _random.uniform(0.3, 0.8)
+        cooldown_tu = _random.uniform(1.5, 4.0)
+        tu_since_spike = cooldown_tu  # allow first spike after some time
+        spike_chance = _random.uniform(0.10, 0.25)
+
+        while tu < target_tu:
+            # Try a spike if cooldown has elapsed
+            if (tu_since_spike >= cooldown_tu
+                    and _random.random() < spike_chance
+                    and spike_rungs):
+                spike_idx = _random.choice(spike_rungs)
+                spike_tu = min(spike_hold, target_tu - tu)
+                if spike_tu > 0:
+                    tu += self._emit_hold(seq, speeds, spike_idx, spike_tu)
+                    tu_since_spike = 0.0  # reset -- cooldown starts after spike
+                    # Drop back low
+                    idx = _random.randint(0, n // 2)
+                if tu >= target_tu:
+                    break
+
+            remaining = target_tu - tu
+            hold_tu = self._take_hold(seq, speeds, idx, remaining, scale=1.1)
+            tu += hold_tu
+            tu_since_spike += hold_tu
+
+            if tu >= target_tu:
+                break
+
+            # Gentle low sway
+            r = _random.random()
+            if r < 0.30:
+                idx = min(idx + 1, n // 2)
+            elif r < 0.50:
+                idx = max(idx - 1, 0)
+            # else: stay (50%)
+        return seq
+
+    # ----------------------------------------------------------------
+    # Plateau -- very long holds, deliberate jumps
+    # ----------------------------------------------------------------
+
+    def _gen_plateau(self, speeds, n, target_tu):
+        # type: (list, int, float) -> list
+        """Plateau: long sustained holds, then deliberate jumps."""
+        seq = []
+        tu = 0.0
+
+        idx = _random.randint(0, n - 1)
+        last_idx = -1  # previous rung, to avoid immediate reversal
+        plateau_scale = _random.uniform(1.0, 2.5)
+
+        while tu < target_tu:
+            remaining = target_tu - tu
+            tu += self._take_hold(seq, speeds, idx, remaining, scale=plateau_scale)
+
+            if tu >= target_tu:
+                break
+
+            # Collect valid jumps ordered by preference (larger first).
+            # Exclude jumping straight back where we just came from.
+            candidates = []
+            for jump in (2, -2, 1, -1):
+                target = idx + jump
+                if 0 <= target <= n - 1 and target != last_idx:
+                    candidates.append(target)
+
+            if candidates:
+                last_idx = idx
+                # Usually take the biggest available jump.
+                idx = candidates[0] if _random.random() < 0.7 else _random.choice(candidates)
+            else:
+                # Only option is to reverse — allow it.
+                last_idx = idx
+                idx = idx - 1 if idx > 0 else idx + 1
+        return seq
+
+    # ----------------------------------------------------------------
+    # Random Walk -- no macro structure, pure drift
+    # ----------------------------------------------------------------
+
+    def _gen_random_walk(self, speeds, n, target_tu):
+        # type: (list, int, float) -> list
+        """Random Walk: unpredictable drift with no fixed shape."""
+        seq = []
+        tu = 0.0
+
+        idx = _random.randint(0, n - 1)
+
+        while tu < target_tu:
+            remaining = target_tu - tu
+            tu += self._take_hold(seq, speeds, idx, remaining)
+
+            if tu >= target_tu:
+                break
+
+            r = _random.random()
+            if r < 0.25:
+                idx = min(idx + 1, n - 1)
+            elif r < 0.50:
+                idx = max(idx - 1, 0)
+            elif r < 0.55:
+                idx = min(idx + 2, n - 1)
+            elif r < 0.60:
+                idx = max(idx - 2, 0)
+            # else: stay (40%)
+        return seq
+
+    # ----------------------------------------------------------------
+    # Edge -- repeated climb toward near-top, then drop
+    # ----------------------------------------------------------------
+
+    def _gen_edge(self, speeds, n, target_tu):
+        # type: (list, int, float) -> list
+        """Edge: climbs toward peak, drops, climbs again -- never reaches top."""
+        seq = []
+        tu = 0.0
+
+        # Explicitly start low
+        idx = _random.randint(0, n // 2)
+        # Never visit the topmost rung
+        max_rung = max(1, n - 2) if n >= 3 else 0
+        # Small chance to drop one rung before max_rung (adds tension)
+        early_drop_chance = _random.uniform(0.0, 0.12)
+
+        while tu < target_tu:
+            remaining = target_tu - tu
+            tu += self._take_hold(seq, speeds, idx, remaining)
+
+            if tu >= target_tu:
+                break
+
+            if idx < max_rung:
+                # Optional early stumble
+                if (_random.random() < early_drop_chance
+                        and idx > n // 2):
+                    idx -= 1
+                else:
+                    idx += 1
+            else:
+                # At near-top -- drop into the bottom fourth.
+                idx = _random.randint(0, max(0, n // 4))
+        return seq
+
+    # ----------------------------------------------------------------
+    # Anchor -- strong mean reversion around a middle rung
+    # ----------------------------------------------------------------
+
+    def _gen_anchor(self, speeds, n, target_tu):
+        # type: (list, int, float) -> list
+        """Anchor: gravitates around a comfortable middle speed with
+        strong return-to-center behaviour."""
+        seq = []
+        tu = 0.0
+
+        # Pick anchor in middle range, start at it
+        anchor_rung = _random.randint(
+            max(1, n // 3),
+            min(n - 2, 2 * n // 3)
+        )
+        idx = anchor_rung
+        max_drift = _random.randint(1, min(2, max(1, n // 2)))
+
+        while tu < target_tu:
+            remaining = target_tu - tu
+            tu += self._take_hold(seq, speeds, idx, remaining)
+
+            if tu >= target_tu:
+                break
+
+            dist = idx - anchor_rung  # negative = below, positive = above
+
+            # Strong mean reversion: bias depends on distance from anchor
+            if dist <= -2:
+                # Far below -- strong upward bias
+                up_p = 0.70
+                down_p = 0.05
+            elif dist <= -1:
+                up_p = 0.45
+                down_p = 0.15
+            elif dist >= 2:
+                # Far above -- strong downward bias
+                up_p = 0.05
+                down_p = 0.70
+            elif dist >= 1:
+                up_p = 0.15
+                down_p = 0.45
+            else:
+                # At anchor -- balanced
+                up_p = 0.30
+                down_p = 0.25
+
+            r = _random.random()
+            if r < up_p:
+                idx = min(idx + 1, anchor_rung + max_drift)
+            elif r < up_p + down_p:
+                idx = max(idx - 1, anchor_rung - max_drift)
+            # else: stay
+
+            # Hard clamp
+            idx = max(anchor_rung - max_drift, min(anchor_rung + max_drift, idx))
+        return seq
+
+    # ----------------------------------------------------------------
+    # Pulse -- steady beat alternating around a center
+    # ----------------------------------------------------------------
+
+    def _gen_pulse(self, speeds, n, target_tu):
+        # type: (list, int, float) -> list
+        """Pulse: steady repetitive beat around a central speed."""
+        seq = []
+        tu = 0.0
+
+        # Pick a centre rung in the middle third.
+        lo = max(1, n // 3)
+        hi = min(n - 2, 2 * n // 3)
+        if lo > hi:
+            lo = hi = n // 2
+        center = _random.randint(lo, hi)
+        idx = center
+
+        # Beat length: short snappy holds for the hypnotic feel.
+        beat_scale = _random.uniform(0.4, 0.7)
+
+        while tu < target_tu:
+            tu += self._take_hold(seq, speeds, idx, target_tu - tu,
+                                  scale=beat_scale)
+            if tu >= target_tu:
+                break
+
+            # Alternate: off-centre returns to centre, centre steps away.
+            if idx == center:
+                # 50% +1, rest spread evenly.
+                step = _random.choice([1, 1, 1, -1, 2, -2])
+                idx = max(0, min(n - 1, center + step))
+            else:
+                idx = center
+        return seq
 
     # ================================================================
-    # The walk -- core algorithm
+    # Legacy walk -- used only for custom / fine-tune mode
     # ================================================================
 
-    def _walk(self, speeds, n, start_idx, drift, intensity, volatility,
+    def _walk(self, speeds, n, drift, intensity, volatility,
                center, target_tu):
-        # type: (list, int, int, float, float, float, float, float) -> List[float]
-        """Walk through speed-space and return a list of speed values.
-
-        At each step the walk decides:
-        1. How long to hold the current speed (hold_tu -> play count)
-        2. Whether to insert a rest beat
-        3. Whether to insert a micro-burst instead of a normal hold
-        4. Which direction to step next (based on momentum, drift, volatility)
-        """
+        # type: (list, int, float, float, float, float, float) -> List[float]
+        """Legacy walk algorithm for custom / fine-tune mode."""
         seq = []
         accumulated_tu = 0.0
-        current_idx = start_idx
+        current_idx = _random.randint(0, n - 1)
 
         # Momentum state
         momentum_dir = 0       # -1, 0, or +1
         momentum_steps_left = 0
 
-        # Rest tracking
-        tu_since_last_rest = 0.0
-
         while accumulated_tu < target_tu:
-            sp = speeds[current_idx]
-
-            # -- Determine hold duration --
             hold_tu = _random.uniform(self.min_hold_tu, self.max_hold_tu)
-            # Don't overshoot target
             remaining = target_tu - accumulated_tu
             if hold_tu > remaining:
-                hold_tu = max(0.3, remaining)
+                hold_tu = remaining
 
-            # -- Micro-burst? --
-            if (self.micro_bursts_enabled
-                    and _random.random() < self.micro_burst_chance
-                    and hold_tu >= 0.5):
-                self._emit_micro_burst(seq, speeds, n, current_idx, hold_tu)
-            else:
-                # -- Normal hold --
-                plays = max(1, int(round(sp * hold_tu)))
-                for _ in range(plays):
-                    seq.append(sp)
-
-            accumulated_tu += hold_tu
-            tu_since_last_rest += hold_tu
-
-            # -- Rest beat? --
-            if (self.rest_beats_enabled
-                    and tu_since_last_rest >= self.min_phrase_tu
-                    and _random.random() < self.rest_chance
-                    and accumulated_tu < target_tu - self.rest_hold_tu):
-                slowest_sp = speeds[0]
-                rest_plays = max(1, int(round(slowest_sp * self.rest_hold_tu)))
-                for _ in range(rest_plays):
-                    seq.append(slowest_sp)
-                accumulated_tu += self.rest_hold_tu
-                tu_since_last_rest = 0.0
+            accumulated_tu += self._emit_hold(seq, speeds, current_idx, hold_tu)
 
             if accumulated_tu >= target_tu:
                 break
@@ -431,13 +805,10 @@ class CueAutoSpeedGenerator(object):
                     momentum_steps_left -= 1
                 else:
                     momentum_dir = direction
-                    momentum_steps_left = int(_random.uniform(self.momentum_min_steps,
-                                                           self.momentum_max_steps))
+                    momentum_steps_left = int(_random.uniform(
+                        self.momentum_min_steps, self.momentum_max_steps))
 
             # -- Step size --
-            # Volatility controls jump magnitude:
-            #   Low volatility   -> almost always +/-1 (smooth ramp)
-            #   High volatility  -> can jump several rungs or full-range
             step = direction
             if direction != 0:
                 roll = _random.random()
@@ -531,30 +902,6 @@ class CueAutoSpeedGenerator(object):
         else:
             return -1
 
-    def _emit_micro_burst(self, seq, speeds, n, idx, hold_tu):
-        # type: (list, list, int, int, float) -> None
-        """Emit a rapid alternation between idx and an adjacent speed
-        instead of a normal hold. Feels like a tremolo / shiver."""
-        # Pick adjacent speed
-        if idx <= 0:
-            other_idx = 1
-        elif idx >= n - 1:
-            other_idx = n - 2
-        else:
-            other_idx = idx + _random.choice([-1, 1])
-
-        sp_a = speeds[idx]
-        sp_b = speeds[other_idx]
-
-        # Alternate back and forth
-        burst_pairs = self.micro_burst_alternations
-        for _ in range(burst_pairs):
-            seq.append(sp_a)
-            seq.append(sp_b)
-
-        # End on the original speed
-        seq.append(sp_a)
-
     # ================================================================
     # Lifecycle hooks (called from CueVidSpeedSequence)
     # ================================================================
@@ -575,8 +922,8 @@ class CueAutoSpeedGenerator(object):
         if len(available) < 2:
             return
 
-        prev = _cue.video_sequence.speeds_for(tag)
-        new_seq = self.generate(available, prev)
+        self._video_duration = _cue.vid_manager.get_duration()
+        new_seq = self.generate(available)
         entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
         entry["speed_sequence"] = new_seq
         _cue.markers.save_marker(create_vid_key(tag))
@@ -595,8 +942,8 @@ class CueAutoSpeedGenerator(object):
         if len(available) < 2:
             return
 
-        prev = _cue.video_sequence.speeds_for(tag)
-        new_seq = self.generate(available, prev)
+        self._video_duration = _cue.vid_manager.get_duration()
+        new_seq = self.generate(available)
         entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
         entry["speed_sequence"] = new_seq
         _cue.markers.save_marker(create_vid_key(tag))

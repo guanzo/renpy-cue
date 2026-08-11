@@ -699,7 +699,7 @@ class CueVidSpeedSequence(object):
         available = _cue.speed_resolver.get_available_speeds(base_path)
         if len(available) < 2:
             return
-        new_seq = _cue.auto_speed.generate(available, None)
+        new_seq = _cue.auto_speed.generate(available)
         entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
         entry["speed_sequence"] = new_seq
         _cue.markers.save_marker(create_vid_key(tag))
