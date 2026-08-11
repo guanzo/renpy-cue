@@ -47,7 +47,7 @@ class CueVideoEditorState(object):
 class CueVideoJob(object):
     """One ffmpeg encode job in the queue."""
     def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, encode_mode,
-                 fspath_out=None):
+                 fspath_out=None, remove_audio=True):
         self.job_id = job_id
         self.vpath = vpath
         self.fspath_in = fspath_in
@@ -55,6 +55,7 @@ class CueVideoJob(object):
         self.factor = factor
         self.encode_mode = encode_mode
         self.fspath_out = fspath_out
+        self.remove_audio = remove_audio
         self.status = "queued"
         self.progress = 0.0
         self.error_msg = ""
@@ -564,6 +565,7 @@ class CueVideoEditQueue(object):
                         "encode_mode": j.encode_mode,
                         "fspath_out": j.fspath_out,
                         "passlog": j.passlog,
+                        "remove_audio": j.remove_audio,
                     })
             # Include current (in-progress) job
             cur = self._current
@@ -577,6 +579,7 @@ class CueVideoEditQueue(object):
                     "encode_mode": cur.encode_mode,
                     "fspath_out": cur.fspath_out,
                     "passlog": cur.passlog,
+                    "remove_audio": cur.remove_audio,
                 })
             if serialized:
                 persistent._cue_jobs = serialized
@@ -610,6 +613,7 @@ class CueVideoEditQueue(object):
                     vpath = d.get("vpath", "")
                     factor = float(d.get("factor", 1.0))
                     encode_mode = int(d.get("encode_mode", 0))
+                    remove_audio = bool(d.get("remove_audio", True))
                 except (ValueError, TypeError):
                     _cue_log("LOAD-JOBS: skipping malformed entry")
                     continue
@@ -659,6 +663,7 @@ class CueVideoEditQueue(object):
                     factor=factor,
                     encode_mode=encode_mode,
                     fspath_out=fspath_out,
+                    remove_audio=remove_audio,
                 )
                 job._resume_pass2 = resume_pass2
                 if resume_pass2:
@@ -707,6 +712,8 @@ class CueVideoEditor(object):
         self._ready = False
         self._warm_cache_error = ""
         self.encode_mode = CUE_VE_MODE_INTERPOLATE
+        self.remove_audio = True
+        self._current_has_audio = None  # type: Optional[bool]
         self.job_queue = CueVideoEditQueue(self)
 
     @property
@@ -902,6 +909,12 @@ class CueVideoEditor(object):
         persistent._cue_encode_mode = mode
         renpy.restart_interaction()
 
+    def toggle_remove_audio(self):
+        # type: () -> None
+        self.remove_audio = not self.remove_audio
+        persistent._cue_remove_audio = self.remove_audio
+        renpy.restart_interaction()
+
     def close_editor(self):
         # type: () -> None
         self.active = False
@@ -977,7 +990,8 @@ class CueVideoEditor(object):
         job_id = self.job_queue._next_job_id
         self.job_queue._next_job_id += 1
         job = CueVideoJob(job_id, vp, input_fs, temp_path, factor,
-                          self.encode_mode, fspath_out=out_fspath)
+                          self.encode_mode, fspath_out=out_fspath,
+                          remove_audio=self.remove_audio)
         self.job_queue.enqueue(job)
         _cue_log("Speed variant job queued: id={}, factor={:.1f}, out={}".format(
             job_id, factor, os.path.basename(out_fspath)))
@@ -1011,7 +1025,8 @@ class CueVideoEditor(object):
         if _enc_mode == self.MODE_FAST_PREVIEW:
             _enc_mode = self.MODE_NORMAL
         job = CueVideoJob(job_id, vp, input_fs, temp_path, speed,
-                          _enc_mode, fspath_out=out_fspath)
+                          _enc_mode, fspath_out=out_fspath,
+                          remove_audio=self.remove_audio)
         self.job_queue.enqueue(job)
         _cue_log("Variant job queued: id={}, speed={:.1f}, out={}".format(
             job_id, speed, os.path.basename(out_fspath)))
@@ -1022,6 +1037,13 @@ class CueVideoEditor(object):
         if vp:
             self._current = self._ensure_state(vp)
             self._current.last_error = ""
+            fs = self._get_video_fspath()
+            if fs and _cue.ffmpeg.ffprobe_available():
+                self._current_has_audio = _cue.ffmpeg.probe_has_audio(fs)
+            else:
+                self._current_has_audio = None
+        else:
+            self._current_has_audio = None
         if _cue.ffmpeg._ffmpeg_cache == -1:
             self._ready = False
             t = threading.Thread(target=self._warm_tools)

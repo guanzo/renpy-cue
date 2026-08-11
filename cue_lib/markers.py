@@ -1157,9 +1157,11 @@ class CueMarkerManager(object):
         _cue.file_tree.disabled_files = set(_cue_unwrap_persistent(data.get("disabled_files", set())))
         _cue.trigger.active = data.get("triggers_active", True)
         _cue.video_editor.encode_mode = data.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
+        _cue.video_editor.remove_audio = data.get("remove_audio", True)
         _cue.speed_resolver.seamless_transition = data.get("seamless_transition", False)
         persistent._cue_triggers_active = _cue.trigger.active
         persistent._cue_encode_mode = _cue.video_editor.encode_mode
+        persistent._cue_remove_audio = _cue.video_editor.remove_audio
         persistent._cue_seamless_transition = _cue.speed_resolver.seamless_transition
         persistent._cue_disabled_files = set(_cue.file_tree.disabled_files)
         self._migrate_video_timestamps_to_pools()
@@ -1256,6 +1258,8 @@ class CueMarkerManager(object):
             persistent, '_cue_triggers_active', True)
         _cue.video_editor.encode_mode = getattr(
             persistent, '_cue_encode_mode', _cue.video_editor.MODE_INTERPOLATE)
+        _cue.video_editor.remove_audio = getattr(
+            persistent, '_cue_remove_audio', True)
         _cue.speed_resolver.seamless_transition = getattr(
             persistent, '_cue_seamless_transition', False)
 
@@ -1298,6 +1302,7 @@ class CueMarkerManager(object):
             "disabled_files": list(_cue_unwrap_persistent(_cue.file_tree.disabled_files)),
             "triggers_active": _cue.trigger.active,
             "encode_mode": _cue.video_editor.encode_mode,
+            "remove_audio": _cue.video_editor.remove_audio,
             "seamless_transition": _cue.speed_resolver.seamless_transition,
         }
 

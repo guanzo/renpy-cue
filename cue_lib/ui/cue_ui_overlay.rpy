@@ -495,6 +495,9 @@ screen cue_overlay_content():
                             text "Faster encode, lower quality" style "cue_help"
                         else:
                             text "Match original quality" style "cue_help"
+                    if _ved._current_has_audio:
+                        use cue_toggle_btn(_ved.remove_audio, "Remove audio track",
+                            Function(_cue.video_editor.toggle_remove_audio))
                     null height 2
                     use cue_txt_button("Create",
                         Function(_cue.video_editor.prepare_create),

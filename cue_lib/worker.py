@@ -50,6 +50,10 @@ def _cue_probe_job(ffmpeg, job, dur_ms, base_dir):
             _cue_log("probed vcodec: {} -> {}, acodec: {} -> {}, audio: {}, bitrate: {}".format(
                 vc_in, vcodec, ac_in, acodec, has_audio, target_bitrate))
 
+        # Audio track removal override
+        if job.remove_audio:
+            has_audio = False
+
         if job.cancelled:
             return
 

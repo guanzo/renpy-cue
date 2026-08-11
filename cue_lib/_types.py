@@ -113,6 +113,7 @@ class CuePersistentData(TypedDict):
     disabled_files: List[str]
     triggers_active: bool
     encode_mode: int
+    remove_audio: bool
     seamless_transition: bool
 
 
