@@ -325,6 +325,12 @@ def _cue_preview_sfx(filename, volume=1.0):
 
 def _cue_play_sfx(filename, source="", volume=1.0):
     # type: (str, str, float) -> Optional[str]
+
+    # Apply +-10% volume jitter for natural variation
+    MAX_JITTER = 0.1
+    jitter = _random.uniform(1.0 - MAX_JITTER, 1.0 + MAX_JITTER)
+    volume = volume * jitter
+
     base_dir = _cue.audio_dir
     if not base_dir.endswith("/"):
         base_dir = base_dir + "/"
@@ -373,8 +379,8 @@ def _cue_play_sfx(filename, source="", volume=1.0):
             _music.play(full_path, channel=target_ch, loop=False)
             _music.set_volume(volume, delay=0, channel=target_ch)
 
-        _cue_log("PLAY-SFX file={} src={} ch={} vol={:.2f}".format(
-            filename.rsplit("/", 1)[-1], source, target_ch, volume))
+        _cue_log("PLAY-SFX file={} src={} ch={} jitter={} vol={:.2f}".format(
+            filename.rsplit("/", 1)[-1], source, target_ch, jitter, volume))
 
         return target_ch
     except Exception:
