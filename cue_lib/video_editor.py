@@ -906,13 +906,13 @@ class CueVideoEditor(object):
         if mode not in (self.MODE_NORMAL, self.MODE_INTERPOLATE, self.MODE_FAST_PREVIEW):
             return
         self.encode_mode = mode
-        persistent._cue_encode_mode = mode
+        persistent._cue["encode_mode"] = mode
         renpy.restart_interaction()
 
     def toggle_remove_audio(self):
         # type: () -> None
         self.remove_audio = not self.remove_audio
-        persistent._cue_remove_audio = self.remove_audio
+        persistent._cue["remove_audio"] = self.remove_audio
         renpy.restart_interaction()
 
     def close_editor(self):

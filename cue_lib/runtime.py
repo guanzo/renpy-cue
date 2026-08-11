@@ -42,7 +42,7 @@ def _cue_toggle_overlay():
 def _cue_toggle_active():
     # type: () -> None
     _cue.trigger.active = not _cue.trigger.active
-    persistent._cue_triggers_active = _cue.trigger.active
+    persistent._cue["triggers_active"] = _cue.trigger.active
 
 def _cue_toggle_shake_trigger():
     # type: () -> None

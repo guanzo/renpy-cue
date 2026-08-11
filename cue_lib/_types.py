@@ -106,7 +106,7 @@ class ClipboardData(TypedDict):
 
 
 class CuePersistentData(TypedDict):
-    """Shape of persistent._cue_config."""
+    """Shape of the backup/restore config dict (cue_config.json)."""
     markers: Dict[str, MarkerEntry]
     presets: Dict[str, PoolDict]
     video_presets: Dict[str, VideoPreset]

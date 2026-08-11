@@ -215,30 +215,6 @@ class CueDatabase(object):
             _cue_log("DB-FRESH: listdir failed for {}".format(self._marker_dir()))
         return True
 
-    def migrate_markers_and_presets(self, markers, presets, video_presets):
-        # type: (Dict[str, Any], Dict[str, Any], Dict[str, Any]) -> int
-        """Write markers and presets from a legacy dict, skipping existing files.
-
-        Returns the number of files actually written.
-        """
-        written = 0
-        for key, entry in markers.items():
-            fpath = self._marker_path(key)
-            if not os.path.isfile(fpath):
-                self._write_entry(fpath, key, entry)
-                written += 1
-        for name, entry in presets.items():
-            fpath = self._preset_path("audio", name)
-            if not os.path.isfile(fpath):
-                self._write_entry(fpath, name, entry)
-                written += 1
-        for name, entry in video_presets.items():
-            fpath = self._preset_path("video", name)
-            if not os.path.isfile(fpath):
-                self._write_entry(fpath, name, entry)
-                written += 1
-        return written
-
     # ------------------------------------------------------------------
     # Markers
     # ------------------------------------------------------------------

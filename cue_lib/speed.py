@@ -180,7 +180,7 @@ class CueVidSpeedResolver(object):
     def toggle_seamless(self):
         # type: () -> None
         self.seamless_transition = not self.seamless_transition
-        persistent._cue_seamless_transition = self.seamless_transition
+        persistent._cue["seamless_transition"] = self.seamless_transition
         if not self.seamless_transition:
             self._pending_speed = None
             self._pre_pending_speed = None

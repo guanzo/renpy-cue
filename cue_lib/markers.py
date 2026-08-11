@@ -1149,7 +1149,7 @@ class CueMarkerManager(object):
 
     def _populate_config(self, data):
         # type: (Any) -> None
-        """Populate in-memory stores from a legacy dict (full replace)."""
+        """Populate in-memory stores from a backup dict (full replace)."""
         self._data = _cue_unwrap_persistent(data.get("markers", {}))
         self._data = {self._migrate_colon_key(k): v for k, v in self._data.items()}
         self._presets = _cue_unwrap_persistent(data.get("presets", {}))
@@ -1159,56 +1159,27 @@ class CueMarkerManager(object):
         _cue.video_editor.encode_mode = data.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
         _cue.video_editor.remove_audio = data.get("remove_audio", True)
         _cue.speed_resolver.seamless_transition = data.get("seamless_transition", False)
-        persistent._cue_triggers_active = _cue.trigger.active
-        persistent._cue_encode_mode = _cue.video_editor.encode_mode
-        persistent._cue_remove_audio = _cue.video_editor.remove_audio
-        persistent._cue_seamless_transition = _cue.speed_resolver.seamless_transition
-        persistent._cue_disabled_files = set(_cue.file_tree.disabled_files)
+        persistent._cue = {
+            "disabled_files": set(_cue.file_tree.disabled_files),
+            "triggers_active": _cue.trigger.active,
+            "encode_mode": _cue.video_editor.encode_mode,
+            "remove_audio": _cue.video_editor.remove_audio,
+            "seamless_transition": _cue.speed_resolver.seamless_transition,
+        }
         self._migrate_video_timestamps_to_pools()
         self._sanitize_video_pools()
         self._sanitize_video_presets()
         self._normalize_all()
         self._migrate_speed_mode_rename()
 
-    def _merge_legacy_data(self, data):
-        # type: (Any) -> int
-        """Merge legacy markers/presets into in-memory stores, only adding
-        keys that are not already present.  Returns the number of new keys."""
-        added = 0
-
-        legacy_markers = _cue_unwrap_persistent(data.get("markers", {}))
-        legacy_markers = {self._migrate_colon_key(k): v for k, v in legacy_markers.items()}
-        for key, entry in legacy_markers.items():
-            if key not in self._data:
-                self._data[key] = entry
-                added += 1
-
-        legacy_presets = _cue_unwrap_persistent(data.get("presets", {}))
-        for name, entry in legacy_presets.items():
-            if name not in self._presets:
-                self._presets[name] = entry
-
-        legacy_vid_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
-        for name, entry in legacy_vid_presets.items():
-            if name not in self._video_presets:
-                self._video_presets[name] = entry
-
-        legacy_disabled = set(_cue_unwrap_persistent(data.get("disabled_files", set())))
-        _cue.file_tree.disabled_files |= legacy_disabled
-
-        return added
 
     def load_persistent(self):
         # type: () -> None
         """Load markers + presets from data store; scalars from persistent."""
         db = _cue.db
         if db is None or not db.is_open():
-            data = getattr(persistent, '_cue_config', None)
-            if data is None:
-                self._data = {}
-                self._video_presets = {}
-            else:
-                self._populate_config(data)
+            self._data = {}
+            self._video_presets = {}
             self._load_scalars_from_persistent()
             return
 
@@ -1226,53 +1197,29 @@ class CueMarkerManager(object):
             self._normalize_all()
             self._migrate_speed_mode_rename()
 
-        # -- Always check legacy data for keys still missing from disk --
-        data = self._load_legacy_json()
-        source = "json" if data is not None else None
-        if data is None:
-            data = getattr(persistent, '_cue_config', None)
-            source = "persistent" if data is not None else None
-        if data is not None:
-            added = self._merge_legacy_data(data)
-            if added:
-                # Write missing keys to disk (skips files that already exist)
-                written = db.migrate_markers_and_presets(
-                    self._data, self._presets, self._video_presets)
-                _cue_log("MIGRATE-DB source={} added={} written={} total={}".format(
-                    source, added, written, len(self._data)))
-            # Run migration passes on merged data
-            self._migrate_video_timestamps_to_pools()
-            self._sanitize_video_pools()
-            self._sanitize_video_presets()
-            self._normalize_all()
-            self._migrate_speed_mode_rename()
-
         self._load_scalars_from_persistent()
         _cue_log("LOAD-MARKERS total_keys={}".format(len(self._data)))
 
     def _load_scalars_from_persistent(self):
         # type: () -> None
-        _cue.file_tree.disabled_files = set(
-            getattr(persistent, '_cue_disabled_files', set()))
-        _cue.trigger.active = getattr(
-            persistent, '_cue_triggers_active', True)
-        _cue.video_editor.encode_mode = getattr(
-            persistent, '_cue_encode_mode', _cue.video_editor.MODE_INTERPOLATE)
-        _cue.video_editor.remove_audio = getattr(
-            persistent, '_cue_remove_audio', True)
-        _cue.speed_resolver.seamless_transition = getattr(
-            persistent, '_cue_seamless_transition', False)
+        # Migrate from individual persistent._cue_* scalars to a single dict
+        _cue_dict = getattr(persistent, '_cue', None)
+        if _cue_dict is None:
+            _cue_dict = {
+                "disabled_files": set(getattr(persistent, '_cue_disabled_files', set())),
+                "triggers_active": getattr(persistent, '_cue_triggers_active', True),
+                "encode_mode": getattr(persistent, '_cue_encode_mode', _cue.video_editor.MODE_INTERPOLATE),
+                "remove_audio": getattr(persistent, '_cue_remove_audio', True),
+                "seamless_transition": getattr(persistent, '_cue_seamless_transition', False),
+            }
+            persistent._cue = _cue_dict
 
-    def _load_legacy_json(self):
-        # type: () -> Optional[Any]
-        dump_path = _cue.config_path
-        if not os.path.isfile(dump_path):
-            return None
-        try:
-            with open(dump_path, "r") as f:
-                return _json.load(f)
-        except Exception:
-            return None
+        _cue.file_tree.disabled_files = set(_cue_dict.get("disabled_files", set()))
+        _cue.trigger.active = _cue_dict.get("triggers_active", True)
+        _cue.video_editor.encode_mode = _cue_dict.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
+        _cue.video_editor.remove_audio = _cue_dict.get("remove_audio", True)
+        _cue.speed_resolver.seamless_transition = _cue_dict.get("seamless_transition", False)
+
 
     # ------------------------------------------------------------------
     # Backup / restore

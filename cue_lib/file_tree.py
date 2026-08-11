@@ -109,7 +109,7 @@ class CueFileTreeManager(object):
         else:
             self.disabled_files.add(full_path)
         self.rebuild_tree()
-        persistent._cue_disabled_files = set(self.disabled_files)
+        persistent._cue["disabled_files"] = set(self.disabled_files)
 
     # ------------------------------------------------------------------
     # Toggle: pool file-list folder refs
