@@ -84,8 +84,8 @@ screen cue_icon_btn(text, action, tt=None, xsize=16, enabled=True):
 
 # Base text button: all textbuttons should use this so style/typography
 # live in one place. Pass bg/tooltip/sensitive/xsize/ysize to override.
-screen cue_txt_button(label, action, bg=None, tt=None, sensitive=True,
-                       xsize=0, ysize=0):
+screen cue_txt_button(label, action, bg=None, hover_bg=None, tt=None,
+                       sensitive=True, xsize=0, ysize=0):
     textbutton label:
         style "cue_btn"
         text_style "cue_btn_text"
@@ -93,6 +93,8 @@ screen cue_txt_button(label, action, bg=None, tt=None, sensitive=True,
         sensitive sensitive
         if bg is not None:
             background bg
+        if hover_bg is not None:
+            hover_background hover_bg
         if tt is not None:
             tooltip tt
         if xsize > 0:
@@ -104,8 +106,13 @@ screen cue_txt_button(label, action, bg=None, tt=None, sensitive=True,
 # active_color overrides the highlight (default: _cue_color_active).
 screen cue_select_btn(label, selected, action, tt=None, sensitive=True,
                        active_color=None):
-    $ _bg = (active_color or _cue_color_active) if selected else _cue_color_bg_btn
-    use cue_txt_button(label, action, bg=_bg, tt=tt, sensitive=sensitive)
+    if selected:
+        $ _bg = (active_color or _cue_color_active)
+        $ _hover = _cue_color_active_hover
+        use cue_txt_button(label, action, bg=_bg, hover_bg=_hover, tt=tt, sensitive=sensitive)
+    else:
+        use cue_txt_button(label, action, bg=_cue_color_bg_btn,
+                           hover_bg=_cue_color_bg_btn_hover, tt=tt, sensitive=sensitive)
 
 # Tab textbutton: selected tab is highlighted and non-interactive.
 # switch_action fires when an inactive tab is clicked.
@@ -323,21 +330,21 @@ screen cue_section_frame(header_text):
 # Generic context section: shared by dialogue, image, and loop SFX.
 # ctx: marker context with add_pool, remove_pool, clear, set_active,
 #      get_active, remove_file (e.g. _cue.markers.dialogue)
-# vol_key: trigger key for volume/marker lookups
+# key: trigger key for volume/marker lookups
 # subtitle: optional "Label: value" text below header (None to skip)
 # subject: noun for confirm messages ("dialogue", "image", "file")
 # btn_letter: "D", "I", or "L" for hint messages
 # description: short line explaining when this SFX triggers (None to skip)
 # Transclude: extra UI between pool label and volume row (shake toggle,
 #             frequency selector). Reads _cue._pool_ui["pool"].
-screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_letter, description=None):
-    $ _entry = _cue.markers.get(vol_key, {})
+screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_letter, description=None):
+    $ _entry = _cue.markers.get(key, {})
     $ _pools = _entry.get("pools", [])
     $ _target = ctx.get_active()
     $ _target = max(0, min(_target, len(_pools) - 1)) if _pools else 0
-    
+
     # sync back: clamps stale target after file switch so set_frequency/set_exclusive don't no-op
-    $ ctx.set_active(_target)  
+    $ ctx.set_active(_target)
 
     use cue_section_frame(section_title):
         if subtitle is not None:
@@ -348,14 +355,15 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
         if _entry:
             $ _entry.setdefault("volume", _cue.volume.VOL_DEFAULT)
             $ _master_vol = _entry.get("volume", _cue.volume.VOL_DEFAULT)
-            $ _dec = Function(_cue.volume.adjust_master, vol_key, -0.1)
-            $ _inc = Function(_cue.volume.adjust_master, vol_key, 0.1)
+            $ _dec = Function(_cue.volume.adjust_master, key, -0.1)
+            $ _inc = Function(_cue.volume.adjust_master, key, 0.1)
             use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _entry, _inc)
-        use cue_pool_tabs(len(_pools), _target, bool(_pools),
-            "Delete all {} for the current {}?".format(section_title.lower(), subject),
-            Function(ctx.clear), "Delete all {} for the current {}".format(section_title.lower(), subject),
-            Function(ctx.add_pool), "Create a SFX pool",
-            ctx.set_active, (), "Select {} target pool — targets {} button".format(section_title, btn_letter))
+        if key:
+            use cue_pool_tabs(len(_pools), _target, bool(_pools),
+                "Delete all {} for the current {}?".format(section_title.lower(), subject),
+                Function(ctx.clear), "Delete all {} for the current {}".format(section_title.lower(), subject),
+                Function(ctx.add_pool), "Create a SFX pool",
+                ctx.set_active, (), "Select {} target pool -- targets {} button".format(section_title, btn_letter))
 
         if _pools and 0 <= _target < len(_pools):
             $ _active_pool = _pools[_target]
@@ -363,7 +371,7 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
             $ _is_preset_pool = "preset" in _active_pool
             $ _active_pool.setdefault("volume", _r.volume)
             $ _active_vol = _r.volume
-            $ _active_eff = _cue.volume.get_effective(_entry, vol_key, pool_index=_target)
+            $ _active_eff = _cue.volume.get_effective(_entry, key, pool_index=_target)
             if _is_preset_pool:
                 $ _active_label = "Pool " + str(_target + 1) + " (Preset: " + _active_pool["preset"] + ")"
             else:
@@ -375,10 +383,10 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
                 box_wrap_spacing 3
                 text _active_label style "cue_txt"
                 null width 5
-                use cue_icon_btn("💾", Function(_cue.preset_dialog.open, vol_key, _target), "Save pool as a preset", None)
+                use cue_icon_btn("💾", Function(_cue.preset_dialog.open, key, _target), "Save pool as a preset", None)
                 use cue_icon_btn("✕", Function(ctx.remove_pool, _target), "Delete pool", None)
-                $ _dec = Function(_cue.volume.adjust, vol_key, -0.1, _target)
-                $ _inc = Function(_cue.volume.adjust, vol_key, 0.1, _target)
+                $ _dec = Function(_cue.volume.adjust, key, -0.1, _target)
+                $ _inc = Function(_cue.volume.adjust, key, 0.1, _target)
                 null width 5
                 if abs(_active_vol - _active_eff) > 0.01:
                     $ _vol_label = "Volume: {:.1f} ({:.1f} total)".format(_active_vol, _active_eff)
@@ -390,23 +398,25 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
             if _r.files:
                 if _is_preset_pool:
                     # Preset-backed: render as expandable folder
-                    use cue_file_list([], _cue_detach_pool_at, (vol_key, _target), _active_eff, 5,
-                        trigger_key=vol_key, pool_index=_target,
+                    use cue_file_list([], _cue_detach_pool_at, (key, _target), _active_eff, 5,
+                        trigger_key=key, pool_index=_target,
                         folder_label=_active_pool["preset"],
                         folder_children=_cue_resolve_files(_r.files),
                         folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
                 else:
                     use cue_file_list(_r.files, ctx.remove_file, (_target,), _active_eff, 5,
-                        trigger_key=vol_key, pool_index=_target,
+                        trigger_key=key, pool_index=_target,
                         folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
             else:
-                if description is not None:
+                if key and description is not None:
                     text description style "cue_help"
-                text "Click the {} button in the SFX Library to add files to this pool.".format(btn_letter) style "cue_help"
+                if key:
+                    text "Click the {} button in the SFX Library to add files to this pool.".format(btn_letter) style "cue_help"
         else:
-            if description is not None:
+            if key and description is not None:
                 text description style "cue_help"
-            text "Click the {} button in the SFX Library to create a new pool or add files to the active pool.".format(btn_letter) style "cue_help"
+            if key:
+                text "Click the {} button in the SFX Library to create a new pool or add files to the active pool.".format(btn_letter) style "cue_help"
 
 # Toggle textbutton: ☑ label when checked, ☐ when unchecked.
 # on_bg/on_hover/off_bg/off_hover override backgrounds per state (None = style default).

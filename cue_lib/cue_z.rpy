@@ -93,7 +93,12 @@ init -999 python:
         CUE_TOAST_FADE_DURATION, CUE_TOAST_FADE_OFFSET,
     )
     from cue_lib.markers import CueLoopFrequency
-    from cue_lib.auto_speed import _cue_auto_preset_label, _cue_auto_preset_description, CUE_AUTO_SPEED_MIN_VARIANTS
+    from cue_lib.auto_speed import (
+        _cue_auto_preset_label, _cue_auto_preset_description,
+    )
+    from cue_lib.constants import (
+        CUE_AUTO_SPEED_MIN_VARIANTS, CUE_AUTO_SPEED_IDEAL_VARIANTS, CUE_MULTI_SPEED_MIN_VARIANTS,
+    )
     from cue_lib.video_editor import CUE_VE_MODE_NORMAL, CUE_VE_MODE_INTERPOLATE, CUE_VE_MODE_FAST_PREVIEW
 
 

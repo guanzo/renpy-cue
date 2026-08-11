@@ -89,7 +89,7 @@ copy and forgot the other, would behavior silently break?"*
 | Pattern | Where | Example |
 |---|---|---|
 | Value used in multiple `.py` files | `constants.py` with `CUE_` prefix | `CUE_SFX_CHANNEL_COUNT`, `CUE_DEFAULT_VIDEO_SPEED` |
-| Value used in `.py` AND `.rpy` | `constants.py`, imported into store via `cue_z.rpy` init -999 | `CUE_MIN_SPEEDS_FOR_SEQUENCE` |
+| Value used in `.py` AND `.rpy` | `constants.py`, imported into store via `cue_z.rpy` init -999 | `CUE_MULTI_SPEED_MIN_VARIANTS` |
 | Value duplicated in same file | Module-level in that file, `CUE_` prefix | `CUE_SEEK_EPSILON` in `video.py` |
 | Value mirrored between `.py` and `.rpy` | Single source in `.py`, `.rpy` reads it | `_cue.volume.VOL_MAX` instead of `range=5.0` |
 | Number string mapped to behavior | Enum class | `CueLoopFrequency.SLOWEST`, `CueSpeedMode.SINGLE` |

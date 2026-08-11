@@ -15,7 +15,8 @@ import random as _random
 
 import renpy
 
-from cue_lib.constants import CUE_DEFAULT_VIDEO_SPEED, CUE_MIN_SPEEDS_FOR_SEQUENCE
+from cue_lib.constants import (
+    CUE_DEFAULT_VIDEO_SPEED, CUE_AUTO_SPEED_MIN_VARIANTS)  # pyright: ignore[reportUnusedImport]
 from cue_lib.state import _cue
 from cue_lib.util import create_vid_key, _cue_log, _cue_speed_label
 
@@ -30,8 +31,6 @@ if MYPY:
 
 # Minimum number of speed variants required for Auto Speed mode.
 # Fewer than this and the generator can't produce meaningful variety.
-CUE_AUTO_SPEED_MIN_VARIANTS = 4
-
 def _cue_auto_preset_label(preset_name):
     # type: (str) -> str
     """Human-readable label for a preset key."""
@@ -1022,7 +1021,7 @@ class CueAutoSpeedGenerator(object):
         if mode != CueSpeedMode.AUTO:
             return
         speeds = self.enabled_speeds
-        if len(speeds) < CUE_MIN_SPEEDS_FOR_SEQUENCE:
+        if len(speeds) < CUE_AUTO_SPEED_MIN_VARIANTS:
             return
 
         self._video_duration = _cue.vid_manager.get_duration()
@@ -1039,7 +1038,7 @@ class CueAutoSpeedGenerator(object):
         if not tag:
             return
         speeds = self.enabled_speeds
-        if len(speeds) < CUE_MIN_SPEEDS_FOR_SEQUENCE:
+        if len(speeds) < CUE_AUTO_SPEED_MIN_VARIANTS:
             return
 
         # Surprise mode: pick a new random preset each loop

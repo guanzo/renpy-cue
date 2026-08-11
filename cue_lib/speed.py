@@ -15,7 +15,7 @@ from renpy.display.video import Movie
 from renpy.display.video import default_play_callback as _default_play_callback  # pyright: ignore[reportAttributeAccessIssue]
 from renpy.display.image import images as _display_images
 
-from cue_lib.constants import CUE_DEFAULT_VIDEO_SPEED, CUE_MIN_SPEEDS_FOR_SEQUENCE
+from cue_lib.constants import CUE_DEFAULT_VIDEO_SPEED, CUE_AUTO_SPEED_MIN_VARIANTS, CUE_MULTI_SPEED_MIN_VARIANTS
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_unwrap_displayable, _cue_get_movie_play,
@@ -568,7 +568,7 @@ class CueVidSpeedSequence(object):
         seq = entry.setdefault("speed_sequence", [])
         seq.append(speed)
         _cue_log("VQ-APPEND tag={} speed={} seq={}".format(tag, speed, seq))
-        if len(seq) >= 1:
+        if len(seq) >= CUE_MULTI_SPEED_MIN_VARIANTS:
             self.start(tag)
         _cue.markers.save_marker(create_vid_key(tag))
         renpy.restart_interaction()
@@ -791,7 +791,8 @@ class CueVidSpeedSequence(object):
             return
         
         available = _cue.auto_speed.enabled_speeds
-        if len(available) < CUE_MIN_SPEEDS_FOR_SEQUENCE:
+        
+        if len(available) < CUE_AUTO_SPEED_MIN_VARIANTS:
             return
 
         new_seq = _cue.auto_speed.generate(available)

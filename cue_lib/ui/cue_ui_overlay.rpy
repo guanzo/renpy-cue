@@ -151,15 +151,15 @@ screen cue_overlay_content():
         $ _is_dialogue = bool(_cue.current_dialogue)
 
         # --- Video UI ---
-        if _is_video:
-            use cue_section_frame("Video"):
-                # --- Tab buttons ---
-                hbox:
-                    spacing 5
-                    use cue_tab_btn("SFX", not _cue.video_editor.active,
-                        Function(_cue.video_editor.close_editor))
-                    use cue_tab_btn("VFX", _cue.video_editor.active,
-                        Function(_cue.video_editor.open_editor))
+        use cue_section_frame("Video"):
+            # --- Tab buttons ---
+            hbox:
+                spacing 5
+                use cue_tab_btn("SFX", not _cue.video_editor.active,
+                    Function(_cue.video_editor.close_editor))
+                use cue_tab_btn("VFX", _cue.video_editor.active,
+                    Function(_cue.video_editor.open_editor))
+            if _is_video:
                 $ _vid_name = _cue.current_file if _cue.current_file else "?"
                 text "Video: [_vid_name]" style "cue_txt"
 
@@ -253,7 +253,7 @@ screen cue_overlay_content():
                             $ _auto_help = (
                                 "Pick a rhythm. Each rhythm varies playback speed with a different theme. "
                                 "Each playthrough of a rhythm is slightly different. "
-                                "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is 8. The more the better."
+                                "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is [CUE_AUTO_SPEED_IDEAL_VARIANTS]. The more the better."
                             )
                             text _auto_help style "cue_help"
 
@@ -296,7 +296,8 @@ screen cue_overlay_content():
                                 add CueAutoSpeedChart() xsize 440 ysize 80
 
                         else:
-                            text "Auto Speed needs at least [CUE_AUTO_SPEED_MIN_VARIANTS] speed variants. Generate some in the VFX tab!" style "cue_help"
+                            text ("Auto Speed needs at least [CUE_AUTO_SPEED_MIN_VARIANTS] (ideally [CUE_AUTO_SPEED_IDEAL_VARIANTS]+) speed variants.\n"
+                                "Generate some in the VFX tab.") style "cue_help"
 
                 use cue_h_divider()
 
@@ -447,9 +448,13 @@ screen cue_overlay_content():
                         text "SFX plays when this video reaches the marked time(s)." style "cue_help"
                         text "Click the V button in the SFX Library to create a new pool or add to the active pool." style "cue_help"
 
-                # --- Video Editor Tab ---
-                if _cue.video_editor.active:
-                    $ _ved = _cue.video_editor
+            else:
+                text "Video: (None)" style "cue_txt"
+
+            # --- Video Editor Tab ---
+            if _cue.video_editor.active:
+                $ _ved = _cue.video_editor
+                if _is_video:
                     vbox:
                         spacing 2
                         text "Video markers placed on the original video (1.0x) will autoscale to any speed." style "cue_txt"
@@ -498,50 +503,50 @@ screen cue_overlay_content():
                     if _ved.last_error:
                         text _ved.last_error style "cue_txt" color _cue_color_error
 
-                    # --- Edit queue ---
-                    if _ved.job_queue.jobs:
-                        use cue_h_divider()
-                        timer 0.2 repeat True action [
-                            Function(_cue.video_editor.job_queue.poll),
-                            Function(_cue.video_editor.job_queue.refresh_ui),
-                        ]
-                        frame:
-                            background _cue_color_bg_panel
-                            padding (4, 0)
-                            yminimum 0
-                            xfill True
-                            $ _queue_len = len(_ved.job_queue.jobs)
-                            if _queue_len > 6:
-                                viewport:
-                                    xfill True
-                                    ymaximum 200
-                                    mousewheel True
-                                    scrollbars "vertical"
-                                    style_group "cue"
-                                    vscrollbar_unscrollable "hide"
-                                    use _cue_edit_queue_vbox()
-                            else:
+                # --- Edit queue ---
+                if _cue.video_editor.job_queue.jobs:
+                    use cue_h_divider()
+                    timer 0.2 repeat True action [
+                        Function(_cue.video_editor.job_queue.poll),
+                        Function(_cue.video_editor.job_queue.refresh_ui),
+                    ]
+                    frame:
+                        background _cue_color_bg_panel
+                        padding (4, 0)
+                        yminimum 0
+                        xfill True
+                        $ _queue_len = len(_cue.video_editor.job_queue.jobs)
+                        if _queue_len > 6:
+                            viewport:
+                                xfill True
+                                ymaximum 200
+                                mousewheel True
+                                scrollbars "vertical"
+                                style_group "cue"
+                                vscrollbar_unscrollable "hide"
                                 use _cue_edit_queue_vbox()
+                        else:
+                            use _cue_edit_queue_vbox()
 
         # --- Image UI ---
         $ _has_image = bool(_cue.current_file) and not _is_video
-        if _has_image:
-            $ _img_key = create_img_key(_cue.current_file)
-            use cue_context_section("Image SFX", _cue.markers.image, _img_key,
-                "Image: " + _cue.current_file, "image", "I",
-                "SFX plays when this image is displayed."):
-                $ _p = _cue._pool_ui["pool"]
-                use cue_toggle_btn(_p.get("trigger_on_shake", False),
-                    "Trigger on screen shake",
-                    Function(_cue_toggle_shake_trigger),
-                    "Play SFX when a screen shake occurs")
+        $ _img_key = create_img_key(_cue.current_file) if _has_image else ""
+        use cue_context_section("Image SFX", _cue.markers.image, _img_key,
+            ("Image: " + _cue.current_file if _has_image else "Image: (None)"),
+            "image", "I",
+            "SFX plays when this image is displayed."):
+            $ _p = _cue._pool_ui["pool"]
+            use cue_toggle_btn(_p.get("trigger_on_shake", False),
+                "Trigger on screen shake",
+                Function(_cue_toggle_shake_trigger),
+                "Play SFX when a screen shake occurs")
 
         # --- Dialogue UI ---
-        if _is_dialogue:
-            $ _dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
-            use cue_context_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
-                "Dialogue: " + _cue.current_dialogue, "dialogue", "D",
-                "SFX plays when this line of dialogue is displayed.")
+        $ _dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue)) if _is_dialogue else ""
+        use cue_context_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
+            ("Dialogue: " + _cue.current_dialogue if _is_dialogue else "Dialogue: (None)"),
+            "dialogue", "D",
+            "SFX plays when this line of dialogue is displayed.")
 
         # Loop SFX
         $ _loop_key = create_loop_key(_cue.current_file or "")

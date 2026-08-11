@@ -15,7 +15,13 @@ CUE_DEFAULT_VIDEO_SPEED = 1.0
 
 # Minimum number of speed variants required before auto / multi-speed
 # sequences activate.  Fewer than this is pointless.
-CUE_MIN_SPEEDS_FOR_SEQUENCE = 2
+CUE_MULTI_SPEED_MIN_VARIANTS = 2
+
+# Minimum number of speed variants required for auto-speed presets.
+CUE_AUTO_SPEED_MIN_VARIANTS = 4
+
+# Ideal number of speed variants for rich auto-speed rhythm generation.
+CUE_AUTO_SPEED_IDEAL_VARIANTS = 8
 
 # Popper displayable defaults — distance from anchor and viewport edge clearance.
 CUE_POPPER_DEFAULT_OFFSET = 5
