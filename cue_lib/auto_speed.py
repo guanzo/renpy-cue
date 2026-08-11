@@ -131,6 +131,9 @@ class CueAutoSpeedGenerator(object):
         # Currently active preset name (or None for custom/fine-tuned)
         self.active_preset = "roller_coaster"
 
+        # Whether the user chose "surprise" — if True, re-randomize on each loop
+        self.is_surprise_mode = False
+
         # ================================================================
         # Fine-tune overrides (only used when active_preset is None)
         # ================================================================
@@ -150,11 +153,13 @@ class CueAutoSpeedGenerator(object):
             self.surprise_me()
         elif preset_name in _GEN_METHODS:
             self.active_preset = preset_name
+            self.is_surprise_mode = False
             self._regenerate()
             renpy.restart_interaction()
 
     def surprise_me(self):
         """Pick a random preset from the surprise pool and regenerate."""
+        self.is_surprise_mode = True
         self.active_preset = _random.choice(self.surprise_pool)
         self._regenerate()
         renpy.restart_interaction()
@@ -233,8 +238,8 @@ class CueAutoSpeedGenerator(object):
             seq.append(sp)
         return float(plays) / sp
 
-    def _take_hold(self, seq, speeds, idx, remaining_tu, scale=1.0):
-        # type: (list, list, int, float, float) -> float
+    def _take_hold(self, seq, speeds, idx, remaining_tu, scale=1.0, max_real_s=10.0):
+        # type: (list, list, int, float, float, float) -> float
         """Emit a single hold at rung idx and return the actual TU used.
 
         hold_tu = random in [min_hold_tu*scale, max_hold_tu*scale],
@@ -247,7 +252,6 @@ class CueAutoSpeedGenerator(object):
             hold_tu = remaining_tu
 
         # Cap real time per hold.
-        max_real_s = 10.0
         if (hasattr(self, '_video_duration')
                 and self._video_duration > 0):
             max_tu = max_real_s / self._video_duration
@@ -300,7 +304,9 @@ class CueAutoSpeedGenerator(object):
         valley_hi = max(0, n // 4)
 
         # How many humps?
-        num_humps = _random.randint(3, 6)
+        min_humps = 3
+        max_humps = 6
+        num_humps = _random.randint(min_humps, max_humps)
 
         # Plan peak / valley pairs ahead so the last valley lands near
         # the start (within 1 rung of 0).
@@ -319,19 +325,42 @@ class CueAutoSpeedGenerator(object):
         valleys[-1] = _random.randint(0, min(1, valley_hi))
 
         min_stride = max(1, (n - 1) // 6)
-        _CLIMB_STYLES = (0.3, 0.6, 1.1)
+        _CLIMB_STYLES = (0.3, 0.6, 1)
         _DESCEND_STYLES = (0.3, 0.6)
+
+        last_climb = None
+        last_descend = None
 
         for i in range(num_humps):
             peak = peaks[i]
             valley = valleys[i]
 
-            climb_scale = _random.choice(_CLIMB_STYLES)
+            if i == 0:
+                # First climb is always the slowest for a gradual start.
+                climb_scale = max(_CLIMB_STYLES)
+            else:
+                climb_scale = _random.choice(_CLIMB_STYLES)
+                while climb_scale == last_climb:
+                    climb_scale = _random.choice(_CLIMB_STYLES)
+            last_climb = climb_scale
+
             descend_scale = _random.choice(_DESCEND_STYLES)
+            while descend_scale == last_descend:
+                descend_scale = _random.choice(_DESCEND_STYLES)
+            last_descend = descend_scale
+
             # -- Climb (fresh stride per step) --
             rung = idx
+            # Thin hump: big strides, few steps.  Wide hump: small strides,
+            # many steps (one rung at a time).
+            if _random.random() < 0.45:
+                _stride_lo = 1
+                _stride_hi = max(1, (n - 1) // 5)
+            else:
+                _stride_lo = min_stride
+                _stride_hi = max(min_stride, (n - 1) // 2)
             while rung < peak:
-                stride = _random.randint(min_stride, max(min_stride, (n - 1) // 3))
+                stride = _random.randint(_stride_lo, _stride_hi)
                 rung = min(rung + stride, peak)
                 if target_tu - tu <= 0.1:
                     break
@@ -345,10 +374,10 @@ class CueAutoSpeedGenerator(object):
             if tu >= target_tu:
                 break
 
-            # -- Descend (fresh stride per step) --
+            # -- Descend (same width as the climb) --
             rung = peak
             while rung > valley:
-                stride = _random.randint(min_stride, max(min_stride, (n - 1) // 3))
+                stride = _random.randint(_stride_lo, _stride_hi)
                 rung = max(rung - stride, valley)
                 if target_tu - tu <= 0.1:
                     break
@@ -525,7 +554,8 @@ class CueAutoSpeedGenerator(object):
     def _gen_spike(self, speeds, n, target_tu):
         # type: (list, int, float) -> list
         """Tease: baseline in the lowest fourth, sharp spikes into the
-        top third, with enforced cooldown between spikes."""
+        top third.  Guarantees at least 3 spikes, then lets probability
+        drive additional spikes."""
         seq = []
         tu = 0.0
 
@@ -540,24 +570,35 @@ class CueAutoSpeedGenerator(object):
         spike_hold = _random.uniform(0.3, 0.8)
         cooldown_tu = _random.uniform(1.5, 4.0)
         tu_since_spike = cooldown_tu
+        min_spikes = 5
         spike_chance = _random.uniform(0.10, 0.25)
+        spike_count = 0
         stay_count = 0
 
         while tu < target_tu:
-            if (tu_since_spike >= cooldown_tu
-                    and _random.random() < spike_chance
+            remaining = target_tu - tu
+
+            # Force a spike if we haven't hit the minimum and we're
+            # running out of room (each spike needs spike_hold + cooldown).
+            spikes_needed = max(0, min_spikes - spike_count)
+            force_spike = (spikes_needed > 0
+                           and tu_since_spike >= cooldown_tu
+                           and remaining <= spikes_needed * (spike_hold + cooldown_tu + 0.5))
+
+            if ((tu_since_spike >= cooldown_tu
+                    and (_random.random() < spike_chance or force_spike))
                     and spike_rungs):
                 spike_idx = _random.choice(spike_rungs)
-                spike_tu = min(spike_hold, target_tu - tu)
+                spike_tu = min(spike_hold, remaining)
                 if spike_tu > 0:
                     tu += self._emit_hold(seq, speeds, spike_idx, spike_tu)
                     tu_since_spike = 0.0
+                    spike_count += 1
                     idx = _random.randint(0, base_hi)
                     stay_count = 0
                 if tu >= target_tu:
                     break
 
-            remaining = target_tu - tu
             hold_tu = self._take_hold(seq, speeds, idx, remaining, scale=1.1)
             tu += hold_tu
             tu_since_spike += hold_tu
@@ -588,11 +629,11 @@ class CueAutoSpeedGenerator(object):
 
         idx = _random.randint(0, n - 1)
         last_idx = -1  # previous rung, to avoid immediate reversal
-        plateau_scale = _random.uniform(1, 3)
+        plateau_scale = _random.uniform(2, 5)
 
         while tu < target_tu:
             remaining = target_tu - tu
-            tu += self._take_hold(seq, speeds, idx, remaining, scale=plateau_scale)
+            tu += self._take_hold(seq, speeds, idx, remaining, scale=plateau_scale, max_real_s=20.0)
 
             if tu >= target_tu:
                 break
@@ -955,6 +996,10 @@ class CueAutoSpeedGenerator(object):
         available = _cue.speed_resolver.get_available_speeds(base_path)
         if len(available) < CUE_MIN_SPEEDS_FOR_SEQUENCE:
             return
+
+        # Surprise mode: pick a new random preset each loop
+        if self.is_surprise_mode:
+            self.active_preset = _random.choice(self.surprise_pool)
 
         self._video_duration = _cue.vid_manager.get_duration()
         new_seq = self.generate(available)

@@ -223,13 +223,14 @@ screen cue_overlay_content():
 
                         if _has_auto:
                             # --- Preset grid ---
-                            null height 3
                             $ _auto_help = (
                                 "Pick a rhythm. Each rhythm varies playback speed with a different theme. "
                                 "Each playthrough of a rhythm is slightly different. "
                                 "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is 8. The more the better."
                             )
                             text _auto_help style "cue_help"
+                            
+                            null height 3
 
                             hbox:
                                 spacing 3

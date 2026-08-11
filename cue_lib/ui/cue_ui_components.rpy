@@ -439,13 +439,33 @@ screen cue_toggle_btn(checked, label, action, tt_on=None, tt_off=None,
                 tooltip (tt_on if tt_off is None else tt_off)
 
 # Auto Speed preset button: emoji + label chip. Highlights when selected.
-# extra_text appends after the preset name (e.g. "Surprise Me").
+# When surprise mode is active, the Surprise Me button gets the green
+# (mode indicator) and the concrete preset that's actually playing gets
+# yellow (delegate indicator).
 screen cue_auto_preset_btn(preset_name, auto, extra_text=None):
     $ _is_active = (auto.active_preset == preset_name)
+    $ _is_surprise = (preset_name == "surprise" and auto.is_surprise_mode)
     $ _label = _cue_auto_preset_label(preset_name)
     $ _desc = _cue_auto_preset_description(preset_name)
     $ _display = (extra_text if extra_text else _label)
-    if _is_active:
+    if _is_surprise:
+        # Surprise Me is the selected "mode" -- green
+        textbutton _display:
+            style "cue_btn"
+            text_style "cue_btn_text"
+            background _cue_color_active
+            action NullAction()
+            tooltip _desc
+    elif _is_active and auto.is_surprise_mode:
+        # Surprise delegate -- this preset is playing, but surprise is the mode (yellow)
+        textbutton _display:
+            style "cue_btn"
+            text_style "cue_btn_text"
+            background _cue_color_yellow
+            action NullAction()
+            tooltip _desc
+    elif _is_active:
+        # Normal active preset (green)
         textbutton _display:
             style "cue_btn"
             text_style "cue_btn_text"
