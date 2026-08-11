@@ -248,15 +248,18 @@ screen cue_overlay_content():
                         $ _all_speeds = _cue.speed_resolver.get_available_speeds(_vid_path)
                         $ _has_auto = len(_auto.enabled_speeds) >= CUE_AUTO_SPEED_MIN_VARIANTS
 
-                        if _has_auto:
-                            # --- Preset grid ---
-                            $ _auto_help = (
-                                "Pick a rhythm. Each rhythm varies playback speed with a different theme. "
-                                "Each playthrough of a rhythm is slightly different. "
-                                "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is [CUE_AUTO_SPEED_IDEAL_VARIANTS]. The more the better."
-                            )
-                            text _auto_help style "cue_help"
+                        $ _auto_help = (
+                            "Procedurally generates speed sequences with a given theme. "
+                            "Each playthrough of a theme is slightly different. "
+                            "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is [CUE_AUTO_SPEED_IDEAL_VARIANTS]. The more the better."
+                        )
+                        text _auto_help style "cue_help"
 
+                        if not _has_auto:
+                            null height 3
+                            text "You don't have enough speeds, generate more in the VFX tab." style "cue_help"
+
+                        if _has_auto:
                             null height 3
 
                             # --- Speed toggles ---
@@ -294,10 +297,6 @@ screen cue_overlay_content():
                             $ _seq = _cue.video_sequence.speeds_for(_cue.current_file)
                             if _seq and len(_seq) >= 2:
                                 add CueAutoSpeedChart() xsize 440 ysize 80
-
-                        else:
-                            text ("Auto Speed needs at least [CUE_AUTO_SPEED_MIN_VARIANTS] (ideally [CUE_AUTO_SPEED_IDEAL_VARIANTS]+) speed variants.\n"
-                                "Generate some in the VFX tab.") style "cue_help"
 
                 use cue_h_divider()
 
