@@ -13,6 +13,8 @@
 import os
 import json as _json
 
+from cue_lib.util import _cue_log
+
 MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
@@ -205,7 +207,7 @@ class CueDatabase(object):
                 if _name.endswith(".json"):
                     return False
         except Exception:
-            pass
+            _cue_log("DB-FRESH: listdir failed for {}".format(self._marker_dir()))
         return True
 
     def migrate_markers_and_presets(self, markers, presets, video_presets):
@@ -230,6 +232,7 @@ class CueDatabase(object):
         try:
             names = os.listdir(mdir)
         except Exception:
+            _cue_log("DB-LOAD: listdir failed for {}".format(mdir))
             return result
         for name in names:
             if not name.endswith(".json"):
@@ -257,7 +260,7 @@ class CueDatabase(object):
         try:
             os.remove(fpath)
         except Exception:
-            pass
+            _cue_log("DB-DELETE: remove failed for {}".format(fpath))
 
     # ------------------------------------------------------------------
     # Presets (game-agnostic -- shared across all games)
@@ -277,6 +280,7 @@ class CueDatabase(object):
         try:
             names = os.listdir(pdir)
         except Exception:
+            _cue_log("DB-LOAD: listdir failed for {}".format(pdir))
             return result
         for name in names:
             if not name.endswith(".json"):
@@ -303,7 +307,7 @@ class CueDatabase(object):
         try:
             os.remove(fpath)
         except Exception:
-            pass
+            _cue_log("DB-DELETE: remove failed for {}".format(fpath))
 
     # ------------------------------------------------------------------
     # Low-level file I/O
@@ -316,6 +320,7 @@ class CueDatabase(object):
             with open(fpath, "r") as f:
                 return _json.load(f)
         except Exception:
+            _cue_log("DB-READ: file read failed for {}".format(fpath))
             return None
 
     @staticmethod

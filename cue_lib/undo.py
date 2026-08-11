@@ -13,6 +13,7 @@ import time as _time
 import renpy
 
 from cue_lib.state import _cue
+from cue_lib.util import _cue_log
 from cue_lib.util import create_img_key, create_dlg_key, create_loop_key, create_vid_key
 
 MYPY = False
@@ -169,4 +170,4 @@ class CueUndoManager(object):
             try:
                 _cue.video_editor.refresh_ui()
             except Exception:
-                pass
+                _cue_log("UNDO-CLAMP: refresh_ui failed")

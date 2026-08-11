@@ -160,7 +160,7 @@ class CueVidSpeedResolver(object):
                     _cue_log("VQ-SEAMLESS queue={} last_req={} new={}".format(
                         new_variant, last_requested, speed))
                 except Exception:
-                    pass
+                    _cue_log("SET-SPEED: queue failed for {}".format(new_variant))
         else:
             self._set_speed_pref(tag, speed)
         _cue.speed_toast.show(tag)
@@ -242,6 +242,7 @@ class CueVidSpeedResolver(object):
                 ch = _cue.vid_manager.channel
                 now_playing = _music.get_playing(channel=ch) if ch else None
             except Exception:
+                _cue_log("SPEED-RESOLVE: get_playing failed")
                 now_playing = None
             transitioned = (now_playing and pending_variant
                 and os.path.normpath(now_playing) == os.path.normpath(pending_variant))
@@ -356,7 +357,7 @@ class CueVidSpeedResolver(object):
                     if os.path.isfile(os.path.join(video_dir, f)):
                         speeds.append(sp)
         except Exception:
-            pass
+            _cue_log("SPEED-LIST: os.listdir failed for {}".format(_cue.db.video_dir))
         speeds.sort()
         return speeds
 
@@ -403,7 +404,7 @@ class CueVidSpeedResolver(object):
                             base_path, channel=_ch_name,
                             loop=True, fadeout=0, synchro_start=True)
         except Exception:
-            pass
+            _cue_log("DELETE-VARIANT: channel stop failed for {}".format(vpath))
         for tag, base in self.paths.items():
             if base == base_path:
                 cur = self._get_speed_pref(tag)
@@ -627,6 +628,7 @@ class CueVidSpeedSequence(object):
             ch = _cue.vid_manager.channel
             self.last_playing = _music.get_playing(channel=ch) if ch else None
         except Exception:
+            _cue_log("SPEED-START: get_playing failed")
             self.last_playing = None
         self.last_elapsed = 0.0
         _cue_log("VQ-START tag={} paths={}".format(tag, ",".join(paths)))
@@ -648,7 +650,7 @@ class CueVidSpeedSequence(object):
                     try:
                         _music.stop(channel=ch, fadeout=0)
                     except Exception:
-                        pass
+                        _cue_log("SPEED-HANDLE: stop failed on {}".format(ch))
 
     def cancel(self):
         # type: () -> None
@@ -663,6 +665,7 @@ class CueVidSpeedSequence(object):
             now_playing = _music.get_playing(channel=ch)
             now_elapsed = _music.get_pos(channel=ch) or 0.0
         except Exception:
+            _cue_log("SPEED-TICK: playback query failed")
             now_playing = None
             now_elapsed = 0.0
         is_wrap_around = now_playing and now_elapsed < 0.2 and self.last_elapsed - now_elapsed > 0.2
@@ -764,7 +767,7 @@ def _cue_seamless_play_callback(old, new):
             if os.path.normpath(now) == os.path.normpath(new._play):
                 return
     except Exception:
-        pass
+        _cue_log("SEAMLESS-CB: callback failed")
     _default_play_callback(old, new)
 
 

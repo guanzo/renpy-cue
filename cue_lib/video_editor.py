@@ -173,7 +173,7 @@ class CueVideoEditQueue(object):
         try:
             dur_ms = int(_music.get_duration(channel=_cue.vid_manager.channel or "") * 1000)
         except Exception:
-            pass
+            _cue_log("EDITOR-START: get_duration failed")
 
         # Lazy import to avoid circular dependency with worker
         from cue_lib.worker import _cue_probe_job
@@ -231,7 +231,7 @@ class CueVideoEditQueue(object):
                 try:
                     logf.close()  # child holds its own dup
                 except Exception:
-                    pass
+                    _cue_log("EDITOR-LAUNCH: logf.close failed")
         if job.cancelled and job.proc is not None:
             self._kill_proc(job)
             job._done = True
@@ -248,6 +248,7 @@ class CueVideoEditQueue(object):
                 data = f.read(65536)
             job._progress_offset += len(data)
         except Exception:
+            _cue_log("READ-PROGRESS: file read failed for {}".format(pp))
             return
         last_frame = None
         for raw in data.split(b"\n"):
@@ -269,7 +270,7 @@ class CueVideoEditQueue(object):
                     _footer = _footer.encode("utf-8")
                 f.write(_footer)
         except Exception:
-            pass
+            _cue_log("EDITOR-FOOTER: write failed")
 
     def _error_tail(self, job, rc):
         # type: (CueVideoJob, int) -> str
@@ -291,7 +292,7 @@ class CueVideoEditQueue(object):
             if len(tail) > 120:
                 tail = tail[-120:]
         except Exception:
-            pass
+            _cue_log("ERROR-TAIL: read failed for {}".format(job._log_path))
         return "ffmpeg pass {} rc={}: {}".format(job._pass_idx, rc, tail)
 
     def _finalize_encode(self, job):
@@ -305,13 +306,13 @@ class CueVideoEditQueue(object):
                     if os.path.exists(_pf):
                         os.remove(_pf)
             except Exception:
-                pass
+                _cue_log("FINALIZE: passlog cleanup failed")
         # Clean up progress file
         if job._progress_path and os.path.exists(job._progress_path):
             try:
                 os.remove(job._progress_path)
             except Exception:
-                pass
+                _cue_log("FINALIZE: progress cleanup failed")
         output_ok = os.path.exists(job.fspath_tmp) and os.path.getsize(job.fspath_tmp) > 0
         if not job.error_msg and output_ok:
             job._ok = True
@@ -428,7 +429,7 @@ class CueVideoEditQueue(object):
                     if os.path.normpath(_playing_fs) == os.path.normpath(out):
                         _music.stop(channel=_ch_name, fadeout=0)
         except Exception:
-            pass
+            _cue_log("EDITOR-FINISH: channel stop failed")
         _time.sleep(0.5)
         for _attempt in range(4):
             try:
@@ -514,9 +515,9 @@ class CueVideoEditQueue(object):
                 try:
                     p.wait()
                 except Exception:
-                    pass
+                    _cue_log("KILL-PROC: wait failed for pid {}".format(p.pid))
         except Exception:
-            pass
+            _cue_log("KILL-PROC: kill failed")
         job.proc = None
 
     def _cleanup_temp(self, job):
@@ -526,7 +527,7 @@ class CueVideoEditQueue(object):
             if tmp and os.path.exists(tmp):
                 os.remove(tmp)
         except Exception:
-            pass
+            _cue_log("CLEANUP: remove failed for {}".format(job.fspath_tmp))
         # Clean up 2-pass artifacts (same as old worker's unconditional
         # post-loop cleanup on cancel/error)
         try:
@@ -536,13 +537,13 @@ class CueVideoEditQueue(object):
                     if os.path.exists(_pf):
                         os.remove(_pf)
         except Exception:
-            pass
+            _cue_log("CLEANUP: passlog remove failed")
         # Clean up progress file
         try:
             if job._progress_path and os.path.exists(job._progress_path):
                 os.remove(job._progress_path)
         except Exception:
-            pass
+            _cue_log("CLEANUP: progress remove failed")
 
     def save_to_persistent(self):
         # type: () -> None
@@ -626,7 +627,7 @@ class CueVideoEditQueue(object):
                         try:
                             os.remove(fspath_tmp)
                         except Exception:
-                            pass
+                            _cue_log("LOAD-JOBS: stale tmp remove failed for {}".format(fspath_tmp))
                     _logbase = fspath_tmp + ".passlog" if fspath_tmp else None
                     if _logbase:
                         for _suffix in ("-0.log", "-1.log"):
@@ -635,7 +636,7 @@ class CueVideoEditQueue(object):
                                 try:
                                     os.remove(_pf)
                                 except Exception:
-                                    pass
+                                    _cue_log("LOAD-JOBS: stale passlog remove failed for {}".format(_pf))
                     continue
 
                 # Detect if pass1 already completed by checking for the
@@ -800,7 +801,7 @@ class CueVideoEditor(object):
             try:
                 os.remove(fspath)
             except Exception:
-                pass
+                _cue_log("EXTRACT: cleanup remove failed for {}".format(fspath))
             return ("error", "Failed to write extracted file: {}".format(e))
         finally:
             fh.close()
@@ -846,6 +847,7 @@ class CueVideoEditor(object):
         try:
             v = float(self.factor_text)
         except (ValueError, TypeError):
+            _cue_log("EDITOR-FACTOR: parse failed for '{}'".format(self.factor_text))
             v = 1.0
         v = max(self.SPEED_MIN, min(self.SPEED_MAX, v))
         self.factor_text = "{:.1f}".format(v)
@@ -857,6 +859,7 @@ class CueVideoEditor(object):
         try:
             v = float(self.factor_text)
         except (ValueError, TypeError):
+            _cue_log("EDITOR-FACTOR: parse failed for '{}'".format(self.factor_text))
             v = 1.0
         v = max(self.SPEED_MIN, min(self.SPEED_MAX, v + delta))
         self.factor_text = "{:.1f}".format(v)
@@ -887,6 +890,7 @@ class CueVideoEditor(object):
         try:
             return float(self.factor_text)
         except (ValueError, TypeError):
+            _cue_log("EDITOR-FACTOR: parse failed for '{}'".format(self.factor_text))
             return 1.0
 
     def set_encode_mode(self, mode):
@@ -923,6 +927,7 @@ class CueVideoEditor(object):
         try:
             factor = float(self.factor_text)
         except (ValueError, TypeError):
+            _cue_log("EDITOR-FACTOR: parse failed for '{}'".format(self.factor_text))
             factor = 1.0
         factor = max(self.SPEED_MIN, min(self.SPEED_MAX, factor))
         if abs(factor - 1.0) < 0.05 and self.encode_mode != self.MODE_INTERPOLATE:
@@ -945,6 +950,7 @@ class CueVideoEditor(object):
         try:
             factor = float(self.factor_text)
         except (ValueError, TypeError):
+            _cue_log("EDITOR-FACTOR: parse failed for '{}'".format(self.factor_text))
             factor = 1.0
         factor = max(self.SPEED_MIN, min(self.SPEED_MAX, factor))
         self.create(factor)

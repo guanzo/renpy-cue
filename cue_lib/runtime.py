@@ -150,7 +150,7 @@ def _cue_log_context():
         try:
             playing = "1" if _music.is_playing(channel=_cue.vid_manager.channel) else "0"
         except Exception:
-            pass
+            _cue_log("LOG-CONTEXT: is_playing probe failed")
     _, top_type, _unused = _cue_get_top_layer()
     if top_type:
         ctx_type = top_type
@@ -237,7 +237,7 @@ def _cue_refresh_channel(displayable=None):
                             fps = int(round(val))
                             break
                     except Exception:
-                        pass
+                        _cue_log("APPLY-CHANNEL: attr {} probe failed".format(attr))
             if old_ch != ch_name:
                 _cue.vid_manager.reset(ch_name)
                 _cue.vid_manager.set_fps(fps)
@@ -255,9 +255,9 @@ def _cue_refresh_channel(displayable=None):
                     if path and dur > 0:
                         candidates.append((ch_name, ch, path))
                 except Exception:
-                    pass
+                    _cue_log("REFRESH-CHANNEL: scan failed for {}".format(ch_name))
         except Exception:
-            pass
+            _cue_log("REFRESH-CHANNEL: outer scan failed")
 
         if candidates:
             import renpy.display.video as _video
@@ -377,6 +377,7 @@ def _cue_play_sfx(filename, source="", volume=1.0):
 
         return target_ch
     except Exception:
+        _cue_log("PLAY-SFX: exception during playback of {}".format(full_path))
         return None
 
 

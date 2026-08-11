@@ -8,7 +8,7 @@ from renpy.text.text import Text as Txt
 from renpy.display.core import Displayable, IgnoreEvent
 
 from cue_lib.state import _cue
-from cue_lib.util import _cue_format_time
+from cue_lib.util import _cue_format_time, _cue_log
 
 MYPY = False
 if MYPY:

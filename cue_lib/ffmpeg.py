@@ -10,6 +10,8 @@
 import os
 import subprocess
 
+from cue_lib.util import _cue_log
+
 MYPY = False
 if MYPY:
     from typing import List, Optional, Tuple
@@ -113,6 +115,7 @@ class CueFFmpeg(object):
             p.communicate()
             return p.returncode == 0
         except Exception:
+            _cue_log("FFMPEG-PROBE: exe check failed for {}".format(exe_name))
             return False
 
     def ffmpeg_available(self):
@@ -173,7 +176,7 @@ class CueFFmpeg(object):
                     if len(parts) >= 2:
                         self._encoder_cache.add(parts[1])
         except Exception:
-            pass
+            _cue_log("FFMPEG-ENCODERS: load failed")
 
         # Probe for librubberband filter (pitch-corrected time-stretch)
         try:
@@ -191,7 +194,7 @@ class CueFFmpeg(object):
                     self._has_rubberband = True
                     break
         except Exception:
-            pass
+            _cue_log("FFMPEG-RUBBERBAND: probe failed")
 
     def pick_encoder(self, codec_name, category):
         # type: (str, str) -> Optional[str]
@@ -231,7 +234,7 @@ class CueFFmpeg(object):
                 out = out.decode("utf-8", errors="replace")
             vc = out.strip()
         except Exception:
-            pass
+            _cue_log("FFMPEG-CODECS: video probe failed for {}".format(fspath))
         try:
             p = subprocess.Popen(
                 [self._ffprobe_path, "-v", "error",
@@ -248,7 +251,7 @@ class CueFFmpeg(object):
                 out = out.decode("utf-8", errors="replace")
             ac = out.strip()
         except Exception:
-            pass
+            _cue_log("FFMPEG-CODECS: audio probe failed for {}".format(fspath))
         return vc, ac
 
     def probe_has_audio(self, fspath):
@@ -272,6 +275,7 @@ class CueFFmpeg(object):
                 out = out.decode("utf-8", errors="replace")
             return bool(out.strip())
         except Exception:
+            _cue_log("FFMPEG-AUDIO: probe failed for {}, assuming has audio".format(fspath))
             return True
 
     def probe_fps(self, fspath):
@@ -298,7 +302,7 @@ class CueFFmpeg(object):
                 num, den = rate.split("/", 1)
                 return int(round(float(num) / float(den)))
         except Exception:
-            pass
+            _cue_log("FFMPEG-FPS: probe failed for {}, defaulting to 30".format(fspath))
         return 30
 
     def probe_bitrate(self, fspath):
@@ -327,7 +331,7 @@ class CueFFmpeg(object):
             if val and val != "N/A":
                 bps = int(val)
         except Exception:
-            pass
+            _cue_log("FFMPEG-BITRATE: stream probe failed for {}".format(fspath))
         # Fall back to format bitrate
         if not bps:
             try:
@@ -347,7 +351,7 @@ class CueFFmpeg(object):
                 if val and val != "N/A":
                     bps = int(val)
             except Exception:
-                pass
+                _cue_log("FFMPEG-BITRATE: format probe failed for {}".format(fspath))
         if bps and bps > 0:
             return "{}k".format(int(bps / 1000))
         return None
@@ -480,7 +484,6 @@ class CueFFmpeg(object):
                 temp_path,
             ])
 
-            from cue_lib.util import _cue_log
             _cue_log("2-pass encode: bitrate={}, passlog={}".format(
                 target_bitrate, passlog))
             return [pass1, pass2], passlog
@@ -507,6 +510,5 @@ class CueFFmpeg(object):
                      "-avoid_negative_ts", "make_zero"])
         args.append(temp_path)
 
-        from cue_lib.util import _cue_log
         _cue_log("1-pass encode: codec={}".format(vcodec))
         return [args], None

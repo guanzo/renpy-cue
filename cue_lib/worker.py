@@ -94,7 +94,7 @@ def _cue_probe_job(ffmpeg, job, dur_ms, base_dir):
                             if os.path.exists(_pf):
                                 os.remove(_pf)
                         except Exception:
-                            pass
+                            _cue_log("PROBE-JOB: passlog cleanup failed for {}{}".format(passlog, _suffix))
 
         job._cmds = cmds
         job._num_passes = len(cmds)

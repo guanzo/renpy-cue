@@ -59,7 +59,7 @@ class CueVideoManager(object):
             if pos is not None:
                 return max(0.0, pos + self.time_offset)
         except Exception:
-            pass
+            _cue_log("VIDEO: get_pos failed on {}".format(self.channel))
         return 0.0
 
     def get_duration(self):
@@ -74,7 +74,7 @@ class CueVideoManager(object):
             if dur is not None and dur > 0:
                 return dur
         except Exception:
-            pass
+            _cue_log("VIDEO: get_duration failed on {}".format(self.channel))
         return 0.0
 
     def get_video_path(self):
@@ -85,6 +85,7 @@ class CueVideoManager(object):
         try:
             return _music.get_playing(channel=self.channel)
         except Exception:
+            _cue_log("VIDEO-PATH: get_playing failed on {}".format(self.channel))
             return None
 
     def toggle_pause(self):
@@ -202,6 +203,7 @@ class CueVideoManager(object):
         try:
             pos = _music.get_pos(channel=self.channel)
         except Exception:
+            _cue_log("AUTOPAUSE: get_pos failed on {}".format(self.channel))
             return
         has_pos = pos is not None
         if has_pos and self.pause_target > 0 and pos >= self.pause_target:
@@ -223,7 +225,7 @@ class CueVideoManager(object):
         try:
             self.paused = _music.get_pause(channel=self.channel)
         except Exception:
-            pass
+            _cue_log("SYNC-PAUSED: get_pause failed on {}".format(self.channel))
 
     # --- Label getters (zero-arg callables for CueSelfUpdatingLabel) ---
 
