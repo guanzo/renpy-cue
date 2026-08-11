@@ -74,7 +74,7 @@ class CueTriggerEngine(object):
             pools = entry.get("pools", [])
             if not pools:
                 continue
-            vol = entry.get("volume", 1.0)
+            vol = entry.get("volume", _cue.volume.VOL_DEFAULT)
             total = sum(len(_cue.markers.resolve_pool(p).files) for p in pools)
 
             _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(

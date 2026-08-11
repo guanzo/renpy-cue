@@ -78,6 +78,64 @@ Function-local variables do NOT need underscores — they're scoped to their fun
 
 **Boolean naming**: use a prefix — `is_`, `has_`, `can_`, `did_`, `was_`, `should_`, `will_`. Not bare adjectives: `paused`, `visible`, `initialized`.
 
+## Constants vs Magic Numbers
+
+**Prefer named constants** over raw numbers/strings when a change would break
+things if the copies got out of sync. The litmus test: *"if someone changed one
+copy and forgot the other, would behavior silently break?"*
+
+### Must be constants (cross-file or cross-language sync)
+
+| Pattern | Where | Example |
+|---|---|---|
+| Value used in multiple `.py` files | `constants.py` with `CUE_` prefix | `CUE_SFX_CHANNEL_COUNT`, `CUE_DEFAULT_VIDEO_SPEED` |
+| Value used in `.py` AND `.rpy` | `constants.py`, imported into store via `cue_z.rpy` init -999 | `CUE_MIN_SPEEDS_FOR_SEQUENCE` |
+| Value duplicated in same file | Module-level in that file, `CUE_` prefix | `CUE_SEEK_EPSILON` in `video.py` |
+| Value mirrored between `.py` and `.rpy` | Single source in `.py`, `.rpy` reads it | `_cue.volume.VOL_MAX` instead of `range=5.0` |
+| Number string mapped to behavior | Enum class | `CueLoopFrequency.SLOWEST`, `CueSpeedMode.SINGLE` |
+
+### python early limitation
+
+`cue_z.rpy` `python early` blocks run before `renpy.store` exists. Importing
+from `cue_lib` there cascades into `file_tree.py` which needs `persistent`.
+**Raw values in `python early` are acceptable** — there's no way around it.
+
+### Don't bother (trivial / self-documenting / inherently local)
+
+- **Retry counts** (`for _attempt in range(3)`) — obvious in context
+- **Sleep delays** (`time.sleep(0.1)`) — local procedural logic
+- **Artistic tuning** (generator probabilities, ffmpeg CRF values) — algorithm-defining, not config
+- **Screen layout** (xpos, ypos, spacing, xsize) — Ren'Py can't reference Python constants in screen property position
+- **Single-use sentinels** (`-9999`, `-1.0`) — self-documenting as "unset"
+
+### constants.py
+
+New cross-file constants go in `cue_lib/constants.py`. Every constant has a
+`CUE_` prefix. Keep `cue_lib/constants.pyi` in sync — add every constant there
+with `Final` annotation.
+
+### Enum classes
+
+When a discrete set of values maps to behavior branches, use a flat enum class
+(inherit from `object`, no base enum — Python 2.7 compatibility):
+
+```python
+class CueLoopFrequency(object):
+    SLOWEST = 4   # ~6.3s
+    SLOW = 0      # ~3.8s
+    NORMAL = 1    # ~2.1s
+    FAST = 2      # ~0.6s
+    FASTEST = 3   # ~0.2s
+```
+
+Import into store via `cue_z.rpy` init -999 so `.rpy` screens can use them.
+
+### VOL_DEFAULT trap
+
+`VOL_DEFAULT` was formerly defined in BOTH `state.py` (`_cue.VOL_DEFAULT`) and
+`volume.py` (`_cue.volume.VOL_DEFAULT`). Only `volume.py` is canonical now.
+Always write `_cue.volume.VOL_DEFAULT` — never `_cue.VOL_DEFAULT` or raw `1.0`.
+
 ## Code Organization
 
 - **Encapsulate features as classes.** When adding a new UI component, dialog, or feature, create a dedicated class that owns its state, logic, and screen hooks. Prefer `_cue.thing = ThingManager()` over scattered `_cue._thing_var1`, `_cue._thing_var2` and global `_cue_do_thing()` functions.

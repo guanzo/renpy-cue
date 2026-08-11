@@ -26,8 +26,6 @@ class Cue:
     config_path: str
     shared_dir: str
 
-    DEFAULT_VIDEO_SPEED: float
-    VOL_DEFAULT: float
     IMG_KEY_PREFIX: str
     LOOP_KEY_PREFIX: str
     DLG_KEY_PREFIX: str

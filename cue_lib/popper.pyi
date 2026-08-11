@@ -1,6 +1,7 @@
 # Type stub for cue_lib.popper
 from typing import Any, Optional, Tuple
 from renpy.display.layout import Container
+from cue_lib.constants import CUE_POPPER_DEFAULT_OFFSET, CUE_POPPER_DEFAULT_MARGIN  # pyright: ignore[reportUnusedImport]
 
 ARROW_SZ: int
 
@@ -21,7 +22,7 @@ class CuePopper(Container):
     MAX_POPUP_W: int
     MAX_POPUP_H: int
 
-    def __init__(self, target: str, placement: str = "top", offset: int = 5, viewport_margin: int = 8, **kwargs: Any) -> None: ...
+    def __init__(self, target: str, placement: str = "top", offset: int = CUE_POPPER_DEFAULT_OFFSET, viewport_margin: int = CUE_POPPER_DEFAULT_MARGIN, **kwargs: Any) -> None: ...
     def render(self, width: int, height: int, st: float, at: float) -> Any: ...
     def add(self, child: Any) -> None: ...
     def visit(self) -> list: ...

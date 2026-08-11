@@ -15,6 +15,7 @@ import random as _random
 
 import renpy
 
+from cue_lib.constants import CUE_DEFAULT_VIDEO_SPEED, CUE_MIN_SPEEDS_FOR_SEQUENCE
 from cue_lib.state import _cue
 from cue_lib.util import create_vid_key, _cue_log, _cue_speed_label
 
@@ -170,7 +171,7 @@ class CueAutoSpeedGenerator(object):
         enforced between successive sequences.
         """
         if not available_speeds or len(available_speeds) < CUE_AUTO_SPEED_MIN_VARIANTS:
-            return [available_speeds[0]] * 8 if available_speeds else [1.0]
+            return [available_speeds[0]] * 8 if available_speeds else [CUE_DEFAULT_VIDEO_SPEED]
 
         n = len(available_speeds)
         target_tu = _random.uniform(self.min_duration_tu, self.max_duration_tu)
@@ -932,7 +933,7 @@ class CueAutoSpeedGenerator(object):
         if not base_path:
             return
         available = _cue.speed_resolver.get_available_speeds(base_path)
-        if len(available) < 2:
+        if len(available) < CUE_MIN_SPEEDS_FOR_SEQUENCE:
             return
 
         self._video_duration = _cue.vid_manager.get_duration()
@@ -952,7 +953,7 @@ class CueAutoSpeedGenerator(object):
         if not base_path:
             return
         available = _cue.speed_resolver.get_available_speeds(base_path)
-        if len(available) < 2:
+        if len(available) < CUE_MIN_SPEEDS_FOR_SEQUENCE:
             return
 
         self._video_duration = _cue.vid_manager.get_duration()

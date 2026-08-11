@@ -15,6 +15,7 @@ from renpy.display.video import Movie
 from renpy.display.video import default_play_callback as _default_play_callback  # pyright: ignore[reportAttributeAccessIssue]
 from renpy.display.image import images as _display_images
 
+from cue_lib.constants import CUE_DEFAULT_VIDEO_SPEED, CUE_MIN_SPEEDS_FOR_SEQUENCE
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_unwrap_displayable, _cue_get_movie_play,
@@ -26,6 +27,16 @@ MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional, Tuple, Type
     from cue_lib._types import MarkerEntry
+
+# Toast display duration in seconds (includes 0.6s hold + 0.5s fade-out).
+CUE_TOAST_DURATION = 4.1
+
+# Shorter duration used when a seamless speed transition completes.
+CUE_TOAST_DURATION_SEAMLESS = 1.6
+
+# Fade-out split points for the toast transform in cue_ui_overlay.rpy.
+CUE_TOAST_FADE_DURATION = 0.5
+CUE_TOAST_FADE_OFFSET = 0.6
 
 
 class CueSpeedMode(object):
@@ -45,14 +56,14 @@ class CueVidSpeedResolver(object):
     def _get_speed_pref(self, tag):
         # type: (str) -> float
         if not tag:
-            return _cue.DEFAULT_VIDEO_SPEED
+            return CUE_DEFAULT_VIDEO_SPEED
         def _read(entry):
             # type: (MarkerEntry) -> float
-            return entry.get("speed_pref", _cue.DEFAULT_VIDEO_SPEED)
+            return entry.get("speed_pref", CUE_DEFAULT_VIDEO_SPEED)
         entry = _cue.markers.get(create_vid_key(tag))
         if entry is not None and "speed_pref" in entry:
             return _read(entry)
-        best = _cue.DEFAULT_VIDEO_SPEED
+        best = CUE_DEFAULT_VIDEO_SPEED
         best_len = -1
         for key in self.paths:
             if key.startswith(tag + " ") and len(key) > best_len:
@@ -78,7 +89,7 @@ class CueVidSpeedResolver(object):
         # type: () -> float
         tag = _cue.current_file
         if not tag:
-            return _cue.DEFAULT_VIDEO_SPEED
+            return CUE_DEFAULT_VIDEO_SPEED
         seq = _cue.video_sequence
         if seq is not None and seq.active_tag:
             speeds = seq.speeds_for(tag)
@@ -252,7 +263,7 @@ class CueVidSpeedResolver(object):
                 self._set_speed_pref(tag, self._pending_speed)
                 self._pending_speed = None
                 self._pre_pending_speed = None
-                _cue.speed_toast.show(tag, duration=1.6)
+                _cue.speed_toast.show(tag, duration=CUE_TOAST_DURATION_SEAMLESS)
                 renpy.restart_interaction()
 
         # Always return the same Movie -- the channel produces frames
@@ -318,7 +329,7 @@ class CueVidSpeedResolver(object):
         Other speeds go into ``shared_dir/video/<game_id>/`` so the
         game directory is never modified.
         """
-        if speed == _cue.DEFAULT_VIDEO_SPEED:
+        if speed == CUE_DEFAULT_VIDEO_SPEED:
             if os.path.isabs(base_path):
                 return os.path.normpath(base_path).replace("\\", "/")
             return os.path.normpath(os.path.join(_config.gamedir, base_path)).replace("\\", "/")
@@ -344,7 +355,7 @@ class CueVidSpeedResolver(object):
 
     def get_available_speeds(self, base_path):
         # type: (str) -> List[float]
-        speeds = [_cue.DEFAULT_VIDEO_SPEED]
+        speeds = [CUE_DEFAULT_VIDEO_SPEED]
         if not base_path:
             return speeds
         base_name = os.path.basename(base_path)
@@ -353,7 +364,7 @@ class CueVidSpeedResolver(object):
             video_dir = _cue.db.video_dir
             for f in os.listdir(video_dir):
                 sp = self._parse_variant_speed(f, base_no_ext, ext)
-                if sp is not None and sp != 1.0:
+                if sp is not None and sp != CUE_DEFAULT_VIDEO_SPEED:
                     if os.path.isfile(os.path.join(video_dir, f)):
                         speeds.append(sp)
         except Exception:
@@ -391,7 +402,7 @@ class CueVidSpeedResolver(object):
 
     def delete_variant(self, base_path, speed):
         # type: (str, float) -> None
-        if speed == _cue.DEFAULT_VIDEO_SPEED:
+        if speed == CUE_DEFAULT_VIDEO_SPEED:
             return
         vpath = self.variant_path(base_path, speed)
         try:
@@ -409,12 +420,12 @@ class CueVidSpeedResolver(object):
             if base == base_path:
                 cur = self._get_speed_pref(tag)
                 if cur == speed:
-                    self._set_speed_pref(tag, _cue.DEFAULT_VIDEO_SPEED)
+                    self._set_speed_pref(tag, CUE_DEFAULT_VIDEO_SPEED)
         tag = _cue.current_file
         if tag:
             cur = self._get_speed_pref(tag)
             if cur == speed:
-                self._set_speed_pref(tag, _cue.DEFAULT_VIDEO_SPEED)
+                self._set_speed_pref(tag, CUE_DEFAULT_VIDEO_SPEED)
         fspath = vpath  # already absolute from variant_path()
         deleted = False
         for _attempt in range(3):
@@ -700,7 +711,7 @@ class CueVidSpeedSequence(object):
         if not base_path:
             return
         available = _cue.speed_resolver.get_available_speeds(base_path)
-        if len(available) < 2:
+        if len(available) < CUE_MIN_SPEEDS_FOR_SEQUENCE:
             return
         new_seq = _cue.auto_speed.generate(available)
         entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
@@ -715,9 +726,9 @@ class CueSpeedToast(object):
         self.toast_current = None
         self.toast_tag = None
         self.toast_timestamp = 0.0
-        self.toast_duration = 4.1
+        self.toast_duration = CUE_TOAST_DURATION
 
-    def show(self, tag, duration=4.1):
+    def show(self, tag, duration=CUE_TOAST_DURATION):
         # type: (str, float) -> None
         resolver = _cue.speed_resolver
         base_path = resolver.base_path_for(tag)

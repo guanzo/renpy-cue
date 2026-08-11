@@ -238,7 +238,7 @@ class CueMarkerRepeater(object):
                 pools.append({
                     "time": time,
                     "files": list(offset.get("files", [])),
-                    "volume": offset.get("volume", _cue.VOL_DEFAULT),
+                    "volume": offset.get("volume", _cue.volume.VOL_DEFAULT),
                 })
 
         pools.sort(key=lambda e: e["time"])

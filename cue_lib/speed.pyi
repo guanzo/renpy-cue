@@ -1,8 +1,13 @@
 # Type stub for cue_lib.speed
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Final, List, Optional, Tuple
 from renpy.display.video import Movie
 
-class SpeedMode:
+CUE_TOAST_DURATION: Final = 4.1
+CUE_TOAST_DURATION_SEAMLESS: Final = 1.6
+CUE_TOAST_FADE_DURATION: Final = 0.5
+CUE_TOAST_FADE_OFFSET: Final = 0.6
+
+class CueSpeedMode:
     SINGLE: str
     MULTI: str
     AUTO: str
@@ -15,7 +20,7 @@ class CueSpeedToast:
     toast_duration: float
 
     def __init__(self) -> None: ...
-    def show(self, tag: str, duration: float = 4.1) -> None: ...
+    def show(self, tag: str, duration: float = CUE_TOAST_DURATION) -> None: ...
     def clear(self) -> None: ...
 
 class CueVidSpeedSequence:

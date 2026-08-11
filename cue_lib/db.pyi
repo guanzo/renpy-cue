@@ -1,4 +1,6 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Final, Tuple
+
+CUE_HASH_TRUNC_LEN: Final = 8
 
 class CueDatabase(object):
     def __init__(self, path: str, game_id: str) -> None: ...

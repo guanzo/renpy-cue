@@ -164,7 +164,7 @@ screen cue_overlay_content():
                                 for _sp in _avail:
                                     $ _label = _cue_speed_label(_sp)
                                     $ _tt = ("Play at " + _cue_speed_label(_sp) + " speed"
-                                        if _sp != _cue.DEFAULT_VIDEO_SPEED
+                                        if _sp != CUE_DEFAULT_VIDEO_SPEED
                                         else "Play at original video speed")
                                     $ _is_pending = (_cue.speed_resolver._pending_speed is not None
                                         and _sp == _cue.speed_resolver._pending_speed)
@@ -173,7 +173,7 @@ screen cue_overlay_content():
                                     use cue_select_btn(_label, _is_selected,
                                         Function(_cue.speed_resolver.set_speed, _sp),
                                         tt=_tt, active_color=_btn_color)
-                                if _cur != _cue.DEFAULT_VIDEO_SPEED:
+                                if _cur != CUE_DEFAULT_VIDEO_SPEED:
                                     use cue_v_divider()
                                     use cue_txt_button("Delete " + _cue_speed_label(_cur),
                                         Function(_cue.speed_resolver.delete_variant, _vid_path, _cur),
@@ -326,8 +326,8 @@ screen cue_overlay_content():
                             get_dur=_cue.markers.video.get_duration,
                         ) yoffset -8
                     if _vid_entry:
-                        $ _vid_entry.setdefault("volume", 1.0)
-                        $ _master_vol = _vid_entry.get("volume", 1.0)
+                        $ _vid_entry.setdefault("volume", _cue.volume.VOL_DEFAULT)
+                        $ _master_vol = _vid_entry.get("volume", _cue.volume.VOL_DEFAULT)
                         $ _dec = Function(_cue.volume.adjust_master, _vid_key, -0.1)
                         $ _inc = Function(_cue.volume.adjust_master, _vid_key, 0.1)
                         use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _vid_entry, _inc)
@@ -342,7 +342,7 @@ screen cue_overlay_content():
                         $ _active_pool = _vid_entries[_vid_target]
                         $ _raw_files = _active_pool.get("files", [])
                         $ _active_files = _cue_resolve_files(_raw_files)
-                        $ _active_vol = _active_pool.get("volume", _cue.VOL_DEFAULT)
+                        $ _active_vol = _active_pool.get("volume", _cue.volume.VOL_DEFAULT)
                         $ _active_eff = _cue.volume.get_effective(_vid_entry, _vid_key, pool_index=_vid_target)
                         # Detect preset-backed pool
                         $ _raw_pool_list = _vid_entry.get("pools", [])
@@ -368,7 +368,7 @@ screen cue_overlay_content():
                             use cue_icon_btn("✕", Function(_cue.markers.video.remove_pool, _vid_target), "Delete pool", None)
 
                             # Volume controls
-                            $ _vol_target.setdefault("volume", 1.0)
+                            $ _vol_target.setdefault("volume", _cue.volume.VOL_DEFAULT)
                             $ _dec = Function(_cue.volume.adjust_video, -0.1)
                             $ _inc = Function(_cue.volume.adjust_video, 0.1)
                             null width 5
@@ -519,17 +519,17 @@ screen cue_overlay_content():
         use cue_context_section("Loop SFX", _cue.markers.loop, _loop_key,
             None, "file", "L",
             "SFX plays on a loop when this image/video is displayed."):
-            $ _freq = _cue._pool_ui.get("freq", 1)
+            $ _freq = _cue._pool_ui.get("freq", CueLoopFrequency.NORMAL)
             hbox:
                 spacing 5
                 box_wrap True
                 box_wrap_spacing 3
                 text "Interval:" style "cue_txt" size 11
-                use cue_select_btn("Slowest", (_freq == 4), Function(_cue.markers.loop.set_frequency, 4), tt="~6.3s between plays")
-                use cue_select_btn("Slow", (_freq == 0), Function(_cue.markers.loop.set_frequency, 0), tt="~3.8s between plays")
-                use cue_select_btn("Normal", (_freq == 1), Function(_cue.markers.loop.set_frequency, 1), tt="~2.1s between plays")
-                use cue_select_btn("Fast", (_freq == 2), Function(_cue.markers.loop.set_frequency, 2), tt="~0.6s between plays")
-                use cue_select_btn("Fastest", (_freq == 3), Function(_cue.markers.loop.set_frequency, 3), tt="~0.2s between plays")
+                use cue_select_btn("Slowest", (_freq == CueLoopFrequency.SLOWEST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOWEST), tt="~6.3s between plays")
+                use cue_select_btn("Slow", (_freq == CueLoopFrequency.SLOW), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOW), tt="~3.8s between plays")
+                use cue_select_btn("Normal", (_freq == CueLoopFrequency.NORMAL), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.NORMAL), tt="~2.1s between plays")
+                use cue_select_btn("Fast", (_freq == CueLoopFrequency.FAST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FAST), tt="~0.6s between plays")
+                use cue_select_btn("Fastest", (_freq == CueLoopFrequency.FASTEST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FASTEST), tt="~0.2s between plays")
                 use cue_v_divider()
                 $ _is_exclusive = _cue._pool_ui.get("exclusive", False)
                 use cue_toggle_btn(_is_exclusive, "Exclusive playback",
@@ -898,10 +898,10 @@ screen cue_confirm_dialog():
 # Speed-change toast — subtle indicator in the top-left corner
 ###############################################################################
 
-transform cue_speed_toast_fade(duration=4.1):
+transform cue_speed_toast_fade(duration=CUE_TOAST_DURATION):
     alpha 0.7
-    pause (duration - 0.6)
-    linear 0.5 alpha 0.0
+    pause (duration - CUE_TOAST_FADE_OFFSET)
+    linear CUE_TOAST_FADE_DURATION alpha 0.0
 
 screen cue_speed_toast():
     zorder 10001

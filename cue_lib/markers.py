@@ -77,7 +77,7 @@ class CueMarkerContext(object):
         entry = self._mgr._get_or_create_entry(key)
         entry["pools"].append({
             "files": [],
-            "volume": _cue.VOL_DEFAULT,
+            "volume": _cue.volume.VOL_DEFAULT,
         })
         self._set_target(len(entry["pools"]) - 1)
         self._mgr._db_save_marker(key)
@@ -464,6 +464,19 @@ class CueVideoContext(CueMarkerContext):
 
 
 # =========================================================================
+# CueLoopFrequency — interval presets for loop SFX
+# =========================================================================
+
+class CueLoopFrequency(object):
+    """Loop SFX interval presets. Values match CueLoopContext.get_delay()."""
+    SLOWEST = 4   # ~6.3s
+    SLOW = 0      # ~3.8s
+    NORMAL = 1    # ~2.1s
+    FAST = 2      # ~0.6s
+    FASTEST = 3   # ~0.2s
+
+
+# =========================================================================
 # CueLoopContext
 # =========================================================================
 
@@ -489,8 +502,8 @@ class CueLoopContext(CueMarkerContext):
         entry = self._mgr._get_or_create_entry(key)
         entry["pools"].append({
             "files": [],
-            "volume": _cue.VOL_DEFAULT,
-            "frequency": 1,
+            "volume": _cue.volume.VOL_DEFAULT,
+            "frequency": CueLoopFrequency.NORMAL,
         })
         self._set_target(len(entry["pools"]) - 1)
         self._mgr._db_save_marker(key)
@@ -525,15 +538,15 @@ class CueLoopContext(CueMarkerContext):
                 self._mgr._db_save_marker(key)
 
     @staticmethod
-    def get_delay(frequency=1):
+    def get_delay(frequency=CueLoopFrequency.NORMAL):
         # type: (int) -> float
-        if frequency == 4:
+        if frequency == CueLoopFrequency.SLOWEST:
             return 5.0 + _random.uniform(0.0, 2.5)
-        elif frequency == 3:
+        elif frequency == CueLoopFrequency.FASTEST:
             return 0.15 + _random.uniform(0.0, 0.05)
-        elif frequency == 2:
+        elif frequency == CueLoopFrequency.FAST:
             return 0.5 + _random.uniform(0.0, 0.15)
-        elif frequency == 1:
+        elif frequency == CueLoopFrequency.NORMAL:
             return 1.7 + _random.uniform(0.0, .75)
         else:
             return 3.0 + _random.uniform(0.0, 1.5)
@@ -611,7 +624,7 @@ class CueMarkerManager(object):
         self._presets[name] = _copy.deepcopy(pool_dict)
         self._db_save_preset(name)
         _cue_log("CREATE-PRESET name={} files={} vol={:.1f}".format(
-            name, len(pool_dict.get("files", [])), pool_dict.get("volume", _cue.VOL_DEFAULT)))
+            name, len(pool_dict.get("files", [])), pool_dict.get("volume", _cue.volume.VOL_DEFAULT)))
 
     def delete_preset(self, name):
         # type: (str) -> None
@@ -663,7 +676,7 @@ class CueMarkerManager(object):
                 clean.append({
                     "time": pool["time"],
                     "files": list(pool.get("files", [])),
-                    "volume": pool.get("volume", _cue.VOL_DEFAULT),
+                    "volume": pool.get("volume", _cue.volume.VOL_DEFAULT),
                 })
         if not clean:
             return
@@ -671,7 +684,7 @@ class CueMarkerManager(object):
         source_dur = _cue.vid_manager.get_duration() if hasattr(_cue, 'vid_manager') else 0.0
         self._video_presets[name] = {
             "pools": clean,
-            "volume": entry.get("volume", _cue.VOL_DEFAULT),
+            "volume": entry.get("volume", _cue.volume.VOL_DEFAULT),
             "source_duration": max(source_dur, 0.0),
         }
         self._db_save_video_preset(name)
@@ -730,12 +743,12 @@ class CueMarkerManager(object):
             new_pools.append({
                 "time": t,
                 "files": list(pool.get("files", [])),
-                "volume": pool.get("volume", _cue.VOL_DEFAULT),
+                "volume": pool.get("volume", _cue.volume.VOL_DEFAULT),
             })
         new_pools.sort(key=lambda e: e["time"])
         entry = self._get_or_create_entry(vid_key)
         entry["pools"] = new_pools
-        entry["volume"] = preset.get("volume", _cue.VOL_DEFAULT)
+        entry["volume"] = preset.get("volume", _cue.volume.VOL_DEFAULT)
         self.video.target_pool = 0
         self.video.selected = set()
         self.video.sync_text()
@@ -801,8 +814,8 @@ class CueMarkerManager(object):
         # type: (PoolDict) -> ResolvedPool
         defaults = self._presets.get(pool["preset"], {}) if "preset" in pool else {}
         files = pool.get("files", defaults.get("files", []))
-        volume = pool.get("volume", defaults.get("volume", _cue.VOL_DEFAULT))
-        frequency = pool.get("frequency", defaults.get("frequency", 1))
+        volume = pool.get("volume", defaults.get("volume", _cue.volume.VOL_DEFAULT))
+        frequency = pool.get("frequency", defaults.get("frequency", CueLoopFrequency.NORMAL))
         trigger_on_shake = pool.get("trigger_on_shake", defaults.get("trigger_on_shake", False))
         exclusive = pool.get("exclusive", defaults.get("exclusive", False))
         return ResolvedPool(list(files), volume, frequency, trigger_on_shake, exclusive)
@@ -838,7 +851,7 @@ class CueMarkerManager(object):
         entry = self._get_or_create_entry(trigger_key)
         pools = entry["pools"]
         while len(pools) <= pool_index:
-            pools.append({"files": [], "volume": _cue.VOL_DEFAULT})
+            pools.append({"files": [], "volume": _cue.volume.VOL_DEFAULT})
         pools[pool_index] = {"preset": preset_name}
         self._db_save_marker(trigger_key)
         _cue_log("STAMP-PRESET key={} pi={} preset={}".format(
@@ -896,7 +909,7 @@ class CueMarkerManager(object):
         if not pools:
             pools.append({
                 "files": [],
-                "volume": _cue.VOL_DEFAULT,
+                "volume": _cue.volume.VOL_DEFAULT,
             })
         if pool_index < 0:
             pool_index = 0

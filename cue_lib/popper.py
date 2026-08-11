@@ -7,6 +7,7 @@ import renpy
 from renpy.store import NullAction
 from renpy.display.layout import Container
 
+from cue_lib.constants import CUE_POPPER_DEFAULT_OFFSET, CUE_POPPER_DEFAULT_MARGIN
 from cue_lib.state import _cue
 
 MYPY = False
@@ -130,8 +131,8 @@ class CuePopper(Container):
     MAX_POPUP_W = 400
     MAX_POPUP_H = 300
 
-    def __init__(self, target, placement="top", offset=5,
-                 viewport_margin=8, **kwargs):
+    def __init__(self, target, placement="top", offset=CUE_POPPER_DEFAULT_OFFSET,
+                 viewport_margin=CUE_POPPER_DEFAULT_MARGIN, **kwargs):
         super(CuePopper, self).__init__(**kwargs)
         self.target = target
         self.placement = placement

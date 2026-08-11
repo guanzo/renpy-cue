@@ -11,6 +11,10 @@ MYPY = False
 if MYPY:
     from typing import Optional
 
+# Minimum non-zero seek target to avoid sending 0.0 to the audio backend
+# (which would be interpreted as "no target" and defeat auto-pause).
+CUE_SEEK_EPSILON = 0.001
+
 
 class CueVideoManager(object):
     """Per-video playback state and control.
@@ -137,7 +141,7 @@ class CueVideoManager(object):
             target = pos + delta_frames * frame_seconds
             if dur > 0:
                 target = _cue_clamp_time(target, dur)
-            self.step_target = max(0.001, target)
+            self.step_target = max(CUE_SEEK_EPSILON, target)
             _cue_log("+f step_target={:.3f}".format(self.step_target))
             _music.set_pause(False, channel=self.channel)
         else:  # delta_frames < 0
@@ -154,7 +158,7 @@ class CueVideoManager(object):
                 .format(origin, self.total_offset, target, dur)
             )
             if filepath and dur > 0:
-                self.pause_target = max(0.001, target)
+                self.pause_target = max(CUE_SEEK_EPSILON, target)
                 _music.stop(channel=self.channel, fadeout=0)
                 _music.play(filepath, channel=self.channel, loop=True)
 
@@ -181,7 +185,7 @@ class CueVideoManager(object):
             if not self.paused:
                 _music.set_pause(True, channel=self.channel)
                 self.paused = True
-            self.step_target = max(0.001, target)
+            self.step_target = max(CUE_SEEK_EPSILON, target)
             _music.set_pause(False, channel=self.channel)
         else:
             # Backward seek: restart from 0 (same as -1f)
@@ -189,7 +193,7 @@ class CueVideoManager(object):
             if not filepath:
                 return
             self.step_target = 0.0
-            self.pause_target = max(0.001, target)
+            self.pause_target = max(CUE_SEEK_EPSILON, target)
             _music.stop(channel=self.channel, fadeout=0)
             _music.play(filepath, channel=self.channel, loop=True)
 

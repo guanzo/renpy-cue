@@ -15,6 +15,9 @@ import json as _json
 
 from cue_lib.util import _cue_log
 
+# Number of characters to keep from a SHA1 hex digest for file naming.
+CUE_HASH_TRUNC_LEN = 8
+
 MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
@@ -67,7 +70,7 @@ def _key_to_filename(key):
         sep = key.find("__")
         if sep != -1:
             file_part = key[2:sep]
-            dlg_hash = _hashlib.sha1(key.encode("utf-8")).hexdigest()[:8]
+            dlg_hash = _hashlib.sha1(key.encode("utf-8")).hexdigest()[:CUE_HASH_TRUNC_LEN]
             return "d_{}_{}.json".format(file_part, dlg_hash)
     # Other keys: just the key itself
     return key + ".json"
@@ -191,7 +194,7 @@ class CueDatabase(object):
     def _preset_path(self, preset_type, name):
         # type: (str, str) -> str
         safe = name.replace("/", "_").replace("\\", "_")
-        h = _hashlib.sha1(name.encode("utf-8")).hexdigest()[:8]
+        h = _hashlib.sha1(name.encode("utf-8")).hexdigest()[:CUE_HASH_TRUNC_LEN]
         return os.path.join(self._preset_dir(preset_type),
                             "{}_{}.json".format(safe, h))
 

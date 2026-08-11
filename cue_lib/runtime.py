@@ -8,6 +8,7 @@ import renpy.audio.music as _music
 import renpy.audio.audio as _aaudio
 
 from renpy.store import persistent
+from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_unwrap_displayable, _cue_get_movie_play,
@@ -330,7 +331,7 @@ def _cue_play_sfx(filename, source="", volume=1.0):
     full_path = base_dir + filename
 
     target_ch = None
-    for i in range(1, 9):
+    for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
         ch_name = "_cue_{}".format(i)
         if not _music.is_playing(channel=ch_name):
             target_ch = ch_name
@@ -339,10 +340,10 @@ def _cue_play_sfx(filename, source="", volume=1.0):
     if target_ch is None:
         idx = _cue._cue_next_sfx_channel
         target_ch = "_cue_{}".format(idx + 1)
-        _cue._cue_next_sfx_channel = (idx + 1) % 8
+        _cue._cue_next_sfx_channel = (idx + 1) % CUE_SFX_CHANNEL_COUNT
     else:
         ch_num = int(target_ch.split("_")[-1])
-        _cue._cue_next_sfx_channel = ch_num % 8
+        _cue._cue_next_sfx_channel = ch_num % CUE_SFX_CHANNEL_COUNT
 
     try:
         curr_file = _cue.current_file

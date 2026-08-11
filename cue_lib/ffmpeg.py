@@ -10,6 +10,7 @@
 import os
 import subprocess
 
+from cue_lib.constants import CUE_MAX_INTERP_FPS
 from cue_lib.util import _cue_log
 
 MYPY = False
@@ -408,7 +409,7 @@ class CueFFmpeg(object):
         # Build video filter: setpts, optionally frame interpolation
         _vf = "setpts=PTS/{:.4f}".format(speed)
         if interpolate:
-            _target_fps = min(60, source_fps * 2)
+            _target_fps = min(CUE_MAX_INTERP_FPS, source_fps * 2)
             _vf += ",minterpolate=fps={}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1".format(_target_fps)
         filters = ["[0:v]{}[v]".format(_vf)]
         if has_audio:

@@ -24,8 +24,6 @@ class Cue(_renpy_python.NoRollback):
         self.debug_log_filename = "debug.log"
 
         # --- Constants ---
-        self.DEFAULT_VIDEO_SPEED = 1.0
-        self.VOL_DEFAULT = 1.0
         self.IMG_KEY_PREFIX = "i_"
         self.LOOP_KEY_PREFIX = "l_"
         self.DLG_KEY_PREFIX = "d_"

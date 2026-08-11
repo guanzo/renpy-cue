@@ -39,6 +39,10 @@ init -999 python:
     # ---- Store bridge: bind every name that remaining .rpy files reference ----
     # _cue lives in cue_lib.state — bound to store at init -900 below
 
+    from cue_lib.constants import (
+        CUE_SFX_CHANNEL_COUNT, CUE_DEFAULT_VIDEO_SPEED,
+        CUE_POPPER_DEFAULT_OFFSET, CUE_POPPER_DEFAULT_MARGIN,
+    )
     from cue_lib.util import (
         create_img_key, create_vid_key, create_loop_key, create_dlg_key,
         is_img_key, is_vid_key, is_dlg_key, is_loop_key,
@@ -84,7 +88,11 @@ init -999 python:
         CueTooltip, CueMarkerTooltipOverlay, CueAutoSpeedChart,
     )
 
-    from cue_lib.speed import CueSpeedMode
+    from cue_lib.speed import (
+        CueSpeedMode, CUE_TOAST_DURATION, CUE_TOAST_DURATION_SEAMLESS,
+        CUE_TOAST_FADE_DURATION, CUE_TOAST_FADE_OFFSET,
+    )
+    from cue_lib.markers import CueLoopFrequency
     from cue_lib.auto_speed import _cue_auto_preset_label, _cue_auto_preset_description, CUE_AUTO_SPEED_MIN_VARIANTS
     from cue_lib.video_editor import CUE_VE_MODE_NORMAL, CUE_VE_MODE_INTERPOLATE, CUE_VE_MODE_FAST_PREVIEW
 
@@ -94,7 +102,7 @@ init -900 python:
     # not at module level) to avoid circular refs — every manager module
     # does "from cue_lib.state import _cue", so state.py itself must not
     # import them.
-    from cue_lib.markers import CueMarkerManager
+    from cue_lib.markers import CueMarkerManager, CueLoopFrequency
     from cue_lib.undo import CueUndoManager
     from cue_lib.trigger import CueTriggerEngine
     from cue_lib.video import CueVideoManager
@@ -189,7 +197,7 @@ init 999 python:
             ".".join(str(x) for x in _v), _cue._has_relative_volume))
 
         # Register 8 dedicated SFX channels on the "sfx" mixer
-        for i in range(1, 9):
+        for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
             ch_name = "_cue_{}".format(i)
             if not renpy.music.channel_defined(ch_name):
                 renpy.music.register_channel(

@@ -53,7 +53,7 @@ screen cue_vol_row(label_text, dec_action, entry_dict, inc_action):
             xsize 18
             action dec_action
         bar:
-            value DictValue(entry_dict, "volume", range=5.0)
+            value DictValue(entry_dict, "volume", range=_cue.volume.VOL_MAX)
             xsize 60
             ysize 14
             left_bar Solid(_cue_color_bar_active)
@@ -346,8 +346,8 @@ screen cue_context_section(section_title, ctx, vol_key, subtitle, subject, btn_l
                 spacing 5
                 text subtitle style "cue_txt"
         if _entry:
-            $ _entry.setdefault("volume", 1.0)
-            $ _master_vol = _entry.get("volume", 1.0)
+            $ _entry.setdefault("volume", _cue.volume.VOL_DEFAULT)
+            $ _master_vol = _entry.get("volume", _cue.volume.VOL_DEFAULT)
             $ _dec = Function(_cue.volume.adjust_master, vol_key, -0.1)
             $ _inc = Function(_cue.volume.adjust_master, vol_key, 0.1)
             use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _entry, _inc)

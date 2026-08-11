@@ -12,6 +12,7 @@ import os
 
 import renpy.config as _config
 
+from cue_lib.constants import CUE_MAX_INTERP_FPS
 from cue_lib.util import _cue_log
 
 MYPY = False
@@ -60,7 +61,7 @@ def _cue_probe_job(ffmpeg, job, dur_ms, base_dir):
         # Total output frames for progress. -vsync 0 preserves frame count
         # unless minterpolate generates new frames at a different rate.
         if interpolate:
-            _out_fps = min(60, source_fps * 2)
+            _out_fps = min(CUE_MAX_INTERP_FPS, source_fps * 2)
             total_frames = _out_fps * (dur_ms / 1000.0) / factor
         else:
             total_frames = source_fps * (dur_ms / 1000.0)

@@ -1,5 +1,7 @@
 # Type stub for cue_lib.video
-from typing import Optional
+from typing import Final, Optional
+
+CUE_SEEK_EPSILON: Final = 0.001
 
 class CueVideoManager:
     channel: Optional[str]
