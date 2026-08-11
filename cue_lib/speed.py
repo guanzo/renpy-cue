@@ -28,7 +28,7 @@ if MYPY:
     from cue_lib._types import MarkerEntry
 
 
-class SpeedMode(object):
+class CueSpeedMode(object):
     SINGLE = "single"
     MULTI = "multi"
     AUTO = "auto"
@@ -109,7 +109,7 @@ class CueVidSpeedResolver(object):
     def cycle_speed(self, delta):
         # type: (int) -> None
         if _cue.video_sequence is not None:
-            _cue.video_sequence.set_mode(SpeedMode.SINGLE)
+            _cue.video_sequence.set_mode(CueSpeedMode.SINGLE)
         if _cue.top_layer_type != 'movie':
             return
         tag = _cue.current_file
@@ -132,7 +132,7 @@ class CueVidSpeedResolver(object):
     def set_speed(self, speed):
         # type: (float) -> None
         if _cue.video_sequence is not None:
-            _cue.video_sequence.set_mode(SpeedMode.SINGLE)
+            _cue.video_sequence.set_mode(CueSpeedMode.SINGLE)
         if _cue.top_layer_type != 'movie':
             return
         tag = _cue.current_file
@@ -571,26 +571,26 @@ class CueVidSpeedSequence(object):
         if tag is None:
             tag = _cue.current_file
         if not tag:
-            return SpeedMode.SINGLE
+            return CueSpeedMode.SINGLE
         entry = _cue.markers.get(create_vid_key(tag))
         if entry is None:
-            return SpeedMode.SINGLE
-        return entry.get("speed_mode", SpeedMode.SINGLE)
+            return CueSpeedMode.SINGLE
+        return entry.get("speed_mode", CueSpeedMode.SINGLE)
 
     def set_mode(self, mode, tag=None):
         # type: (str, Optional[str]) -> None
         if tag is None:
             tag = _cue.current_file
-        if not tag or mode not in (SpeedMode.SINGLE, SpeedMode.MULTI, SpeedMode.AUTO):
+        if not tag or mode not in (CueSpeedMode.SINGLE, CueSpeedMode.MULTI, CueSpeedMode.AUTO):
             return
         entry = self._get_entry(tag)
         if entry is None:
             return
         entry["speed_mode"] = mode
         _cue.markers.save_marker(create_vid_key(tag))
-        if mode == SpeedMode.MULTI:
+        if mode == CueSpeedMode.MULTI:
             self.start(tag)
-        elif mode == SpeedMode.AUTO:
+        elif mode == CueSpeedMode.AUTO:
             self._start_auto(tag)
         else:
             self.cancel()
@@ -639,7 +639,7 @@ class CueVidSpeedSequence(object):
         old_tag = self.active_tag
         mode = self.get_mode(tag)
         speeds = self.speeds_for(tag)
-        if speeds and mode in (SpeedMode.MULTI, SpeedMode.AUTO):
+        if speeds and mode in (CueSpeedMode.MULTI, CueSpeedMode.AUTO):
             if not old_tag or old_tag != tag:
                 self.start(tag)
         elif old_tag:
@@ -676,7 +676,7 @@ class CueVidSpeedSequence(object):
                 if seq:
                     new_index = (self._step_index + 1) % len(seq)
                     # AUTO mode: wrap-around triggers regeneration
-                    if (self.get_mode(self.active_tag) == SpeedMode.AUTO
+                    if (self.get_mode(self.active_tag) == CueSpeedMode.AUTO
                             and new_index == 0
                             and hasattr(_cue, 'auto_speed')):
                         _cue.auto_speed.on_wrap_around()

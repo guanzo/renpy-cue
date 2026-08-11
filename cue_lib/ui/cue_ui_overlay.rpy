@@ -146,15 +146,15 @@ screen cue_overlay_content():
                     if len(_avail) > 1:
                         hbox:
                             spacing 5
-                            use cue_tab_btn("Single Speed", (_mode == SpeedMode.SINGLE),
-                                Function(_cue.video_sequence.set_mode, SpeedMode.SINGLE))
-                            use cue_tab_btn("Multi Speed", (_mode == SpeedMode.MULTI),
-                                Function(_cue.video_sequence.set_mode, SpeedMode.MULTI))
-                            use cue_tab_btn("Auto Speed", (_mode == SpeedMode.AUTO),
-                                Function(_cue.video_sequence.set_mode, SpeedMode.AUTO))
+                            use cue_tab_btn("Single Speed", (_mode == CueSpeedMode.SINGLE),
+                                Function(_cue.video_sequence.set_mode, CueSpeedMode.SINGLE))
+                            use cue_tab_btn("Multi Speed", (_mode == CueSpeedMode.MULTI),
+                                Function(_cue.video_sequence.set_mode, CueSpeedMode.MULTI))
+                            use cue_tab_btn("Auto Speed", (_mode == CueSpeedMode.AUTO),
+                                Function(_cue.video_sequence.set_mode, CueSpeedMode.AUTO))
 
                     # --- Speeds tab ---
-                    if _mode == SpeedMode.SINGLE and len(_avail) > 1:
+                    if _mode == CueSpeedMode.SINGLE and len(_avail) > 1:
                         $ _cur = _cue.speed_resolver.speed_for(_cue.current_file)
                         vbox:
                             spacing 5
@@ -187,7 +187,7 @@ screen cue_overlay_content():
                                 tt="When enabled, changing speeds waits for the current video loop to finish before switching.")
 
                     # --- Multi Speed tab ---
-                    if _mode == SpeedMode.MULTI:
+                    if _mode == CueSpeedMode.MULTI:
                         text "The video plays through each speed in order, then loops." style "cue_help"
                         if len(_avail) > 1:
                             hbox:
@@ -216,7 +216,7 @@ screen cue_overlay_content():
                             text "Click the speed buttons to create a sequence. Minimum 2 speeds." style "cue_help"
 
                     # --- Auto Speed tab ---
-                    if _mode == SpeedMode.AUTO:
+                    if _mode == CueSpeedMode.AUTO:
                         $ _auto = _cue.auto_speed
                         $ _avail_speeds = _cue.speed_resolver.get_available_speeds(_vid_path)
                         $ _has_auto = len(_avail_speeds) >= CUE_AUTO_SPEED_MIN_VARIANTS
