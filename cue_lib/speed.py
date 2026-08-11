@@ -265,9 +265,34 @@ class CueVidSpeedResolver(object):
                 self._pre_pending_speed = None
                 _cue.speed_toast.show(tag, duration=CUE_TOAST_DURATION_SEAMLESS)
                 renpy.restart_interaction()
+            # Always return the stable Movie during seamless pending --
+            # the channel is being driven by music.queue(), not by the
+            # Movie's play parameter.
+            return self._movie_for(tag, base_path, orig_movie), None
 
-        # Always return the same Movie -- the channel produces frames
-        # for whichever file is currently playing.
+        # -- Non-seamless path: return a Movie whose play matches the
+        #    current speed preference.  Different speeds get different
+        #    Movie objects so Ren'Py detects the identity change and
+        #    restarts playback with the new variant file.
+        if not self.seamless_transition:
+            speed = self._get_speed_pref(tag)
+            if speed == CUE_DEFAULT_VIDEO_SPEED:
+                return self._movie_for(tag, base_path, orig_movie), None
+            variant = self.variant_path(base_path, speed)
+            if not os.path.exists(variant):
+                return self._movie_for(tag, base_path, orig_movie), None
+            cache_key = (tag, speed)
+            cached = self.children.get(cache_key, None)
+            if cached is not None:
+                return cached, None
+            kwargs = _cue_capture_kwargs(orig_movie)
+            kwargs["play"] = variant
+            child = Movie(**kwargs)
+            self.children[cache_key] = child
+            return child, None
+
+        # Seamless idle: stable Movie identity, channel plays whatever
+        # file was last queued or set.
         return self._movie_for(tag, base_path, orig_movie), None
 
     def wrap_all_movies(self):
@@ -709,6 +734,9 @@ class CueVidSpeedSequence(object):
                             and new_index == 0
                             and hasattr(_cue, 'auto_speed')):
                         _cue.auto_speed.on_wrap_around()
+                        # on_wrap_around() calls start() which resets all
+                        # tick state -- bail out so we don't overwrite it
+                        return
                     else:
                         self._step_index = new_index
             self.play_count += 1
