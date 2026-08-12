@@ -33,18 +33,12 @@ screen _cue_edit_queue_vbox():
 
 screen cue_video_vfx():
     use cue_section_frame("Video VFX"):
-        default _vfx_did_default = False
         # --- Pre-compute speed availability ---
         $ _vid_path = _cue.speed_resolver.base_path_for(_cue.current_file)
         $ _has_speeds = False
         if _vid_path:
             $ _avail = _cue.speed_resolver.get_available_speeds(_vid_path)
             $ _has_speeds = len(_avail) > 1
-
-        # Auto-switch to Create tab when no speeds are available
-        if not _has_speeds and not _cue.video_editor.active and not _vfx_did_default:
-            $ _cue.video_editor.open_editor()
-            $ _vfx_did_default = True
 
         # --- Tab buttons ---
         hbox:
@@ -193,7 +187,7 @@ screen cue_video_vfx():
                         if _seq and len(_seq) >= 2:
                             add CueAutoSpeedChart() xsize 440 ysize 80
             else:
-                text "No speed variants available. Create some in the Create tab." style "cue_help"
+                text "No speed variants available. Make some in the Create tab." style "cue_help"
 
         # --- Create tab ---
         if _cue.video_editor.active:
