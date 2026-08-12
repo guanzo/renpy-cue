@@ -13,7 +13,7 @@ from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_unwrap_displayable, _cue_get_movie_play,
     _cue_resolve_files, _cue_pick_file,
-    create_img_key, create_dlg_key,
+    create_img_key, create_vid_key, create_dlg_key,
     is_vid_key, is_img_key, is_dlg_key,
     get_key_file, get_key_dialogue,
 )
@@ -52,6 +52,22 @@ def _cue_toggle_shake_trigger():
     pool = _cue.markers._ensure_pool(shake_key, _cue.markers._img_target)
     pool["trigger_on_shake"] = not pool.get("trigger_on_shake", False)
     _cue.markers.save_marker(shake_key)
+
+def _cue_toggle_video_mute():
+    # type: () -> None
+    if not _cue.current_file:
+        return
+    vid_key = create_vid_key(_cue.current_file)
+    entry = _cue.markers.get(vid_key, {})
+    if not entry:
+        return
+    video_file_muted = not entry.get("video_file_muted", False)
+    entry["video_file_muted"] = video_file_muted
+    _cue.markers.save_marker(vid_key)
+    ch = _cue.vid_manager.channel
+    if ch:
+        _music.set_volume(0.0 if video_file_muted else 1.0, delay=0, channel=ch)
+    renpy.restart_interaction()
 
 def _cue_show_overlay():
     # type: () -> None
@@ -243,6 +259,13 @@ def _cue_refresh_channel(displayable=None):
                 _cue.vid_manager.reset(ch_name)
                 _cue.vid_manager.set_fps(fps)
                 _cue.video_editor.refresh()
+
+            # Re-apply video mute state from marker data
+            if _cue.current_file:
+                vid_key = create_vid_key(_cue.current_file)
+                entry = _cue.markers.get(vid_key, {}) 
+                if entry and entry.get("video_file_muted", False):
+                    _music.set_volume(0.0, delay=0, channel=ch_name)
 
         candidates = []
         try:

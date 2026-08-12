@@ -188,6 +188,8 @@ screen cue_overlay_content():
                             text "The video will only play at the selected speed" style "cue_help"
                             hbox:
                                 spacing 5
+                                box_wrap True
+                                box_wrap_spacing 3
                                 for _sp in _avail:
                                     $ _label = _cue_speed_label(_sp)
                                     $ _tt = ("Play at " + _cue_speed_label(_sp) + " speed"
@@ -367,7 +369,15 @@ screen cue_overlay_content():
                         $ _master_vol = _vid_entry.get("volume", _cue.volume.VOL_DEFAULT)
                         $ _dec = Function(_cue.volume.adjust_master, _vid_key, -0.1)
                         $ _inc = Function(_cue.volume.adjust_master, _vid_key, 0.1)
-                        use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _vid_entry, _inc)
+                        $ _is_muted = _vid_entry.get("video_file_muted", False)
+                        hbox:
+                            spacing 5
+                            box_wrap True
+                            box_wrap_spacing 3
+                            use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _vid_entry, _inc)
+                            use cue_checkbox(_is_muted, "Mute audio track",
+                                Function(_cue_toggle_video_mute),
+                                "Mute the video's audio track. Does not affect Cue SFX.")
                     use cue_pool_tabs(_vid_count, _vid_target, bool(_vid_entries),
                         "Delete all video markers for the current video?",
                         Function(_cue.markers.video.clear), "Delete all video SFX for the current video",
@@ -495,7 +505,8 @@ screen cue_overlay_content():
                             text "Match original quality" style "cue_help"
                     if _ved._current_has_audio:
                         use cue_checkbox(_ved.remove_audio, "Remove audio track",
-                            Function(_cue.video_editor.toggle_remove_audio))
+                            Function(_cue.video_editor.toggle_remove_audio),
+                            "Removes the video's audio track if exists.")
                     null height 2
                     use cue_txt_button("Create",
                         Function(_cue.video_editor.prepare_create),
@@ -558,7 +569,7 @@ screen cue_overlay_content():
                 spacing 5
                 box_wrap True
                 box_wrap_spacing 3
-                text "Interval:" style "cue_txt" size 11
+                text "Interval:" style "cue_txt"
                 use cue_select_btn("Slowest", (_freq == CueLoopFrequency.SLOWEST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOWEST), tt="~6.3s between plays")
                 use cue_select_btn("Slow", (_freq == CueLoopFrequency.SLOW), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOW), tt="~3.8s between plays")
                 use cue_select_btn("Normal", (_freq == CueLoopFrequency.NORMAL), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.NORMAL), tt="~2.1s between plays")
@@ -731,7 +742,7 @@ screen cue_repeat_markers_dialog():
                 hbox:
                     spacing 3
                     xalign 0.0
-                    text "Interval:" style "cue_txt" size 12
+                    text "Interval:" style "cue_txt"
                     $ _commit = Function(_cue.repeater.commit_interval)
                     $ _display = _cue.repeater.interval_text
                     use cue_float_input("_cue.repeater.interval_text", _commit, _display,
@@ -741,7 +752,7 @@ screen cue_repeat_markers_dialog():
                 hbox:
                     spacing 3
                     xalign 0.0
-                    text "Repeat:" style "cue_txt" size 12
+                    text "Repeat:" style "cue_txt"
                     $ _dec = Function(_cue.repeater.nudge_count, -1)
                     $ _inc = Function(_cue.repeater.nudge_count, 1)
                     $ _commit = Function(_cue.repeater.commit_count)
@@ -808,7 +819,7 @@ screen cue_save_preset_dialog():
 
             hbox:
                 spacing 5
-                text "Name:" style "cue_txt" size 12
+                text "Name:" style "cue_txt"
                 input:
                     style "cue_input"
                     value _CueFieldValue("_cue.preset_dialog.name")
@@ -879,7 +890,7 @@ screen cue_save_video_preset_dialog():
 
             hbox:
                 spacing 5
-                text "Name:" style "cue_txt" size 12
+                text "Name:" style "cue_txt"
                 input:
                     style "cue_input"
                     value _CueFieldValue("_cue.video_preset_dialog.name")

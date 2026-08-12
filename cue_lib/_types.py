@@ -53,6 +53,7 @@ class MarkerEntry(TypedDict, total=False):
     """Returned by CueMarkerManager.get()."""
     pools: List[PoolDict]
     volume: float               # entry-level master volume (default 1.0)
+    video_file_muted: bool      # video audio track muted
     replay: str                 # replay label
     speed_pref: float           # per-video speed preference
     speed_sequence: List[float] # per-video speed sequence
