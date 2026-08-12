@@ -8,6 +8,7 @@ import time
 import random as _random
 import functools as _functools
 import renpy
+import renpy.atl as _atl
 import renpy.config as _config
 import renpy.display.video as _video
 import renpy.display.im as _im
@@ -165,6 +166,36 @@ def _cue_get_movie_or_image(name_or_displayable):
     if isinstance(d, _im.Image):
         return "image", d
     return None, d
+
+
+def _cue_atl_child_displayables(d):
+    # type: (Any) -> Optional[List[Any]]
+    """Return the displayable children (renpy.atl.Child statements) of an
+    ATL image definition, or None if d is not an ATL transform or its block
+    can't be compiled.
+
+    Used by wrap_all_movies() to link ATL-wrapped movies -- one-way videos
+    shown via multi-part tags like 'bg <name> movie' -- to the Movie images
+    they display."""
+    if not isinstance(d, _atl.ATLTransformBase):
+        return None
+    block = getattr(d, "block", None)
+    if block is None:
+        try:
+            d.compile()
+        except Exception:
+            return None
+        block = getattr(d, "block", None)
+    if block is None or not hasattr(block, "statements"):
+        return None
+    children = []
+    for stmt in block.statements:
+        try:
+            if isinstance(stmt, _atl.Child):
+                children.append(stmt.child)
+        except Exception:
+            continue
+    return children if children else None
 
 
 # --------------------------------------------------------------------------

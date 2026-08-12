@@ -19,6 +19,7 @@ from cue_lib.constants import CUE_DEFAULT_VIDEO_SPEED, CUE_AUTO_SPEED_MIN_VARIAN
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_unwrap_displayable, _cue_get_movie_play,
+    _cue_atl_child_displayables,
     create_vid_key,
 )
 from cue_lib.popper import _cue_clear_focus_rect
@@ -299,6 +300,8 @@ class CueVidSpeedResolver(object):
         # type: () -> None
         _start = _time.time()
         _count = 0
+
+        # First pass: Find all Movies
         for name_tuple, d in list(_display_images.items()):
             if isinstance(d, DynamicDisplayable):
                 continue
@@ -312,8 +315,39 @@ class CueVidSpeedResolver(object):
             self.paths[tag] = base_path
             renpy.image(name_tuple, DynamicDisplayable(_cue_resolver, tag, base_path, unwrapped))
             _count += 1
+
+        # Second pass: ATL images ("bg <name> movie") display a wrapped
+        # Movie child. They aren't Movies themselves, but base_path_for()
+        # must resolve their tag for channel detection. Child names are
+        # resolved against self.paths, which the first pass fully
+        # populated, so this is independent of registry order.
+        _atl_count = 0
+        for name_tuple, d in list(_display_images.items()):
+            if isinstance(d, DynamicDisplayable):
+                continue
+            children = _cue_atl_child_displayables(d)
+            if not children:
+                continue
+            for child in children:
+                if isinstance(child, Movie):
+                    base_path = _cue_get_movie_play(child)
+                else:
+                    name = getattr(child, "name", None)
+                    if name is None and isinstance(child, str):
+                        name = child
+                    if name is None:
+                        continue
+                    if not isinstance(name, tuple):
+                        name = tuple(name.split())
+                    base_path = self.paths.get(" ".join(name))
+                if base_path:
+                    tag = " ".join(name_tuple)
+                    if tag not in self.paths:
+                        self.paths[tag] = base_path
+                        _atl_count += 1
+                    break
         _elapsed = _time.time() - _start
-        _cue_log("DynamicDisplayable resolver wrapping done: {} movies in {:.3f}s".format(_count, _elapsed))
+        _cue_log("DynamicDisplayable resolver wrapping done: {} movies (+{} atl) in {:.3f}s".format(_count, _atl_count, _elapsed))
 
     # Variant path utilities
     _VARIANT_PREFIX = "_cue"
