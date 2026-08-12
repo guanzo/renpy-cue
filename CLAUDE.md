@@ -130,12 +130,6 @@ class CueLoopFrequency(object):
 
 Import into store via `cue_z.rpy` init -999 so `.rpy` screens can use them.
 
-### VOL_DEFAULT trap
-
-`VOL_DEFAULT` was formerly defined in BOTH `state.py` (`_cue.VOL_DEFAULT`) and
-`volume.py` (`_cue.volume.VOL_DEFAULT`). Only `volume.py` is canonical now.
-Always write `_cue.volume.VOL_DEFAULT` — never `_cue.VOL_DEFAULT` or raw `1.0`.
-
 ## Code Organization
 
 - **Encapsulate features as classes.** When adding a new UI component, dialog, or feature, create a dedicated class that owns its state, logic, and screen hooks. Prefer `_cue.thing = ThingManager()` over scattered `_cue._thing_var1`, `_cue._thing_var2` and global `_cue_do_thing()` functions.
