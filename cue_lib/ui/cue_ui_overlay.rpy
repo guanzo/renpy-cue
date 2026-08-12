@@ -150,27 +150,37 @@ screen cue_overlay_content():
         $ _is_video = _cue.top_layer_type == 'movie'
         $ _is_dialogue = bool(_cue.current_dialogue)
 
-        # --- Video UI ---
-        use cue_section_frame("Video"):
+        # --- Video VFX UI ---
+        use cue_section_frame("Video VFX"):
+            default _vfx_did_default = False
+            # --- Pre-compute speed availability ---
+            $ _vid_path = _cue.speed_resolver.base_path_for(_cue.current_file) if _is_video else None
+            $ _has_speeds = False
+            if _vid_path:
+                $ _avail = _cue.speed_resolver.get_available_speeds(_vid_path)
+                $ _has_speeds = len(_avail) > 1
+
+            # Auto-switch to Create tab when no speeds are available
+            if not _has_speeds and not _cue.video_editor.active and not _vfx_did_default:
+                $ _cue.video_editor.open_editor()
+                $ _vfx_did_default = True
+
             # --- Tab buttons ---
             hbox:
                 spacing 5
-                use cue_tab_btn("SFX", not _cue.video_editor.active,
+                use cue_tab_btn("Speed", not _cue.video_editor.active,
                     Function(_cue.video_editor.close_editor))
-                use cue_tab_btn("VFX", _cue.video_editor.active,
+                use cue_tab_btn("Create", _cue.video_editor.active,
                     Function(_cue.video_editor.open_editor))
-            if _is_video:
-                $ _vid_name = _cue.current_file if _cue.current_file else "?"
-                text "Video: [_vid_name]" style "cue_txt"
 
-                # --- Speed / Multi Speed tabs ---
-                $ _vid_path = _cue.speed_resolver.base_path_for(_cue.current_file)
-                if _vid_path:
-                    $ _avail = _cue.speed_resolver.get_available_speeds(_vid_path)
-                    $ _seq = _cue.video_sequence.speeds_for(_cue.current_file)
-                    $ _mode = _cue.video_sequence.get_mode()
+            # --- Speed tab ---
+            if not _cue.video_editor.active:
+                if _is_video:
+                    if _has_speeds:
+                        # --- Speed / Multi Speed tabs ---
+                        $ _seq = _cue.video_sequence.speeds_for(_cue.current_file)
+                        $ _mode = _cue.video_sequence.get_mode()
 
-                    if len(_avail) > 1:
                         hbox:
                             spacing 5
                             use cue_tab_btn("Single Speed", (_mode == CueSpeedMode.SINGLE),
@@ -180,291 +190,137 @@ screen cue_overlay_content():
                             use cue_tab_btn("Auto Speed", (_mode == CueSpeedMode.AUTO),
                                 Function(_cue.video_sequence.set_mode, CueSpeedMode.AUTO))
 
-                    # --- Speeds tab ---
-                    if _mode == CueSpeedMode.SINGLE and len(_avail) > 1:
-                        $ _cur = _cue.speed_resolver.speed_for(_cue.current_file)
-                        vbox:
-                            spacing 5
-                            text "The video will only play at the selected speed" style "cue_help"
-                            hbox:
+                        # --- Speeds tab ---
+                        if _mode == CueSpeedMode.SINGLE:
+                            $ _cur = _cue.speed_resolver.speed_for(_cue.current_file)
+                            vbox:
                                 spacing 5
-                                box_wrap True
-                                box_wrap_spacing 3
-                                for _sp in _avail:
-                                    $ _label = _cue_speed_label(_sp)
-                                    $ _tt = ("Play at " + _cue_speed_label(_sp) + " speed"
-                                        if _sp != CUE_DEFAULT_VIDEO_SPEED
-                                        else "Play at original video speed")
-                                    $ _is_pending = (_cue.speed_resolver._pending_speed is not None
-                                        and _sp == _cue.speed_resolver._pending_speed)
-                                    $ _is_selected = _cur == _sp or _is_pending
-                                    $ _btn_color = ("#886600" if _is_pending else _cue_color_active)
-                                    use cue_select_btn(_label, _is_selected,
-                                        Function(_cue.speed_resolver.set_speed, _sp),
-                                        tt=_tt, active_color=_btn_color)
-                                if _cur != CUE_DEFAULT_VIDEO_SPEED:
-                                    use cue_v_divider()
-                                    use cue_txt_button("Delete " + _cue_speed_label(_cur),
-                                        Function(_cue.speed_resolver.delete_variant, _vid_path, _cur),
-                                        tt="Delete the " + _cue_speed_label(_cur) + " file.")
-                            use cue_checkbox(
-                                _cue.speed_resolver.seamless_transition,
-                                "Seamless Transition",
-                                Function(_cue.speed_resolver.toggle_seamless),
-                                tt_on="When enabled, changing speeds waits for the current video loop to finish before switching.")
+                                text "The video will only play at the selected speed" style "cue_help"
+                                hbox:
+                                    spacing 5
+                                    box_wrap True
+                                    box_wrap_spacing 3
+                                    for _sp in _avail:
+                                        $ _label = _cue_speed_label(_sp)
+                                        $ _tt = ("Play at " + _cue_speed_label(_sp) + " speed"
+                                            if _sp != CUE_DEFAULT_VIDEO_SPEED
+                                            else "Play at original video speed")
+                                        $ _is_pending = (_cue.speed_resolver._pending_speed is not None
+                                            and _sp == _cue.speed_resolver._pending_speed)
+                                        $ _is_selected = _cur == _sp or _is_pending
+                                        $ _btn_color = ("#886600" if _is_pending else _cue_color_active)
+                                        use cue_select_btn(_label, _is_selected,
+                                            Function(_cue.speed_resolver.set_speed, _sp),
+                                            tt=_tt, active_color=_btn_color)
+                                    if _cur != CUE_DEFAULT_VIDEO_SPEED:
+                                        use cue_v_divider()
+                                        use cue_txt_button("Delete " + _cue_speed_label(_cur),
+                                            Function(_cue.speed_resolver.delete_variant, _vid_path, _cur),
+                                            tt="Delete the " + _cue_speed_label(_cur) + " file.")
+                                use cue_checkbox(
+                                    _cue.speed_resolver.seamless_transition,
+                                    "Seamless Transition",
+                                    Function(_cue.speed_resolver.toggle_seamless),
+                                    tt_on="When enabled, changing speeds waits for the current video loop to finish before switching.")
 
-                    # --- Multi Speed tab ---
-                    if _mode == CueSpeedMode.MULTI:
-                        text "The video plays through each speed in order, then loops." style "cue_help"
-                        if len(_avail) > 1:
-                            hbox:
-                                spacing 5
-                                box_wrap True
-                                box_wrap_spacing 5
-                                for _sp in _avail:
-                                    $ _a_label = _cue_speed_label(_sp)
-                                    use cue_txt_button(_a_label,
-                                        Function(_cue.video_sequence.append_speed, _sp),
-                                        tt="Append " + _cue_speed_label(_sp) + " to the end of the sequence")
+                            # --- Multi Speed tab ---
+                            if _mode == CueSpeedMode.MULTI:
+                                text "The video plays through each speed in order, then loops." style "cue_help"
+                                hbox:
+                                    spacing 5
+                                    box_wrap True
+                                    box_wrap_spacing 5
+                                    for _sp in _avail:
+                                        $ _a_label = _cue_speed_label(_sp)
+                                        use cue_txt_button(_a_label,
+                                            Function(_cue.video_sequence.append_speed, _sp),
+                                            tt="Append " + _cue_speed_label(_sp) + " to the end of the sequence")
+                                    if _seq:
+                                        use cue_v_divider()
+                                        use cue_txt_button("Clear",
+                                            Function(_cue.video_sequence.clear_sequence, None),
+                                            tt="Remove the entire speed sequence")
+
+                                null height 5
+
                                 if _seq:
-                                    use cue_v_divider()
-                                    use cue_txt_button("Clear",
-                                        Function(_cue.video_sequence.clear_sequence, None),
-                                        tt="Remove the entire speed sequence")
+                                    if len(_seq) >= 2:
+                                        add CueAutoSpeedChart() xsize 440 ysize 80
+                                    else:
+                                        text "Click 1 more speed." style "cue_help"
+                                else:
+                                    text "Click the speed buttons to create a sequence. Minimum 2 speeds." style "cue_help"
 
-                        null height 5
+                            # --- Auto Speed tab ---
+                            if _mode == CueSpeedMode.AUTO:
+                                $ _auto = _cue.auto_speed
+                                $ _all_speeds = _cue.speed_resolver.get_available_speeds(_vid_path)
+                                $ _has_auto = len(_auto.enabled_speeds) >= CUE_AUTO_SPEED_MIN_VARIANTS
 
-                        if _seq:
-                            if len(_seq) >= 2:
-                                add CueAutoSpeedChart() xsize 440 ysize 80
-                            else:
-                                text "Click 1 more speed." style "cue_help"
-                        else:
-                            text "Click the speed buttons to create a sequence. Minimum 2 speeds." style "cue_help"
+                                $ _auto_help = (
+                                    "Procedurally generates speed sequences with a given theme. "
+                                    "Each playthrough of a theme is slightly different. "
+                                    "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is [CUE_AUTO_SPEED_IDEAL_VARIANTS]. The more the better."
+                                )
+                                text _auto_help style "cue_help"
 
-                    # --- Auto Speed tab ---
-                    if _mode == CueSpeedMode.AUTO:
-                        $ _auto = _cue.auto_speed
-                        $ _all_speeds = _cue.speed_resolver.get_available_speeds(_vid_path)
-                        $ _has_auto = len(_auto.enabled_speeds) >= CUE_AUTO_SPEED_MIN_VARIANTS
+                                if not _has_auto:
+                                    null height 3
+                                    text "You don't have enough speeds, generate more in the Create tab." style "cue_help"
 
-                        $ _auto_help = (
-                            "Procedurally generates speed sequences with a given theme. "
-                            "Each playthrough of a theme is slightly different. "
-                            "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is [CUE_AUTO_SPEED_IDEAL_VARIANTS]. The more the better."
-                        )
-                        text _auto_help style "cue_help"
+                                if _has_auto:
+                                    null height 3
 
-                        if not _has_auto:
-                            null height 3
-                            text "You don't have enough speeds, generate more in the VFX tab." style "cue_help"
+                                    # --- Speed toggles ---
+                                    hbox:
+                                        spacing 5
+                                        box_wrap True
+                                        box_wrap_spacing 5
+                                        for _sp in _all_speeds:
+                                            use cue_select_btn(
+                                                _cue_speed_label(_sp), 
+                                                _auto.is_speed_enabled(_sp), 
+                                                Function(_auto.toggle_speed, _sp),
+                                                "Click to disable" if _auto.is_speed_enabled(_sp) else "Click to enable")
 
-                        if _has_auto:
-                            null height 3
+                                    null height 5
 
-                            # --- Speed toggles ---
-                            hbox:
-                                spacing 5
-                                box_wrap True
-                                box_wrap_spacing 5
-                                text "Speeds:" style "cue_txt"
-                                for _sp in _all_speeds:
-                                    use cue_select_btn(_cue_speed_label(_sp), _auto.is_speed_enabled(_sp), Function(_auto.toggle_speed, _sp))
+                                    hbox:
+                                        spacing 5
+                                        box_wrap True
+                                        box_wrap_spacing 5
+                                        use cue_auto_preset_btn("roller_coaster", _auto)
+                                        use cue_auto_preset_btn("build_up", _auto)
+                                        use cue_auto_preset_btn("cool_down", _auto)
+                                        use cue_auto_preset_btn("slow_groove", _auto)
+                                        use cue_auto_preset_btn("fast_frenzy", _auto)
+                                        use cue_auto_preset_btn("tease", _auto)
+                                        use cue_auto_preset_btn("plateau", _auto)
+                                        use cue_auto_preset_btn("edge", _auto)
+                                        use cue_auto_preset_btn("anchor", _auto)
+                                        use cue_auto_preset_btn("pulse", _auto)
+                                        use cue_auto_preset_btn("random_walk", _auto)
+                                        use cue_auto_preset_btn("surprise", _auto,
+                                            extra_text="Surprise Me")
 
-                            null height 5
+                                    null height 5
 
-                            hbox:
-                                spacing 5
-                                box_wrap True
-                                box_wrap_spacing 5
-                                use cue_auto_preset_btn("roller_coaster", _auto)
-                                use cue_auto_preset_btn("build_up", _auto)
-                                use cue_auto_preset_btn("cool_down", _auto)
-                                use cue_auto_preset_btn("slow_groove", _auto)
-                                use cue_auto_preset_btn("fast_frenzy", _auto)
-                                use cue_auto_preset_btn("tease", _auto)
-                                use cue_auto_preset_btn("plateau", _auto)
-                                use cue_auto_preset_btn("edge", _auto)
-                                use cue_auto_preset_btn("anchor", _auto)
-                                use cue_auto_preset_btn("pulse", _auto)
-                                use cue_auto_preset_btn("random_walk", _auto)
-                                use cue_auto_preset_btn("surprise", _auto,
-                                    extra_text="Surprise Me")
-
-                            null height 5
-
-                            # --- Sequence chart ---
-                            $ _seq = _cue.video_sequence.speeds_for(_cue.current_file)
-                            if _seq and len(_seq) >= 2:
-                                add CueAutoSpeedChart() xsize 440 ysize 80
-
-                use cue_h_divider()
-
-                # --- SFX Tab ---
-                if not _cue.video_editor.active:
-                    hbox:
-                        spacing 5
-                        hbox:
-                            spacing 0
-                            text "Time: " style "cue_txt"
-                            add CueSelfUpdatingLabel(_cue.vid_manager.time_label, style="cue_txt")
-                        hbox:
-                            spacing 0
-                            text "Frames: " style "cue_txt"
-                            add CueSelfUpdatingLabel(_cue.vid_manager.frame_label, style="cue_txt")
-                    hbox:
-                        spacing 5
-                        use cue_txt_button(("▶" if _cue.vid_manager.paused else "⏸"),
-                            Function(_cue.vid_manager.toggle_pause))
-                        use cue_txt_button("-1f",
-                            Function(_cue.vid_manager.seek_frame, -1),
-                            tt="Seek backwards 1 frame (inaccurate and requires restarting video)")
-                        use cue_txt_button("+1f",
-                            Function(_cue.vid_manager.seek_frame, 1),
-                            tt="Seek forward 1 frame (inaccurate)")
-
-                        use cue_v_divider()
-                        use cue_txt_button("Repeat", Function(_cue.repeater.open),
-                            tt="Repeat selected markers at regular intervals across the video")
-                        $ _has_markers = _cue.markers.video.has_markers()
-                        use cue_icon_btn("💾", Function(_cue.video_preset_dialog.open), "Save all video markers as a preset", None)
-                        use cue_icon_btn("✕",
-                            (Function(_cue.markers.video.remove_selected) if _has_markers else NullAction()),
-                            "Delete selected markers" if _has_markers else "No markers to delete", None)
-                        use cue_icon_btn("?",
-                            NullAction(),
-                            ("• Markers and marker groups are draggable.\n"
-                            + "• (Alt + Click) or (Shift + Click) to create a marker group.\n"
-                            + "• Use Repeat to copy selected markers at an interval.\n"
-                            + "• Get your markers timed to the first position, then use Repeat to find to right interval."),
-                            None)
-                    # --- Timeline visualizer ---
-                    frame:
-                        background None
-                        xfill True
-                        yminimum 0
-                        padding (10, 0)
-                        fixed:
-                            xfill True
-                            ysize 18
-                            add CueVideoTimeline()
-                    # Video marker tabs + active pool
-                    $ _vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
-                    $ _vid_entry = _cue.markers.get(_vid_key, {})
-                    $ _vid_entries = _cue.markers._resolve_video_pools(_vid_entry) if _vid_entry else []
-                    $ _vid_count = len(_vid_entries)
-                    $ _vid_target = _cue.markers.video.target_pool
-                    $ _vid_target = max(0, min(_vid_target, _vid_count - 1)) if _vid_entries else 0
-                    # --- Draggable video marker timeline ---
-                    if _vid_entries:
-                        add CueVideoMarkerTimeline(
-                            get_markers=_cue.markers.video.get_markers,
-                            get_active=_cue.markers.video.get_active,
-                            set_active=_cue.markers.video.set_active,
-                            set_time=_cue.markers.video.set_time,
-                            get_dur=_cue.markers.video.get_duration,
-                        ) yoffset -8
-                    if _vid_entry:
-                        $ _vid_entry.setdefault("volume", _cue.volume.VOL_DEFAULT)
-                        $ _master_vol = _vid_entry.get("volume", _cue.volume.VOL_DEFAULT)
-                        $ _dec = Function(_cue.volume.adjust_master, _vid_key, -0.1)
-                        $ _inc = Function(_cue.volume.adjust_master, _vid_key, 0.1)
-                        $ _is_muted = _vid_entry.get("video_file_muted", False)
-                        hbox:
-                            spacing 5
-                            box_wrap True
-                            box_wrap_spacing 3
-                            use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _vid_entry, _inc)
-                            use cue_checkbox(_is_muted, "Mute audio track",
-                                Function(_cue_toggle_video_mute),
-                                "Mute the video's audio track. Does not affect Cue SFX.")
-                    use cue_pool_tabs(_vid_count, _vid_target, bool(_vid_entries),
-                        "Delete all video markers for the current video?",
-                        Function(_cue.markers.video.clear), "Delete all video SFX for the current video",
-                        Function(_cue.markers.video.add_pool), "Create a new empty marker at current time",
-                        _cue.markers.video.select_tab, (), "Select pool — V button adds files here")
-
-                    # Active pool display
-                    if _vid_entries and 0 <= _vid_target < _vid_count:
-                        $ _active_pool = _vid_entries[_vid_target]
-                        $ _raw_files = _active_pool.get("files", [])
-                        $ _active_files = _cue_resolve_files(_raw_files)
-                        $ _active_vol = _active_pool.get("volume", _cue.volume.VOL_DEFAULT)
-                        $ _active_eff = _cue.volume.get_effective(_vid_entry, _vid_key, pool_index=_vid_target)
-                        # Detect preset-backed pool
-                        $ _raw_pool_list = _vid_entry.get("pools", [])
-                        $ _raw_pool = _raw_pool_list[_vid_target] if 0 <= _vid_target < len(_raw_pool_list) else {}
-                        $ _is_preset_ts = "preset" in _raw_pool
-                        $ _preset_name = _raw_pool.get("preset", "")
-                        # Volume dict target: raw pool for preset-backed (so overrides
-                        # persist on the real dict), resolved pool for concrete.
-                        $ _vol_target = _raw_pool if _is_preset_ts else _active_pool
-                        if _is_preset_ts:
-                            $ _active_label = "Pool " + str(_vid_target + 1) + " (Preset: " + _preset_name + ")"
-                        else:
-                            $ _active_label = "Pool " + str(_vid_target + 1) + " (" + str(len(_active_files)) + " files)"
-                        hbox:
-                            spacing 5
-                            box_wrap True
-                            box_wrap_spacing 3
-                            text _active_label style "cue_txt"
-
-                            null width 5
-
-                            use cue_icon_btn("♻", Function(_cue.markers.video.duplicate_pool, _vid_target), "Duplicate pool", None)
-                            use cue_icon_btn("✕", Function(_cue.markers.video.remove_pool, _vid_target), "Delete pool", None)
-
-                            # Volume controls
-                            $ _vol_target.setdefault("volume", _cue.volume.VOL_DEFAULT)
-                            $ _dec = Function(_cue.volume.adjust_video, -0.1)
-                            $ _inc = Function(_cue.volume.adjust_video, 0.1)
-                            null width 5
-                            if abs(_active_vol - _active_eff) > 0.01:
-                                $ _vol_label = "Volume: {:.1f} ({:.1f} total)".format(_active_vol, _active_eff)
-                            else:
-                                $ _vol_label = "Volume: {:.1f}".format(_active_vol)
-                            use cue_vol_row(_vol_label, _dec, _vol_target, _inc)
-
-                        # Editable time + nudge buttons
-                        hbox:
-                            spacing 3
-                            text "Time:" style "cue_txt" size 11
-                            $ _dec10 = Function(_cue.markers.video.nudge, -0.01)
-                            $ _dec100 = Function(_cue.markers.video.nudge, -0.1)
-                            $ _inc10 = Function(_cue.markers.video.nudge, 0.01)
-                            $ _inc100 = Function(_cue.markers.video.nudge, 0.1)
-                            $ _commit = Function(_cue.markers.video.commit_text)
-                            $ _display = _cue_format_time(_active_pool.get("time", 0))
-                            use cue_time_input("_cue.markers.video.edit_text", _commit, _dec100, _dec10,
-                                                _inc10, _inc100, _display)
-                        # File list
-                        if _is_preset_ts:
-                            # Preset-backed: render as expandable folder via cue_file_list
-                            use cue_file_list([], _cue_detach_active_video_ts, (), _active_eff, 5,
-                                folder_label=_preset_name, folder_children=_active_files,
-                                trigger_key=_vid_key, pool_index=_vid_target,
-                                folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
-                        elif _raw_files:
-                            use cue_file_list(_raw_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 5,
-                                trigger_key=_vid_key, pool_index=_vid_target,
-                                folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
-                        else:
-                            text "SFX plays when this video reaches the marked time(s)." style "cue_help"
-                            text "Click the V button in the SFX Library to add files to this pool." style "cue_help"
+                                    # --- Sequence chart ---
+                                    $ _seq = _cue.video_sequence.speeds_for(_cue.current_file)
+                                    if _seq and len(_seq) >= 2:
+                                        add CueAutoSpeedChart() xsize 440 ysize 80
                     else:
-                        text "SFX plays when this video reaches the marked time(s)." style "cue_help"
-                        text "Click the V button in the SFX Library to create a new pool or add to the active pool." style "cue_help"
+                        text "No speed variants available. Create some in the Create tab." style "cue_help"
+                else:
+                    text "Video: (None)" style "cue_txt"
 
-            else:
-                text "Video: (None)" style "cue_txt"
-
-            # --- Video Editor Tab ---
+            # --- Create tab ---
             if _cue.video_editor.active:
                 $ _ved = _cue.video_editor
                 if _is_video:
                     vbox:
-                        spacing 2
-                        text "Video markers placed on the original video (1.0x) will autoscale to any speed." style "cue_txt"
+                        spacing 5
+                        text "Video markers placed on the original video (1.0x) will autoscale to all created videos." style "cue_txt"
                         hbox:
                             spacing 5
                             text "New Speed:" style "cue_txt"
@@ -484,9 +340,9 @@ screen cue_overlay_content():
 
                     # --- Encode mode radio buttons ---
                     vbox:
-                        spacing 2
+                        spacing 5
                         hbox:
-                            spacing 4
+                            spacing 5
                             text "Quality:" style "cue_txt"
                             use cue_radio_btn((_ved.encode_mode == _ved.MODE_FAST_PREVIEW), "Fast Preview",
                                 Function(_cue.video_editor.set_encode_mode, _ved.MODE_FAST_PREVIEW),
@@ -513,6 +369,8 @@ screen cue_overlay_content():
                         sensitive=_ved._ready)
                     if _ved.last_error:
                         text _ved.last_error style "cue_txt" color _cue_color_error
+                else:
+                    text "Video: (None)" style "cue_txt"
 
                 # --- Edit queue ---
                 if _cue.video_editor.job_queue.jobs:
@@ -539,6 +397,164 @@ screen cue_overlay_content():
                         else:
                             use _cue_edit_queue_vbox()
 
+        # --- Video SFX UI ---
+        use cue_section_frame("Video SFX"):
+            if _is_video:
+                $ _vid_name = _cue.current_file if _cue.current_file else "?"
+                text "Video: [_vid_name]" style "cue_txt"
+
+                # --- SFX content ---
+                hbox:
+                    spacing 5
+                    hbox:
+                        spacing 0
+                        text "Time: " style "cue_txt"
+                        add CueSelfUpdatingLabel(_cue.vid_manager.time_label, style="cue_txt")
+                    hbox:
+                        spacing 0
+                        text "Frames: " style "cue_txt"
+                        add CueSelfUpdatingLabel(_cue.vid_manager.frame_label, style="cue_txt")
+                hbox:
+                    spacing 5
+                    use cue_txt_button(("▶" if _cue.vid_manager.paused else "⏸"),
+                        Function(_cue.vid_manager.toggle_pause))
+                    use cue_txt_button("-1f",
+                        Function(_cue.vid_manager.seek_frame, -1),
+                        tt="Seek backwards 1 frame (inaccurate and requires restarting video)")
+                    use cue_txt_button("+1f",
+                        Function(_cue.vid_manager.seek_frame, 1),
+                        tt="Seek forward 1 frame (inaccurate)")
+
+                    use cue_v_divider()
+                    use cue_txt_button("Repeat", Function(_cue.repeater.open),
+                        tt="Repeat selected markers at regular intervals across the video")
+                    $ _has_markers = _cue.markers.video.has_markers()
+                    use cue_icon_btn("💾", Function(_cue.video_preset_dialog.open), "Save all video markers as a preset", None)
+                    use cue_icon_btn("✕",
+                        (Function(_cue.markers.video.remove_selected) if _has_markers else NullAction()),
+                        "Delete selected markers" if _has_markers else "No markers to delete", None)
+                    use cue_icon_btn("?",
+                        NullAction(),
+                        ("• Markers and marker groups are draggable.\n"
+                        + "• (Alt + Click) or (Shift + Click) to create a marker group.\n"
+                        + "• Use Repeat to copy selected markers at an interval.\n"
+                        + "• Get your markers timed to the first position, then use Repeat to find to right interval."),
+                        None)
+                # --- Timeline visualizer ---
+                frame:
+                    background None
+                    xfill True
+                    yminimum 0
+                    padding (10, 0)
+                    fixed:
+                        xfill True
+                        ysize 18
+                        add CueVideoTimeline()
+                # Video marker tabs + active pool
+                $ _vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
+                $ _vid_entry = _cue.markers.get(_vid_key, {})
+                $ _vid_entries = _cue.markers._resolve_video_pools(_vid_entry) if _vid_entry else []
+                $ _vid_count = len(_vid_entries)
+                $ _vid_target = _cue.markers.video.target_pool
+                $ _vid_target = max(0, min(_vid_target, _vid_count - 1)) if _vid_entries else 0
+                # --- Draggable video marker timeline ---
+                if _vid_entries:
+                    add CueVideoMarkerTimeline(
+                        get_markers=_cue.markers.video.get_markers,
+                        get_active=_cue.markers.video.get_active,
+                        set_active=_cue.markers.video.set_active,
+                        set_time=_cue.markers.video.set_time,
+                        get_dur=_cue.markers.video.get_duration,
+                    ) yoffset -8
+                if _vid_entry:
+                    $ _vid_entry.setdefault("volume", _cue.volume.VOL_DEFAULT)
+                    $ _master_vol = _vid_entry.get("volume", _cue.volume.VOL_DEFAULT)
+                    $ _dec = Function(_cue.volume.adjust_master, _vid_key, -0.1)
+                    $ _inc = Function(_cue.volume.adjust_master, _vid_key, 0.1)
+                    $ _is_muted = _vid_entry.get("video_file_muted", False)
+                    hbox:
+                        spacing 10
+                        box_wrap True
+                        box_wrap_spacing 3
+                        use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _vid_entry, _inc)
+                        use cue_checkbox(_is_muted, "Mute audio track",
+                            Function(_cue_toggle_video_mute),
+                            "Mute the video's audio track.\nDoes not affect Cue SFX.")
+                use cue_pool_tabs(_vid_count, _vid_target, bool(_vid_entries),
+                    "Delete all video markers for the current video?",
+                    Function(_cue.markers.video.clear), "Delete all video SFX for the current video",
+                    Function(_cue.markers.video.add_pool), "Create a new empty marker at current time",
+                    _cue.markers.video.select_tab, (), "Select pool — V button adds files here")
+
+                # Active pool display
+                if _vid_entries and 0 <= _vid_target < _vid_count:
+                    $ _active_pool = _vid_entries[_vid_target]
+                    $ _raw_files = _active_pool.get("files", [])
+                    $ _active_files = _cue_resolve_files(_raw_files)
+                    $ _active_vol = _active_pool.get("volume", _cue.volume.VOL_DEFAULT)
+                    $ _active_eff = _cue.volume.get_effective(_vid_entry, _vid_key, pool_index=_vid_target)
+                    # Detect preset-backed pool
+                    $ _raw_pool_list = _vid_entry.get("pools", [])
+                    $ _raw_pool = _raw_pool_list[_vid_target] if 0 <= _vid_target < len(_raw_pool_list) else {}
+                    $ _is_preset_ts = "preset" in _raw_pool
+                    $ _preset_name = _raw_pool.get("preset", "")
+                    # Volume dict target: raw pool for preset-backed (so overrides
+                    # persist on the real dict), resolved pool for concrete.
+                    $ _vol_target = _raw_pool if _is_preset_ts else _active_pool
+                    if _is_preset_ts:
+                        $ _active_label = "Pool " + str(_vid_target + 1) + " (Preset: " + _preset_name + ")"
+                    else:
+                        $ _active_label = "Pool " + str(_vid_target + 1) + " (" + str(len(_active_files)) + " files)"
+                    hbox:
+                        spacing 5
+                        box_wrap True
+                        box_wrap_spacing 3
+                        text _active_label style "cue_txt"
+
+                        null width 5
+
+                        use cue_icon_btn("♻", Function(_cue.markers.video.duplicate_pool, _vid_target), "Duplicate pool", None)
+                        use cue_icon_btn("✕", Function(_cue.markers.video.remove_pool, _vid_target), "Delete pool", None)
+
+                        # Volume controls
+                        $ _vol_target.setdefault("volume", _cue.volume.VOL_DEFAULT)
+                        $ _dec = Function(_cue.volume.adjust_video, -0.1)
+                        $ _inc = Function(_cue.volume.adjust_video, 0.1)
+                        null width 5
+                        $ _vol_label = "Volume: {:.1f}".format(_active_vol)
+                        use cue_vol_row(_vol_label, _dec, _vol_target, _inc)
+
+                    # Editable time + nudge buttons
+                    hbox:
+                        spacing 3
+                        text "Time:" style "cue_txt" size 11
+                        $ _dec10 = Function(_cue.markers.video.nudge, -0.01)
+                        $ _dec100 = Function(_cue.markers.video.nudge, -0.1)
+                        $ _inc10 = Function(_cue.markers.video.nudge, 0.01)
+                        $ _inc100 = Function(_cue.markers.video.nudge, 0.1)
+                        $ _commit = Function(_cue.markers.video.commit_text)
+                        $ _display = _cue_format_time(_active_pool.get("time", 0))
+                        use cue_time_input("_cue.markers.video.edit_text", _commit, _dec100, _dec10,
+                                            _inc10, _inc100, _display)
+                    # File list
+                    if _is_preset_ts:
+                        # Preset-backed: render as expandable folder via cue_file_list
+                        use cue_file_list([], _cue_detach_active_video_ts, (), _active_eff, 5,
+                            folder_label=_preset_name, folder_children=_active_files,
+                            trigger_key=_vid_key, pool_index=_vid_target,
+                            folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
+                    elif _raw_files:
+                        use cue_file_list(_raw_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 5,
+                            trigger_key=_vid_key, pool_index=_vid_target,
+                            folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
+                    else:
+                        text "SFX plays when this video reaches the marked time(s)." style "cue_help"
+                        text "Click the V button in the SFX Library to add files to this pool." style "cue_help"
+                else:
+                    text "SFX plays when this video reaches the marked time(s)." style "cue_help"
+                    text "Click the V button in the SFX Library to create a new pool or add to the active pool." style "cue_help"
+            else:
+                text "Video: (None)" style "cue_txt"
         # --- Image UI ---
         $ _has_image = bool(_cue.current_file) and not _is_video
         $ _img_key = create_img_key(_cue.current_file) if _has_image else ""
