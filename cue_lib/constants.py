@@ -23,6 +23,9 @@ CUE_AUTO_SPEED_MIN_VARIANTS = 4
 # Ideal number of speed variants for rich auto-speed rhythm generation.
 CUE_AUTO_SPEED_IDEAL_VARIANTS = 8
 
+# SFX Library section header text and lookup key.
+CUE_SFX_LIBRARY_HEADER = "SFX Library"
+
 # Popper displayable defaults — distance from anchor and viewport edge clearance.
 CUE_POPPER_DEFAULT_OFFSET = 5
 CUE_POPPER_DEFAULT_MARGIN = 8

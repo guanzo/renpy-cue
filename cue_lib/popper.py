@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# CuePopper -- Reusable positioned popup for Ren'Py.
+# CuePopper -- Reusable positioned popup for Ren'Py, similar to popper.js
 # Focus rect helpers and the CuePopper displayable class.
 # The sl-displayable registration stays in cue_z.rpy (python early).
 

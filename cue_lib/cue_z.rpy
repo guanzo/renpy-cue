@@ -42,6 +42,7 @@ init -999 python:
     from cue_lib.constants import (
         CUE_SFX_CHANNEL_COUNT, CUE_DEFAULT_VIDEO_SPEED,
         CUE_POPPER_DEFAULT_OFFSET, CUE_POPPER_DEFAULT_MARGIN,
+        CUE_SFX_LIBRARY_HEADER,
     )
     from cue_lib.util import (
         create_img_key as _cue_create_img_key,

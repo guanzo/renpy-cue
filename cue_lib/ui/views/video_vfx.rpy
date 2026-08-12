@@ -98,7 +98,7 @@ screen cue_video_vfx():
                                     Function(_cue.speed_resolver.delete_variant, _vid_path, _cur),
                                     tt="Delete the " + _cue_speed_label(_cur) + " file.")
 
-                        null height 5
+                        null height 3
                         use cue_checkbox(
                             _cue.speed_resolver.seamless_transition,
                             "Seamless Transition",

@@ -4,12 +4,49 @@
 ###############################################################################
 
 screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
-    use cue_section_frame("SFX Library"):
-        if not _cue.audio_tree:
-            text "[_cue.scan_error]" style "cue_help" color _cue_color_error
-            text "Place .ogg, .mp3, .wav, .opus, or .flac files there and click ⟳ to refresh." style "cue_help"
-        else:
-            use cue_sfx_library_content(_is_video, _has_image, _is_dialogue)
+    $ _collapsed = _cue.file_tree.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
+    $ _overlay_mode = _cue.file_tree.sfx_library_overlay_mode
+    $ _arrow = "▸" if _collapsed else "▾"
+    $ _ov_icon = "⊞" if _overlay_mode else "⊟"
+    $ _ov_tt = (
+        "Overlay Mode\n" 
+        "When enabled, this section will float on top when expanded.\n"
+        "Shift + S to toggle expansion.")
+    frame:
+        background _cue_color_bg_panel
+        padding (4, 4)
+        xfill True
+        yminimum 0
+        vbox:
+            spacing 8
+            xfill True
+            hbox:
+                xfill True
+                button:
+                    style "cue_section_hdr_btn"
+                    action Function(_cue.file_tree.toggle_section, CUE_SFX_LIBRARY_HEADER)
+                    hbox:
+                        xfill True
+                        text CUE_SFX_LIBRARY_HEADER style "cue_hdr"
+                        null width 8
+                        hbox:
+                            xalign 1.0
+                            spacing 10
+                            yalign 0.5
+
+                            use cue_icon_btn(
+                                _ov_icon,
+                                Function(_cue.file_tree.toggle_sfx_library_overlay_mode),
+                                _ov_tt,
+                                None
+                            )
+                            text _arrow style "cue_help" size 14
+            if not _collapsed:
+                if not _cue.audio_tree:
+                    text "[_cue.scan_error]" style "cue_help" color _cue_color_error
+                    text "Place .ogg, .mp3, .wav, .opus, or .flac files there and click ⟳ to refresh." style "cue_help"
+                else:
+                    use cue_sfx_library_content(_is_video, _has_image, _is_dialogue)
 
 screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
     viewport:
@@ -80,7 +117,7 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
                             Function(_cue.file_tree.toggle_video_preset_expand, _vpname), None, None)
                         use cue_icon_btn("✕", Function(_cue_confirm_delete_video_preset, _vpname), "Delete video preset", None)
                         use cue_icon_btn("▶", Function(_cue_preview_video_preset, _vpname), "Preview random file from video preset", None)
-                        use cue_icon_btn("V", Function(_cue_maybe_apply_video_preset, _vpname), "Apply video markers to the current video", None, enabled=_is_video)
+                        use cue_icon_btn("V", Function(_cue_maybe_apply_video_preset, _vpname), "Apply video markers to the current video.\nOverwrites existing markers.", None, enabled=_is_video)
                         use cue_txt_button(_vpname, Function(_cue.file_tree.toggle_video_preset_expand, _vpname))
                     if _vp_expanded:
                         for _pool in _vp_pools:

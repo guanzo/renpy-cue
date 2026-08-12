@@ -37,6 +37,10 @@ class CueFileTreeManager(object):
         # Section collapse
         self.collapsed_sections = {}      # section_name -> bool
 
+        # SFX Library overlay mode: when True, expanded content floats
+        # at 50% overlay height instead of taking layout space.
+        self.sfx_library_overlay_mode = False
+
         # File disable
         self.disabled_files = set()       # full_path strings
 
@@ -164,4 +168,14 @@ class CueFileTreeManager(object):
         # type: (str) -> None
         """Toggle expand/collapse for a cue_section_frame."""
         self.collapsed_sections[section_name] = not self.collapsed_sections.get(section_name, False)
+        renpy.restart_interaction()
+
+    def toggle_sfx_library_overlay_mode(self):
+        # type: () -> None
+        """Toggle overlay mode for the SFX Library section.
+        Enabling overlay mode collapses the section if expanded.
+        Exiting overlay mode expands the section if collapsed."""
+        was_overlay = self.sfx_library_overlay_mode
+        self.sfx_library_overlay_mode = not was_overlay
+
         renpy.restart_interaction()

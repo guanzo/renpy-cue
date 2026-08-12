@@ -1225,7 +1225,7 @@ class CueMarkerManager(object):
         _cue_dict = getattr(persistent, '_cue', None)
         if _cue_dict is None:
             _cue_dict = {
-                "disabled_files": set(getattr(persistent, '_cue_disabled_files', set())),
+                "disabled_files": set(getattr(persistent, '_cue_disabled_files', None) or ()),
                 "triggers_active": getattr(persistent, '_cue_triggers_active', True),
                 "encode_mode": getattr(persistent, '_cue_encode_mode', _cue.video_editor.MODE_INTERPOLATE),
                 "remove_audio": getattr(persistent, '_cue_remove_audio', True),
