@@ -1,16 +1,6 @@
-# Games to mod
-
-E:\Porn\pGames\RaceOfLife-Race-of-Life-Episode-4-hotfix-v4-pc
-E:\Porn\pGames\BeingADIK\BeingADIK-S1-S2-0.8.3-pc
-E:\Porn\pGames\BeingADIK\BeingADIK-S3-0.11.1-pc-lin
-E:\Porn\pGames\Dreamland-v0.6.0p-pc
-
 # Ren'Py Version Compatibility
 
-- RaceOfLife: Ren'Py 8.1.3
-- BeingADIK S1-S2: Ren'Py 7.4.x
-- BeingADIK S3: Ren'Py 7.4.x
-- Dreamland: Ren'Py 8.5+
+Code must work for 7.4.x and up.
 
 ## Code must work across ALL versions (7.x and 8.x)
 
