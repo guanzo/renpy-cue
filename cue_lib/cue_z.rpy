@@ -44,9 +44,10 @@ init -999 python:
         CUE_POPPER_DEFAULT_OFFSET, CUE_POPPER_DEFAULT_MARGIN,
     )
     from cue_lib.util import (
-        create_img_key, create_vid_key, create_loop_key, create_dlg_key,
-        is_img_key, is_vid_key, is_dlg_key, is_loop_key,
-        get_key_file, get_key_dialogue, get_key_prefix,
+        create_img_key as _cue_create_img_key,
+        create_vid_key as _cue_create_vid_key,
+        create_loop_key as _cue_create_loop_key,
+        create_dlg_key as _cue_create_dlg_key,
         _cue_format_time, _cue_parse_time, _cue_clamp_time, _cue_speed_label,
         _cue_log, _cue_scan_audio, _cue_resolve_files, _cue_pick_file,
         _cue_unwrap_displayable, _cue_ui_refresh, _cue_is_screenshake,
@@ -80,7 +81,6 @@ init -999 python:
     from cue_lib.popper import (
         CuePopper, _cue_store_focus_rect, _cue_clear_focus_rect,
         _cue_get_focus_rect, _cue_compute_popup_position, _cue_draw_arrow,
-        ARROW_SZ,
     )
 
     from cue_lib.displayables import (
