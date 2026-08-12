@@ -11,16 +11,18 @@
 screen cue_key_listener():
     zorder 10000
 
-    key "K_BACKQUOTE" action Function(_cue_toggle_overlay)
-    key "K_F3" action Function(renpy.invoke_in_new_context, renpy.pause)
-    key "K_F4" action Function(_cue_toggle_active)
-    key "K_F5" action Function(renpy.quit, relaunch=True)
-    key "shift_K_1" action Function(_cue.markers.copy_context)
-    key "shift_K_2" action Function(_cue.markers.paste_context)
-    key "shift_K_q" action Function(_cue.undo.undo)
-    key "shift_K_w" action Function(_cue.undo.redo)
-    key "K_m" action Function(_cue.speed_resolver.cycle_speed, 1)
-    key "K_n" action Function(_cue.speed_resolver.cycle_speed, -1)
+    key CUE_KEYMAP_TOGGLE_OVERLAY action Function(_cue_toggle_overlay)
+    if _cue.debug:
+        key CUE_KEYMAP_QUIT_RELAUNCH action Function(renpy.quit, relaunch=True)
+    key CUE_KEYMAP_COPY_CONTEXT action Function(_cue.markers.copy_context)
+    key CUE_KEYMAP_PASTE_CONTEXT action Function(_cue.markers.paste_context)
+    key CUE_KEYMAP_TOGGLE_ACTIVE action Function(_cue_toggle_active)
+    key CUE_KEYMAP_PAUSE action Function(renpy.invoke_in_new_context, renpy.pause)
+    key CUE_KEYMAP_UNDO action Function(_cue.undo.undo)
+    key CUE_KEYMAP_REDO action Function(_cue.undo.redo)
+    key CUE_KEYMAP_SPEED_UP action Function(_cue.speed_resolver.cycle_speed, 1)
+    key CUE_KEYMAP_SPEED_DOWN action Function(_cue.speed_resolver.cycle_speed, -1)
+    key CUE_KEYMAP_TOGGLE_SFX action Function(_cue.file_tree.toggle_section, CUE_SFX_LIBRARY_HEADER)
     timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
 
 ###############################################################################
@@ -93,86 +95,178 @@ screen cue_popper_anchor(name, hover_fn):
 # =============================================================================
 
 screen cue_overlay_content():
-    vbox:
-        spacing 4
+    fixed:
+        xfill True
+        yfill True
+        vbox:
+            spacing 4
 
-        # --- Top bar: active checkbox + copy + paste + dump + restore + refresh + close ---
-        hbox:
-            spacing 2
-            use cue_checkbox(_cue.trigger.active, "SFX Active",
-                Function(_cue_toggle_active),
-                "SFX triggers are ON (F4 to toggle)",
-                "SFX triggers are OFF (F4 to toggle)",
-                _cue_color_active, _cue_color_green_hover, _cue_color_red, _cue_color_red_hover)
-            null width 5
-            use cue_icon_btn("📋", Function(_cue.markers.copy_context), "Copy current config (Shift + 1)", None)
-            use cue_icon_btn("📄", Function(_cue.markers.paste_context), "Paste config (Shift + 2)", None)
-            null width 5
-            use cue_icon_btn("↩", Function(_cue.undo.undo), "Undo (Shift + Q)", None, enabled=_cue.undo.can_undo())
-            use cue_icon_btn("↪", Function(_cue.undo.redo), "Redo (Shift + W)", None, enabled=_cue.undo.can_redo())
-            null width 5
-            $ _backup_tooltip = "Backup config to " + _cue.config_filename
-            use cue_icon_btn("💾", Function(_cue.markers.backup_to_file), _backup_tooltip, None)
-            $ _restore_tooltip = "Restore config from " + _cue.config_filename
-            use cue_icon_btn("📂", Function(_cue.markers.restore_from_file), _restore_tooltip, None)
-            null width 5
-            use cue_icon_btn("⏸", Function(renpy.invoke_in_new_context, renpy.pause), "Pause game (F3)", None)
-            use cue_icon_btn("⟳", [Function(_cue_reload_presets), Function(_cue_refresh_context), Function(_cue_scan_audio)], "Refresh overlay", None)
-            use cue_icon_btn("✕", Function(_cue_hide_overlay), "Close overlay", None)
+            # --- Top bar: active checkbox + copy + paste + dump + restore + refresh + close ---
+            use cue_header_toolbar()
 
-        # --- Mode detection ---
-        $ _is_video = _cue.top_layer_type == 'movie'
+            # --- Settings page replaces all content below the toolbar ---
+            if _cue.is_settings_visible:
+                use cue_settings_page()
+            else:
+                # --- Mode detection ---
+                $ _is_video = _cue.top_layer_type == 'movie'
 
-        # --- Video VFX / SFX ---
-        if _is_video:
-            use cue_video_vfx()
-            use cue_video_sfx()
-        
-        # --- Image UI ---
-        $ _has_image = bool(_cue.current_file) and not _is_video
-        if _has_image:
-            $ _img_key = _cue_create_img_key(_cue.current_file)
-            use cue_context_section("Image SFX", _cue.markers.image, _img_key,
-                "Image: " + _cue.current_file, "image", "I",
-                "SFX plays when this image is displayed."):
-                $ _p = _cue._pool_ui["pool"]
-                use cue_checkbox(_p.get("trigger_on_shake", False),
-                    "Trigger on screen shake",
-                    Function(_cue_toggle_shake_trigger),
-                    "Play SFX when a screen shake occurs")
+                # --- Video VFX / SFX ---
+                if _is_video:
+                    use cue_video_vfx()
+                    use cue_video_sfx()
 
-        # --- Dialogue UI ---
-        $ _is_dialogue = bool(_cue.current_dialogue)
-        if _is_dialogue:
-            $ _dlg_key = _cue_create_dlg_key((_cue.current_file, _cue.current_dialogue))
-            use cue_context_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
-                "Dialogue: " + _cue.current_dialogue, "dialogue", "D",
-                "SFX plays when this line of dialogue is displayed.")
+                # --- Image UI ---
+                $ _has_image = bool(_cue.current_file) and not _is_video
+                if _has_image:
+                    $ _img_key = _cue_create_img_key(_cue.current_file)
+                    use cue_context_section("Image SFX", _cue.markers.image, _img_key,
+                        "Image: " + _cue.current_file, "image", "I",
+                        "SFX plays when this image is displayed."):
+                        $ _p = _cue._pool_ui["pool"]
+                        use cue_checkbox(_p.get("trigger_on_shake", False),
+                            "Trigger on screen shake",
+                            Function(_cue_toggle_shake_trigger),
+                            "Play SFX when a screen shake occurs")
 
-        # Loop SFX
-        $ _loop_key = _cue_create_loop_key(_cue.current_file or "")
-        use cue_context_section("Loop SFX", _cue.markers.loop, _loop_key,
-            None, "file", "L",
-            "SFX plays on a loop when this image/video is displayed."):
-            $ _freq = _cue._pool_ui.get("freq", CueLoopFrequency.NORMAL)
+                # --- Dialogue UI ---
+                $ _is_dialogue = bool(_cue.current_dialogue)
+                if _is_dialogue:
+                    $ _dlg_key = _cue_create_dlg_key((_cue.current_file, _cue.current_dialogue))
+                    use cue_context_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
+                        "Dialogue: " + _cue.current_dialogue, "dialogue", "D",
+                        "SFX plays when this line of dialogue is displayed.")
+
+                # Loop SFX
+                $ _loop_key = _cue_create_loop_key(_cue.current_file or "")
+                use cue_context_section("Loop SFX", _cue.markers.loop, _loop_key,
+                    None, "file", "L",
+                    "SFX plays on a loop when this image/video is displayed."):
+                    $ _freq = _cue._pool_ui.get("freq", CueLoopFrequency.NORMAL)
+                    hbox:
+                        spacing 5
+                        box_wrap True
+                        box_wrap_spacing 3
+                        text "Interval:" style "cue_txt"
+                        use cue_select_btn("Slowest", (_freq == CueLoopFrequency.SLOWEST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOWEST), tt="~6.3s between plays")
+                        use cue_select_btn("Slow", (_freq == CueLoopFrequency.SLOW), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOW), tt="~3.8s between plays")
+                        use cue_select_btn("Normal", (_freq == CueLoopFrequency.NORMAL), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.NORMAL), tt="~2.1s between plays")
+                        use cue_select_btn("Fast", (_freq == CueLoopFrequency.FAST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FAST), tt="~0.6s between plays")
+                        use cue_select_btn("Fastest", (_freq == CueLoopFrequency.FASTEST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FASTEST), tt="~0.2s between plays")
+                        use cue_v_divider()
+                        $ _is_exclusive = _cue._pool_ui.get("exclusive", False)
+                        use cue_checkbox(_is_exclusive, "Exclusive playback",
+                            Function(_cue.markers.loop.set_exclusive, not _is_exclusive),
+                            "Prevents other loop SFX from playing at the same time")
+
+                # Audio file browser (in-flow, only when overlay mode is OFF)
+                if not _cue.file_tree.sfx_library_overlay_mode:
+                    use cue_sfx_library(_is_video, _has_image, _is_dialogue)
+
+        # SFX Library overlay mode: entire section floats at bottom
+        if not _cue.is_settings_visible and _cue.file_tree.sfx_library_overlay_mode:
+            $ _sfx_collapsed = _cue.file_tree.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
+            $ _sfx_z = _cue_overlay_zoom()
+            $ _sfx_full_h = int(renpy.config.screen_height / _sfx_z)
+            $ _sfx_40pct = int(_sfx_full_h * 0.4)
+            $ _sfx_90pct = int(_sfx_full_h * 0.8)
+            $ _sfx_800px = int(500 / _sfx_z)
+            $ _sfx_h = max(_sfx_40pct, min(_sfx_800px, _sfx_90pct))
+            frame:
+                background None
+                padding (0, 0)
+                xfill True
+                yalign 1.0
+                if not _sfx_collapsed:
+                    ysize _sfx_h
+                vbox:
+                    spacing 0
+                    xfill True
+                    if not _sfx_collapsed:
+                        fixed:
+                            xfill True
+                            ysize 4
+                            add Solid(_cue_color_bg_overlay)
+                    use cue_sfx_library(_is_video, _has_image, _is_dialogue)
+
+# =============================================================================
+# Settings Page
+# =============================================================================
+
+screen cue_settings_page():
+    frame:
+        background _cue_color_bg_overlay
+        padding (0, 0)
+        xfill True
+        yminimum 0
+        vbox:
+            spacing 4
+            frame:
+                text "Settings" style "cue_hdr" xoffset 4
+                background _cue_color_bg_panel
+                padding (4, 4)
+                xfill True
+                yminimum 0
+            use cue_settings_keybinds()
+
+
+# -----------------------------------------------------------------------------
+# Keybind-capture modal — shown while waiting for the user to press a key
+# during rebinding.  The CueKeyCaptureDisplayable (last child) intercepts
+# keyboard events; the Cancel button and the modal's own blocking behavior
+# ensure nothing else receives input.
+# -----------------------------------------------------------------------------
+
+screen cue_keybind_capture():
+    zorder 10002
+    modal True
+    frame:
+        background _cue_color_bg_dialog
+        xpos 500
+        ypos 8
+        padding (16, 8)
+        xmaximum 420
+        vbox:
+            spacing 8
+            text "Press a key(s) for " + _cue.keybinds.current_label() style "cue_txt"
+            text "Ctrl / Alt / Shift can be combined." style "cue_help"
+            text "Press Esc to cancel." style "cue_help"
+            if _cue.keybinds.collision_message:
+                text _cue.keybinds.collision_message style "cue_txt" color _cue_color_error
             hbox:
                 spacing 5
-                box_wrap True
-                box_wrap_spacing 3
-                text "Interval:" style "cue_txt"
-                use cue_select_btn("Slowest", (_freq == CueLoopFrequency.SLOWEST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOWEST), tt="~6.3s between plays")
-                use cue_select_btn("Slow", (_freq == CueLoopFrequency.SLOW), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOW), tt="~3.8s between plays")
-                use cue_select_btn("Normal", (_freq == CueLoopFrequency.NORMAL), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.NORMAL), tt="~2.1s between plays")
-                use cue_select_btn("Fast", (_freq == CueLoopFrequency.FAST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FAST), tt="~0.6s between plays")
-                use cue_select_btn("Fastest", (_freq == CueLoopFrequency.FASTEST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FASTEST), tt="~0.2s between plays")
-                use cue_v_divider()
-                $ _is_exclusive = _cue._pool_ui.get("exclusive", False)
-                use cue_checkbox(_is_exclusive, "Exclusive playback",
-                    Function(_cue.markers.loop.set_exclusive, not _is_exclusive),
-                    "Prevents other loop SFX from playing at the same time")
+                use cue_txt_button("Cancel", Function(_cue_keybind_cancel))
+                if _cue.keybinds.collision_message:
+                    use cue_txt_button("Override", Function(_cue_keybind_override), bg=_cue_color_red, hover_bg=_cue_color_red_hover)
+    add CueKeyCaptureDisplayable()
 
-        # Audio file browser
-        use cue_sfx_library(_is_video, _has_image, _is_dialogue)
+
+screen cue_header_toolbar():
+    hbox:
+        spacing 2
+        use cue_checkbox(_cue.trigger.active, "SFX Active",
+            Function(_cue_toggle_active),
+            "SFX triggers are ON (Shift + 3 to toggle)",
+            "SFX triggers are OFF (Shift + 3 to toggle)",
+            _cue_color_active, _cue_color_green_hover, _cue_color_red, _cue_color_red_hover)
+        null width 5
+        use cue_icon_btn("📋", Function(_cue.markers.copy_context), "Copy current config (Shift + 1)", None)
+        use cue_icon_btn("📄", Function(_cue.markers.paste_context), "Paste config (Shift + 2)", None)
+        null width 5
+        use cue_icon_btn("↩", Function(_cue.undo.undo), "Undo (Shift + Q)", None, enabled=_cue.undo.can_undo())
+        use cue_icon_btn("↪", Function(_cue.undo.redo), "Redo (Shift + W)", None, enabled=_cue.undo.can_redo())
+        null width 5
+        $ _backup_tooltip = "Backup config to " + _cue.config_filename
+        use cue_icon_btn("💾", Function(_cue.markers.backup_to_file), _backup_tooltip, None)
+        $ _restore_tooltip = "Restore config from " + _cue.config_filename
+        use cue_icon_btn("📂", Function(_cue.markers.restore_from_file), _restore_tooltip, None)
+        null width 5
+        use cue_icon_btn("⏸", Function(renpy.invoke_in_new_context, renpy.pause), "Pause game (F3)\nUse to pause on scenes that auto advance.", None)
+        use cue_icon_btn("⟳", [Function(_cue_reload_presets), Function(_cue_refresh_context), Function(_cue_scan_audio)], "Refresh overlay", None)
+        $ _settings_bg = _cue_color_active if _cue.is_settings_visible else None
+        use cue_icon_btn("⚙", Function(_cue_toggle_settings), "Settings", None,
+            bg=_settings_bg)
+        use cue_icon_btn("✕", Function(_cue_hide_overlay), "Close overlay", None)
 
 
 ###############################################################################

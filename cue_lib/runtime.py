@@ -28,10 +28,6 @@ if MYPY:
 # Visibility
 # --------------------------------------------------------------------------
 
-def _cue_TEST():
-    # type: () -> None
-    _cue_log("TESTTTTTT")
-
 def _cue_toggle_overlay():
     # type: () -> None
     if _cue.is_overlay_visible:
@@ -43,6 +39,10 @@ def _cue_toggle_active():
     # type: () -> None
     _cue.trigger.active = not _cue.trigger.active
     persistent._cue["triggers_active"] = _cue.trigger.active
+
+def _cue_toggle_settings():
+    # type: () -> None
+    _cue.is_settings_visible = not _cue.is_settings_visible
 
 def _cue_toggle_shake_trigger():
     # type: () -> None

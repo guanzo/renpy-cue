@@ -12,8 +12,83 @@ from cue_lib.util import _cue_format_time
 
 MYPY = False
 if MYPY:
-    from typing import Any, List, Optional, Tuple
+    from typing import Any, Dict, List, Optional, Tuple
     from cue_lib._types import VideoPoolDict
+
+
+# ---------------------------------------------------------------------------
+# Key-capture helpers for the rebindable keybinds system
+# ---------------------------------------------------------------------------
+
+# Bare modifier keycodes — these cannot be bound as standalone keys.
+_BARE_MOD_NAMES = frozenset({
+    "K_LSHIFT", "K_RSHIFT",
+    "K_LCTRL", "K_RCTRL",
+    "K_LALT", "K_RALT",
+    "K_LSUPER", "K_RSUPER",
+    "K_LGUI", "K_RGUI",
+    "K_LMETA", "K_RMETA",
+    "K_MODE",
+})
+
+# Modifier ordering for keysym strings (alphabetical — deterministic).
+
+
+def _cue_build_key_code_map():
+    # type: () -> Dict[int, str]
+    """Build a {pygame_keycode: "K_xxx"} map from pygame.constants.
+
+    Filters out bare modifier keys (Shift, Ctrl, Alt, Win) because they
+    cannot be bound alone.  Non-keypad names are collected first so they
+    take priority over keypad aliases for codes that map to the same value.
+    """
+    code_map = {}  # type: Dict[int, str]
+    # Two passes: non-KP first, then KP — so non-KP names win on collision.
+    names = [n for n in dir(pygame.constants) if n.startswith("K_")]  # pyright: ignore[reportAttributeAccessIssue]
+    non_kp = [n for n in names if not n.startswith("K_KP_")]
+    kp = [n for n in names if n.startswith("K_KP_")]
+    for name in non_kp + kp:
+        if name in _BARE_MOD_NAMES:
+            continue
+        code = getattr(pygame.constants, name)  # pyright: ignore[reportAttributeAccessIssue]
+        code_map[code] = name
+    return code_map
+
+
+_cue_key_code_map = _cue_build_key_code_map()
+
+
+def _cue_keysym_from_event(ev):
+    # type: (Any) -> Optional[str]
+    """Reverse-map a pygame KEYDOWN event to a Ren'Py keysym string.
+
+    Returns a string like ``"K_F5"``, ``"shift_K_1"``, or ``"ctrl_alt_K_F9"``,
+    or None if the key cannot be mapped (exotic key or bare modifier).
+    """
+    if ev.type != pygame.KEYDOWN:
+        return None
+
+    key_name = _cue_key_code_map.get(ev.key)
+    if key_name is None:
+        return None
+
+    # Build modifier prefix (consistent ordering for collision detection).
+    mod_parts = []
+    if ev.mod & pygame.KMOD_ALT:  # pyright: ignore[reportAttributeAccessIssue]
+        mod_parts.append("alt")
+    if ev.mod & pygame.KMOD_CTRL:  # pyright: ignore[reportAttributeAccessIssue]
+        mod_parts.append("ctrl")
+    if ev.mod & pygame.KMOD_META:  # pyright: ignore[reportAttributeAccessIssue]
+        mod_parts.append("meta")
+    if ev.mod & pygame.KMOD_SHIFT:  # pyright: ignore[reportAttributeAccessIssue]
+        mod_parts.append("shift")
+
+    # Sort to match canonical order (alt, ctrl, meta, shift).
+    mod_parts.sort()
+
+    if mod_parts:
+        return "_".join(mod_parts) + "_" + key_name
+    return key_name
 
 
 class CueSelfUpdatingLabel(Displayable):
@@ -705,4 +780,32 @@ class CueAutoSpeedChart(Displayable):
             _cue._chart_screen_x = mx - x
             _cue._chart_screen_y = my - y
             renpy.redraw(self, 0)
+        return None
+
+
+class CueKeyCaptureDisplayable(Displayable):
+    """Invisible displayable that captures the next KEYDOWN event.
+
+    Used by the keybind-capture modal to intercept key presses during
+    rebinding.  Renders nothing (0x0) — it only exists to receive events.
+    Keyboard events are not hit-tested, so a zero-size render still works.
+
+    On KEYDOWN it calls :func:`_cue_keysym_from_event` and forwards the
+    resulting keysym to :meth:`CueKeybindsManager.on_captured`.
+    """
+
+    def __init__(self, **properties):
+        super(CueKeyCaptureDisplayable, self).__init__(**properties)
+
+    def render(self, width, height, st, at):
+        # type: (int, int, float, float) -> Any
+        return renpy.Render(0, 0)
+
+    def event(self, ev, x, y, st):
+        # type: (Any, int, int, float) -> Optional[Any]
+        if ev.type == pygame.KEYDOWN:
+            keysym = _cue_keysym_from_event(ev)
+            if keysym is not None and _cue.keybinds is not None:
+                _cue.keybinds.on_captured(keysym)
+            raise IgnoreEvent()
         return None

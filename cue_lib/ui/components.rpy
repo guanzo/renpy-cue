@@ -70,7 +70,7 @@ screen cue_vol_row(label_text, dec_action, entry_dict, inc_action):
 # Icon button: tiny button with cue_btn_icon / cue_btn_icon_text styles.
 # Most callers don't need xsize (style default is 14); pass an int to override.
 # Pass tt=None to skip the tooltip.
-screen cue_icon_btn(text, action, tt=None, xsize=16, enabled=True):
+screen cue_icon_btn(text, action, tt=None, xsize=16, enabled=True, bg=None):
     textbutton text:
         style "cue_btn_icon"
         text_style "cue_btn_icon_text"
@@ -81,6 +81,8 @@ screen cue_icon_btn(text, action, tt=None, xsize=16, enabled=True):
             tooltip tt
         sensitive enabled
         action action
+        if bg is not None:
+            background bg
 
 # Base text button: all textbuttons should use this so style/typography
 # live in one place. Pass bg/tooltip/sensitive/xsize/ysize to override.

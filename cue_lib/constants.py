@@ -29,3 +29,22 @@ CUE_SFX_LIBRARY_HEADER = "SFX Library"
 # Popper displayable defaults — distance from anchor and viewport edge clearance.
 CUE_POPPER_DEFAULT_OFFSET = 5
 CUE_POPPER_DEFAULT_MARGIN = 8
+
+# Keymap names for rebindable cue hotkeys (registered in config.keymap).
+CUE_KEYMAP_TOGGLE_OVERLAY = "cue_toggle_overlay"
+CUE_KEYMAP_QUIT_RELAUNCH   = "cue_quit_relaunch"
+CUE_KEYMAP_COPY_CONTEXT    = "cue_copy_context"
+CUE_KEYMAP_PASTE_CONTEXT   = "cue_paste_context"
+CUE_KEYMAP_TOGGLE_ACTIVE   = "cue_toggle_active"
+CUE_KEYMAP_PAUSE           = "cue_pause"
+CUE_KEYMAP_UNDO            = "cue_undo"
+CUE_KEYMAP_REDO            = "cue_redo"
+CUE_KEYMAP_SPEED_UP        = "cue_speed_up"
+CUE_KEYMAP_SPEED_DOWN      = "cue_speed_down"
+CUE_KEYMAP_TOGGLE_SFX      = "cue_toggle_sfx"
+
+# Shared-config key for persisting custom keybinds across games.
+CUE_SHARED_KEY_KEYBINDS = "keybinds"
+
+# Settings section header text.
+CUE_KEYBINDS_SECTION_HEADER = "Keybinds"

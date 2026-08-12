@@ -58,12 +58,12 @@ init -999 python:
     )
 
     from cue_lib.runtime import (
-        _cue_TEST, _cue_toggle_overlay, _cue_show_overlay, _cue_hide_overlay,
+        _cue_toggle_overlay, _cue_show_overlay, _cue_hide_overlay,
         _cue_reload_presets,
         _cue_refresh_context, _cue_log_context, _cue_get_top_layer,
         _cue_refresh_channel, _cue_tick_trigger, _cue_play_sfx,
         _cue_preview_sfx, _cue_preview_preset, _cue_play_pool,
-        _cue_toggle_active, _cue_toggle_shake_trigger, _cue_toggle_video_mute,
+        _cue_toggle_active, _cue_toggle_settings, _cue_toggle_shake_trigger, _cue_toggle_video_mute,
     )
 
     from cue_lib.speed import (
@@ -86,6 +86,7 @@ init -999 python:
     from cue_lib.ui.displayables import (
         CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline,
         CueTooltip, CueMarkerTooltipOverlay, CueAutoSpeedChart,
+        CueKeyCaptureDisplayable,
     )
 
     from cue_lib.speed import (
@@ -98,6 +99,17 @@ init -999 python:
     )
     from cue_lib.constants import (
         CUE_AUTO_SPEED_MIN_VARIANTS, CUE_AUTO_SPEED_IDEAL_VARIANTS, CUE_MULTI_SPEED_MIN_VARIANTS,
+        CUE_KEYMAP_TOGGLE_OVERLAY, CUE_KEYMAP_QUIT_RELAUNCH,
+        CUE_KEYMAP_COPY_CONTEXT, CUE_KEYMAP_PASTE_CONTEXT,
+        CUE_KEYMAP_TOGGLE_ACTIVE, CUE_KEYMAP_PAUSE,
+        CUE_KEYMAP_UNDO, CUE_KEYMAP_REDO,
+        CUE_KEYMAP_SPEED_UP, CUE_KEYMAP_SPEED_DOWN,
+        CUE_KEYMAP_TOGGLE_SFX,
+        CUE_SHARED_KEY_KEYBINDS, CUE_KEYBINDS_SECTION_HEADER,
+    )
+    from cue_lib.keybinds import (
+        CueKeybindsManager, _cue_keybind_start, _cue_keybind_cancel,
+        _cue_keybind_reset, _cue_keybind_override,
     )
     from cue_lib.video_editor import CUE_VE_MODE_NORMAL, CUE_VE_MODE_INTERPOLATE, CUE_VE_MODE_FAST_PREVIEW
 
@@ -139,6 +151,7 @@ init -900 python:
     _cue.preset_dialog = CuePresetDialog()
     _cue.video_preset_dialog = CueVideoPresetDialog()
     _cue.confirm_dialog = CueConfirmDialog()
+    _cue.keybinds = CueKeybindsManager()
 
     _cue.config_path = _os.path.join(renpy.config.gamedir, _cue.base_dir, _cue.config_filename)
 
@@ -153,7 +166,13 @@ init 999 python:
     config.developer = True
     config.console = True
 
-    config.keymap['console'].append('shift_K_t')
+    if _cue.debug:
+        config.keymap['console'].append('shift_K_t')
+
+    # Register cue keybinds and load any saved overrides from shared config.
+    # Must run after config.keymap is fully populated (after the console
+    # append above) so collision scanning sees all built-in entries.
+    _cue.keybinds.setup()
 
     # Clear debug log for fresh session
     try:
