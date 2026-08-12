@@ -144,7 +144,7 @@ screen cue_video_sfx():
             # File list
             if _is_preset_ts:
                 # Preset-backed: render as expandable folder via cue_file_list
-                use cue_file_list([], _cue_detach_active_video_ts, (), _active_eff, 5,
+                use cue_file_list([], _cue.markers.detach_active_video_ts, (), _active_eff, 5,
                     folder_label=_preset_name, folder_children=_active_files,
                     trigger_key=_vid_key, pool_index=_vid_target,
                     folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)

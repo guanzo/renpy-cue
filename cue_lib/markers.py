@@ -846,6 +846,22 @@ class CueMarkerManager(object):
             trigger_key, pool_index, preset_name, len(r.files)))
         return True
 
+    def detach_active_video_ts(self, *args):
+        # type: (*Any) -> None
+        vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
+        if not vid_key:
+            return
+        entry = self.get(vid_key)
+        if entry is None:
+            return
+        self._detach_pool(vid_key, self.video.target_pool)
+        self.save_marker(vid_key)
+
+    def detach_pool_at(self, trigger_key, pool_index):
+        # type: (str, int) -> None
+        self._detach_pool(trigger_key, pool_index)
+        self.save_marker(trigger_key)
+
     def _stamp_preset(self, trigger_key, preset_name, pool_index=0):
         # type: (str, str, int) -> None
         entry = self._get_or_create_entry(trigger_key)

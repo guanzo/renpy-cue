@@ -70,12 +70,11 @@ init -999 python:
         _cue_seq_delete, _cue_seq_move_left, _cue_seq_move_right,
     )
 
-    from cue_lib.ui_logic import (
+    from cue_lib.dialogues import (
         CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog,
         _cue_make_tab_action, _cue_count_file_list_rows,
         _cue_confirm_delete_preset, _cue_confirm_delete_video_preset,
         _cue_maybe_apply_video_preset, _cue_preview_video_preset,
-        _cue_detach_active_video_ts, _cue_detach_pool_at,
     )
 
     from cue_lib.popper import (
@@ -83,7 +82,7 @@ init -999 python:
         _cue_get_focus_rect, _cue_compute_popup_position, _cue_draw_arrow,
     )
 
-    from cue_lib.displayables import (
+    from cue_lib.ui.displayables import (
         CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline,
         CueTooltip, CueMarkerTooltipOverlay, CueAutoSpeedChart,
     )
@@ -118,7 +117,7 @@ init -900 python:
     from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
     from cue_lib.auto_speed import CueAutoSpeedGenerator
     from cue_lib.file_tree import CueFileTreeManager
-    from cue_lib.ui_logic import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
+    from cue_lib.dialogues import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
     from cue_lib.db import _cue_get_shared_dir, CueDatabase
     from cue_lib.state import _cue
     import os as _os

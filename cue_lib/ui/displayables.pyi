@@ -1,4 +1,4 @@
-# Type stub for cue_lib.displayables
+# Type stub for cue_lib.ui.displayables
 from typing import Any, Callable, List, Optional
 from renpy.display.core import Displayable
 

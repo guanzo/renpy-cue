@@ -395,7 +395,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
             if _r.files:
                 if _is_preset_pool:
                     # Preset-backed: render as expandable folder
-                    use cue_file_list([], _cue_detach_pool_at, (key, _target), _active_eff, 5,
+                    use cue_file_list([], _cue.markers.detach_pool_at, (key, _target), _active_eff, 5,
                         trigger_key=key, pool_index=_target,
                         folder_label=_active_pool["preset"],
                         folder_children=_cue_resolve_files(_r.files),

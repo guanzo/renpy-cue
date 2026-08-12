@@ -45,6 +45,6 @@ from cue_lib import trigger
 from cue_lib import video_editor
 from cue_lib import speed
 from cue_lib import runtime
-from cue_lib import ui_logic
-from cue_lib import displayables
+from cue_lib import dialogues
+from cue_lib.ui import displayables
 from cue_lib import popper

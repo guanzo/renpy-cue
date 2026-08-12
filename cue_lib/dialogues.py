@@ -12,7 +12,7 @@ from cue_lib.util import _cue_resolve_files, create_vid_key
 
 MYPY = False
 if MYPY:
-    from typing import Any, Callable, Optional
+    from typing import Callable, Optional
 
 
 class CuePresetDialog(object):
@@ -150,22 +150,6 @@ def _cue_preview_video_preset(preset_name):
         f = _random.choice(resolved)
         from cue_lib.runtime import _cue_preview_sfx
         _cue_preview_sfx(f)
-
-def _cue_detach_active_video_ts(*args):
-    # type: (*Any) -> None
-    vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
-    if not vid_key:
-        return
-    entry = _cue.markers.get(vid_key)
-    if entry is None:
-        return
-    _cue.markers._detach_pool(vid_key, _cue.markers.video.target_pool)
-    _cue.markers.save_marker(vid_key)
-
-def _cue_detach_pool_at(trigger_key, pool_index):
-    # type: (str, int) -> None
-    _cue.markers._detach_pool(trigger_key, pool_index)
-    _cue.markers.save_marker(trigger_key)
 
 def _cue_make_tab_action(fn, args_tuple, pi):
     # type: (Callable[..., None], tuple, int) -> Callable[..., None]

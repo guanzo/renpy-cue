@@ -140,8 +140,8 @@ screen cue_video_vfx():
                     $ _has_auto = len(_auto.enabled_speeds) >= CUE_AUTO_SPEED_MIN_VARIANTS
 
                     $ _auto_help = (
-                        "Procedurally generates speed sequences with a given theme. "
-                        "Each playthrough of a theme is slightly different. "
+                        "Procedurally generates speed rhythms with a certain theme. "
+                        "Each playthrough of a rhythm is slightly different. "
                         "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is [CUE_AUTO_SPEED_IDEAL_VARIANTS]. The more the better."
                     )
                     text _auto_help style "cue_help"
