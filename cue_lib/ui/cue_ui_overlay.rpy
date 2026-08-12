@@ -151,31 +151,31 @@ screen cue_overlay_content():
         $ _is_dialogue = bool(_cue.current_dialogue)
 
         # --- Video VFX UI ---
-        use cue_section_frame("Video VFX"):
-            default _vfx_did_default = False
-            # --- Pre-compute speed availability ---
-            $ _vid_path = _cue.speed_resolver.base_path_for(_cue.current_file) if _is_video else None
-            $ _has_speeds = False
-            if _vid_path:
-                $ _avail = _cue.speed_resolver.get_available_speeds(_vid_path)
-                $ _has_speeds = len(_avail) > 1
+        if _is_video:
+            use cue_section_frame("Video VFX"):
+                default _vfx_did_default = False
+                # --- Pre-compute speed availability ---
+                $ _vid_path = _cue.speed_resolver.base_path_for(_cue.current_file) if _is_video else None
+                $ _has_speeds = False
+                if _vid_path:
+                    $ _avail = _cue.speed_resolver.get_available_speeds(_vid_path)
+                    $ _has_speeds = len(_avail) > 1
 
-            # Auto-switch to Create tab when no speeds are available
-            if not _has_speeds and not _cue.video_editor.active and not _vfx_did_default:
-                $ _cue.video_editor.open_editor()
-                $ _vfx_did_default = True
+                # Auto-switch to Create tab when no speeds are available
+                if not _has_speeds and not _cue.video_editor.active and not _vfx_did_default:
+                    $ _cue.video_editor.open_editor()
+                    $ _vfx_did_default = True
 
-            # --- Tab buttons ---
-            hbox:
-                spacing 5
-                use cue_tab_btn("Speed", not _cue.video_editor.active,
-                    Function(_cue.video_editor.close_editor))
-                use cue_tab_btn("Create", _cue.video_editor.active,
-                    Function(_cue.video_editor.open_editor))
+                # --- Tab buttons ---
+                hbox:
+                    spacing 5
+                    use cue_tab_btn("Speed", not _cue.video_editor.active,
+                        Function(_cue.video_editor.close_editor))
+                    use cue_tab_btn("Create", _cue.video_editor.active,
+                        Function(_cue.video_editor.open_editor))
 
-            # --- Speed tab ---
-            if not _cue.video_editor.active:
-                if _is_video:
+                # --- Speed tab ---
+                if not _cue.video_editor.active:
                     if _has_speeds:
                         # --- Speed / Multi Speed tabs ---
                         $ _seq = _cue.video_sequence.speeds_for(_cue.current_file)
@@ -217,107 +217,106 @@ screen cue_overlay_content():
                                         use cue_txt_button("Delete " + _cue_speed_label(_cur),
                                             Function(_cue.speed_resolver.delete_variant, _vid_path, _cur),
                                             tt="Delete the " + _cue_speed_label(_cur) + " file.")
+                                
+                                null height 5
                                 use cue_checkbox(
                                     _cue.speed_resolver.seamless_transition,
                                     "Seamless Transition",
                                     Function(_cue.speed_resolver.toggle_seamless),
                                     tt_on="When enabled, changing speeds waits for the current video loop to finish before switching.")
 
-                            # --- Multi Speed tab ---
-                            if _mode == CueSpeedMode.MULTI:
-                                text "The video plays through each speed in order, then loops." style "cue_help"
+                        # --- Multi Speed tab ---
+                        elif _mode == CueSpeedMode.MULTI:
+                            text "The video plays through each speed in order, then loops." style "cue_help"
+                            hbox:
+                                spacing 5
+                                box_wrap True
+                                box_wrap_spacing 5
+                                for _sp in _avail:
+                                    $ _a_label = _cue_speed_label(_sp)
+                                    use cue_txt_button(_a_label,
+                                        Function(_cue.video_sequence.append_speed, _sp),
+                                        tt="Append " + _cue_speed_label(_sp) + " to the end of the sequence")
+                                if _seq:
+                                    use cue_v_divider()
+                                    use cue_txt_button("Clear",
+                                        Function(_cue.video_sequence.clear_sequence, None),
+                                        tt="Remove the entire speed sequence")
+
+                            null height 5
+
+                            if _seq:
+                                if len(_seq) >= 2:
+                                    add CueAutoSpeedChart() xsize 440 ysize 80
+                                else:
+                                    text "Click 1 more speed." style "cue_help"
+                            else:
+                                text "Click the speed buttons to create a sequence. Minimum 2 speeds." style "cue_help"
+
+                        # --- Auto Speed tab ---
+                        elif _mode == CueSpeedMode.AUTO:
+                            $ _auto = _cue.auto_speed
+                            $ _all_speeds = _cue.speed_resolver.get_available_speeds(_vid_path)
+                            $ _has_auto = len(_auto.enabled_speeds) >= CUE_AUTO_SPEED_MIN_VARIANTS
+
+                            $ _auto_help = (
+                                "Procedurally generates speed sequences with a given theme. "
+                                "Each playthrough of a theme is slightly different. "
+                                "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is [CUE_AUTO_SPEED_IDEAL_VARIANTS]. The more the better."
+                            )
+                            text _auto_help style "cue_help"
+
+                            if not _has_auto:
+                                null height 3
+                                text "You don't have enough speeds, generate more in the Create tab." style "cue_help"
+
+                            if _has_auto:
+                                null height 3
+
+                                # --- Speed toggles ---
                                 hbox:
                                     spacing 5
                                     box_wrap True
                                     box_wrap_spacing 5
-                                    for _sp in _avail:
-                                        $ _a_label = _cue_speed_label(_sp)
-                                        use cue_txt_button(_a_label,
-                                            Function(_cue.video_sequence.append_speed, _sp),
-                                            tt="Append " + _cue_speed_label(_sp) + " to the end of the sequence")
-                                    if _seq:
-                                        use cue_v_divider()
-                                        use cue_txt_button("Clear",
-                                            Function(_cue.video_sequence.clear_sequence, None),
-                                            tt="Remove the entire speed sequence")
+                                    for _sp in _all_speeds:
+                                        use cue_select_btn(
+                                            _cue_speed_label(_sp), 
+                                            _auto.is_speed_enabled(_sp), 
+                                            Function(_auto.toggle_speed, _sp),
+                                            "Click to disable" if _auto.is_speed_enabled(_sp) else "Click to enable")
 
                                 null height 5
 
-                                if _seq:
-                                    if len(_seq) >= 2:
-                                        add CueAutoSpeedChart() xsize 440 ysize 80
-                                    else:
-                                        text "Click 1 more speed." style "cue_help"
-                                else:
-                                    text "Click the speed buttons to create a sequence. Minimum 2 speeds." style "cue_help"
+                                hbox:
+                                    spacing 5
+                                    box_wrap True
+                                    box_wrap_spacing 5
+                                    use cue_auto_preset_btn("roller_coaster", _auto)
+                                    use cue_auto_preset_btn("build_up", _auto)
+                                    use cue_auto_preset_btn("cool_down", _auto)
+                                    use cue_auto_preset_btn("slow_groove", _auto)
+                                    use cue_auto_preset_btn("fast_frenzy", _auto)
+                                    use cue_auto_preset_btn("tease", _auto)
+                                    use cue_auto_preset_btn("plateau", _auto)
+                                    use cue_auto_preset_btn("edge", _auto)
+                                    use cue_auto_preset_btn("anchor", _auto)
+                                    use cue_auto_preset_btn("pulse", _auto)
+                                    use cue_auto_preset_btn("random_walk", _auto)
+                                    use cue_auto_preset_btn("surprise", _auto,
+                                        extra_text="Surprise Me")
 
-                            # --- Auto Speed tab ---
-                            if _mode == CueSpeedMode.AUTO:
-                                $ _auto = _cue.auto_speed
-                                $ _all_speeds = _cue.speed_resolver.get_available_speeds(_vid_path)
-                                $ _has_auto = len(_auto.enabled_speeds) >= CUE_AUTO_SPEED_MIN_VARIANTS
+                                null height 5
 
-                                $ _auto_help = (
-                                    "Procedurally generates speed sequences with a given theme. "
-                                    "Each playthrough of a theme is slightly different. "
-                                    "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is [CUE_AUTO_SPEED_IDEAL_VARIANTS]. The more the better."
-                                )
-                                text _auto_help style "cue_help"
-
-                                if not _has_auto:
-                                    null height 3
-                                    text "You don't have enough speeds, generate more in the Create tab." style "cue_help"
-
-                                if _has_auto:
-                                    null height 3
-
-                                    # --- Speed toggles ---
-                                    hbox:
-                                        spacing 5
-                                        box_wrap True
-                                        box_wrap_spacing 5
-                                        for _sp in _all_speeds:
-                                            use cue_select_btn(
-                                                _cue_speed_label(_sp), 
-                                                _auto.is_speed_enabled(_sp), 
-                                                Function(_auto.toggle_speed, _sp),
-                                                "Click to disable" if _auto.is_speed_enabled(_sp) else "Click to enable")
-
-                                    null height 5
-
-                                    hbox:
-                                        spacing 5
-                                        box_wrap True
-                                        box_wrap_spacing 5
-                                        use cue_auto_preset_btn("roller_coaster", _auto)
-                                        use cue_auto_preset_btn("build_up", _auto)
-                                        use cue_auto_preset_btn("cool_down", _auto)
-                                        use cue_auto_preset_btn("slow_groove", _auto)
-                                        use cue_auto_preset_btn("fast_frenzy", _auto)
-                                        use cue_auto_preset_btn("tease", _auto)
-                                        use cue_auto_preset_btn("plateau", _auto)
-                                        use cue_auto_preset_btn("edge", _auto)
-                                        use cue_auto_preset_btn("anchor", _auto)
-                                        use cue_auto_preset_btn("pulse", _auto)
-                                        use cue_auto_preset_btn("random_walk", _auto)
-                                        use cue_auto_preset_btn("surprise", _auto,
-                                            extra_text="Surprise Me")
-
-                                    null height 5
-
-                                    # --- Sequence chart ---
-                                    $ _seq = _cue.video_sequence.speeds_for(_cue.current_file)
-                                    if _seq and len(_seq) >= 2:
-                                        add CueAutoSpeedChart() xsize 440 ysize 80
+                                # --- Sequence chart ---
+                                $ _seq = _cue.video_sequence.speeds_for(_cue.current_file)
+                                if _seq and len(_seq) >= 2:
+                                    add CueAutoSpeedChart() xsize 440 ysize 80
                     else:
                         text "No speed variants available. Create some in the Create tab." style "cue_help"
-                else:
-                    text "Video: (None)" style "cue_txt"
 
-            # --- Create tab ---
-            if _cue.video_editor.active:
-                $ _ved = _cue.video_editor
-                if _is_video:
+                # --- Create tab ---
+                if _cue.video_editor.active:
+                    $ _ved = _cue.video_editor
                     vbox:
                         spacing 5
                         text "Video markers placed on the original video (1.0x) will autoscale to all created videos." style "cue_txt"
@@ -369,37 +368,33 @@ screen cue_overlay_content():
                         sensitive=_ved._ready)
                     if _ved.last_error:
                         text _ved.last_error style "cue_txt" color _cue_color_error
-                else:
-                    text "Video: (None)" style "cue_txt"
 
-                # --- Edit queue ---
-                if _cue.video_editor.job_queue.jobs:
-                    use cue_h_divider()
-                    timer 0.2 repeat True action [
-                        Function(_cue.video_editor.job_queue.poll),
-                        Function(_cue.video_editor.job_queue.refresh_ui),
-                    ]
-                    frame:
-                        background _cue_color_bg_panel
-                        padding (4, 0)
-                        yminimum 0
-                        xfill True
-                        $ _queue_len = len(_cue.video_editor.job_queue.jobs)
-                        if _queue_len > 6:
-                            viewport:
-                                xfill True
-                                ymaximum 200
-                                mousewheel True
-                                scrollbars "vertical"
-                                style_group "cue"
-                                vscrollbar_unscrollable "hide"
+                    # --- Edit queue ---
+                    if _cue.video_editor.job_queue.jobs:
+                        use cue_h_divider()
+                        timer 0.2 repeat True action [
+                            Function(_cue.video_editor.job_queue.poll),
+                            Function(_cue.video_editor.job_queue.refresh_ui),
+                        ]
+                        frame:
+                            background _cue_color_bg_panel
+                            padding (4, 0)
+                            yminimum 0
+                            xfill True
+                            $ _queue_len = len(_cue.video_editor.job_queue.jobs)
+                            if _queue_len > 6:
+                                viewport:
+                                    xfill True
+                                    ymaximum 200
+                                    mousewheel True
+                                    scrollbars "vertical"
+                                    style_group "cue"
+                                    vscrollbar_unscrollable "hide"
+                                    use _cue_edit_queue_vbox()
+                            else:
                                 use _cue_edit_queue_vbox()
-                        else:
-                            use _cue_edit_queue_vbox()
 
-        # --- Video SFX UI ---
-        use cue_section_frame("Video SFX"):
-            if _is_video:
+            use cue_section_frame("Video SFX"):
                 $ _vid_name = _cue.current_file if _cue.current_file else "?"
                 text "Video: [_vid_name]" style "cue_txt"
 
@@ -553,27 +548,26 @@ screen cue_overlay_content():
                 else:
                     text "SFX plays when this video reaches the marked time(s)." style "cue_help"
                     text "Click the V button in the SFX Library to create a new pool or add to the active pool." style "cue_help"
-            else:
-                text "Video: (None)" style "cue_txt"
+        
         # --- Image UI ---
         $ _has_image = bool(_cue.current_file) and not _is_video
-        $ _img_key = create_img_key(_cue.current_file) if _has_image else ""
-        use cue_context_section("Image SFX", _cue.markers.image, _img_key,
-            ("Image: " + _cue.current_file if _has_image else "Image: (None)"),
-            "image", "I",
-            "SFX plays when this image is displayed."):
-            $ _p = _cue._pool_ui["pool"]
-            use cue_checkbox(_p.get("trigger_on_shake", False),
-                "Trigger on screen shake",
-                Function(_cue_toggle_shake_trigger),
-                "Play SFX when a screen shake occurs")
+        if _has_image:
+            $ _img_key = create_img_key(_cue.current_file)
+            use cue_context_section("Image SFX", _cue.markers.image, _img_key,
+                "Image: " + _cue.current_file, "image", "I",
+                "SFX plays when this image is displayed."):
+                $ _p = _cue._pool_ui["pool"]
+                use cue_checkbox(_p.get("trigger_on_shake", False),
+                    "Trigger on screen shake",
+                    Function(_cue_toggle_shake_trigger),
+                    "Play SFX when a screen shake occurs")
 
         # --- Dialogue UI ---
-        $ _dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue)) if _is_dialogue else ""
-        use cue_context_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
-            ("Dialogue: " + _cue.current_dialogue if _is_dialogue else "Dialogue: (None)"),
-            "dialogue", "D",
-            "SFX plays when this line of dialogue is displayed.")
+        if _is_dialogue:
+            $ _dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
+            use cue_context_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
+                "Dialogue: " + _cue.current_dialogue, "dialogue", "D",
+                "SFX plays when this line of dialogue is displayed.")
 
         # Loop SFX
         $ _loop_key = create_loop_key(_cue.current_file or "")
