@@ -31,64 +31,87 @@ if MYPY:
 
 # Minimum number of speed variants required for Auto Speed mode.
 # Fewer than this and the generator can't produce meaningful variety.
+# ==========================================================================
+# Preset metadata — single source of truth for labels, tooltips, and
+# generator dispatch.
+# ==========================================================================
+
+_CUE_AUTO_PRESETS = {
+    "roller_coaster": {
+        "label": "Roller Coaster",
+        "desc":  "Sweeps back and forth across the full speed range",
+        "method": "_gen_roller_coaster",
+    },
+    "build_up": {
+        "label": "Building Up",
+        "desc":  "Stair-steps upward from slow to fast, then holds at peak",
+        "method": "_gen_build_up",
+    },
+    "cool_down": {
+        "label": "Winding Down",
+        "desc":  "Stair-steps downward from fast to slow and settles",
+        "method": "_gen_cool_down",
+    },
+    "slow_groove": {
+        "label": "Slow Groove",
+        "desc":  "Lingers in the lower speeds with a gentle, lazy sway",
+        "method": "_gen_slow_groove",
+    },
+    "fast_frenzy": {
+        "label": "Fast Frenzy",
+        "desc":  "High-energy, stays fast with frequent quick changes",
+        "method": "_gen_fast_frenzy",
+    },
+    "tease": {
+        "label": "Tease",
+        "desc":  "Mostly slow with sudden, brief spikes of speed",
+        "method": "_gen_tease",
+    },
+    "plateau": {
+        "label": "Plateau",
+        "desc":  "Long, sustained holds at one speed, then jumps to another",
+        "method": "_gen_plateau",
+    },
+    "random_walk": {
+        "label": "Random Walk",
+        "desc":  "Unpredictable drift with no fixed direction or shape",
+        "method": "_gen_random_walk",
+    },
+    "edge": {
+        "label": "Edge",
+        "desc":  "Climbs toward peak, then drops suddenly -- never quite gets there",
+        "method": "_gen_edge",
+    },
+    "anchor": {
+        "label": "Anchor",
+        "desc":  "Gravitates around a comfortable speed with small wobbles",
+        "method": "_gen_anchor",
+    },
+    "pulse": {
+        "label": "Pulse",
+        "desc":  "Steady repetitive beat — alternates around a central speed",
+        "method": "_gen_pulse",
+    },
+    "shuffle": {
+        "label": "Shuffle",
+        "desc":  "Picks a random rhythm each sequence -- expect anything!",
+    },
+}
+
+
 def _cue_auto_preset_label(preset_name):
     # type: (str) -> str
     """Human-readable label for a preset key."""
-    labels = {
-        "roller_coaster": "Roller Coaster",
-        "build_up":       "Building Up",
-        "cool_down":      "Winding Down",
-        "slow_groove":    "Slow Groove",
-        "fast_frenzy":    "Fast Frenzy",
-        "tease":          "Tease",
-        "plateau":        "Plateau",
-        "random_walk":    "Random Walk",
-        "edge":           "Edge",
-        "anchor":         "Anchor",
-        "pulse":          "Pulse",
-        "surprise":       "Surprise Me",
-        None:             "Custom",
-    }
-    return labels.get(preset_name, preset_name if preset_name else "Custom")
+    if preset_name is None:
+        return "Custom"
+    return _CUE_AUTO_PRESETS.get(preset_name, {}).get("label",
+        preset_name if preset_name else "Custom")
 
 
 def _cue_auto_preset_description(preset_name):
     # type: (str) -> str
     """One-line description for a preset tooltip."""
-    descs = {
-        "roller_coaster": "Sweeps back and forth across the full speed range",
-        "build_up":       "Stair-steps upward from slow to fast, then holds at peak",
-        "cool_down":      "Stair-steps downward from fast to slow and settles",
-        "slow_groove":    "Lingers in the lower speeds with a gentle, lazy sway",
-        "fast_frenzy":    "High-energy, stays fast with frequent quick changes",
-        "tease":          "Mostly slow with sudden, brief spikes of speed",
-        "plateau":        "Long, sustained holds at one speed, then jumps to another",
-        "random_walk":    "Unpredictable drift with no fixed direction or shape",
-        "edge":           "Climbs toward peak, then drops suddenly -- never quite gets there",
-        "anchor":         "Gravitates around a comfortable speed with small wobbles",
-        "pulse":          "Steady repetitive beat — alternates around a central speed",
-        "surprise":       "Picks a random rhythm each sequence -- expect anything!",
-    }
-    return descs.get(preset_name, "")
-
-
-# ==========================================================================
-# Generator dispatch -- maps preset name to method name on the class
-# ==========================================================================
-
-_GEN_METHODS = {
-    "roller_coaster": "_gen_wave",
-    "build_up":       "_gen_climb",
-    "cool_down":      "_gen_descend",
-    "slow_groove":    "_gen_low_sway",
-    "fast_frenzy":    "_gen_high_jitter",
-    "tease":          "_gen_spike",
-    "plateau":        "_gen_plateau",
-    "random_walk":    "_gen_random_walk",
-    "edge":           "_gen_edge",
-    "anchor":         "_gen_anchor",
-    "pulse":          "_gen_pulse",
-}
+    return _CUE_AUTO_PRESETS.get(preset_name, {}).get("desc", "")
 
 
 # ==========================================================================
@@ -124,14 +147,14 @@ class CueAutoSpeedGenerator(object):
         # Used only by the legacy _walk (custom mode).
         self.momentum_drift_chance = 0.15
 
-        # Which preset to use when "Surprise me" is selected (random each generation)
-        self.surprise_pool = list(_GEN_METHODS.keys())
+        # Which preset to use when "Shuffle" is selected (random each generation)
+        self.shuffle_pool = [k for k, v in _CUE_AUTO_PRESETS.items() if "method" in v]
 
         # Currently active preset name (or None for custom/fine-tuned)
         self.active_preset = "roller_coaster"
 
-        # Whether the user chose "surprise" — if True, re-randomize on each loop
-        self.is_surprise_mode = False
+        # Whether the user chose "shuffle" — if True, re-randomize on each loop
+        self.is_shuffle_mode = False
 
         # ================================================================
         # Fine-tune overrides (only used when active_preset is None)
@@ -148,18 +171,18 @@ class CueAutoSpeedGenerator(object):
     def select_preset(self, preset_name):
         # type: (str) -> None
         """Pick a named preset. Persists immediately."""
-        if preset_name == "surprise":
-            self.surprise_me()
-        elif preset_name in _GEN_METHODS:
+        if preset_name == "shuffle":
+            self.shuffle()
+        elif preset_name in self.shuffle_pool:
             self.active_preset = preset_name
-            self.is_surprise_mode = False
+            self.is_shuffle_mode = False
             self._regenerate()
             renpy.restart_interaction()
 
-    def surprise_me(self):
-        """Pick a random preset from the surprise pool and regenerate."""
-        self.is_surprise_mode = True
-        self.active_preset = _random.choice(self.surprise_pool)
+    def shuffle(self):
+        """Pick a random preset from the pool and regenerate."""
+        self.is_shuffle_mode = True
+        self.active_preset = _random.choice(self.shuffle_pool)
         self._regenerate()
         renpy.restart_interaction()
 
@@ -231,7 +254,7 @@ class CueAutoSpeedGenerator(object):
         n = len(speeds)
         target_tu = _random.uniform(self.min_duration_tu, self.max_duration_tu)
 
-        method_name = _GEN_METHODS.get(self.active_preset)
+        method_name = _CUE_AUTO_PRESETS.get(self.active_preset, {}).get("method")
         if method_name:
             gen = getattr(self, method_name)
             seq = gen(speeds, n, target_tu)
@@ -336,7 +359,7 @@ class CueAutoSpeedGenerator(object):
     # Roller Coaster -- explicit bottom <-> top sweeps
     # ----------------------------------------------------------------
 
-    def _gen_wave(self, speeds, n, target_tu):
+    def _gen_roller_coaster(self, speeds, n, target_tu):
         # type: (list, int, float) -> list
         """Roller Coaster: 3-6 humps with peaks in the top fourth and
         valleys in the bottom fourth.  Starts and ends near the bottom."""
@@ -447,7 +470,7 @@ class CueAutoSpeedGenerator(object):
     # Build Up -- guaranteed low -> peak climb, then hold
     # ----------------------------------------------------------------
 
-    def _gen_climb(self, speeds, n, target_tu):
+    def _gen_build_up(self, speeds, n, target_tu):
         # type: (list, int, float) -> list
         """Build Up: 40-60% of the budget spent climbing, rest at peak."""
         seq = []
@@ -490,7 +513,7 @@ class CueAutoSpeedGenerator(object):
     # Cool Down -- guaranteed high -> low descent, then settle
     # ----------------------------------------------------------------
 
-    def _gen_descend(self, speeds, n, target_tu):
+    def _gen_cool_down(self, speeds, n, target_tu):
         # type: (list, int, float) -> list
         """Cool Down: 40-60% of the budget spent descending, rest at bottom."""
         seq = []
@@ -532,7 +555,7 @@ class CueAutoSpeedGenerator(object):
     # Slow Groove -- lower rungs, lazy sway
     # ----------------------------------------------------------------
 
-    def _gen_low_sway(self, speeds, n, target_tu):
+    def _gen_slow_groove(self, speeds, n, target_tu):
         # type: (list, int, float) -> list
         """Slow Groove: lazy sway in the lower speeds, never reaches high."""
         seq = []
@@ -563,7 +586,7 @@ class CueAutoSpeedGenerator(object):
     # Fast Frenzy -- upper rungs, short holds, frequent changes
     # ----------------------------------------------------------------
 
-    def _gen_high_jitter(self, speeds, n, target_tu):
+    def _gen_fast_frenzy(self, speeds, n, target_tu):
         # type: (list, int, float) -> list
         """Fast Frenzy: high-energy upper speeds with quick changes."""
         seq = []
@@ -601,7 +624,7 @@ class CueAutoSpeedGenerator(object):
     # Tease -- mostly slow, rare sharp spikes with enforced cooldown
     # ----------------------------------------------------------------
 
-    def _gen_spike(self, speeds, n, target_tu):
+    def _gen_tease(self, speeds, n, target_tu):
         # type: (list, int, float) -> list
         """Tease: baseline in the lowest fourth, sharp spikes into the
         top third.  Guarantees at least 3 spikes, then lets probability
@@ -1041,9 +1064,9 @@ class CueAutoSpeedGenerator(object):
         if len(speeds) < CUE_AUTO_SPEED_MIN_VARIANTS:
             return
 
-        # Surprise mode: pick a new random preset each loop
-        if self.is_surprise_mode:
-            self.active_preset = _random.choice(self.surprise_pool)
+        # Shuffle mode: pick a new random preset each loop
+        if self.is_shuffle_mode:
+            self.active_preset = _random.choice(self.shuffle_pool)
 
         self._video_duration = _cue.vid_manager.get_duration()
         new_seq = self.generate(speeds)

@@ -171,9 +171,20 @@ screen cue_video_vfx():
                             spacing 5
                             box_wrap True
                             box_wrap_spacing 5
-                            $ _preset_names = _cue.auto_speed.surprise_pool + ["surprise"]
-                            for _name in _preset_names:
-                                use cue_auto_preset_btn(_name, _auto)
+
+                            # Don't loop, this is a custom order that places similar themes together
+                            use cue_auto_preset_btn("roller_coaster", _auto)
+                            use cue_auto_preset_btn("build_up", _auto)
+                            use cue_auto_preset_btn("cool_down", _auto)
+                            use cue_auto_preset_btn("slow_groove", _auto)
+                            use cue_auto_preset_btn("fast_frenzy", _auto)
+                            use cue_auto_preset_btn("tease", _auto)
+                            use cue_auto_preset_btn("plateau", _auto)
+                            use cue_auto_preset_btn("edge", _auto)
+                            use cue_auto_preset_btn("anchor", _auto)
+                            use cue_auto_preset_btn("pulse", _auto)
+                            use cue_auto_preset_btn("random_walk", _auto)
+                            use cue_auto_preset_btn("shuffle", _auto)
 
                         null height 5
 
@@ -265,25 +276,25 @@ screen cue_video_vfx():
                         use _cue_edit_queue_vbox()
 
 # Auto Speed preset button: emoji + label chip. Highlights when selected.
-# When surprise mode is active, the Surprise Me button gets the green
+# When shuffle mode is active, the Shuffle button gets the green
 # (mode indicator) and the concrete preset that's actually playing gets
 # yellow (delegate indicator).
 screen cue_auto_preset_btn(preset_name, auto):
     $ _is_active = (auto.active_preset == preset_name)
-    $ _is_surprise = (preset_name == "surprise" and auto.is_surprise_mode)
+    $ _is_shuffle_mode = (preset_name == "shuffle" and auto.is_shuffle_mode)
     $ _label = _cue_auto_preset_label(preset_name)
     $ _desc = _cue_auto_preset_description(preset_name)
 
-    if _is_surprise:
-        # Surprise Me is the selected "mode" -- green
+    if _is_shuffle_mode:
+        # Shuffle is the selected "mode" -- green
         textbutton _label:
             style "cue_btn"
             text_style "cue_btn_text"
             background _cue_color_active
             action NullAction()
             tooltip _desc
-    elif _is_active and auto.is_surprise_mode:
-        # Surprise delegate -- this preset is playing, but surprise is the mode (yellow)
+    elif _is_active and auto.is_shuffle_mode:
+        # Shuffle delegate -- this preset is playing, but shuffle is the mode (yellow)
         textbutton _label:
             style "cue_btn"
             text_style "cue_btn_text"
