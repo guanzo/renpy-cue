@@ -25,36 +25,6 @@ if MYPY:
 
 
 # ---------------------------------------------------------------------------
-# Platform path helpers
-# ---------------------------------------------------------------------------
-
-def _cue_get_shared_dir():
-    # type: () -> str
-    """Return the platform-standard shared directory for cue data.
-
-    Respects the RENPY_CUE_DIR environment override.  Otherwise:
-      Windows : %%APPDATA%%/renpy_cue
-      macOS   : ~/Library/Application Support/renpy_cue
-      Linux   : $XDG_DATA_HOME/renpy_cue or ~/.local/share/renpy_cue
-    """
-    import sys as _sys
-    env = os.environ.get("RENPY_CUE_DIR", "")
-    if env:
-        return os.path.normpath(env)
-
-    if _sys.platform == "win32":
-        base = os.environ.get("APPDATA", "")
-    elif _sys.platform == "darwin":
-        base = os.path.expanduser("~/Library/Application Support")
-    else:
-        base = os.environ.get(
-            "XDG_DATA_HOME",
-            os.path.expanduser("~/.local/share"),
-        )
-    return os.path.normpath(os.path.join(base, "renpy_cue")).replace("\\", "/")
-
-
-# ---------------------------------------------------------------------------
 # Key sanitisation for filesystem safety
 # ---------------------------------------------------------------------------
 # Marker keys: {prefix}_{file}, dialogue appends _{hash} for the text.

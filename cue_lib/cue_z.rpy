@@ -131,9 +131,8 @@ init -900 python:
     from cue_lib.auto_speed import CueAutoSpeedGenerator
     from cue_lib.file_tree import CueFileTreeManager
     from cue_lib.dialogues import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
-    from cue_lib.db import _cue_get_shared_dir, CueDatabase
+    from cue_lib.db import CueDatabase
     from cue_lib.state import _cue
-    import os as _os
 
     _cue.markers = CueMarkerManager()
     _cue.undo = CueUndoManager()
@@ -153,12 +152,8 @@ init -900 python:
     _cue.confirm_dialog = CueConfirmDialog()
     _cue.keybinds = CueKeybindsManager()
 
-    _cue.config_path = _os.path.join(renpy.config.gamedir, _cue.base_dir, _cue.config_filename)
-
-    _cue.shared_dir = _cue_get_shared_dir()
     _cue.db = CueDatabase(_cue.shared_dir, renpy.config.save_directory)
     _cue.db.open()
-    _cue.audio_dir = _cue.shared_dir + "/audio"
 
 
 init 999 python:

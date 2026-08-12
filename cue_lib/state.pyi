@@ -16,6 +16,7 @@ from cue_lib.video import CueVideoManager
 from cue_lib.video_editor import CueVideoEditor
 from cue_lib.db import CueDatabase
 from cue_lib.volume import CueVolumeManager
+from cue_lib.keybinds import CueKeybindsManager
 
 class Cue:
     debug: bool
@@ -33,6 +34,7 @@ class Cue:
 
     initialized: bool
     is_overlay_visible: bool
+    is_settings_visible: bool
     current_file: str
     current_dialogue: str
     prev_dialogue: str
@@ -59,6 +61,7 @@ class Cue:
     preset_dialog: CuePresetDialog
     video_preset_dialog: CueVideoPresetDialog
     confirm_dialog: CueConfirmDialog
+    keybinds: CueKeybindsManager
 
     available_files: List[str]
     audio_tree: List[AudioTreeNode]

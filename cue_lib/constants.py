@@ -31,7 +31,7 @@ CUE_POPPER_DEFAULT_OFFSET = 5
 CUE_POPPER_DEFAULT_MARGIN = 8
 
 # Keymap names for rebindable cue hotkeys (registered in config.keymap).
-CUE_KEYMAP_TOGGLE_OVERLAY = "cue_toggle_overlay"
+CUE_KEYMAP_TOGGLE_OVERLAY  = "cue_toggle_overlay"
 CUE_KEYMAP_QUIT_RELAUNCH   = "cue_quit_relaunch"
 CUE_KEYMAP_COPY_CONTEXT    = "cue_copy_context"
 CUE_KEYMAP_PASTE_CONTEXT   = "cue_paste_context"

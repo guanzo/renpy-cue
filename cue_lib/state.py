@@ -7,6 +7,8 @@
 # imports — state.py imports nothing from cue_lib, while every manager
 # module imports _cue from here.
 
+import os as _os
+import renpy
 import renpy.python as _renpy_python
 
 
@@ -17,10 +19,8 @@ class Cue(_renpy_python.NoRollback):
         # --- Paths ---
         self.debug = True
         self.base_dir = "renpy_cue"
-        self.audio_dir = ""        # set by cue_z.rpy init -900
+
         self.config_filename = "cue_config.json"
-        self.config_path = ""      # set by cue_z.rpy init -900
-        self.shared_dir = ""       # set by cue_z.rpy init -900
         self.debug_log_filename = "debug.log"
 
         # --- Constants ---
@@ -32,6 +32,7 @@ class Cue(_renpy_python.NoRollback):
         # --- Runtime state ---
         self.initialized = False
         self.is_overlay_visible = False
+        self.is_settings_visible = False
         self.current_file = ""
         self.current_dialogue = ""
         self.prev_dialogue = ""
@@ -59,6 +60,7 @@ class Cue(_renpy_python.NoRollback):
         self.preset_dialog = None
         self.video_preset_dialog = None
         self.confirm_dialog = None
+        self.keybinds = None
 
         # --- Audio cache ---
         self.available_files = []
@@ -78,6 +80,42 @@ class Cue(_renpy_python.NoRollback):
         self._vtl_screen_y = 0
         self._chart_screen_x = 0
         self._chart_screen_y = 0
+
+    @property
+    def shared_dir(self):
+        # type: () -> str
+        """Platform-standard shared directory for cue data.
+
+        Respects the RENPY_CUE_DIR environment override.  Otherwise:
+          Windows : %APPDATA%/renpy_cue
+          macOS   : ~/Library/Application Support/renpy_cue
+          Linux   : $XDG_DATA_HOME/renpy_cue or ~/.local/share/renpy_cue
+        """
+        import sys as _sys
+        env = _os.environ.get("RENPY_CUE_DIR", "")
+        if env:
+            return _os.path.normpath(env)
+
+        if _sys.platform == "win32":
+            base = _os.environ.get("APPDATA", "")
+        elif _sys.platform == "darwin":
+            base = _os.path.expanduser("~/Library/Application Support")
+        else:
+            base = _os.environ.get(
+                "XDG_DATA_HOME",
+                _os.path.expanduser("~/.local/share"),
+            )
+        return _os.path.normpath(_os.path.join(base, "renpy_cue")).replace("\\", "/")
+
+    @property
+    def config_path(self):
+        # type: () -> str
+        return _os.path.join(renpy.config.gamedir, self.base_dir, self.config_filename)
+
+    @property
+    def audio_dir(self):
+        # type: () -> str
+        return self.shared_dir + "/audio"
 
 
 _cue = Cue()

@@ -12,8 +12,6 @@ screen cue_key_listener():
     zorder 10000
 
     key CUE_KEYMAP_TOGGLE_OVERLAY action Function(_cue_toggle_overlay)
-    if _cue.debug:
-        key CUE_KEYMAP_QUIT_RELAUNCH action Function(renpy.quit, relaunch=True)
     key CUE_KEYMAP_COPY_CONTEXT action Function(_cue.markers.copy_context)
     key CUE_KEYMAP_PASTE_CONTEXT action Function(_cue.markers.paste_context)
     key CUE_KEYMAP_TOGGLE_ACTIVE action Function(_cue_toggle_active)
@@ -23,6 +21,8 @@ screen cue_key_listener():
     key CUE_KEYMAP_SPEED_UP action Function(_cue.speed_resolver.cycle_speed, 1)
     key CUE_KEYMAP_SPEED_DOWN action Function(_cue.speed_resolver.cycle_speed, -1)
     key CUE_KEYMAP_TOGGLE_SFX action Function(_cue.file_tree.toggle_section, CUE_SFX_LIBRARY_HEADER)
+    if _cue.debug:
+        key CUE_KEYMAP_QUIT_RELAUNCH action Function(renpy.quit, relaunch=True)
     timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
 
 ###############################################################################
