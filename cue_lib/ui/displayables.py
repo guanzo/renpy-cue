@@ -362,7 +362,7 @@ class CueVideoMarkerTimeline(Displayable):
                         self._tip_text += "\nOffset from Pool {}: {}{}".format(
                             ref_idx + 1, sign, _cue_format_time(abs(offset)))
                 if is_scaled:
-                    self._tip_text += "\n[auto-scaled from 1.0x, locked]"
+                    self._tip_text += "\n[Auto-scaled from 1.0x.\nEdit markers on the 1.0x speed.]"
                 self._tip_x = x
                 self._tip_y = y
                 self._hover_idx = hit_idx
@@ -484,12 +484,28 @@ class CueTooltip(Displayable):
         fh = th + pad_y * 2
 
         mx, my = renpy.get_mouse_pos()
+        sw = renpy.config.screen_width
+        sh = renpy.config.screen_height
+
+        # Default offset: right and slightly above the cursor
+        tx = mx + 12
+        ty = my - 8
+
+        # Clamp to keep the tooltip fully on screen
+        if tx + fw > sw:
+            tx = mx - fw - 12  # flip to left of cursor
+        if ty + fh > sh:
+            ty = sh - fh
+        if tx < 0:
+            tx = 0
+        if ty < 0:
+            ty = 0
 
         r = renpy.Render(1, 1)
         tip = renpy.Render(fw, fh)
         tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))
         tip.blit(text_render, (pad_x, pad_y))
-        r.blit(tip, (mx + 12, my - 8))
+        r.blit(tip, (tx, ty))
         return r
 
 
