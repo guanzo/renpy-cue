@@ -180,6 +180,27 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
         use cue_icon_btn("+", inc10_action)
         use cue_icon_btn("++", inc100_action, None, 22)
 
+# Text input: textbutton that becomes an input on click, Enter to confirm.
+# field_name: string for _CueFieldValue (e.g. "_cue.setup_dir_text")
+# commit_action: Function() called on Enter to confirm
+# display_text: the label shown on the textbutton
+screen cue_text_input(field_name, commit_action, display_text, xsize=80):
+    default editing = False
+    if editing:
+        key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
+        key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
+        input:
+            style "cue_input"
+            value _CueFieldValue(field_name)
+            default True
+            copypaste True
+            xsize xsize
+            ysize 16
+    else:
+        use cue_txt_button(display_text,
+            SetLocalVariable("editing", True),
+            xsize=xsize, ysize=16, tt="Click to edit. Press Enter to confirm.")
+
 # Pool tab row: optional Delete button, + Pool button, numbered tabs [1][2]...
 # tab_action_fn(tab_action_args..., pi) is called when tab pi is clicked.
 # delete_xsize/tab_xsize override the default button width (pass None for default).
