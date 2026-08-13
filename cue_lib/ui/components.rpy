@@ -503,7 +503,7 @@ screen cue_exclusive_row(ctx):
                 "Block SFX outside this group from starting until done"
                 if _group
                 else
-                "Block other SFX from starting until done."
+                "Block other SFX from starting until done"
             )
             $ _hold_tt = (
                 "Also: if another SFX outside this group is already blocking, this one will be skipped."
