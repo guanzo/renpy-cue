@@ -22,14 +22,8 @@ screen cue_video_sfx():
         hbox:
             spacing 5
             use cue_icon_btn(
-                ("play" if _cue.vid_manager.paused else "pause"), 
+                ("play" if _cue.vid_manager.paused else "pause"),
             Function(_cue.vid_manager.toggle_pause))
-            use cue_txt_button("-1f",
-                Function(_cue.vid_manager.seek_frame, -1),
-                tt="Seek backwards 1 frame (inaccurate and requires restarting video)")
-            use cue_txt_button("+1f",
-                Function(_cue.vid_manager.seek_frame, 1),
-                tt="Seek forward 1 frame (inaccurate)")
 
             use cue_v_divider()
             use cue_txt_button("Repeat", Function(_cue.repeater.open),

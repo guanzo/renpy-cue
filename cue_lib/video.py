@@ -35,7 +35,6 @@ class CueVideoManager(object):
         self.refreshing = False
         self.fps = 30
         self.last_elapsed = 0.0
-        self.frame_time = 1.0 / 30.0
         self.time_offset = 0.0
         self.step_target = 0.0
         self.pause_target = 0.0
@@ -46,7 +45,6 @@ class CueVideoManager(object):
         # type: (int) -> None
         """Apply the detected video framerate."""
         self.fps = fps
-        self.frame_time = 1.0 / fps
 
     def reset_pause(self):
         # type: () -> None
@@ -119,49 +117,6 @@ class CueVideoManager(object):
                 _music.set_volume(1.0, delay=0, channel=self.channel)
                 self.paused = False
 
-    def seek_frame(self, delta_frames):
-        # type: (int) -> None
-        """Step forward/backward.
-        Forward: briefly unpause, auto-re-pause via tick timer.
-        Backward: restart from 0, auto-pause at origin + accumulated offset.
-        Does not wrap around -- clamps at 0 and duration."""
-        if not self.channel:
-            return
-        frame_seconds = self.frame_time
-        # Auto-pause if video is playing
-        if not self.paused:
-            _music.set_pause(True, channel=self.channel)
-            self.paused = True
-            self.pause_origin = _music.get_pos(channel=self.channel) or 0.0
-            self.total_offset = 0.0
-            self.time_offset = 0.0
-        dur = _music.get_duration(channel=self.channel) or 0.0
-        if delta_frames > 0:
-            pos = _music.get_pos(channel=self.channel) or 0.0
-            target = pos + delta_frames * frame_seconds
-            if dur > 0:
-                target = _cue_clamp_time(target, dur)
-            self.step_target = max(CUE_SEEK_EPSILON, target)
-            _cue_log("+f step_target={:.3f}".format(self.step_target))
-            _music.set_pause(False, channel=self.channel)
-        else:  # delta_frames < 0
-            self.total_offset += delta_frames * frame_seconds
-            origin = self.pause_origin
-            target = origin + self.total_offset
-            if dur > 0:
-                target = _cue_clamp_time(target, dur)
-            else:
-                target = max(0.0, target)
-            filepath = _music.get_playing(channel=self.channel)
-            _cue_log(
-                "-f origin={:.3f} total_offset={:.3f} target={:.3f} dur={:.3f}"
-                .format(origin, self.total_offset, target, dur)
-            )
-            if filepath and dur > 0:
-                self.pause_target = max(CUE_SEEK_EPSILON, target)
-                _music.stop(channel=self.channel, fadeout=0)
-                _music.play(filepath, channel=self.channel, loop=True)
-
     def seek_to(self, target_time):
         # type: (float) -> None
         """Seek to an absolute timestamp and pause there.
@@ -181,14 +136,14 @@ class CueVideoManager(object):
         self.time_offset = 0.0
         self.pause_target = 0.0
         if target >= current_pos:
-            # Forward seek: pause, set step target, unpause (same as +1f)
+            # Forward seek: pause, set step target, unpause.
             if not self.paused:
                 _music.set_pause(True, channel=self.channel)
                 self.paused = True
             self.step_target = max(CUE_SEEK_EPSILON, target)
             _music.set_pause(False, channel=self.channel)
         else:
-            # Backward seek: restart from 0 (same as -1f)
+            # Backward seek: restart from 0 with pause_target.
             filepath = _music.get_playing(channel=self.channel)
             if not filepath:
                 return
