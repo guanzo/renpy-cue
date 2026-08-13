@@ -39,7 +39,7 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
                                 None
                             )
                             if _arrow is not None:
-                                add _arrow yalign 0.5
+                                add _arrow yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
             if not _collapsed:
                 if not _cue.audio_tree:
                     text "[_cue.scan_error]" style "cue_help" color _cue_color_error
@@ -60,9 +60,6 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
             # --- Presets folder (matches audio tree folder UI) ---
             hbox:
                 spacing 2
-                use cue_icon_btn(
-                    ("chevron-down" if _cue.file_tree.presets_expanded else "chevron-right"),
-                    Function(_cue.file_tree.toggle_presets_expand), None, None)
                 use cue_txt_button("Presets/", Function(_cue.file_tree.toggle_presets_expand))
 
             if _cue.file_tree.presets_expanded:
@@ -71,9 +68,6 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
             # --- Video Presets folder ---
             hbox:
                 spacing 2
-                use cue_icon_btn(
-                    ("chevron-down" if _cue.file_tree.video_presets_expanded else "chevron-right"),
-                    Function(_cue.file_tree.toggle_video_presets_expand), None, None)
                 use cue_txt_button("Video Presets/", Function(_cue.file_tree.toggle_video_presets_expand))
 
             if _cue.file_tree.video_presets_expanded:
@@ -92,9 +86,6 @@ screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue):
         hbox:
             spacing 2
             text "  " style "cue_txt"  # indent under Presets/
-            use cue_icon_btn(
-                ("chevron-down" if _p_expanded else "chevron-right"),
-                Function(_cue.file_tree.toggle_preset_expand, _pname), None, None)
             use cue_icon_btn("xmark", Function(_cue_confirm_delete_preset, _pname), "Delete preset", None)
             use cue_icon_btn(
                 "play",
@@ -142,9 +133,6 @@ screen cue_video_presets_list(_is_video, _has_image, _is_dialogue):
             spacing 2
             text "  " style "cue_txt"  # indent under Video Presets/
             use cue_icon_btn(
-                ("chevron-down" if _vp_expanded else "chevron-right"),
-                Function(_cue.file_tree.toggle_video_preset_expand, _vpname), None, None)
-            use cue_icon_btn(
                 "xmark",
                 Function(_cue_confirm_delete_video_preset, _vpname),
                 "Delete video preset", None)
@@ -179,10 +167,6 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
             if item["depth"] > 0:
                 text " " * item["depth"] style "cue_txt"
             if item["type"] == "folder":
-                if item["expanded"]:
-                    use cue_icon_btn("chevron-down", Function(_cue.file_tree.toggle_folder, item["full_path"]), None, None)
-                else:
-                    use cue_icon_btn("chevron-right", Function(_cue.file_tree.toggle_folder, item["full_path"]), None, None)
                 if item["has_files"]:
                     use cue_icon_btn(
                         "V",

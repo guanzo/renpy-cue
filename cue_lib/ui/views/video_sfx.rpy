@@ -44,7 +44,7 @@ screen cue_video_sfx():
                 ("• Markers and marker groups are draggable.\n"
                 + "• (Alt + Click) or (Shift + Click) to create a marker group.\n"
                 + "• Use Repeat to copy selected markers at an interval.\n"
-                + "• Get your markers timed to the first position, then use Repeat to find to right interval."),
+                + "• Get your markers timed to the first 'beat', then use Repeat to find to right interval."),
                 None)
         # --- Timeline visualizer ---
         frame:

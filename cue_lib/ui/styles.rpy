@@ -35,7 +35,7 @@ define _cue_color_bar_active = "#007AFF"
 
 style cue_frame is empty:
     background _cue_color_bg_overlay
-    padding (8, 6)
+    padding (4, 4)
     xfill True
 
 style cue_popper_frame is empty:

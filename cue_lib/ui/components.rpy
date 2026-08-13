@@ -268,8 +268,6 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
             $ _count = len(folder_children) if folder_children else 0
             hbox:
                 spacing row_spacing
-                use cue_icon_btn(("chevron-down" if _is_expanded else "chevron-right"),
-                    Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
                 use cue_icon_btn("xmark", Function(remove_fn, *remove_args), "Remove preset", None)
                 use cue_icon_btn(
                     "play",
@@ -297,8 +295,6 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 $ _count = len(_cue_resolve_files([f]))
                 hbox:
                     spacing row_spacing
-                    use cue_icon_btn(("chevron-down" if _is_expanded else "chevron-right"),
-                        Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
                     use cue_icon_btn("xmark", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder", None)
                     use cue_icon_btn(
                         "play",
@@ -378,7 +374,7 @@ screen cue_section_frame(header_text):
                     text header_text style "cue_hdr"
                     null width 8
                     if _arrow is not None:
-                        add _arrow xalign 1.0 yalign 0.5
+                        add _arrow xalign 1.0 yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
             if not _collapsed:
                 transclude
 
