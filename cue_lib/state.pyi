@@ -75,6 +75,7 @@ class Cue:
     _marker_tip_y: int
     _popper_anchors: Dict[str, Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]]
     _seq_popup_index: int
+    _create_delete_speed: Optional[Tuple[str, float]]
     _vtl_screen_x: int
     _vtl_screen_y: int
     _chart_screen_x: int

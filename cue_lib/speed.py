@@ -993,3 +993,42 @@ def _cue_seq_move_right():
         return
     _cue_seq_popup_dismiss()
     _cue.video_sequence.move(idx, 1)
+
+
+# ==========================================================================
+# Create tab delete actions
+# ==========================================================================
+
+def _cue_create_select_speed(speed):
+    # type: (float) -> None
+    # Select a created speed for deletion. Clicking the selected speed
+    # again deselects it. Scoped to the current video so switching videos
+    # can't leave a stale selection that deletes the wrong file.
+    sel = getattr(_cue, '_create_delete_speed', None)
+    if sel is not None and sel[0] == _cue.current_file and sel[1] == speed:
+        _cue._create_delete_speed = None
+    else:
+        _cue._create_delete_speed = (_cue.current_file, speed)
+    renpy.restart_interaction()
+
+def _cue_create_delete_sel():
+    # type: () -> Optional[float]
+    sel = getattr(_cue, '_create_delete_speed', None)
+    if sel is None or sel[0] != _cue.current_file:
+        return None
+    return sel[1]
+
+def _cue_create_delete_speed():
+    # type: () -> None
+    sel = getattr(_cue, '_create_delete_speed', None)
+    if sel is None or sel[0] != _cue.current_file:
+        return
+    tag, speed = sel
+    _cue._create_delete_speed = None
+    if speed == CUE_DEFAULT_VIDEO_SPEED:
+        renpy.restart_interaction()
+        return
+    base_path = _cue.speed_resolver.base_path_for(tag)
+    if base_path:
+        _cue.speed_resolver.delete_variant(base_path, speed)
+    renpy.restart_interaction()

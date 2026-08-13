@@ -69,6 +69,7 @@ init -999 python:
     from cue_lib.speed import (
         _cue_seq_btn_hovered, _cue_seq_popup_dismiss,
         _cue_seq_delete, _cue_seq_move_left, _cue_seq_move_right,
+        _cue_create_select_speed, _cue_create_delete_sel, _cue_create_delete_speed,
     )
 
     from cue_lib.dialogues import (

@@ -194,7 +194,28 @@ screen cue_video_vfx():
             $ _ved = _cue.video_editor
             vbox:
                 spacing 5
-                text "Video markers placed on the original video (1.0x) will autoscale to all created videos." style "cue_txt"
+                text "Video SFX markers on the original video (1.0x) will autoscale to all created videos." style "cue_txt"
+                # --- Created speeds: select one for deletion ---
+                $ _del_sel = _cue_create_delete_sel()
+                hbox:
+                    spacing 5
+                    box_wrap True
+                    box_wrap_spacing 3
+                    text "Created Speeds:" style "cue_txt"
+                    if _has_speeds:
+                        for _sp in _avail:
+                            if _sp != CUE_DEFAULT_VIDEO_SPEED:
+                                use cue_select_btn(_cue_speed_label(_sp), (_del_sel == _sp),
+                                    Function(_cue_create_select_speed, _sp))
+                        if _del_sel is not None:
+                            use cue_v_divider()
+                            use cue_txt_button("Delete " + _cue_speed_label(_del_sel),
+                                Function(_cue_create_delete_speed),
+                                tt="Delete the " + _cue_speed_label(_del_sel) + " file.")
+                    else:
+                        text "None" style "cue_txt" color _cue_color_text_muted
+                
+                null height 5
                 hbox:
                     spacing 5
                     text "New Speed:" style "cue_txt"
