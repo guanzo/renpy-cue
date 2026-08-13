@@ -22,7 +22,6 @@ from cue_lib.util import (
     _cue_atl_child_displayables,
     create_vid_key,
 )
-from cue_lib.popper import _cue_clear_focus_rect
 
 MYPY = False
 if MYPY:
@@ -955,44 +954,6 @@ def _cue_capture_kwargs(movie):
     if hasattr(movie, "group"):
         kwargs["group"] = movie.group
     return kwargs
-
-
-# ==========================================================================
-# Sequence button popup actions
-# ==========================================================================
-
-def _cue_seq_btn_hovered(index):
-    # type: (int) -> None
-    _cue._seq_popup_index = index
-
-def _cue_seq_popup_dismiss():
-    # type: () -> None
-    _cue_clear_focus_rect("seq_btn")
-    _cue._seq_popup_index = -1
-
-def _cue_seq_delete():
-    # type: () -> None
-    idx = getattr(_cue, '_seq_popup_index', -1)
-    if idx < 0:
-        return
-    _cue_seq_popup_dismiss()
-    _cue.video_sequence.remove_at(idx)
-
-def _cue_seq_move_left():
-    # type: () -> None
-    idx = getattr(_cue, '_seq_popup_index', -1)
-    if idx < 1:
-        return
-    _cue_seq_popup_dismiss()
-    _cue.video_sequence.move(idx, -1)
-
-def _cue_seq_move_right():
-    # type: () -> None
-    idx = getattr(_cue, '_seq_popup_index', -1)
-    if idx < 0:
-        return
-    _cue_seq_popup_dismiss()
-    _cue.video_sequence.move(idx, 1)
 
 
 # ==========================================================================

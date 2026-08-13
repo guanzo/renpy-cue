@@ -75,7 +75,6 @@ class Cue(_renpy_python.NoRollback):
         self._marker_tip_x = 0
         self._marker_tip_y = 0
         self._popper_anchors = {}
-        self._seq_popup_index = -1
         self._vtl_screen_x = 0
         self._vtl_screen_y = 0
         self._chart_screen_x = 0

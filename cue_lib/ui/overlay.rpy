@@ -65,14 +65,6 @@ screen cue_overlay():
 
     # Place popper targets here.
 
-    # --- Sequence button popup (edit actions) ---
-    popper target "seq_btn" placement "top":
-        hbox:
-            spacing 2
-            use cue_txt_button("❮", Function(_cue_seq_move_left), tt="Move left")
-            use cue_txt_button("✕", Function(_cue_seq_delete), tt="Delete")
-            use cue_txt_button("❯", Function(_cue_seq_move_right), tt="Move right")
-
     # --- Tooltip overlay (after poppers so it draws above them) ---
     if _tt:
         add CueTooltip(_tt)
