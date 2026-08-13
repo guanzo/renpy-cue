@@ -159,12 +159,13 @@ class CueTriggerEngine(object):
                 if file in picked:
                     continue
                 picked.append(file)
+
                 # _cue_play_pool is in runtime.py; import lazily to avoid cycle
                 from cue_lib.runtime import _cue_play_pool, _cue_fade_out_sfx
                 if excl.start == CueExclusiveStart.FADE:
                     # Cut-in: fade out everything that isn't a same-group friend.
                     faded = _cue_fade_out_sfx(exclude_channels=self._excl_friends(excl.group))
-                    _cue_log("CTX-SWEEP key={} pool={} group={} faded={}".format(
+                    _cue_log("CTX-FADE key={} pool={} group={} faded={}".format(
                         key, pi, excl.group, faded))
                 ch_used = _cue_play_pool(entry, key, pool, pi, file=file)
                 self._excl_track(ch_used, excl.group, excl.hold)
