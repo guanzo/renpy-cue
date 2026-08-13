@@ -9,7 +9,7 @@ from cue_lib.util import create_vid_key, _cue_format_time, _cue_parse_time, _cue
 
 MYPY = False
 if MYPY:
-    from typing import List, Optional  # pyright: ignore[reportUnusedImport]
+    from typing import Any, Dict, List, Optional  # pyright: ignore[reportUnusedImport]
     from cue_lib._types import PoolDict, RepeaterOffset, VideoPoolDict  # pyright: ignore[reportUnusedImport]
 
 
@@ -20,10 +20,16 @@ class CueMarkerRepeater(object):
     and repeat count, then clones the pattern N times at that spacing."""
 
     def __init__(self):
-        self._anchor_pool = None  # type: Optional[VideoPoolDict]
-        self._selected_pools = []  # type: list
+        self._vid_key = ""
+        self._pools_id = 0
+        # id(pool) -> raw pool dict. Tracked pools are matched by object
+        # identity (`is`) against the live entry, so edits made while the
+        # dialog is open propagate to the previews in real time.
+        self._tracked = None  # type: Optional[Dict[int, Any]]
+        self._anchor_pool = None  # type: Optional[Any]
+        self._anchor_time = 0.0
         self._anchor_text = ""
-        self.offsets = []
+        self.offsets = []  # type: List[RepeaterOffset]
         self.sel_count = 0
         self.interval_text = ""
         self.count_text = ""
@@ -33,15 +39,14 @@ class CueMarkerRepeater(object):
     @property
     def anchor(self):
         # type: () -> float
-        """Live reference to the first selected marker's time."""
-        if self._anchor_pool is not None:
-            return self._anchor_pool.get("time", 0.0)
-        return 0.0
+        """Current anchor time, refreshed by _sync_tracked() on every
+        preview computation."""
+        return self._anchor_time
 
     @property
     def anchor_text(self):
         # type: () -> str
-        """Formatted anchor time, auto-synced from the live pool reference."""
+        """Formatted anchor time, auto-synced from the tracked anchor pool."""
         return _cue_format_time(self.anchor)
 
     @anchor_text.setter
@@ -49,13 +54,106 @@ class CueMarkerRepeater(object):
         # type: (str) -> None
         self._anchor_text = value
 
+    def _sync_tracked(self):
+        # type: () -> None
+        """Re-derive offsets from the live marker entry so edits to the
+        tracked (anchor) markers propagate to the previews in real time.
+
+        Tracked pools are matched by object identity against
+        entry["pools"]. In-place edits (drag, nudge, files, volume, sort)
+        preserve identity and propagate. Deletion removes the object:
+        non-anchor ghosts drop out, and deleting the anchor (or every
+        tracked marker) ends the preview session -- the dialog screen
+        hides itself via a guard. A wholesale store replacement
+        (undo/redo, paste, apply video preset) detaches every tracked id,
+        so tracking is abandoned and no previews are shown until the
+        dialog is reopened."""
+        self.offsets = []
+        if not self.dialog_visible or not self._vid_key:
+            return
+
+        cur_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
+        if cur_key != self._vid_key:
+            # Video changed under the dialog: no previews, dialog stays open.
+            self._tracked = None
+            self._anchor_pool = None
+            self._anchor_time = 0.0
+            self.sel_count = 0
+            return
+
+        entry = _cue.markers.get(self._vid_key)
+        if entry is None:
+            # Entry cleared: every tracked marker is gone.
+            self.dialog_visible = False
+            return
+
+        pools = entry.get("pools", [])  # type: Any
+        if id(pools) != self._pools_id:
+            # Wholesale replacement (undo/redo, paste, apply video preset):
+            # tracked identities no longer exist. Show no previews until
+            # the dialog is reopened.
+            self._pools_id = id(pools)
+            self._tracked = None
+            self._anchor_pool = None
+            self._anchor_time = 0.0
+            self.sel_count = 0
+            return
+
+        if self._tracked is None or self._anchor_pool is None:
+            return
+
+        tracked = []
+        for i, pool in enumerate(pools):
+            if self._tracked.get(id(pool)) is pool:
+                tracked.append((i, pool))
+        if not tracked:
+            # Every tracked marker was deleted.
+            self.dialog_visible = False
+            return
+        anchor_alive = False
+        for _, pool in tracked:
+            if pool is self._anchor_pool:
+                anchor_alive = True
+                break
+        if not anchor_alive:
+            # The anchor marker was deleted: end the preview session.
+            self.dialog_visible = False
+            return
+
+        anchor_time = self._anchor_pool.get("time", 0.0)
+        self._anchor_time = anchor_time
+        for _, pool in tracked:
+            r = _cue.markers.resolve_pool(pool)
+            self.offsets.append({
+                "offset": pool.get("time", 0.0) - anchor_time,
+                "files": list(r.files),
+                "volume": r.volume,
+            })
+        self.sel_count = len(self.offsets)
+
     def _shift_selected(self, delta):
         # type: (float) -> None
-        """Shift every selected marker by *delta* seconds, clamped per marker."""
+        """Shift every tracked marker by *delta* seconds, clamped per marker.
+
+        Operates on the live raw pools captured at open(), then re-sorts,
+        remaps the editor selection by identity, and persists via
+        CueVideoContext.finalize_drag()."""
+        if not self.dialog_visible or self._tracked is None or self._anchor_pool is None:
+            return
+        if not self._vid_key:
+            return
+        entry = _cue.markers.get(self._vid_key)
+        if entry is None:
+            return
+        pools = entry.get("pools", [])  # type: Any
+        if id(pools) != self._pools_id:
+            return
         dur = _cue.vid_manager.get_duration()
-        for pool in self._selected_pools:
-            val = pool.get("time", 0.0) + delta
-            pool["time"] = _cue_clamp_time(val, dur)
+        for pool in pools:
+            if self._tracked.get(id(pool)) is pool:
+                val = pool.get("time", 0.0) + delta
+                pool["time"] = _cue_clamp_time(val, dur)
+        _cue.markers.video.finalize_drag()
 
     def open(self):
         # type: () -> None
@@ -74,26 +172,40 @@ class CueMarkerRepeater(object):
                 return
 
         sorted_sel = sorted(sel)
-        anchor_time = markers[sorted_sel[0]]["time"]
 
-        offsets = []
+        # Track the RAW pool dicts in the marker entry, not the resolved
+        # copies get_markers() returns for preset-backed pools. Raw dicts
+        # are the stable objects every edit path mutates in place, and
+        # resolved order matches raw order 1:1.
+        vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
+        if not vid_key:
+            return
+        entry = _cue.markers.get(vid_key)
+        if entry is None:
+            return
+        pools = entry.get("pools", [])  # type: Any
+        if not pools or sorted_sel[-1] >= len(pools):
+            return
+
+        self._vid_key = vid_key
+        self._pools_id = id(pools)
+        self._tracked = {}
         for idx in sorted_sel:
-            pool = markers[idx]
-            offsets.append({
-                "offset": pool["time"] - anchor_time,
-                "files": list(pool.get("files", [])),
-                "volume": pool.get("volume", _cue.volume.VOL_DEFAULT),
-            })
+            self._tracked[id(pools[idx])] = pools[idx]
+        anchor_pool = pools[sorted_sel[0]]
+        self._anchor_pool = anchor_pool
+        anchor_time = anchor_pool.get("time", 0.0)
 
-        self._anchor_pool = markers[sorted_sel[0]]
-        self._selected_pools = [markers[i] for i in sorted_sel]
-        self.offsets = offsets
-        self.sel_count = len(sorted_sel)
+        self.dialog_visible = True
+        self._sync_tracked()
+        if not self.offsets:
+            self.dialog_visible = False
+            return
 
         # Default interval:
         # - 2+ markers: span * 2
         # - Single marker: anchor time (distance from 0)
-        max_offset = max(o["offset"] for o in offsets)
+        max_offset = max(o["offset"] for o in self.offsets)
         if len(sorted_sel) >= 2 and max_offset > 0:
             default_interval = max_offset * 2.0
         else:
@@ -115,13 +227,15 @@ class CueMarkerRepeater(object):
                 max_count = 0
             self.count_text = str(max_count)
 
-        self.dialog_visible = True
         renpy.show_screen("cue_repeat_markers_dialog", _layer="cue_layer")
 
     def apply(self):
         # type: () -> None
         """Apply the repeat pattern: clone markers for each repeat beyond
         the first, using the interval and count from the dialog."""
+        self._sync_tracked()
+        if not self.offsets or not self._vid_key:
+            return
         try:
             interval = float(self.interval_text)
             count = int(self.count_text)
@@ -131,10 +245,7 @@ class CueMarkerRepeater(object):
         if interval <= 0 or count < 1:
             return
 
-        vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
-        if not vid_key:
-            return
-
+        vid_key = self._vid_key
         entry = _cue.markers._get_or_create_entry(vid_key)
         if "pools" not in entry:
             return
@@ -166,8 +277,15 @@ class CueMarkerRepeater(object):
 
     def hide(self):
         # type: () -> None
-        """Hide the repeat pattern dialog."""
+        """Hide the repeat pattern dialog and reset tracking state."""
         self.dialog_visible = False
+        self._vid_key = ""
+        self._pools_id = 0
+        self._tracked = None
+        self._anchor_pool = None
+        self._anchor_time = 0.0
+        self.offsets = []
+        self.sel_count = 0
         renpy.hide_screen("cue_repeat_markers_dialog", layer="cue_layer")
 
     def toggle_preview_sfx(self):
@@ -181,6 +299,7 @@ class CueMarkerRepeater(object):
         Called by CueVideoMarkerTimeline.render() while dialog is visible."""
         if not self.dialog_visible:
             return []
+        self._sync_tracked()
         try:
             interval = float(self.interval_text)
             count = int(self.count_text)
@@ -214,6 +333,7 @@ class CueMarkerRepeater(object):
         [{"time": t, "files": [...], "volume": v}, ...]."""
         if not self.dialog_visible:
             return []
+        self._sync_tracked()
         try:
             interval = float(self.interval_text)
             count = int(self.count_text)
@@ -255,13 +375,15 @@ class CueMarkerRepeater(object):
 
     def nudge_anchor(self, delta):
         # type: (float) -> None
-        """Nudge the entire selected group by *delta* seconds."""
+        """Nudge the entire tracked group by *delta* seconds."""
+        self._sync_tracked()
         self._shift_selected(delta)
         renpy.restart_interaction()
 
     def commit_anchor(self):
         # type: () -> None
-        """Commit anchor text; shifts the entire selected group."""
+        """Commit anchor text; shifts the entire tracked group."""
+        self._sync_tracked()
         new_time = _cue_parse_time(self._anchor_text)
         if new_time is not None and new_time >= 0:
             delta = new_time - self.anchor

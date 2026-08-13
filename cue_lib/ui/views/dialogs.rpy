@@ -4,6 +4,11 @@
 ###############################################################################
 
 screen cue_repeat_markers_dialog():
+    # _sync_tracked() runs from render/tick contexts and only flips
+    # dialog_visible when the preview session must end (anchor deleted,
+    # markers cleared). Hide the screen itself on the next interaction.
+    if not _cue.repeater.dialog_visible:
+        timer 0.0 action Function(_cue.repeater.hide)
     $ anchor = _cue.repeater.anchor
     $ offsets = _cue.repeater.offsets
     $ sel_count = _cue.repeater.sel_count
