@@ -104,7 +104,7 @@ init -999 python:
         CUE_KEYMAP_UNDO, CUE_KEYMAP_REDO,
         CUE_KEYMAP_SPEED_UP, CUE_KEYMAP_SPEED_DOWN,
         CUE_KEYMAP_TOGGLE_SFX,
-        CUE_SHARED_KEY_KEYBINDS, CUE_KEYBINDS_SECTION_HEADER,
+        CUE_SHARED_KEY_KEYBINDS,
     )
     from cue_lib.keybinds import (
         CueKeybindsManager, _cue_keybind_start, _cue_keybind_cancel,

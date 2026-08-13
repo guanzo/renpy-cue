@@ -23,7 +23,9 @@ CUE_AUTO_SPEED_MIN_VARIANTS = 4
 # Ideal number of speed variants for rich auto-speed rhythm generation.
 CUE_AUTO_SPEED_IDEAL_VARIANTS = 8
 
-# SFX Library section header text and lookup key.
+# SFX Library section header text and lookup key.  A constant because the
+# toggle-SFX hotkey in cue_key_listener references the same string from a
+# second location.  Other section titles are single-use literals.
 CUE_SFX_LIBRARY_HEADER = "SFX Library"
 
 # Popper displayable defaults — distance from anchor and viewport edge clearance.
@@ -51,6 +53,3 @@ CUE_SHARED_KEY_KEYBINDS = "keybinds"
 # the same OS user computes identically, so the choice applies to all games.
 # In-game choice wins over the RENPY_CUE_DIR env var.
 CUE_DIR_OVERRIDE_FILENAME = "dir.txt"
-
-# Settings section header text.
-CUE_KEYBINDS_SECTION_HEADER = "Keybinds"

@@ -17,41 +17,26 @@ screen cue_settings_page():
                 xfill True
                 yminimum 0
 
-            # --- Shared Dir ---
-            frame:
-                background _cue_color_bg_panel
-                padding (4, 4)
-                xfill True
-                yminimum 0
-                vbox:
-                    spacing 4
-                    xfill True
-                    frame:
-                        text "Shared Dir" style "cue_hdr" xoffset 4
-                        background _cue_color_bg_panel
-                        padding (4, 4)
-                        xfill True
-                        yminimum 0
-                    text "Where Cue keeps shared data (markers, presets, audio). Applies to all games. Takes effect after restart." style "cue_help"
-                    use cue_text_input("_cue.setup_dir_text",
-                        Function(_cue_confirm_shared_dir),
-                        _cue.setup_dir_text, xsize=440)
-                    if _cue.shared_dir_error:
-                        text _cue.shared_dir_error style "cue_help" color _cue_color_error
-                    elif _cue.shared_dir_success:
-                        text _cue.shared_dir_success style "cue_help" color _cue_color_green
-                    use cue_txt_button("Save", Function(_cue_confirm_shared_dir), bg=_cue_color_green, hover_bg=_cue_color_green_hover)
-
+            use cue_data_dir()
             use cue_settings_keybinds()
 
+screen cue_data_dir():
+    use cue_section_frame("Cue Data Directory"):
+        vbox:
+            spacing 5
+            text "Where Cue keeps shared data (markers, presets, audio). Applies to all games. Takes effect after restart." style "cue_help"
+            use cue_text_input("_cue.setup_dir_text",
+                Function(_cue_confirm_shared_dir),
+                _cue.setup_dir_text, xsize=440)
+            if _cue.shared_dir_error:
+                text _cue.shared_dir_error style "cue_help" color _cue_color_error
+            elif _cue.shared_dir_success:
+                text _cue.shared_dir_success style "cue_help" color _cue_color_green
+            use cue_txt_button("Save", Function(_cue_confirm_shared_dir), bg=_cue_color_green, hover_bg=_cue_color_green_hover)
 
-###############################################################################
-# Keybinds Settings Section
-###############################################################################
 
 screen cue_settings_keybinds():
-    use cue_section_frame(CUE_KEYBINDS_SECTION_HEADER):
-        use cue_h_divider()
+    use cue_section_frame("Keybinds"):
         grid 2 len(_cue.keybinds.visible_actions()):
             spacing 10
 

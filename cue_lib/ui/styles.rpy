@@ -21,8 +21,8 @@ define _cue_color_text_muted = "#aaaaaa"
 define _cue_color_text_dim = "#888888"
 
 # --- Semantic ---
-define _cue_color_green = "#446644"
-define _cue_color_green_hover = "#558855"
+define _cue_color_green = "#55aa55"
+define _cue_color_green_hover = "#77cc77"
 define _cue_color_active = "#567f56"
 define _cue_color_active_hover = "#679067"
 define _cue_color_yellow = "#887722"
