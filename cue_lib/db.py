@@ -275,6 +275,21 @@ class CueDatabase(object):
         except Exception:
             _cue_log("DB-DELETE: remove failed for {}".format(fpath))
 
+    def preset_file_matches(self, preset_type, name, expected):
+        # type: (str, str, Any) -> bool
+        """True if the on-disk preset still holds exactly `expected`,
+        ignoring the internal _key field. Guards deletion against a preset
+        another game modified or reloaded after we captured it."""
+        fpath = self._preset_path(preset_type, name)
+        on_disk = self._read_file(fpath)
+        if not isinstance(on_disk, dict):
+            return False
+        on_disk = dict(on_disk)
+        on_disk.pop("_key", None)
+        exp = dict(expected)
+        exp.pop("_key", None)
+        return _to_str(on_disk) == _to_str(exp)
+
     # ------------------------------------------------------------------
     # Low-level file I/O
     # ------------------------------------------------------------------

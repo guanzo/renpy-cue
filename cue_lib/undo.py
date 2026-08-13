@@ -45,6 +45,7 @@ class CueUndoManager(object):
             "markers": _copy.deepcopy(m._data),
             "presets": _copy.deepcopy(m._presets),
             "video_presets": _copy.deepcopy(m._video_presets),
+            "session_created": set(m._session_created),
         }
 
     # -- capture (called from save_marker / save_all / _post_save) --
@@ -121,10 +122,16 @@ class CueUndoManager(object):
         self._recording = False
         try:
             m = _cue.markers
+            old_marker_keys = set(m._data.keys())
+            old_presets = m._presets
+            old_video_presets = m._video_presets
+            old_session_created = set(m._session_created)
             m._data = snap["markers"]
             m._presets = snap["presets"]
             m._video_presets = snap["video_presets"]
+            m._session_created = set(snap["session_created"])
             m.save_all()
+            m.delete_removed_files(old_marker_keys, old_presets, old_video_presets, old_session_created)
         finally:
             self._recording = True
         # Seed _previous so the next real mutation pushes the correct

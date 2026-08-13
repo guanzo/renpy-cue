@@ -627,6 +627,7 @@ class CueMarkerManager(object):
         self._data = {}
         self._presets = {}
         self._video_presets = {}
+        self._session_created = set()   # ("audio"|"video", name) created this session
         self._img_target = 0
         self._dlg_target = 0
         self._loop_target = 0
@@ -686,6 +687,7 @@ class CueMarkerManager(object):
     def create_preset(self, name, pool_dict):
         # type: (str, PoolDict) -> None
         self._presets[name] = _copy.deepcopy(pool_dict)
+        self._session_created.add(("audio", name))
         self._db_save_preset(name)
         _cue_log("CREATE-PRESET name={} files={} vol={:.1f}".format(
             name, len(pool_dict.get("files", [])), pool_dict.get("volume", _cue.volume.VOL_DEFAULT)))
@@ -694,6 +696,7 @@ class CueMarkerManager(object):
         # type: (str) -> None
         if name in self._presets:
             del self._presets[name]
+            self._session_created.discard(("audio", name))
             self._db_save_preset(name)
             _cue_log("DELETE-PRESET name={}".format(name))
 
@@ -751,6 +754,7 @@ class CueMarkerManager(object):
             "volume": entry.get("volume", _cue.volume.VOL_DEFAULT),
             "source_duration": max(source_dur, 0.0),
         }
+        self._session_created.add(("video", name))
         self._db_save_video_preset(name)
         _cue_log("CREATE-VIDEO-PRESET name={} markers={} dur={:.1f}".format(
             name, len(clean), source_dur))
@@ -759,6 +763,7 @@ class CueMarkerManager(object):
         # type: (str) -> None
         if name in self._video_presets:
             del self._video_presets[name]
+            self._session_created.discard(("video", name))
             self._db_save_video_preset(name)
             _cue_log("DELETE-VIDEO-PRESET name={}".format(name))
 
@@ -1271,6 +1276,33 @@ class CueMarkerManager(object):
                 db.save_preset("video", name, data)
         _cue.undo.capture()
 
+    def delete_removed_files(self, old_marker_keys, old_presets, old_video_presets, old_session_created):
+        # type: (Set[str], Dict[str, Any], Dict[str, Any], Set[Tuple[str, str]]) -> None
+        """Delete DB files for keys a restore just dropped from the stores.
+
+        old_* capture the live stores BEFORE the restore swapped in new data.
+        Marker files are removed by key diff -- marker stores are per-game and
+        only mutated by this session, so any dropped key was created here.
+        Preset files are shared across games and reloadable mid-session, so a
+        preset is removed only when it was created in this session AND the
+        on-disk entry still matches the entry being dropped. Never a
+        directory sweep: files the store never loaded are left untouched."""
+        db = _cue.db
+        if db is None or not db.is_open():
+            return
+        for key in old_marker_keys - set(self._data):
+            db.delete_marker(key)
+        for name, dropped in old_presets.items():
+            if name in self._presets:
+                continue
+            if ("audio", name) in old_session_created and db.preset_file_matches("audio", name, dropped):
+                db.delete_preset("audio", name)
+        for name, dropped in old_video_presets.items():
+            if name in self._video_presets:
+                continue
+            if ("video", name) in old_session_created and db.preset_file_matches("video", name, dropped):
+                db.delete_preset("video", name)
+
     # ------------------------------------------------------------------
     # Load / migration
     # ------------------------------------------------------------------
@@ -1282,6 +1314,7 @@ class CueMarkerManager(object):
         self._data = {self._migrate_colon_key(k): v for k, v in self._data.items()}
         self._presets = _cue_unwrap_persistent(data.get("presets", {}))
         self._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
+        self._session_created = set()
         _cue.file_tree.disabled_files = set(_cue_unwrap_persistent(data.get("disabled_files", set())))
         _cue.trigger.active = data.get("triggers_active", True)
         _cue.video_editor.encode_mode = data.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)

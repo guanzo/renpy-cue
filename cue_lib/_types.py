@@ -11,7 +11,7 @@
 # across cue_lib. .pyi stubs import from here rather than redeclaring.
 
 from __future__ import annotations
-from typing import Dict, List, TypedDict, Union
+from typing import Dict, List, Set, Tuple, TypedDict, Union
 
 # typing_extensions is safe here -- _types.py is never imported at runtime
 # (see header comment).  Pyright understands NotRequired natively.
@@ -105,6 +105,7 @@ class UndoSnapshot(TypedDict):
     markers: Dict[str, MarkerEntry]
     presets: Dict[str, PoolDict]
     video_presets: Dict[str, VideoPreset]
+    session_created: Set[Tuple[str, str]]  # ("audio"|"video", name) created this session
 
 
 class ClipboardData(TypedDict):
