@@ -378,6 +378,15 @@ def _cue_preview_preset(preset_name):
         _cue_preview_sfx(f)
 
 
+def _cue_preview_folder(folder_path, volume=1.0):
+    # type: (str, float) -> None
+    """Preview a random file from an SFX Library folder."""
+    files = _cue_resolve_files([folder_path])
+    if files:
+        f = _random.choice(files)
+        _cue_preview_sfx(f, volume=volume)
+
+
 # --------------------------------------------------------------------------
 # SFX Playback
 # --------------------------------------------------------------------------

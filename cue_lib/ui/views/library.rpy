@@ -169,6 +169,10 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
             if item["type"] == "folder":
                 if item["has_files"]:
                     use cue_icon_btn(
+                        "play",
+                        Function(_cue_preview_folder, item["full_path"]),
+                        "Preview random file from folder", None)
+                    use cue_icon_btn(
                         "V",
                         Function(_cue.markers.video.add_folder, item["full_path"]),
                         "Add folder to active video pool", None, enabled=_is_video)

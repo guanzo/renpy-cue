@@ -271,7 +271,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 use cue_icon_btn("xmark", Function(remove_fn, *remove_args), "Remove preset", None)
                 use cue_icon_btn(
                     "play",
-                    Function(_cue_preview_sfx, (folder_children or [""])[0], preview_vol),
+                    Function(_cue_preview_sfx, _cue_pick_file(folder_children or [""], False), preview_vol),
                     "Preview random file from preset", None)
                 use cue_txt_button(folder_label, Function(_cue.file_tree.toggle_file_ref_expand, folder_label))
                 text "({} files)".format(_count) style "cue_help"
@@ -298,7 +298,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                     use cue_icon_btn("xmark", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder", None)
                     use cue_icon_btn(
                         "play",
-                        Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol),
+                        Function(_cue_preview_folder, f, preview_vol),
                         "Preview random file from folder", None)
                     use cue_txt_button(f, Function(_cue.file_tree.toggle_file_ref_expand, f))
                     text "({} files)".format(_count) style "cue_help"
