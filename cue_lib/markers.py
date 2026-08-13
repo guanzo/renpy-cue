@@ -33,6 +33,10 @@ if MYPY:
 class CueMarkerContext(object):
     """Abstract base for pool-based marker contexts."""
 
+    # One-shot contexts (image/dialogue) can't wait for open air, so
+    # enabling hold on them also enables fade.
+    ONE_SHOT = False
+
     def __init__(self, manager):
         self._mgr = manager
 
@@ -109,6 +113,42 @@ class CueMarkerContext(object):
         # type: (int) -> None
         self._set_target(pool_index)
 
+    def set_exclusive_group(self, group):
+        # type: (int) -> None
+        key = self._key()
+        target = self.get_active()
+        entry = self._mgr.get(key)
+        if entry:
+            pools = entry.get("pools", [])
+            if pools and 0 <= target < len(pools):
+                pools[target]["exclusive_group"] = int(group)
+                self._mgr._db_save_marker(key)
+
+    def set_exclusive_fade(self, value):
+        # type: (bool) -> None
+        key = self._key()
+        target = self.get_active()
+        entry = self._mgr.get(key)
+        if entry:
+            pools = entry.get("pools", [])
+            if pools and 0 <= target < len(pools):
+                pools[target]["exclusive_fade"] = bool(value)
+                self._mgr._db_save_marker(key)
+
+    def set_exclusive_hold(self, value):
+        # type: (bool) -> None
+        key = self._key()
+        target = self.get_active()
+        entry = self._mgr.get(key)
+        if entry:
+            pools = entry.get("pools", [])
+            if pools and 0 <= target < len(pools):
+                pools[target]["exclusive_hold"] = bool(value)
+                if value and self.ONE_SHOT:
+                    # One-shot SFX can't wait for open air -- hold implies fade.
+                    pools[target]["exclusive_fade"] = True
+                self._mgr._db_save_marker(key)
+
     def apply_preset(self, preset_name):
         # type: (str) -> None
         key = self._key()
@@ -128,12 +168,15 @@ class CueMarkerContext(object):
 
 class ResolvedPool(object):
     """Immutable snapshot of a resolved pool."""
-    def __init__(self, files, volume, frequency, trigger_on_shake, exclusive=False):
+    def __init__(self, files, volume, frequency, trigger_on_shake,
+                 exclusive_group=0, exclusive_fade=False, exclusive_hold=False):
         self.files = files
         self.volume = volume
         self.frequency = frequency
         self.trigger_on_shake = trigger_on_shake
-        self.exclusive = exclusive
+        self.exclusive_group = exclusive_group
+        self.exclusive_fade = exclusive_fade
+        self.exclusive_hold = exclusive_hold
 
 
 # =========================================================================
@@ -141,6 +184,8 @@ class ResolvedPool(object):
 # =========================================================================
 
 class CueImageContext(CueMarkerContext):
+    ONE_SHOT = True
+
     def _key(self):
         # type: () -> str
         return create_img_key(_cue.current_file)
@@ -159,6 +204,8 @@ class CueImageContext(CueMarkerContext):
 # =========================================================================
 
 class CueDialogueContext(CueMarkerContext):
+    ONE_SHOT = True
+
     def _key(self):
         # type: () -> str
         return create_dlg_key((_cue.current_file, _cue.current_dialogue or ""))
@@ -526,17 +573,6 @@ class CueLoopContext(CueMarkerContext):
                 pools[target]["frequency"] = int(freq)
                 self._mgr._db_save_marker(key)
 
-    def set_exclusive(self, value):
-        # type: (bool) -> None
-        key = self._key()
-        target = self.get_active()
-        entry = self._mgr.get(key)
-        if entry:
-            pools = entry.get("pools", [])
-            if pools and 0 <= target < len(pools):
-                pools[target]["exclusive"] = bool(value)
-                self._mgr._db_save_marker(key)
-
     @staticmethod
     def get_delay(frequency=CueLoopFrequency.NORMAL):
         # type: (int) -> float
@@ -817,8 +853,11 @@ class CueMarkerManager(object):
         volume = pool.get("volume", defaults.get("volume", _cue.volume.VOL_DEFAULT))
         frequency = pool.get("frequency", defaults.get("frequency", CueLoopFrequency.NORMAL))
         trigger_on_shake = pool.get("trigger_on_shake", defaults.get("trigger_on_shake", False))
-        exclusive = pool.get("exclusive", defaults.get("exclusive", False))
-        return ResolvedPool(list(files), volume, frequency, trigger_on_shake, exclusive)
+        exclusive_group = pool.get("exclusive_group", defaults.get("exclusive_group", 0))
+        exclusive_fade = pool.get("exclusive_fade", defaults.get("exclusive_fade", False))
+        exclusive_hold = pool.get("exclusive_hold", defaults.get("exclusive_hold", False))
+        return ResolvedPool(list(files), volume, frequency, trigger_on_shake,
+                            exclusive_group, exclusive_fade, exclusive_hold)
 
     def _detach_pool(self, trigger_key, pool_index):
         # type: (str, int) -> bool
@@ -841,6 +880,14 @@ class CueMarkerManager(object):
             pool["frequency"] = r.frequency
         if "trigger_on_shake" in preset:
             pool["trigger_on_shake"] = r.trigger_on_shake
+        # Exclusive fields: copy when the preset or a pool-level override
+        # (toggled before detach) defines them, so overrides survive detach.
+        if "exclusive_group" in preset or "exclusive_group" in pool:
+            pool["exclusive_group"] = r.exclusive_group
+        if "exclusive_fade" in preset or "exclusive_fade" in pool:
+            pool["exclusive_fade"] = r.exclusive_fade
+        if "exclusive_hold" in preset or "exclusive_hold" in pool:
+            pool["exclusive_hold"] = r.exclusive_hold
         self._db_save_marker(trigger_key)
         _cue_log("DETACH-POOL key={} pi={} preset={} files={}".format(
             trigger_key, pool_index, preset_name, len(r.files)))
@@ -983,6 +1030,30 @@ class CueMarkerManager(object):
                     pool.setdefault("frequency", freq)
                 changed = True
         return changed
+
+    def _migrate_loop_exclusive(self):
+        # type: () -> int
+        """Legacy loop 'exclusive' bool -> exclusive_hold (idempotent).
+
+        Preserves the old polite wait+reserve behavior for pre-existing
+        pools; the legacy key is left in place and ignored afterwards."""
+        migrated = 0
+        for entry in list(self._data.values()):
+            for pool in entry.get("pools", []):
+                if self._pool_has_legacy_exclusive(pool):
+                    pool["exclusive_hold"] = True
+                    migrated += 1
+        for preset in list(self._presets.values()):
+            if self._pool_has_legacy_exclusive(preset):
+                preset["exclusive_hold"] = True
+                migrated += 1
+        return migrated
+
+    @staticmethod
+    def _pool_has_legacy_exclusive(pool):
+        # type: (Any) -> bool
+        return bool(pool.get("exclusive")) and not any(
+            k in pool for k in ("exclusive_group", "exclusive_fade", "exclusive_hold"))
 
     @staticmethod
     def _migrate_colon_key(key):
@@ -1190,6 +1261,7 @@ class CueMarkerManager(object):
         self._sanitize_video_presets()
         self._normalize_all()
         self._migrate_speed_mode_rename()
+        self._migrate_loop_exclusive()
 
 
     def load_persistent(self):
@@ -1215,6 +1287,7 @@ class CueMarkerManager(object):
             self._sanitize_video_presets()
             self._normalize_all()
             self._migrate_speed_mode_rename()
+            self._migrate_loop_exclusive()
 
         self._load_scalars_from_persistent()
         _cue_log("LOAD-MARKERS total_keys={}".format(len(self._data)))

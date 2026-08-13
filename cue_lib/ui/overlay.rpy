@@ -111,6 +111,7 @@ screen cue_overlay_content():
                             "Trigger on screen shake",
                             Function(_cue_toggle_shake_trigger),
                             "Play SFX when a screen shake occurs")
+                        use cue_exclusive_row(_cue.markers.image)
 
                 # --- Dialogue UI ---
                 $ _is_dialogue = bool(_cue.current_dialogue)
@@ -118,7 +119,8 @@ screen cue_overlay_content():
                     $ _dlg_key = _cue_create_dlg_key((_cue.current_file, _cue.current_dialogue))
                     use cue_context_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
                         "Dialogue: " + _cue.current_dialogue, "dialogue", "D",
-                        "SFX plays when this line of dialogue is displayed.")
+                        "SFX plays when this line of dialogue is displayed."):
+                        use cue_exclusive_row(_cue.markers.dialogue)
 
                 # Loop SFX
                 $ _loop_key = _cue_create_loop_key(_cue.current_file or "")
@@ -136,11 +138,7 @@ screen cue_overlay_content():
                         use cue_select_btn("Normal", (_freq == CueLoopFrequency.NORMAL), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.NORMAL), tt="~2.1s between plays")
                         use cue_select_btn("Fast", (_freq == CueLoopFrequency.FAST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FAST), tt="~0.6s between plays")
                         use cue_select_btn("Fastest", (_freq == CueLoopFrequency.FASTEST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FASTEST), tt="~0.2s between plays")
-                        use cue_v_divider()
-                        $ _is_exclusive = _cue._pool_ui.get("exclusive", False)
-                        use cue_checkbox(_is_exclusive, "Exclusive playback",
-                            Function(_cue.markers.loop.set_exclusive, not _is_exclusive),
-                            "Prevents other loop SFX from playing at the same time")
+                    use cue_exclusive_row(_cue.markers.loop)
 
                 # Audio file browser (in-flow, only when overlay mode is OFF)
                 if not _cue.file_tree.sfx_library_overlay_mode:

@@ -20,7 +20,7 @@ from cue_lib.util import (
 
 MYPY = False
 if MYPY:
-    from typing import Any, Optional, Tuple  # pyright: ignore[reportUnusedImport]
+    from typing import Any, List, Optional, Tuple  # pyright: ignore[reportUnusedImport]
     from cue_lib._types import MarkerEntry, PoolDict, VideoPoolDict  # pyright: ignore[reportUnusedImport]
 
 
@@ -126,6 +126,7 @@ def _cue_refresh_context():
         if _cue.current_file:
             img_key = create_img_key(_cue.current_file)
         _cue.trigger.loop_states = {}
+        _cue.trigger.excl_channels = {}
         _cue.trigger.played_video_keys.clear()
         _cue.trigger._prev_eff_elapsed = -1.0
         if _cue.is_overlay_visible:
@@ -409,6 +410,23 @@ def _cue_play_sfx(filename, source="", volume=1.0):
     except Exception:
         _cue_log("PLAY-SFX: exception during playback of {}".format(full_path))
         return None
+
+
+# Quick cross-fade duration for exclusive cut-in sweeps.
+CUE_EXCLUSIVE_FADE = 0.1
+
+
+def _cue_fade_out_sfx(exclude_channels=None):
+    # type: (Optional[List[str]]) -> None
+    """Quickly fade out every SFX playing on the shared _cue_ channels,
+    except the channels in exclude_channels (same-group friends)."""
+    excluded = set(exclude_channels) if exclude_channels else set()
+    for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
+        ch_name = "_cue_{}".format(i)
+        if ch_name in excluded:
+            continue
+        if _music.is_playing(channel=ch_name):
+            _music.stop(channel=ch_name, fadeout=CUE_EXCLUSIVE_FADE)
 
 
 # Re-export _cue_scan_audio from util for backward-compat in overlay

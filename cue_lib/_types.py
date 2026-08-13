@@ -28,7 +28,10 @@ class PoolDict(TypedDict, total=False):
     volume: float
     frequency: int              # loop pools only
     trigger_on_shake: bool      # image pools only
-    exclusive: bool             # loop pools only
+    exclusive: bool             # legacy loop-only (migrated to exclusive_hold)
+    exclusive_group: int        # 0=off, 1..N shared group; all sections
+    exclusive_fade: bool        # cut-in: fade out non-group SFX on start
+    exclusive_hold: bool        # hold: block non-group SFX until done
     preset: str                 # preset-backed pools (written, replaced on detach)
 
 

@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Set
 class CueTriggerEngine:
     active: bool
     loop_states: Dict[str, Any]
-    loop_current: Optional[Dict[str, Any]]
+    excl_channels: Dict[str, Dict[str, Any]]
     last_played: List[str]
     played_video_keys: Set[str]
     _prev_eff_elapsed: float
