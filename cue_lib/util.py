@@ -15,6 +15,7 @@ import renpy.display.im as _im
 import renpy.audio.music as _music
 
 from cue_lib.state import _cue
+from renpy.store import Function
 
 # Import time again for _logtime alias used by _cue_log
 _logtime = time
@@ -485,6 +486,15 @@ def _cue_pick_file(files, avoid_repeats=True):
     else:
         f = _random.choice(files)
     return f
+
+
+# --------------------------------------------------------------------------
+# Screen Helpers
+# --------------------------------------------------------------------------
+
+def _cue_make_tab_action(fn, args_tuple, pi):
+    # type: (Callable[..., None], tuple, int) -> Callable[..., None]
+    return Function(fn, *(tuple(args_tuple) + (pi,)))
 
 
 # --------------------------------------------------------------------------

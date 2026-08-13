@@ -6,10 +6,11 @@
 import renpy
 
 from cue_lib.state import _cue
+from cue_lib.util import _cue_resolve_files
 
 MYPY = False
 if MYPY:
-    from typing import List
+    from typing import List, Optional
     from cue_lib._types import AudioTreeNode
 
 
@@ -115,7 +116,7 @@ class CueFileTreeManager(object):
         _cue.db.update_shared_config({"disabled_files": list(self.disabled_files)})
 
     # ------------------------------------------------------------------
-    # Toggle: pool file-list folder refs
+    # Pool file-list folder refs
     # ------------------------------------------------------------------
 
     def toggle_file_ref_expand(self, folder_ref):
@@ -125,6 +126,21 @@ class CueFileTreeManager(object):
             self.expanded_file_refs[folder_ref] = not self.expanded_file_refs[folder_ref]
         else:
             self.expanded_file_refs[folder_ref] = True
+
+    def count_file_list_rows(self, folder_label, folder_children, files):
+        # type: (Optional[str], Optional[List[str]], List[str]) -> int
+        """Count rendered rows in a pool file list (for viewport sizing)."""
+        rows = 0
+        if folder_label is not None:
+            rows += 1
+            if self.expanded_file_refs.get(folder_label, False) and folder_children:
+                rows += len(folder_children)
+        for f in files:
+            rows += 1
+            if f.endswith("/"):
+                if self.expanded_file_refs.get(f, False):
+                    rows += len(_cue_resolve_files([f]))
+        return rows
 
     # ------------------------------------------------------------------
     # Toggle: Presets/ folder

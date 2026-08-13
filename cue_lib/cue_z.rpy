@@ -54,6 +54,7 @@ init -999 python:
         _cue_loop_still_playing, _cue_get_movie_or_image,
         _cue_top_layer_name, _cue_top_movie_name, _cue_get_movie_play,
         _cue_unwrap_persistent,
+        _cue_make_tab_action,
     )
 
     from cue_lib.runtime import (
@@ -61,7 +62,7 @@ init -999 python:
         _cue_reload_presets,
         _cue_refresh_context, _cue_log_context, _cue_get_top_layer,
         _cue_refresh_channel, _cue_tick_trigger, _cue_play_sfx,
-        _cue_preview_sfx, _cue_preview_preset, _cue_preview_folder, _cue_play_pool,
+        _cue_preview_sfx, _cue_preview_preset, _cue_preview_folder, _cue_preview_video_preset, _cue_play_pool,
         _cue_toggle_active, _cue_toggle_settings, _cue_toggle_shake_trigger, _cue_toggle_video_mute,
         _cue_confirm_shared_dir,
     )
@@ -72,9 +73,8 @@ init -999 python:
 
     from cue_lib.dialogues import (
         CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog,
-        _cue_make_tab_action, _cue_count_file_list_rows,
         _cue_confirm_delete_preset, _cue_confirm_delete_video_preset,
-        _cue_maybe_apply_video_preset, _cue_preview_video_preset,
+        _cue_maybe_apply_video_preset,
     )
 
     from cue_lib.popper import (

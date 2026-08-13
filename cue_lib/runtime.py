@@ -387,6 +387,21 @@ def _cue_preview_folder(folder_path, volume=1.0):
         _cue_preview_sfx(f, volume=volume)
 
 
+def _cue_preview_video_preset(preset_name):
+    # type: (str) -> None
+    """Preview a random file from a video preset (across all pools)."""
+    preset = _cue.markers.get_video_preset(preset_name)
+    if preset is None:
+        return
+    all_files = []
+    for pool in preset.get("pools", []):
+        all_files.extend(pool.get("files", []))
+    resolved = _cue_resolve_files(all_files)
+    if resolved:
+        f = _random.choice(resolved)
+        _cue_preview_sfx(f)
+
+
 # --------------------------------------------------------------------------
 # SFX Playback
 # --------------------------------------------------------------------------

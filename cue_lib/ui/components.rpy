@@ -327,7 +327,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
 screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
                      trigger_key=None, pool_index=None, folder_child_remove_fn=None,
                      folder_label=None, folder_children=None):
-    $ _rows = _cue_count_file_list_rows(folder_label, folder_children, files)
+    $ _rows = _cue.file_tree.count_file_list_rows(folder_label, folder_children, files)
     if _rows > 6:
         viewport:
             xfill True
