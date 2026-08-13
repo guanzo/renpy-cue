@@ -206,29 +206,29 @@ screen cue_header_toolbar():
             _toggle_on_tt, _toggle_off_tt,
             _cue_color_active, _cue_color_green_hover, _cue_color_red, _cue_color_red_hover)
         null width 5
-        use cue_icon_btn("📋", Function(_cue.markers.copy_context), _copy_tt, None)
-        use cue_icon_btn("📄", Function(_cue.markers.paste_context), _paste_tt, None)
+        use cue_icon_btn("copy", Function(_cue.markers.copy_context), _copy_tt, None)
+        use cue_icon_btn("paste", Function(_cue.markers.paste_context), _paste_tt, None)
         null width 5
-        use cue_icon_btn("↩", Function(_cue.undo.undo), _undo_tt, None, enabled=_cue.undo.can_undo())
-        use cue_icon_btn("↪", Function(_cue.undo.redo), _redo_tt, None, enabled=_cue.undo.can_redo())
+        use cue_icon_btn("undo", Function(_cue.undo.undo), _undo_tt, None, enabled=_cue.undo.can_undo())
+        use cue_icon_btn("redo", Function(_cue.undo.redo), _redo_tt, None, enabled=_cue.undo.can_redo())
         null width 5
         $ _backup_tooltip = "Backup config to " + _cue.config_filename
-        use cue_icon_btn("💾", Function(_cue.markers.backup_to_file), _backup_tooltip, None)
+        use cue_icon_btn("floppy-disk", Function(_cue.markers.backup_to_file), _backup_tooltip, None)
         $ _restore_tooltip = "Restore config from " + _cue.config_filename
-        use cue_icon_btn("📂", Function(_cue.markers.restore_from_file), _restore_tooltip, None)
+        use cue_icon_btn("folder-open", Function(_cue.markers.restore_from_file), _restore_tooltip, None)
         null width 5
         use cue_icon_btn(
-            "⏸",
+            "pause",
             Function(renpy.invoke_in_new_context, renpy.pause),
             _pause_tt, None)
         use cue_icon_btn(
-            "⟳",
+            "rotate-right",
             [Function(_cue_reload_presets), Function(_cue_refresh_context), Function(_cue_scan_audio)],
             "Refresh overlay", None)
         $ _settings_bg = _cue_color_active if _cue.is_settings_visible else None
-        use cue_icon_btn("⚙", Function(_cue_toggle_settings), "Settings", None,
+        use cue_icon_btn("gear", Function(_cue_toggle_settings), "Settings", None,
             bg=_settings_bg)
-        use cue_icon_btn("✕", Function(_cue_hide_overlay), "Close overlay", None)
+        use cue_icon_btn("xmark", Function(_cue_hide_overlay), "Close overlay", None)
 
 
 ###############################################################################

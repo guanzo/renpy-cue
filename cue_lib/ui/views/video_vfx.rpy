@@ -15,10 +15,10 @@ screen _cue_edit_queue_vbox():
             hbox:
                 spacing 4
                 if job.status in ("queued", "analyzing", "encoding"):
-                    use cue_icon_btn("✕", Function(_cue.video_editor.job_queue.cancel, job.job_id), "Cancel job", None)
+                    use cue_icon_btn("xmark", Function(_cue.video_editor.job_queue.cancel, job.job_id), "Cancel job", None)
                 else:
                     use cue_icon_btn(
-                        "✕",
+                        "xmark",
                         Function(_cue.video_editor.job_queue.remove, job.job_id),
                         "Remove from queue", None)
                 text job.filename() + " " + job.speed_label style "cue_txt" size 11
@@ -247,13 +247,13 @@ screen cue_video_vfx():
                 hbox:
                     spacing 5
                     text "Quality:" style "cue_txt"
-                    use cue_radio_btn((_ved.encode_mode == _ved.MODE_FAST_PREVIEW), "Fast Preview",
+                    use cue_select_btn("Fast Preview", (_ved.encode_mode == _ved.MODE_FAST_PREVIEW),
                         Function(_cue.video_editor.set_encode_mode, _ved.MODE_FAST_PREVIEW),
                         tt="Fast low-quality encode to judge the edited speed.")
-                    use cue_radio_btn((_ved.encode_mode == _ved.MODE_NORMAL), "Normal",
+                    use cue_select_btn("Normal", (_ved.encode_mode == _ved.MODE_NORMAL),
                         Function(_cue.video_editor.set_encode_mode, _ved.MODE_NORMAL),
                         tt="Standard encode at the original quality — no extra processing.")
-                    use cue_radio_btn((_ved.encode_mode == _ved.MODE_INTERPOLATE), "Interpolate Frames",
+                    use cue_select_btn("Interpolate Frames", (_ved.encode_mode == _ved.MODE_INTERPOLATE),
                         Function(_cue.video_editor.set_encode_mode, _ved.MODE_INTERPOLATE),
                         tt=("Uses ffmpeg to generate in-between frames for smoother motion. "
                             "Video takes longer to encode."))

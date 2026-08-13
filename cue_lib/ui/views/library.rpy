@@ -6,8 +6,8 @@
 screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
     $ _collapsed = _cue.file_tree.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
     $ _overlay_mode = _cue.file_tree.sfx_library_overlay_mode
-    $ _arrow = "▸" if _collapsed else "▾"
-    $ _ov_icon = "⊞" if _overlay_mode else "⊟"
+    $ _arrow = _cue.icons.displayable_for("chevron-right" if _collapsed else "chevron-down") if _cue.icons is not None else None
+    $ _ov_icon = "square-plus" if _overlay_mode else "square-minus"
     $ _ov_tt = "Overlay Mode\nWhen enabled, this section will float on top when expanded.\n"
     $ _ov_tt = _ov_tt + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX) + " to toggle expansion."
     frame:
@@ -38,11 +38,12 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
                                 _ov_tt,
                                 None
                             )
-                            text _arrow style "cue_help" size 14
+                            if _arrow is not None:
+                                add _arrow yalign 0.5
             if not _collapsed:
                 if not _cue.audio_tree:
                     text "[_cue.scan_error]" style "cue_help" color _cue_color_error
-                    text "Place .ogg, .mp3, .wav, .opus, or .flac files there and click ⟳ to refresh." style "cue_help"
+                    text "Place .ogg, .mp3, .wav, .opus, or .flac files there and click the refresh button." style "cue_help"
                 else:
                     use cue_sfx_library_content(_is_video, _has_image, _is_dialogue)
 
@@ -60,7 +61,7 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
             hbox:
                 spacing 2
                 use cue_icon_btn(
-                    ("▾" if _cue.file_tree.presets_expanded else "▸"),
+                    ("chevron-down" if _cue.file_tree.presets_expanded else "chevron-right"),
                     Function(_cue.file_tree.toggle_presets_expand), None, None)
                 use cue_txt_button("Presets/", Function(_cue.file_tree.toggle_presets_expand))
 
@@ -71,7 +72,7 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
             hbox:
                 spacing 2
                 use cue_icon_btn(
-                    ("▾" if _cue.file_tree.video_presets_expanded else "▸"),
+                    ("chevron-down" if _cue.file_tree.video_presets_expanded else "chevron-right"),
                     Function(_cue.file_tree.toggle_video_presets_expand), None, None)
                 use cue_txt_button("Video Presets/", Function(_cue.file_tree.toggle_video_presets_expand))
 
@@ -92,11 +93,11 @@ screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue):
             spacing 2
             text "  " style "cue_txt"  # indent under Presets/
             use cue_icon_btn(
-                ("▾" if _p_expanded else "▸"),
+                ("chevron-down" if _p_expanded else "chevron-right"),
                 Function(_cue.file_tree.toggle_preset_expand, _pname), None, None)
-            use cue_icon_btn("✕", Function(_cue_confirm_delete_preset, _pname), "Delete preset", None)
+            use cue_icon_btn("xmark", Function(_cue_confirm_delete_preset, _pname), "Delete preset", None)
             use cue_icon_btn(
-                "▶",
+                "play",
                 Function(_cue_preview_preset, _pname),
                 "Preview random file from preset", None)
             use cue_icon_btn(
@@ -124,10 +125,10 @@ screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue):
                     spacing 2
                     text "    " style "cue_txt"  # double indent
                     use cue_icon_btn(
-                        "✕",
+                        "xmark",
                         Function(_cue.markers.preset_remove_file, _pname, _child),
                         "Remove file from preset", None)
-                    use cue_icon_btn("▶", Function(_cue_preview_sfx, _child), "Preview file", None)
+                    use cue_icon_btn("play", Function(_cue_preview_sfx, _child), "Preview file", None)
                     text _child style "cue_txt" color _cue_color_text_accent size 11
 
 
@@ -141,14 +142,14 @@ screen cue_video_presets_list(_is_video, _has_image, _is_dialogue):
             spacing 2
             text "  " style "cue_txt"  # indent under Video Presets/
             use cue_icon_btn(
-                ("▾" if _vp_expanded else "▸"),
+                ("chevron-down" if _vp_expanded else "chevron-right"),
                 Function(_cue.file_tree.toggle_video_preset_expand, _vpname), None, None)
             use cue_icon_btn(
-                "✕",
+                "xmark",
                 Function(_cue_confirm_delete_video_preset, _vpname),
                 "Delete video preset", None)
             use cue_icon_btn(
-                "▶",
+                "play",
                 Function(_cue_preview_video_preset, _vpname),
                 "Preview random file from video preset", None)
             use cue_icon_btn(
@@ -179,9 +180,9 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
                 text " " * item["depth"] style "cue_txt"
             if item["type"] == "folder":
                 if item["expanded"]:
-                    use cue_icon_btn("▾", Function(_cue.file_tree.toggle_folder, item["full_path"]), None, None)
+                    use cue_icon_btn("chevron-down", Function(_cue.file_tree.toggle_folder, item["full_path"]), None, None)
                 else:
-                    use cue_icon_btn("▸", Function(_cue.file_tree.toggle_folder, item["full_path"]), None, None)
+                    use cue_icon_btn("chevron-right", Function(_cue.file_tree.toggle_folder, item["full_path"]), None, None)
                 if item["has_files"]:
                     use cue_icon_btn(
                         "V",
@@ -202,7 +203,7 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
                 use cue_txt_button(item["name"], Function(_cue.file_tree.toggle_folder, item["full_path"]))
             else:
                 # Play preview
-                use cue_icon_btn("▶", Function(_cue_preview_sfx, item["full_path"]), "Preview audio", None)
+                use cue_icon_btn("play", Function(_cue_preview_sfx, item["full_path"]), "Preview audio", None)
                 # Video marker (adds to active pool)
                 use cue_icon_btn(
                     "V",
@@ -224,7 +225,7 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
                     Function(_cue.markers.loop.add_file, item["index"]),
                     "Add to Loop SFX pool", None)
                 use cue_icon_btn(
-                    ("☑" if item.get("enabled", True) else "☐"),
+                    ("square-check" if item.get("enabled", True) else "square"),
                     Function(_cue.file_tree.toggle_file_enabled, item["full_path"]),
                     "Click to {} globally".format("disable" if item.get("enabled", True) else "enable"),
                     None)

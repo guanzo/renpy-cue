@@ -32,7 +32,7 @@ screen cue_data_dir():
                 text _cue.shared_dir_error style "cue_help" color _cue_color_error
             elif _cue.shared_dir_success:
                 text _cue.shared_dir_success style "cue_help" color _cue_color_green
-            use cue_txt_button("Save", Function(_cue_confirm_shared_dir), bg=_cue_color_green, hover_bg=_cue_color_green_hover)
+            use cue_txt_button("Save", Function(_cue_confirm_shared_dir))
 
 
 screen cue_settings_keybinds():
@@ -60,7 +60,7 @@ screen cue_settings_keybinds():
                         ysize=16,
                     )
                     use cue_icon_btn(
-                        "↺",
+                        "rotate-left",
                         Function(_cue_keybind_reset, _kb["id"]),
                         "Reset to default",
                         None,

@@ -70,11 +70,12 @@ screen cue_vol_row(label_text, dec_action, entry_dict, inc_action):
 # Icon button: tiny button with cue_btn_icon / cue_btn_icon_text styles.
 # Most callers don't need xsize (style default is 14); pass an int to override.
 # Pass tt=None to skip the tooltip.
-# Glyphs mapped in CueIconManager render as PNG images (white, shown at
-# 14px from a 32px source, dimmed via alpha when disabled); everything
+# `label` is an icon name ("clipboard", "xmark") or plain text ("-", "V").
+# Names mapped in CueIconManager render as PNG images (white, shown at
+# 12px from a 32px source, dimmed via alpha when disabled); everything
 # else falls back to text.
-screen cue_icon_btn(text, action, tt=None, xsize=16, enabled=True, bg=None):
-    $ _icon = _cue.icons.displayable_for(text) if _cue.icons is not None else None
+screen cue_icon_btn(label, action, tt=None, xsize=16, enabled=True, bg=None):
+    $ _icon = _cue.icons.displayable_for(label) if _cue.icons is not None else None
     if _icon is not None:
         button:
             style "cue_btn_icon"
@@ -92,7 +93,7 @@ screen cue_icon_btn(text, action, tt=None, xsize=16, enabled=True, bg=None):
             else:
                 add _icon xalign 0.5 yalign 0.5 alpha 0.35
     else:
-        textbutton text:
+        textbutton label:
             style "cue_btn_icon"
             text_style "cue_btn_icon_text"
             ysize 16
@@ -231,7 +232,7 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
     hbox:
         spacing 5
         if show_delete:
-            use cue_icon_btn("✕", Function(_cue.confirm_dialog.show, delete_confirm, delete_action), delete_tt, None)
+            use cue_icon_btn("xmark", Function(_cue.confirm_dialog.show, delete_confirm, delete_action), delete_tt, None)
         textbutton "+ Pool":
             style "cue_btn"
             text_style "cue_btn_text"
@@ -267,11 +268,11 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
             $ _count = len(folder_children) if folder_children else 0
             hbox:
                 spacing row_spacing
-                use cue_icon_btn(("▾" if _is_expanded else "▸"),
+                use cue_icon_btn(("chevron-down" if _is_expanded else "chevron-right"),
                     Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
-                use cue_icon_btn("✕", Function(remove_fn, *remove_args), "Remove preset", None)
+                use cue_icon_btn("xmark", Function(remove_fn, *remove_args), "Remove preset", None)
                 use cue_icon_btn(
-                    "▶",
+                    "play",
                     Function(_cue_preview_sfx, (folder_children or [""])[0], preview_vol),
                     "Preview random file from preset", None)
                 use cue_txt_button(folder_label, Function(_cue.file_tree.toggle_file_ref_expand, folder_label))
@@ -283,10 +284,10 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                         spacing row_spacing
                         text "    " style "cue_txt"  # indent
                         if folder_child_remove_fn is not None:
-                            use cue_icon_btn("✕",
+                            use cue_icon_btn("xmark",
                                 Function(folder_child_remove_fn, trigger_key, pool_index, 0, _child),
                                 "Remove file from pool", None)
-                        use cue_icon_btn("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
+                        use cue_icon_btn("play", Function(_cue_preview_sfx, _child, preview_vol), None, None)
                         text _child style "cue_txt" color _cue_color_text_accent size 11
 
         for fi, f in enumerate(files):
@@ -296,11 +297,11 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 $ _count = len(_cue_resolve_files([f]))
                 hbox:
                     spacing row_spacing
-                    use cue_icon_btn(("▾" if _is_expanded else "▸"),
+                    use cue_icon_btn(("chevron-down" if _is_expanded else "chevron-right"),
                         Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
-                    use cue_icon_btn("✕", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder", None)
+                    use cue_icon_btn("xmark", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder", None)
                     use cue_icon_btn(
-                        "▶",
+                        "play",
                         Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol),
                         "Preview random file from folder", None)
                     use cue_txt_button(f, Function(_cue.file_tree.toggle_file_ref_expand, f))
@@ -312,18 +313,18 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                             spacing row_spacing
                             text "    " style "cue_txt"  # indent
                             if folder_child_remove_fn is not None:
-                                use cue_icon_btn("✕",
+                                use cue_icon_btn("xmark",
                                     Function(folder_child_remove_fn, trigger_key, pool_index, fi, _child),
                                     "Remove file from the folder", None)
-                            use cue_icon_btn("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
+                            use cue_icon_btn("play", Function(_cue_preview_sfx, _child, preview_vol), None, None)
                             $ _display = _child[len(f):]  # strip folder prefix
                             text _display style "cue_txt" color _cue_color_text_accent size 11
             else:
                 # --- Regular file ---
                 hbox:
                     spacing row_spacing
-                    use cue_icon_btn("✕", _cue_make_tab_action(remove_fn, remove_args, fi), None, None)
-                    use cue_icon_btn("▶", Function(_cue_preview_sfx, f, preview_vol), None, None)
+                    use cue_icon_btn("xmark", _cue_make_tab_action(remove_fn, remove_args, fi), None, None)
+                    use cue_icon_btn("play", Function(_cue_preview_sfx, f, preview_vol), None, None)
                     text f style "cue_txt" color _cue_color_text_accent size 11
 
 # Scrollable file list: only wraps in a viewport when content exceeds ~6 rows (120 px).
@@ -360,7 +361,7 @@ style cue_section_hdr_btn is empty:
 # Click the header to collapse/expand the section content.
 screen cue_section_frame(header_text):
     $ _collapsed = _cue.file_tree.collapsed_sections.get(header_text, False)
-    $ _arrow = "▸" if _collapsed else "▾"  # ▸ collapsed, ▾ expanded
+    $ _arrow = _cue.icons.displayable_for("chevron-right" if _collapsed else "chevron-down") if _cue.icons is not None else None
     frame:
         background _cue_color_bg_panel
         padding (4, 4)
@@ -376,7 +377,8 @@ screen cue_section_frame(header_text):
                     xfill True
                     text header_text style "cue_hdr"
                     null width 8
-                    text _arrow style "cue_help" xalign 1.0 yalign 0.5 size 14
+                    if _arrow is not None:
+                        add _arrow xalign 1.0 yalign 0.5
             if not _collapsed:
                 transclude
 
@@ -437,8 +439,8 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 box_wrap_spacing 3
                 text _active_label style "cue_txt"
                 null width 5
-                use cue_icon_btn("💾", Function(_cue.preset_dialog.open, key, _target), "Save pool as a preset", None)
-                use cue_icon_btn("✕", Function(ctx.remove_pool, _target), "Delete pool", None)
+                use cue_icon_btn("floppy-disk", Function(_cue.preset_dialog.open, key, _target), "Save pool as a preset", None)
+                use cue_icon_btn("xmark", Function(ctx.remove_pool, _target), "Delete pool", None)
                 $ _dec = Function(_cue.volume.adjust, key, -0.1, _target)
                 $ _inc = Function(_cue.volume.adjust, key, 0.1, _target)
                 null width 5
@@ -471,35 +473,35 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 text ("Click the {} button in the SFX Library to create a new pool "
                     "or add files to the active pool.").format(btn_letter) style "cue_help"
 
-# Toggle textbutton: ☑ label when checked, ☐ when unchecked.
+# Toggle button: square-check icon when checked, square when unchecked.
 # on_bg/on_hover/off_bg/off_hover override backgrounds per state (None = style default).
 screen cue_checkbox(checked, label, action, tt_on=None, tt_off=None,
                     on_bg=None, on_hover=None, off_bg=None, off_hover=None,
                     enabled=True):
-    if checked:
-        textbutton "☑ " + label:
-            style "cue_btn"
-            text_style "cue_btn_text"
-            sensitive enabled
+    $ _icon = _cue.icons.displayable_for("square-check" if checked else "square") if _cue.icons is not None else None
+    button:
+        style "cue_btn"
+        sensitive enabled
+        action action
+        if checked:
             if on_bg:
                 background on_bg
             if on_hover:
                 hover_background on_hover
-            action action
             if tt_on:
                 tooltip tt_on
-    else:
-        textbutton "☐ " + label:
-            style "cue_btn"
-            text_style "cue_btn_text"
-            sensitive enabled
+        else:
             if off_bg:
                 background off_bg
             if off_hover:
                 hover_background off_hover
-            action action
             if tt_off or tt_on:
                 tooltip (tt_on if tt_off is None else tt_off)
+        hbox:
+            spacing 4
+            if _icon is not None:
+                add _icon yalign 0.5
+            text label style "cue_btn_text" yalign 0.5
 
 # Exclusive controls: group selector + start mode + hold checkbox.
 # Reads _cue._pool_ui["exclusive"] (a ResolvedExclusive, set by
@@ -569,26 +571,22 @@ screen cue_exclusive_row(ctx):
                 Function(ctx.set_exclusive_hold, not _hold),
                 _hold_tt)
 
-# Radio textbutton: ● label when selected, ○ when not.
+# Radio button: solid circle icon tinted with the active color when
+# selected, outline circle when not.
 # Exclusivity within a group is enforced by the shared action target.
 screen cue_radio_btn(checked, label, action, tt=None, enabled=True):
-    if checked:
-        $ _label = "{color=" + _cue_color_active + "}●{/color} " + label
-        textbutton _label:
-            style "cue_btn"
-            text_style "cue_btn_text"
-            sensitive enabled
-            action action
-            if tt is not None:
-                tooltip tt
-    else:
-        textbutton "○ " + label:
-            style "cue_btn"
-            text_style "cue_btn_text"
-            sensitive enabled
-            action action
-            if tt is not None:
-                tooltip tt
+    $ _icon = _cue.icons.displayable_for("circle" if checked else "circle-outline") if _cue.icons is not None else None
+    button:
+        style "cue_btn"
+        sensitive enabled
+        action action
+        if tt is not None:
+            tooltip tt
+        hbox:
+            spacing 4
+            if _icon is not None:
+                add _icon yalign 0.5
+            text label style "cue_btn_text" yalign 0.5
 
 # Popper anchor: wraps content and, on hover, captures the focused
 # displayable's rect under `name`, so a `popper target "name"` elsewhere can
