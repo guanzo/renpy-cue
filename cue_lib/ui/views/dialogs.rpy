@@ -8,7 +8,7 @@ screen cue_repeat_markers_dialog():
     # dialog_visible when the preview session must end (anchor deleted,
     # markers cleared). Hide the screen itself on the next interaction.
     if not _cue.repeater.dialog_visible:
-        timer 0.0 action Function(_cue.repeater.hide)
+        timer 0.01 action Function(_cue.repeater.hide)
     $ anchor = _cue.repeater.anchor
     $ offsets = _cue.repeater.offsets
     $ sel_count = _cue.repeater.sel_count
