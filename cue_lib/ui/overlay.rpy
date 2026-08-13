@@ -192,19 +192,25 @@ screen cue_overlay_content():
                     use cue_sfx_library(_is_video, _has_image, _is_dialogue)
 
 screen cue_header_toolbar():
+    $ _toggle_on_tt = "SFX triggers are ON (" + _cue.keybinds.shortcut_label("toggle_active") + " to toggle)"
+    $ _toggle_off_tt = "SFX triggers are OFF (" + _cue.keybinds.shortcut_label("toggle_active") + " to toggle)"
+    $ _copy_tt = "Copy current config (" + _cue.keybinds.shortcut_label("copy_context") + ")"
+    $ _paste_tt = "Paste config (" + _cue.keybinds.shortcut_label("paste_context") + ")"
+    $ _undo_tt = "Undo (" + _cue.keybinds.shortcut_label("undo") + ")"
+    $ _redo_tt = "Redo (" + _cue.keybinds.shortcut_label("redo") + ")"
+    $ _pause_tt = "Pause game (" + _cue.keybinds.shortcut_label("pause") + ")\nUse to pause on scenes that auto advance."
     hbox:
         spacing 2
         use cue_checkbox(_cue.trigger.active, "SFX Active",
             Function(_cue_toggle_active),
-            "SFX triggers are ON (Shift + 3 to toggle)",
-            "SFX triggers are OFF (Shift + 3 to toggle)",
+            _toggle_on_tt, _toggle_off_tt,
             _cue_color_active, _cue_color_green_hover, _cue_color_red, _cue_color_red_hover)
         null width 5
-        use cue_icon_btn("📋", Function(_cue.markers.copy_context), "Copy current config (Shift + 1)", None)
-        use cue_icon_btn("📄", Function(_cue.markers.paste_context), "Paste config (Shift + 2)", None)
+        use cue_icon_btn("📋", Function(_cue.markers.copy_context), _copy_tt, None)
+        use cue_icon_btn("📄", Function(_cue.markers.paste_context), _paste_tt, None)
         null width 5
-        use cue_icon_btn("↩", Function(_cue.undo.undo), "Undo (Shift + Q)", None, enabled=_cue.undo.can_undo())
-        use cue_icon_btn("↪", Function(_cue.undo.redo), "Redo (Shift + W)", None, enabled=_cue.undo.can_redo())
+        use cue_icon_btn("↩", Function(_cue.undo.undo), _undo_tt, None, enabled=_cue.undo.can_undo())
+        use cue_icon_btn("↪", Function(_cue.undo.redo), _redo_tt, None, enabled=_cue.undo.can_redo())
         null width 5
         $ _backup_tooltip = "Backup config to " + _cue.config_filename
         use cue_icon_btn("💾", Function(_cue.markers.backup_to_file), _backup_tooltip, None)
@@ -214,7 +220,7 @@ screen cue_header_toolbar():
         use cue_icon_btn(
             "⏸",
             Function(renpy.invoke_in_new_context, renpy.pause),
-            "Pause game (F3)\nUse to pause on scenes that auto advance.", None)
+            _pause_tt, None)
         use cue_icon_btn(
             "⟳",
             [Function(_cue_reload_presets), Function(_cue_refresh_context), Function(_cue_scan_audio)],

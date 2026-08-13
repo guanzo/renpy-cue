@@ -302,6 +302,11 @@ class CueKeybindsManager(object):
             return action.get("label", "")
         return ""
 
+    def shortcut_label(self, action_id):
+        # type: (str) -> str
+        """Display text for the current binding of an action ("Shift+1")."""
+        return self.keysym_label(self.get_keysym(action_id))
+
     # ------------------------------------------------------------------
     # Capture flow
     # ------------------------------------------------------------------

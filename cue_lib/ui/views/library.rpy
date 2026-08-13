@@ -9,9 +9,9 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
     $ _arrow = "▸" if _collapsed else "▾"
     $ _ov_icon = "⊞" if _overlay_mode else "⊟"
     $ _ov_tt = (
-        "Overlay Mode\n" 
+        "Overlay Mode\n"
         "When enabled, this section will float on top when expanded.\n"
-        "Shift + S to toggle expansion.")
+        _cue.keybinds.shortcut_label("toggle_sfx") + " to toggle expansion.")
     frame:
         background _cue_color_bg_panel
         padding (4, 4)
