@@ -123,55 +123,55 @@ class CueKeybindsManager(object):
     def __init__(self):
         # type: () -> None
         # Ordered list of action dicts.  Each dict:
-        #   id          - stable identifier used for persistence
-        #   keymap      - config.keymap entry name (CUE_KEYMAP_* constant)
+        #   id          - action identity, also the config.keymap entry name
+        #                 (CUE_KEYMAP_* constant; doubles as the persistence key)
         #   default     - default Ren'Py keysym string
         #   label       - human-readable display name
         #   desc        - tooltip description
         #   debug_only  - if True, only active when _cue.debug is True
         self.actions = [
-            {"id": "toggle_overlay", "keymap": CUE_KEYMAP_TOGGLE_OVERLAY,
+            {"id": CUE_KEYMAP_TOGGLE_OVERLAY,
              "default": "K_BACKQUOTE",
              "label": "Toggle Overlay",
              "desc": "Show or hide the Cue overlay"},
-            {"id": "toggle_active", "keymap": CUE_KEYMAP_TOGGLE_ACTIVE,
+            {"id": CUE_KEYMAP_TOGGLE_ACTIVE,
              "default": "shift_K_3",
              "label": "Toggle SFX Active",
              "desc": "Enable or disable SFX triggers"},
-            {"id": "toggle_sfx", "keymap": CUE_KEYMAP_TOGGLE_SFX,
+            {"id": CUE_KEYMAP_TOGGLE_SFX,
              "default": "shift_K_s",
              "label": "Toggle SFX Library",
              "desc": "Collapse or expand the SFX Library section"},
-            {"id": "quit_relaunch", "keymap": CUE_KEYMAP_QUIT_RELAUNCH,
+            {"id": CUE_KEYMAP_QUIT_RELAUNCH,
              "default": "K_F5",
              "label": "Quit & Relaunch",
              "desc": "Quit and relaunch the game (dev only)",
              "debug_only": True},
-            {"id": "copy_context", "keymap": CUE_KEYMAP_COPY_CONTEXT,
+            {"id": CUE_KEYMAP_COPY_CONTEXT,
              "default": "shift_K_1",
              "label": "Copy Config",
              "desc": "Copy current marker config to clipboard"},
-            {"id": "paste_context", "keymap": CUE_KEYMAP_PASTE_CONTEXT,
+            {"id": CUE_KEYMAP_PASTE_CONTEXT,
              "default": "shift_K_2",
              "label": "Paste Config",
              "desc": "Paste marker config from clipboard"},
-            {"id": "pause", "keymap": CUE_KEYMAP_PAUSE,
+            {"id": CUE_KEYMAP_PAUSE,
              "default": "shift_K_4",
              "label": "Pause Game",
              "desc": "Pause the game (use on scenes that auto-advance)"},
-            {"id": "undo", "keymap": CUE_KEYMAP_UNDO,
+            {"id": CUE_KEYMAP_UNDO,
              "default": "shift_K_q",
              "label": "Undo",
              "desc": "Undo last marker change"},
-            {"id": "redo", "keymap": CUE_KEYMAP_REDO,
+            {"id": CUE_KEYMAP_REDO,
              "default": "shift_K_w",
              "label": "Redo",
              "desc": "Redo last undone change"},
-            {"id": "speed_up", "keymap": CUE_KEYMAP_SPEED_UP,
+            {"id": CUE_KEYMAP_SPEED_UP,
              "default": "K_m",
              "label": "Speed Up",
              "desc": "Cycle video speed up by one step"},
-            {"id": "speed_down", "keymap": CUE_KEYMAP_SPEED_DOWN,
+            {"id": CUE_KEYMAP_SPEED_DOWN,
              "default": "K_n",
              "label": "Speed Down",
              "desc": "Cycle video speed down by one step"},
@@ -194,8 +194,8 @@ class CueKeybindsManager(object):
         """
         # 1. Register defaults for any names not already present.
         for action in self.actions:
-            if action["keymap"] not in renpy.config.keymap:
-                renpy.config.keymap[action["keymap"]] = [action["default"]]
+            if action["id"] not in renpy.config.keymap:
+                renpy.config.keymap[action["id"]] = [action["default"]]
 
         # 2. Load saved overrides from shared config.
         cfg = _cue.db.load_shared_config()
@@ -204,7 +204,7 @@ class CueKeybindsManager(object):
             for action in self.actions:
                 ks = saved.get(action["id"])
                 if ks and self._is_valid_keysym(ks):
-                    renpy.config.keymap[action["keymap"]] = [ks]
+                    renpy.config.keymap[action["id"]] = [ks]
 
         # 3. Clear the compiled event cache so the new entries / overrides
         #    take effect immediately.
@@ -224,7 +224,7 @@ class CueKeybindsManager(object):
         action = self._get_action(action_id)
         if action is None:
             return action_id
-        entry = renpy.config.keymap.get(action["keymap"])
+        entry = renpy.config.keymap.get(action["id"])
         if entry is not None and len(entry) == 0:
             return ""  # explicitly unbound
         if entry and len(entry) > 0:  # pyright: ignore[reportOptionalSubscript]
@@ -287,7 +287,7 @@ class CueKeybindsManager(object):
         """
         result = []
         for a in self.actions:
-            if a["id"] == "quit_relaunch":
+            if a["id"] == CUE_KEYMAP_QUIT_RELAUNCH:
                 continue
             if a.get("debug_only") and not _cue.debug:
                 continue
@@ -394,20 +394,20 @@ class CueKeybindsManager(object):
         for a in self.actions:
             if a["id"] == self._capturing_id:
                 continue
-            entry = renpy.config.keymap.get(a["keymap"])
+            entry = renpy.config.keymap.get(a["id"])
             if entry and keysym in entry:
                 overridden.append(a)
 
         # Apply the new binding for the target action.
-        renpy.config.keymap[action["keymap"]] = [keysym]
+        renpy.config.keymap[action["id"]] = [keysym]
 
         # Reset each overridden Cue action to its default, or unbind.
         for a in overridden:
             default_collisions = self._find_collisions(a["default"], a["id"])
             if default_collisions:
-                renpy.config.keymap[a["keymap"]] = []
+                renpy.config.keymap[a["id"]] = []
             else:
-                renpy.config.keymap[a["keymap"]] = [a["default"]]
+                renpy.config.keymap[a["id"]] = [a["default"]]
 
         _behavior.clear_keymap_cache()
         self.collision_message = ""
@@ -424,7 +424,7 @@ class CueKeybindsManager(object):
     def _apply_binding(self, action, keysym):
         # type: (dict, str) -> None
         """Set *action*'s keymap entry to *keysym* and finalize capture."""
-        renpy.config.keymap[action["keymap"]] = [keysym]
+        renpy.config.keymap[action["id"]] = [keysym]
         _behavior.clear_keymap_cache()
         self.collision_message = ""
         self._capturing_id = ""
@@ -438,7 +438,7 @@ class CueKeybindsManager(object):
         action = self._get_action(action_id)
         if action is None:
             return
-        renpy.config.keymap[action["keymap"]] = [action["default"]]
+        renpy.config.keymap[action["id"]] = [action["default"]]
         _behavior.clear_keymap_cache()
         self.save()
         renpy.restart_interaction()
@@ -460,7 +460,7 @@ class CueKeybindsManager(object):
         for a in self.actions:
             if a["id"] == exclude_id:
                 continue
-            entry = renpy.config.keymap.get(a["keymap"])
+            entry = renpy.config.keymap.get(a["id"])
             if entry and keysym in entry:
                 owners.append("Cue: {}".format(a.get("label", a["id"])))
 

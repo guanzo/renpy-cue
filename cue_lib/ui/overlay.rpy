@@ -192,13 +192,13 @@ screen cue_overlay_content():
                     use cue_sfx_library(_is_video, _has_image, _is_dialogue)
 
 screen cue_header_toolbar():
-    $ _toggle_on_tt = "SFX triggers are ON (" + _cue.keybinds.shortcut_label("toggle_active") + " to toggle)"
-    $ _toggle_off_tt = "SFX triggers are OFF (" + _cue.keybinds.shortcut_label("toggle_active") + " to toggle)"
-    $ _copy_tt = "Copy current config (" + _cue.keybinds.shortcut_label("copy_context") + ")"
-    $ _paste_tt = "Paste config (" + _cue.keybinds.shortcut_label("paste_context") + ")"
-    $ _undo_tt = "Undo (" + _cue.keybinds.shortcut_label("undo") + ")"
-    $ _redo_tt = "Redo (" + _cue.keybinds.shortcut_label("redo") + ")"
-    $ _pause_tt = "Pause game (" + _cue.keybinds.shortcut_label("pause") + ")\nUse to pause on scenes that auto advance."
+    $ _toggle_on_tt = "SFX triggers are ON (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_ACTIVE) + " to toggle)"
+    $ _toggle_off_tt = "SFX triggers are OFF (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_ACTIVE) + " to toggle)"
+    $ _copy_tt = "Copy current config (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_COPY_CONTEXT) + ")"
+    $ _paste_tt = "Paste config (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_PASTE_CONTEXT) + ")"
+    $ _undo_tt = "Undo (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_UNDO) + ")"
+    $ _redo_tt = "Redo (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_REDO) + ")"
+    $ _pause_tt = "Pause game (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_PAUSE) + ")\nUse to pause on scenes that auto advance."
     hbox:
         spacing 2
         use cue_checkbox(_cue.trigger.active, "SFX Active",

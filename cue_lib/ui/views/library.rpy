@@ -11,7 +11,7 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
     $ _ov_tt = (
         "Overlay Mode\n"
         "When enabled, this section will float on top when expanded.\n"
-        _cue.keybinds.shortcut_label("toggle_sfx") + " to toggle expansion.")
+        _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX) + " to toggle expansion.")
     frame:
         background _cue_color_bg_panel
         padding (4, 4)
