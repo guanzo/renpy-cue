@@ -416,16 +416,20 @@ CUE_EXCLUSIVE_FADE = 0.1
 
 
 def _cue_fade_out_sfx(exclude_channels=None):
-    # type: (Optional[List[str]]) -> None
+    # type: (Optional[List[str]]) -> int
     """Quickly fade out every SFX playing on the shared _cue_ channels,
-    except the channels in exclude_channels (same-group friends)."""
+    except the channels in exclude_channels (same-group friends).
+    Returns the number of channels faded."""
     excluded = set(exclude_channels) if exclude_channels else set()
+    faded = 0
     for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
         ch_name = "_cue_{}".format(i)
         if ch_name in excluded:
             continue
         if _music.is_playing(channel=ch_name):
             _music.stop(channel=ch_name, fadeout=CUE_EXCLUSIVE_FADE)
+            faded += 1
+    return faded
 
 
 # Re-export _cue_scan_audio from util for backward-compat in overlay

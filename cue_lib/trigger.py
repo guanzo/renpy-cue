@@ -163,7 +163,9 @@ class CueTriggerEngine(object):
                 from cue_lib.runtime import _cue_play_pool, _cue_fade_out_sfx
                 if excl.start == CueExclusiveStart.FADE:
                     # Cut-in: fade out everything that isn't a same-group friend.
-                    _cue_fade_out_sfx(exclude_channels=self._excl_friends(excl.group))
+                    faded = _cue_fade_out_sfx(exclude_channels=self._excl_friends(excl.group))
+                    _cue_log("CTX-SWEEP key={} pool={} group={} faded={}".format(
+                        key, pi, excl.group, faded))
                 ch_used = _cue_play_pool(entry, key, pool, pi, file=file)
                 self._excl_track(ch_used, excl.group, excl.hold)
 
@@ -202,7 +204,7 @@ class CueTriggerEngine(object):
             pst = ps.get(pi)
             if pst is None:
                 init_delay = _random.uniform(0.0, _cue.markers.loop.get_delay(resolved.frequency))
-                ps[pi] = {"ready_at": now + init_delay, "channels": [], "play_start": 0.0}
+                ps[pi] = {"ready_at": now + init_delay, "channels": [], "play_start": 0.0, "blocked_logged": False}
                 pst = ps[pi]
 
             # If this pool's channels are done playing, reset for next cycle
@@ -222,12 +224,20 @@ class CueTriggerEngine(object):
 
             excl = resolved.exclusive
             # Gate: a holding non-friend owns the air -- defer and retry.
+            # Logged once per blocked episode (flag clears on play) so the
+            # 0.1s retry cadence doesn't spam the log.
             if self._excl_hold_blocked(excl.group):
+                if not pst.get("blocked_logged"):
+                    _cue_log("TICK#{} POOL-DEFER reason=hold key={} pool={}".format(tick, loop_key, pi))
+                    pst["blocked_logged"] = True
                 pst["ready_at"] = now + 0.1
                 continue
 
             # Gate: wait mode defers until no non-friend SFX is playing.
             if excl.start == CueExclusiveStart.WAIT and self._excl_nonfriend_busy(excl.group):
+                if not pst.get("blocked_logged"):
+                    _cue_log("TICK#{} POOL-DEFER reason=wait key={} pool={}".format(tick, loop_key, pi))
+                    pst["blocked_logged"] = True
                 pst["ready_at"] = now + 0.1
                 continue
 
@@ -243,11 +253,14 @@ class CueTriggerEngine(object):
             from cue_lib.runtime import _cue_play_pool, _cue_fade_out_sfx
             if excl.start == CueExclusiveStart.FADE:
                 # Cut-in: fade out everything that isn't a same-group friend.
-                _cue_fade_out_sfx(exclude_channels=self._excl_friends(excl.group))
+                faded = _cue_fade_out_sfx(exclude_channels=self._excl_friends(excl.group))
+                _cue_log("TICK#{} POOL-SWEEP key={} pool={} group={} faded={}".format(
+                    tick, loop_key, pi, excl.group, faded))
             ch_used = _cue_play_pool(entry, loop_key, pool, pi, file=picked_file)
             if ch_used:
                 pst["channels"] = [ch_used]
                 pst["play_start"] = now
+                pst["blocked_logged"] = False
                 self._excl_track(ch_used, excl.group, excl.hold)
                 _cue_log("TICK#{} POOL-PLAY  key={} pool={} ch={} dur={:.2f}s next_in={:.2f}s".format(
                     tick, loop_key, pi, ch_used,
