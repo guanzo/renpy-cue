@@ -63,7 +63,8 @@ init -999 python:
         _cue_refresh_context, _cue_log_context, _cue_get_top_layer,
         _cue_refresh_channel, _cue_tick_trigger, _cue_play_sfx,
         _cue_preview_sfx, _cue_preview_preset, _cue_preview_folder, _cue_preview_video_preset, _cue_play_pool,
-        _cue_toggle_active, _cue_toggle_settings, _cue_toggle_shake_trigger, _cue_toggle_video_mute,
+        _cue_toggle_active, _cue_toggle_settings, _cue_toggle_exclusive_row,
+        _cue_toggle_shake_trigger, _cue_toggle_video_mute,
         _cue_confirm_shared_dir,
     )
 

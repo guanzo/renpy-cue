@@ -82,7 +82,7 @@ screen cue_overlay_content():
         xfill True
         yfill True
         vbox:
-            spacing 4
+            spacing 5
 
             # --- Top bar: active checkbox + copy + paste + dump + restore + refresh + close ---
             use cue_header_toolbar()
@@ -111,7 +111,8 @@ screen cue_overlay_content():
                             "Trigger on screen shake",
                             Function(_cue_toggle_shake_trigger),
                             "Play SFX when a screen shake occurs")
-                        use cue_exclusive_row(_cue.markers.image)
+                        if _cue.is_exclusive_row_visible:
+                            use cue_exclusive_row(_cue.markers.image)
 
                 # --- Dialogue UI ---
                 $ _is_dialogue = bool(_cue.current_dialogue)
@@ -120,7 +121,8 @@ screen cue_overlay_content():
                     use cue_context_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
                         "Dialogue: " + _cue.current_dialogue, "dialogue", "D",
                         "SFX plays when this line of dialogue is displayed."):
-                        use cue_exclusive_row(_cue.markers.dialogue)
+                        if _cue.is_exclusive_row_visible:
+                            use cue_exclusive_row(_cue.markers.dialogue)
 
                 # Loop SFX
                 $ _loop_key = _cue_create_loop_key(_cue.current_file or "")
@@ -159,7 +161,8 @@ screen cue_overlay_content():
                             Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FASTEST),
                             tt="~0.2s between plays")
 
-                    use cue_exclusive_row(_cue.markers.loop)
+                    if _cue.is_exclusive_row_visible:
+                        use cue_exclusive_row(_cue.markers.loop)
 
                 # Audio file browser (in-flow, only when overlay mode is OFF)
                 if not _cue.file_tree.sfx_library_overlay_mode:

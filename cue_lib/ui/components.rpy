@@ -436,6 +436,12 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 text _active_label style "cue_txt"
                 null width 5
                 use cue_icon_btn("floppy-disk", Function(_cue.preset_dialog.open, key, _target), "Save pool as a preset", None)
+                $ _exclusive_bg = _cue_color_active if _cue.is_exclusive_row_visible else None
+                use cue_icon_btn(
+                    "layer-group",
+                    Function(_cue_toggle_exclusive_row),
+                    tt="Toggle Exclusive SFX Group", 
+                    bg=_exclusive_bg)
                 use cue_icon_btn("xmark", Function(ctx.remove_pool, _target), "Delete pool", None)
                 $ _dec = Function(_cue.volume.adjust, key, -0.1, _target)
                 $ _inc = Function(_cue.volume.adjust, key, 0.1, _target)
@@ -494,7 +500,7 @@ screen cue_checkbox(checked, label, action, tt_on=None, tt_off=None,
             if tt_off or tt_on:
                 tooltip (tt_on if tt_off is None else tt_off)
         hbox:
-            spacing 4
+            spacing 5
             if _icon is not None:
                 add _icon yalign 0.5
             text label style "cue_btn_text" yalign 0.5
@@ -512,60 +518,67 @@ screen cue_exclusive_row(ctx):
     $ _hold = _excl.hold
     $ _group_tt = "SFX in the same group can play together and don't block each other."
 
-    hbox:
-        spacing 5
-        box_wrap True
-        box_wrap_spacing 3
-        text "Exclusive group:" style "cue_txt"
-        use cue_select_btn("Off", (_group == 0), Function(ctx.set_exclusive_group, 0), tt="Normal playback")
-        use cue_select_btn("G1", (_group == 1), Function(ctx.set_exclusive_group, 1), tt=_group_tt)
-        use cue_select_btn("G2", (_group == 2), Function(ctx.set_exclusive_group, 2), tt=_group_tt)
-        use cue_select_btn("G3", (_group == 3), Function(ctx.set_exclusive_group, 3), tt=_group_tt)
-        if _group > 3:
-            use cue_select_btn("G" + str(_group), True, Function(ctx.set_exclusive_group, _group))
-    if _group or _start or _hold:
+    vbox:
+        spacing 8
+        null height 2
+        use cue_h_divider()
         hbox:
             spacing 5
             box_wrap True
             box_wrap_spacing 3
-            text "When Triggered:" style "cue_txt"
-            use cue_select_btn(
-                "Play", 
-                (_start == CueExclusiveStart.PLAY), 
-                Function(ctx.set_exclusive_start, CueExclusiveStart.PLAY), 
-                tt="Plays immediately and can overlap other SFX")
-
-            use cue_select_btn(
-                "Fade out other SFX", 
-                (_start == CueExclusiveStart.FADE), 
-                Function(ctx.set_exclusive_start, CueExclusiveStart.FADE), 
-                tt="Fades out SFX outside this group, then plays")
-            if (not ctx.ONE_SHOT) or (_start == CueExclusiveStart.WAIT):
+            text "Exclusive SFX Group:" style "cue_txt"
+            use cue_select_btn("Off", (_group == 0), Function(ctx.set_exclusive_group, 0), tt="Normal playback")
+            use cue_select_btn("G1", (_group == 1), Function(ctx.set_exclusive_group, 1), tt=_group_tt)
+            use cue_select_btn("G2", (_group == 2), Function(ctx.set_exclusive_group, 2), tt=_group_tt)
+            use cue_select_btn("G3", (_group == 3), Function(ctx.set_exclusive_group, 3), tt=_group_tt)
+            if _group > 3:
+                use cue_select_btn("G" + str(_group), True, Function(ctx.set_exclusive_group, _group))
+        if _group or _start or _hold:
+            hbox:
+                spacing 5
+                box_wrap True
+                box_wrap_spacing 3
+                text "When Triggered:" style "cue_txt"
                 use cue_select_btn(
-                    "Wait for other SFX to finish", 
-                    (_start == CueExclusiveStart.WAIT), 
-                    Function(ctx.set_exclusive_start, CueExclusiveStart.WAIT), 
-                    tt="Waits until no SFX outside this group is playing, then plays")
-        hbox:
-            spacing 5
-            box_wrap True
-            box_wrap_spacing 3
-            $ _hold_label = (
-                "Block SFX outside this group from starting until done"
-                if _group
-                else
-                "Block other SFX from starting until done"
-            )
-            $ _hold_tt = (
-                "Also: if another SFX outside this group is already blocking, this one will be skipped."
-                if _group else
-                "Also: if another SFX is already blocking, this one will be skipped."
-            )
-            use cue_checkbox(
-                _hold, 
-                _hold_label,
-                Function(ctx.set_exclusive_hold, not _hold),
-                _hold_tt)
+                    "Play", 
+                    (_start == CueExclusiveStart.PLAY), 
+                    Function(ctx.set_exclusive_start, CueExclusiveStart.PLAY), 
+                    tt="Plays immediately and can overlap other SFX")
+
+                use cue_select_btn(
+                    "Fade out other SFX", 
+                    (_start == CueExclusiveStart.FADE), 
+                    Function(ctx.set_exclusive_start, CueExclusiveStart.FADE), 
+                    tt="Fades out SFX outside this group, then plays")
+                if (not ctx.ONE_SHOT) or (_start == CueExclusiveStart.WAIT):
+                    use cue_select_btn(
+                        "Wait for other SFX to finish", 
+                        (_start == CueExclusiveStart.WAIT), 
+                        Function(ctx.set_exclusive_start, CueExclusiveStart.WAIT), 
+                        tt="Waits until no SFX outside this group is playing, then plays")
+            hbox:
+                spacing 5
+                box_wrap True
+                box_wrap_spacing 3
+                $ _hold_label = (
+                    "Block SFX outside this group from starting until done"
+                    if _group
+                    else
+                    "Block other SFX from starting until done"
+                )
+                $ _hold_tt = (
+                    "Also: if another SFX outside this group is already blocking, this one will be skipped."
+                    if _group else
+                    "Also: if another SFX is already blocking, this one will be skipped."
+                )
+                use cue_checkbox(
+                    _hold, 
+                    _hold_label,
+                    Function(ctx.set_exclusive_hold, not _hold),
+                    _hold_tt)
+
+        use cue_h_divider()
+        null height 2
 
 # Radio button: solid circle icon tinted with the active color when
 # selected, outline circle when not.
@@ -579,7 +592,7 @@ screen cue_radio_btn(checked, label, action, tt=None, enabled=True):
         if tt is not None:
             tooltip tt
         hbox:
-            spacing 4
+            spacing 5
             if _icon is not None:
                 add _icon yalign 0.5
             text label style "cue_btn_text" yalign 0.5

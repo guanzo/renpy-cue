@@ -36,6 +36,7 @@ class Cue:
     initialized: bool
     is_overlay_visible: bool
     is_settings_visible: bool
+    is_exclusive_row_visible: bool
     current_file: str
     current_dialogue: str
     prev_dialogue: str

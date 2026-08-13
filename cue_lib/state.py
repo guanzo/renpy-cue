@@ -35,6 +35,7 @@ class Cue(_renpy_python.NoRollback):
         self.initialized = False
         self.is_overlay_visible = False
         self.is_settings_visible = False
+        self.is_exclusive_row_visible = False
         self.current_file = ""
         self.current_dialogue = ""
         self.prev_dialogue = ""

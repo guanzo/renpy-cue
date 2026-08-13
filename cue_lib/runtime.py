@@ -42,6 +42,11 @@ def _cue_toggle_active():
     _cue.trigger.active = not _cue.trigger.active
     persistent._cue["triggers_active"] = _cue.trigger.active
 
+def _cue_toggle_exclusive_row():
+    # type: () -> None
+    _cue.is_exclusive_row_visible = not _cue.is_exclusive_row_visible
+    persistent._cue["exclusive_row_visible"] = _cue.is_exclusive_row_visible
+
 def _cue_toggle_settings():
     # type: () -> None
     if not _cue.is_settings_visible:

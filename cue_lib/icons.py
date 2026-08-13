@@ -52,6 +52,7 @@ CUE_ICON_MAP = {
     "question": ("question-solid.png", False),
     "rotate-right": ("rotate-right-solid.png", False),
     "gear": ("gear-solid.png", False),
+    "layer-group": ("layer-group-solid.png", False),
     "rotate-left": ("rotate-left-solid.png", False),
     "square-plus": ("square-plus-solid.png", False),
     "square-minus": ("square-minus-solid.png", False),

@@ -9,7 +9,7 @@ screen cue_settings_page():
         xfill True
         yminimum 0
         vbox:
-            spacing 4
+            spacing 5
             frame:
                 text "Settings" style "cue_hdr" xoffset 4
                 background _cue_color_bg_panel

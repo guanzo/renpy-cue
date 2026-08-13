@@ -13,7 +13,7 @@ screen _cue_edit_queue_vbox():
         null height 2
         for job in _cue.video_editor.job_queue.jobs:
             hbox:
-                spacing 4
+                spacing 5
                 if job.status in ("queued", "analyzing", "encoding"):
                     use cue_icon_btn("xmark", Function(_cue.video_editor.job_queue.cancel, job.job_id), "Cancel job", None)
                 else:
@@ -30,7 +30,7 @@ screen _cue_edit_queue_vbox():
 
             if job.status == "error" and job.error_msg and not job.cancelled:
                 hbox:
-                    spacing 4
+                    spacing 5
                     null width 20
                     text job.error_msg style "cue_txt" size 11 color _cue_color_error
                     use cue_txt_button("Retry",
