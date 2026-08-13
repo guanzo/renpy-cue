@@ -126,7 +126,6 @@ def _cue_refresh_context():
         if _cue.current_file:
             img_key = create_img_key(_cue.current_file)
         _cue.trigger.loop_states = {}
-        _cue.trigger.excl_channels = {}
         _cue.trigger.played_video_keys.clear()
         _cue.trigger._prev_eff_elapsed = -1.0
         if _cue.is_overlay_visible:

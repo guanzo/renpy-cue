@@ -16,16 +16,27 @@ from cue_lib._types import (
 # ResolvedPool
 # =========================================================================
 
+class CueExclusiveStart:
+    PLAY: int  # 0 -- start immediately, overlapping whatever is playing
+    FADE: int  # 1 -- cross-fade out non-group SFX, then play
+    WAIT: int  # 2 -- wait until no non-group SFX is playing (loops only)
+
+class ResolvedExclusive:
+    """Resolved exclusive config snapshot. group 0 = Off."""
+    group: int
+    start: int
+    hold: bool
+    def __init__(self, group: int = 0, start: int = CueExclusiveStart.PLAY, hold: bool = False) -> None: ...
+    def to_dict(self) -> Dict[str, Any]: ...
+
 class ResolvedPool:
     """Immutable pool snapshot after resolving presets."""
     files: List[str]
     volume: float
     frequency: int
     trigger_on_shake: bool
-    exclusive_group: int
-    exclusive_fade: bool
-    exclusive_hold: bool
-    def __init__(self, files: List[str], volume: float, frequency: int, trigger_on_shake: bool, exclusive_group: int = 0, exclusive_fade: bool = False, exclusive_hold: bool = False) -> None: ...
+    exclusive: ResolvedExclusive
+    def __init__(self, files: List[str], volume: float, frequency: int, trigger_on_shake: bool, exclusive: Optional[ResolvedExclusive] = None) -> None: ...
 
 
 # =========================================================================
@@ -42,7 +53,7 @@ class CueMarkerContext:
     def get_active(self) -> int: ...
     def set_active(self, pool_index: int) -> None: ...
     def set_exclusive_group(self, group: int) -> None: ...
-    def set_exclusive_fade(self, value: bool) -> None: ...
+    def set_exclusive_start(self, mode: int) -> None: ...
     def set_exclusive_hold(self, value: bool) -> None: ...
     def apply_preset(self, preset_name: str) -> None: ...
     def add_folder(self, folder_path: str) -> None: ...

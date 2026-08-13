@@ -22,16 +22,21 @@ from typing_extensions import NotRequired
 # Pool dicts -- the shape of a single pool within a MarkerEntry
 # =========================================================================
 
+class ExclusiveDict(TypedDict, total=False):
+    """Nested exclusive config on a pool. Absence of the ``exclusive``
+    key on a pool means plain-citizen (Off / Play / no hold)."""
+    group: int                  # 1..N shared group; absent = 0 (Off)
+    start: int                  # CueExclusiveStart: 0=play, 1=fade, 2=wait
+    hold: bool                  # block non-group SFX until done
+
+
 class PoolDict(TypedDict, total=False):
     """A single pool within a MarkerEntry. Keys vary by context."""
     files: List[str]
     volume: float
     frequency: int              # loop pools only
     trigger_on_shake: bool      # image pools only
-    exclusive: bool             # legacy loop-only (migrated to exclusive_hold)
-    exclusive_group: int        # 0=off, 1..N shared group; all sections
-    exclusive_fade: bool        # cut-in: fade out non-group SFX on start
-    exclusive_hold: bool        # hold: block non-group SFX until done
+    exclusive: ExclusiveDict    # nested exclusive config; legacy saves held a bool
     preset: str                 # preset-backed pools (written, replaced on detach)
 
 

@@ -7,6 +7,7 @@ import random as _random
 import renpy.audio.music as _music
 
 from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
+from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_resolve_files, _cue_pick_file, _cue_loop_still_playing,
@@ -55,7 +56,12 @@ class CueTriggerEngine(object):
         # type: (int) -> bool
         """True if a holding SFX from another group (or an ungrouped holder)
         is playing -- non-friends may not start. Group 0 pools have no
-        friends, so any holder blocks them."""
+        friends, so any holder blocks them.
+
+        Only fire_context and _tick_loop consult this gate; SFX played
+        elsewhere (video markers, preview) are hold-immune by construction.
+        The cut-in sweep, by contrast, is channel-based and hits everything
+        that isn't a group friend."""
         self._prune_excl()
         for info in self.excl_channels.values():
             if info["hold"] and not (group != 0 and info["group"] == group):
@@ -136,10 +142,14 @@ class CueTriggerEngine(object):
                 files = _cue_resolve_files(resolved.files)
                 if not files:
                     continue
+                excl = resolved.exclusive
                 # Hold gate: a holding non-friend owns the air -- drop this pool.
-                group = resolved.exclusive_group
-                if self._excl_hold_blocked(group):
+                if self._excl_hold_blocked(excl.group):
                     _cue_log("CTX-DROPPED key={} pool={} (held)".format(key, pi))
+                    continue
+                # One-shot pools can't defer: "wait" only plays into open air.
+                if excl.start == CueExclusiveStart.WAIT and self._excl_nonfriend_busy(excl.group):
+                    _cue_log("CTX-DROPPED key={} pool={} (air busy)".format(key, pi))
                     continue
                 file = _cue_pick_file(files)
                 tries = 0
@@ -151,11 +161,11 @@ class CueTriggerEngine(object):
                 picked.append(file)
                 # _cue_play_pool is in runtime.py; import lazily to avoid cycle
                 from cue_lib.runtime import _cue_play_pool, _cue_fade_out_sfx
-                if resolved.exclusive_fade or resolved.exclusive_hold:
-                    # Cut-in: one-shot hold implies fade (can't wait for air).
-                    _cue_fade_out_sfx(exclude_channels=self._excl_friends(group))
+                if excl.start == CueExclusiveStart.FADE:
+                    # Cut-in: fade out everything that isn't a same-group friend.
+                    _cue_fade_out_sfx(exclude_channels=self._excl_friends(excl.group))
                 ch_used = _cue_play_pool(entry, key, pool, pi, file=file)
-                self._excl_track(ch_used, group, resolved.exclusive_hold)
+                self._excl_track(ch_used, excl.group, excl.hold)
 
     # -- loop triggers (l: keys) --
 
@@ -210,16 +220,16 @@ class CueTriggerEngine(object):
             if now < pst["ready_at"]:
                 continue
 
+            excl = resolved.exclusive
             # Gate: a holding non-friend owns the air -- defer and retry.
-            if self._excl_hold_blocked(resolved.exclusive_group):
+            if self._excl_hold_blocked(excl.group):
                 pst["ready_at"] = now + 0.1
                 continue
 
-            # Gate: polite holders (hold without fade) wait for open air.
-            if resolved.exclusive_hold and not resolved.exclusive_fade:
-                if self._excl_nonfriend_busy(resolved.exclusive_group):
-                    pst["ready_at"] = now + 0.1
-                    continue
+            # Gate: wait mode defers until no non-friend SFX is playing.
+            if excl.start == CueExclusiveStart.WAIT and self._excl_nonfriend_busy(excl.group):
+                pst["ready_at"] = now + 0.1
+                continue
 
             # Pick a file and play
             picked_file = _cue_pick_file(files)
@@ -231,14 +241,14 @@ class CueTriggerEngine(object):
                 continue
             picked.append(picked_file)
             from cue_lib.runtime import _cue_play_pool, _cue_fade_out_sfx
-            if resolved.exclusive_fade:
+            if excl.start == CueExclusiveStart.FADE:
                 # Cut-in: fade out everything that isn't a same-group friend.
-                _cue_fade_out_sfx(exclude_channels=self._excl_friends(resolved.exclusive_group))
+                _cue_fade_out_sfx(exclude_channels=self._excl_friends(excl.group))
             ch_used = _cue_play_pool(entry, loop_key, pool, pi, file=picked_file)
             if ch_used:
                 pst["channels"] = [ch_used]
                 pst["play_start"] = now
-                self._excl_track(ch_used, resolved.exclusive_group, resolved.exclusive_hold)
+                self._excl_track(ch_used, excl.group, excl.hold)
                 _cue_log("TICK#{} POOL-PLAY  key={} pool={} ch={} dur={:.2f}s next_in={:.2f}s".format(
                     tick, loop_key, pi, ch_used,
                     _music.get_duration(channel=ch_used) or 0.0,

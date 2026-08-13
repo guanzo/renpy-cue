@@ -379,7 +379,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
             else:
                 $ _active_label = "Pool " + str(_target + 1) + " (" + str(len(_cue_resolve_files(_r.files))) + " files)"
             $ _cue._pool_ui = {"pool": _active_pool, "files": _r.files, "target": _target, "freq": _r.frequency,
-                "exclusive_group": _r.exclusive_group, "exclusive_fade": _r.exclusive_fade, "exclusive_hold": _r.exclusive_hold}
+                "exclusive": _r.exclusive}
             hbox:
                 spacing 5
                 box_wrap True
@@ -448,34 +448,49 @@ screen cue_checkbox(checked, label, action, tt_on=None, tt_off=None,
             if tt_off or tt_on:
                 tooltip (tt_on if tt_off is None else tt_off)
 
-# Exclusive group row: group selector + cut-in/hold checkboxes.
-# Reads the exclusive fields from _cue._pool_ui (set by cue_context_section).
-# ctx is the pool context (_cue.markers.image/dialogue/loop).
+# Exclusive controls: group selector + start mode + hold checkbox.
+# Reads _cue._pool_ui["exclusive"] (a ResolvedExclusive, set by
+# cue_context_section). ctx is the pool context
+# (_cue.markers.image/dialogue/loop).
+# Off = plain citizen: start/hold controls stay hidden until the pool joins
+# a group (or carries exclusive flags); selecting Off clears the flags.
 screen cue_exclusive_row(ctx):
-    $ _excl_group = _cue._pool_ui.get("exclusive_group", 0)
-    $ _excl_fade = _cue._pool_ui.get("exclusive_fade", False)
-    $ _excl_hold = _cue._pool_ui.get("exclusive_hold", False)
+    $ _excl = _cue._pool_ui["exclusive"]
+    $ _group = _excl.group
+    $ _start = _excl.start
+    $ _hold = _excl.hold
+    if _group:
+        $ _hold_tt = "Nothing outside this group plays until this SFX finishes"
+    else:
+        $ _hold_tt = "Nothing else plays until this SFX finishes"
     hbox:
         spacing 5
         box_wrap True
         box_wrap_spacing 3
         text "Exclusive group:" style "cue_txt"
-        use cue_select_btn("Off", (_excl_group == 0), Function(ctx.set_exclusive_group, 0), tt="Normal playback")
-        use cue_select_btn("G1", (_excl_group == 1), Function(ctx.set_exclusive_group, 1), tt="Same group can play together; everything else is kept apart")
-        use cue_select_btn("G2", (_excl_group == 2), Function(ctx.set_exclusive_group, 2))
-        use cue_select_btn("G3", (_excl_group == 3), Function(ctx.set_exclusive_group, 3))
-        if _excl_group > 3:
-            use cue_select_btn("G" + str(_excl_group), True, Function(ctx.set_exclusive_group, _excl_group))
-    hbox:
-        spacing 5
-        box_wrap True
-        box_wrap_spacing 3
-        use cue_checkbox(_excl_fade, "Fade out other SFX on start",
-            Function(ctx.set_exclusive_fade, not _excl_fade),
-            "When this SFX plays, SFX outside its group fade out quickly")
-        use cue_checkbox(_excl_hold, "Keep others out until done",
-            Function(ctx.set_exclusive_hold, not _excl_hold),
-            "Nothing outside this group plays until this SFX finishes")
+        use cue_select_btn("Off", (_group == 0), Function(ctx.set_exclusive_group, 0), tt="Normal playback")
+        use cue_select_btn("G1", (_group == 1), Function(ctx.set_exclusive_group, 1), tt="Same group can play together; everything else is kept apart")
+        use cue_select_btn("G2", (_group == 2), Function(ctx.set_exclusive_group, 2))
+        use cue_select_btn("G3", (_group == 3), Function(ctx.set_exclusive_group, 3))
+        if _group > 3:
+            use cue_select_btn("G" + str(_group), True, Function(ctx.set_exclusive_group, _group))
+    if _group or _start or _hold:
+        hbox:
+            spacing 5
+            box_wrap True
+            box_wrap_spacing 3
+            text "Start:" style "cue_txt"
+            use cue_select_btn("Play", (_start == CueExclusiveStart.PLAY), Function(ctx.set_exclusive_start, CueExclusiveStart.PLAY), tt="Plays immediately, overlapping anything playing")
+            use cue_select_btn("Fade out", (_start == CueExclusiveStart.FADE), Function(ctx.set_exclusive_start, CueExclusiveStart.FADE), tt="SFX outside the group fade out quickly, then this one plays")
+            if (not ctx.ONE_SHOT) or (_start == CueExclusiveStart.WAIT):
+                use cue_select_btn("Wait for air", (_start == CueExclusiveStart.WAIT), Function(ctx.set_exclusive_start, CueExclusiveStart.WAIT), tt="Waits until no other SFX is playing, then plays")
+        hbox:
+            spacing 5
+            box_wrap True
+            box_wrap_spacing 3
+            use cue_checkbox(_hold, "Keep others out until done",
+                Function(ctx.set_exclusive_hold, not _hold),
+                _hold_tt)
 
 # Radio textbutton: ● label when selected, ○ when not.
 # Exclusivity within a group is enforced by the shared action target.
