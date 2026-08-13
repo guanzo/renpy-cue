@@ -129,6 +129,7 @@ init -900 python:
     from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
     from cue_lib.auto_speed import CueAutoSpeedGenerator
     from cue_lib.file_tree import CueFileTreeManager
+    from cue_lib.icons import CueIconManager
     from cue_lib.dialogues import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
     from cue_lib.db import CueDatabase
     from cue_lib.state import _cue
@@ -150,6 +151,7 @@ init -900 python:
     _cue.video_preset_dialog = CueVideoPresetDialog()
     _cue.confirm_dialog = CueConfirmDialog()
     _cue.keybinds = CueKeybindsManager()
+    _cue.icons = CueIconManager()
 
     _cue.db = CueDatabase(_cue.shared_dir, renpy.config.save_directory)
     _cue.db.open()

@@ -66,6 +66,7 @@ class Cue(_renpy_python.NoRollback):
         self.video_preset_dialog = None
         self.confirm_dialog = None
         self.keybinds = None
+        self.icons = None
 
         # --- Audio cache ---
         self.available_files = []

@@ -70,19 +70,40 @@ screen cue_vol_row(label_text, dec_action, entry_dict, inc_action):
 # Icon button: tiny button with cue_btn_icon / cue_btn_icon_text styles.
 # Most callers don't need xsize (style default is 14); pass an int to override.
 # Pass tt=None to skip the tooltip.
+# Glyphs mapped in CueIconManager render as PNG images (white, shown at
+# 14px from a 32px source, dimmed via alpha when disabled); everything
+# else falls back to text.
 screen cue_icon_btn(text, action, tt=None, xsize=16, enabled=True, bg=None):
-    textbutton text:
-        style "cue_btn_icon"
-        text_style "cue_btn_icon_text"
-        ysize 16
-        if xsize is not None:
-            xsize xsize
-        if tt is not None:
-            tooltip tt
-        sensitive enabled
-        action action
-        if bg is not None:
-            background bg
+    $ _icon = _cue.icons.displayable_for(text) if _cue.icons is not None else None
+    if _icon is not None:
+        button:
+            style "cue_btn_icon"
+            ysize 16
+            if xsize is not None:
+                xsize xsize
+            if tt is not None:
+                tooltip tt
+            sensitive enabled
+            action action
+            if bg is not None:
+                background bg
+            if enabled:
+                add _icon xalign 0.5 yalign 0.5
+            else:
+                add _icon xalign 0.5 yalign 0.5 alpha 0.35
+    else:
+        textbutton text:
+            style "cue_btn_icon"
+            text_style "cue_btn_icon_text"
+            ysize 16
+            if xsize is not None:
+                xsize xsize
+            if tt is not None:
+                tooltip tt
+            sensitive enabled
+            action action
+            if bg is not None:
+                background bg
 
 # Base text button: all textbuttons should use this so style/typography
 # live in one place. Pass bg/tooltip/sensitive/xsize/ysize to override.

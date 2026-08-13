@@ -17,6 +17,7 @@ from cue_lib.video_editor import CueVideoEditor
 from cue_lib.db import CueDatabase
 from cue_lib.volume import CueVolumeManager
 from cue_lib.keybinds import CueKeybindsManager
+from cue_lib.icons import CueIconManager
 
 class Cue:
     debug: bool
@@ -65,6 +66,7 @@ class Cue:
     video_preset_dialog: CueVideoPresetDialog
     confirm_dialog: CueConfirmDialog
     keybinds: CueKeybindsManager
+    icons: CueIconManager
 
     available_files: List[str]
     audio_tree: List[AudioTreeNode]
