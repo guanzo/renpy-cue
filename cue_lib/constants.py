@@ -46,5 +46,11 @@ CUE_KEYMAP_TOGGLE_SFX      = "cue_toggle_sfx"
 # Shared-config key for persisting custom keybinds across games.
 CUE_SHARED_KEY_KEYBINDS = "keybinds"
 
+# Pointer file inside the platform-default shared dir that redirects to the
+# user-chosen shared dir.  The default dir is the one anchor every game on
+# the same OS user computes identically, so the choice applies to all games.
+# In-game choice wins over the RENPY_CUE_DIR env var.
+CUE_DIR_OVERRIDE_FILENAME = "dir.txt"
+
 # Settings section header text.
 CUE_KEYBINDS_SECTION_HEADER = "Keybinds"

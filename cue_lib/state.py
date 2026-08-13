@@ -4,12 +4,14 @@
 # therefore invisible to Ren'Py's rollback system.
 #
 # Managers are wired externally by cue_z.rpy init -900 to avoid circular
-# imports — state.py imports nothing from cue_lib, while every manager
-# module imports _cue from here.
+# imports.  state.py imports only cue_lib.constants (a leaf module with no
+# imports of its own), while every manager module imports _cue from here.
 
 import os as _os
 import renpy
 import renpy.python as _renpy_python
+
+from cue_lib.constants import CUE_DIR_OVERRIDE_FILENAME
 
 
 class Cue(_renpy_python.NoRollback):
@@ -40,6 +42,9 @@ class Cue(_renpy_python.NoRollback):
         self.top_displayable = None
         self.current_replay = None
         self.scan_error = ""
+        self.setup_dir_text = ""      # text bound to the Shared Dir input
+        self.shared_dir_error = ""    # error line under the Shared Dir input
+        self.shared_dir_success = ""  # success line under the Shared Dir input
         self._has_relative_volume = False
 
         # --- Manager slots (wired by cue_z.rpy init -900) ---
@@ -80,21 +85,15 @@ class Cue(_renpy_python.NoRollback):
         self._chart_screen_x = 0
         self._chart_screen_y = 0
 
-    @property
-    def shared_dir(self):
+    def platform_shared_dir(self):
         # type: () -> str
-        """Platform-standard shared directory for cue data.
+        """Platform-standard default for the shared data directory.
 
-        Respects the RENPY_CUE_DIR environment override.  Otherwise:
           Windows : %APPDATA%/renpy_cue
           macOS   : ~/Library/Application Support/renpy_cue
           Linux   : $XDG_DATA_HOME/renpy_cue or ~/.local/share/renpy_cue
         """
         import sys as _sys
-        env = _os.environ.get("RENPY_CUE_DIR", "")
-        if env:
-            return _os.path.normpath(env)
-
         if _sys.platform == "win32":
             base = _os.environ.get("APPDATA", "")
         elif _sys.platform == "darwin":
@@ -105,6 +104,51 @@ class Cue(_renpy_python.NoRollback):
                 _os.path.expanduser("~/.local/share"),
             )
         return _os.path.normpath(_os.path.join(base, "renpy_cue")).replace("\\", "/")
+
+    @property
+    def shared_dir(self):
+        # type: () -> str
+        """Resolved shared directory for cue data.
+
+        Priority:
+          1. Pointer file {platform_shared_dir()}/dir.txt -- the user's
+             in-game choice, written by the Settings page.  Lives in the
+             platform-default dir so every game finds the same choice.
+          2. RENPY_CUE_DIR environment override.
+          3. Platform default (see platform_shared_dir).
+        """
+        ptr_path = _os.path.join(self.platform_shared_dir(), CUE_DIR_OVERRIDE_FILENAME)
+        try:
+            if _os.path.isfile(ptr_path):
+                with open(ptr_path, "r") as _f:
+                    _ptr = _f.read().strip()
+                if _ptr:
+                    return _os.path.normpath(_ptr).replace("\\", "/")
+        except Exception:
+            pass  # Unreadable pointer -- fall through to env / default.
+
+        env = _os.environ.get("RENPY_CUE_DIR", "")
+        if env:
+            return _os.path.normpath(env)
+        return self.platform_shared_dir()
+
+    def set_shared_dir_pointer(self, path):
+        # type: (str) -> None
+        """Persist the user-chosen shared dir as a pointer file in the
+        platform-default dir (the well-known anchor all games can find).
+        Saving the platform default removes the pointer (clean reset).
+        Raises OSError on failure -- the caller shows the error.
+        """
+        default_dir = self.platform_shared_dir()
+        ptr_path = _os.path.join(default_dir, CUE_DIR_OVERRIDE_FILENAME)
+        if path == default_dir:
+            if _os.path.isfile(ptr_path):
+                _os.remove(ptr_path)
+            return
+        if not _os.path.isdir(default_dir):
+            _os.makedirs(default_dir)
+        with open(ptr_path, "w") as _f:
+            _f.write(path)
 
     @property
     def config_path(self):

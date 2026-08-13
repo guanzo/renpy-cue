@@ -63,6 +63,7 @@ init -999 python:
         _cue_refresh_channel, _cue_tick_trigger, _cue_play_sfx,
         _cue_preview_sfx, _cue_preview_preset, _cue_play_pool,
         _cue_toggle_active, _cue_toggle_settings, _cue_toggle_shake_trigger, _cue_toggle_video_mute,
+        _cue_confirm_shared_dir,
     )
 
     from cue_lib.speed import (

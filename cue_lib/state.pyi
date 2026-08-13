@@ -42,6 +42,9 @@ class Cue:
     top_displayable: Any
     current_replay: Any
     scan_error: Optional[str]
+    setup_dir_text: str
+    shared_dir_error: str
+    shared_dir_success: str
     _has_relative_volume: bool
 
     db: CueDatabase
@@ -79,5 +82,8 @@ class Cue:
     _vtl_screen_y: int
     _chart_screen_x: int
     _chart_screen_y: int
+
+    def platform_shared_dir(self) -> str: ...
+    def set_shared_dir_pointer(self, path: str) -> None: ...
 
 _cue: Cue

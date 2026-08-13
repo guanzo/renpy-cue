@@ -2,6 +2,7 @@
 # Runtime drivers -- overlay show/hide, context detection, tick engine, SFX playback.
 # Extracted from cue_z.rpy Section 3 (init python: free functions).
 
+import os as _os
 import random as _random
 import renpy
 import renpy.audio.music as _music
@@ -9,9 +10,10 @@ import renpy.audio.audio as _aaudio
 
 from renpy.store import persistent
 from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
+from cue_lib.db import CueDatabase
 from cue_lib.state import _cue
 from cue_lib.util import (
-    _cue_log, _cue_unwrap_displayable, _cue_get_movie_play,
+    _cue_log, _cue_ui_refresh, _cue_unwrap_displayable, _cue_get_movie_play,
     _cue_resolve_files, _cue_pick_file,
     create_img_key, create_vid_key, create_dlg_key,
     is_vid_key, is_img_key, is_dlg_key,
@@ -42,7 +44,49 @@ def _cue_toggle_active():
 
 def _cue_toggle_settings():
     # type: () -> None
+    if not _cue.is_settings_visible:
+        _cue.setup_dir_text = _cue.shared_dir
+        _cue.shared_dir_error = ""
+        _cue.shared_dir_success = ""
     _cue.is_settings_visible = not _cue.is_settings_visible
+
+@_cue_ui_refresh
+def _cue_confirm_shared_dir():
+    # type: () -> None
+    """Validate and persist the Shared Dir input from the Settings page.
+
+    The dir is created up front (throwaway CueDatabase) so uncreatable paths
+    fail here instead of at next launch; the live db is untouched -- the new
+    dir takes effect after restart.  The choice is written as a pointer file
+    in the platform-default dir, so all games on this machine pick it up.
+    """
+    _cue.shared_dir_success = ""
+
+    text = (_cue.setup_dir_text or "").strip()
+    if not text:
+        _cue.shared_dir_error = "Path cannot be empty."
+        return
+    path = _os.path.abspath(_os.path.normpath(_os.path.expanduser(text))).replace("\\", "/")
+
+    try:
+        probe_db = CueDatabase(path, getattr(renpy.config, "save_directory"))
+        probe_db.open()
+    except Exception as exc:
+        _cue.shared_dir_error = "Could not create that directory."
+        _cue_log("SHARED-DIR: open failed for {}: {}".format(path, exc))
+        return
+
+    try:
+        _cue.set_shared_dir_pointer(path)
+    except Exception as exc:
+        _cue.shared_dir_error = "Could not save the directory setting."
+        _cue_log("SHARED-DIR: pointer write failed for {}: {}".format(path, exc))
+        return
+
+    _cue.shared_dir_error = ""
+    _cue.setup_dir_text = path
+    _cue.shared_dir_success = ("Success. If you have any data in the old dir, "
+                               "move it to the new dir and relaunch.")
 
 def _cue_toggle_shake_trigger():
     # type: () -> None
