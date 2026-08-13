@@ -203,6 +203,28 @@ def _cue_atl_child_displayables(d):
 # Persistent Data Helpers
 # --------------------------------------------------------------------------
 
+def _to_str(obj):
+    # type: (Any) -> Any
+    """Recursively encode unicode keys and values to UTF-8 str (Python 2).
+
+    In Python 3 this is a no-op -- str and unicode are the same type.
+    """
+    try:
+        unicode  # pyright: ignore[reportUndefinedVariable, reportUnusedExpression]
+    except NameError:
+        return obj
+
+    if isinstance(obj, unicode):  # pyright: ignore[reportUndefinedVariable]
+        return obj.encode("utf-8")
+    if isinstance(obj, str):
+        return obj
+    if hasattr(obj, "items") and hasattr(obj, "keys"):
+        return {_to_str(k): _to_str(v) for k, v in obj.items()}
+    if hasattr(obj, "__iter__"):
+        return [_to_str(v) for v in obj]
+    return obj
+
+
 def _cue_unwrap_persistent(data):
     # type: (Any) -> Any
     """Recursively convert Ren'Py RevertableDict/RevertableList/RevertableSet

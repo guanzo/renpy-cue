@@ -14,7 +14,8 @@
 import os
 import json as _json
 
-from cue_lib.util import _cue_log
+from cue_lib.util import _cue_log, _to_str
+from cue_lib.backup import CueBackupManager
 
 # Number of characters to keep from a SHA1 hex digest for file naming.
 CUE_HASH_TRUNC_LEN = 8
@@ -55,32 +56,6 @@ def _filename_to_key(filename):
     return ""
 
 
-# ---------------------------------------------------------------------------
-# Python 2 unicode safety
-# ---------------------------------------------------------------------------
-
-def _to_str(obj):
-    # type: (Any) -> Any
-    """Recursively encode unicode keys and values to UTF-8 str (Python 2).
-
-    In Python 3 this is a no-op -- str and unicode are the same type.
-    """
-    try:
-        unicode  # pyright: ignore[reportUndefinedVariable, reportUnusedExpression]
-    except NameError:
-        return obj
-
-    if isinstance(obj, unicode):  # pyright: ignore[reportUndefinedVariable]
-        return obj.encode("utf-8")
-    if isinstance(obj, str):
-        return obj
-    if hasattr(obj, "items") and hasattr(obj, "keys"):
-        return {_to_str(k): _to_str(v) for k, v in obj.items()}
-    if hasattr(obj, "__iter__"):
-        return [_to_str(v) for v in obj]
-    return obj
-
-
 # =========================================================================
 # CueDatabase
 # =========================================================================
@@ -102,6 +77,7 @@ class CueDatabase(object):
         self._path = path          # root dir (e.g. %APPDATA%/renpy_cue)
         self._game_id = game_id
         self._open = False
+        self._backup = CueBackupManager(self._path, self._game_id)
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -227,6 +203,7 @@ class CueDatabase(object):
             os.remove(fpath)
         except Exception:
             _cue_log("DB-DELETE: remove failed for {}".format(fpath))
+        self._backup.maybe()
 
     # ------------------------------------------------------------------
     # Presets (game-agnostic -- shared across all games)
@@ -274,6 +251,7 @@ class CueDatabase(object):
             os.remove(fpath)
         except Exception:
             _cue_log("DB-DELETE: remove failed for {}".format(fpath))
+        self._backup.maybe()
 
     def preset_file_matches(self, preset_type, name, expected):
         # type: (str, str, Any) -> bool
@@ -316,6 +294,7 @@ class CueDatabase(object):
         if "_key" not in entry:
             entry["_key"] = key
         self._write_file(fpath, entry)
+        self._backup.maybe()
 
     # ------------------------------------------------------------------
     # Shared config -- lightweight cross-game settings
@@ -350,6 +329,7 @@ class CueDatabase(object):
                 _json.dump(data, f, indent=2, sort_keys=True)
         except Exception:
             _cue_log("SHARED-CONFIG: save failed for {}".format(fpath))
+        self._backup.maybe()
 
     def update_shared_config(self, data):
         # type: (Dict[str, Any]) -> None
