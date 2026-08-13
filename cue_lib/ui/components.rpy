@@ -468,3 +468,43 @@ screen cue_radio_btn(checked, label, action, tt=None, enabled=True):
             if tt is not None:
                 tooltip tt
 
+# Popper anchor: wraps content and, on hover, captures the focused
+# displayable's rect under `name`, so a `popper target "name"` elsewhere can
+# position a popup against it.
+#
+# Basic usage (non-focusable content only):
+#     use cue_popper_anchor("my_anchor", Function(_cue_my_hovered, arg)):
+#         add SomeDisplayable()
+#
+# Then in "screen cue_overlay()", place the "popper target"
+#
+#    popper target "my_anchor":
+#        hbox:
+#            use cue_txt_button()
+#
+# CAVEAT: Ren'Py gives mouse focus to the INNERMOST focusable displayable,
+# so a focusable button transcluded here (sensitive, with an action) steals
+# focus and the anchor's `hovered` never fires -- the popper never shows.
+# Anchor only plain text/add content, or use the workaround below.
+#
+# Workaround for wrapping a button: make the ANCHOR the interactive element
+# (it has focus, so it receives the click) and transclude a non-focusable
+# visual -- an insensitive button with a transparent background. The
+# anchor's bg/hover_bg replace the button's own styling.
+#
+#     use cue_popper_anchor("spd_btn",
+#             Function(_cue_spd_btn_hovered, _sp),
+#             Function(_cue.speed_resolver.set_speed, _sp),
+#             bg=_bg, hover_bg=_hover_bg):
+#         use cue_txt_button(_label, NullAction(), bg="#00000000", sensitive=False)
+screen cue_popper_anchor(name, hover_fn, action=NullAction(), bg=None, hover_bg=None):
+    button:
+        style "empty"
+        padding (0, 0)
+        action action
+        hovered [Function(_cue_store_focus_rect, name), hover_fn]
+        if bg is not None:
+            background bg
+        if hover_bg is not None:
+            hover_background hover_bg
+        transclude

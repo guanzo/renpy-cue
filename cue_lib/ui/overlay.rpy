@@ -63,6 +63,7 @@ screen cue_overlay():
     # --- Floating tooltip near mouse (auto-sizes to fit text) ---
     $ _tt = GetTooltip()
 
+    # Place popper targets here.
 
     # --- Sequence button popup (edit actions) ---
     popper target "seq_btn" placement "top":
@@ -78,16 +79,6 @@ screen cue_overlay():
 
     # --- Marker timeline tooltip (rendered last so it's always on top) ---
     add CueMarkerTooltipOverlay()
-
-
-screen cue_popper_anchor(name, hover_fn):
-    button:
-        style "empty"
-        padding (0, 0)
-        action NullAction()
-        hovered [Function(_cue_store_focus_rect, name), hover_fn]
-        background None
-        transclude
 
 
 # =============================================================================
