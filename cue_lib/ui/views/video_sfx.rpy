@@ -23,16 +23,16 @@ screen cue_video_sfx():
             spacing 5
             use cue_icon_btn(
                 ("play" if _cue.vid_manager.paused else "pause"),
-            Function(_cue.vid_manager.toggle_pause))
+                Function(_cue.vid_manager.toggle_pause),
+                ("Play" if _cue.vid_manager.paused else "Pause"))
 
-            use cue_v_divider()
-            use cue_txt_button("Repeat", Function(_cue.repeater.open),
-                tt="Repeat selected markers at regular intervals across the video")
             $ _has_markers = _cue.markers.video.has_markers()
             use cue_icon_btn("floppy-disk", Function(_cue.video_preset_dialog.open), "Save all video markers as a preset", None)
             use cue_icon_btn("xmark",
                 (Function(_cue.markers.video.remove_selected) if _has_markers else NullAction()),
                 "Delete selected markers" if _has_markers else "No markers to delete", None)
+            use cue_txt_button("Repeat Markers", Function(_cue.repeater.open),
+                tt="Repeat selected markers at regular intervals across the video")
             use cue_icon_btn("question",
                 NullAction(),
                 ("• Markers and marker groups are draggable.\n"
