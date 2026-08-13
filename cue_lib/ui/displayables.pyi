@@ -5,7 +5,12 @@ from renpy.display.core import Displayable
 from cue_lib._types import VideoPoolDict
 
 class SelfUpdatingLabel(Displayable):
-    def __init__(self, getter: Callable[[], str], style: str = "default", interval: float = 0.05, **properties: Any) -> None: ...
+    def __init__(
+        self,
+        getter: Callable[[], str],
+        style: str = "default",
+        interval: float = 0.05,
+        **properties: Any) -> None: ...
     def render(self, width: int, height: int, st: float, at: float) -> Any: ...
 
 class VideoTimeline(Displayable):
@@ -24,7 +29,14 @@ class CueVideoMarkerTimeline(Displayable):
     SEL_BG: str
     SEL_LINE: str
 
-    def __init__(self, get_markers: Callable[[], List[VideoPoolDict]], get_active: Callable[[], int], set_active: Callable[[int], None], set_time: Callable[[int, float], None], get_dur: Callable[[], float], **properties: Any) -> None: ...
+    def __init__(
+        self,
+        get_markers: Callable[[], List[VideoPoolDict]],
+        get_active: Callable[[], int],
+        set_active: Callable[[int], None],
+        set_time: Callable[[int, float], None],
+        get_dur: Callable[[], float],
+        **properties: Any) -> None: ...
     def render(self, width: int, height: int, st: float, at: float) -> Any: ...
     def event(self, ev: Any, x: int, y: int, st: float) -> Optional[Any]: ...
 

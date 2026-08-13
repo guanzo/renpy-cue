@@ -42,7 +42,16 @@ class CueVideoJob:
     _progress_path: str
     _progress_offset: int
 
-    def __init__(self, job_id: int, vpath: str, fspath_in: str, fspath_tmp: str, factor: float, encode_mode: int, fspath_out: Optional[str] = None, remove_audio: bool = True) -> None: ...
+    def __init__(
+        self,
+        job_id: int,
+        vpath: str,
+        fspath_in: str,
+        fspath_tmp: str,
+        factor: float,
+        encode_mode: int,
+        fspath_out: Optional[str] = None,
+        remove_audio: bool = True) -> None: ...
     def elapsed(self) -> float: ...
     def status_text(self) -> str: ...
     def filename(self) -> str: ...

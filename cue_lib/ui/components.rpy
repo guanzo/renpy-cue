@@ -228,9 +228,13 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 use cue_icon_btn(("▾" if _is_expanded else "▸"),
                     Function(_cue.file_tree.toggle_file_ref_expand, folder_label), None, None)
                 use cue_icon_btn("✕", Function(remove_fn, *remove_args), "Remove preset", None)
-                use cue_icon_btn("▶", Function(_cue_preview_sfx, (folder_children or [""])[0], preview_vol), "Preview random file from preset", None)
+                use cue_icon_btn(
+                    "▶",
+                    Function(_cue_preview_sfx, (folder_children or [""])[0], preview_vol),
+                    "Preview random file from preset", None)
                 use cue_txt_button(folder_label, Function(_cue.file_tree.toggle_file_ref_expand, folder_label))
                 text "({} files)".format(_count) style "cue_help"
+
             if _is_expanded and folder_children:
                 for _child in folder_children:
                     hbox:
@@ -242,6 +246,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                                 "Remove file from pool", None)
                         use cue_icon_btn("▶", Function(_cue_preview_sfx, _child, preview_vol), None, None)
                         text _child style "cue_txt" color _cue_color_text_accent size 11
+
         for fi, f in enumerate(files):
             if f.endswith("/"):
                 # --- Folder: expandable (matches SFX Library folder UI) ---
@@ -252,9 +257,13 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                     use cue_icon_btn(("▾" if _is_expanded else "▸"),
                         Function(_cue.file_tree.toggle_file_ref_expand, f), None, None)
                     use cue_icon_btn("✕", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder", None)
-                    use cue_icon_btn("▶", Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol), "Preview random file from folder", None)
+                    use cue_icon_btn(
+                        "▶",
+                        Function(_cue_preview_sfx, (_cue_resolve_files([f]) or [""])[0], preview_vol),
+                        "Preview random file from folder", None)
                     use cue_txt_button(f, Function(_cue.file_tree.toggle_file_ref_expand, f))
                     text "({} files)".format(_count) style "cue_help"
+
                 if _is_expanded:
                     for _child in _cue_resolve_files([f]):
                         hbox:
@@ -411,12 +420,14 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 if key and description is not None:
                     text description style "cue_help"
                 if key:
-                    text "Click the {} button in the SFX Library to add files to this pool.".format(btn_letter) style "cue_help"
+                    text ("Click the {} button in the SFX Library "
+                        "to add files to this pool.").format(btn_letter) style "cue_help"
         else:
             if key and description is not None:
                 text description style "cue_help"
             if key:
-                text "Click the {} button in the SFX Library to create a new pool or add files to the active pool.".format(btn_letter) style "cue_help"
+                text ("Click the {} button in the SFX Library to create a new pool "
+                    "or add files to the active pool.").format(btn_letter) style "cue_help"
 
 # Toggle textbutton: ☑ label when checked, ☐ when unchecked.
 # on_bg/on_hover/off_bg/off_hover override backgrounds per state (None = style default).

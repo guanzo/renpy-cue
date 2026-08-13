@@ -133,11 +133,32 @@ screen cue_overlay_content():
                         box_wrap True
                         box_wrap_spacing 3
                         text "Interval:" style "cue_txt"
-                        use cue_select_btn("Slowest", (_freq == CueLoopFrequency.SLOWEST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOWEST), tt="~6.3s between plays")
-                        use cue_select_btn("Slow", (_freq == CueLoopFrequency.SLOW), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOW), tt="~3.8s between plays")
-                        use cue_select_btn("Normal", (_freq == CueLoopFrequency.NORMAL), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.NORMAL), tt="~2.1s between plays")
-                        use cue_select_btn("Fast", (_freq == CueLoopFrequency.FAST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FAST), tt="~0.6s between plays")
-                        use cue_select_btn("Fastest", (_freq == CueLoopFrequency.FASTEST), Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FASTEST), tt="~0.2s between plays")
+                        use cue_select_btn(
+                            "Slowest",
+                            (_freq == CueLoopFrequency.SLOWEST),
+                            Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOWEST),
+                            tt="~6.3s between plays")
+                        use cue_select_btn(
+                            "Slow",
+                            (_freq == CueLoopFrequency.SLOW),
+                            Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOW),
+                            tt="~3.8s between plays")
+                        use cue_select_btn(
+                            "Normal",
+                            (_freq == CueLoopFrequency.NORMAL),
+                            Function(_cue.markers.loop.set_frequency, CueLoopFrequency.NORMAL),
+                            tt="~2.1s between plays")
+                        use cue_select_btn(
+                            "Fast",
+                            (_freq == CueLoopFrequency.FAST),
+                            Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FAST),
+                            tt="~0.6s between plays")
+                        use cue_select_btn(
+                            "Fastest",
+                            (_freq == CueLoopFrequency.FASTEST),
+                            Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FASTEST),
+                            tt="~0.2s between plays")
+
                     use cue_exclusive_row(_cue.markers.loop)
 
                 # Audio file browser (in-flow, only when overlay mode is OFF)
@@ -218,7 +239,10 @@ screen cue_keybind_capture():
                 spacing 5
                 use cue_txt_button("Cancel", Function(_cue_keybind_cancel))
                 if _cue.keybinds.collision_message:
-                    use cue_txt_button("Override", Function(_cue_keybind_override), bg=_cue_color_red, hover_bg=_cue_color_red_hover)
+                    use cue_txt_button(
+                        "Override",
+                        Function(_cue_keybind_override),
+                        bg=_cue_color_red, hover_bg=_cue_color_red_hover)
     add CueKeyCaptureDisplayable()
 
 
@@ -242,8 +266,14 @@ screen cue_header_toolbar():
         $ _restore_tooltip = "Restore config from " + _cue.config_filename
         use cue_icon_btn("📂", Function(_cue.markers.restore_from_file), _restore_tooltip, None)
         null width 5
-        use cue_icon_btn("⏸", Function(renpy.invoke_in_new_context, renpy.pause), "Pause game (F3)\nUse to pause on scenes that auto advance.", None)
-        use cue_icon_btn("⟳", [Function(_cue_reload_presets), Function(_cue_refresh_context), Function(_cue_scan_audio)], "Refresh overlay", None)
+        use cue_icon_btn(
+            "⏸",
+            Function(renpy.invoke_in_new_context, renpy.pause),
+            "Pause game (F3)\nUse to pause on scenes that auto advance.", None)
+        use cue_icon_btn(
+            "⟳",
+            [Function(_cue_reload_presets), Function(_cue_refresh_context), Function(_cue_scan_audio)],
+            "Refresh overlay", None)
         $ _settings_bg = _cue_color_active if _cue.is_settings_visible else None
         use cue_icon_btn("⚙", Function(_cue_toggle_settings), "Settings", None,
             bg=_settings_bg)

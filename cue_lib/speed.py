@@ -12,7 +12,9 @@ import renpy.audio.audio as _aaudio
 from renpy.store import persistent
 from renpy.display.layout import DynamicDisplayable
 from renpy.display.video import Movie
-from renpy.display.video import default_play_callback as _default_play_callback  # pyright: ignore[reportAttributeAccessIssue]
+from renpy.display.video import (
+    default_play_callback as _default_play_callback,  # pyright: ignore[reportAttributeAccessIssue]
+)
 from renpy.display.image import images as _display_images
 
 from cue_lib.constants import CUE_DEFAULT_VIDEO_SPEED, CUE_AUTO_SPEED_MIN_VARIANTS, CUE_MULTI_SPEED_MIN_VARIANTS
@@ -346,7 +348,8 @@ class CueVidSpeedResolver(object):
                         _atl_count += 1
                     break
         _elapsed = _time.time() - _start
-        _cue_log("DynamicDisplayable resolver wrapping done: {} movies (+{} atl) in {:.3f}s".format(_count, _atl_count, _elapsed))
+        _cue_log("DynamicDisplayable resolver wrapping done: {} movies (+{} atl) in {:.3f}s".format(
+            _count, _atl_count, _elapsed))
 
     # Variant path utilities
     _VARIANT_PREFIX = "_cue"

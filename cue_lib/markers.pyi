@@ -36,7 +36,13 @@ class ResolvedPool:
     frequency: int
     trigger_on_shake: bool
     exclusive: ResolvedExclusive
-    def __init__(self, files: List[str], volume: float, frequency: int, trigger_on_shake: bool, exclusive: Optional[ResolvedExclusive] = None) -> None: ...
+    def __init__(
+        self,
+        files: List[str],
+        volume: float,
+        frequency: int,
+        trigger_on_shake: bool,
+        exclusive: Optional[ResolvedExclusive] = None) -> None: ...
 
 
 # =========================================================================

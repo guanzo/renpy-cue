@@ -17,12 +17,17 @@ screen _cue_edit_queue_vbox():
                 if job.status in ("queued", "analyzing", "encoding"):
                     use cue_icon_btn("✕", Function(_cue.video_editor.job_queue.cancel, job.job_id), "Cancel job", None)
                 else:
-                    use cue_icon_btn("✕", Function(_cue.video_editor.job_queue.remove, job.job_id), "Remove from queue", None)
+                    use cue_icon_btn(
+                        "✕",
+                        Function(_cue.video_editor.job_queue.remove, job.job_id),
+                        "Remove from queue", None)
                 text job.filename() + " " + job.speed_label style "cue_txt" size 11
                 text "(" + job.status_text() + ")" style "cue_txt" size 11
                 if job.status != "queued":
                     $ _elapsed = int(job.elapsed())
-                    text ("%d:%02d" % (_elapsed // 60, _elapsed % 60)) style "cue_txt" size 11 color _cue_color_text_muted
+                    $ _elapsed_text = "%d:%02d" % (_elapsed // 60, _elapsed % 60)
+                    text _elapsed_text style "cue_txt" size 11 color _cue_color_text_muted
+
             if job.status == "error" and job.error_msg and not job.cancelled:
                 hbox:
                     spacing 4
@@ -97,7 +102,8 @@ screen cue_video_vfx():
                             _cue.speed_resolver.seamless_transition,
                             "Seamless Transition",
                             Function(_cue.speed_resolver.toggle_seamless),
-                            tt_on="When enabled, changing speeds waits for the current video loop to finish before switching.")
+                            tt_on=("When enabled, changing speeds waits for the current video "
+                                "loop to finish before switching."))
 
                 # --- Multi Speed tab ---
                 elif _mode == CueSpeedMode.MULTI:
@@ -136,7 +142,8 @@ screen cue_video_vfx():
                     $ _auto_help = (
                         "Procedurally generates speed rhythms with a certain theme. "
                         "Each playthrough of a rhythm is slightly different. "
-                        "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is [CUE_AUTO_SPEED_IDEAL_VARIANTS]. The more the better."
+                        "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is "
+                        "[CUE_AUTO_SPEED_IDEAL_VARIANTS]. The more the better."
                     )
                     text _auto_help style "cue_help"
 
@@ -194,7 +201,8 @@ screen cue_video_vfx():
             $ _ved = _cue.video_editor
             vbox:
                 spacing 5
-                text "Video SFX markers on the original video (1.0x) will autoscale to all created videos." style "cue_txt"
+                text ("Video SFX markers on the original video (1.0x) will autoscale "
+                    "to all created videos.") style "cue_txt"
                 # --- Created speeds: select one for deletion ---
                 $ _del_sel = _cue_create_delete_sel()
                 hbox:
@@ -247,7 +255,8 @@ screen cue_video_vfx():
                         tt="Standard encode at the original quality — no extra processing.")
                     use cue_radio_btn((_ved.encode_mode == _ved.MODE_INTERPOLATE), "Interpolate Frames",
                         Function(_cue.video_editor.set_encode_mode, _ved.MODE_INTERPOLATE),
-                        tt="Uses ffmpeg to generate in-between frames for smoother motion. Video takes longer to encode.")
+                        tt=("Uses ffmpeg to generate in-between frames for smoother motion. "
+                            "Video takes longer to encode."))
                 if _ved.encode_mode == _ved.MODE_INTERPOLATE:
                     text "Slower encode, higher quality" style "cue_help"
                 elif _ved.encode_mode == _ved.MODE_FAST_PREVIEW:

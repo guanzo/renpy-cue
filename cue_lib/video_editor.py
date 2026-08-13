@@ -829,7 +829,8 @@ class CueVideoEditor(object):
         if not os.access(d, os.W_OK):
             return ("error", "Video directory is read-only.")
         if not _cue.ffmpeg.ffmpeg_available():
-            return ("error", "ffmpeg not found. Install ffmpeg and restart the game, or set RENPY_CUE_FFMPEG environment variable.")
+            return ("error", "ffmpeg not found. Install ffmpeg and restart the game, "
+                    "or set RENPY_CUE_FFMPEG environment variable.")
         return ("ok", "")
 
     def _ensure_state(self, vpath):

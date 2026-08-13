@@ -157,4 +157,5 @@ screen cue_video_sfx():
                 text "Click the V button in the SFX Library to add files to this pool." style "cue_help"
         else:
             text "SFX plays when this video reaches the marked time(s)." style "cue_help"
-            text "Click the V button in the SFX Library to create a new pool or add to the active pool." style "cue_help"
+            text ("Click the V button in the SFX Library to create a new pool "
+                "or add to the active pool.") style "cue_help"

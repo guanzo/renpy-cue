@@ -128,6 +128,18 @@ Import into store via `cue_z.rpy` init -999 so `.rpy` screens can use them.
 - **Bootstrap** lives in `cue_lib/cue_z.rpy` (python early import-path setup + sl-displayable registration + init blocks for bridge + callbacks). All other `.rpy` files under `src/` have been deleted. See `cue_lib/*.pyi` for type stubs.
 - **Ren'Py constraint**: `Function()` in screen actions can only reference module-level Python objects (no lambdas/closures), so the class instance must be reachable at a stable path — typically as an attribute of `_cue` (the `NoRollback` singleton).
 
+## Whitespace / Blank Lines
+
+Logical sections are surrounded by blank lines. A block-opening statement
+(`if`/`for`/`while`/`with`) that starts a new logical section gets a blank
+line before it; a blank line follows a closed block before the next
+section-level statement. Never leave a long function as one unbroken run of
+statements.
+
+Do NOT insert blanks between a guard and its early return (`if not x:` /
+`return` chains stay tight), between `if`/`elif`/`else`, or inside
+dict/list literals.
+
 ## Ren'Py Rollback Rules
 
 - `_cue` is a `NoRollback()` instance created at module level in `cue_lib/state.py`. Never reassign `_cue` itself — only mutate its attributes.

@@ -1251,6 +1251,7 @@ class CueMarkerManager(object):
             if stripped:
                 entry["pools"] = clean
                 modified.add(key)
+
         total = len(modified)
         if total:
             _cue_log("SAVE-MARKERS: sanitized {} malformed video pool(s)".format(total))
@@ -1374,6 +1375,7 @@ class CueMarkerManager(object):
                 os.makedirs(dump_dir)
             dump_path = os.path.join(dump_dir, _cue.config_filename)
             data = self._build_config_dict()
+
             with open(dump_path, "w") as f:
                 _json.dump(data, f, indent=2, sort_keys=True)
             _cue_log("DUMP-MARKERS total_keys={} path={}".format(
@@ -1440,6 +1442,7 @@ class CueMarkerManager(object):
         ctx_file = _cue.current_file
         ctx_dlg = _cue.current_dialogue
         source_file = self.clipboard.get("source_file", "")
+
         for source_key, entry in self.clipboard.get("markers", {}).items():
             if get_key_file(source_key) != source_file:
                 continue
@@ -1466,5 +1469,6 @@ class CueMarkerManager(object):
                     else:
                         t = max(0.0, t)
                     pool_entry["time"] = t
+
         _cue.trigger.loop_states = {}
         self.save_all()
