@@ -135,6 +135,18 @@ Import into store via `cue_z.rpy` init -999 so `.rpy` screens can use them.
 - `.rpy` files still use shadowed `dict`/`list`/`set` (Revertable variants). `.py` files use real builtins — `dict`/`list`/`set` work normally there.
 - **Prefer duck typing over `isinstance` for collection checks.** `isinstance(x, list)` fails on both plain lists (when `list` is shadowed to `RevertableList`) and RevertableLists (when comparing against the real `list` type). Use `hasattr(x, "__iter__") and not isinstance(x, (str, bytes))` to check for list-like types. Precedent: `_cue_unwrap_persistent` in `cue_lib/util.py`.
 
+## Persistent vs Shared Config
+
+Two places to store state that survives restarts:
+
+- **`persistent`** -- per-game. Each game the mod is installed to has its own.
+  This is the default choice. Low-stakes convenience flags that don't need to
+  carry across games live here, e.g. `triggers_active`, `encode_mode`.
+- **Shared config** -- one JSON file shared across ALL games the mod is
+  installed to. Use only when a setting should carry across games, e.g.
+  custom keybinds. Access via `_cue.db.load_shared_config()` /
+  `_cue.db.update_shared_config()`.
+
 ## Type Stubs
 
 Pylance can't resolve most `renpy.*` names (Ren'Py uses dynamic `import *` from `renpy.exports`). To get autocomplete and type-checking:
