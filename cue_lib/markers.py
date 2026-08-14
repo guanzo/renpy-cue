@@ -821,11 +821,10 @@ class CueMarkerManager(object):
             if dur and dur > 0 and t > dur:
                 dropped += 1
                 continue
-            new_pools.append({
-                "time": t,
-                "files": list(pool.get("files", [])),
-                "volume": pool.get("volume", _cue.volume.VOL_DEFAULT),
-            })
+            new_pool = _copy.deepcopy(pool)
+            new_pool.setdefault("files", [])
+            new_pool.setdefault("volume", _cue.volume.VOL_DEFAULT)
+            new_pools.append(new_pool)
         new_pools.sort(key=lambda e: e["time"])
         entry = self._get_or_create_entry(vid_key)
         entry["pools"] = new_pools
@@ -869,11 +868,11 @@ class CueMarkerManager(object):
         for pool in raw:
             if "preset" in pool:
                 r = self.resolve_pool(pool)
-                resolved.append({
-                    "time": pool["time"],
-                    "files": list(r.files),
-                    "volume": r.volume,
-                })
+                resolved_pool = _copy.deepcopy(pool)
+                resolved_pool.pop("preset", None)
+                resolved_pool["files"] = r.files
+                resolved_pool["volume"] = r.volume
+                resolved.append(resolved_pool)
             else:
                 resolved.append(pool)
         return resolved
