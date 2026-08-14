@@ -1,7 +1,14 @@
 # Type stub for cue_lib.ffmpeg
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 CREATIONFLAGS: int
+
+def _cue_probe_job(
+    ffmpeg: CueFFmpeg,
+    job: Any,
+    dur_ms: int,
+    base_dir: str,
+) -> None: ...
 
 class CueFFmpeg:
     VIDEO_ENCODERS: Dict[str, List[str]]

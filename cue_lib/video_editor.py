@@ -13,7 +13,7 @@ import renpy.audio.audio as _aaudio
 
 from renpy.store import persistent
 
-from cue_lib.ffmpeg import CREATIONFLAGS
+from cue_lib.ffmpeg import CREATIONFLAGS, _cue_probe_job
 from cue_lib.state import _cue
 from cue_lib.util import _cue_log, _cue_ui_refresh, _cue_unwrap_persistent
 
@@ -175,9 +175,6 @@ class CueVideoEditQueue(object):
             dur_ms = int(_music.get_duration(channel=_cue.vid_manager.channel or "") * 1000)
         except Exception:
             _cue_log("EDITOR-START: get_duration failed")
-
-        # Lazy import to avoid circular dependency with worker
-        from cue_lib.worker import _cue_probe_job
 
         t = threading.Thread(
             target=_cue_probe_job,

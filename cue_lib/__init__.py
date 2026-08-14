@@ -35,7 +35,6 @@ from cue_lib import util
 from cue_lib import backup
 from cue_lib import db
 from cue_lib import ffmpeg
-from cue_lib import worker
 from cue_lib import undo
 from cue_lib import volume
 from cue_lib import sfx_manager
