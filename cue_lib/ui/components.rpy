@@ -387,7 +387,8 @@ screen cue_section_frame(header_text):
 # btn_letter: "D", "I", or "L" for hint messages
 # description: short line explaining when this SFX triggers (None to skip)
 # Transclude: extra UI between pool label and volume row (shake toggle,
-#             frequency selector). Reads _cue._pool_ui["pool"].
+#             frequency selector, exclusive controls). Each transcluded
+#             section resolves its own active pool via ctx.get_active_pool().
 screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_letter, description=None):
     $ _entry = _cue.markers.get(key, {})
     $ _pools = _entry.get("pools", [])
@@ -427,8 +428,6 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 $ _active_label = "Pool " + str(_target + 1) + " (Preset: " + _active_pool["preset"] + ")"
             else:
                 $ _active_label = "Pool " + str(_target + 1) + " (" + str(len(_cue_resolve_files(_r.files))) + " files)"
-            $ _cue._pool_ui = {"pool": _active_pool, "files": _r.files, "target": _target, "freq": _r.frequency,
-                "exclusive": _r.exclusive}
             hbox:
                 spacing 5
                 box_wrap True
@@ -506,13 +505,12 @@ screen cue_checkbox(checked, label, action, tt_on=None, tt_off=None,
             text label style "cue_btn_text" yalign 0.5
 
 # Exclusive controls: group selector + start mode + hold checkbox.
-# Reads _cue._pool_ui["exclusive"] (a ResolvedExclusive, set by
-# cue_context_section). ctx is the pool context
-# (_cue.markers.image/dialogue/loop).
+# exclusive: resolved exclusive snapshot for the active pool (passed in by
+# the caller). ctx is the pool context (_cue.markers.image/dialogue/loop).
 # Off = plain citizen: start/hold controls stay hidden until the pool joins
 # a group (or carries exclusive flags); selecting Off clears the flags.
-screen cue_exclusive_row(ctx):
-    $ _excl = _cue._pool_ui["exclusive"]
+screen cue_exclusive_row(ctx, exclusive):
+    $ _excl = exclusive
     $ _group = _excl.group
     $ _start = _excl.start
     $ _hold = _excl.hold

@@ -106,13 +106,13 @@ screen cue_overlay_content():
                     use cue_context_section("Image SFX", _cue.markers.image, _img_key,
                         "Image: " + _cue.current_file, "image", "I",
                         "SFX plays when this image is displayed."):
-                        $ _p = _cue._pool_ui["pool"]
-                        use cue_checkbox(_p.get("trigger_on_shake", False),
+                        $ _img_r = _cue.markers.resolve_pool(_cue.markers.image.get_active_pool())
+                        use cue_checkbox(_img_r.trigger_on_shake,
                             "Trigger on screen shake",
                             Function(_cue_toggle_shake_trigger),
                             "Play SFX when a screen shake occurs")
                         if _cue.is_exclusive_row_visible:
-                            use cue_exclusive_row(_cue.markers.image)
+                            use cue_exclusive_row(_cue.markers.image, _img_r.exclusive)
 
                 # --- Dialogue UI ---
                 $ _is_dialogue = bool(_cue.current_dialogue)
@@ -122,14 +122,16 @@ screen cue_overlay_content():
                         "Dialogue: " + _cue.current_dialogue, "dialogue", "D",
                         "SFX plays when this line of dialogue is displayed."):
                         if _cue.is_exclusive_row_visible:
-                            use cue_exclusive_row(_cue.markers.dialogue)
+                            $ _dlg_r = _cue.markers.resolve_pool(_cue.markers.dialogue.get_active_pool())
+                            use cue_exclusive_row(_cue.markers.dialogue, _dlg_r.exclusive)
 
                 # Loop SFX
                 $ _loop_key = _cue_create_loop_key(_cue.current_file or "")
                 use cue_context_section("Loop SFX", _cue.markers.loop, _loop_key,
                     None, "file", "L",
                     "SFX plays on a loop when this image/video is displayed."):
-                    $ _freq = _cue._pool_ui.get("freq", CueLoopFrequency.NORMAL)
+                    $ _loop_r = _cue.markers.resolve_pool(_cue.markers.loop.get_active_pool())
+                    $ _freq = _loop_r.frequency
                     hbox:
                         spacing 5
                         box_wrap True
@@ -162,7 +164,7 @@ screen cue_overlay_content():
                             tt="~0.2s between plays")
 
                     if _cue.is_exclusive_row_visible:
-                        use cue_exclusive_row(_cue.markers.loop)
+                        use cue_exclusive_row(_cue.markers.loop, _loop_r.exclusive)
 
                 # Audio file browser (in-flow, only when overlay mode is OFF)
                 if not _cue.file_tree.sfx_library_overlay_mode:

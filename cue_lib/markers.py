@@ -5,14 +5,17 @@
 import os
 import copy as _copy
 import random as _random
-import json as _json
-import renpy.config as _config
+import renpy
 
-from renpy.store import persistent
+from renpy.store import Function, persistent
 
+from cue_lib.backup import (
+    CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME,
+    zip_tree, validate_backup_zip, restore_pieces,
+)
 from cue_lib.state import _cue
 from cue_lib.util import (
-    _cue_log, _cue_unwrap_persistent, _cue_format_time, _cue_parse_time,
+    _cue_log, _cue_format_time, _cue_parse_time,
     _cue_clamp_time,
     create_img_key, create_vid_key, create_dlg_key, create_loop_key,
     is_img_key, is_vid_key, is_dlg_key, is_loop_key,
@@ -113,6 +116,21 @@ class CueMarkerContext(object):
         # type: (int) -> None
         self._set_target(pool_index)
 
+    def get_active_pool(self):
+        # type: () -> PoolDict
+        """Raw dict of the active pool, or {} if there is none.
+
+        Clamps the target like cue_context_section does, so a stale target
+        after a file switch still resolves to a valid pool."""
+        entry = self._mgr.get(self._key())
+        if entry is None:
+            return {}
+        pools = entry.get("pools", [])
+        if not pools:
+            return {}
+        target = max(0, min(self.get_active(), len(pools) - 1))
+        return pools[target]
+
     @staticmethod
     def _excl_dict(pool):
         # type: (Any) -> Dict[str, Any]
@@ -190,11 +208,6 @@ class ResolvedExclusive(object):
         self.group = group
         self.start = start
         self.hold = hold
-
-    def to_dict(self):
-        # type: () -> Dict[str, Any]
-        """Stored nested-dict form, for write-backs like _detach_pool."""
-        return {"group": self.group, "start": self.start, "hold": self.hold}
 
 
 class ResolvedPool(object):
@@ -621,7 +634,6 @@ class CueLoopContext(CueMarkerContext):
 # =========================================================================
 
 class CueMarkerManager(object):
-    MAX_BACKUPS = 100
 
     def __init__(self):
         self._data = {}
@@ -872,9 +884,21 @@ class CueMarkerManager(object):
         entry = self._data.get(trigger_key)
         if entry is None:
             return
+        
         pools = entry.get("pools")
-        if pools and 0 <= pool_index < len(pools):
-            files = pools[pool_index].get("files", [])
+        if not (pools and 0 <= pool_index < len(pools)):
+            return
+        
+        files = pools[pool_index].get("files", [])
+        
+        # A preset's files may hold folder refs (trailing "/"), not
+        # individual files. Expand the matching folder ref and drop the
+        # child; otherwise remove the child directly.
+        for file_index, item in enumerate(files):
+            if item.endswith("/") and child_file.startswith(item):
+                self._detach_folder_ref_in_files(files, file_index, child_file)
+                break
+        else:
             if child_file in files:
                 files.remove(child_file)
         self._db_save_marker(trigger_key)
@@ -903,6 +927,23 @@ class CueMarkerManager(object):
             excl.get("start", base.get("start", CueExclusiveStart.PLAY)),
             excl.get("hold", base.get("hold", False)))
 
+    @staticmethod
+    def _merge_pool(base, override):
+        # type: (Dict[str, Any], Dict[str, Any]) -> Dict[str, Any]
+        """Merge *override* onto *base* into a new dict.
+
+        Nested dicts merge recursively so a partial override (e.g.
+        exclusive={"group": 1}) keeps the base's remaining sub-fields.
+        Other values are replaced by the override."""
+        merged = dict(base)
+        for key, value in override.items():
+            if (key in merged and isinstance(merged[key], dict)
+                    and isinstance(value, dict)):
+                merged[key] = CueMarkerManager._merge_pool(merged[key], value)
+            else:
+                merged[key] = value
+        return merged
+
     def _detach_pool(self, trigger_key, pool_index):
         # type: (str, int) -> bool
         entry = self._data.get(trigger_key)
@@ -916,21 +957,20 @@ class CueMarkerManager(object):
             return False
         preset_name = pool["preset"]
         preset = self._presets.get(preset_name, {})
-        r = self.resolve_pool(pool)
-        del pool["preset"]
-        pool["files"] = r.files
-        pool["volume"] = r.volume
-        if "frequency" in preset:
-            pool["frequency"] = r.frequency
-        if "trigger_on_shake" in preset:
-            pool["trigger_on_shake"] = r.trigger_on_shake
-        # Exclusive config: copy when the preset or a pool-level override
-        # (toggled before detach) defines it, so overrides survive detach.
-        if "exclusive" in preset or "exclusive" in pool:
-            pool["exclusive"] = r.exclusive.to_dict()
+
+        # Swap the preset link for a concrete copy of the preset, overlaid
+        # with the pool's own overrides. Copying the preset (not a fixed field
+        # list) keeps context-only fields like "frequency" and
+        # "trigger_on_shake" off pool types that don't use them; the deep
+        # merge folds partial nested overrides into the preset's sub-fields.
+        overrides = {key: value for key, value in pool.items() if key != "preset"}
+        new_pool = self._merge_pool(
+            _copy.deepcopy(preset), _copy.deepcopy(overrides))
+        pools[pool_index] = new_pool
+
         self._db_save_marker(trigger_key)
         _cue_log("DETACH-POOL key={} pi={} preset={} files={}".format(
-            trigger_key, pool_index, preset_name, len(r.files)))
+            trigger_key, pool_index, preset_name, len(new_pool.get("files", []))))
         return True
 
     def detach_active_video_ts(self, *args):
@@ -1307,37 +1347,6 @@ class CueMarkerManager(object):
     # Load / migration
     # ------------------------------------------------------------------
 
-    def _populate_config(self, data):
-        # type: (Any) -> None
-        """Populate in-memory stores from a backup dict (full replace)."""
-        self._data = _cue_unwrap_persistent(data.get("markers", {}))
-        self._data = {self._migrate_colon_key(k): v for k, v in self._data.items()}
-        self._presets = _cue_unwrap_persistent(data.get("presets", {}))
-        self._video_presets = _cue_unwrap_persistent(data.get("video_presets", {}))
-        self._session_created = set()
-        _cue.file_tree.disabled_files = set(_cue_unwrap_persistent(data.get("disabled_files", set())))
-        _cue.trigger.active = data.get("triggers_active", True)
-        _cue.video_editor.encode_mode = data.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
-        _cue.video_editor.remove_audio = data.get("remove_audio", True)
-        _cue.speed_resolver.seamless_transition = data.get("seamless_transition", False)
-        # disabled_files lives in shared config, not persistent
-        _cue.db.update_shared_config({
-            "disabled_files": list(_cue.file_tree.disabled_files),
-        })
-        persistent._cue = {
-            "triggers_active": _cue.trigger.active,
-            "encode_mode": _cue.video_editor.encode_mode,
-            "remove_audio": _cue.video_editor.remove_audio,
-            "seamless_transition": _cue.speed_resolver.seamless_transition,
-        }
-        self._migrate_video_timestamps_to_pools()
-        self._sanitize_video_pools()
-        self._sanitize_video_presets()
-        self._normalize_all()
-        self._migrate_speed_mode_rename()
-        self._migrate_legacy_exclusive()
-
-
     def load_persistent(self):
         # type: () -> None
         """Load markers + presets from data store; scalars from persistent."""
@@ -1377,6 +1386,7 @@ class CueMarkerManager(object):
                 "encode_mode": getattr(persistent, '_cue_encode_mode', _cue.video_editor.MODE_INTERPOLATE),
                 "remove_audio": getattr(persistent, '_cue_remove_audio', True),
                 "seamless_transition": getattr(persistent, '_cue_seamless_transition', False),
+                "exclusive_row_visible": False,
             }
             persistent._cue = _cue_dict
 
@@ -1394,6 +1404,7 @@ class CueMarkerManager(object):
         _cue.video_editor.encode_mode = _cue_dict.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
         _cue.video_editor.remove_audio = _cue_dict.get("remove_audio", True)
         _cue.speed_resolver.seamless_transition = _cue_dict.get("seamless_transition", False)
+        _cue.is_exclusive_row_visible = _cue_dict.get("exclusive_row_visible", False)
 
 
     # ------------------------------------------------------------------
@@ -1402,46 +1413,73 @@ class CueMarkerManager(object):
 
     def backup_to_file(self):
         # type: () -> None
+        """Zip the shared data/ tree to {shared}/backups/backup.zip."""
         try:
-            dump_dir = os.path.join(_config.gamedir, _cue.base_dir)
-            if not os.path.isdir(dump_dir):
-                os.makedirs(dump_dir)
-            dump_path = os.path.join(dump_dir, _cue.config_filename)
-            data = self._build_config_dict()
-
-            with open(dump_path, "w") as f:
-                _json.dump(data, f, indent=2, sort_keys=True)
-            _cue_log("DUMP-MARKERS total_keys={} path={}".format(
-                len(self._data), _cue.config_filename))
+            db = _cue.db
+            if db is None or not db.is_open():
+                return
+            data_dir = os.path.join(db.path, "data")
+            if not os.path.isdir(data_dir):
+                _cue_log("DUMP-MARKERS-NO-DATA")
+                return
+            backups_dir = os.path.join(db.path, CUE_BACKUP_DIR)
+            if not os.path.isdir(backups_dir):
+                os.makedirs(backups_dir)
+            zip_path = os.path.join(backups_dir, CUE_MANUAL_BACKUP_NAME)
+            tmp_path = os.path.join(
+                backups_dir, "{}.{}.tmp".format(CUE_MANUAL_BACKUP_NAME, db.game_id))
+            count = zip_tree(data_dir, zip_path, tmp_path)
+            _cue_log("DUMP-MARKERS files={} path={}".format(count, zip_path))
         except Exception as e:
             _cue_log("DUMP-MARKERS-ERROR {}".format(str(e)))
 
-    def _build_config_dict(self):
-        # type: () -> Dict[str, Any]
-        return {
-            "markers": _cue_unwrap_persistent(self._data),
-            "presets": _cue_unwrap_persistent(self._presets),
-            "video_presets": _cue_unwrap_persistent(self._video_presets),
-            "disabled_files": list(_cue_unwrap_persistent(_cue.file_tree.disabled_files)),
-            "triggers_active": _cue.trigger.active,
-            "encode_mode": _cue.video_editor.encode_mode,
-            "remove_audio": _cue.video_editor.remove_audio,
-            "seamless_transition": _cue.speed_resolver.seamless_transition,
-        }
-
     def restore_from_file(self):
         # type: () -> None
+        """Validate backup.zip, then ask the user to confirm a restore."""
+        db = _cue.db
+        if db is None or not db.is_open():
+            return
+        zip_path = os.path.join(db.path, CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME)
+        if not os.path.isfile(zip_path):
+            _cue_log("RESTORE-MARKERS-NO-FILE path={}".format(zip_path))
+            return
+        ok, reason = validate_backup_zip(zip_path)
+        if not ok:
+            _cue_log("RESTORE-MARKERS-INVALID {}".format(reason))
+            return
+        _cue.confirm_dialog.show(
+            "Restore from backups/backup.zip? This game's markers, shared "
+            "presets, and shared config will be replaced. The current state "
+            "is kept in data_bak. Other games' markers are untouched.",
+            Function(self._apply_restore, zip_path),
+        )
+
+    def _apply_restore(self, zip_path):
+        # type: (str) -> None
+        """Swap files on disk from backup.zip, then reload in-memory state."""
         try:
-            dump_path = _cue.config_path
-            if not os.path.isfile(dump_path):
-                _cue_log("RESTORE-MARKERS-NO-FILE path={}".format(_cue.config_filename))
+            db = _cue.db
+            if db is None or not db.is_open():
                 return
-            with open(dump_path, "r") as f:
-                data = _json.load(f)
-            self._populate_config(data)
-            self.save_all()
-            _cue_log("RESTORE-MARKERS total_keys={} path={}".format(
-                len(self._data), _cue.config_filename))
+            # Don't mutate data/ while the auto-backup thread is zipping it.
+            if not db._backup.wait_until_idle():
+                _cue_log("RESTORE-MARKERS: timed out waiting for auto backup")
+                return
+            count = restore_pieces(zip_path, db.path, db.game_id)
+            db.open()
+            # Reload the stores from the restored files.  load_persistent
+            # treats an empty marker dir as fresh and skips presets, so
+            # re-read presets to cover a markerless-but-preset restore.
+            self.load_persistent()
+            self.reload_presets()
+            self._session_created = set()
+            _cue.undo.reset()
+            _cue.file_tree.rebuild_tree()
+            _cue.video_editor.refresh()
+            # Capture the restored tree in a fresh auto-backup.
+            db._backup.force_backup()
+            renpy.restart_interaction()
+            _cue_log("RESTORE-MARKERS ok files={}".format(count))
         except Exception as e:
             _cue_log("RESTORE-MARKERS-ERROR {}".format(str(e)))
 
