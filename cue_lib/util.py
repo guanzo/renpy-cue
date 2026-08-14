@@ -265,23 +265,12 @@ def _cue_scan_audio():
 
     results_set = set()
 
-    # Source 1: Ren'Py's cached index (covers .rpa archives)
-    rpy_files = []
-    try:
-        rpy_files = renpy.list_files()
-        for f in rpy_files:
-            if f.startswith(search_path):
-                relative = f[len(search_path):]
-                if relative and f.lower().endswith(audio_exts):
-                    results_set.add(relative)
-    except Exception:
-        pass  # Fall through to filesystem scan below
-
-    # Source 2: Live filesystem scan (picks up files added after startup)
-    fs_dir = os.path.join(_config.gamedir, search_path)
-    if os.path.isdir(fs_dir):
-        for dirpath, _dirnames, filenames in os.walk(fs_dir, followlinks=True):
-            rel_dir = os.path.relpath(dirpath, fs_dir)
+    # Live filesystem scan (picks up files added after startup)
+    if os.path.isdir(search_path):
+        for dirpath, _dirnames, filenames in os.walk(search_path, followlinks=True):
+            _cue_log('dirpath ' + str(dirpath))
+            
+            rel_dir = os.path.relpath(dirpath, search_path)
             if rel_dir == ".":
                 rel_dir = ""
             for fname in filenames:
@@ -290,8 +279,7 @@ def _cue_scan_audio():
                     rel_path = rel_path.replace("\\", "/")
                     results_set.add(rel_path)
 
-    if not results_set and not rpy_files:
-        # Both sources failed entirely
+    if not results_set:
         _cue.available_files = []
         _cue.audio_tree = []
         _cue.scan_error = "Failed to list files"
