@@ -163,6 +163,21 @@ screen cue_video_presets_list(_is_video, _has_image, _is_dialogue):
 
 # Folder/file rows for the current audio tree.
 screen cue_file_tree(_is_video, _has_image, _is_dialogue):
+    # Tooltip strings per marker type (screen-local).  The _*_tt_has variant
+    # is shown once a pool exists; _*_tt_create until the first pool.
+    $ _vid_tt_create = "Create Video SFX pool at current timestamp and add files"
+    $ _vid_tt_has = "Click: Add files to active Video SFX pool\nShift+Click: " + _vid_tt_create
+    $ _img_tt_create = "Create Image SFX pool and add files"
+    $ _img_tt_has = "Click: Add files to active Image SFX pool\nShift+Click: " + _img_tt_create
+    $ _dlg_tt_create = "Create Dialogue SFX pool and add files"
+    $ _dlg_tt_has = "Click: Add files to active Dialogue SFX pool\nShift+Click: " + _dlg_tt_create
+    $ _loop_tt_create = "Create Loop SFX pool and add files"
+    $ _loop_tt_has = "Click: Add files to active Loop SFX pool\nShift+Click: " + _loop_tt_create
+    $ _vid_tt = _vid_tt_has if _cue.markers.video.has_pools() else _vid_tt_create
+    $ _img_tt = _img_tt_has if _cue.markers.image.has_pools() else _img_tt_create
+    $ _dlg_tt = _dlg_tt_has if _cue.markers.dialogue.has_pools() else _dlg_tt_create
+    $ _loop_tt = _loop_tt_has if _cue.markers.loop.has_pools() else _loop_tt_create
+
     for item in _cue.sfx_manager.visible_tree:
         hbox:
             spacing 2
@@ -177,20 +192,20 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
                         "Preview random file from folder", None)
                     use cue_icon_btn(
                         "V",
-                        Function(_cue.markers.video.add_folder, item["full_path"]),
-                        "Add folder to active video pool", None, enabled=_is_video)
+                        Function(_cue.markers.video.send_folder, item["full_path"]),
+                        _vid_tt, None, enabled=_is_video)
                     use cue_icon_btn(
                         "I",
-                        Function(_cue.markers.image.add_folder, item["full_path"]),
-                        "Add folder to Image SFX pool", None, enabled=_has_image)
+                        Function(_cue.markers.image.send_folder, item["full_path"]),
+                        _img_tt, None, enabled=_has_image)
                     use cue_icon_btn(
                         "D",
-                        Function(_cue.markers.dialogue.add_folder, item["full_path"]),
-                        "Add folder to Dialogue SFX pool", None, enabled=_is_dialogue)
+                        Function(_cue.markers.dialogue.send_folder, item["full_path"]),
+                        _dlg_tt, None, enabled=_is_dialogue)
                     use cue_icon_btn(
                         "L",
-                        Function(_cue.markers.loop.add_folder, item["full_path"]),
-                        "Add folder to Loop SFX Pool", None)
+                        Function(_cue.markers.loop.send_folder, item["full_path"]),
+                        _loop_tt, None)
                 use cue_txt_button(item["name"], Function(_cue.sfx_manager.toggle_folder, item["full_path"]))
             else:
                 # Play preview
@@ -198,23 +213,23 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
                 # Video marker (adds to active pool)
                 use cue_icon_btn(
                     "V",
-                    Function(_cue.markers.video.add_file, item["index"]),
-                    "Add file to active video pool", None, enabled=_is_video)
+                    Function(_cue.markers.video.send_file, item["index"]),
+                    _vid_tt, None, enabled=_is_video)
                 # Image SFX
                 use cue_icon_btn(
                     "I",
-                    Function(_cue.markers.image.add_file, item["index"]),
-                    "Add to Image SFX pool", None, enabled=_has_image)
+                    Function(_cue.markers.image.send_file, item["index"]),
+                    _img_tt, None, enabled=_has_image)
                 # Dialogue SFX
                 use cue_icon_btn(
                     "D",
-                    Function(_cue.markers.dialogue.add_file, item["index"]),
-                    "Add to Dialogue SFX pool", None, enabled=_is_dialogue)
+                    Function(_cue.markers.dialogue.send_file, item["index"]),
+                    _dlg_tt, None, enabled=_is_dialogue)
                 # Loop SFX
                 use cue_icon_btn(
                     "L",
-                    Function(_cue.markers.loop.add_file, item["index"]),
-                    "Add to Loop SFX pool", None)
+                    Function(_cue.markers.loop.send_file, item["index"]),
+                    _loop_tt, None)
                 use cue_icon_btn(
                     ("square-check" if item.get("enabled", True) else "square"),
                     Function(_cue.sfx_manager.toggle_file_enabled, item["full_path"]),

@@ -7,6 +7,7 @@ import os
 import time
 import random as _random
 import functools as _functools
+import pygame
 import renpy
 import renpy.atl as _atl
 import renpy.config as _config
@@ -473,6 +474,12 @@ def _cue_pick_file(files, avoid_repeats=True):
 def _cue_make_tab_action(fn, args_tuple, pi):
     # type: (Callable[..., None], tuple, int) -> Callable[..., None]
     return Function(fn, *(tuple(args_tuple) + (pi,)))
+
+
+def _cue_shift_held():
+    # type: () -> bool
+    mods = pygame.key.get_mods()
+    return bool(mods & (pygame.KMOD_LSHIFT | pygame.KMOD_RSHIFT))
 
 
 # --------------------------------------------------------------------------

@@ -16,7 +16,7 @@ from cue_lib.backup import (
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_format_time, _cue_parse_time,
-    _cue_clamp_time,
+    _cue_clamp_time, _cue_shift_held,
     create_img_key, create_vid_key, create_dlg_key, create_loop_key,
     is_img_key, is_vid_key, is_dlg_key, is_loop_key,
     get_key_file,
@@ -66,6 +66,18 @@ class CueMarkerContext(object):
         if filename in _cue.sfx_manager.disabled_files:
             return
         self._mgr._add_file_to_pool(key, filename, self.get_active())
+
+    def send_file(self, file_index):
+        # type: (int) -> None
+        if _cue_shift_held():
+            self.add_pool()
+        self.add_file(file_index)
+
+    def send_folder(self, folder_path):
+        # type: (str) -> None
+        if _cue_shift_held():
+            self.add_pool()
+        self.add_folder(folder_path)
 
     def remove_file(self, pool_index, file_index):
         # type: (int, int) -> None
@@ -130,6 +142,14 @@ class CueMarkerContext(object):
             return {}
         target = max(0, min(self.get_active(), len(pools) - 1))
         return pools[target]
+
+    def has_pools(self):
+        # type: () -> bool
+        """True when the current key's marker entry has at least one pool."""
+        entry = self._mgr.get(self._key())
+        if entry is None:
+            return False
+        return bool(entry.get("pools"))
 
     @staticmethod
     def _excl_dict(pool):
