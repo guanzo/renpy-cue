@@ -38,6 +38,8 @@ init -999 python:
     # ---- Store bridge: bind every name that remaining .rpy files reference ----
     # _cue lives in cue_lib.state — bound to store at init -900 below
 
+    from cue_lib.state import CuePage
+
     from cue_lib.constants import (
         CUE_SFX_CHANNEL_COUNT, CUE_DEFAULT_VIDEO_SPEED,
         CUE_POPPER_DEFAULT_OFFSET, CUE_POPPER_DEFAULT_MARGIN,
@@ -63,7 +65,7 @@ init -999 python:
         _cue_refresh_context, _cue_log_context, _cue_get_top_layer,
         _cue_refresh_channel, _cue_tick_trigger, _cue_play_sfx,
         _cue_preview_sfx, _cue_preview_preset, _cue_preview_folder, _cue_preview_video_preset, _cue_play_pool,
-        _cue_toggle_active, _cue_toggle_settings, _cue_toggle_exclusive_row,
+        _cue_toggle_active, _cue_set_page, _cue_toggle_exclusive_row,
         _cue_toggle_shake_trigger, _cue_toggle_video_mute,
         _cue_confirm_shared_dir,
     )
@@ -124,6 +126,7 @@ init -900 python:
     from cue_lib.trigger import CueTriggerEngine
     from cue_lib.video import CueVideoManager
     from cue_lib.volume import CueVolumeManager
+    from cue_lib.music import CueMusicManager
     from cue_lib.repeater import CueMarkerRepeater
     from cue_lib.ffmpeg import CueFFmpeg
     from cue_lib.video_editor import CueVideoEditor
@@ -153,6 +156,7 @@ init -900 python:
     _cue.confirm_dialog = CueConfirmDialog()
     _cue.keybinds = CueKeybindsManager()
     _cue.icons = CueIconManager()
+    _cue.music_manager = CueMusicManager()
 
     _cue.db = CueDatabase(_cue.shared_dir, renpy.config.save_directory)
     _cue.db.open()
@@ -180,22 +184,23 @@ init 999 python:
         open(log_path, "w").close()
     except Exception:
         pass
+    
+    # Install the music play/queue/stop interceptor.  Idempotent and
+    # reload-safe, so it can run on every init like the patches below.
+    _cue.music_manager.install()
 
     # monkeypatch renpy.with_statement
     _original_with_statement = renpy.with_statement
-
     def _cue_with_hook(trans, always=False, paired=None, clear=True):
         if _cue_is_screenshake(trans):
             _cue._shake_just_happened = True
         return _original_with_statement(trans, always=always, paired=paired, clear=clear)
-
     renpy.with_statement = _cue_with_hook
 
     # Hook config.show to detect vpunch/hpunch applied as at-transforms
     # (e.g. "scene foo at vpunch, cum1").  When shakes are applied via "at"
     # instead of "with", they bypass with_statement entirely.
     _original_config_show = renpy.config.show
-
     def _cue_config_show(name, at_list=None, layer='master', what=None,
                             zorder=None, tag=None, behind=None, atl=None):
         if at_list:
@@ -206,9 +211,7 @@ init 999 python:
         return _original_config_show(name, at_list=at_list, layer=layer,
                                         what=what, zorder=zorder, tag=tag,
                                         behind=behind, atl=atl)
-
     renpy.config.show = _cue_config_show
-
 
     if not _cue.initialized:
         # Detect Ren'Py version for relative_volume support (added in 7.5)
@@ -267,6 +270,7 @@ init 999 python:
 
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
         _cue.markers.load_persistent()
+        _cue.music_manager.reload()
         _cue.video_editor.job_queue.load_from_persistent()
         _cue.undo.seed()  # seed undo baseline after initial load
         _cue.speed_resolver.wrap_all_movies()

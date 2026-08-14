@@ -42,7 +42,7 @@ class Cue:
 
     initialized: bool
     is_overlay_visible: bool
-    page: int
+    overlay_active_page: int
     is_exclusive_row_visible: bool
     current_file: str
     current_dialogue: str

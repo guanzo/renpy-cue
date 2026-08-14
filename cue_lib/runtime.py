@@ -169,6 +169,9 @@ def _cue_refresh_context():
     _cue.current_file = top_name
     _cue.top_layer_type = top_type
     _cue.top_displayable = top_d
+    # The scene batch has now landed, so current_file is the settled scene --
+    # the right moment to stamp key_after for any music that just played.
+    _cue.music_manager.capture_display()
     _cue_refresh_channel(displayable=top_d)
     _cue.file_tree.rebuild_tree()
     _cue_log_context()

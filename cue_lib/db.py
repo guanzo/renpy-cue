@@ -21,6 +21,10 @@ from cue_lib.backup import CueBackupManager
 # Number of characters to keep from a SHA1 hex digest for file naming.
 CUE_HASH_TRUNC_LEN = 8
 
+# Filename for the per-replay default music trigger log, stored under the
+# markers/{game_id}/music/ subdir.
+CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME = "default_music_triggers.json"
+
 MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
@@ -65,10 +69,11 @@ class CueDatabase(object):
     """File-backed store for markers, presets, and speed-variant videos.
 
     Directory layout:
-        {root}/data/markers/{game_id}/  -- one .json file per marker key
-        {root}/data/presets/audio/      -- one .json file per audio preset
-        {root}/data/presets/video/      -- one .json file per video preset
-        {root}/video/{game_id}/         -- speed-variant video files
+        {root}/data/markers/{game_id}/              -- one .json file per marker key
+        {root}/data/markers/{game_id}/music/        -- default music triggers file
+        {root}/data/presets/audio/                  -- one .json file per audio preset
+        {root}/data/presets/video/                  -- one .json file per video preset
+        {root}/video/{game_id}/                     -- speed-variant video files
 
     Markers and videos are namespaced by game_id.  Presets are game-agnostic.
     """
@@ -87,13 +92,13 @@ class CueDatabase(object):
     def open(self):
         # type: () -> None
         """Ensure directory structure exists."""
-        for sub in [
-            os.path.join("data", "markers", self._game_id),
-            os.path.join("data", "presets", "audio"),
-            os.path.join("data", "presets", "video"),
-            os.path.join("video", self._game_id),
+        for _dir in [
+            self._marker_dir,
+            self._music_triggers_dir,
+            self._audio_preset_dir,
+            self._video_preset_dir,
+            self.video_dir,
         ]:
-            _dir = os.path.join(self._path, sub)
             if not os.path.isdir(_dir):
                 try:
                     os.makedirs(_dir)
@@ -125,21 +130,40 @@ class CueDatabase(object):
         """Absolute path to the speed-variant video directory."""
         return os.path.join(self._path, "video", self._game_id).replace("\\", "/")
 
-    # ------------------------------------------------------------------
-    # Paths
-    # ------------------------------------------------------------------
-
+    @property
     def _marker_dir(self):
         # type: () -> str
         return os.path.join(self._path, "data", "markers", self._game_id)
 
+    @property
+    def _presets_dir(self):
+        # type: () -> str
+        return os.path.join(self._path, "data", "presets")
+
+    @property
+    def _audio_preset_dir(self):
+        # type: () -> str
+        return os.path.join(self._presets_dir, "audio")
+
+    @property
+    def _video_preset_dir(self):
+        # type: () -> str
+        return os.path.join(self._presets_dir, "video")
+
+    @property
+    def _music_triggers_dir(self):
+        # type: () -> str
+        return os.path.join(self._marker_dir, "music")
+
     def _preset_dir(self, preset_type):
         # type: (str) -> str
-        return os.path.join(self._path, "data", "presets", preset_type)
+        if preset_type == "audio":
+            return self._audio_preset_dir
+        return self._video_preset_dir
 
     def _marker_path(self, key):
         # type: (str) -> str
-        return os.path.join(self._marker_dir(), _key_to_filename(key))
+        return os.path.join(self._marker_dir, _key_to_filename(key))
 
     def _preset_path(self, preset_type, name):
         # type: (str, str) -> str
@@ -156,11 +180,11 @@ class CueDatabase(object):
         # type: () -> bool
         """True if this game_id has no marker files yet."""
         try:
-            for _name in os.listdir(self._marker_dir()):
+            for _name in os.listdir(self._marker_dir):
                 if _name.endswith(".json"):
                     return False
         except Exception:
-            _cue_log("DB-FRESH: listdir failed for {}".format(self._marker_dir()))
+            _cue_log("DB-FRESH: listdir failed for {}".format(self._marker_dir))
         return True
 
     # ------------------------------------------------------------------
@@ -171,7 +195,7 @@ class CueDatabase(object):
         # type: () -> Dict[str, Any]
         """Return {marker_key: MarkerEntry} for this game_id."""
         result = {}
-        mdir = self._marker_dir()
+        mdir = self._marker_dir
         try:
             names = os.listdir(mdir)
         except Exception:
@@ -337,4 +361,72 @@ class CueDatabase(object):
         config = self.load_shared_config()
         config.update(data)
         self.save_shared_config(config)
+
+    # ------------------------------------------------------------------
+    # Default music triggers -- per-replay log of the original game's music
+    # ------------------------------------------------------------------
+    # Shape: {replay_label: [ {"key_before": ..., "filepath": ...,
+    # "key_after": ...}, ... ]}.  key_before = scene at the play call
+    # (deterministic trigger); key_after = settled scene the user sees.
+    # Lives in the music/ subdir of the marker dir so load_markers() (which
+    # only scans direct children for .json) never sweeps it up as a marker.
+
+    def _music_triggers_path(self):
+        # type: () -> str
+        return os.path.join(self._music_triggers_dir, CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME)
+
+    def load_default_music_triggers(self):
+        # type: () -> Dict[str, Any]
+        """Load the default music trigger log. Returns {} if absent."""
+        fpath = self._music_triggers_path()
+        if not os.path.isfile(fpath):
+            return {}
+        try:
+            with open(fpath, "r") as f:
+                return _json.load(f)
+        except Exception:
+            _cue_log("MUSIC-TRIGGERS: load failed for {}".format(fpath))
+            return {}
+
+    def save_default_music_triggers(self, data):
+        # type: (Dict[str, Any]) -> None
+        """Write the whole default music trigger log."""
+        fpath = self._music_triggers_path()
+        dpath = os.path.dirname(fpath)
+        try:
+            if not os.path.isdir(dpath):
+                os.makedirs(dpath)
+            with open(fpath, "w") as f:
+                _json.dump(data, f, indent=2, sort_keys=True)
+        except Exception:
+            _cue_log("MUSIC-TRIGGERS: save failed for {}".format(fpath))
+
+    def update_default_music_triggers(self, replay_id, key_before, path, key_after=None):
+        # type: (str, str, str, Optional[str]) -> None
+        """Record one default music trigger for a replay.
+
+        One entry per scene (key_before) per replay: re-read the log from
+        disk, update the matching entry in place (or append), then resave --
+        so unrelated replay entries are never clobbered by a stale in-memory
+        copy.
+
+        `key_before` is the scene on screen at the `play music` call (the
+        deterministic trigger); `key_after` is the settled scene the user
+        sees, captured once the scene batch lands (None until then).
+        """
+        data = self.load_default_music_triggers()
+        items = data.setdefault(replay_id, [])
+        for item in items:
+            if item.get("key_before") == key_before:
+                item["key_before"] = key_before
+                item["filepath"] = path
+                if key_after is not None:
+                    item["key_after"] = key_after
+                break
+        else:
+            entry = {"key_before": key_before, "filepath": path}
+            if key_after is not None:
+                entry["key_after"] = key_after
+            items.append(entry)
+        self.save_default_music_triggers(data)
 

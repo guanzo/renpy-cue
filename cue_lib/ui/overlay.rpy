@@ -133,7 +133,7 @@ screen cue_header_toolbar():
         xfill True
         spacing 2
         hbox:
-            spacing 2
+            spacing 5
             use cue_checkbox(_cue.trigger.active, "SFX Active",
                 Function(_cue_toggle_active),
                 _toggle_on_tt, _toggle_off_tt,
