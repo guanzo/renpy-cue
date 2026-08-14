@@ -13,7 +13,7 @@ import renpy.audio.audio as _aaudio
 
 from renpy.store import persistent
 
-from cue_lib.ffmpeg import CREATIONFLAGS, _cue_probe_job
+from cue_lib.video.ffmpeg import CREATIONFLAGS, _cue_probe_job
 from cue_lib.state import _cue
 from cue_lib.util import _cue_log, _cue_ui_refresh, _cue_unwrap_persistent
 

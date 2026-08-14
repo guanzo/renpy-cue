@@ -70,17 +70,17 @@ init -999 python:
         _cue_confirm_shared_dir,
     )
 
-    from cue_lib.speed import (
+    from cue_lib.video.speed import (
         _cue_create_select_speed, _cue_create_delete_sel, _cue_create_delete_speed,
     )
 
-    from cue_lib.dialogues import (
+    from cue_lib.ui.dialogues import (
         CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog,
         _cue_confirm_delete_preset, _cue_confirm_delete_video_preset,
         _cue_maybe_apply_video_preset,
     )
 
-    from cue_lib.popper import (
+    from cue_lib.ui.popper import (
         CuePopper, _cue_store_focus_rect, _cue_clear_focus_rect,
         _cue_get_focus_rect, _cue_compute_popup_position, _cue_draw_arrow,
     )
@@ -91,12 +91,12 @@ init -999 python:
         CueKeyCaptureDisplayable,
     )
 
-    from cue_lib.speed import (
+    from cue_lib.video.speed import (
         CueSpeedMode, CUE_TOAST_DURATION, CUE_TOAST_DURATION_SEAMLESS,
         CUE_TOAST_FADE_DURATION, CUE_TOAST_FADE_OFFSET,
     )
     from cue_lib.markers import CueLoopFrequency
-    from cue_lib.auto_speed import (
+    from cue_lib.video.auto_speed import (
         _cue_auto_preset_label, _cue_auto_preset_description,
     )
     from cue_lib.constants import (
@@ -113,7 +113,7 @@ init -999 python:
         CueKeybindsManager, _cue_keybind_start, _cue_keybind_cancel,
         _cue_keybind_reset, _cue_keybind_override,
     )
-    from cue_lib.video_editor import CUE_VE_MODE_NORMAL, CUE_VE_MODE_INTERPOLATE, CUE_VE_MODE_FAST_PREVIEW
+    from cue_lib.video.video_editor import CUE_VE_MODE_NORMAL, CUE_VE_MODE_INTERPOLATE, CUE_VE_MODE_FAST_PREVIEW
 
 
 init -900 python:
@@ -124,17 +124,17 @@ init -900 python:
     from cue_lib.markers import CueMarkerManager, CueLoopFrequency, CueExclusiveStart
     from cue_lib.undo import CueUndoManager
     from cue_lib.trigger import CueTriggerEngine
-    from cue_lib.video import CueVideoManager
+    from cue_lib.video.video import CueVideoManager
     from cue_lib.volume import CueVolumeManager
-    from cue_lib.music import CueMusicManager
-    from cue_lib.repeater import CueMarkerRepeater
-    from cue_lib.ffmpeg import CueFFmpeg
-    from cue_lib.video_editor import CueVideoEditor
-    from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
-    from cue_lib.auto_speed import CueAutoSpeedGenerator
-    from cue_lib.sfx_manager import CueSfxManager
-    from cue_lib.icons import CueIconManager
-    from cue_lib.dialogues import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
+    from cue_lib.audio.music import CueMusicManager
+    from cue_lib.video.repeater import CueMarkerRepeater
+    from cue_lib.video.ffmpeg import CueFFmpeg
+    from cue_lib.video.video_editor import CueVideoEditor
+    from cue_lib.video.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
+    from cue_lib.video.auto_speed import CueAutoSpeedGenerator
+    from cue_lib.audio.sfx_manager import CueSfxManager
+    from cue_lib.ui.icons import CueIconManager
+    from cue_lib.ui.dialogues import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
     from cue_lib.db import CueDatabase
     from cue_lib.paths import CuePaths
     from cue_lib.state import _cue

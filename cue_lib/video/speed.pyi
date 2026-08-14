@@ -1,4 +1,4 @@
-# Type stub for cue_lib.speed
+# Type stub for cue_lib.video.speed
 from typing import Any, Dict, Final, List, Optional, Set, Tuple
 from renpy.display.video import Movie
 

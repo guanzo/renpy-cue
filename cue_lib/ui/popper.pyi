@@ -1,4 +1,4 @@
-# Type stub for cue_lib.popper
+# Type stub for cue_lib.ui.popper
 from typing import Any, Optional, Tuple
 from renpy.display.layout import Container
 from cue_lib.constants import (

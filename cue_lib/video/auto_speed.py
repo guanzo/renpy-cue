@@ -1039,7 +1039,7 @@ class CueAutoSpeedGenerator(object):
         tag = _cue.current_file
         if not tag or not _cue.video_sequence:
             return
-        from cue_lib.speed import CueSpeedMode
+        from cue_lib.video.speed import CueSpeedMode
         mode = _cue.video_sequence.get_mode(tag)
         if mode != CueSpeedMode.AUTO:
             return

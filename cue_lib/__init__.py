@@ -34,17 +34,11 @@ from cue_lib import state
 from cue_lib import util
 from cue_lib import backup
 from cue_lib import db
-from cue_lib import ffmpeg
+from cue_lib.video import auto_speed, ffmpeg, repeater, speed, video, video_editor
 from cue_lib import undo
 from cue_lib import volume
-from cue_lib import sfx_manager
-from cue_lib import video
-from cue_lib import repeater
+from cue_lib.audio import music, sfx_manager, user_music
 from cue_lib import markers
 from cue_lib import trigger
-from cue_lib import video_editor
-from cue_lib import speed
 from cue_lib import runtime
-from cue_lib import dialogues
-from cue_lib.ui import displayables
-from cue_lib import popper
+from cue_lib.ui import dialogues, displayables, icons, popper

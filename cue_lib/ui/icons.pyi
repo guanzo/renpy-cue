@@ -1,4 +1,4 @@
-# Type stub for cue_lib.icons
+# Type stub for cue_lib.ui.icons
 from typing import Any, Dict, Optional
 
 class CueIconManager:

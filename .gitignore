@@ -1,4 +1,4 @@
-audio/
+/audio/
 *.rpyc
 *.pyc
 *.pyo

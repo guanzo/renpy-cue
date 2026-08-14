@@ -1,4 +1,4 @@
-# Type stub for cue_lib.user_music
+# Type stub for cue_lib.audio.user_music
 from typing import Any, Dict, List
 
 class CueUserMusic:

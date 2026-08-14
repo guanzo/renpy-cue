@@ -1,4 +1,4 @@
-# Type stub for cue_lib.repeater
+# Type stub for cue_lib.video.repeater
 from typing import Dict, List, Optional
 
 from cue_lib._types import RepeaterOffset, VideoPoolDict

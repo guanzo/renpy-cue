@@ -1,4 +1,4 @@
-# Type stub for cue_lib.sfx_manager
+# Type stub for cue_lib.audio.sfx_manager
 from typing import Dict, List, Optional, Set
 
 from cue_lib._types import AudioTreeNode

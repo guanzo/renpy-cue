@@ -1,24 +1,24 @@
 from typing import Any, Dict, Optional, Set, Tuple
 
-from cue_lib.repeater import CueMarkerRepeater
-from cue_lib.ffmpeg import CueFFmpeg
-from cue_lib.sfx_manager import CueSfxManager
+from cue_lib.video.repeater import CueMarkerRepeater
+from cue_lib.video.ffmpeg import CueFFmpeg
+from cue_lib.audio.sfx_manager import CueSfxManager
 from cue_lib.markers import CueMarkerManager
 from cue_lib._types import (
     MarkerEntry, PoolDict, UndoSnapshot, VideoPreset,  # pyright: ignore[reportUnusedImport]
 )
-from cue_lib.auto_speed import CueAutoSpeedGenerator
-from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
+from cue_lib.video.auto_speed import CueAutoSpeedGenerator
+from cue_lib.video.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
 from cue_lib.trigger import CueTriggerEngine
-from cue_lib.dialogues import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
+from cue_lib.ui.dialogues import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
 from cue_lib.undo import CueUndoManager
-from cue_lib.video import CueVideoManager
-from cue_lib.video_editor import CueVideoEditor
+from cue_lib.video.video import CueVideoManager
+from cue_lib.video.video_editor import CueVideoEditor
 from cue_lib.db import CueDatabase
 from cue_lib.volume import CueVolumeManager
-from cue_lib.music import CueMusicManager
+from cue_lib.audio.music import CueMusicManager
 from cue_lib.keybinds import CueKeybindsManager
-from cue_lib.icons import CueIconManager
+from cue_lib.ui.icons import CueIconManager
 from cue_lib.paths import CuePaths
 
 class CuePage:

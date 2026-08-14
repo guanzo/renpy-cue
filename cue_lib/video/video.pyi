@@ -1,4 +1,4 @@
-# Type stub for cue_lib.video
+# Type stub for cue_lib.video.video
 from typing import Final, Optional
 
 CUE_SEEK_EPSILON: Final = 0.001

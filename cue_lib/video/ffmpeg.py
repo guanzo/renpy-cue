@@ -566,7 +566,7 @@ def _cue_probe_job(ffmpeg, job, dur_ms, base_dir):
 
         # --- Build ffmpeg command(s) ---
         # Lazy import to avoid circular dependency with video_editor
-        from cue_lib.video_editor import CUE_VE_MODE_INTERPOLATE, CUE_VE_MODE_FAST_PREVIEW
+        from cue_lib.video.video_editor import CUE_VE_MODE_INTERPOLATE, CUE_VE_MODE_FAST_PREVIEW
         interpolate = (job.encode_mode == CUE_VE_MODE_INTERPOLATE)
         source_fps = ffmpeg.probe_fps(input_fs)
         # Total output frames for progress. -vsync 0 preserves frame count

@@ -1,4 +1,4 @@
-# Type stub for cue_lib.ffmpeg
+# Type stub for cue_lib.video.ffmpeg
 from typing import Any, Dict, List, Optional, Tuple
 
 CREATIONFLAGS: int

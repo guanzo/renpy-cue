@@ -1,4 +1,4 @@
-# Type stub for cue_lib.video_editor
+# Type stub for cue_lib.video.video_editor
 from typing import Any, Optional
 
 CUE_VE_MODE_NORMAL: int

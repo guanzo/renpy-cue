@@ -1,4 +1,4 @@
-# Type stub for cue_lib.auto_speed
+# Type stub for cue_lib.video.auto_speed
 from typing import Final, List, Optional
 
 CUE_AUTO_SPEED_MIN_VARIANTS: Final = 4

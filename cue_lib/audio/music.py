@@ -5,7 +5,7 @@ import renpy
 import renpy.audio.music as _music
 
 from cue_lib.state import _cue
-from cue_lib.user_music import CueUserMusic
+from cue_lib.audio.user_music import CueUserMusic
 from cue_lib.util import _cue_log, create_img_key, create_vid_key
 
 MYPY = False

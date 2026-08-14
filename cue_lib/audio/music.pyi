@@ -1,7 +1,7 @@
-# Type stub for cue_lib.music
+# Type stub for cue_lib.audio.music
 from typing import Any, Dict, List, Optional
 
-from cue_lib.user_music import CueUserMusic
+from cue_lib.audio.user_music import CueUserMusic
 
 class CueMusicManager:
     _is_installed: bool
