@@ -75,7 +75,7 @@ class CueTriggerEngine(object):
         self._prune_excl()
         friends = set(self._excl_friends(group))
         for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
-            ch_name = "_cue_{}".format(i)
+            ch_name = _cue_sfx_channel_name(i)
             if ch_name in friends:
                 continue
             if _music.is_playing(channel=ch_name):

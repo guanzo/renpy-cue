@@ -574,6 +574,19 @@ def _cue_is_screenshake(trans):
 # SFX Playback Helpers
 # --------------------------------------------------------------------------
 
+def _cue_sfx_channel_name(index):
+    # type: (int) -> str
+    """Channel name for a 1-based index into the shared _cue_ SFX channels."""
+    return "_cue_{}".format(index)
+
+
+def _cue_sfx_channel_index(ch_name):
+    # type: (str) -> int
+    """Reverse of _cue_sfx_channel_name: parse the 1-based index from a
+    shared _cue_ SFX channel name."""
+    return int(ch_name.split("_")[-1])
+
+
 def _cue_loop_still_playing(channels):
     # type: (List[str]) -> bool
     """True if any channel in the list is currently playing.

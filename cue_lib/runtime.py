@@ -16,6 +16,7 @@ from cue_lib.state import _cue, CuePage
 from cue_lib.util import (
     _cue_log, _cue_ui_refresh, _cue_unwrap_displayable, _cue_get_movie_play,
     _cue_resolve_files, _cue_pick_file,
+    _cue_sfx_channel_name, _cue_sfx_channel_index,
     create_img_key, create_vid_key, create_dlg_key,
     is_vid_key, is_img_key, is_dlg_key,
     get_key_file, get_key_dialogue,
@@ -473,17 +474,17 @@ def _cue_play_sfx(filename, source="", volume=1.0):
 
     target_ch = None
     for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
-        ch_name = "_cue_{}".format(i)
+        ch_name = _cue_sfx_channel_name(i)
         if not _music.is_playing(channel=ch_name):
             target_ch = ch_name
             break
 
     if target_ch is None:
         idx = _cue._cue_next_sfx_channel
-        target_ch = "_cue_{}".format(idx + 1)
+        target_ch = _cue_sfx_channel_name(idx + 1)
         _cue._cue_next_sfx_channel = (idx + 1) % CUE_SFX_CHANNEL_COUNT
     else:
-        ch_num = int(target_ch.split("_")[-1])
+        ch_num = _cue_sfx_channel_index(target_ch)
         _cue._cue_next_sfx_channel = ch_num % CUE_SFX_CHANNEL_COUNT
 
     try:
@@ -535,7 +536,7 @@ def _cue_fade_out_sfx(exclude_channels=None):
     excluded = set(exclude_channels) if exclude_channels else set()
     faded = 0
     for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
-        ch_name = "_cue_{}".format(i)
+        ch_name = _cue_sfx_channel_name(i)
         if ch_name in excluded:
             continue
         if _music.is_playing(channel=ch_name):

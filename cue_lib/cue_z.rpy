@@ -55,6 +55,7 @@ init -999 python:
         _cue_unwrap_displayable, _cue_ui_refresh, _cue_is_screenshake,
         _cue_strip_key_prefix,
         _cue_loop_still_playing, _cue_get_movie_or_image,
+        _cue_sfx_channel_name,
         _cue_top_layer_name, _cue_top_movie_name, _cue_get_movie_play,
         _cue_unwrap_persistent,
         _cue_make_tab_action,
@@ -67,7 +68,7 @@ init -999 python:
         _cue_refresh_channel, _cue_tick_trigger, _cue_play_sfx,
         _cue_preview_sfx, _cue_preview_music, _cue_preview_game_music,
         _cue_preview_preset, _cue_preview_folder, _cue_preview_video_preset,
-        _cue_play_pool,
+        _cue_play_pool, _cue_fade_out_sfx,
         _cue_toggle_active, _cue_set_page, _cue_toggle_exclusive_row,
         _cue_toggle_shake_trigger, _cue_toggle_video_mute,
         _cue_confirm_shared_dir,
@@ -196,7 +197,8 @@ init 999 python:
     def _cue_with_hook(trans, always=False, paired=None, clear=True):
         if _cue_is_screenshake(trans):
             _cue._shake_just_happened = True
-        return _original_with_statement(trans, always=always, paired=paired, clear=clear)
+        if _original_with_statement is not None:
+            return _original_with_statement(trans, always=always, paired=paired, clear=clear)
     renpy.with_statement = _cue_with_hook
 
     # Hook config.show to detect vpunch/hpunch applied as at-transforms
@@ -210,7 +212,8 @@ init 999 python:
                 if _cue_is_screenshake(t):
                     _cue._shake_just_happened = True
                     break
-        return _original_config_show(name, at_list=at_list, layer=layer,
+        if _original_config_show is not None:
+            return _original_config_show(name, at_list=at_list, layer=layer,
                                         what=what, zorder=zorder, tag=tag,
                                         behind=behind, atl=atl)
     renpy.config.show = _cue_config_show
@@ -224,7 +227,7 @@ init 999 python:
 
         # Register 8 dedicated SFX channels on the "sfx" mixer
         for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
-            ch_name = "_cue_{}".format(i)
+            ch_name = _cue_sfx_channel_name(i)
             if not renpy.music.channel_defined(ch_name):
                 renpy.music.register_channel(
                     ch_name, "sfx", loop=False, stop_on_mute=True, tight=False
@@ -269,6 +272,18 @@ init 999 python:
             _cue_refresh_context()
 
         config.start_interact_callbacks.append(_cue_start_interact_callback)
+
+        # after_replay callback — fade out any cue SFX still playing on the
+        # shared _cue_ channels when a replay ends, so they don't linger into
+        # the main game.  Wrap a game-defined callback if one exists.
+        _cue_original_after_replay = config.after_replay_callback
+
+        def _cue_after_replay():
+            _cue_fade_out_sfx()
+            if _cue_original_after_replay is not None:
+                _cue_original_after_replay()
+
+        config.after_replay_callback = _cue_after_replay
 
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
         _cue.markers.load_persistent()
