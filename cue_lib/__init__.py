@@ -37,7 +37,7 @@ from cue_lib import db
 from cue_lib.video import auto_speed, ffmpeg, repeater, speed, video, video_editor
 from cue_lib import undo
 from cue_lib import volume
-from cue_lib.audio import music, sfx_manager, user_music, game_music
+from cue_lib.audio import audio_tree, music, sfx_manager, user_music, game_music
 from cue_lib import markers
 from cue_lib import trigger
 from cue_lib import runtime

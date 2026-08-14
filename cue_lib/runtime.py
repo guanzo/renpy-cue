@@ -131,7 +131,7 @@ def _cue_show_overlay():
     _cue.is_overlay_visible = True
     if not _cue.sfx_manager.files:
         _cue.sfx_manager.scan()
-    if not _cue.music.user_music.music_files:
+    if not _cue.music.user_music.files:
         _cue.music.user_music.scan()
     _cue.sfx_manager.rebuild_tree()
     _cue_refresh_context()

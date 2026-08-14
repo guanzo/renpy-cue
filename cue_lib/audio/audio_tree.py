@@ -1,0 +1,153 @@
+# -*- coding: utf-8 -*-
+# CueAudioTreeManager -- shared folder/file tree state and scan pattern for
+# the audio-library managers (SFX library, My Music, Game Music): flat sorted
+# file list, nested tree, scan error, expand/collapse state, and visible-row
+# building.  Subclasses supply the scan source via _discover() plus a couple
+# of class attrs for the error message and log tag.  Base of CueSfxManager,
+# CueUserMusic, and CueGameMusic; the concrete managers hang off _cue.
+
+import os
+import time
+
+from cue_lib.constants import CUE_AUDIO_EXTS
+from cue_lib.util import _cue_build_tree, _cue_log
+
+MYPY = False
+if MYPY:
+    from typing import Any, Dict, List, Set
+
+
+class CueAudioTreeManager(object):
+    """Folder/file tree state shared by the SFX library and music managers.
+
+    Owns the flat sorted file list (files), the nested tree built from it
+    (tree), the scan error string (scan_error), and the expand/collapse state
+    that drives visible_tree.  scan() is a template: subclasses fill a set of
+    relative paths via _discover(), then the base sorts, builds the tree,
+    rebuilds the visible rows, and logs.  Class attrs _scan_label (error text)
+    and _log_tag (log prefix) customize those two outputs.  _file_node() may
+    be overridden to add per-file fields -- the SFX library adds index and
+    enabled."""
+
+    _scan_label = "audio"
+    _log_tag = "AUDIO"
+
+    def __init__(self):
+        self.files = []             # flat sorted relative paths
+        self.tree = []              # nested folder/file nodes from _cue_build_tree
+        self.scan_error = ""        # non-empty only when the scan fails
+        self.visible_tree = []      # flat, depth-annotated rows for the screen
+        self.expanded_folders = {}  # folder_path -> bool
+
+    # ------------------------------------------------------------------
+    # Scanning
+    # ------------------------------------------------------------------
+
+    def scan(self):
+        # type: () -> None
+        """Scan, sort, and rebuild the visible tree.
+
+        An empty result is not an error -- it just means no files matched.
+        scan_error is only set when the scan itself fails."""
+        _t0 = time.time()
+
+        results_set = set()
+
+        try:
+            self._discover(results_set)
+        except Exception as err:
+            self.files = []
+            self.tree = []
+            self.scan_error = "Failed to scan {}: {}".format(self._scan_label, err)
+            return
+
+        results = sorted(results_set)
+        self.files = results
+        self.tree = _cue_build_tree(results)
+
+        # Empty is fine -- nothing found yet
+        self.scan_error = ""
+
+        # Rebuild visible tree
+        self.rebuild_tree()
+
+        _cue_log("SCAN-{}: {:.3f}s {} files".format(self._log_tag, time.time() - _t0, len(results)))
+
+    def _discover(self, results_set):
+        # type: (Set[str]) -> None
+        """Fill results_set with relative paths to include.
+
+        Overridden by subclasses; may raise on scan failure, which scan()
+        turns into scan_error and empty caches."""
+        raise NotImplementedError()
+
+    def _discover_walk_dir(self, results_set, search_path):
+        # type: (Set[str], str) -> None
+        """Fill results_set with audio files under search_path (recursive).
+
+        Shared walk for the physical-filesystem scans (SFX library and My
+        Music).  A missing folder contributes nothing -- not an error."""
+        if os.path.isdir(search_path):
+            for dirpath, _dirnames, filenames in os.walk(search_path, followlinks=True):
+                rel_dir = os.path.relpath(dirpath, search_path)
+                if rel_dir == ".":
+                    rel_dir = ""
+                for fname in filenames:
+                    if fname.lower().endswith(CUE_AUDIO_EXTS):
+                        rel_path = (rel_dir + "/" + fname) if rel_dir else fname
+                        rel_path = rel_path.replace("\\", "/")
+                        results_set.add(rel_path)
+
+    # ------------------------------------------------------------------
+    # Tree building
+    # ------------------------------------------------------------------
+
+    def rebuild_tree(self):
+        # type: () -> None
+        """Rebuild self.visible_tree from self.tree.
+        Only expanded folders are recursed into."""
+        result = []
+        self._walk_tree(self.tree, "", 0, result)
+        self.visible_tree = result
+
+    def _walk_tree(self, items, prefix, depth, result):
+        # type: (List[Dict[str, Any]], str, int, List[Dict[str, Any]]) -> None
+        """Recursively walk tree, only descending into expanded folders."""
+        for item in items:
+            full = prefix + item["name"]
+            if item["type"] == "folder":
+                result.append({
+                    "type": "folder",
+                    "name": item["name"],
+                    "full_path": full,
+                    "depth": depth,
+                    "expanded": self.expanded_folders.get(full, False),
+                    "has_files": item.get("has_files", False),
+                })
+                if self.expanded_folders.get(full, False):
+                    self._walk_tree(item.get("children", []), full, depth + 1, result)
+            else:
+                result.append(self._file_node(item, full, depth))
+
+    def _file_node(self, item, full, depth):
+        # type: (Dict[str, Any], str, int) -> Dict[str, Any]
+        """File row dict for a single file item.  Overridden to add fields."""
+        return {
+            "type": "file",
+            "name": item["name"],
+            "full_path": full,
+            "depth": depth,
+        }
+
+    # ------------------------------------------------------------------
+    # Toggle: tree folders
+    # ------------------------------------------------------------------
+
+    def toggle_folder(self, folder_path):
+        # type: (str) -> None
+        """Toggle expand/collapse for a folder in the tree."""
+        if folder_path in self.expanded_folders:
+            self.expanded_folders[folder_path] = not self.expanded_folders[folder_path]
+        else:
+            self.expanded_folders[folder_path] = True
+        self.rebuild_tree()

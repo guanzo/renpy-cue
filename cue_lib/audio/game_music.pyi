@@ -1,20 +1,8 @@
 # Type stub for cue_lib.audio.game_music
-from typing import Any, Dict, List
+from typing import Set
 
-class CueGameMusic:
-    music_files: List[str]
-    music_tree: List[Dict[str, Any]]
-    music_scan_error: str
-    visible_tree: List[Dict[str, Any]]
-    expanded_folders: Dict[str, bool]
+from cue_lib.audio.audio_tree import CueAudioTreeManager
 
+class CueGameMusic(CueAudioTreeManager):
     def __init__(self) -> None: ...
-    def scan(self) -> None: ...
-    def rebuild_tree(self) -> None: ...
-    def _walk_tree(
-        self,
-        items: List[Dict[str, Any]],
-        prefix: str,
-        depth: int,
-        result: List[Dict[str, Any]]) -> None: ...
-    def toggle_folder(self, folder_path: str) -> None: ...
+    def _discover(self, results_set: Set[str]) -> None: ...

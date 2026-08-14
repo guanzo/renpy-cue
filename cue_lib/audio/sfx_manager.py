@@ -1,39 +1,37 @@
 # -*- coding: utf-8 -*-
 # CueSfxManager -- SFX library file scan, folder/file tree UI state, and
 # disabled files: expand/collapse, visible tree building, and the audio
-# scan that feeds them.
+# scan that feeds them.  The tree/scan/toggle core is inherited from
+# CueAudioTreeManager; this class adds the SFX-specific extras (preset
+# folders, video preset folders, pool file-list refs, disabled files) and
+# the index/enabled fields on each file row.
 # Instantiated once at _cue.sfx_manager, lives on the NoRollback _cue object.
 
-import os
-import time
-
-from cue_lib.constants import CUE_AUDIO_EXTS
+from cue_lib.audio.audio_tree import CueAudioTreeManager
 from cue_lib.state import _cue
-from cue_lib.util import _cue_build_tree, _cue_log, _cue_resolve_files
+from cue_lib.util import _cue_resolve_files
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List, Optional
+    from typing import Any, Dict, List, Optional, Set
 
 
-class CueSfxManager(object):
+class CueSfxManager(CueAudioTreeManager):
     """SFX library audio tree state, expand/collapse, disabled files, and scan.
 
     Owns all UI state for the SFX Library audio tree, preset folders,
-    video preset folders, section frames, and pool file-list folder refs,
-    plus the audio file caches (files / audio_tree / scan_error)
-    and the scan that builds them.  Provides toggle methods callable via
-    Function() from screen actions."""
+    video preset folders, section frames, and pool file-list folder refs.
+    The audio file caches (files / tree / scan_error) and the scan that
+    builds them live in CueAudioTreeManager.  Provides toggle methods
+    callable via Function() from screen actions."""
+
+    _scan_label = "audio folder"
+    _log_tag = "AUDIO"
 
     def __init__(self):
-        # Audio scan caches
-        self.files = []     # flat sorted relative paths
-        self.audio_tree = []          # nested folder/file nodes from _cue_build_tree
-        self.scan_error = ""          # non-empty only when the scan fails
+        super(CueSfxManager, self).__init__()
 
-        # Tree state
-        self.visible_tree = []
-        self.expanded_folders = {}        # folder_path -> bool
+        # Pool file-list folder refs
         self.expanded_file_refs = {}      # folder_ref -> bool (pool file lists)
 
         # Presets expand/collapse
@@ -51,103 +49,21 @@ class CueSfxManager(object):
     # Scanning
     # ------------------------------------------------------------------
 
-    def scan(self):
-        # type: () -> None
-        """Scan the audio dir and rebuild the visible tree.
+    def _discover(self, results_set):
+        # type: (Set[str]) -> None
+        """Scan the audio dir -- files the user drops in for SFX."""
+        self._discover_walk_dir(results_set, _cue.paths.audio_dir)
 
-        An empty folder is not an error -- it just means no audio files have
-        been added yet.  scan_error is only set when the scan itself fails.
-        """
-        _t0 = time.time()
-
-        search_path = _cue.paths.audio_dir 
-        results_set = set()
-
-        # Live filesystem scan (picks up files added after startup)
+    def _file_node(self, item, full, depth):
+        # type: (Dict[str, Any], str, int) -> Dict[str, Any]
+        """File row with index/enabled for the SFX Library."""
+        node = super(CueSfxManager, self)._file_node(item, full, depth)
         try:
-            if os.path.isdir(search_path):
-                for dirpath, _dirnames, filenames in os.walk(search_path, followlinks=True):
-                    rel_dir = os.path.relpath(dirpath, search_path)
-                    if rel_dir == ".":
-                        rel_dir = ""
-                    for fname in filenames:
-                        if fname.lower().endswith(CUE_AUDIO_EXTS):
-                            rel_path = (rel_dir + "/" + fname) if rel_dir else fname
-                            rel_path = rel_path.replace("\\", "/")
-                            results_set.add(rel_path)
-        except (OSError, IOError) as err:
-            self.files = []
-            self.audio_tree = []
-            self.scan_error = "Failed to scan audio folder: {}".format(err)
-            return
-
-        results = sorted(results_set)
-        self.files = results
-        self.audio_tree = _cue_build_tree(results)
-
-        # Empty is fine -- no audio files added yet
-        self.scan_error = ""
-
-        # Rebuild visible tree for the SFX Library section
-        self.rebuild_tree()
-
-        _cue_log("SCAN-AUDIO: {:.3f}s {} files".format(time.time() - _t0, len(results)))
-
-    # ------------------------------------------------------------------
-    # Tree building
-    # ------------------------------------------------------------------
-
-    def rebuild_tree(self):
-        # type: () -> None
-        """Rebuild self.visible_tree from self.audio_tree.
-        Only expanded folders are recursed into."""
-        result = []
-        self._walk_tree(self.audio_tree, "", 0, result)
-        self.visible_tree = result
-
-    def _walk_tree(self, items, prefix, depth, result):
-        # type: (List[Dict[str, Any]], str, int, List[Dict[str, Any]]) -> None
-        """Recursively walk tree, only descending into expanded folders."""
-        for item in items:
-            full = prefix + item["name"]
-            if item["type"] == "folder":
-                result.append({
-                    "type": "folder",
-                    "name": item["name"],
-                    "full_path": full,
-                    "depth": depth,
-                    "expanded": self.expanded_folders.get(full, False),
-                    "has_files": item.get("has_files", False),
-                })
-                if self.expanded_folders.get(full, False):
-                    self._walk_tree(item.get("children", []), full, depth + 1, result)
-            else:
-                # Find index in flat list
-                try:
-                    idx = self.files.index(full)
-                except ValueError:
-                    idx = -1
-                result.append({
-                    "type": "file",
-                    "name": item["name"],
-                    "full_path": full,
-                    "depth": depth,
-                    "index": idx,
-                    "enabled": full not in self.disabled_files,
-                })
-
-    # ------------------------------------------------------------------
-    # Toggle: audio tree folders
-    # ------------------------------------------------------------------
-
-    def toggle_folder(self, folder_path):
-        # type: (str) -> None
-        """Toggle expand/collapse for a folder in the audio tree."""
-        if folder_path in self.expanded_folders:
-            self.expanded_folders[folder_path] = not self.expanded_folders[folder_path]
-        else:
-            self.expanded_folders[folder_path] = True
-        self.rebuild_tree()
+            node["index"] = self.files.index(full)
+        except ValueError:
+            node["index"] = -1
+        node["enabled"] = full not in self.disabled_files
+        return node
 
     # ------------------------------------------------------------------
     # Toggle: file enabled/disabled

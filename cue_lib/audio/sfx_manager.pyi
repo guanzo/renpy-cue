@@ -1,14 +1,9 @@
 # Type stub for cue_lib.audio.sfx_manager
 from typing import Dict, List, Optional, Set
 
-from cue_lib._types import AudioTreeNode
+from cue_lib.audio.audio_tree import CueAudioTreeManager
 
-class CueSfxManager:
-    files: List[str]
-    audio_tree: List[AudioTreeNode]
-    scan_error: str
-    visible_tree: List[AudioTreeNode]
-    expanded_folders: Dict[str, bool]
+class CueSfxManager(CueAudioTreeManager):
     expanded_file_refs: Dict[str, bool]
     presets_expanded: bool
     expanded_presets: Dict[str, bool]
@@ -17,9 +12,6 @@ class CueSfxManager:
     disabled_files: Set[str]
 
     def __init__(self) -> None: ...
-    def scan(self) -> None: ...
-    def rebuild_tree(self) -> None: ...
-    def toggle_folder(self, folder_path: str) -> None: ...
     def toggle_file_enabled(self, full_path: str) -> None: ...
     def toggle_file_ref_expand(self, folder_ref: str) -> None: ...
     def count_file_list_rows(

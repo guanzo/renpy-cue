@@ -22,9 +22,9 @@ screen cue_music_page():
                                 text _t["filepath"] style "cue_help"
 
         use cue_section_frame("My Music"):
-            if not _cue.music.user_music.music_tree:
-                if _cue.music.user_music.music_scan_error:
-                    text "[_cue.music.user_music.music_scan_error]" style "cue_help" color _cue_color_error
+            if not _cue.music.user_music.tree:
+                if _cue.music.user_music.scan_error:
+                    text "[_cue.music.user_music.scan_error]" style "cue_help" color _cue_color_error
                 text ("Add {} files to your music folder "
                     "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_help"
                 text "[_cue.paths.music_dir]" style "cue_help"
@@ -32,9 +32,9 @@ screen cue_music_page():
                 use cue_music_tree()
 
         use cue_section_frame("Game Music"):
-            if not _cue.music.game_music.music_tree:
-                if _cue.music.game_music.music_scan_error:
-                    text "[_cue.music.game_music.music_scan_error]" style "cue_help" color _cue_color_error
+            if not _cue.music.game_music.tree:
+                if _cue.music.game_music.scan_error:
+                    text "[_cue.music.game_music.scan_error]" style "cue_help" color _cue_color_error
                 text ("No music found in game dirs ({})."
                     "Files are classified by folder name.").format(", ".join(CUE_GAME_MUSIC_DIRS)) style "cue_help"
             else:

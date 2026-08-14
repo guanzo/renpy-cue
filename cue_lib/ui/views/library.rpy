@@ -42,7 +42,7 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
                             if _arrow is not None:
                                 add _arrow yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
             if not _collapsed:
-                if not _cue.sfx_manager.audio_tree:
+                if not _cue.sfx_manager.tree:
                     if _cue.sfx_manager.scan_error:
                         text "[_cue.sfx_manager.scan_error]" style "cue_help" color _cue_color_error
                     text ("Place {} files there "
