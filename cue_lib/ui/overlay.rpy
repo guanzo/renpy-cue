@@ -87,91 +87,16 @@ screen cue_overlay_content():
             # --- Top bar: active checkbox + copy + paste + dump + restore + refresh + close ---
             use cue_header_toolbar()
 
-            # --- Settings page replaces all content below the toolbar ---
-            if _cue.is_settings_visible:
-                use cue_settings_page()
+            # --- Active page replaces all content below the toolbar ---
+            if _cue.overlay_active_page == CuePage.SFX:
+                use cue_sfx_page()
+            elif _cue.overlay_active_page == CuePage.MUSIC:
+                use cue_music_page()
             else:
-                # --- Mode detection ---
-                $ _is_video = _cue.top_layer_type == 'movie'
-
-                # --- Video VFX / SFX ---
-                if _is_video:
-                    use cue_video_vfx()
-                    use cue_video_sfx()
-
-                # --- Image UI ---
-                $ _has_image = bool(_cue.current_file) and not _is_video
-                if _has_image:
-                    $ _img_key = _cue_create_img_key(_cue.current_file)
-                    use cue_context_section("Image SFX", _cue.markers.image, _img_key,
-                        "Image: " + _cue.current_file, "image", "I",
-                        "SFX plays when this image is displayed."):
-                        $ _img_r = _cue.markers.resolve_pool(_cue.markers.image.get_active_pool())
-                        use cue_checkbox(_img_r.trigger_on_shake,
-                            "Trigger on screen shake",
-                            Function(_cue_toggle_shake_trigger),
-                            "Play SFX when a screen shake occurs")
-                        if _cue.is_exclusive_row_visible:
-                            use cue_exclusive_row(_cue.markers.image, _img_r.exclusive)
-
-                # --- Dialogue UI ---
-                $ _is_dialogue = bool(_cue.current_dialogue)
-                if _is_dialogue:
-                    $ _dlg_key = _cue_create_dlg_key((_cue.current_file, _cue.current_dialogue))
-                    use cue_context_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
-                        "Dialogue: " + _cue.current_dialogue, "dialogue", "D",
-                        "SFX plays when this line of dialogue is displayed."):
-                        if _cue.is_exclusive_row_visible:
-                            $ _dlg_r = _cue.markers.resolve_pool(_cue.markers.dialogue.get_active_pool())
-                            use cue_exclusive_row(_cue.markers.dialogue, _dlg_r.exclusive)
-
-                # Loop SFX
-                $ _loop_key = _cue_create_loop_key(_cue.current_file or "")
-                use cue_context_section("Loop SFX", _cue.markers.loop, _loop_key,
-                    None, "file", "L",
-                    "SFX plays on a loop when this image/video is displayed."):
-                    $ _loop_r = _cue.markers.resolve_pool(_cue.markers.loop.get_active_pool())
-                    $ _freq = _loop_r.frequency
-                    hbox:
-                        spacing 5
-                        box_wrap True
-                        box_wrap_spacing 3
-                        text "Interval:" style "cue_txt"
-                        use cue_select_btn(
-                            "Slowest",
-                            (_freq == CueLoopFrequency.SLOWEST),
-                            Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOWEST),
-                            tt="~6.3s between plays")
-                        use cue_select_btn(
-                            "Slow",
-                            (_freq == CueLoopFrequency.SLOW),
-                            Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOW),
-                            tt="~3.8s between plays")
-                        use cue_select_btn(
-                            "Normal",
-                            (_freq == CueLoopFrequency.NORMAL),
-                            Function(_cue.markers.loop.set_frequency, CueLoopFrequency.NORMAL),
-                            tt="~2.1s between plays")
-                        use cue_select_btn(
-                            "Fast",
-                            (_freq == CueLoopFrequency.FAST),
-                            Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FAST),
-                            tt="~0.6s between plays")
-                        use cue_select_btn(
-                            "Fastest",
-                            (_freq == CueLoopFrequency.FASTEST),
-                            Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FASTEST),
-                            tt="~0.2s between plays")
-
-                    if _cue.is_exclusive_row_visible:
-                        use cue_exclusive_row(_cue.markers.loop, _loop_r.exclusive)
-
-                # Audio file browser (in-flow, only when overlay mode is OFF)
-                if not _cue.file_tree.sfx_library_overlay_mode:
-                    use cue_sfx_library(_is_video, _has_image, _is_dialogue)
+                use cue_settings_page()
 
         # SFX Library overlay mode: entire section floats at bottom
-        if not _cue.is_settings_visible and _cue.file_tree.sfx_library_overlay_mode:
+        if _cue.overlay_active_page == CuePage.SFX and _cue.file_tree.sfx_library_overlay_mode:
             $ _sfx_collapsed = _cue.file_tree.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
             $ _sfx_z = _cue_overlay_zoom()
             $ _sfx_full_h = int(renpy.config.screen_height / _sfx_z)
@@ -207,10 +132,25 @@ screen cue_header_toolbar():
     hbox:
         xfill True
         spacing 2
-        use cue_checkbox(_cue.trigger.active, "SFX Active",
-            Function(_cue_toggle_active),
-            _toggle_on_tt, _toggle_off_tt,
-            _cue_color_active, _cue_color_green_hover, _cue_color_red, _cue_color_red_hover)
+        hbox:
+            spacing 2
+            use cue_checkbox(_cue.trigger.active, "SFX Active",
+                Function(_cue_toggle_active),
+                _toggle_on_tt, _toggle_off_tt,
+                _cue_color_active, _cue_color_green_hover, _cue_color_red, _cue_color_red_hover)        
+                
+            null width 10
+
+            # --- Page nav: SFX editor / Music / Settings ---
+            $ _sfx_bg = _cue_color_active if _cue.overlay_active_page == CuePage.SFX else None
+            use cue_icon_btn("sliders", Function(_cue_set_page, CuePage.SFX), "SFX editor", None,
+                bg=_sfx_bg)
+            $ _music_bg = _cue_color_active if _cue.overlay_active_page == CuePage.MUSIC else None
+            use cue_icon_btn("music", Function(_cue_set_page, CuePage.MUSIC), "Music", None,
+                bg=_music_bg)
+            $ _settings_bg = _cue_color_active if _cue.overlay_active_page == CuePage.SETTINGS else None
+            use cue_icon_btn("gear", Function(_cue_set_page, CuePage.SETTINGS), "Settings", None,
+                bg=_settings_bg)
         hbox:
             xalign 1.0
             spacing 2
@@ -238,13 +178,8 @@ screen cue_header_toolbar():
                 "Refresh overlay", None)
             null width 5
 
-            $ _settings_bg = _cue_color_active if _cue.is_settings_visible else None
-            use cue_icon_btn("gear", Function(_cue_toggle_settings), "Settings", None,
-                bg=_settings_bg)
-            null width 5
             
             use cue_icon_btn("xmark", Function(_cue_hide_overlay), "Close overlay", None)
-
 
 ###############################################################################
 # Speed-change toast — subtle indicator in the top-left corner

@@ -16,8 +16,15 @@ from cue_lib.video import CueVideoManager
 from cue_lib.video_editor import CueVideoEditor
 from cue_lib.db import CueDatabase
 from cue_lib.volume import CueVolumeManager
+from cue_lib.music import CueMusicManager
 from cue_lib.keybinds import CueKeybindsManager
 from cue_lib.icons import CueIconManager
+
+class CuePage:
+    SFX: int
+    MUSIC: int
+    SETTINGS: int
+
 
 class Cue:
     debug: bool
@@ -35,7 +42,7 @@ class Cue:
 
     initialized: bool
     is_overlay_visible: bool
-    is_settings_visible: bool
+    page: int
     is_exclusive_row_visible: bool
     current_file: str
     current_dialogue: str
@@ -68,6 +75,7 @@ class Cue:
     confirm_dialog: CueConfirmDialog
     keybinds: CueKeybindsManager
     icons: CueIconManager
+    music_manager: CueMusicManager
 
     available_files: List[str]
     audio_tree: List[AudioTreeNode]

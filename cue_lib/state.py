@@ -14,6 +14,17 @@ import renpy.python as _renpy_python
 from cue_lib.constants import CUE_DIR_OVERRIDE_FILENAME, CUE_SHARED_CONFIG_FILENAME
 
 
+class CuePage(object):
+    """Overlay sidebar page tabs.
+
+    Members are plain ints so screens can compare against _cue.overlay_active_page
+    (Python 2.7-safe -- no enum base class).
+    """
+    SFX = 0       # SFX editor (markers / library)
+    MUSIC = 1     # Music page
+    SETTINGS = 2  # Settings page
+
+
 class Cue(_renpy_python.NoRollback):
     """Root object for the Cue mod -- state, managers, constants, and caches."""
 
@@ -32,7 +43,7 @@ class Cue(_renpy_python.NoRollback):
         # --- Runtime state ---
         self.initialized = False
         self.is_overlay_visible = False
-        self.is_settings_visible = False
+        self.overlay_active_page = CuePage.SFX
         self.is_exclusive_row_visible = False
         self.current_file = ""
         self.current_dialogue = ""
@@ -66,6 +77,7 @@ class Cue(_renpy_python.NoRollback):
         self.confirm_dialog = None
         self.keybinds = None
         self.icons = None
+        self.music_manager = None
 
         # --- Audio cache ---
         self.available_files = []

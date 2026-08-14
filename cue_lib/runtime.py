@@ -11,7 +11,7 @@ import renpy.audio.audio as _aaudio
 from renpy.store import persistent
 from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
 from cue_lib.db import CueDatabase
-from cue_lib.state import _cue
+from cue_lib.state import _cue, CuePage
 from cue_lib.util import (
     _cue_log, _cue_ui_refresh, _cue_unwrap_displayable, _cue_get_movie_play,
     _cue_resolve_files, _cue_pick_file,
@@ -47,13 +47,19 @@ def _cue_toggle_exclusive_row():
     _cue.is_exclusive_row_visible = not _cue.is_exclusive_row_visible
     persistent._cue["exclusive_row_visible"] = _cue.is_exclusive_row_visible
 
-def _cue_toggle_settings():
-    # type: () -> None
-    if not _cue.is_settings_visible:
+def _cue_set_page(page):
+    # type: (int) -> None
+    """Switch the overlay sidebar to the given page.
+
+    Clicking the page that is already open is a no-op.
+    """
+    if _cue.overlay_active_page == page:
+        return
+    if page == CuePage.SETTINGS:
         _cue.setup_dir_text = _cue.shared_dir
         _cue.shared_dir_error = ""
         _cue.shared_dir_success = ""
-    _cue.is_settings_visible = not _cue.is_settings_visible
+    _cue.overlay_active_page = page
 
 @_cue_ui_refresh
 def _cue_confirm_shared_dir():

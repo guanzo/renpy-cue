@@ -24,7 +24,8 @@ screen cue_data_dir():
     use cue_section_frame("Cue Data Directory"):
         vbox:
             spacing 5
-            text "Where Cue keeps shared data (markers, presets, audio). Applies to all games. Takes effect after restart." style "cue_help"
+            text "Where Cue keeps shared data: markers, presets, audio, music, backups." style "cue_help"
+            text "Applies to all games. Restart the game after changing." style "cue_help"
             use cue_text_input("_cue.setup_dir_text",
                 Function(_cue_confirm_shared_dir),
                 _cue.setup_dir_text, xsize=440)
