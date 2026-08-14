@@ -26,9 +26,8 @@ class Cue(_renpy_python.NoRollback):
     """Root object for the Cue mod -- state, managers, constants, and caches."""
 
     def __init__(self):
-        # --- Paths ---
+        # --- Debug ---
         self.debug = True
-        self.base_dir = "renpy_cue"
         self.debug_log_filename = "debug.log"
 
         # --- Constants ---

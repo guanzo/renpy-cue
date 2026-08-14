@@ -180,7 +180,7 @@ init 999 python:
 
     # Clear debug log for fresh session
     try:
-        log_dir = os.path.join(renpy.config.gamedir, _cue.base_dir)
+        log_dir = os.path.join(renpy.config.gamedir, _cue.paths.in_game_base_dir)
         if not os.path.isdir(log_dir):
             os.makedirs(log_dir)
         log_path = os.path.join(log_dir, _cue.debug_log_filename)

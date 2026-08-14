@@ -17,6 +17,11 @@ MYPY = False
 if MYPY:
     from typing import Any  # pyright: ignore[reportUnusedImport]
 
+# The mod's folder name -- both the in-game base dir under gamedir (debug
+# logs, ffmpeg progress/log, icons) and the platform default dir under
+# APPDATA/etc.  One identity, one name.
+CUE_MOD_DIRNAME = "renpy_cue"
+
 
 class CuePaths(object):
     """Directory layout for the shared data tree.
@@ -52,6 +57,17 @@ class CuePaths(object):
         return self._game_id
 
     # ------------------------------------------------------------------
+    # In-game base dir -- the mod's folder inside the game directory
+    # (gamedir).  Debug logs, ffmpeg progress/log, and icon images live
+    # under this name.  Not part of the shared data tree.
+    # ------------------------------------------------------------------
+
+    @property
+    def in_game_base_dir(self):
+        # type: () -> str
+        return CUE_MOD_DIRNAME
+
+    # ------------------------------------------------------------------
     # Root resolution -- "where IS the shared dir?" (class-level: no game
     # instance needed).  The pointer file lives in the platform-default dir
     # so every game on the machine finds the same user-chosen root.
@@ -75,7 +91,7 @@ class CuePaths(object):
                 "XDG_DATA_HOME",
                 os.path.expanduser("~/.local/share"),
             )
-        return os.path.normpath(os.path.join(base, "renpy_cue")).replace("\\", "/")
+        return os.path.normpath(os.path.join(base, CUE_MOD_DIRNAME)).replace("\\", "/")
 
     @classmethod
     def resolve_root(cls):

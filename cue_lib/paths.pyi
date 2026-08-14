@@ -9,6 +9,9 @@ class CuePaths:
     @property
     def game_id(self) -> str: ...
 
+    @property
+    def in_game_base_dir(self) -> str: ...
+
     @classmethod
     def platform_shared_dir(cls) -> str: ...
     @classmethod

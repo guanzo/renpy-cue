@@ -4,7 +4,7 @@
 # text.  Names resolve to Font Awesome Free 7.3.1 icons, rasterized to
 # white 32x32 PNGs by .local/icons/convert.sh (source checkout).  Shipped
 # PNGs live in cue_lib/images/icons/ and are referenced by game-dir-
-# relative paths built from _cue.base_dir, so they resolve in any game
+# relative paths built from _cue.paths.in_game_base_dir, so they resolve in any game
 # the mod is symlinked into.
 #
 # Adding a new icon:
@@ -82,7 +82,7 @@ class CueIconManager(object):
         if cached is not None:
             return cached
         _filename, _mirrored = CUE_ICON_MAP[name]
-        _path = _cue.base_dir + "/cue_lib/images/icons/" + _filename
+        _path = _cue.paths.in_game_base_dir + "/cue_lib/images/icons/" + _filename
         if not renpy.loadable(_path):
             _cue_log("CUE-ICON: missing image " + _path)
             return None

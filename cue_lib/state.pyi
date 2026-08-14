@@ -29,7 +29,6 @@ class CuePage:
 
 class Cue:
     debug: bool
-    base_dir: str
     config_filename: str
     debug_log_filename: str
 

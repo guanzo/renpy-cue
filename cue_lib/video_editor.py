@@ -181,7 +181,7 @@ class CueVideoEditQueue(object):
 
         t = threading.Thread(
             target=_cue_probe_job,
-            args=(_cue.ffmpeg, job, dur_ms, _cue.base_dir),
+            args=(_cue.ffmpeg, job, dur_ms, _cue.paths.in_game_base_dir),
         )
         t.daemon = True
         t.start()
