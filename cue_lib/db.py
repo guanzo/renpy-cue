@@ -292,8 +292,7 @@ class CueDatabase(object):
     def _write_entry(self, fpath, key, data):
         # type: (str, str, Any) -> None
         entry = dict(data)
-        if "_key" not in entry:
-            entry["_key"] = key
+        entry["_key"] = key
         self._write_file(fpath, entry)
         self._backup.maybe()
 
