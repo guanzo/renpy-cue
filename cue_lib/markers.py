@@ -209,6 +209,11 @@ class ResolvedExclusive(object):
         self.start = start
         self.hold = hold
 
+    def to_dict(self):
+        # type: () -> Dict[str, Any]
+        """Stored nested-dict form, for write-backs like _detach_pool."""
+        return {"group": self.group, "start": self.start, "hold": self.hold}
+
 
 class ResolvedPool(object):
     """Immutable snapshot of a resolved pool."""
@@ -926,23 +931,6 @@ class CueMarkerManager(object):
             excl.get("start", base.get("start", CueExclusiveStart.PLAY)),
             excl.get("hold", base.get("hold", False)))
 
-    @staticmethod
-    def _merge_pool(base, override):
-        # type: (Dict[str, Any], Dict[str, Any]) -> Dict[str, Any]
-        """Merge *override* onto *base* into a new dict.
-
-        Nested dicts merge recursively so a partial override (e.g.
-        exclusive={"group": 1}) keeps the base's remaining sub-fields.
-        Other values are replaced by the override."""
-        merged = dict(base)
-        for key, value in override.items():
-            if (key in merged and isinstance(merged[key], dict)
-                    and isinstance(value, dict)):
-                merged[key] = CueMarkerManager._merge_pool(merged[key], value)
-            else:
-                merged[key] = value
-        return merged
-
     def _detach_pool(self, trigger_key, pool_index):
         # type: (str, int) -> bool
         entry = self._data.get(trigger_key)
@@ -956,20 +944,21 @@ class CueMarkerManager(object):
             return False
         preset_name = pool["preset"]
         preset = self._presets.get(preset_name, {})
-
-        # Swap the preset link for a concrete copy of the preset, overlaid
-        # with the pool's own overrides. Copying the preset (not a fixed field
-        # list) keeps context-only fields like "frequency" and
-        # "trigger_on_shake" off pool types that don't use them; the deep
-        # merge folds partial nested overrides into the preset's sub-fields.
-        overrides = {key: value for key, value in pool.items() if key != "preset"}
-        new_pool = self._merge_pool(
-            _copy.deepcopy(preset), _copy.deepcopy(overrides))
-        pools[pool_index] = new_pool
-
+        r = self.resolve_pool(pool)
+        del pool["preset"]
+        pool["files"] = r.files
+        pool["volume"] = r.volume
+        if "frequency" in preset:
+            pool["frequency"] = r.frequency
+        if "trigger_on_shake" in preset:
+            pool["trigger_on_shake"] = r.trigger_on_shake
+        # Exclusive config: copy when the preset or a pool-level override
+        # (toggled before detach) defines it, so overrides survive detach.
+        if "exclusive" in preset or "exclusive" in pool:
+            pool["exclusive"] = r.exclusive.to_dict()
         self._db_save_marker(trigger_key)
         _cue_log("DETACH-POOL key={} pi={} preset={} files={}".format(
-            trigger_key, pool_index, preset_name, len(new_pool.get("files", []))))
+            trigger_key, pool_index, preset_name, len(r.files)))
         return True
 
     def detach_active_video_ts(self, *args):

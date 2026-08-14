@@ -27,6 +27,7 @@ class ResolvedExclusive:
     start: int
     hold: bool
     def __init__(self, group: int = 0, start: int = CueExclusiveStart.PLAY, hold: bool = False) -> None: ...
+    def to_dict(self) -> Dict[str, Any]: ...
 
 class ResolvedPool:
     """Immutable pool snapshot after resolving presets."""
