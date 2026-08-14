@@ -50,11 +50,7 @@ class CueUserMusic(object):
         _t0 = time.time()
 
         search_path = _cue.paths.music_dir
-        if not search_path.endswith("/"):
-            search_path = search_path + "/"
-
         results_set = set()
-        _cue_log('search_path='+str(search_path))
         
         # Live filesystem scan (picks up files added after startup)
         try:

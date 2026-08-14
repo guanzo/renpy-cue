@@ -448,10 +448,7 @@ def _cue_preview_music(filename, volume=1.0):
     CueMusicManager.play_untracked, so the preview replaces any currently
     playing music without being recorded as a default music trigger.
     """
-    base_dir = _cue.paths.music_dir
-    if not base_dir.endswith("/"):
-        base_dir = base_dir + "/"
-    _cue.music_manager.play_untracked(base_dir + filename, volume=volume)
+    _cue.music_manager.play_untracked(_cue.paths.music_dir + filename, volume=volume)
 
 
 def _cue_play_sfx(filename, source="", volume=1.0):
@@ -462,10 +459,7 @@ def _cue_play_sfx(filename, source="", volume=1.0):
     jitter = _random.uniform(1.0 - MAX_JITTER, 1.0 + MAX_JITTER)
     volume = volume * jitter
 
-    base_dir = _cue.paths.audio_dir
-    if not base_dir.endswith("/"):
-        base_dir = base_dir + "/"
-    full_path = base_dir + filename
+    full_path = _cue.paths.audio_dir + filename
 
     target_ch = None
     for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):

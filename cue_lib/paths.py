@@ -130,12 +130,12 @@ class CuePaths(object):
     @property
     def audio_dir(self):
         # type: () -> str
-        return self._root + "/audio"
+        return self._root + "/audio/"
 
     @property
     def music_dir(self):
         # type: () -> str
-        return self._root + "/music"
+        return self._root + "/music/"
 
     # ------------------------------------------------------------------
     # Internal data tree
@@ -144,32 +144,32 @@ class CuePaths(object):
     @property
     def marker_dir(self):
         # type: () -> str
-        return os.path.join(self._root, "data", "markers", self._game_id)
+        return os.path.join(self._root, "data", "markers", self._game_id) + "/"
 
     @property
     def music_triggers_dir(self):
         # type: () -> str
-        return os.path.join(self.marker_dir, "music")
+        return os.path.join(self.marker_dir, "music") + "/"
 
     @property
     def presets_dir(self):
         # type: () -> str
-        return os.path.join(self._root, "data", "presets")
+        return os.path.join(self._root, "data", "presets") + "/"
 
     @property
     def audio_preset_dir(self):
         # type: () -> str
-        return os.path.join(self.presets_dir, "audio")
+        return os.path.join(self.presets_dir, "audio") + "/"
 
     @property
     def video_preset_dir(self):
         # type: () -> str
-        return os.path.join(self.presets_dir, "video")
+        return os.path.join(self.presets_dir, "video") + "/"
 
     @property
     def video_dir(self):
         # type: () -> str
-        return os.path.join(self._root, "video", self._game_id).replace("\\", "/")
+        return os.path.join(self._root, "video", self._game_id).replace("\\", "/") + "/"
 
     @property
     def shared_config_path(self):

@@ -283,14 +283,10 @@ class CueDatabase(object):
     # Shared config -- lightweight cross-game settings
     # ------------------------------------------------------------------
 
-    def _shared_config_path(self):
-        # type: () -> str
-        return self.paths.shared_config_path
-
     def load_shared_config(self):
         # type: () -> Dict[str, Any]
         """Load the shared config dict. Returns {} if the file does not exist."""
-        fpath = self._shared_config_path()
+        fpath = self.paths.shared_config_path
         if not os.path.isfile(fpath):
             return {}
         try:
@@ -303,7 +299,7 @@ class CueDatabase(object):
     def save_shared_config(self, data):
         # type: (Dict[str, Any]) -> None
         """Write the shared config dict."""
-        fpath = self._shared_config_path()
+        fpath = self.paths.shared_config_path
         dpath = os.path.dirname(fpath)
         try:
             if not os.path.isdir(dpath):

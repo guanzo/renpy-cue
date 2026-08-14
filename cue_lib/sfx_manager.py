@@ -60,10 +60,7 @@ class CueSfxManager(object):
         """
         _t0 = time.time()
 
-        search_path = _cue.paths.audio_dir
-        if not search_path.endswith("/"):
-            search_path = search_path + "/"
-
+        search_path = _cue.paths.audio_dir 
         results_set = set()
 
         # Live filesystem scan (picks up files added after startup)
