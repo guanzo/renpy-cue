@@ -119,3 +119,10 @@ style cue_scrollbar:
     base_bar Solid(_cue_color_bg_scrollbar)
     thumb Solid(_cue_color_divider)
     hover_thumb Solid(_cue_color_text_dim)
+
+style cue_vbar_scroll is vscrollbar
+style cue_vbar_scroll:
+    xsize 6
+    base_bar Solid(_cue_color_bg_scrollbar)
+    thumb Solid(_cue_color_divider)
+    hover_thumb Solid(_cue_color_text_dim)

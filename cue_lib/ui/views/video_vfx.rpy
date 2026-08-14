@@ -79,7 +79,7 @@ screen cue_video_vfx():
                     $ _cur = _cue.speed_resolver.speed_for(_cue.current_file)
                     vbox:
                         spacing 5
-                        text "The video will only play at the selected speed" style "cue_help"
+                        text "The video will only play at the selected speed" style "cue_txt"
                         hbox:
                             spacing 5
                             box_wrap True
@@ -112,7 +112,7 @@ screen cue_video_vfx():
 
                 # --- Multi Speed tab ---
                 elif _mode == CueSpeedMode.MULTI:
-                    text "The video plays through each speed in order, then loops." style "cue_help"
+                    text "The video plays through each speed in order, then loops." style "cue_txt"
                     hbox:
                         spacing 5
                         box_wrap True
@@ -134,9 +134,9 @@ screen cue_video_vfx():
                         if len(_seq) >= 2:
                             add CueAutoSpeedChart() xsize 440 ysize 80
                         else:
-                            text "Click 1 more speed." style "cue_help"
+                            text "Click 1 more speed." style "cue_txt"
                     else:
-                        text "Click the speed buttons to create a sequence. Minimum 2 speeds." style "cue_help"
+                        text "Click the speed buttons to create a sequence. Minimum 2 speeds." style "cue_txt"
 
                 # --- Auto Speed tab ---
                 elif _mode == CueSpeedMode.AUTO:
@@ -150,11 +150,11 @@ screen cue_video_vfx():
                         "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is "
                         "[CUE_AUTO_SPEED_IDEAL_VARIANTS]. The more the better."
                     )
-                    text _auto_help style "cue_help"
+                    text _auto_help style "cue_txt"
 
                     if not _has_auto:
                         null height 3
-                        text "You don't have enough speeds, generate more in the Create tab." style "cue_help"
+                        text "You don't have enough speeds, generate more in the Create tab." style "cue_txt"
 
                     if _has_auto:
                         null height 3
@@ -199,7 +199,7 @@ screen cue_video_vfx():
                         if _seq and len(_seq) >= 2:
                             add CueAutoSpeedChart() xsize 440 ysize 80
             else:
-                text "No speed variants available. Make some in the Create tab." style "cue_help"
+                text "No speed variants available. Make some in the Create tab." style "cue_txt"
 
         # --- Create tab ---
         if _cue.video_editor.active:

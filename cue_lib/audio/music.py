@@ -77,6 +77,14 @@ class CueMusicManager(object):
                 full_path, channel=CUE_DEFAULT_MUSIC_CHANNEL, loop=False)
             _music.set_volume(volume, delay=0, channel=CUE_DEFAULT_MUSIC_CHANNEL)
 
+    def now_playing(self):
+        # type: () -> Optional[str]
+        """File currently playing on the music channel, or None."""
+        try:
+            return _music.get_playing(channel=CUE_DEFAULT_MUSIC_CHANNEL)
+        except Exception:
+            return None
+
     def _on_play(self, *args, **kwargs):
         # type: (Any, Any) -> Any
         self._record("play", args, kwargs, channel_offset=1)

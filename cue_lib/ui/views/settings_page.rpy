@@ -24,16 +24,16 @@ screen cue_data_dir():
     use cue_section_frame("Cue Data Directory"):
         vbox:
             spacing 5
-            text "Cue stores everything (markers, video, audio, backups, etc.) in this directory." style "cue_help"
+            text "Cue stores everything (markers, video, audio, backups, etc.) in this directory." style "cue_txt"
             text ("If you change the directory, you must move all files to the new "
-                "directory and restart the game.") style "cue_help"
+                "directory and restart the game.") style "cue_txt"
             use cue_text_input("_cue.setup_dir_text",
                 Function(_cue_confirm_shared_dir),
                 _cue.setup_dir_text, xsize=440)
             if _cue.shared_dir_error:
-                text _cue.shared_dir_error style "cue_help" color _cue_color_error
+                text _cue.shared_dir_error style "cue_txt" color _cue_color_error
             elif _cue.shared_dir_success:
-                text _cue.shared_dir_success style "cue_help" color _cue_color_green
+                text _cue.shared_dir_success style "cue_txt" color _cue_color_green
             use cue_txt_button("Save", Function(_cue_confirm_shared_dir))
 
 
@@ -89,8 +89,8 @@ screen cue_keybind_capture():
         vbox:
             spacing 8
             text "Press a key(s) for " + _cue.keybinds.current_label() style "cue_txt"
-            text "Ctrl / Alt / Shift can be combined." style "cue_help"
-            text "Press Esc to cancel." style "cue_help"
+            text "Ctrl / Alt / Shift can be combined." style "cue_txt"
+            text "Press Esc to cancel." style "cue_txt"
             if _cue.keybinds.collision_message:
                 text _cue.keybinds.collision_message style "cue_txt" color _cue_color_error
             hbox:

@@ -44,9 +44,9 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
             if not _collapsed:
                 if not _cue.sfx_manager.tree:
                     if _cue.sfx_manager.scan_error:
-                        text "[_cue.sfx_manager.scan_error]" style "cue_help" color _cue_color_error
+                        text "[_cue.sfx_manager.scan_error]" style "cue_txt" color _cue_color_error
                     text ("Place {} files there "
-                        "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_help"
+                        "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_txt"
                 else:
                     use cue_sfx_library_content(_is_video, _has_image, _is_dialogue)
 

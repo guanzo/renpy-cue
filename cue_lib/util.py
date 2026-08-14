@@ -90,6 +90,15 @@ def is_loop_key(key):
     """Check if key is a loop trigger key."""
     return key.startswith(_cue.LOOP_KEY_PREFIX)
 
+def _cue_strip_key_prefix(key):
+    # type: (str) -> str
+    """Strip the leading type prefix ('i_', 'v_', 'l_', 'd_') from a trigger key."""
+    for prefix in (_cue.IMG_KEY_PREFIX, _cue.VID_KEY_PREFIX,
+                   _cue.LOOP_KEY_PREFIX, _cue.DLG_KEY_PREFIX):
+        if key.startswith(prefix):
+            return key[len(prefix):]
+    return key
+
 def get_key_file(key):
     # type: (str) -> str
     """Strip the 2-char prefix from any key, returning the file portion."""

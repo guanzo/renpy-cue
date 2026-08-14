@@ -158,9 +158,9 @@ screen cue_video_sfx():
                     trigger_key=_vid_key, pool_index=_vid_target,
                     folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
             else:
-                text "SFX plays when this video reaches the marked time(s)." style "cue_help"
-                text "Click the V button in the SFX Library to add files to this pool." style "cue_help"
+                text "SFX plays when this video reaches the marked time(s)." style "cue_txt"
+                text "Click the V button in the SFX Library to add files to this pool." style "cue_txt"
         else:
-            text "SFX plays when this video reaches the marked time(s)." style "cue_help"
+            text "SFX plays when this video reaches the marked time(s)." style "cue_txt"
             text ("Click the V button in the SFX Library to create a new pool "
-                "or add to the active pool.") style "cue_help"
+                "or add to the active pool.") style "cue_txt"

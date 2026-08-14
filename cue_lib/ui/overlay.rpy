@@ -78,6 +78,12 @@ screen cue_overlay():
 # =============================================================================
 
 screen cue_overlay_content():
+    # SFX context flags -- same derivation as cue_sfx_page. Needed by the
+    # floating SFX library below (overlay mode), which doesn't run sfx_page.
+    $ _is_video = _cue.top_layer_type == 'movie'
+    $ _has_image = bool(_cue.current_file) and not _is_video
+    $ _is_dialogue = bool(_cue.current_dialogue)
+
     fixed:
         xfill True
         yfill True
@@ -114,11 +120,10 @@ screen cue_overlay_content():
                 vbox:
                     spacing 0
                     xfill True
-                    if not _sfx_collapsed:
-                        fixed:
-                            xfill True
-                            ysize 4
-                            add Solid(_cue_color_bg_overlay)
+                    fixed:
+                        xfill True
+                        ysize 4
+                        add Solid(_cue_color_bg_overlay)
                     use cue_sfx_library(_is_video, _has_image, _is_dialogue)
 
 screen cue_header_toolbar():

@@ -418,10 +418,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
 
     use cue_section_frame(section_title):
         if subtitle is not None:
-            use cue_h_divider()
-            vbox:
-                spacing 5
-                text subtitle style "cue_txt"
+            text subtitle style "cue_txt"
         if _entry:
             $ _entry.setdefault("volume", _cue.volume.VOL_DEFAULT)
             $ _master_vol = _entry.get("volume", _cue.volume.VOL_DEFAULT)
@@ -486,16 +483,16 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                         folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
             else:
                 if key and description is not None:
-                    text description style "cue_help"
+                    text description style "cue_txt"
                 if key:
                     text ("Click the {} button in the SFX Library "
-                        "to add files to this pool.").format(btn_letter) style "cue_help"
+                        "to add files to this pool.").format(btn_letter) style "cue_txt"
         else:
             if key and description is not None:
-                text description style "cue_help"
+                text description style "cue_txt"
             if key:
                 text ("Click the {} button in the SFX Library to create a new pool "
-                    "or add files to the active pool.").format(btn_letter) style "cue_help"
+                    "or add files to the active pool.").format(btn_letter) style "cue_txt"
 
 # Toggle button: square-check icon when checked, square when unchecked.
 # on_bg/on_hover/off_bg/off_hover override backgrounds per state (None = style default).

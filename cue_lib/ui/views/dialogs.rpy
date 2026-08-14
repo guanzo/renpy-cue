@@ -66,7 +66,7 @@ screen cue_repeat_markers_dialog():
                 Function(_cue.repeater.toggle_preview_sfx))
 
             $ _preview_label = _cue.repeater.preview_text()
-            text _preview_label style "cue_help"
+            text _preview_label style "cue_txt"
 
             null height 5
 
