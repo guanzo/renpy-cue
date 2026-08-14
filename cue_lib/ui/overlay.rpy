@@ -220,9 +220,9 @@ screen cue_header_toolbar():
             use cue_icon_btn("redo", Function(_cue.undo.redo), _redo_tt, None, enabled=_cue.undo.can_redo())
             null width 5
 
-            $ _backup_tooltip = "Backup config to " + _cue.config_filename
+            $ _backup_tooltip = "Back up data to backups/backup.zip"
             use cue_icon_btn("floppy-disk", Function(_cue.markers.backup_to_file), _backup_tooltip, None)
-            $ _restore_tooltip = "Restore config from " + _cue.config_filename
+            $ _restore_tooltip = "Restore data from backups/backup.zip"
             use cue_icon_btn("folder-open", Function(_cue.markers.restore_from_file), _restore_tooltip, None)
             null width 5
 

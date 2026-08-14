@@ -56,6 +56,15 @@ class CueUndoManager(object):
         Called once after load_persistent() during init."""
         self._previous = self._snapshot()
 
+    def reset(self):
+        # type: () -> None
+        """Clear the undo/redo stacks and re-seed to the current state.
+        Used after a full restore, where pre-restore snapshots are stale."""
+        self._undo = []
+        self._redo = []
+        self._last_ts = 0.0
+        self.seed()
+
     def capture(self):
         # type: () -> None
         """Snapshot post-mutation state and push the PREVIOUS snapshot

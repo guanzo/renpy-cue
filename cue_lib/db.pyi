@@ -1,8 +1,12 @@
 from typing import Any, Dict, Final, Tuple
 
+from cue_lib.backup import CueBackupManager
+
 CUE_HASH_TRUNC_LEN: Final = 8
 
 class CueDatabase(object):
+    _backup: CueBackupManager
+
     def __init__(self, path: str, game_id: str) -> None: ...
     def open(self) -> None: ...
     def close(self) -> None: ...

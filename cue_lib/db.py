@@ -14,6 +14,7 @@
 import os
 import json as _json
 
+from cue_lib.constants import CUE_SHARED_CONFIG_FILENAME
 from cue_lib.util import _cue_log, _to_str
 from cue_lib.backup import CueBackupManager
 
@@ -302,7 +303,7 @@ class CueDatabase(object):
 
     def _shared_config_path(self):
         # type: () -> str
-        return os.path.join(self._path, "data", "cue_config.json")
+        return os.path.join(self._path, "data", CUE_SHARED_CONFIG_FILENAME)
 
     def load_shared_config(self):
         # type: () -> Dict[str, Any]

@@ -55,6 +55,17 @@ Code must work for 7.4.x and up.
 
 **NOTE**: In `.py` files, use the real module path `renpy.audio.music` (not `renpy.music`). `renpy.music` is a `sys.modules` alias set up at runtime by `import_all()` — it doesn't exist as a file on disk and won't resolve during `init -999` before the alias is created.
 
+## Platform Gotchas
+
+- **`os.rename` does NOT overwrite on Windows.** POSIX renames atomically
+  over an existing destination; on Windows it raises `[Error 183] Cannot
+  create a file when that file already exists`. If the destination may
+  already exist (a zip you rewrite in place, a file you move into place),
+  remove the stale destination first on `os.name == "nt"` before renaming —
+  see `_replace_file()` in `cue_lib/backup.py`. This has bitten us multiple
+  times; always reach for `_replace_file()` (or equivalent) rather than bare
+  `os.rename` for overwrite semantics.
+
 ## Naming Conventions
 
 Most logic lives in `.py` files under `cue_lib/`, which have their own module-level namespaces. However, `cue_z.rpy` bridges ~55 names into the Ren'Py store for screen actions (`Function()` calls) — and those names share a flat namespace with the game. To avoid collisions:

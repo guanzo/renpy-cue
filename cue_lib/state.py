@@ -11,7 +11,7 @@ import os as _os
 import renpy
 import renpy.python as _renpy_python
 
-from cue_lib.constants import CUE_DIR_OVERRIDE_FILENAME
+from cue_lib.constants import CUE_DIR_OVERRIDE_FILENAME, CUE_SHARED_CONFIG_FILENAME
 
 
 class Cue(_renpy_python.NoRollback):
@@ -21,8 +21,6 @@ class Cue(_renpy_python.NoRollback):
         # --- Paths ---
         self.debug = True
         self.base_dir = "renpy_cue"
-
-        self.config_filename = "cue_config.json"
         self.debug_log_filename = "debug.log"
 
         # --- Constants ---
@@ -155,7 +153,7 @@ class Cue(_renpy_python.NoRollback):
     @property
     def config_path(self):
         # type: () -> str
-        return _os.path.join(renpy.config.gamedir, self.base_dir, self.config_filename)
+        return _os.path.join(renpy.config.gamedir, self.base_dir, CUE_SHARED_CONFIG_FILENAME)
 
     @property
     def audio_dir(self):

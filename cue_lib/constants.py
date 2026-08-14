@@ -53,3 +53,7 @@ CUE_SHARED_KEY_KEYBINDS = "keybinds"
 # the same OS user computes identically, so the choice applies to all games.
 # In-game choice wins over the RENPY_CUE_DIR env var.
 CUE_DIR_OVERRIDE_FILENAME = "dir.txt"
+
+# Shared-config JSON file inside the shared data/ tree (disabled_files,
+# keybinds).  Lives at {shared}/data/cue_config.json.
+CUE_SHARED_CONFIG_FILENAME = "cue_config.json"
