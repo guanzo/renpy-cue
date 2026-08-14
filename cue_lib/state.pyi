@@ -74,7 +74,7 @@ class Cue:
     confirm_dialog: CueConfirmDialog
     keybinds: CueKeybindsManager
     icons: CueIconManager
-    music_manager: CueMusicManager
+    music: CueMusicManager
 
     _cue_next_sfx_channel: int
     _shake_just_happened: bool

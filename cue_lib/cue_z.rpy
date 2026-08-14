@@ -157,7 +157,7 @@ init -900 python:
     _cue.confirm_dialog = CueConfirmDialog()
     _cue.keybinds = CueKeybindsManager()
     _cue.icons = CueIconManager()
-    _cue.music_manager = CueMusicManager()
+    _cue.music = CueMusicManager()
 
     _cue.paths = CuePaths(CuePaths.resolve_root(), renpy.config.save_directory)
 
@@ -188,10 +188,6 @@ init 999 python:
     except Exception:
         pass
     
-    # Install the music play/queue/stop interceptor.  Idempotent and
-    # reload-safe, so it can run on every init like the patches below.
-    _cue.music_manager.install()
-
     # monkeypatch renpy.with_statement
     _original_with_statement = renpy.with_statement
     def _cue_with_hook(trans, always=False, paired=None, clear=True):
@@ -273,12 +269,13 @@ init 999 python:
 
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
         _cue.markers.load_persistent()
-        _cue.music_manager.reload()
+        _cue.music.reload()
         _cue.video_editor.job_queue.load_from_persistent()
         _cue.undo.seed()  # seed undo baseline after initial load
         _cue.speed_resolver.wrap_all_movies()
         _cue.sfx_manager.scan()
-        _cue.music_manager.user_music.scan()
+        _cue.music.user_music.scan()
+        _cue.music.install()
 
         _cue.initialized = True
         _cue_log("INIT: Done")

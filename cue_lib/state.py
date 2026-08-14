@@ -74,7 +74,7 @@ class Cue(_renpy_python.NoRollback):
         self.confirm_dialog = None
         self.keybinds = None
         self.icons = None
-        self.music_manager = None
+        self.music = None
         self.paths = None
 
         # --- Internal ---

@@ -131,8 +131,8 @@ def _cue_show_overlay():
     _cue.is_overlay_visible = True
     if not _cue.sfx_manager.files:
         _cue.sfx_manager.scan()
-    if not _cue.music_manager.user_music.music_files:
-        _cue.music_manager.user_music.scan()
+    if not _cue.music.user_music.music_files:
+        _cue.music.user_music.scan()
     _cue.sfx_manager.rebuild_tree()
     _cue_refresh_context()
     _cue.video_editor.refresh()
@@ -150,7 +150,7 @@ def _cue_refresh_overlay():
     _cue_reload_presets()
     _cue_refresh_context()
     _cue.sfx_manager.scan()
-    _cue.music_manager.user_music.scan()
+    _cue.music.user_music.scan()
 
 def _cue_hide_overlay():
     # type: () -> None
@@ -182,7 +182,7 @@ def _cue_refresh_context():
     _cue.top_displayable = top_d
     # The scene batch has now landed, so current_file is the settled scene --
     # the right moment to stamp key_after for any music that just played.
-    _cue.music_manager.capture_display()
+    _cue.music.capture_display()
     _cue_refresh_channel(displayable=top_d)
     _cue.sfx_manager.rebuild_tree()
     _cue_log_context()
@@ -448,7 +448,7 @@ def _cue_preview_music(filename, volume=1.0):
     CueMusicManager.play_untracked, so the preview replaces any currently
     playing music without being recorded as a default music trigger.
     """
-    _cue.music_manager.play_untracked(_cue.paths.music_dir + filename, volume=volume)
+    _cue.music.play_untracked(_cue.paths.music_dir + filename, volume=volume)
 
 
 def _cue_play_sfx(filename, source="", volume=1.0):

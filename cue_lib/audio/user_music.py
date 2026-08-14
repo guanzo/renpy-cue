@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # CueUserMusic -- the "My Music" section on the Music page: filesystem scan,
 # folder/file tree caches, and tree UI state (expand/collapse, visible rows).
-# Instantiated once as _cue.music_manager.user_music; lives on the NoRollback
+# Instantiated once as _cue.music.user_music; lives on the NoRollback
 # _cue object.
 
 import os

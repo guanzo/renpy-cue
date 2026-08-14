@@ -11,7 +11,7 @@ screen cue_music_page():
                 if not _cue.current_replay:
                     text "Enter a replay to see its default music triggers." style "cue_help"
                 else:
-                    $ _triggers = _cue.music_manager.triggers_for(_cue.current_replay)
+                    $ _triggers = _cue.music.triggers_for(_cue.current_replay)
                     if not _triggers:
                         text "No music triggers recorded for this replay yet." style "cue_help"
                     else:
@@ -22,9 +22,9 @@ screen cue_music_page():
                                 text _t["filepath"] style "cue_help"
 
         use cue_section_frame("My Music"):
-            if not _cue.music_manager.user_music.music_tree:
-                if _cue.music_manager.user_music.music_scan_error:
-                    text "[_cue.music_manager.user_music.music_scan_error]" style "cue_help" color _cue_color_error
+            if not _cue.music.user_music.music_tree:
+                if _cue.music.user_music.music_scan_error:
+                    text "[_cue.music.user_music.music_scan_error]" style "cue_help" color _cue_color_error
                 text ("Add {} files to your music folder "
                     "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_help"
                 text "[_cue.paths.music_dir]" style "cue_help"
@@ -44,13 +44,13 @@ screen cue_music_tree():
         vscrollbar_unscrollable "hide"
         vbox:
             spacing 2
-            for item in _cue.music_manager.user_music.visible_tree:
+            for item in _cue.music.user_music.visible_tree:
                 hbox:
                     spacing 2
                     if item["depth"] > 0:
                         text " " * item["depth"] style "cue_txt"
                     if item["type"] == "folder":
-                        use cue_txt_button(item["name"], Function(_cue.music_manager.user_music.toggle_folder, item["full_path"]))
+                        use cue_txt_button(item["name"], Function(_cue.music.user_music.toggle_folder, item["full_path"]))
                     else:
                         use cue_icon_btn("play", Function(_cue_preview_music, item["full_path"]), "Play song", None)
                         text item["name"] style "cue_txt" color _cue_color_text_accent
