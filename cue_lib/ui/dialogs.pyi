@@ -1,4 +1,4 @@
-# Type stub for cue_lib.ui.dialogues
+# Type stub for cue_lib.ui.dialogs
 from typing import Callable, Optional
 
 from cue_lib._types import MarkerEntry  # pyright: ignore[reportUnusedImport]

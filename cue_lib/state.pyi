@@ -10,7 +10,7 @@ from cue_lib._types import (
 from cue_lib.video.auto_speed import CueAutoSpeedGenerator
 from cue_lib.video.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
 from cue_lib.trigger import CueTriggerEngine
-from cue_lib.ui.dialogues import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
+from cue_lib.ui.dialogs import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
 from cue_lib.undo import CueUndoManager
 from cue_lib.video.video import CueVideoManager
 from cue_lib.video.video_editor import CueVideoEditor

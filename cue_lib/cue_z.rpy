@@ -76,7 +76,7 @@ init -999 python:
         _cue_create_select_speed, _cue_create_delete_sel, _cue_create_delete_speed,
     )
 
-    from cue_lib.ui.dialogues import (
+    from cue_lib.ui.dialogs import (
         CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog,
         _cue_confirm_delete_preset, _cue_confirm_delete_video_preset,
         _cue_maybe_apply_video_preset,
@@ -136,7 +136,7 @@ init -900 python:
     from cue_lib.video.auto_speed import CueAutoSpeedGenerator
     from cue_lib.audio.sfx_manager import CueSfxManager
     from cue_lib.ui.icons import CueIconManager
-    from cue_lib.ui.dialogues import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
+    from cue_lib.ui.dialogs import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
     from cue_lib.db import CueDatabase
     from cue_lib.paths import CuePaths
     from cue_lib.state import _cue

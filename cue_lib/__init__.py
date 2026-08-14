@@ -41,4 +41,4 @@ from cue_lib.audio import music, sfx_manager, user_music, game_music
 from cue_lib import markers
 from cue_lib import trigger
 from cue_lib import runtime
-from cue_lib.ui import dialogues, displayables, icons, popper
+from cue_lib.ui import dialogs, displayables, icons, popper
