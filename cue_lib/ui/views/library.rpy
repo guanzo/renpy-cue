@@ -82,6 +82,20 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
 
 # Audio preset rows, shown when the Presets folder is expanded.
 screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue):
+    # Tooltip strings per marker type (screen-local).  The _*_tt_has variant
+    # is shown once a pool exists; _*_tt_create until the first pool.
+    $ _vid_tt_create = "Create pool at current timestamp and apply preset"
+    $ _vid_tt_has = "Click: Apply preset to active Video SFX pool\nShift+Click: " + _vid_tt_create
+    $ _img_tt_create = "Create Image SFX pool and apply preset"
+    $ _img_tt_has = "Click: Apply preset to active Image SFX pool\nShift+Click: " + _img_tt_create
+    $ _dlg_tt_create = "Create Dialogue SFX pool and apply preset"
+    $ _dlg_tt_has = "Click: Apply preset to active Dialogue SFX pool\nShift+Click: " + _dlg_tt_create
+    $ _loop_tt_create = "Create Loop SFX pool and apply preset"
+    $ _loop_tt_has = "Click: Apply preset to active Loop SFX pool\nShift+Click: " + _loop_tt_create
+    $ _vid_tt = _vid_tt_has if _cue.markers.video.has_pools() else _vid_tt_create
+    $ _img_tt = _img_tt_has if _cue.markers.image.has_pools() else _img_tt_create
+    $ _dlg_tt = _dlg_tt_has if _cue.markers.dialogue.has_pools() else _dlg_tt_create
+    $ _loop_tt = _loop_tt_has if _cue.markers.loop.has_pools() else _loop_tt_create
     for _pname in _cue.markers.list_presets():
         $ _pdata = _cue.markers.get_preset(_pname)
         $ _p_expanded = _cue.sfx_manager.expanded_presets.get(_pname, False)
@@ -96,21 +110,20 @@ screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue):
                 "Preview random file from preset", None)
             use cue_icon_btn(
                 "V",
-                Function(_cue.markers.video.apply_preset, _pname),
-                "Apply preset to current video at playhead position",
-                None, enabled=_is_video)
+                Function(_cue.markers.video.send_preset, _pname),
+                _vid_tt, None, enabled=_is_video)
             use cue_icon_btn(
                 "I",
-                Function(_cue.markers.image.apply_preset, _pname),
-                "Apply preset to active Image SFX pool", None, enabled=_has_image)
+                Function(_cue.markers.image.send_preset, _pname),
+                _img_tt, None, enabled=_has_image)
             use cue_icon_btn(
                 "D",
-                Function(_cue.markers.dialogue.apply_preset, _pname),
-                "Apply preset to active Dialogue SFX pool", None, enabled=_is_dialogue)
+                Function(_cue.markers.dialogue.send_preset, _pname),
+                _dlg_tt, None, enabled=_is_dialogue)
             use cue_icon_btn(
                 "L",
-                Function(_cue.markers.loop.apply_preset, _pname),
-                "Apply preset to active Loop SFX pool", None)
+                Function(_cue.markers.loop.send_preset, _pname),
+                _loop_tt, None)
             use cue_txt_button(_pname, Function(_cue.sfx_manager.toggle_preset_expand, _pname))
 
         if _p_expanded:

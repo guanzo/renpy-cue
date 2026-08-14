@@ -79,6 +79,12 @@ class CueMarkerContext(object):
             self.add_pool()
         self.add_folder(folder_path)
 
+    def send_preset(self, preset_name):
+        # type: (str) -> None
+        if _cue_shift_held():
+            self.add_pool()
+        self.apply_preset(preset_name)
+
     def remove_file(self, pool_index, file_index):
         # type: (int, int) -> None
         key = self._key()
@@ -421,6 +427,36 @@ class CueVideoContext(CueMarkerContext):
             {"time": elapsed, "preset": preset_name})
         self.sync_text()
         self._mgr._db_save_marker(vid_key)
+
+    def apply_preset_active(self, preset_name):
+        # type: (str) -> None
+        """Stamp a preset onto the active video pool, creating one at the
+        playhead if the context has no pools yet."""
+        if not _cue.current_file:
+            return
+        r = self._mgr.resolve_pool({"preset": preset_name})
+        if not r.files:
+            return
+        vid_key = self._key()
+        entry = self._mgr._get_or_create_entry(vid_key)
+        pools = entry["pools"]
+        if not pools or not (0 <= self.target_pool < len(pools)):
+            elapsed = _cue.vid_manager.get_elapsed()
+            self._append_pool(entry, pools,
+                {"time": elapsed, "preset": preset_name})
+        else:
+            pool = pools[self.target_pool]
+            time = pool.get("time", _cue.vid_manager.get_elapsed())
+            pools[self.target_pool] = {"time": time, "preset": preset_name}
+        self.sync_text()
+        self._mgr._db_save_marker(vid_key)
+
+    def send_preset(self, preset_name):
+        # type: (str) -> None
+        if _cue_shift_held():
+            self.apply_preset(preset_name)
+        else:
+            self.apply_preset_active(preset_name)
 
     def remove_pool(self, pool_index):
         # type: (int) -> None
