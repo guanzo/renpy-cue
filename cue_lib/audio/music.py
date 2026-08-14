@@ -14,7 +14,7 @@ if MYPY:
 
 CUE_DEFAULT_MUSIC_CHANNEL = "music"
 
-# True originals, cached once at module level so a Shift+R reload (which
+# True originals, cached once at module level so a Shift+R load_triggers (which
 # re-instantiates the manager but does NOT re-import this module) never
 # captures our own wrapper as the "original" and double-wraps.
 _ORIGINALS = None
@@ -51,6 +51,9 @@ class CueMusicManager(object):
         _music.queue = self._on_queue
         _music.stop = self._on_stop
         self._is_installed = True
+
+        # Load the default music trigger log from disk (one-time startup).
+        self.load_triggers()
 
     def play_untracked(self, full_path, volume=1.0):
         # type: (str, float) -> None
@@ -130,7 +133,7 @@ class CueMusicManager(object):
     # Default music trigger log (per replay)
     # ------------------------------------------------------------------
 
-    def reload(self):
+    def load_triggers(self):
         # type: () -> None
         """Load the default music trigger log from disk into the mirror."""
         self._triggers = _cue.db.load_default_music_triggers()
