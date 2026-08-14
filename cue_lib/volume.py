@@ -134,11 +134,3 @@ class CueVolumeManager(object):
         pi = _cue.markers.video.target_pool
         current = self.get(entry, vid_key, pool_index=pi)
         self.write(vid_key, current + delta, pool_index=pi)
-
-    # --- Bar changed callback ---
-
-    def on_bar_changed(self):
-        # type: () -> None
-        """Called after any volume bar is dragged. Saves and refreshes the UI."""
-        _cue.markers.save_all()
-        renpy.restart_interaction()

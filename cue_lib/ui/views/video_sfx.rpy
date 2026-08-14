@@ -76,7 +76,7 @@ screen cue_video_sfx():
                 spacing 10
                 box_wrap True
                 box_wrap_spacing 3
-                use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _vid_entry, _inc)
+                use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _vid_entry, _inc, _vid_key)
                 use cue_checkbox(_is_muted, "Mute audio track",
                     Function(_cue_toggle_video_mute),
                     "Mute the video's audio track.\nDoes not affect Cue SFX.")
@@ -122,7 +122,7 @@ screen cue_video_sfx():
                 $ _inc = Function(_cue.volume.adjust_video, 0.1)
                 null width 5
                 $ _vol_label = "Volume: {:.1f}".format(_active_vol)
-                use cue_vol_row(_vol_label, _dec, _vol_target, _inc)
+                use cue_vol_row(_vol_label, _dec, _vol_target, _inc, _vid_key)
 
             # Editable time + nudge buttons
             hbox:

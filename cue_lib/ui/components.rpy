@@ -26,6 +26,19 @@ init -900 python:
             _obj = renpy.python.py_eval(self._obj_expr)
             FieldInputValue.__init__(self, _obj, self._field, default=default)
 
+    class _CueVolumeValue(DictValue):
+        """A DictValue that persists the owning marker after the bar changes.
+
+        DictValue writes ``dict[key]`` through its changed() hook; we save the
+        marker (passed in as marker_key) on top of that."""
+        def __init__(self, entry_dict, field, marker_key, **kwargs):
+            DictValue.__init__(self, entry_dict, field, **kwargs)
+            self._marker_key = marker_key
+
+        def changed(self, value):
+            super(_CueVolumeValue, self).changed(value)
+            _cue.markers.save_marker(self._marker_key)
+
 
 
 # Vertical divider: thin line for visual separation between controls.
@@ -43,7 +56,7 @@ screen cue_h_divider(color=None):
 # Volume row: label + - button + slider bar + + button
 # dec_action/inc_action are pre-built Function() objects — call sites differ
 # in which adjust function they use (master vs pool vs video-pool vs loop).
-screen cue_vol_row(label_text, dec_action, entry_dict, inc_action):
+screen cue_vol_row(label_text, dec_action, entry_dict, inc_action, key):
     hbox:
         spacing 3
         text label_text style "cue_txt" size 11
@@ -53,14 +66,13 @@ screen cue_vol_row(label_text, dec_action, entry_dict, inc_action):
         #     xsize 18
         #     action dec_action
         bar:
-            value DictValue(entry_dict, "volume", range=_cue.volume.VOL_MAX)
+            value _CueVolumeValue(entry_dict, "volume", key, range=_cue.volume.VOL_MAX)
             xsize 60
             ysize 14
             left_bar Solid(_cue_color_bar_active)
             right_bar Solid(_cue_color_bg_input)
             thumb Solid(_cue_color_text)
             hover_thumb Solid(_cue_color_text_white)
-            changed _cue.volume.on_bar_changed
         # textbutton "+":
         #     style "cue_btn_icon"
         #     text_style "cue_btn_icon_text"
@@ -409,7 +421,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
             $ _master_vol = _entry.get("volume", _cue.volume.VOL_DEFAULT)
             $ _dec = Function(_cue.volume.adjust_master, key, -0.1)
             $ _inc = Function(_cue.volume.adjust_master, key, 0.1)
-            use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _entry, _inc)
+            use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _entry, _inc, key)
         if key:
             use cue_pool_tabs(len(_pools), _target, bool(_pools),
                 "Delete all {} for the current {}?".format(section_title.lower(), subject),
@@ -446,7 +458,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 $ _inc = Function(_cue.volume.adjust, key, 0.1, _target)
                 null width 5
                 $ _vol_label = "Volume: {:.1f}".format(_active_vol)
-                use cue_vol_row(_vol_label, _dec, _active_pool, _inc)
+                use cue_vol_row(_vol_label, _dec, _active_pool, _inc, key)
 
             transclude
             if _r.files:
