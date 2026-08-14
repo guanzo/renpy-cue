@@ -144,6 +144,14 @@ def _cue_reload_presets():
     """Re-read shared presets from disk (picks up changes from other games)."""
     _cue.markers.reload_presets()
 
+def _cue_refresh_overlay():
+    # type: () -> None
+    """Refresh overlay data: presets, context, and SFX/music file scans."""
+    _cue_reload_presets()
+    _cue_refresh_context()
+    _cue_scan_audio()
+    _cue.music_manager.user_music.scan()
+
 def _cue_hide_overlay():
     # type: () -> None
     _cue.is_overlay_visible = False

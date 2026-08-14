@@ -61,7 +61,7 @@ init -999 python:
 
     from cue_lib.runtime import (
         _cue_toggle_overlay, _cue_show_overlay, _cue_hide_overlay,
-        _cue_reload_presets,
+        _cue_reload_presets, _cue_refresh_overlay,
         _cue_refresh_context, _cue_log_context, _cue_get_top_layer,
         _cue_refresh_channel, _cue_tick_trigger, _cue_play_sfx,
         _cue_preview_sfx, _cue_preview_music, _cue_preview_preset, _cue_preview_folder, _cue_preview_video_preset, _cue_play_pool,

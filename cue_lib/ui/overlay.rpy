@@ -174,7 +174,7 @@ screen cue_header_toolbar():
                 _pause_tt, None)
             use cue_icon_btn(
                 "rotate-right",
-                [Function(_cue_reload_presets), Function(_cue_refresh_context), Function(_cue_scan_audio), Function(_cue.music_manager.user_music.scan)],
+                Function(_cue_refresh_overlay),
                 "Refresh overlay", None)
             null width 5
 
