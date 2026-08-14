@@ -1406,16 +1406,16 @@ class CueMarkerManager(object):
             db = _cue.db
             if db is None or not db.is_open():
                 return
-            data_dir = os.path.join(db.path, "data")
+            data_dir = os.path.join(_cue.paths.root, "data")
             if not os.path.isdir(data_dir):
                 _cue_log("DUMP-MARKERS-NO-DATA")
                 return
-            backups_dir = os.path.join(db.path, CUE_BACKUP_DIR)
+            backups_dir = os.path.join(_cue.paths.root, CUE_BACKUP_DIR)
             if not os.path.isdir(backups_dir):
                 os.makedirs(backups_dir)
             zip_path = os.path.join(backups_dir, CUE_MANUAL_BACKUP_NAME)
             tmp_path = os.path.join(
-                backups_dir, "{}.{}.tmp".format(CUE_MANUAL_BACKUP_NAME, db.game_id))
+                backups_dir, "{}.{}.tmp".format(CUE_MANUAL_BACKUP_NAME, _cue.paths.game_id))
             count = zip_tree(data_dir, zip_path, tmp_path)
             _cue_log("DUMP-MARKERS files={} path={}".format(count, zip_path))
         except Exception as e:
@@ -1427,7 +1427,7 @@ class CueMarkerManager(object):
         db = _cue.db
         if db is None or not db.is_open():
             return
-        zip_path = os.path.join(db.path, CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME)
+        zip_path = os.path.join(_cue.paths.root, CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME)
         if not os.path.isfile(zip_path):
             _cue_log("RESTORE-MARKERS-NO-FILE path={}".format(zip_path))
             return
@@ -1453,7 +1453,7 @@ class CueMarkerManager(object):
             if not db._backup.wait_until_idle():
                 _cue_log("RESTORE-MARKERS: timed out waiting for auto backup")
                 return
-            count = restore_pieces(zip_path, db.path, db.game_id)
+            count = restore_pieces(zip_path, _cue.paths.root, _cue.paths.game_id)
             db.open()
             # Reload the stores from the restored files.  load_persistent
             # treats an empty marker dir as fresh and skips presets, so

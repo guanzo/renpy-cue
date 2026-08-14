@@ -136,6 +136,7 @@ init -900 python:
     from cue_lib.icons import CueIconManager
     from cue_lib.dialogues import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
     from cue_lib.db import CueDatabase
+    from cue_lib.paths import CuePaths
     from cue_lib.state import _cue
 
     _cue.markers = CueMarkerManager()
@@ -157,8 +158,9 @@ init -900 python:
     _cue.keybinds = CueKeybindsManager()
     _cue.icons = CueIconManager()
     _cue.music_manager = CueMusicManager()
+    _cue.paths = CuePaths(CuePaths.resolve_root(), renpy.config.save_directory)
 
-    _cue.db = CueDatabase(_cue.shared_dir, renpy.config.save_directory)
+    _cue.db = CueDatabase(_cue.paths)
     _cue.db.open()
 
 

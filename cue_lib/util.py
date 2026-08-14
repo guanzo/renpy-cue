@@ -257,11 +257,11 @@ def _cue_scan_audio():
     """Scan audio dir and build folder tree."""
     _t0 = time.time()
 
-    search_path = _cue.audio_dir
+    search_path = _cue.paths.audio_dir
     if not search_path.endswith("/"):
         search_path = search_path + "/"
 
-    audio_exts = (".ogg", ".mp3", ".wav", ".opus", ".flac")
+    audio_exts = CUE_AUDIO_EXTS
 
     results_set = set()
 

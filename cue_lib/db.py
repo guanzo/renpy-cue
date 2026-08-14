@@ -14,7 +14,6 @@
 import os
 import json as _json
 
-from cue_lib.constants import CUE_SHARED_CONFIG_FILENAME
 from cue_lib.util import _cue_log, _to_str
 from cue_lib.backup import CueBackupManager
 
@@ -28,6 +27,7 @@ CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME = "default_music_triggers.json"
 MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
+    from cue_lib.paths import CuePaths  # pyright: ignore[reportUnusedImport]
 
 
 # ---------------------------------------------------------------------------
@@ -78,12 +78,11 @@ class CueDatabase(object):
     Markers and videos are namespaced by game_id.  Presets are game-agnostic.
     """
 
-    def __init__(self, path, game_id):
-        # type: (str, str) -> None
-        self._path = path          # root dir (e.g. %APPDATA%/renpy_cue)
-        self._game_id = game_id
+    def __init__(self, paths):
+        # type: (CuePaths) -> None
+        self.paths = paths         # the one CuePaths (shared with _cue for the live db)
         self._open = False
-        self._backup = CueBackupManager(self._path, self._game_id)
+        self._backup = CueBackupManager(paths.root, paths.game_id)
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -93,11 +92,11 @@ class CueDatabase(object):
         # type: () -> None
         """Ensure directory structure exists."""
         for _dir in [
-            self._marker_dir,
-            self._music_triggers_dir,
-            self._audio_preset_dir,
-            self._video_preset_dir,
-            self.video_dir,
+            self.paths.marker_dir,
+            self.paths.music_triggers_dir,
+            self.paths.audio_preset_dir,
+            self.paths.video_preset_dir,
+            self.paths.video_dir,
         ]:
             if not os.path.isdir(_dir):
                 try:
@@ -114,56 +113,15 @@ class CueDatabase(object):
         # type: () -> bool
         return self._open
 
-    @property
-    def path(self):
-        # type: () -> str
-        return self._path
-
-    @property
-    def game_id(self):
-        # type: () -> str
-        return self._game_id
-
-    @property
-    def video_dir(self):
-        # type: () -> str
-        """Absolute path to the speed-variant video directory."""
-        return os.path.join(self._path, "video", self._game_id).replace("\\", "/")
-
-    @property
-    def _marker_dir(self):
-        # type: () -> str
-        return os.path.join(self._path, "data", "markers", self._game_id)
-
-    @property
-    def _presets_dir(self):
-        # type: () -> str
-        return os.path.join(self._path, "data", "presets")
-
-    @property
-    def _audio_preset_dir(self):
-        # type: () -> str
-        return os.path.join(self._presets_dir, "audio")
-
-    @property
-    def _video_preset_dir(self):
-        # type: () -> str
-        return os.path.join(self._presets_dir, "video")
-
-    @property
-    def _music_triggers_dir(self):
-        # type: () -> str
-        return os.path.join(self._marker_dir, "music")
-
     def _preset_dir(self, preset_type):
         # type: (str) -> str
         if preset_type == "audio":
-            return self._audio_preset_dir
-        return self._video_preset_dir
+            return self.paths.audio_preset_dir
+        return self.paths.video_preset_dir
 
     def _marker_path(self, key):
         # type: (str) -> str
-        return os.path.join(self._marker_dir, _key_to_filename(key))
+        return os.path.join(self.paths.marker_dir, _key_to_filename(key))
 
     def _preset_path(self, preset_type, name):
         # type: (str, str) -> str
@@ -180,11 +138,11 @@ class CueDatabase(object):
         # type: () -> bool
         """True if this game_id has no marker files yet."""
         try:
-            for _name in os.listdir(self._marker_dir):
+            for _name in os.listdir(self.paths.marker_dir):
                 if _name.endswith(".json"):
                     return False
         except Exception:
-            _cue_log("DB-FRESH: listdir failed for {}".format(self._marker_dir))
+            _cue_log("DB-FRESH: listdir failed for {}".format(self.paths.marker_dir))
         return True
 
     # ------------------------------------------------------------------
@@ -195,7 +153,7 @@ class CueDatabase(object):
         # type: () -> Dict[str, Any]
         """Return {marker_key: MarkerEntry} for this game_id."""
         result = {}
-        mdir = self._marker_dir
+        mdir = self.paths.marker_dir
         try:
             names = os.listdir(mdir)
         except Exception:
@@ -326,7 +284,7 @@ class CueDatabase(object):
 
     def _shared_config_path(self):
         # type: () -> str
-        return os.path.join(self._path, "data", CUE_SHARED_CONFIG_FILENAME)
+        return self.paths.shared_config_path
 
     def load_shared_config(self):
         # type: () -> Dict[str, Any]
@@ -373,7 +331,7 @@ class CueDatabase(object):
 
     def _music_triggers_path(self):
         # type: () -> str
-        return os.path.join(self._music_triggers_dir, CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME)
+        return os.path.join(self.paths.music_triggers_dir, CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME)
 
     def load_default_music_triggers(self):
         # type: () -> Dict[str, Any]

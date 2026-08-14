@@ -19,6 +19,8 @@ from cue_lib.volume import CueVolumeManager
 from cue_lib.music import CueMusicManager
 from cue_lib.keybinds import CueKeybindsManager
 from cue_lib.icons import CueIconManager
+from cue_lib.music_library import CueMusicLibrary
+from cue_lib.paths import CuePaths
 
 class CuePage:
     SFX: int
@@ -29,11 +31,8 @@ class CuePage:
 class Cue:
     debug: bool
     base_dir: str
-    audio_dir: str
     config_filename: str
     debug_log_filename: str
-    config_path: str
-    shared_dir: str
 
     IMG_KEY_PREFIX: str
     LOOP_KEY_PREFIX: str
@@ -57,6 +56,7 @@ class Cue:
     _has_relative_volume: bool
 
     db: CueDatabase
+    paths: CuePaths
     markers: CueMarkerManager
     undo: CueUndoManager
     trigger: CueTriggerEngine
@@ -76,9 +76,13 @@ class Cue:
     keybinds: CueKeybindsManager
     icons: CueIconManager
     music_manager: CueMusicManager
+    music_library: CueMusicLibrary
 
     available_files: List[str]
     audio_tree: List[AudioTreeNode]
+    music_files: List[str]
+    music_tree: List[AudioTreeNode]
+    music_scan_error: Optional[str]
 
     _cue_next_sfx_channel: int
     _shake_just_happened: bool
@@ -93,8 +97,5 @@ class Cue:
     _vtl_screen_y: int
     _chart_screen_x: int
     _chart_screen_y: int
-
-    def platform_shared_dir(self) -> str: ...
-    def set_shared_dir_pointer(self, path: str) -> None: ...
 
 _cue: Cue

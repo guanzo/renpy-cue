@@ -7,11 +7,7 @@
 # imports.  state.py imports only cue_lib.constants (a leaf module with no
 # imports of its own), while every manager module imports _cue from here.
 
-import os as _os
-import renpy
 import renpy.python as _renpy_python
-
-from cue_lib.constants import CUE_DIR_OVERRIDE_FILENAME, CUE_SHARED_CONFIG_FILENAME
 
 
 class CuePage(object):
@@ -96,81 +92,5 @@ class Cue(_renpy_python.NoRollback):
         self._vtl_screen_y = 0
         self._chart_screen_x = 0
         self._chart_screen_y = 0
-
-    def platform_shared_dir(self):
-        # type: () -> str
-        """Platform-standard default for the shared data directory.
-
-          Windows : %APPDATA%/renpy_cue
-          macOS   : ~/Library/Application Support/renpy_cue
-          Linux   : $XDG_DATA_HOME/renpy_cue or ~/.local/share/renpy_cue
-        """
-        import sys as _sys
-        if _sys.platform == "win32":
-            base = _os.environ.get("APPDATA", "")
-        elif _sys.platform == "darwin":
-            base = _os.path.expanduser("~/Library/Application Support")
-        else:
-            base = _os.environ.get(
-                "XDG_DATA_HOME",
-                _os.path.expanduser("~/.local/share"),
-            )
-        return _os.path.normpath(_os.path.join(base, "renpy_cue")).replace("\\", "/")
-
-    @property
-    def shared_dir(self):
-        # type: () -> str
-        """Resolved shared directory for cue data.
-
-        Priority:
-          1. Pointer file {platform_shared_dir()}/dir.txt -- the user's
-             in-game choice, written by the Settings page.  Lives in the
-             platform-default dir so every game finds the same choice.
-          2. RENPY_CUE_DIR environment override.
-          3. Platform default (see platform_shared_dir).
-        """
-        ptr_path = _os.path.join(self.platform_shared_dir(), CUE_DIR_OVERRIDE_FILENAME)
-        try:
-            if _os.path.isfile(ptr_path):
-                with open(ptr_path, "r") as _f:
-                    _ptr = _f.read().strip()
-                if _ptr:
-                    return _os.path.normpath(_ptr).replace("\\", "/")
-        except Exception:
-            pass  # Unreadable pointer -- fall through to env / default.
-
-        env = _os.environ.get("RENPY_CUE_DIR", "")
-        if env:
-            return _os.path.normpath(env)
-        return self.platform_shared_dir()
-
-    def set_shared_dir_pointer(self, path):
-        # type: (str) -> None
-        """Persist the user-chosen shared dir as a pointer file in the
-        platform-default dir (the well-known anchor all games can find).
-        Saving the platform default removes the pointer (clean reset).
-        Raises OSError on failure -- the caller shows the error.
-        """
-        default_dir = self.platform_shared_dir()
-        ptr_path = _os.path.join(default_dir, CUE_DIR_OVERRIDE_FILENAME)
-        if path == default_dir:
-            if _os.path.isfile(ptr_path):
-                _os.remove(ptr_path)
-            return
-        if not _os.path.isdir(default_dir):
-            _os.makedirs(default_dir)
-        with open(ptr_path, "w") as _f:
-            _f.write(path)
-
-    @property
-    def config_path(self):
-        # type: () -> str
-        return _os.path.join(renpy.config.gamedir, self.base_dir, CUE_SHARED_CONFIG_FILENAME)
-
-    @property
-    def audio_dir(self):
-        # type: () -> str
-        return self.shared_dir + "/audio"
-
 
 _cue = Cue()

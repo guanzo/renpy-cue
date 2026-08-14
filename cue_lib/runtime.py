@@ -11,6 +11,7 @@ import renpy.audio.audio as _aaudio
 from renpy.store import persistent
 from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
 from cue_lib.db import CueDatabase
+from cue_lib.paths import CuePaths
 from cue_lib.state import _cue, CuePage
 from cue_lib.util import (
     _cue_log, _cue_ui_refresh, _cue_unwrap_displayable, _cue_get_movie_play,
@@ -56,7 +57,7 @@ def _cue_set_page(page):
     if _cue.overlay_active_page == page:
         return
     if page == CuePage.SETTINGS:
-        _cue.setup_dir_text = _cue.shared_dir
+        _cue.setup_dir_text = _cue.paths.root
         _cue.shared_dir_error = ""
         _cue.shared_dir_success = ""
     _cue.overlay_active_page = page
@@ -80,7 +81,7 @@ def _cue_confirm_shared_dir():
     path = _os.path.abspath(_os.path.normpath(_os.path.expanduser(text))).replace("\\", "/")
 
     try:
-        probe_db = CueDatabase(path, getattr(renpy.config, "save_directory"))
+        probe_db = CueDatabase(CuePaths(path, getattr(renpy.config, "save_directory")))
         probe_db.open()
     except Exception as exc:
         _cue.shared_dir_error = "Could not create that directory."
@@ -88,7 +89,7 @@ def _cue_confirm_shared_dir():
         return
 
     try:
-        _cue.set_shared_dir_pointer(path)
+        CuePaths.save_root(path)
     except Exception as exc:
         _cue.shared_dir_error = "Could not save the directory setting."
         _cue_log("SHARED-DIR: pointer write failed for {}: {}".format(path, exc))
@@ -437,7 +438,7 @@ def _cue_play_sfx(filename, source="", volume=1.0):
     jitter = _random.uniform(1.0 - MAX_JITTER, 1.0 + MAX_JITTER)
     volume = volume * jitter
 
-    base_dir = _cue.audio_dir
+    base_dir = _cue.paths.audio_dir
     if not base_dir.endswith("/"):
         base_dir = base_dir + "/"
     full_path = base_dir + filename

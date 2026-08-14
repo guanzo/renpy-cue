@@ -397,7 +397,7 @@ class CueVidSpeedResolver(object):
         base_name = os.path.basename(base_path)
         base, ext = cls._split_ext(base_name)
         filename = base + cls._suffix_variant(speed, ext)
-        return os.path.join(_cue.db.video_dir, filename).replace("\\", "/")
+        return os.path.join(_cue.paths.video_dir, filename).replace("\\", "/")
 
     @classmethod
     def is_variant_of(cls, path, base_path):
@@ -422,14 +422,14 @@ class CueVidSpeedResolver(object):
         base_name = os.path.basename(base_path)
         base_no_ext, ext = self._split_ext(base_name)
         try:
-            video_dir = _cue.db.video_dir
+            video_dir = _cue.paths.video_dir
             for f in os.listdir(video_dir):
                 sp = self._parse_variant_speed(f, base_no_ext, ext)
                 if sp is not None and sp != CUE_DEFAULT_VIDEO_SPEED:
                     if os.path.isfile(os.path.join(video_dir, f)):
                         speeds.append(sp)
         except Exception:
-            _cue_log("SPEED-LIST: os.listdir failed for {}".format(_cue.db.video_dir))
+            _cue_log("SPEED-LIST: os.listdir failed for {}".format(_cue.paths.video_dir))
         speeds.sort()
         return speeds
 
