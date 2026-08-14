@@ -14,6 +14,7 @@ import renpy.display.video as _video
 import renpy.display.im as _im
 import renpy.audio.music as _music
 
+from cue_lib.constants import CUE_AUDIO_EXTS
 from cue_lib.state import _cue
 from renpy.store import Function
 
@@ -252,45 +253,17 @@ def _cue_unwrap_persistent(data):
 # Audio File Scanning
 # --------------------------------------------------------------------------
 
-def _cue_scan_audio():
-    # type: () -> None
-    """Scan audio dir and build folder tree."""
-    _t0 = time.time()
+def _cue_build_tree(flat_files):
+    # type: (List[str]) -> List
+    """Build a nested tree of folder/file nodes from a sorted flat list of
+    relative paths.
 
-    search_path = _cue.paths.audio_dir
-    if not search_path.endswith("/"):
-        search_path = search_path + "/"
-
-    audio_exts = CUE_AUDIO_EXTS
-
-    results_set = set()
-
-    # Live filesystem scan (picks up files added after startup)
-    if os.path.isdir(search_path):
-        for dirpath, _dirnames, filenames in os.walk(search_path, followlinks=True):
-            _cue_log('dirpath ' + str(dirpath))
-            
-            rel_dir = os.path.relpath(dirpath, search_path)
-            if rel_dir == ".":
-                rel_dir = ""
-            for fname in filenames:
-                if fname.lower().endswith(audio_exts):
-                    rel_path = (rel_dir + "/" + fname) if rel_dir else fname
-                    rel_path = rel_path.replace("\\", "/")
-                    results_set.add(rel_path)
-
-    if not results_set:
-        _cue.available_files = []
-        _cue.audio_tree = []
-        _cue.scan_error = "Failed to list files"
-        return
-
-    results = sorted(results_set)
-    _cue.available_files = results
-
-    # Build tree from flat list
+    Folder nodes: {"type": "folder", "name": <name + "/">, "children": [...],
+    "expanded": False, "has_files": bool} -- folders first, then files.
+    File nodes: {"type": "file", "name": <basename>}.
+    """
     root = {}
-    for path in results:
+    for path in flat_files:
         parts = path.split("/")
         node = root
         for i, part in enumerate(parts):
@@ -301,15 +274,14 @@ def _cue_scan_audio():
                 # It's a folder
                 node = node.setdefault(part, {})
 
-    # Convert to sorted tree list
-    def _build_tree(node):
+    def _build(node):
         # type: (Dict[str, Any]) -> List
         items = []
         # Folders first
         for name in sorted(node.keys()):
             if name == "__files__":
                 continue
-            children = _build_tree(node[name])
+            children = _build(node[name])
             has_direct_files = len(node[name].get("__files__", [])) > 0
             items.append({
                 "type": "folder",
@@ -323,14 +295,49 @@ def _cue_scan_audio():
             items.append({"type": "file", "name": name})
         return items
 
-    _cue.audio_tree = _build_tree(root)
+    return _build(root)
 
-    if not results:
-        _cue.scan_error = "No audio files found in: {}".format(
-            os.path.normpath(_cue.audio_dir)
-        )
-    else:
-        _cue.scan_error = ""
+
+def _cue_scan_audio():
+    # type: () -> None
+    """Scan audio dir and build folder tree.
+
+    An empty folder is not an error -- it just means no audio files have been
+    added yet.  scan_error is only set when the scan itself fails.
+    """
+    _t0 = time.time()
+
+    search_path = _cue.paths.audio_dir
+    if not search_path.endswith("/"):
+        search_path = search_path + "/"
+
+    results_set = set()
+
+    # Live filesystem scan (picks up files added after startup)
+    try:
+        if os.path.isdir(search_path):
+            for dirpath, _dirnames, filenames in os.walk(search_path, followlinks=True):
+                rel_dir = os.path.relpath(dirpath, search_path)
+                if rel_dir == ".":
+                    rel_dir = ""
+                for fname in filenames:
+                    if fname.lower().endswith(CUE_AUDIO_EXTS):
+                        rel_path = (rel_dir + "/" + fname) if rel_dir else fname
+                        rel_path = rel_path.replace("\\", "/")
+                        results_set.add(rel_path)
+    except (OSError, IOError) as err:
+        _cue.available_files = []
+        _cue.audio_tree = []
+        _cue.scan_error = "Failed to scan audio folder: {}".format(err)
+        return
+
+    results = sorted(results_set)
+    _cue.available_files = results
+
+    _cue.audio_tree = _cue_build_tree(results)
+
+    # Empty is fine -- no audio files added yet
+    _cue.scan_error = ""
 
     # Rebuild visible tree for sidebar
     _cue.file_tree.rebuild_tree()

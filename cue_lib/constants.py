@@ -28,6 +28,10 @@ CUE_AUTO_SPEED_IDEAL_VARIANTS = 8
 # second location.  Other section titles are single-use literals.
 CUE_SFX_LIBRARY_HEADER = "SFX Library"
 
+# Audio file extensions accepted by the SFX library and My Music scans.
+# Ren'Py officially supported formats.
+CUE_AUDIO_EXTS = (".ogg", ".mp3", ".wav", ".opus")
+
 # Popper displayable defaults — distance from anchor and viewport edge clearance.
 CUE_POPPER_DEFAULT_OFFSET = 5
 CUE_POPPER_DEFAULT_MARGIN = 8

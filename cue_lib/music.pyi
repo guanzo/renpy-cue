@@ -1,6 +1,8 @@
 # Type stub for cue_lib.music
 from typing import Any, Dict, List, Optional
 
+from cue_lib.user_music import CueUserMusic
+
 class CueMusicManager:
     _is_installed: bool
     last_event: Optional[Dict[str, Any]]
@@ -9,9 +11,11 @@ class CueMusicManager:
     _original_music_stop: Any
     _triggers: Dict[str, List[Dict[str, str]]]
     _pending: Optional[Dict[str, Any]]
+    user_music: CueUserMusic
 
     def __init__(self) -> None: ...
     def install(self) -> None: ...
+    def play_untracked(self, full_path: str, volume: float = 1.0) -> None: ...
     def reload(self) -> None: ...
     def triggers_for(self, replay_id: Optional[str]) -> List[Dict[str, str]]: ...
     def _current_scene_key(self) -> str: ...

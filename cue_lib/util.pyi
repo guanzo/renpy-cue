@@ -1,5 +1,5 @@
 # Type stub for cue_lib.util
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from renpy.display.video import Movie
 
 # Key helpers
@@ -25,6 +25,7 @@ def _to_str(obj: Any) -> Any: ...
 def _cue_unwrap_persistent(data: Any) -> Any: ...
 
 # Audio scan
+def _cue_build_tree(flat_files: List[str]) -> List[Dict[str, Any]]: ...
 def _cue_scan_audio() -> None: ...
 
 # Time formatting

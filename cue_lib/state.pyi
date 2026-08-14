@@ -19,7 +19,6 @@ from cue_lib.volume import CueVolumeManager
 from cue_lib.music import CueMusicManager
 from cue_lib.keybinds import CueKeybindsManager
 from cue_lib.icons import CueIconManager
-from cue_lib.music_library import CueMusicLibrary
 from cue_lib.paths import CuePaths
 
 class CuePage:
@@ -76,13 +75,9 @@ class Cue:
     keybinds: CueKeybindsManager
     icons: CueIconManager
     music_manager: CueMusicManager
-    music_library: CueMusicLibrary
 
     available_files: List[str]
     audio_tree: List[AudioTreeNode]
-    music_files: List[str]
-    music_tree: List[AudioTreeNode]
-    music_scan_error: Optional[str]
 
     _cue_next_sfx_channel: int
     _shake_just_happened: bool

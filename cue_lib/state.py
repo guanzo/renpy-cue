@@ -74,6 +74,7 @@ class Cue(_renpy_python.NoRollback):
         self.keybinds = None
         self.icons = None
         self.music_manager = None
+        self.paths = None
 
         # --- Audio cache ---
         self.available_files = []

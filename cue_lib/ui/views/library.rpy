@@ -42,8 +42,10 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
                                 add _arrow yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
             if not _collapsed:
                 if not _cue.audio_tree:
-                    text "[_cue.scan_error]" style "cue_help" color _cue_color_error
-                    text "Place .ogg, .mp3, .wav, .opus, or .flac files there and click the refresh button." style "cue_help"
+                    if _cue.scan_error:
+                        text "[_cue.scan_error]" style "cue_help" color _cue_color_error
+                    text ("Place {} files there "
+                        "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_help"
                 else:
                     use cue_sfx_library_content(_is_video, _has_image, _is_dialogue)
 

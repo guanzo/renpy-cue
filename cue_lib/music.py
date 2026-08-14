@@ -5,6 +5,7 @@ import renpy
 import renpy.audio.music as _music
 
 from cue_lib.state import _cue
+from cue_lib.user_music import CueUserMusic
 from cue_lib.util import _cue_log, create_img_key, create_vid_key
 
 MYPY = False
@@ -35,6 +36,8 @@ class CueMusicManager(object):
         self._triggers = {}
         # The play awaiting key_after: {"replay_id", "key_before", "filepath"}.
         self._pending = None  # type: Optional[Dict[str, Any]]
+        # My Music page: tree expand/collapse state.
+        self.user_music = CueUserMusic()
 
     def install(self):
         # type: () -> None
@@ -48,6 +51,25 @@ class CueMusicManager(object):
         _music.queue = self._on_queue
         _music.stop = self._on_stop
         self._is_installed = True
+
+    def play_untracked(self, full_path, volume=1.0):
+        # type: (str, float) -> None
+        """Play a file on the music channel without recording a trigger.
+
+        Used by the My Music page previews.  Goes straight to the cached
+        original renpy.audio.music.play (bypassing the interceptor), so the
+        call is never logged or recorded as a default music trigger.  Playing
+        on the default music channel replaces whatever music is currently
+        playing, which is the desired preview behavior.
+        """
+        if _cue._has_relative_volume:
+            self._original_music_play(
+                full_path, channel=CUE_DEFAULT_MUSIC_CHANNEL,
+                loop=False, relative_volume=volume)
+        else:
+            self._original_music_play(
+                full_path, channel=CUE_DEFAULT_MUSIC_CHANNEL, loop=False)
+            _music.set_volume(volume, delay=0, channel=CUE_DEFAULT_MUSIC_CHANNEL)
 
     def _on_play(self, *args, **kwargs):
         # type: (Any, Any) -> Any

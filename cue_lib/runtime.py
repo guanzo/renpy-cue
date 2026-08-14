@@ -131,6 +131,8 @@ def _cue_show_overlay():
     _cue.is_overlay_visible = True
     if not _cue.available_files:
         _cue_scan_audio()
+    if not _cue.music_manager.user_music.music_files:
+        _cue.music_manager.user_music.scan()
     _cue.file_tree.rebuild_tree()
     _cue_refresh_context()
     _cue.video_editor.refresh()
@@ -430,6 +432,20 @@ def _cue_preview_sfx(filename, volume=1.0):
     _cue._preview_channel = _cue_play_sfx(filename, "preview", volume=volume)
 
 
+def _cue_preview_music(filename, volume=1.0):
+    # type: (str, float) -> None
+    """Preview a My Music file on the music channel (untracked).
+
+    Joins the file against the My Music dir and plays through
+    CueMusicManager.play_untracked, so the preview replaces any currently
+    playing music without being recorded as a default music trigger.
+    """
+    base_dir = _cue.paths.music_dir
+    if not base_dir.endswith("/"):
+        base_dir = base_dir + "/"
+    _cue.music_manager.play_untracked(base_dir + filename, volume=volume)
+
+
 def _cue_play_sfx(filename, source="", volume=1.0):
     # type: (str, str, float) -> Optional[str]
 
@@ -516,5 +532,5 @@ def _cue_fade_out_sfx(exclude_channels=None):
     return faded
 
 
-# Re-export _cue_scan_audio from util for backward-compat in overlay
+# Re-export the scanners from util for backward-compat in overlay
 from cue_lib.util import _cue_scan_audio

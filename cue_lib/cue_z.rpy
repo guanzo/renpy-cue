@@ -43,7 +43,7 @@ init -999 python:
     from cue_lib.constants import (
         CUE_SFX_CHANNEL_COUNT, CUE_DEFAULT_VIDEO_SPEED,
         CUE_POPPER_DEFAULT_OFFSET, CUE_POPPER_DEFAULT_MARGIN,
-        CUE_SFX_LIBRARY_HEADER,
+        CUE_SFX_LIBRARY_HEADER, CUE_AUDIO_EXTS,
     )
     from cue_lib.util import (
         create_img_key as _cue_create_img_key,
@@ -64,7 +64,7 @@ init -999 python:
         _cue_reload_presets,
         _cue_refresh_context, _cue_log_context, _cue_get_top_layer,
         _cue_refresh_channel, _cue_tick_trigger, _cue_play_sfx,
-        _cue_preview_sfx, _cue_preview_preset, _cue_preview_folder, _cue_preview_video_preset, _cue_play_pool,
+        _cue_preview_sfx, _cue_preview_music, _cue_preview_preset, _cue_preview_folder, _cue_preview_video_preset, _cue_play_pool,
         _cue_toggle_active, _cue_set_page, _cue_toggle_exclusive_row,
         _cue_toggle_shake_trigger, _cue_toggle_video_mute,
         _cue_confirm_shared_dir,
@@ -158,6 +158,7 @@ init -900 python:
     _cue.keybinds = CueKeybindsManager()
     _cue.icons = CueIconManager()
     _cue.music_manager = CueMusicManager()
+
     _cue.paths = CuePaths(CuePaths.resolve_root(), renpy.config.save_directory)
 
     _cue.db = CueDatabase(_cue.paths)
@@ -277,6 +278,7 @@ init 999 python:
         _cue.undo.seed()  # seed undo baseline after initial load
         _cue.speed_resolver.wrap_all_movies()
         _cue_scan_audio()
+        _cue.music_manager.user_music.scan()
 
         _cue.initialized = True
         _cue_log("INIT: Done")
