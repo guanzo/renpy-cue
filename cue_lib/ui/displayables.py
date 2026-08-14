@@ -386,9 +386,10 @@ class CueVideoMarkerTimeline(Displayable):
                 if not self._drag_on and abs(inner_x - self._drag_start_x) > self.DRAG_THRESH:
                     self._drag_on = True
                     sel = self._get_selected()
-                    if len(sel) > 1 and self._drag_idx in sel:
+                    valid_sel = [idx for idx in sel if 0 <= idx < len(markers)]
+                    if len(valid_sel) > 1 and self._drag_idx in valid_sel:
                         self._drag_orig_times = {
-                            idx: markers[idx]["time"] for idx in sel
+                            idx: markers[idx]["time"] for idx in valid_sel
                         }
                         times = self._drag_orig_times.values()
                         self._drag_group_min = min(times)
@@ -430,8 +431,9 @@ class CueVideoMarkerTimeline(Displayable):
                     self._tip_text = "Pool {} ({})".format(
                         hit_idx + 1, _cue_format_time(t))
                     refs = sel if sel else {self.get_active()}
-                    if hit_idx not in refs:
-                        ref_idx = min(refs, key=lambda s: abs(markers[s]["time"] - t))
+                    valid_refs = [s for s in refs if 0 <= s < len(markers)]
+                    if hit_idx not in valid_refs and valid_refs:
+                        ref_idx = min(valid_refs, key=lambda s: abs(markers[s]["time"] - t))
                         offset = t - markers[ref_idx]["time"]
                         sign = "+" if offset >= 0 else "-"
                         self._tip_text += "\nOffset from Pool {}: {}{}".format(
@@ -485,11 +487,15 @@ class CueVideoMarkerTimeline(Displayable):
                 raise IgnoreEvent()
 
             elif shift_held:
-                if sel:
-                    nearest_idx = min(sel, key=lambda si: abs(markers[si]["time"] - click_time))
+                valid_sel = [si for si in sel if 0 <= si < len(markers)]
+                if valid_sel:
+                    nearest_idx = min(valid_sel, key=lambda si: abs(markers[si]["time"] - click_time))
                     ref_time = markers[nearest_idx]["time"]
                 else:
-                    ref_time = markers[self.get_active()]["time"]
+                    active = self.get_active()
+                    if not (0 <= active < len(markers)):
+                        return None
+                    ref_time = markers[active]["time"]
                 if hit_idx >= 0:
                     target_time = markers[hit_idx]["time"]
                 else:
