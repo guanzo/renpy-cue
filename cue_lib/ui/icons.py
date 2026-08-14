@@ -18,6 +18,7 @@ import renpy
 
 from cue_lib.state import _cue
 from cue_lib.util import _cue_log
+from renpy.display.matrixcolor import ColorizeMatrix
 from renpy.display.transform import Transform
 
 MYPY = False
@@ -49,6 +50,7 @@ CUE_ICON_MAP = {
     "paste": ("paste-regular.png", False),
     "pause": ("pause-solid.png", False),
     "play": ("play-solid.png", False),
+    "plus": ("plus-solid.png", False),
     "question": ("question-solid.png", False),
     "rotate-right": ("rotate-right-solid.png", False),
     "gear": ("gear-solid.png", False),
@@ -61,6 +63,7 @@ CUE_ICON_MAP = {
     "recycle": ("recycle-solid.png", False),
     "square-check": ("square-check-regular.png", False),
     "square": ("square-regular.png", False),
+    "trash-can": ("trash-can-solid.png", False),
 }  # type: Dict[str, Tuple[str, bool]]
 
 
@@ -72,13 +75,20 @@ class CueIconManager(object):
     """
 
     def __init__(self):
-        self._displayables = {}  # type: Dict[str, Any]
+        self._displayables = {}  # type: Dict[Tuple[str, Optional[str]], Any]
 
-    def displayable_for(self, name):
-        # type: (str) -> Optional[Transform]
+    def displayable_for(self, name, color=None):
+        # type: (str, Optional[str]) -> Optional[Transform]
+        """Resolve an icon name to a displayable, optionally recolored.
+
+        The base (white) icon is cached per name; a colored variant is
+        cached per (name, color) so each color is built once and reused.
+        Color is any Ren'Py color: ColorizeMatrix maps the icon's white to
+        it (black stays black), so the shape is preserved."""
         if name not in CUE_ICON_MAP:
             return None
-        cached = self._displayables.get(name)
+        cache_key = (name, color)
+        cached = self._displayables.get(cache_key)
         if cached is not None:
             return cached
         _filename, _mirrored = CUE_ICON_MAP[name]
@@ -91,5 +101,7 @@ class CueIconManager(object):
             zoom=CUE_ICON_ZOOM,
             xzoom=-1.0 if _mirrored else 1.0,
         )
-        self._displayables[name] = displayable
+        if color is not None:
+            displayable = Transform(displayable, matrixcolor=ColorizeMatrix(color, "#000000"))
+        self._displayables[cache_key] = displayable
         return displayable

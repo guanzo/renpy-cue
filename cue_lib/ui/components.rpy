@@ -86,8 +86,8 @@ screen cue_vol_row(label_text, dec_action, entry_dict, inc_action, key):
 # Names mapped in CueIconManager render as PNG images (white, shown at
 # 12px from a 32px source, dimmed via alpha when disabled); everything
 # else falls back to text.
-screen cue_icon_btn(label, action, tt=None, xsize=16, enabled=True, bg=None):
-    $ _icon = _cue.icons.displayable_for(label) if _cue.icons is not None else None
+screen cue_icon_btn(label, action, tt=None, xsize=16, enabled=True, bg=None, icon_color=None):
+    $ _icon = _cue.icons.displayable_for(label, icon_color) if _cue.icons is not None else None
     if _icon is not None:
         button:
             style "cue_btn_icon"
