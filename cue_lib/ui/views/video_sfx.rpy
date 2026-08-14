@@ -27,7 +27,12 @@ screen cue_video_sfx():
                 ("Play" if _cue.vid_manager.paused else "Pause"))
 
             $ _has_markers = _cue.markers.video.has_markers()
-            use cue_icon_btn("floppy-disk", Function(_cue.video_preset_dialog.open), "Save all video markers as a preset", None)
+            use cue_icon_btn(
+                "floppy-disk",
+                Function(_cue.video_preset_dialog.open),
+                "Save all video markers as a preset",
+                None,
+            )
             use cue_icon_btn("xmark",
                 (Function(_cue.markers.video.remove_selected) if _has_markers else NullAction()),
                 "Delete selected markers" if _has_markers else "No markers to delete", None)
@@ -113,7 +118,12 @@ screen cue_video_sfx():
 
                 null width 5
 
-                use cue_icon_btn("clone", Function(_cue.markers.video.duplicate_pool, _vid_target), "Duplicate pool", None)
+                use cue_icon_btn(
+                    "clone",
+                    Function(_cue.markers.video.duplicate_pool, _vid_target),
+                    "Duplicate pool",
+                    None,
+                )
                 use cue_icon_btn("xmark", Function(_cue.markers.video.remove_pool, _vid_target), "Delete pool", None)
 
                 # Volume controls

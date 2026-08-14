@@ -10,6 +10,7 @@ CUE_AUTO_SPEED_MIN_VARIANTS: Final = 4
 CUE_AUTO_SPEED_IDEAL_VARIANTS: Final = 8
 CUE_SFX_LIBRARY_HEADER: Final = "SFX Library"
 CUE_AUDIO_EXTS: Final = (".ogg", ".mp3", ".wav", ".opus")
+CUE_GAME_MUSIC_DIRS: Final = ("music", "bgm", "ost", "soundtrack")
 CUE_KEYMAP_TOGGLE_OVERLAY: Final = "cue_toggle_overlay"
 CUE_KEYMAP_QUIT_RELAUNCH: Final = "cue_quit_relaunch"
 CUE_KEYMAP_COPY_CONTEXT: Final = "cue_copy_context"

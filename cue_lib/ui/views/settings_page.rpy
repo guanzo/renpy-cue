@@ -25,7 +25,8 @@ screen cue_data_dir():
         vbox:
             spacing 5
             text "Cue stores everything (markers, video, audio, backups, etc.) in this directory." style "cue_help"
-            text "If you change the directory, you must move all files to the new directory and restart the game." style "cue_help"
+            text ("If you change the directory, you must move all files to the new "
+                "directory and restart the game.") style "cue_help"
             use cue_text_input("_cue.setup_dir_text",
                 Function(_cue_confirm_shared_dir),
                 _cue.setup_dir_text, xsize=440)

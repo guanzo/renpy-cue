@@ -15,7 +15,12 @@ screen _cue_edit_queue_vbox():
             hbox:
                 spacing 5
                 if job.status in ("queued", "analyzing", "encoding"):
-                    use cue_icon_btn("xmark", Function(_cue.video_editor.job_queue.cancel, job.job_id), "Cancel job", None)
+                    use cue_icon_btn(
+                        "xmark",
+                        Function(_cue.video_editor.job_queue.cancel, job.job_id),
+                        "Cancel job",
+                        None,
+                    )
                 else:
                     use cue_icon_btn(
                         "xmark",

@@ -244,7 +244,12 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
     hbox:
         spacing 5
         if show_delete:
-            use cue_icon_btn("xmark", Function(_cue.confirm_dialog.show, delete_confirm, delete_action), delete_tt, None)
+            use cue_icon_btn(
+                "xmark",
+                Function(_cue.confirm_dialog.show, delete_confirm, delete_action),
+                delete_tt,
+                None,
+            )
         textbutton "+ Pool":
             style "cue_btn"
             text_style "cue_btn_text"
@@ -369,7 +374,8 @@ style cue_section_hdr_btn is empty:
 # Click the header to collapse/expand the section content.
 screen cue_section_frame(header_text):
     $ _collapsed = _cue.collapsed_sections.get(header_text, False)
-    $ _arrow = _cue.icons.displayable_for("chevron-right" if _collapsed else "chevron-down") if _cue.icons is not None else None
+    $ _arrow_icon = "chevron-right" if _collapsed else "chevron-down"
+    $ _arrow = _cue.icons.displayable_for(_arrow_icon) if _cue.icons is not None else None
     frame:
         background _cue_color_bg_panel
         padding (4, 4)
@@ -446,7 +452,12 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 box_wrap_spacing 3
                 text _active_label style "cue_txt"
                 null width 5
-                use cue_icon_btn("floppy-disk", Function(_cue.preset_dialog.open, key, _target), "Save pool as a preset", None)
+                use cue_icon_btn(
+                    "floppy-disk",
+                    Function(_cue.preset_dialog.open, key, _target),
+                    "Save pool as a preset",
+                    None,
+                )
                 $ _exclusive_bg = _cue_color_active if _cue.is_exclusive_row_visible else None
                 use cue_icon_btn(
                     "layer-group",

@@ -32,6 +32,11 @@ CUE_SFX_LIBRARY_HEADER = "SFX Library"
 # Ren'Py officially supported formats.
 CUE_AUDIO_EXTS = (".ogg", ".mp3", ".wav", ".opus")
 
+# Directory-name heuristic for Game Music discovery: a game file whose path
+# contains one of these segments (case-insensitive) is classified as music.
+# Shared with the Music page's empty-state text.
+CUE_GAME_MUSIC_DIRS = ("music", "bgm", "ost", "soundtrack")
+
 # Popper displayable defaults — distance from anchor and viewport edge clearance.
 CUE_POPPER_DEFAULT_OFFSET = 5
 CUE_POPPER_DEFAULT_MARGIN = 8

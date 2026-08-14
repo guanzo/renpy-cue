@@ -451,6 +451,16 @@ def _cue_preview_music(filename, volume=1.0):
     _cue.music.play_untracked(_cue.paths.music_dir + filename, volume=volume)
 
 
+def _cue_preview_game_music(filename, volume=1.0):
+    # type: (str, float) -> None
+    """Preview a discovered game-music file on the music channel (untracked).
+
+    `filename` is already a game-relative path from renpy.list_files(), so it
+    is passed straight through to play_untracked -- no shared-dir join.
+    """
+    _cue.music.play_untracked(filename, volume=volume)
+
+
 def _cue_play_sfx(filename, source="", volume=1.0):
     # type: (str, str, float) -> Optional[str]
 

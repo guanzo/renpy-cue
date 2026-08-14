@@ -6,6 +6,7 @@ import renpy.audio.music as _music
 
 from cue_lib.state import _cue
 from cue_lib.audio.user_music import CueUserMusic
+from cue_lib.audio.game_music import CueGameMusic
 from cue_lib.util import _cue_log, create_img_key, create_vid_key
 
 MYPY = False
@@ -38,6 +39,8 @@ class CueMusicManager(object):
         self._pending = None  # type: Optional[Dict[str, Any]]
         # My Music page: tree expand/collapse state.
         self.user_music = CueUserMusic()
+        # Game Music page: discovered game audio, tree expand/collapse state.
+        self.game_music = CueGameMusic()
 
     def install(self):
         # type: () -> None
