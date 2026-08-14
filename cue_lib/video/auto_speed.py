@@ -11,6 +11,7 @@
 #
 # Instantiated at _cue.auto_speed.
 
+import math as _math
 import random as _random
 
 import renpy
@@ -23,6 +24,15 @@ from cue_lib.util import create_vid_key, _cue_log, _cue_speed_label
 MYPY = False
 if MYPY:
     from typing import List
+
+
+# Holds inside a generated unit run at full length once the TU budget is
+# reached, so the in-progress pattern (hump, climb, spike) completes instead
+# of being truncated.  Passed to holds as their remaining-TU clamp; it is
+# larger than any natural hold, so it never shortens one -- it only lets the
+# unit's tail run past target_tu.  The budget still gates whether a new unit
+# starts.
+CUE_AUTO_UNIT_ALLOWANCE_TU = 10.0
 
 
 # ==========================================================================
@@ -405,6 +415,11 @@ class CueAutoSpeedGenerator(object):
         last_descend = None
 
         for i in range(num_humps):
+            # Budget gates unit entry: a hump that has started always
+            # completes (climb, peak, descend, valley) before stopping.
+            if tu >= target_tu:
+                break
+
             peak = peaks[i]
             valley = valleys[i]
 
@@ -435,32 +450,24 @@ class CueAutoSpeedGenerator(object):
             while rung < peak:
                 stride = _random.randint(_stride_lo, _stride_hi)
                 rung = min(rung + stride, peak)
-                if target_tu - tu <= 0.1:
-                    break
-                tu += self._take_hold(seq, speeds, rung, target_tu - tu,
+                tu += self._take_hold(seq, speeds, rung,
+                                      CUE_AUTO_UNIT_ALLOWANCE_TU,
                                       scale=climb_scale)
-            if tu >= target_tu:
-                break
             if rung != peak:
                 tu += self._take_hold(seq, speeds, peak,
-                                      target_tu - tu, scale=0.4)
-            if tu >= target_tu:
-                break
+                                      CUE_AUTO_UNIT_ALLOWANCE_TU, scale=0.4)
 
             # -- Descend (same width as the climb) --
             rung = peak
             while rung > valley:
                 stride = _random.randint(_stride_lo, _stride_hi)
                 rung = max(rung - stride, valley)
-                if target_tu - tu <= 0.1:
-                    break
-                tu += self._take_hold(seq, speeds, rung, target_tu - tu,
+                tu += self._take_hold(seq, speeds, rung,
+                                      CUE_AUTO_UNIT_ALLOWANCE_TU,
                                       scale=descend_scale)
-            if tu >= target_tu:
-                break
             if rung != valley:
                 tu += self._take_hold(seq, speeds, valley,
-                                      target_tu - tu, scale=0.4)
+                                      CUE_AUTO_UNIT_ALLOWANCE_TU, scale=0.4)
 
             idx = valley
 
@@ -492,15 +499,15 @@ class CueAutoSpeedGenerator(object):
         climb_scale = max(0.3, per_rung / max(avg_hold, 0.1))
 
         for rung in climb_rungs:
-            remaining = target_tu - tu
-            if remaining <= 0.1:
-                break
-            tu += self._take_hold(seq, speeds, rung, remaining, scale=climb_scale)
+            tu += self._take_hold(seq, speeds, rung,
+                                  CUE_AUTO_UNIT_ALLOWANCE_TU,
+                                  scale=climb_scale)
 
-        # -- Peak phase: wiggle with remaining budget --
+        # -- Peak phase: wiggle until the budget is spent --
         idx = peak
         while tu < target_tu:
-            tu += self._take_hold(seq, speeds, idx, target_tu - tu, scale=1.2)
+            tu += self._take_hold(seq, speeds, idx,
+                                  CUE_AUTO_UNIT_ALLOWANCE_TU, scale=1.2)
             r = _random.random()
             if r < 0.35:
                 idx = max(peak - 1, idx - 1)
@@ -534,15 +541,15 @@ class CueAutoSpeedGenerator(object):
         descend_scale = max(0.3, per_rung / max(avg_hold, 0.1))
 
         for rung in descend_rungs:
-            remaining = target_tu - tu
-            if remaining <= 0.1:
-                break
-            tu += self._take_hold(seq, speeds, rung, remaining, scale=descend_scale)
+            tu += self._take_hold(seq, speeds, rung,
+                                  CUE_AUTO_UNIT_ALLOWANCE_TU,
+                                  scale=descend_scale)
 
-        # -- Bottom phase: wiggle with remaining budget --
+        # -- Bottom phase: wiggle until the budget is spent --
         idx = bottom
         while tu < target_tu:
-            tu += self._take_hold(seq, speeds, idx, target_tu - tu, scale=1.2)
+            tu += self._take_hold(seq, speeds, idx,
+                                  CUE_AUTO_UNIT_ALLOWANCE_TU, scale=1.2)
             r = _random.random()
             if r < 0.35:
                 idx = min(bottom + 1, idx + 1)
@@ -566,8 +573,8 @@ class CueAutoSpeedGenerator(object):
         stay_count = 0
 
         while tu < target_tu:
-            remaining = target_tu - tu
-            tu += self._take_hold(seq, speeds, idx, remaining, scale=1.1)
+            tu += self._take_hold(seq, speeds, idx,
+                                  CUE_AUTO_UNIT_ALLOWANCE_TU, scale=1.1)
 
             if tu >= target_tu:
                 break
@@ -598,9 +605,9 @@ class CueAutoSpeedGenerator(object):
         stay_count = 0
 
         while tu < target_tu:
-            remaining = target_tu - tu
             # Short holds for rapid change feel
-            tu += self._take_hold(seq, speeds, idx, remaining, scale=0.5)
+            tu += self._take_hold(seq, speeds, idx,
+                                  CUE_AUTO_UNIT_ALLOWANCE_TU, scale=0.5)
 
             if tu >= target_tu:
                 break
@@ -627,7 +634,7 @@ class CueAutoSpeedGenerator(object):
     def _gen_tease(self, speeds, n, target_tu):
         # type: (list, int, float) -> list
         """Tease: baseline in the lowest fourth, sharp spikes into the
-        top third.  Guarantees at least 3 spikes, then lets probability
+        top third.  Guarantees at least 5 spikes, then lets probability
         drive additional spikes."""
         seq = []
         tu = 0.0
@@ -648,6 +655,15 @@ class CueAutoSpeedGenerator(object):
         spike_count = 0
         stay_count = 0
 
+        # Spikes must last at least this long in real time.  One play of the
+        # video (at any speed) is _video_duration real seconds, so the floor
+        # is expressed as a whole number of plays.
+        spike_min_real_s = 3.0
+        min_spike_plays = 1
+        if hasattr(self, '_video_duration') and self._video_duration > 0:
+            min_spike_plays = max(
+                1, int(_math.ceil(spike_min_real_s / self._video_duration)))
+
         while tu < target_tu:
             remaining = target_tu - tu
 
@@ -662,17 +678,24 @@ class CueAutoSpeedGenerator(object):
                     and (_random.random() < spike_chance or force_spike))
                     and spike_rungs):
                 spike_idx = _random.choice(spike_rungs)
-                spike_tu = min(spike_hold, remaining)
-                if spike_tu > 0:
-                    tu += self._emit_hold(seq, speeds, spike_idx, spike_tu)
-                    tu_since_spike = 0.0
-                    spike_count += 1
-                    idx = _random.randint(0, base_hi)
-                    stay_count = 0
+                # Spikes run at full length (not clamped to remaining) so a
+                # spike unit always completes once it starts.
+                spike_tu = spike_hold
+                # Raise the hold so it rounds to at least min_spike_plays
+                # whole plays (enforces the real-time floor).
+                min_tu = float(min_spike_plays) / speeds[spike_idx]
+                if spike_tu < min_tu:
+                    spike_tu = min_tu
+                tu += self._emit_hold(seq, speeds, spike_idx, spike_tu)
+                tu_since_spike = 0.0
+                spike_count += 1
+                idx = _random.randint(0, base_hi)
+                stay_count = 0
                 if tu >= target_tu:
                     break
 
-            hold_tu = self._take_hold(seq, speeds, idx, remaining, scale=1.1)
+            hold_tu = self._take_hold(seq, speeds, idx,
+                                      CUE_AUTO_UNIT_ALLOWANCE_TU, scale=1.1)
             tu += hold_tu
             tu_since_spike += hold_tu
 
@@ -705,8 +728,8 @@ class CueAutoSpeedGenerator(object):
         plateau_scale = _random.uniform(2, 5)
 
         while tu < target_tu:
-            remaining = target_tu - tu
-            tu += self._take_hold(seq, speeds, idx, remaining, scale=plateau_scale, max_real_s=20.0)
+            tu += self._take_hold(seq, speeds, idx, CUE_AUTO_UNIT_ALLOWANCE_TU,
+                                  scale=plateau_scale, max_real_s=20.0)
 
             if tu >= target_tu:
                 break
@@ -743,8 +766,8 @@ class CueAutoSpeedGenerator(object):
         stay_count = 0
 
         while tu < target_tu:
-            remaining = target_tu - tu
-            tu += self._take_hold(seq, speeds, idx, remaining)
+            tu += self._take_hold(seq, speeds, idx,
+                                  CUE_AUTO_UNIT_ALLOWANCE_TU)
 
             if tu >= target_tu:
                 break
@@ -782,8 +805,8 @@ class CueAutoSpeedGenerator(object):
         early_drop_chance = _random.uniform(0.0, 0.12)
 
         while tu < target_tu:
-            remaining = target_tu - tu
-            tu += self._take_hold(seq, speeds, idx, remaining)
+            tu += self._take_hold(seq, speeds, idx,
+                                  CUE_AUTO_UNIT_ALLOWANCE_TU)
 
             if tu >= target_tu:
                 break
@@ -821,8 +844,8 @@ class CueAutoSpeedGenerator(object):
         stay_count = 0
 
         while tu < target_tu:
-            remaining = target_tu - tu
-            tu += self._take_hold(seq, speeds, idx, remaining)
+            tu += self._take_hold(seq, speeds, idx,
+                                  CUE_AUTO_UNIT_ALLOWANCE_TU)
 
             if tu >= target_tu:
                 break
@@ -880,7 +903,7 @@ class CueAutoSpeedGenerator(object):
         beat_scale = _random.uniform(0.4, 0.7)
 
         while tu < target_tu:
-            tu += self._take_hold(seq, speeds, idx, target_tu - tu,
+            tu += self._take_hold(seq, speeds, idx, CUE_AUTO_UNIT_ALLOWANCE_TU,
                                   scale=beat_scale)
             if tu >= target_tu:
                 break
@@ -912,9 +935,6 @@ class CueAutoSpeedGenerator(object):
 
         while accumulated_tu < target_tu:
             hold_tu = _random.uniform(self.min_hold_tu, self.max_hold_tu)
-            remaining = target_tu - accumulated_tu
-            if hold_tu > remaining:
-                hold_tu = remaining
 
             accumulated_tu += self._emit_hold(seq, speeds, current_idx, hold_tu)
 

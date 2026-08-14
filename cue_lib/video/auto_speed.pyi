@@ -2,6 +2,7 @@
 from typing import Final, List, Optional
 
 CUE_AUTO_SPEED_MIN_VARIANTS: Final = 4
+CUE_AUTO_UNIT_ALLOWANCE_TU: Final = 10.0
 
 def _cue_auto_preset_label(preset_name: str) -> str: ...
 def _cue_auto_preset_description(preset_name: str) -> str: ...
@@ -15,9 +16,9 @@ class CueAutoSpeedGenerator:
     momentum_min_steps: int
     momentum_max_steps: int
     momentum_drift_chance: float
-    surprise_pool: List[str]
+    shuffle_pool: List[str]
     active_preset: Optional[str]
-    is_surprise_mode: bool
+    is_shuffle_mode: bool
     custom_drift: float
     custom_intensity: float
     custom_volatility: float
@@ -25,7 +26,7 @@ class CueAutoSpeedGenerator:
 
     def __init__(self) -> None: ...
     def select_preset(self, preset_name: str) -> None: ...
-    def surprise_me(self) -> None: ...
+    def shuffle(self) -> None: ...
     def toggle_speed(self, speed: float) -> None: ...
     def is_speed_enabled(self, speed: float) -> bool: ...
     @property
