@@ -14,7 +14,6 @@ import renpy.display.video as _video
 import renpy.display.im as _im
 import renpy.audio.music as _music
 
-from cue_lib.constants import CUE_AUDIO_EXTS
 from cue_lib.state import _cue
 from renpy.store import Function
 
@@ -298,53 +297,6 @@ def _cue_build_tree(flat_files):
     return _build(root)
 
 
-def _cue_scan_audio():
-    # type: () -> None
-    """Scan audio dir and build folder tree.
-
-    An empty folder is not an error -- it just means no audio files have been
-    added yet.  scan_error is only set when the scan itself fails.
-    """
-    _t0 = time.time()
-
-    search_path = _cue.paths.audio_dir
-    if not search_path.endswith("/"):
-        search_path = search_path + "/"
-
-    results_set = set()
-
-    # Live filesystem scan (picks up files added after startup)
-    try:
-        if os.path.isdir(search_path):
-            for dirpath, _dirnames, filenames in os.walk(search_path, followlinks=True):
-                rel_dir = os.path.relpath(dirpath, search_path)
-                if rel_dir == ".":
-                    rel_dir = ""
-                for fname in filenames:
-                    if fname.lower().endswith(CUE_AUDIO_EXTS):
-                        rel_path = (rel_dir + "/" + fname) if rel_dir else fname
-                        rel_path = rel_path.replace("\\", "/")
-                        results_set.add(rel_path)
-    except (OSError, IOError) as err:
-        _cue.available_files = []
-        _cue.audio_tree = []
-        _cue.scan_error = "Failed to scan audio folder: {}".format(err)
-        return
-
-    results = sorted(results_set)
-    _cue.available_files = results
-
-    _cue.audio_tree = _cue_build_tree(results)
-
-    # Empty is fine -- no audio files added yet
-    _cue.scan_error = ""
-
-    # Rebuild visible tree for sidebar
-    _cue.file_tree.rebuild_tree()
-
-    _cue_log("SCAN-AUDIO: {:.3f}s {} files".format(time.time() - _t0, len(results)))
-
-
 # --------------------------------------------------------------------------
 # Utility: Time Formatting
 # --------------------------------------------------------------------------
@@ -472,10 +424,10 @@ def _cue_resolve_files(files):
     for item in files:
         if item.endswith("/"):
             # Folder reference -- expand to all matching available files
-            for f in _cue.available_files:
-                if f.startswith(item) and f not in _cue.file_tree.disabled_files and f not in result:
+            for f in _cue.sfx_manager.files:
+                if f.startswith(item) and f not in _cue.sfx_manager.disabled_files and f not in result:
                     result.append(f)
-        elif item not in _cue.file_tree.disabled_files and item not in result:
+        elif item not in _cue.sfx_manager.disabled_files and item not in result:
             result.append(item)
     return result
 

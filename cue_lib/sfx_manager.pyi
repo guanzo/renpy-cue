@@ -1,9 +1,12 @@
-# Type stub for cue_lib.file_tree
+# Type stub for cue_lib.sfx_manager
 from typing import Dict, List, Optional, Set
 
 from cue_lib._types import AudioTreeNode
 
-class CueFileTreeManager:
+class CueSfxManager:
+    files: List[str]
+    audio_tree: List[AudioTreeNode]
+    scan_error: str
     visible_tree: List[AudioTreeNode]
     expanded_folders: Dict[str, bool]
     expanded_file_refs: Dict[str, bool]
@@ -11,11 +14,10 @@ class CueFileTreeManager:
     expanded_presets: Dict[str, bool]
     video_presets_expanded: bool
     expanded_video_presets: Dict[str, bool]
-    collapsed_sections: Dict[str, bool]
-    sfx_library_overlay_mode: bool
     disabled_files: Set[str]
 
     def __init__(self) -> None: ...
+    def scan(self) -> None: ...
     def rebuild_tree(self) -> None: ...
     def toggle_folder(self, folder_path: str) -> None: ...
     def toggle_file_enabled(self, full_path: str) -> None: ...
@@ -29,5 +31,3 @@ class CueFileTreeManager:
     def toggle_preset_expand(self, preset_name: str) -> None: ...
     def toggle_video_presets_expand(self) -> None: ...
     def toggle_video_preset_expand(self, preset_name: str) -> None: ...
-    def toggle_section(self, section_name: str) -> None: ...
-    def toggle_sfx_library_overlay_mode(self) -> None: ...

@@ -276,7 +276,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
         spacing 2
         if folder_label is not None:
             # --- Virtual folder (e.g. preset-backed pool / video pool) ---
-            $ _is_expanded = _cue.file_tree.expanded_file_refs.get(folder_label, False)
+            $ _is_expanded = _cue.sfx_manager.expanded_file_refs.get(folder_label, False)
             $ _count = len(folder_children) if folder_children else 0
             hbox:
                 spacing row_spacing
@@ -285,7 +285,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                     "play",
                     Function(_cue_preview_sfx, _cue_pick_file(folder_children or [""], False), preview_vol),
                     "Preview random file from preset", None)
-                use cue_txt_button(folder_label, Function(_cue.file_tree.toggle_file_ref_expand, folder_label))
+                use cue_txt_button(folder_label, Function(_cue.sfx_manager.toggle_file_ref_expand, folder_label))
                 text "({} files)".format(_count) style "cue_help"
 
             if _is_expanded and folder_children:
@@ -303,7 +303,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
         for fi, f in enumerate(files):
             if f.endswith("/"):
                 # --- Folder: expandable (matches SFX Library folder UI) ---
-                $ _is_expanded = _cue.file_tree.expanded_file_refs.get(f, False)
+                $ _is_expanded = _cue.sfx_manager.expanded_file_refs.get(f, False)
                 $ _count = len(_cue_resolve_files([f]))
                 hbox:
                     spacing row_spacing
@@ -312,7 +312,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                         "play",
                         Function(_cue_preview_folder, f, preview_vol),
                         "Preview random file from folder", None)
-                    use cue_txt_button(f, Function(_cue.file_tree.toggle_file_ref_expand, f))
+                    use cue_txt_button(f, Function(_cue.sfx_manager.toggle_file_ref_expand, f))
                     text "({} files)".format(_count) style "cue_help"
 
                 if _is_expanded:
@@ -339,7 +339,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
 screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
                      trigger_key=None, pool_index=None, folder_child_remove_fn=None,
                      folder_label=None, folder_children=None):
-    $ _rows = _cue.file_tree.count_file_list_rows(folder_label, folder_children, files)
+    $ _rows = _cue.sfx_manager.count_file_list_rows(folder_label, folder_children, files)
     if _rows > 6:
         viewport:
             xfill True
@@ -368,7 +368,7 @@ style cue_section_hdr_btn is empty:
 # Usage: use cue_section_frame("Title"):  ...children...
 # Click the header to collapse/expand the section content.
 screen cue_section_frame(header_text):
-    $ _collapsed = _cue.file_tree.collapsed_sections.get(header_text, False)
+    $ _collapsed = _cue.collapsed_sections.get(header_text, False)
     $ _arrow = _cue.icons.displayable_for("chevron-right" if _collapsed else "chevron-down") if _cue.icons is not None else None
     frame:
         background _cue_color_bg_panel
@@ -380,7 +380,7 @@ screen cue_section_frame(header_text):
             xfill True
             button:
                 style "cue_section_hdr_btn"
-                action Function(_cue.file_tree.toggle_section, header_text)
+                action Function(_cue.toggle_section, header_text)
                 hbox:
                     xfill True
                     text header_text style "cue_hdr"

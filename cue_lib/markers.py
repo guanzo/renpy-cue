@@ -57,13 +57,13 @@ class CueMarkerContext(object):
 
     def add_file(self, file_index):
         # type: (int) -> None
-        if not _cue.available_files:
+        if not _cue.sfx_manager.files:
             return
-        if file_index < 0 or file_index >= len(_cue.available_files):
+        if file_index < 0 or file_index >= len(_cue.sfx_manager.files):
             return
         key = self._key()
-        filename = _cue.available_files[file_index]
-        if filename in _cue.file_tree.disabled_files:
+        filename = _cue.sfx_manager.files[file_index]
+        if filename in _cue.sfx_manager.disabled_files:
             return
         self._mgr._add_file_to_pool(key, filename, self.get_active())
 
@@ -317,12 +317,12 @@ class CueVideoContext(CueMarkerContext):
 
     def add_file(self, file_index):
         # type: (int) -> None
-        if not _cue.available_files:
+        if not _cue.sfx_manager.files:
             return
-        if file_index < 0 or file_index >= len(_cue.available_files):
+        if file_index < 0 or file_index >= len(_cue.sfx_manager.files):
             return
-        filename = _cue.available_files[file_index]
-        if filename in _cue.file_tree.disabled_files:
+        filename = _cue.sfx_manager.files[file_index]
+        if filename in _cue.sfx_manager.disabled_files:
             return
         vid_key = self._key()
         entry = self._mgr._get_or_create_entry(vid_key)
@@ -730,8 +730,8 @@ class CueMarkerManager(object):
         for fi, f in enumerate(files):
             if f.endswith("/") and file_path.startswith(f):
                 resolved = []
-                for rf in _cue.available_files:
-                    if rf.startswith(f) and rf not in _cue.file_tree.disabled_files and rf not in resolved:
+                for rf in _cue.sfx_manager.files:
+                    if rf.startswith(f) and rf not in _cue.sfx_manager.disabled_files and rf not in resolved:
                         resolved.append(rf)
                 if file_path in resolved:
                     resolved.remove(file_path)
@@ -994,8 +994,8 @@ class CueMarkerManager(object):
         if not folder_ref.endswith("/"):
             return
         resolved = []
-        for f in _cue.available_files:
-            if f.startswith(folder_ref) and f not in _cue.file_tree.disabled_files and f not in resolved:
+        for f in _cue.sfx_manager.files:
+            if f.startswith(folder_ref) and f not in _cue.sfx_manager.disabled_files and f not in resolved:
                 resolved.append(f)
         if child_file in resolved:
             resolved.remove(child_file)
@@ -1387,7 +1387,7 @@ class CueMarkerManager(object):
         else:
             _cue_dict.pop("disabled_files", None)
 
-        _cue.file_tree.disabled_files = set(shared.get("disabled_files", []))
+        _cue.sfx_manager.disabled_files = set(shared.get("disabled_files", []))
         _cue.trigger.active = _cue_dict.get("triggers_active", True)
         _cue.video_editor.encode_mode = _cue_dict.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
         _cue.video_editor.remove_audio = _cue_dict.get("remove_audio", True)
@@ -1462,7 +1462,7 @@ class CueMarkerManager(object):
             self.reload_presets()
             self._session_created = set()
             _cue.undo.reset()
-            _cue.file_tree.rebuild_tree()
+            _cue.sfx_manager.rebuild_tree()
             _cue.video_editor.refresh()
             # Capture the restored tree in a fresh auto-backup.
             db._backup.force_backup()

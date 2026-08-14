@@ -1,27 +1,36 @@
 # -*- coding: utf-8 -*-
-# CueFileTreeManager -- folder/file tree UI state: expand/collapse, disabled
-# files, and visible tree building for the SFX Library sidebar.
-# Instantiated once at _cue.file_tree, lives on the NoRollback _cue object.
+# CueSfxManager -- SFX library file scan, folder/file tree UI state, and
+# disabled files: expand/collapse, visible tree building, and the audio
+# scan that feeds them.
+# Instantiated once at _cue.sfx_manager, lives on the NoRollback _cue object.
 
-import renpy
+import os
+import time
 
+from cue_lib.constants import CUE_AUDIO_EXTS
 from cue_lib.state import _cue
-from cue_lib.util import _cue_resolve_files
+from cue_lib.util import _cue_build_tree, _cue_log, _cue_resolve_files
 
 MYPY = False
 if MYPY:
-    from typing import List, Optional
-    from cue_lib._types import AudioTreeNode
+    from typing import Any, Dict, List, Optional
 
 
-class CueFileTreeManager(object):
-    """Folder/file tree visibility, expand/collapse state, and disabled files.
+class CueSfxManager(object):
+    """SFX library audio tree state, expand/collapse, disabled files, and scan.
 
     Owns all UI state for the SFX Library audio tree, preset folders,
-    video preset folders, section frames, and pool file-list folder refs.
-    Provides toggle methods callable via Function() from screen actions."""
+    video preset folders, section frames, and pool file-list folder refs,
+    plus the audio file caches (files / audio_tree / scan_error)
+    and the scan that builds them.  Provides toggle methods callable via
+    Function() from screen actions."""
 
     def __init__(self):
+        # Audio scan caches
+        self.files = []     # flat sorted relative paths
+        self.audio_tree = []          # nested folder/file nodes from _cue_build_tree
+        self.scan_error = ""          # non-empty only when the scan fails
+
         # Tree state
         self.visible_tree = []
         self.expanded_folders = {}        # folder_path -> bool
@@ -35,15 +44,57 @@ class CueFileTreeManager(object):
         self.video_presets_expanded = False
         self.expanded_video_presets = {}  # preset_name -> bool
 
-        # Section collapse
-        self.collapsed_sections = {}      # section_name -> bool
-
-        # SFX Library overlay mode: when True, expanded content floats
-        # at 50% overlay height instead of taking layout space.
-        self.sfx_library_overlay_mode = False
-
         # File disable
         self.disabled_files = set()       # full_path strings
+
+    # ------------------------------------------------------------------
+    # Scanning
+    # ------------------------------------------------------------------
+
+    def scan(self):
+        # type: () -> None
+        """Scan the audio dir and rebuild the visible tree.
+
+        An empty folder is not an error -- it just means no audio files have
+        been added yet.  scan_error is only set when the scan itself fails.
+        """
+        _t0 = time.time()
+
+        search_path = _cue.paths.audio_dir
+        if not search_path.endswith("/"):
+            search_path = search_path + "/"
+
+        results_set = set()
+
+        # Live filesystem scan (picks up files added after startup)
+        try:
+            if os.path.isdir(search_path):
+                for dirpath, _dirnames, filenames in os.walk(search_path, followlinks=True):
+                    rel_dir = os.path.relpath(dirpath, search_path)
+                    if rel_dir == ".":
+                        rel_dir = ""
+                    for fname in filenames:
+                        if fname.lower().endswith(CUE_AUDIO_EXTS):
+                            rel_path = (rel_dir + "/" + fname) if rel_dir else fname
+                            rel_path = rel_path.replace("\\", "/")
+                            results_set.add(rel_path)
+        except (OSError, IOError) as err:
+            self.files = []
+            self.audio_tree = []
+            self.scan_error = "Failed to scan audio folder: {}".format(err)
+            return
+
+        results = sorted(results_set)
+        self.files = results
+        self.audio_tree = _cue_build_tree(results)
+
+        # Empty is fine -- no audio files added yet
+        self.scan_error = ""
+
+        # Rebuild visible tree for the SFX Library section
+        self.rebuild_tree()
+
+        _cue_log("SCAN-AUDIO: {:.3f}s {} files".format(time.time() - _t0, len(results)))
 
     # ------------------------------------------------------------------
     # Tree building
@@ -51,14 +102,14 @@ class CueFileTreeManager(object):
 
     def rebuild_tree(self):
         # type: () -> None
-        """Rebuild self.visible_tree from _cue.audio_tree.
+        """Rebuild self.visible_tree from self.audio_tree.
         Only expanded folders are recursed into."""
         result = []
-        self._walk_tree(_cue.audio_tree, "", 0, result)
+        self._walk_tree(self.audio_tree, "", 0, result)
         self.visible_tree = result
 
     def _walk_tree(self, items, prefix, depth, result):
-        # type: (List[AudioTreeNode], str, int, List[AudioTreeNode]) -> None
+        # type: (List[Dict[str, Any]], str, int, List[Dict[str, Any]]) -> None
         """Recursively walk tree, only descending into expanded folders."""
         for item in items:
             full = prefix + item["name"]
@@ -76,7 +127,7 @@ class CueFileTreeManager(object):
             else:
                 # Find index in flat list
                 try:
-                    idx = _cue.available_files.index(full)
+                    idx = self.files.index(full)
                 except ValueError:
                     idx = -1
                 result.append({
@@ -175,23 +226,3 @@ class CueFileTreeManager(object):
             self.expanded_video_presets[preset_name] = not self.expanded_video_presets[preset_name]
         else:
             self.expanded_video_presets[preset_name] = True
-
-    # ------------------------------------------------------------------
-    # Toggle: section frames
-    # ------------------------------------------------------------------
-
-    def toggle_section(self, section_name):
-        # type: (str) -> None
-        """Toggle expand/collapse for a cue_section_frame."""
-        self.collapsed_sections[section_name] = not self.collapsed_sections.get(section_name, False)
-        renpy.restart_interaction()
-
-    def toggle_sfx_library_overlay_mode(self):
-        # type: () -> None
-        """Toggle overlay mode for the SFX Library section.
-        Enabling overlay mode collapses the section if expanded.
-        Exiting overlay mode expands the section if collapsed."""
-        was_overlay = self.sfx_library_overlay_mode
-        self.sfx_library_overlay_mode = not was_overlay
-
-        renpy.restart_interaction()

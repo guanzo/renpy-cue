@@ -51,7 +51,7 @@ init -999 python:
         create_loop_key as _cue_create_loop_key,
         create_dlg_key as _cue_create_dlg_key,
         _cue_format_time, _cue_parse_time, _cue_clamp_time, _cue_speed_label,
-        _cue_log, _cue_scan_audio, _cue_resolve_files, _cue_pick_file,
+        _cue_log, _cue_resolve_files, _cue_pick_file,
         _cue_unwrap_displayable, _cue_ui_refresh, _cue_is_screenshake,
         _cue_loop_still_playing, _cue_get_movie_or_image,
         _cue_top_layer_name, _cue_top_movie_name, _cue_get_movie_play,
@@ -132,7 +132,7 @@ init -900 python:
     from cue_lib.video_editor import CueVideoEditor
     from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
     from cue_lib.auto_speed import CueAutoSpeedGenerator
-    from cue_lib.file_tree import CueFileTreeManager
+    from cue_lib.sfx_manager import CueSfxManager
     from cue_lib.icons import CueIconManager
     from cue_lib.dialogues import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
     from cue_lib.db import CueDatabase
@@ -151,7 +151,7 @@ init -900 python:
     _cue.video_sequence = CueVidSpeedSequence()
     _cue.speed_toast = CueSpeedToast()
     _cue.auto_speed = CueAutoSpeedGenerator()
-    _cue.file_tree = CueFileTreeManager()
+    _cue.sfx_manager = CueSfxManager()
     _cue.preset_dialog = CuePresetDialog()
     _cue.video_preset_dialog = CueVideoPresetDialog()
     _cue.confirm_dialog = CueConfirmDialog()
@@ -277,7 +277,7 @@ init 999 python:
         _cue.video_editor.job_queue.load_from_persistent()
         _cue.undo.seed()  # seed undo baseline after initial load
         _cue.speed_resolver.wrap_all_movies()
-        _cue_scan_audio()
+        _cue.sfx_manager.scan()
         _cue.music_manager.user_music.scan()
 
         _cue.initialized = True

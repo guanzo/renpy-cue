@@ -21,9 +21,9 @@ class CueUserMusic(object):
 
     Every _cue.music_* cache lives here instead of on _cue: music_files,
     music_tree, and music_scan_error are attributes of this manager.  A leaner
-    sibling of CueFileTreeManager: no disabled files, presets, overlay mode,
+    sibling of CueSfxManager: no disabled files, presets, overlay mode,
     or pool folder refs -- just the music tree rows rendered on the Music
-    page.  Section collapse reuses CueFileTreeManager.collapsed_sections via
+    page.  Section collapse reuses _cue.collapsed_sections via
     cue_section_frame."""
 
     def __init__(self):
@@ -41,8 +41,9 @@ class CueUserMusic(object):
         # type: () -> None
         """Scan the My Music dir and rebuild the visible tree.
 
-        Mirrors _cue_scan_audio but targets shared_dir/music, so user music
-        never mixes with the SFX library.  An empty folder is not an error --
+        Mirrors _cue.sfx_manager.scan() but targets shared_dir/music, so
+        user music never mixes with the SFX library.  An empty folder is not
+        an error --
         it just means the user hasn't added music yet.  music_scan_error is
         only set when the scan itself fails.
         """

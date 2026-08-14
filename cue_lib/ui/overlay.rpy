@@ -20,7 +20,7 @@ screen cue_key_listener():
     key CUE_KEYMAP_REDO action Function(_cue.undo.redo)
     key CUE_KEYMAP_SPEED_UP action Function(_cue.speed_resolver.cycle_speed, 1)
     key CUE_KEYMAP_SPEED_DOWN action Function(_cue.speed_resolver.cycle_speed, -1)
-    key CUE_KEYMAP_TOGGLE_SFX action Function(_cue.file_tree.toggle_section, CUE_SFX_LIBRARY_HEADER)
+    key CUE_KEYMAP_TOGGLE_SFX action Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
     if _cue.debug:
         key CUE_KEYMAP_QUIT_RELAUNCH action Function(renpy.quit, relaunch=True)
     timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
@@ -96,8 +96,8 @@ screen cue_overlay_content():
                 use cue_settings_page()
 
         # SFX Library overlay mode: entire section floats at bottom
-        if _cue.overlay_active_page == CuePage.SFX and _cue.file_tree.sfx_library_overlay_mode:
-            $ _sfx_collapsed = _cue.file_tree.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
+        if _cue.overlay_active_page == CuePage.SFX and _cue.sfx_library_overlay_mode:
+            $ _sfx_collapsed = _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
             $ _sfx_z = _cue_overlay_zoom()
             $ _sfx_full_h = int(renpy.config.screen_height / _sfx_z)
             $ _sfx_40pct = int(_sfx_full_h * 0.4)

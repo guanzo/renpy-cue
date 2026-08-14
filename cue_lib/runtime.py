@@ -129,11 +129,11 @@ def _cue_toggle_video_mute():
 def _cue_show_overlay():
     # type: () -> None
     _cue.is_overlay_visible = True
-    if not _cue.available_files:
-        _cue_scan_audio()
+    if not _cue.sfx_manager.files:
+        _cue.sfx_manager.scan()
     if not _cue.music_manager.user_music.music_files:
         _cue.music_manager.user_music.scan()
-    _cue.file_tree.rebuild_tree()
+    _cue.sfx_manager.rebuild_tree()
     _cue_refresh_context()
     _cue.video_editor.refresh()
     renpy.show_screen("cue_overlay", _layer="cue_layer")
@@ -149,7 +149,7 @@ def _cue_refresh_overlay():
     """Refresh overlay data: presets, context, and SFX/music file scans."""
     _cue_reload_presets()
     _cue_refresh_context()
-    _cue_scan_audio()
+    _cue.sfx_manager.scan()
     _cue.music_manager.user_music.scan()
 
 def _cue_hide_overlay():
@@ -184,7 +184,7 @@ def _cue_refresh_context():
     # the right moment to stamp key_after for any music that just played.
     _cue.music_manager.capture_display()
     _cue_refresh_channel(displayable=top_d)
-    _cue.file_tree.rebuild_tree()
+    _cue.sfx_manager.rebuild_tree()
     _cue_log_context()
 
     changed = ""
@@ -538,7 +538,3 @@ def _cue_fade_out_sfx(exclude_channels=None):
             _music.stop(channel=ch_name, fadeout=CUE_EXCLUSIVE_FADE)
             faded += 1
     return faded
-
-
-# Re-export the scanners from util for backward-compat in overlay
-from cue_lib.util import _cue_scan_audio

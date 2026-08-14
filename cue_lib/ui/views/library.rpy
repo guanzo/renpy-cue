@@ -4,8 +4,8 @@
 ###############################################################################
 
 screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
-    $ _collapsed = _cue.file_tree.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
-    $ _overlay_mode = _cue.file_tree.sfx_library_overlay_mode
+    $ _collapsed = _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
+    $ _overlay_mode = _cue.sfx_library_overlay_mode
     $ _arrow = _cue.icons.displayable_for("chevron-right" if _collapsed else "chevron-down") if _cue.icons is not None else None
     $ _ov_icon = "square-plus" if _overlay_mode else "square-minus"
     $ _ov_tt = "Overlay Mode\nWhen enabled, this section will float on top when expanded.\n"
@@ -22,7 +22,7 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
                 xfill True
                 button:
                     style "cue_section_hdr_btn"
-                    action Function(_cue.file_tree.toggle_section, CUE_SFX_LIBRARY_HEADER)
+                    action Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
                     hbox:
                         xfill True
                         text CUE_SFX_LIBRARY_HEADER style "cue_hdr"
@@ -34,16 +34,16 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
 
                             use cue_icon_btn(
                                 _ov_icon,
-                                Function(_cue.file_tree.toggle_sfx_library_overlay_mode),
+                                Function(_cue.toggle_sfx_library_overlay_mode),
                                 _ov_tt,
                                 None
                             )
                             if _arrow is not None:
                                 add _arrow yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
             if not _collapsed:
-                if not _cue.audio_tree:
-                    if _cue.scan_error:
-                        text "[_cue.scan_error]" style "cue_help" color _cue_color_error
+                if not _cue.sfx_manager.audio_tree:
+                    if _cue.sfx_manager.scan_error:
+                        text "[_cue.sfx_manager.scan_error]" style "cue_help" color _cue_color_error
                     text ("Place {} files there "
                         "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_help"
                 else:
@@ -62,17 +62,17 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
             # --- Presets folder (matches audio tree folder UI) ---
             hbox:
                 spacing 2
-                use cue_txt_button("Presets/", Function(_cue.file_tree.toggle_presets_expand))
+                use cue_txt_button("Presets/", Function(_cue.sfx_manager.toggle_presets_expand))
 
-            if _cue.file_tree.presets_expanded:
+            if _cue.sfx_manager.presets_expanded:
                 use cue_audio_presets_list(_is_video, _has_image, _is_dialogue)
 
             # --- Video Presets folder ---
             hbox:
                 spacing 2
-                use cue_txt_button("Video Presets/", Function(_cue.file_tree.toggle_video_presets_expand))
+                use cue_txt_button("Video Presets/", Function(_cue.sfx_manager.toggle_video_presets_expand))
 
-            if _cue.file_tree.video_presets_expanded:
+            if _cue.sfx_manager.video_presets_expanded:
                 use cue_video_presets_list(_is_video, _has_image, _is_dialogue)
 
             # --- Folder/file tree ---
@@ -83,7 +83,7 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
 screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue):
     for _pname in _cue.markers.list_presets():
         $ _pdata = _cue.markers.get_preset(_pname)
-        $ _p_expanded = _cue.file_tree.expanded_presets.get(_pname, False)
+        $ _p_expanded = _cue.sfx_manager.expanded_presets.get(_pname, False)
         $ _p_files = _cue_resolve_files(_pdata.get("files", [])) if _pdata else []
         hbox:
             spacing 2
@@ -110,7 +110,7 @@ screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue):
                 "L",
                 Function(_cue.markers.loop.apply_preset, _pname),
                 "Apply preset to active Loop SFX pool", None)
-            use cue_txt_button(_pname, Function(_cue.file_tree.toggle_preset_expand, _pname))
+            use cue_txt_button(_pname, Function(_cue.sfx_manager.toggle_preset_expand, _pname))
 
         if _p_expanded:
             for _child in _p_files:
@@ -129,7 +129,7 @@ screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue):
 screen cue_video_presets_list(_is_video, _has_image, _is_dialogue):
     for _vpname in _cue.markers.list_video_presets():
         $ _vpdata = _cue.markers.get_video_preset(_vpname)
-        $ _vp_expanded = _cue.file_tree.expanded_video_presets.get(_vpname, False)
+        $ _vp_expanded = _cue.sfx_manager.expanded_video_presets.get(_vpname, False)
         $ _vp_pools = _vpdata.get("pools", []) if _vpdata else []
         hbox:
             spacing 2
@@ -147,7 +147,7 @@ screen cue_video_presets_list(_is_video, _has_image, _is_dialogue):
                 Function(_cue_maybe_apply_video_preset, _vpname),
                 "Apply video markers to the current video.\nOverwrites existing markers.",
                 None, enabled=_is_video)
-            use cue_txt_button(_vpname, Function(_cue.file_tree.toggle_video_preset_expand, _vpname))
+            use cue_txt_button(_vpname, Function(_cue.sfx_manager.toggle_video_preset_expand, _vpname))
 
         if _vp_expanded:
             for _pool in _vp_pools:
@@ -162,7 +162,7 @@ screen cue_video_presets_list(_is_video, _has_image, _is_dialogue):
 
 # Folder/file rows for the current audio tree.
 screen cue_file_tree(_is_video, _has_image, _is_dialogue):
-    for item in _cue.file_tree.visible_tree:
+    for item in _cue.sfx_manager.visible_tree:
         hbox:
             spacing 2
             # Indent
@@ -190,7 +190,7 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
                         "L",
                         Function(_cue.markers.loop.add_folder, item["full_path"]),
                         "Add folder to Loop SFX Pool", None)
-                use cue_txt_button(item["name"], Function(_cue.file_tree.toggle_folder, item["full_path"]))
+                use cue_txt_button(item["name"], Function(_cue.sfx_manager.toggle_folder, item["full_path"]))
             else:
                 # Play preview
                 use cue_icon_btn("play", Function(_cue_preview_sfx, item["full_path"]), "Preview audio", None)
@@ -216,7 +216,7 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
                     "Add to Loop SFX pool", None)
                 use cue_icon_btn(
                     ("square-check" if item.get("enabled", True) else "square"),
-                    Function(_cue.file_tree.toggle_file_enabled, item["full_path"]),
+                    Function(_cue.sfx_manager.toggle_file_enabled, item["full_path"]),
                     "Click to {} globally".format("disable" if item.get("enabled", True) else "enable"),
                     None)
                 text item["name"] style "cue_txt" color _cue_color_text_accent

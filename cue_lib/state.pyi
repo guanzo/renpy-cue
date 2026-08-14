@@ -1,11 +1,11 @@
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Optional, Set, Tuple
 
 from cue_lib.repeater import CueMarkerRepeater
 from cue_lib.ffmpeg import CueFFmpeg
-from cue_lib.file_tree import CueFileTreeManager
+from cue_lib.sfx_manager import CueSfxManager
 from cue_lib.markers import CueMarkerManager
 from cue_lib._types import (
-    AudioTreeNode, MarkerEntry, PoolDict, UndoSnapshot, VideoPreset,  # pyright: ignore[reportUnusedImport]
+    MarkerEntry, PoolDict, UndoSnapshot, VideoPreset,  # pyright: ignore[reportUnusedImport]
 )
 from cue_lib.auto_speed import CueAutoSpeedGenerator
 from cue_lib.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
@@ -42,13 +42,14 @@ class Cue:
     is_overlay_visible: bool
     overlay_active_page: int
     is_exclusive_row_visible: bool
+    collapsed_sections: Dict[str, bool]
+    sfx_library_overlay_mode: bool
     current_file: str
     current_dialogue: str
     prev_dialogue: str
     top_layer_type: Optional[str]
     top_displayable: Any
     current_replay: Any
-    scan_error: Optional[str]
     setup_dir_text: str
     shared_dir_error: str
     shared_dir_success: str
@@ -68,16 +69,13 @@ class Cue:
     video_sequence: CueVidSpeedSequence
     speed_toast: CueSpeedToast
     auto_speed: CueAutoSpeedGenerator
-    file_tree: CueFileTreeManager
+    sfx_manager: CueSfxManager
     preset_dialog: CuePresetDialog
     video_preset_dialog: CueVideoPresetDialog
     confirm_dialog: CueConfirmDialog
     keybinds: CueKeybindsManager
     icons: CueIconManager
     music_manager: CueMusicManager
-
-    available_files: List[str]
-    audio_tree: List[AudioTreeNode]
 
     _cue_next_sfx_channel: int
     _shake_just_happened: bool
@@ -92,5 +90,8 @@ class Cue:
     _vtl_screen_y: int
     _chart_screen_x: int
     _chart_screen_y: int
+
+    def toggle_section(self, section_name: str) -> None: ...
+    def toggle_sfx_library_overlay_mode(self) -> None: ...
 
 _cue: Cue

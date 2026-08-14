@@ -79,5 +79,5 @@ screen cue_sfx_page():
             use cue_exclusive_row(_cue.markers.loop, _loop_r.exclusive)
 
     # Audio file browser (in-flow, only when overlay mode is OFF)
-    if not _cue.file_tree.sfx_library_overlay_mode:
+    if not _cue.sfx_library_overlay_mode:
         use cue_sfx_library(_is_video, _has_image, _is_dialogue)
