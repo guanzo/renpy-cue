@@ -7,6 +7,7 @@
 # _cue object.
 
 from cue_lib.audio.audio_tree import CueAudioTreeManager
+from cue_lib.constants import CUE_MUSIC_PREFIX
 from cue_lib.state import _cue
 
 MYPY = False
@@ -28,6 +29,17 @@ class CueUserMusic(CueAudioTreeManager):
     _log_tag = "MUSIC"
 
     # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
+
+    def __init__(self):
+        # type: () -> None
+        super(CueUserMusic, self).__init__()
+        # The My Music tree is rooted at a synthesized "music/" folder (see
+        # _discover); start it expanded so dropped-in files are visible.
+        self.expanded_folders[CUE_MUSIC_PREFIX] = True
+
+    # ------------------------------------------------------------------
     # Scanning
     # ------------------------------------------------------------------
 
@@ -35,6 +47,11 @@ class CueUserMusic(CueAudioTreeManager):
         # type: (Set[str]) -> None
         """Scan the My Music dir -- files the user drops in for music.
 
-        Mirrors the SFX library scan but targets shared_dir/music, so user
-        music never mixes with the SFX library."""
-        self._discover_walk_dir(results_set, _cue.paths.music_dir)
+        Paths are stored relative to the shared root, prefixed with "music/",
+        so the tree gains a natural "music/" root folder that can be added to
+        a trigger as one ref.  Mirrors the SFX library scan but targets
+        shared_dir/music, so user music never mixes with the SFX library."""
+        _sub = set()
+        self._discover_walk_dir(_sub, _cue.paths.music_dir)
+        for _rel in _sub:
+            results_set.add(CUE_MUSIC_PREFIX + _rel)

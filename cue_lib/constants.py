@@ -37,6 +37,12 @@ CUE_AUDIO_EXTS = (".ogg", ".mp3", ".wav", ".opus")
 # Shared with the Music page's empty-state text.
 CUE_GAME_MUSIC_DIRS = ("music", "bgm", "ost", "soundtrack")
 
+# My Music files are stored relative to the shared root, prefixed with the
+# music dir's name plus a slash ("music/Folder/song.ogg").  user_music.py adds
+# the prefix during discovery; music.py strips it when resolving a stored path
+# back to an absolute file.  A single constant so the two never drift.
+CUE_MUSIC_PREFIX = "music/"
+
 # Popper displayable defaults — distance from anchor and viewport edge clearance.
 CUE_POPPER_DEFAULT_OFFSET = 5
 CUE_POPPER_DEFAULT_MARGIN = 8

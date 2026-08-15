@@ -441,11 +441,13 @@ def _cue_preview_music(filename, volume=1.0):
     # type: (str, float) -> None
     """Preview a My Music file on the music channel (untracked).
 
-    Joins the file against the My Music dir and plays through
-    CueMusicManager.play_untracked, so the preview replaces any currently
-    playing music without being recorded as a default music trigger.
+    `filename` is root-relative with a "music/" prefix (the tree's full_path),
+    so it is resolved through CueMusicManager before playing -- unlike a raw
+    music-dir join, this also tolerates legacy no-prefix entries.  Plays
+    through CueMusicManager.play_untracked so the preview replaces any
+    currently playing music without being recorded as a default trigger.
     """
-    _cue.music.play_untracked(_cue.paths.music_dir + filename, volume=volume)
+    _cue.music.play_untracked(_cue.music._resolve_music_path(filename), volume=volume)
 
 
 def _cue_preview_game_music(filename, volume=1.0):
