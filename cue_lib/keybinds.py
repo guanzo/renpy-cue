@@ -34,6 +34,7 @@ from cue_lib.constants import (
 MYPY = False
 if MYPY:
     from typing import List, Optional
+    from cue_lib.db import CueDatabase  # pyright: ignore[reportUnusedImport]
 
 
 # ---------------------------------------------------------------------------
@@ -121,8 +122,9 @@ class CueKeybindsManager(object):
     """Owns the metadata for every rebindable hotkey, drives key-capture,
     collision detection, persistence, and the settings UI."""
 
-    def __init__(self):
-        # type: () -> None
+    def __init__(self, db):
+        # type: (CueDatabase) -> None
+        self._db = db            # shared config store for keybind persistence
         # Ordered list of action dicts.  Each dict:
         #   id          - action identity, also the config.keymap entry name
         #                 (CUE_KEYMAP_* constant; doubles as the persistence key)
@@ -199,7 +201,7 @@ class CueKeybindsManager(object):
                 renpy.config.keymap[action["id"]] = [action["default"]]
 
         # 2. Load saved overrides from shared config.
-        cfg = _cue.db.load_shared_config()
+        cfg = self._db.load_shared_config()
         saved = cfg.get(CUE_SHARED_KEY_KEYBINDS, {})
         if isinstance(saved, dict):
             for action in self.actions:
@@ -487,7 +489,7 @@ class CueKeybindsManager(object):
             ks = self.get_keysym(a["id"])
             if ks != a["default"]:
                 data[a["id"]] = ks
-        _cue.db.update_shared_config({CUE_SHARED_KEY_KEYBINDS: data})
+        self._db.update_shared_config({CUE_SHARED_KEY_KEYBINDS: data})
 
     # ------------------------------------------------------------------
     # Internal helpers

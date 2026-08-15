@@ -144,10 +144,15 @@ init -900 python:
     from cue_lib.paths import CuePaths
     from cue_lib.state import _cue
 
+    _cue.paths = CuePaths(CuePaths.resolve_root(), renpy.config.save_directory)
+
+    _cue.db = CueDatabase(_cue.paths)
+    _cue.db.open()
+
     _cue.markers = CueMarkerManager()
     _cue.undo = CueUndoManager()
     _cue.trigger = CueTriggerEngine()
-    _cue.vid_manager = CueVideoManager()
+    _cue.vid_manager = CueVideoManager(_cue.ctx)
     _cue.volume = CueVolumeManager()
     _cue.repeater = CueMarkerRepeater()
     _cue.ffmpeg = CueFFmpeg()
@@ -156,18 +161,13 @@ init -900 python:
     _cue.video_sequence = CueVidSpeedSequence()
     _cue.speed_toast = CueSpeedToast()
     _cue.auto_speed = CueAutoSpeedGenerator()
-    _cue.sfx_manager = CueSfxManager()
+    _cue.sfx_manager = CueSfxManager(_cue.paths, _cue.db)
     _cue.preset_dialog = CuePresetDialog()
     _cue.video_preset_dialog = CueVideoPresetDialog()
     _cue.confirm_dialog = CueConfirmDialog()
-    _cue.keybinds = CueKeybindsManager()
-    _cue.icons = CueIconManager()
+    _cue.keybinds = CueKeybindsManager(_cue.db)
+    _cue.icons = CueIconManager(_cue.paths)
     _cue.music = CueMusicManager()
-
-    _cue.paths = CuePaths(CuePaths.resolve_root(), renpy.config.save_directory)
-
-    _cue.db = CueDatabase(_cue.paths)
-    _cue.db.open()
 
 
 init 999 python:

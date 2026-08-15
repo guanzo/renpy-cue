@@ -8,12 +8,13 @@
 # Instantiated once at _cue.sfx_manager, lives on the NoRollback _cue object.
 
 from cue_lib.audio.audio_tree import CueAudioTreeManager
-from cue_lib.state import _cue
 from cue_lib.util import _cue_resolve_files
 
 MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional, Set
+    from cue_lib.paths import CuePaths  # pyright: ignore[reportUnusedImport]
+    from cue_lib.db import CueDatabase  # pyright: ignore[reportUnusedImport]
 
 
 class CueSfxManager(CueAudioTreeManager):
@@ -28,8 +29,11 @@ class CueSfxManager(CueAudioTreeManager):
     _scan_label = "audio folder"
     _log_tag = "AUDIO"
 
-    def __init__(self):
+    def __init__(self, paths, db):
+        # type: (CuePaths, CueDatabase) -> None
         super(CueSfxManager, self).__init__()
+        self._paths = paths
+        self._db = db
 
         # Pool file-list folder refs
         self.expanded_file_refs = {}      # folder_ref -> bool (pool file lists)
@@ -52,7 +56,7 @@ class CueSfxManager(CueAudioTreeManager):
     def _discover(self, results_set):
         # type: (Set[str]) -> None
         """Scan the audio dir -- files the user drops in for SFX."""
-        self._discover_walk_dir(results_set, _cue.paths.audio_dir)
+        self._discover_walk_dir(results_set, self._paths.audio_dir)
 
     def _file_node(self, item, full, depth):
         # type: (Dict[str, Any], str, int) -> Dict[str, Any]
@@ -77,7 +81,7 @@ class CueSfxManager(CueAudioTreeManager):
         else:
             self.disabled_files.add(full_path)
         self.rebuild_tree()
-        _cue.db.update_shared_config({"disabled_files": list(self.disabled_files)})
+        self._db.update_shared_config({"disabled_files": list(self.disabled_files)})
 
     # ------------------------------------------------------------------
     # Pool file-list folder refs

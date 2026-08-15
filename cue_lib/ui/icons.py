@@ -16,7 +16,6 @@
 
 import renpy
 
-from cue_lib.state import _cue
 from cue_lib.util import _cue_log
 # Tinting uses the classic im.MatrixColor operator, which ships with every
 # Ren'Py 7.4+ (the `matrixcolor` Transform property only arrived in 7.5).
@@ -26,6 +25,7 @@ from renpy.display.transform import Transform
 MYPY = False
 if MYPY:
     from typing import Any, Dict, Optional, Tuple
+    from cue_lib.paths import CuePaths  # pyright: ignore[reportUnusedImport]
 
 # PNGs are rendered at 32px (2x the 16px button) and shown at 12px via
 # zoom 0.375, matching the size-12 text glyphs they replace.
@@ -80,7 +80,9 @@ class CueIconManager(object):
     text (labels like "+" and "V" keep working unchanged).
     """
 
-    def __init__(self):
+    def __init__(self, paths):
+        # type: (CuePaths) -> None
+        self._paths = paths
         self._displayables = {}  # type: Dict[Tuple[str, Optional[str]], Any]
 
     def displayable_for(self, name, color=None):
@@ -99,7 +101,7 @@ class CueIconManager(object):
         if cached is not None:
             return cached
         _filename, _mirrored = CUE_ICON_MAP[name]
-        _path = _cue.paths.in_game_base_dir + "/cue_lib/images/icons/" + _filename
+        _path = self._paths.in_game_base_dir + "/cue_lib/images/icons/" + _filename
         if not renpy.loadable(_path):
             _cue_log("CUE-ICON: missing image " + _path)
             return None

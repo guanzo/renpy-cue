@@ -1,6 +1,8 @@
 # Type stub for cue_lib.video.video
 from typing import Final, Optional
 
+from cue_lib.state import CueContext
+
 CUE_SEEK_EPSILON: Final = 0.001
 
 class CueVideoManager:
@@ -10,7 +12,7 @@ class CueVideoManager:
     fps: int
     last_elapsed: float
 
-    def __init__(self, channel: Optional[str] = None) -> None: ...
+    def __init__(self, ctx: CueContext, channel: Optional[str] = None) -> None: ...
     def reset(self, channel: Optional[str] = None) -> None: ...
     def set_fps(self, fps: int) -> None: ...
     def reset_pause(self) -> None: ...

@@ -2,6 +2,8 @@
 from typing import Dict, List, Optional, Set
 
 from cue_lib.audio.audio_tree import CueAudioTreeManager
+from cue_lib.db import CueDatabase
+from cue_lib.paths import CuePaths
 
 class CueSfxManager(CueAudioTreeManager):
     expanded_file_refs: Dict[str, bool]
@@ -11,7 +13,7 @@ class CueSfxManager(CueAudioTreeManager):
     expanded_video_presets: Dict[str, bool]
     disabled_files: Set[str]
 
-    def __init__(self) -> None: ...
+    def __init__(self, paths: CuePaths, db: CueDatabase) -> None: ...
     def toggle_file_enabled(self, full_path: str) -> None: ...
     def toggle_file_ref_expand(self, folder_ref: str) -> None: ...
     def count_file_list_rows(

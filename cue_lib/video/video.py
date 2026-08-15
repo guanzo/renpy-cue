@@ -4,12 +4,12 @@
 
 import renpy.audio.music as _music
 
-from cue_lib.state import _cue
 from cue_lib.util import _cue_log, _cue_format_time, _cue_clamp_time
 
 MYPY = False
 if MYPY:
     from typing import Optional
+    from cue_lib.state import CueContext  # pyright: ignore[reportUnusedImport]
 
 # Minimum non-zero seek target to avoid sending 0.0 to the audio backend
 # (which would be interpreted as "no target" and defeat auto-pause).
@@ -18,10 +18,12 @@ CUE_SEEK_EPSILON = 0.001
 
 class CueVideoManager(object):
     """Per-video playback state and control.
-    Methods act on self.channel (the movie channel this state tracks);
-    _cue.vid_manager.channel is kept in sync by _cue_refresh_channel."""
+    Methods act on self.channel (the movie channel this state tracks),
+    which _cue_refresh_channel keeps in sync."""
 
-    def __init__(self, channel=None):
+    def __init__(self, ctx, channel=None):
+        # type: (CueContext, Optional[str]) -> None
+        self._ctx = ctx
         self.reset(channel)
 
     # --- Playback control ---
@@ -157,7 +159,7 @@ class CueVideoManager(object):
     def poll_autopause(self):
         # type: () -> None
         """Tick hook: auto-re-pause when a seek target is reached."""
-        if not self.channel or _cue.top_layer_type != 'movie':
+        if not self.channel or self._ctx.top_layer_type != 'movie':
             return
         try:
             pos = _music.get_pos(channel=self.channel)
@@ -191,7 +193,7 @@ class CueVideoManager(object):
     def time_label(self):
         # type: () -> str
         """Return 'elapsed / duration' formatted for the live time display."""
-        if _cue.top_layer_type != 'movie':
+        if self._ctx.top_layer_type != 'movie':
             return "--:--.-- / --:--.--"
         e = self.get_elapsed()
         d = self.get_duration()
@@ -203,7 +205,7 @@ class CueVideoManager(object):
     def frame_label(self):
         # type: () -> str
         """Return 'frame / total' formatted for the live frame display."""
-        if _cue.top_layer_type != 'movie':
+        if self._ctx.top_layer_type != 'movie':
             return "---/---"
         e = self.get_elapsed()
         d = self.get_duration()
