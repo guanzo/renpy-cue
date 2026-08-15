@@ -43,3 +43,39 @@ testcase confirm_dialog_escape:
     pause 0.5
     $ if renpy.get_screen("cue_confirm_dialog", layer="cue_layer"): renpy.quit(status=1)
     $ renpy.quit()
+
+testcase sfx_library_rows:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _ok = len(_cue.sfx_manager.files) >= 2 and _cue.sfx_manager.scan_error == ""
+    $ _ok = _ok and "sfx_001.ogg" in _cue.sfx_manager.files
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase sfx_file_tree_expand:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    run Function(_cue.sfx_manager.toggle_folder, "Sub/")
+    $ if not _cue.sfx_manager.expanded_folders.get("Sub/", False): renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase music_my_music_rows:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _ok = len(_cue.music.user_music.files) >= 1
+    $ _ok = _ok and _cue.music.user_music.files[0].startswith("music/")
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase audio_presets_list:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    $ _ok = "Test Preset" in _cue.markers.list_presets()
+    $ _ok = _ok and _cue.markers.get_preset("Test Preset")["files"] == ["sfx_001.ogg"]
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
