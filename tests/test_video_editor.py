@@ -1,0 +1,1223 @@
+# -*- coding: utf-8 -*-
+# Tests for cue_lib.video.video_editor -- CueVideoJob, the CueVideoEditQueue
+# encode state machine, _cue_swap_job, and the CueVideoEditor coordinator.
+#
+# The editor is constructed with fakes (FakeFFmpeg / FakeVidPathManager /
+# FakePathsVideo / FakeSpeedResolver); threading.Thread is swapped for
+# FakeThread so the probe/swap worker bodies never run -- tests drive the
+# job flags (_launched / _done / _ok / proc.poll()) and step poll() by hand.
+# subprocess.Popen is monkeypatched for the _launch_pass paths.
+
+import os
+
+import pytest
+
+import renpy
+import renpy.config as _config
+
+from renpy.store import persistent
+
+from cue_lib.state import CueContext
+from cue_lib.video import video_editor as _veditor
+from cue_lib.video.video_editor import (
+    CUE_VE_MODE_FAST_PREVIEW,
+    CUE_VE_MODE_INTERPOLATE,
+    CUE_VE_MODE_NORMAL,
+    CueVideoEditQueue,
+    CueVideoEditor,
+    CueVideoEditorState,
+    CueVideoJob,
+)
+
+from tests.fakes import (
+    FakeFFmpeg,
+    FakePathsVideo,
+    FakeProc,
+    FakeThread,
+    FakeVidPathManager,
+    FakeVidSpeedResolver,
+)
+
+
+@pytest.fixture(autouse=True)
+def _clean_persistent(monkeypatch):
+    """Fresh persistent._cue / persistent._cue_jobs + initialized singleton
+    for every test in this module (shared-state cleanup)."""
+    from cue_lib.state import _cue
+
+    monkeypatch.setattr(persistent, "_cue", {})
+    monkeypatch.setattr(persistent, "_cue_jobs", None, raising=False)
+    monkeypatch.setattr(_cue, "initialized", True, raising=False)
+
+
+@pytest.fixture
+def fthread(monkeypatch):
+    """Swap threading.Thread for a capture-only FakeThread (no worker runs)."""
+    monkeypatch.setattr(_veditor.threading, "Thread", FakeThread)
+
+
+@pytest.fixture
+def ve(tmp_path, monkeypatch):
+    """A real CueVideoEditor wired to fakes; gamedir points at tmp_path."""
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    return CueVideoEditor(
+        FakeFFmpeg(cache=0),
+        FakeVidSpeedResolver(),
+        FakeVidPathManager(vpath="movies/scene.webm"),
+        FakePathsVideo(video_dir=str(tmp_path)),
+        CueContext(),
+    )
+
+
+def make_job(ve, tmp_path, factor=2.0, status="queued"):
+    # type: (CueVideoEditor, object, float, str) -> CueVideoJob
+    job = CueVideoJob(
+        ve.job_queue._next_job_id,
+        vpath="movies/scene.webm",
+        fspath_in=str(tmp_path / "in.webm"),
+        fspath_tmp=str(tmp_path / "tmp.webm"),
+        factor=factor,
+        encode_mode=CUE_VE_MODE_NORMAL,
+        fspath_out=str(tmp_path / "out.webm"),
+        remove_audio=False,
+    )
+    job.status = status
+    ve.job_queue._next_job_id += 1
+    return job
+
+
+def write_file(path, data=b"content"):
+    _d = os.path.dirname(path)
+    if _d:
+        os.makedirs(_d, exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(data)
+
+
+class FakeRenPyFile(object):
+    """renpy.file() stand-in: returns one chunk then EOF."""
+
+    def __init__(self, data=b"video-bytes"):
+        self._data = data
+        self._done = False
+
+    def read(self, n):
+        if self._done:
+            return b""
+        self._done = True
+        return self._data
+
+    def close(self):
+        pass
+
+
+# ---------------------------------------------------------------------------
+# CueVideoJob
+# ---------------------------------------------------------------------------
+
+def test_job_init_defaults(ve, tmp_path):
+    job = make_job(ve, tmp_path)
+    assert job.status == "queued"
+    assert job.progress == 0.0
+    assert job.error_msg == ""
+    assert job.passlog is None
+    assert job.cancelled is False
+    assert job.proc is None
+    assert job._done is False
+    assert job._ok is False
+    assert job._launched is False
+    assert job._needs_swap is False
+
+
+def test_job_elapsed_no_start(ve, tmp_path):
+    assert make_job(ve, tmp_path).elapsed() == 0.0
+
+
+def test_job_elapsed_running(ve, tmp_path, monkeypatch):
+    job = make_job(ve, tmp_path)
+    job.start_time = 100.0
+    monkeypatch.setattr(_veditor._time, "time", lambda: 105.0)
+    assert job.elapsed() == 5.0
+
+
+def test_job_elapsed_done(ve, tmp_path):
+    job = make_job(ve, tmp_path)
+    job.start_time = 100.0
+    job.end_time = 110.0
+    job.status = "done"
+    assert job.elapsed() == 10.0
+
+
+def test_job_status_text(ve, tmp_path):
+    job = make_job(ve, tmp_path)
+    assert job.status_text() == "Queued"
+    job.status = "analyzing"
+    assert job.status_text() == "Analyzing"
+    job.status = "encoding"
+    job.progress = 0.42
+    assert job.status_text() == "Encoding 42%"
+    job.status = "finalizing"
+    assert job.status_text() == "Finalizing"
+    job.status = "done"
+    assert job.status_text() == "Done"
+    job.status = "error"
+    assert job.status_text() == "Error"
+    job.error_msg = "Cancelled"
+    assert job.status_text() == "Cancelled"
+    job.status = "weird"
+    assert job.status_text() == "weird"
+
+
+def test_job_filename(ve, tmp_path):
+    assert make_job(ve, tmp_path).filename() == "scene.webm"
+    job = CueVideoJob(99, vpath="", fspath_in="x", fspath_tmp="y", factor=1.0,
+                      encode_mode=0)
+    assert job.filename() == "?"
+
+
+def test_job_speed_label(ve, tmp_path):
+    job = make_job(ve, tmp_path, factor=2.5)
+    assert job.speed_label == "2.5x"
+
+
+# ---------------------------------------------------------------------------
+# queue: enqueue / find / start
+# ---------------------------------------------------------------------------
+
+def test_queue_init(ve):
+    q = ve.job_queue
+    assert q.processing is False
+    assert q.current_job is None
+    assert q.jobs == []
+
+
+def test_enqueue_appends_and_starts(ve, tmp_path, fthread):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q.enqueue(job)
+    assert job in q.jobs
+    assert q.current_job is job
+    assert job.status == "analyzing"
+    assert job.start_time > 0
+    # current job is persisted
+    assert [d["job_id"] for d in persistent._cue_jobs] == [job.job_id]
+
+
+def test_enqueue_no_start_when_busy(ve, tmp_path):
+    q = ve.job_queue
+    blocker = make_job(ve, tmp_path, status="encoding")
+    q._current = blocker
+    job2 = make_job(ve, tmp_path)
+    q.enqueue(job2)
+    assert q.current_job is blocker
+    assert job2.status == "queued"
+
+
+def test_find(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q.enqueue(job)
+    assert q._find(job.job_id) is job
+    assert q._find(9999) is None
+
+
+def test_start_next_no_queued(ve):
+    ve.job_queue._start_next()
+    assert ve.job_queue.current_job is None
+
+
+def test_start_next_needs_swap_skips_probe(ve, tmp_path, fthread):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    write_file(job.fspath_tmp)
+    job._needs_swap = True
+    job._done = True
+    job._ok = True
+    q._jobs.append(job)
+    q._start_next()
+    assert q.current_job is job
+    assert job._needs_swap is False
+    assert job.status == "finalizing"
+    assert job._swapping is True
+
+
+def test_start_next_needs_swap_empty_tmp(ve, tmp_path, fthread):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)  # no tmp file on disk
+    job._needs_swap = True
+    job._done = True
+    job._ok = True
+    q._jobs.append(job)
+    q._start_next()
+    assert job.status == "error"
+    assert job.error_msg == "Empty output"
+
+
+def test_start_next_probe_thread(ve, tmp_path, fthread):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._jobs.append(job)
+    q._start_next()
+    assert job.status == "analyzing"
+    assert job.start_time > 0
+
+
+# ---------------------------------------------------------------------------
+# queue: poll state machine
+# ---------------------------------------------------------------------------
+
+def test_poll_no_current_starts_if_idle(ve):
+    ve.job_queue.poll()  # empty queue: no crash
+    assert ve.job_queue.current_job is None
+
+
+def test_poll_swap_done_finishes(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._current = job
+    job._swapping = True
+    job._swap_done = True
+    job._swap_ok = True
+    q.poll()
+    assert job.status == "done"
+    assert q.current_job is None
+
+
+def test_poll_swap_done_cancelled(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._current = job
+    job._swapping = True
+    job._swap_done = True
+    job.cancelled = True
+    q.poll()
+    assert job.status == "error"
+    assert job.error_msg == "Cancelled"
+
+
+def test_poll_done_cancelled_cleans_tmp(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    write_file(job.fspath_tmp)
+    q._current = job
+    job._done = True
+    job.cancelled = True
+    q.poll()
+    assert job.status == "error"
+    assert job.error_msg == "Cancelled"
+    assert not os.path.exists(job.fspath_tmp)
+    assert q.current_job is None
+
+
+def test_poll_done_not_ok_errors(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._current = job
+    job._done = True
+    job._ok = False
+    q.poll()
+    assert job.status == "error"
+    assert q.current_job is None
+
+
+def test_poll_done_ok_starts_swap(ve, tmp_path, fthread):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    write_file(job.fspath_tmp)
+    q._current = job
+    job._done = True
+    job._ok = True
+    q.poll()
+    assert job.status == "finalizing"
+    assert job._swapping is True
+    assert q.current_job is job  # not advanced yet
+
+
+def test_poll_done_ok_missing_tmp_errors(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._current = job
+    job._done = True
+    job._ok = True
+    q.poll()
+    assert job.status == "error"
+    assert job.error_msg == "Empty output"
+    assert q.current_job is None
+
+
+def test_poll_not_launched_waits(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._current = job
+    q.poll()  # probe thread still staging: status untouched
+    assert job.status == "queued"
+
+
+def test_poll_not_launched_cancelled(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._current = job
+    job.cancelled = True
+    q.poll()
+    assert job.status == "queued"  # restart_interaction is the only effect
+
+
+def test_poll_cancelled_kills_proc(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._current = job
+    job._launched = True
+    proc = FakeProc(poll_result=None)
+    job.proc = proc
+    job.cancelled = True
+    q.poll()
+    assert job._done is True
+    assert proc.killed is True
+    assert job.proc is None
+
+
+def test_poll_proc_running_reads_progress(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._current = job
+    job._launched = True
+    job.total_frames = 40
+    job._progress_path = str(tmp_path / "prog.txt")
+    write_file(job._progress_path, b"frame=10\nframe=20\n")
+    job.proc = FakeProc(poll_result=None)
+    q.poll()
+    assert job.progress == 0.5
+    # offset advanced: second read picks up only the new tail (append,
+    # since ffmpeg grows the progress file in place)
+    with open(job._progress_path, "ab") as f:
+        f.write(b"frame=30\n")
+    q.poll()
+    assert job.progress == 0.75
+
+
+def test_poll_proc_failed_sets_error(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._current = job
+    job._launched = True
+    job._pass_idx = 1
+    job._log_path = str(tmp_path / "enc.log")
+    write_file(job._log_path, b"boom\n")
+    job.proc = FakeProc(poll_result=1, returncode=1)
+    q.poll()
+    # the pass footer is written before the tail is read, so it is the
+    # last non-empty line captured by _error_tail
+    assert job.error_msg == "ffmpeg pass 1 rc=1: --- pass 1 rc=1 ---"
+    assert job._done is True
+
+
+def test_poll_proc_ok_launches_next_pass(ve, tmp_path, monkeypatch):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._current = job
+    job._launched = True
+    job._pass_idx = 1
+    job._log_path = str(tmp_path / "enc.log")
+    job._cmds = [["ffmpeg", "-y", "pass2"]]
+    monkeypatch.setattr(_veditor.subprocess, "Popen",
+                        lambda *a, **k: FakeProc())
+    job.proc = FakeProc(poll_result=0, returncode=0)
+    q.poll()
+    assert job._pass_idx == 2
+    assert job.status == "encoding"
+    assert job.proc is not None
+
+
+def test_poll_proc_ok_last_pass_finalizes(ve, tmp_path, fthread):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._current = job
+    job._launched = True
+    job._pass_idx = 1
+    job._log_path = str(tmp_path / "enc.log")
+    write_file(job.fspath_tmp)  # valid output
+    job.proc = FakeProc(poll_result=0, returncode=0)
+    q.poll()
+    assert job._done is True
+    assert job._ok is True
+    assert job.progress == 1.0
+
+
+def test_poll_launches_first_pass(ve, tmp_path, monkeypatch):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._current = job
+    job._launched = True
+    job._log_path = str(tmp_path / "enc.log")
+    job._cmds = [["ffmpeg", "-y"]]
+    monkeypatch.setattr(_veditor.subprocess, "Popen",
+                        lambda *a, **k: FakeProc())
+    q.poll()
+    assert job.status == "encoding"
+    assert job._pass_idx == 1
+    assert job.proc is not None
+
+
+# ---------------------------------------------------------------------------
+# queue: pass launch / progress / finalize helpers
+# ---------------------------------------------------------------------------
+
+def test_launch_pass_cancelled_noop(ve, tmp_path, monkeypatch):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job.cancelled = True
+    job._cmds = [["ffmpeg"]]
+    calls = []
+    monkeypatch.setattr(_veditor.subprocess, "Popen",
+                        lambda *a, **k: calls.append(1))
+    q._launch_pass(job)
+    assert calls == []
+
+
+def test_launch_pass_writes_header(ve, tmp_path, monkeypatch):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._log_path = str(tmp_path / "enc.log")
+    job._cmds = [["ffmpeg", "-y", "-i", "in"]]
+    monkeypatch.setattr(_veditor.subprocess, "Popen",
+                        lambda *a, **k: FakeProc())
+    q._launch_pass(job)
+    assert job._pass_idx == 1
+    assert job.proc is not None
+    with open(job._log_path, "rb") as f:
+        data = f.read()
+    assert b"--- pass 1 ---" in data
+    assert b"ffmpeg -y -i in" in data
+
+
+def test_launch_pass_popen_error(ve, tmp_path, monkeypatch):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._log_path = str(tmp_path / "enc.log")
+    job._cmds = [["ffmpeg"]]
+
+    def _boom(*a, **k):
+        raise OSError("spawn failed")
+    monkeypatch.setattr(_veditor.subprocess, "Popen", _boom)
+    q._launch_pass(job)
+    assert job.error_msg == "ffmpeg error: spawn failed"
+    assert job._done is True
+
+
+def test_read_progress_missing_file(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._progress_path = str(tmp_path / "nope.txt")
+    job.total_frames = 100
+    q._read_progress(job)  # must not raise
+    assert job.progress == 0.0
+
+
+def test_read_progress_no_total_frames(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._progress_path = str(tmp_path / "prog.txt")
+    write_file(job._progress_path, b"frame=50\n")
+    job.total_frames = 0
+    q._read_progress(job)
+    assert job.progress == 0.0
+
+
+def test_read_progress_bad_frame_line(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._progress_path = str(tmp_path / "prog.txt")
+    write_file(job._progress_path, b"frame=notanumber\n")
+    job.total_frames = 10
+    q._read_progress(job)  # parse failure ignored
+    assert job.progress == 0.0
+
+
+def test_append_pass_footer(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._pass_idx = 2
+    job._log_path = str(tmp_path / "enc.log")
+    write_file(job._log_path, b"")
+    q._append_pass_footer(job, 0)
+    with open(job._log_path, "rb") as f:
+        assert b"--- pass 2 rc=0 ---" in f.read()
+
+
+def test_error_tail_truncates(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._pass_idx = 1
+    job._log_path = str(tmp_path / "enc.log")
+    long_line = "x" * 300
+    write_file(job._log_path, ("pad\n" + long_line).encode())
+    tail = q._error_tail(job, 2)
+    assert tail == "ffmpeg pass 1 rc=2: " + "x" * 120
+
+
+def test_finalize_encode_success_cleans_artifacts(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job.passlog = str(tmp_path / "p.passlog")
+    for suffix in ("-0.log", "-1.log"):
+        write_file(job.passlog + suffix)
+    job._progress_path = str(tmp_path / "prog.txt")
+    write_file(job._progress_path, b"frame=1\n")
+    write_file(job.fspath_tmp)
+    q._finalize_encode(job)
+    assert job._ok is True
+    assert not os.path.exists(job.passlog + "-0.log")
+    assert not os.path.exists(job.passlog + "-1.log")
+    assert not os.path.exists(job._progress_path)
+
+
+def test_finalize_encode_no_output(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)  # tmp never created
+    q._finalize_encode(job)
+    assert job._ok is False
+    assert job.error_msg == "ffmpeg produced no output"
+    assert job._done is True
+
+
+# ---------------------------------------------------------------------------
+# queue: swap
+# ---------------------------------------------------------------------------
+
+def test_start_swap_missing_paths(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job.fspath_tmp = None
+    assert q._start_swap(job) is False
+    assert job.status == "error"
+    assert job.error_msg == "Missing paths"
+
+
+def test_start_swap_empty_tmp(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    write_file(job.fspath_tmp, b"")  # zero bytes
+    assert q._start_swap(job) is False
+    assert job.status == "error"
+    assert job.error_msg == "Empty output"
+
+
+def test_start_swap_success(ve, tmp_path, fthread):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    write_file(job.fspath_tmp)
+    assert q._start_swap(job) is True
+    assert job.status == "finalizing"
+    assert job._swapping is True
+    assert job._swap_done is False
+
+
+def test_finish_swap_success(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._swap_ok = True
+    q._finish_swap(job)
+    assert job.status == "done"
+    assert ve._states["movies/scene.webm"].last_error == ""
+
+
+def test_finish_swap_fail_locked(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._swap_ok = False
+    job._swap_error_msg = "File locked -- retry later"
+    q._finish_swap(job)
+    assert job.status == "error"
+    assert job.error_msg == "File locked -- retry later"
+    assert "still has this video file open" in ve._states[job.vpath].last_error
+
+
+def test_finish_swap_missing_out(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job.fspath_out = None
+    job._swap_ok = True
+    q._finish_swap(job)
+    assert job.status == "error"
+    assert job.error_msg == "Missing paths"
+
+
+# ---------------------------------------------------------------------------
+# queue: retry / cancel / remove / kill / cleanup
+# ---------------------------------------------------------------------------
+
+def test_retry_not_found(ve, tmp_path):
+    ve.job_queue.retry(9999)  # must not raise
+
+
+def test_retry_only_errors(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._jobs.append(job)
+    q._current = job  # block _start_if_idle
+    q.retry(job.job_id)  # status "queued" -> no-op
+    assert job.status == "queued"
+
+
+def test_retry_tmp_exists_needs_swap(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path, status="error")
+    write_file(job.fspath_tmp)
+    q._jobs.append(job)
+    q._current = make_job(ve, tmp_path, status="encoding")  # block start
+    q.retry(job.job_id)
+    assert job.status == "queued"
+    assert job._needs_swap is True
+    assert job._done is True
+    assert job._ok is True
+
+
+def test_retry_tmp_missing_reencode(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path, status="error")
+    q._jobs.append(job)
+    q._current = make_job(ve, tmp_path, status="encoding")  # block start
+    q.retry(job.job_id)
+    assert job.status == "queued"
+    assert job._needs_swap is False
+    assert job._done is False
+    assert job._ok is False
+    assert job._launched is False
+    assert job._cmds == []
+    assert job._pass_idx == 0
+    assert job.progress == 0.0
+    assert job.error_msg == ""
+
+
+def test_cancel_queued_removes(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._jobs.append(job)
+    q.cancel(job.job_id)
+    assert job not in q._jobs
+
+
+def test_cancel_current_kills(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path, status="encoding")
+    proc = FakeProc(poll_result=None)
+    job.proc = proc
+    q._jobs.append(job)
+    q._current = job
+    q.cancel(job.job_id)
+    assert job.cancelled is True
+    assert proc.killed is True
+
+
+def test_cancel_done_removes(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path, status="done")
+    q._jobs.append(job)
+    q.cancel(job.job_id)
+    assert job not in q._jobs
+
+
+def test_cancel_not_found(ve):
+    ve.job_queue.cancel(9999)  # must not raise
+
+
+def test_remove_only_terminal(ve, tmp_path):
+    q = ve.job_queue
+    done = make_job(ve, tmp_path, status="done")
+    queued = make_job(ve, tmp_path, status="queued")
+    q._jobs.extend([done, queued])
+    q.remove(done.job_id)
+    assert done not in q._jobs
+    q.remove(queued.job_id)  # queued: not removed
+    assert queued in q._jobs
+
+
+def test_kill_proc(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    proc = FakeProc(poll_result=None)
+    job.proc = proc
+    q._kill_proc(job)
+    assert proc.killed is True
+    assert proc.waited is True
+    assert job.proc is None
+
+
+def test_cleanup_temp_removes_all(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    write_file(job.fspath_tmp)
+    job.passlog = str(tmp_path / "p.passlog")
+    for suffix in ("-0.log", "-1.log"):
+        write_file(job.passlog + suffix)
+    job._progress_path = str(tmp_path / "prog.txt")
+    write_file(job._progress_path)
+    q._cleanup_temp(job)
+    assert not os.path.exists(job.fspath_tmp)
+    assert not os.path.exists(job.passlog + "-0.log")
+    assert not os.path.exists(job.passlog + "-1.log")
+    assert not os.path.exists(job._progress_path)
+
+
+# ---------------------------------------------------------------------------
+# queue: persistence
+# ---------------------------------------------------------------------------
+
+def test_save_serializes_queued_and_current(ve, tmp_path):
+    q = ve.job_queue
+    q._current = None
+    queued = make_job(ve, tmp_path)
+    q._jobs.append(queued)
+    cur = make_job(ve, tmp_path, status="encoding")
+    q._current = cur
+    q.save_to_persistent()
+    ids = [d["job_id"] for d in persistent._cue_jobs]
+    assert queued.job_id in ids
+    assert cur.job_id in ids
+    d = persistent._cue_jobs[0]
+    assert d["factor"] == 2.0
+    assert d["remove_audio"] is False
+
+
+def test_save_skips_done_jobs(ve, tmp_path):
+    q = ve.job_queue
+    done = make_job(ve, tmp_path, status="done")
+    q._jobs.append(done)
+    q.save_to_persistent()
+    assert persistent._cue_jobs is None
+
+
+def test_load_from_persistent_restores(ve, tmp_path, monkeypatch):
+    write_file(tmp_path / "in.webm")
+    monkeypatch.setattr(persistent, "_cue_jobs", [{
+        "job_id": 5,
+        "vpath": "movies/scene.webm",
+        "fspath_in": str(tmp_path / "in.webm"),
+        "fspath_tmp": str(tmp_path / "tmp.webm"),
+        "factor": 3.0,
+        "encode_mode": 0,
+        "fspath_out": str(tmp_path / "out.webm"),
+        "remove_audio": False,
+    }])
+    ve.job_queue.load_from_persistent()
+    assert len(ve.job_queue._jobs) == 1
+    job = ve.job_queue._jobs[0]
+    assert job.job_id == 5
+    assert job.factor == 3.0
+    assert job._resume_pass2 is False
+    assert ve.job_queue._next_job_id == 6
+
+
+def test_load_skips_existing_output(ve, tmp_path, monkeypatch):
+    write_file(tmp_path / "in.webm")
+    write_file(tmp_path / "out.webm")
+    monkeypatch.setattr(persistent, "_cue_jobs", [{
+        "job_id": 1,
+        "vpath": "movies/scene.webm",
+        "fspath_in": str(tmp_path / "in.webm"),
+        "fspath_tmp": str(tmp_path / "tmp.webm"),
+        "factor": 3.0,
+        "encode_mode": 0,
+        "fspath_out": str(tmp_path / "out.webm"),
+    }])
+    ve.job_queue.load_from_persistent()
+    assert ve.job_queue._jobs == []
+
+
+def test_load_skips_missing_input(ve, tmp_path, monkeypatch):
+    monkeypatch.setattr(persistent, "_cue_jobs", [{
+        "job_id": 1,
+        "vpath": "movies/scene.webm",
+        "fspath_in": str(tmp_path / "gone.webm"),
+        "fspath_tmp": str(tmp_path / "tmp.webm"),
+        "factor": 3.0,
+        "encode_mode": 0,
+        "fspath_out": str(tmp_path / "out.webm"),
+    }])
+    ve.job_queue.load_from_persistent()
+    assert ve.job_queue._jobs == []
+
+
+def test_load_detects_pass2_resume(ve, tmp_path, monkeypatch):
+    write_file(tmp_path / "in.webm")
+    write_file(tmp_path / "tmp.webm.passlog-0.log")
+    monkeypatch.setattr(persistent, "_cue_jobs", [{
+        "job_id": 2,
+        "vpath": "movies/scene.webm",
+        "fspath_in": str(tmp_path / "in.webm"),
+        "fspath_tmp": str(tmp_path / "tmp.webm"),
+        "factor": 3.0,
+        "encode_mode": 0,
+        "fspath_out": str(tmp_path / "out.webm"),
+    }])
+    ve.job_queue.load_from_persistent()
+    assert len(ve.job_queue._jobs) == 1
+    assert ve.job_queue._jobs[0]._resume_pass2 is True
+
+
+def test_load_skips_malformed(ve, tmp_path, monkeypatch):
+    write_file(tmp_path / "in.webm")
+    monkeypatch.setattr(persistent, "_cue_jobs", [
+        {"job_id": "not-an-int", "vpath": "x", "fspath_in": "x",
+         "fspath_tmp": "x", "factor": "z", "encode_mode": 0},
+        {"job_id": 9, "vpath": "movies/scene.webm",
+         "fspath_in": str(tmp_path / "in.webm"),
+         "fspath_tmp": str(tmp_path / "tmp.webm"),
+         "factor": 1.0, "encode_mode": 0,
+         "fspath_out": str(tmp_path / "out.webm")},
+    ])
+    ve.job_queue.load_from_persistent()
+    assert len(ve.job_queue._jobs) == 1  # malformed skipped
+    assert ve.job_queue._jobs[0].job_id == 9
+
+
+def test_load_wrong_type_clears(ve, tmp_path, monkeypatch):
+    monkeypatch.setattr(persistent, "_cue_jobs", "not a list")
+    ve.job_queue.load_from_persistent()
+    assert persistent._cue_jobs is None
+
+
+def test_load_none_is_noop(ve, tmp_path):
+    ve.job_queue.load_from_persistent()  # persistent._cue_jobs is None
+    assert ve.job_queue._jobs == []
+
+
+def test_get_elapsed(ve, tmp_path, monkeypatch):
+    q = ve.job_queue
+    assert q.get_elapsed() == 0.0
+    job = make_job(ve, tmp_path)
+    job.start_time = 100.0
+    q._current = job
+    monkeypatch.setattr(_veditor._time, "time", lambda: 102.0)
+    assert q.get_elapsed() == 2.0
+
+
+# ---------------------------------------------------------------------------
+# _cue_swap_job (background swap)
+# ---------------------------------------------------------------------------
+
+def test_swap_job_missing_paths(ve, tmp_path, monkeypatch):
+    monkeypatch.setattr(_veditor._time, "sleep", lambda s: None)
+    job = make_job(ve, tmp_path)
+    job.fspath_tmp = None
+    _veditor._cue_swap_job(job)
+    assert job._swap_ok is False
+    assert job._swap_error_msg == "Missing paths"
+    assert job._swap_done is True
+
+
+def test_swap_job_success(ve, tmp_path, monkeypatch):
+    monkeypatch.setattr(_veditor._time, "sleep", lambda s: None)
+    job = make_job(ve, tmp_path)
+    write_file(job.fspath_tmp, b"encoded")
+    _veditor._cue_swap_job(job)
+    assert job._swap_ok is True
+    assert job._swap_error_msg == ""
+    assert os.path.exists(job.fspath_out)
+    with open(job.fspath_out, "rb") as f:
+        assert f.read() == b"encoded"
+
+
+def test_swap_job_failure_retries(ve, tmp_path, monkeypatch):
+    monkeypatch.setattr(_veditor._time, "sleep", lambda s: None)
+
+    def _blocked(src, dst):
+        raise OSError("file locked")
+    monkeypatch.setattr(_veditor, "_cue_replace_file", _blocked)
+    job = make_job(ve, tmp_path)
+    write_file(job.fspath_tmp)
+    _veditor._cue_swap_job(job)
+    assert job._swap_ok is False
+    assert job._swap_error_msg == "File locked -- retry later"
+    assert job._swap_done is True
+
+
+# ---------------------------------------------------------------------------
+# CueVideoEditor coordinator
+# ---------------------------------------------------------------------------
+
+def test_editor_factor_text_dummy(ve):
+    assert ve.factor_text == "1.00"  # no current -> dummy state
+
+
+def test_editor_factor_text_roundtrip(ve):
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.factor_text = "2.50"
+    assert ve.factor_text == "2.50"
+
+
+def test_editor_last_error_escapes_brackets(ve):
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.last_error = "Bad [x]"
+    assert ve.last_error == "Bad [[x]]"
+
+
+def test_editor_last_error_no_current_is_noop(ve):
+    ve.last_error = "nope"  # setter guarded when no state
+    assert ve.last_error == ""
+
+
+def test_editor_set_quick(ve):
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.set_quick(2.3)
+    assert ve.factor_text == "2.3"
+    ve.set_quick(50)
+    assert ve.factor_text == "10.0"
+    ve.set_quick(0.01)
+    assert ve.factor_text == "0.1"
+
+
+def test_editor_commit_text(ve):
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.factor_text = "2.5"
+    ve.commit_text()
+    assert ve.factor_text == "2.5"
+    ve.factor_text = "abc"
+    ve.commit_text()
+    assert ve.factor_text == "1.0"
+    ve.factor_text = "999"
+    ve.commit_text()
+    assert ve.factor_text == "10.0"
+
+
+def test_editor_nudge(ve):
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.factor_text = "1.5"
+    ve.nudge(0.3)
+    assert ve.factor_text == "1.8"
+    ve.factor_text = "abc"
+    ve.nudge(0.1)
+    assert ve.factor_text == "1.1"
+    ve.factor_text = "10.0"
+    ve.nudge(0.5)
+    assert ve.factor_text == "10.0"
+
+
+def test_editor_get_factor(ve):
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.factor_text = "2.5"
+    assert ve.get_factor() == 2.5
+    ve.factor_text = "abc"
+    assert ve.get_factor() == 1.0
+
+
+def test_editor_set_encode_mode_valid(ve):
+    ve.set_encode_mode(CUE_VE_MODE_FAST_PREVIEW)
+    assert ve.encode_mode == CUE_VE_MODE_FAST_PREVIEW
+    assert persistent._cue["encode_mode"] == CUE_VE_MODE_FAST_PREVIEW
+
+
+def test_editor_set_encode_mode_invalid(ve):
+    ve.encode_mode = CUE_VE_MODE_NORMAL
+    ve.set_encode_mode(9)
+    assert ve.encode_mode == CUE_VE_MODE_NORMAL
+
+
+def test_editor_toggle_remove_audio(ve):
+    assert ve.remove_audio is True
+    ve.toggle_remove_audio()
+    assert ve.remove_audio is False
+    assert persistent._cue["remove_audio"] is False
+
+
+def test_editor_check_prerequisites_no_video(ve, tmp_path):
+    ve._vid_manager._vpath = ""
+    assert ve.check_prerequisites() == ("error", "No video is currently playing.")
+
+
+def test_editor_check_prerequisites_rpa(ve, tmp_path):
+    # vpath set but file not on disk -> inside an archive
+    status, msg = ve.check_prerequisites()
+    assert status == "rpa"
+    assert "archive" in msg
+
+
+def test_editor_check_prerequisites_ffmpeg_missing(ve, tmp_path):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve._ffmpeg = FakeFFmpeg(available=False, cache=0)
+    status, msg = ve.check_prerequisites()
+    assert status == "error"
+    assert "ffmpeg not found" in msg
+
+
+def test_editor_check_prerequisites_ok(ve, tmp_path):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    assert ve.check_prerequisites() == ("ok", "")
+
+
+def test_editor_check_prerequisites_readonly(ve, tmp_path, monkeypatch):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    monkeypatch.setattr(os, "access", lambda p, m: False)
+    status, msg = ve.check_prerequisites()
+    assert status == "error"
+    assert "read-only" in msg
+
+
+def test_editor_extract_no_video(ve):
+    ve._vid_manager._vpath = ""
+    assert ve.extract_from_rpa() == ("error", "No video is currently playing.")
+
+
+def test_editor_extract_success(ve, tmp_path, monkeypatch):
+    monkeypatch.setattr(renpy, "file", lambda vp: FakeRenPyFile())
+    ok, fspath = ve.extract_from_rpa()
+    assert ok == "ok"
+    with open(fspath, "rb") as f:
+        assert f.read() == b"video-bytes"
+
+
+def test_editor_extract_cannot_open(ve, tmp_path, monkeypatch):
+    def _raise(vp):
+        raise OSError("no such archive")
+    monkeypatch.setattr(renpy, "file", _raise)
+    ok, msg = ve.extract_from_rpa()
+    assert ok == "error"
+    assert "Cannot open" in msg
+
+
+def test_editor_extract_write_failure(ve, tmp_path, monkeypatch):
+    monkeypatch.setattr(renpy, "file", lambda vp: FakeRenPyFile())
+    real_open = open
+
+    def _flaky_open(path, mode, *a, **k):
+        if mode == "wb":
+            raise OSError("disk full")
+        return real_open(path, mode, *a, **k)
+    monkeypatch.setattr("builtins.open", _flaky_open)
+    ok, msg = ve.extract_from_rpa()
+    assert ok == "error"
+    assert "Failed to write extracted file" in msg
+
+
+def test_editor_open_editor_warm_thread(ve, fthread):
+    ve._ffmpeg = FakeFFmpeg(cache=-1)
+    ve.open_editor()
+    assert ve.active is True
+    assert ve._current is not None
+    assert ve._ready is False  # warm check still running
+
+
+def test_editor_open_editor_ready(ve):
+    ve._ffmpeg = FakeFFmpeg(cache=0)
+    ve.open_editor()
+    assert ve.active is True
+    assert ve._ready is True
+
+
+def test_editor_refresh_has_audio(ve, tmp_path):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve.refresh()
+    assert ve._current_has_audio is True
+
+
+def test_editor_refresh_no_ffprobe(ve, tmp_path):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve._ffmpeg = FakeFFmpeg(ffprobe_ok=False, cache=0)
+    ve.refresh()
+    assert ve._current_has_audio is None
+
+
+def test_editor_refresh_no_video(ve):
+    ve._vid_manager._vpath = ""
+    ve.refresh()
+    assert ve._current_has_audio is None
+
+
+def test_editor_close_editor(ve):
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.active = True
+    ve.close_editor()
+    assert ve.active is False
+    assert ve._current is None
+
+
+def test_editor_prepare_create_not_ready(ve):
+    ve._ready = False
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.prepare_create()
+    assert "Checking ffmpeg" in ve.last_error
+
+
+def test_editor_prepare_create_warm_cache_error(ve):
+    ve._ready = True
+    ve._warm_cache_error = "boom"
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.prepare_create()
+    assert "ffmpeg check failed: boom" in ve.last_error
+
+
+def test_editor_prepare_create_prereq_error(ve):
+    ve._ready = True
+    ve._vid_manager._vpath = ""
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.prepare_create()
+    assert ve.last_error == "No video is currently playing."
+
+
+def test_editor_prepare_create_rpa_extract_error(ve, monkeypatch):
+    ve._ready = True
+    ve._current = ve._ensure_state("movies/scene.webm")
+
+    def _raise(vp):
+        raise OSError("no archive")
+    monkeypatch.setattr(renpy, "file", _raise)
+    ve.prepare_create()
+    assert "Cannot open" in ve.last_error
+
+
+def test_editor_prepare_create_speed_one(ve, tmp_path):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve._ready = True
+    ve.encode_mode = CUE_VE_MODE_NORMAL
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.factor_text = "1.00"
+    ve.prepare_create()
+    assert ve.last_error == "Speed is already 1.00x."
+
+
+def test_editor_prepare_create_success(ve, tmp_path, fthread):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve._ready = True
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.factor_text = "2.00"
+    ve.prepare_create()
+    assert len(ve.job_queue.jobs) == 1
+    job = ve.job_queue.jobs[0]
+    assert job.factor == 2.0
+    assert job.encode_mode == CUE_VE_MODE_INTERPOLATE  # editor default
+
+
+def test_editor_create_no_fs(ve):
+    ve._vid_manager._vpath = ""
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.create(2.0)
+    assert ve.last_error == "Video file disappeared."
+
+
+def test_editor_create_enqueues_job(ve, tmp_path, fthread):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.create(2.0)
+    assert len(ve.job_queue.jobs) == 1
+    job = ve.job_queue.jobs[0]
+    assert job.factor == 2.0
+    assert job.fspath_out.endswith("__cue_2.0x.webm")
+
+
+def test_editor_queue_properties(ve, tmp_path):
+    assert ve.processing is False
+    assert ve._get_state() is None
+    assert isinstance(ve._get_state_or_dummy(), CueVideoEditorState)
+    ve._current = ve._ensure_state("movies/scene.webm")
+    assert ve._get_state() is ve._states["movies/scene.webm"]
+    assert ve._state_for_vpath("movies/scene.webm") is ve._states["movies/scene.webm"]
+    assert ve._state_for_vpath("nope") is None
+
+
+def test_editor_refresh_ui_when_idle(ve):
+    ve.job_queue.refresh_ui()  # no jobs -> no restart, no crash
+
+
+def test_editor_refresh_ui_with_job(ve, tmp_path):
+    ve.job_queue._jobs.append(make_job(ve, tmp_path))
+    ve.job_queue.refresh_ui()  # must not raise

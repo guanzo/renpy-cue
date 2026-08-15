@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 from typing import Optional
 
 # Shared test doubles for cue_lib managers.
@@ -195,3 +196,117 @@ class FakeSfxManager(object):
     def __init__(self, files=None, disabled_files=None):
         self.files = files if files is not None else []
         self.disabled_files = disabled_files if disabled_files is not None else set()
+
+
+# ---------------------------------------------------------------------------
+# ffmpeg / video-editor doubles
+# ---------------------------------------------------------------------------
+
+class FakeProc(object):
+    """Fake subprocess.Popen return value for ffmpeg/ffprobe tests.
+
+    communicate() returns out_bytes (decoded downstream); returncode is
+    settable; poll() returns poll_result (None = still running, an int =
+    exited). kill()/wait() record their calls so _kill_proc paths can assert.
+    """
+
+    def __init__(self, out_bytes=b"", returncode=0, poll_result=None):
+        self.out_bytes = out_bytes
+        self.returncode = returncode
+        self.poll_result = poll_result
+        self.pid = 1234
+        self.killed = False
+        self.waited = False
+        self.stdout = None
+        self.stderr = None
+
+    def communicate(self):
+        return self.out_bytes, None
+
+    def poll(self):
+        return self.poll_result
+
+    def kill(self):
+        self.killed = True
+        self.returncode = -9
+
+    def wait(self):
+        self.waited = True
+        return self.returncode
+
+
+class FakeThread(object):
+    """Captures a threading.Thread target without running it.  start() just
+    records; the probe/swap worker bodies never execute in tests."""
+
+    def __init__(self, target=None, args=(), kwargs=None, daemon=None):
+        self.target = target
+        self.args = args
+        self.kwargs = kwargs if kwargs is not None else {}
+        self.daemon = daemon
+        self.started = False
+
+    def start(self):
+        self.started = True
+
+
+class FakeFFmpeg(object):
+    """FFmpeg-backend stand-in for the video editor: the flag + method surface
+    check_prerequisites / refresh / _warm_tools dereference."""
+
+    def __init__(self, available=True, ffprobe_ok=True, has_audio=True, cache=-1):
+        self._ffmpeg_cache = cache
+        self.available = available
+        self.ffprobe_ok = ffprobe_ok
+        self.has_audio = has_audio
+
+    def ffmpeg_available(self):
+        self._ffmpeg_cache = 1 if self.available else 0
+        return self.available
+
+    def ffprobe_available(self):
+        return self.ffprobe_ok
+
+    def load_encoders(self):
+        pass
+
+    def probe_has_audio(self, fspath):
+        return self.has_audio
+
+
+class FakeVidPathManager(object):
+    """Video-manager stand-in for the editor's current-video surface:
+    get_video_path() + the channel seam the queue's _start_next reads."""
+
+    def __init__(self, vpath="", channel="cue_vid"):
+        self._vpath = vpath
+        self.channel = channel
+
+    def get_video_path(self):
+        return self._vpath
+
+
+class FakePathsVideo(object):
+    """Paths stand-in for the editor/queue: in_game_base_dir + video_dir."""
+
+    def __init__(self, video_dir):
+        self.video_dir = video_dir
+        self.in_game_base_dir = "renpy_cue"
+
+
+class FakeVidSpeedResolver(object):
+    """Speed-resolver stand-in for the editor's create() path: base_path_for /
+    variant_path / _split_ext, driven by a configured base tag."""
+
+    def __init__(self, base=None):
+        self.base = base
+
+    def base_path_for(self, tag):
+        return self.base
+
+    def variant_path(self, base_path, speed):
+        _b, _e = os.path.splitext(base_path)
+        return _b + "__cue_{:.1f}x{}".format(speed, _e)
+
+    def _split_ext(self, path):
+        return os.path.splitext(path)
