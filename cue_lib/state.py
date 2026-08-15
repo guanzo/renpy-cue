@@ -32,7 +32,6 @@ class Cue(_renpy_python.NoRollback):
         self.is_overlay_visible = False
         self.overlay_active_page = CuePage.SFX
         self.collapsed_sections = {}       # section_name -> bool (cue_section_frame)
-        self.sfx_library_overlay_mode = False  # SFX Library section floats at 50% height
         self.ctx = CueContext()          # per-frame scene state (current_file, dialogue, top layer)
         self.top_displayable = None
         self.setup_dir_text = ""      # text bound to the Shared Dir input
@@ -134,16 +133,6 @@ class Cue(_renpy_python.NoRollback):
         # type: (str) -> None
         """Toggle expand/collapse for a cue_section_frame."""
         self.collapsed_sections[section_name] = not self.collapsed_sections.get(section_name, False)
-        renpy.restart_interaction()
-
-    def toggle_sfx_library_overlay_mode(self):
-        # type: () -> None
-        """Toggle overlay mode for the SFX Library section.
-        Enabling overlay mode collapses the section if expanded.
-        Exiting overlay mode expands the section if collapsed."""
-        was_overlay = self.sfx_library_overlay_mode
-        self.sfx_library_overlay_mode = not was_overlay
-
         renpy.restart_interaction()
 
 

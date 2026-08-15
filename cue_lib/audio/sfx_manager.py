@@ -7,6 +7,8 @@
 # the index/enabled fields on each file row.
 # Instantiated once at _cue.sfx_manager, lives on the NoRollback _cue object.
 
+import renpy
+
 from cue_lib.audio.audio_tree import CueAudioTreeManager
 from cue_lib.util import _cue_resolve_files
 
@@ -48,6 +50,9 @@ class CueSfxManager(CueAudioTreeManager):
 
         # File disable
         self.disabled_files = set()       # full_path strings
+
+        # Overlay mode: SFX Library section floats at 50% height
+        self.overlay_mode = False
 
     # ------------------------------------------------------------------
     # Scanning
@@ -143,3 +148,17 @@ class CueSfxManager(CueAudioTreeManager):
             self.expanded_video_presets[preset_name] = not self.expanded_video_presets[preset_name]
         else:
             self.expanded_video_presets[preset_name] = True
+
+    # ------------------------------------------------------------------
+    # Toggle: overlay mode
+    # ------------------------------------------------------------------
+
+    def toggle_overlay_mode(self):
+        # type: () -> None
+        """Toggle overlay mode for the SFX Library section.
+        Enabling overlay mode collapses the section if expanded.
+        Exiting overlay mode expands the section if collapsed."""
+        was_overlay = self.overlay_mode
+        self.overlay_mode = not was_overlay
+
+        renpy.restart_interaction()

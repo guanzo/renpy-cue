@@ -41,7 +41,6 @@ class Cue:
     is_overlay_visible: bool
     overlay_active_page: int
     collapsed_sections: Dict[str, bool]
-    sfx_library_overlay_mode: bool
     ctx: CueContext
     current_file: str
     current_dialogue: str
@@ -91,6 +90,5 @@ class Cue:
     _chart_screen_y: int
 
     def toggle_section(self, section_name: str) -> None: ...
-    def toggle_sfx_library_overlay_mode(self) -> None: ...
 
 _cue: Cue

@@ -5,7 +5,7 @@
 
 screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
     $ _collapsed = _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
-    $ _overlay_mode = _cue.sfx_library_overlay_mode
+    $ _overlay_mode = _cue.sfx_manager.overlay_mode
     $ _arrow_icon = "chevron-right" if _collapsed else "chevron-down"
     $ _arrow = _cue.icons.displayable_for(_arrow_icon) if _cue.icons is not None else None
     $ _ov_icon = "square-plus" if _overlay_mode else "square-minus"
@@ -35,7 +35,7 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
 
                             use cue_icon_btn(
                                 _ov_icon,
-                                Function(_cue.toggle_sfx_library_overlay_mode),
+                                Function(_cue.sfx_manager.toggle_overlay_mode),
                                 _ov_tt,
                                 None
                             )

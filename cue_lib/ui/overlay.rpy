@@ -102,7 +102,7 @@ screen cue_overlay_content():
                 use cue_settings_page()
 
         # SFX Library overlay mode: entire section floats at bottom
-        if _cue.overlay_active_page == CuePage.SFX and _cue.sfx_library_overlay_mode:
+        if _cue.overlay_active_page == CuePage.SFX and _cue.sfx_manager.overlay_mode:
             $ _sfx_collapsed = _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
             $ _sfx_z = _cue_overlay_zoom()
             $ _sfx_full_h = int(renpy.config.screen_height / _sfx_z)
