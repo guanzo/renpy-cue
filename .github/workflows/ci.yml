@@ -41,7 +41,10 @@ jobs:
       # The `test` command is uses_display=True and the 7.x leg forces
       # SDL_VIDEODRIVER=x11 -- both need a real X server. xvfb provides it.
       - name: Run testcases
-        run: xvfb-run -a bin/run_testcases.sh "$SDK_DIR/renpy.sh"
+        # Explicit `bash` invocation: the repo lives on a filesystem that
+        # doesn't persist the exec bit (core.fileMode=false), so the scripts
+        # aren't executable in the working tree.
+        run: xvfb-run -a bash bin/run_testcases.sh "$SDK_DIR/renpy.sh"
 
   # Fast gate: pyright + 120-char lint, then the pytest suite, under the
   # modern toolchain. Mirrors the /lint and /test skills via bin/*.sh.
@@ -65,7 +68,7 @@ jobs:
       - name: Lint
         run: |
           export PATH="$(poetry env info -p)/bin:$PATH"
-          bin/lint.sh
+          bash bin/lint.sh
 
       - name: Test
-        run: bin/test.sh
+        run: bash bin/test.sh
