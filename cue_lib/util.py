@@ -56,17 +56,17 @@ def _cue_ui_refresh(fn):
 
 def create_img_key(file):
     # type: (str) -> str
-    """Build an image trigger key: 'i:<file>'."""
+    """Build an image trigger key: 'i_<file>'."""
     return CUE_IMG_KEY_PREFIX + file
 
 def create_vid_key(file):
     # type: (str) -> str
-    """Build a video trigger key: 'v:<file>'."""
+    """Build a video trigger key: 'v_<file>'."""
     return CUE_VID_KEY_PREFIX + file
 
 def create_loop_key(file):
     # type: (str) -> str
-    """Build a loop trigger key: 'l:<file>'. file may be '' for global pool."""
+    """Build a loop trigger key: 'l_<file>'. file may be '' for global pool."""
     return CUE_LOOP_KEY_PREFIX + file
 
 def create_dlg_key(dlg_pair):
@@ -130,7 +130,7 @@ def get_key_dialogue(key):
 
 def get_key_prefix(key):
     # type: (str) -> str
-    """Return the 2-char prefix of a key ('i:', 'v:', 'd:', or 'l:')."""
+    """Return the 2-char prefix of a key ('i_', 'v_', 'd_', or 'l_')."""
     return key[:len(CUE_IMG_KEY_PREFIX)]
 
 

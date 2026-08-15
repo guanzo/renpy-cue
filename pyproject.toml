@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Ren'Py mod: advanced marker/trigger/video/SFX cue system"
 requires-python = ">=3.10"
 readme = "README.md"
+license = "MIT"
 
 [tool.poetry]
 packages = [{ include = "cue_lib" }]
