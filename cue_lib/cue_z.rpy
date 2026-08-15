@@ -354,17 +354,9 @@ init 999 python:
         _cue.initialized = True
         _cue_log("INIT: Done")
 
-    # Everything below runs on every init (incl. Shift+R reload).
-    # reload_all() restores all renpy.* modules to their post-import state,
-    # wiping config.keymap, the monkey patches, and the config callback lists
-    # -- so keybinds, patches, and hooks must be reinstalled each time.
-    # config.keymap is fully populated by this point (after the console append
-    # above), so collision scanning sees all built-in entries.
-    _cue.keybinds.setup()
-
-    # Clear debug log for fresh session
+    
     _cue_clear_debug_log()
-
+    _cue.keybinds.setup()
     _cue_patch_runtime()
     _cue_install_callbacks()
 
