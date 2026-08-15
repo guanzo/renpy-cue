@@ -8,9 +8,10 @@
 # CUE_BACKUP_MAX most recent backups are kept.
 #
 # The manual backup/restore buttons are driven from markers.py, which calls
-# zip_tree() here for the whole data/ tree into {shared}/backups/backup.zip,
-# and restore_pieces() to swap the affected paths out of data/ (kept in
-# {shared}/data_bak as a safety net) and in from that zip.
+# zip_shared_tree() here for the data/ tree plus the shared audio/ and music/
+# folders into {shared}/backups/backup.zip, and restore_pieces() to merge the
+# backup's contents over the live tree (the files it overwrites are kept in
+# {shared}/data_bak as a safety net).
 #
 # Pure Python stdlib -- no C extensions.  Works on any Ren'Py build.
 
@@ -39,6 +40,11 @@ CUE_BACKUP_PREFIX = "auto_backup_"
 CUE_MANUAL_BACKUP_NAME = "backup.zip"
 CUE_BAK_DIR = "data_bak"
 CUE_RESTORE_TMP_DIR = "_restore_tmp"
+
+# User-media folders at the shared root (audio_dir / music_dir) that the
+# manual backup/restore carries alongside the internal data/ tree.  Shared by
+# zip_shared_tree() and restore_pieces() so the two stay in sync.
+CUE_MEDIA_DIRS = ("audio", "music")
 
 MYPY = False
 if MYPY:
@@ -92,6 +98,36 @@ def zip_tree(data_dir, zip_path, tmp_path=None):
     return count
 
 
+def zip_shared_tree(root, zip_path, tmp_path=None):
+    # type: (str, str, Optional[str]) -> int
+    """Zip the shared tree's data/, audio/, and music/ folders into zip_path.
+
+    data/ entries keep their flat arcnames (markers/, presets/,
+    cue_config.json) for backward compatibility with older backup.zip files;
+    audio/ and music/ entries are stored under their own top-level dirs.
+    Writes tmp_path first (default zip_path + ".tmp"), then moves it over
+    zip_path.  Returns file count."""
+    if tmp_path is None:
+        tmp_path = zip_path + ".tmp"
+    sources = [(os.path.join(root, "data"), "")]
+    for media in CUE_MEDIA_DIRS:
+        sources.append((os.path.join(root, media), media))
+    count = 0
+    with _zipfile.ZipFile(tmp_path, "w", _zipfile.ZIP_DEFLATED) as zf:
+        for src_dir, prefix in sources:
+            if not os.path.isdir(src_dir):
+                continue
+            for walk_root, _dirs, files in os.walk(src_dir):
+                for name in files:
+                    fpath = _to_str(os.path.join(walk_root, name))
+                    rel = _to_str(os.path.relpath(fpath, src_dir))
+                    arcname = _to_str(os.path.join(prefix, rel))
+                    zf.write(fpath, arcname)
+                    count += 1
+    _cue_replace_file(tmp_path, zip_path)
+    return count
+
+
 def validate_backup_zip(zip_path):
     # type: (str) -> Tuple[bool, str]
     """Heuristic validation of a manual backup zip. Returns (ok, reason)."""
@@ -109,15 +145,21 @@ def validate_backup_zip(zip_path):
         looks_like_data = any(
             n.startswith("markers/") or n.startswith("presets/")
             or n == CUE_SHARED_CONFIG_FILENAME
+            or _matches_any(n, list(CUE_MEDIA_DIRS))
             for n in names
         )
         if not looks_like_data:
-            return (False, "not a data backup (no markers/, presets/, or {})".format(
-                CUE_SHARED_CONFIG_FILENAME))
-        # Spot-check that embedded JSON parses (stops after a few).
+            return (False, "not a data backup (no markers/, presets/, "
+                    "audio/, music/, or {})".format(CUE_SHARED_CONFIG_FILENAME))
+        # Spot-check that embedded JSON parses (stops after a few).  Only
+        # mod-data entries are checked -- a stray .json dropped into audio/
+        # or music/ isn't marker data and shouldn't invalidate the backup.
         checked = 0
         for n in names:
             if not n.endswith(".json"):
+                continue
+            if not (n.startswith("markers/") or n.startswith("presets/")
+                    or n == CUE_SHARED_CONFIG_FILENAME):
                 continue
             try:
                 _json.loads(zf.read(n))
@@ -150,12 +192,15 @@ def extract_matching(zip_path, out_dir, matchers):
 
 def restore_pieces(zip_path, shared_dir, game_id):
     # type: (str, str, str) -> int
-    """Restore this game's markers + shared presets + shared config from a
-    manual backup zip into {shared}/data.
+    """Merge this game's markers + shared presets + shared config + the
+    shared audio/ and music/ folders from a manual backup zip into the
+    live tree.
 
-    The current affected paths (data/markers/<game_id>, data/presets,
-    data/cue_config.json) are moved aside into {shared}/data_bak first --
-    kept as a safety net and replaced on the next restore.  Other games'
+    Merge rule: every file the backup carries is written over the live
+    tree, and the previous version is moved aside into {shared}/data_bak
+    first (a safety net, replaced on the next restore).  Anything not in
+    the backup is left untouched -- restore never removes data it doesn't
+    know about, so markers made after the backup survive.  Other games'
     marker dirs are left untouched.  Returns the number of files extracted.
     Raises ValueError if the zip fails validation."""
     ok, reason = validate_backup_zip(zip_path)
@@ -169,11 +214,12 @@ def restore_pieces(zip_path, shared_dir, game_id):
     if not os.path.isdir(data_dir):
         os.makedirs(data_dir)
 
-    # Stage the affected pieces before touching data/.
+    # Stage the affected pieces before touching the live tree.
     if os.path.isdir(staging):
         _shutil.rmtree(staging)
     os.makedirs(staging)
     matchers = ["markers/{}".format(game_id), "presets", CUE_SHARED_CONFIG_FILENAME]
+    matchers += list(CUE_MEDIA_DIRS)
     count = extract_matching(zip_path, staging, matchers)
 
     # Replace the previous safety net with the current state.
@@ -181,31 +227,28 @@ def restore_pieces(zip_path, shared_dir, game_id):
         _shutil.rmtree(bak_dir)
     os.makedirs(bak_dir)
 
-    rel_pieces = [
-        os.path.join("markers", game_id),
-        "presets",
-        CUE_SHARED_CONFIG_FILENAME,
-    ]
-    # Move current pieces aside first so the restored ones can land.
-    for rel in rel_pieces:
-        cur = os.path.join(data_dir, *rel.split("/"))
-        if not os.path.lexists(cur):
-            continue
-        bak_target = os.path.join(bak_dir, *rel.split("/"))
-        parent = os.path.dirname(bak_target)
-        if not os.path.isdir(parent):
-            os.makedirs(parent)
-        _cue_replace_file(cur, bak_target)
-    # Move restored pieces into place (only those the backup actually has).
-    for rel in rel_pieces:
-        staged = os.path.join(staging, *rel.split("/"))
-        if not os.path.lexists(staged):
-            continue
-        target = os.path.join(data_dir, *rel.split("/"))
-        parent = os.path.dirname(target)
-        if not os.path.isdir(parent):
-            os.makedirs(parent)
-        _cue_replace_file(staged, target)
+    # Merge the backup over the live tree, file by file.  For each entry
+    # the backup carries, move the current version aside to data_bak, then
+    # write the restored file in its place.  Anything not in the backup is
+    # left untouched -- restore never removes data it doesn't know about.
+    # audio/ and music/ live at the shared root; the rest lives under data/.
+    for walk_root, _dirs, files in os.walk(staging):
+        for name in files:
+            staged = _to_str(os.path.join(walk_root, name))
+            rel = _to_str(os.path.relpath(staged, staging))
+            first = rel.split("/", 1)[0]
+            base = shared_dir if first in CUE_MEDIA_DIRS else data_dir
+            target = os.path.join(base, rel)
+            if os.path.lexists(target):
+                bak_target = os.path.join(bak_dir, rel)
+                parent = os.path.dirname(bak_target)
+                if not os.path.isdir(parent):
+                    os.makedirs(parent)
+                _cue_replace_file(target, bak_target)
+            parent = os.path.dirname(target)
+            if not os.path.isdir(parent):
+                os.makedirs(parent)
+            _cue_replace_file(staged, target)
 
     _shutil.rmtree(staging, ignore_errors=True)
     return count
