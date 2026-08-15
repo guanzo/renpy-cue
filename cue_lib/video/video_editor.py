@@ -20,6 +20,11 @@ from cue_lib.util import _cue_log, _cue_replace_file, _cue_ui_refresh, _cue_unwr
 MYPY = False
 if MYPY:
     from typing import Any, Optional
+    from cue_lib.video.ffmpeg import CueFFmpeg  # pyright: ignore[reportUnusedImport]
+    from cue_lib.video.speed import CueVidSpeedResolver  # pyright: ignore[reportUnusedImport]
+    from cue_lib.video.video import CueVideoManager  # pyright: ignore[reportUnusedImport]
+    from cue_lib.paths import CuePaths  # pyright: ignore[reportUnusedImport]
+    from cue_lib.state import CueContext  # pyright: ignore[reportUnusedImport]
 
 # Encode mode constants
 CUE_VE_MODE_NORMAL = 0
@@ -191,13 +196,13 @@ class CueVideoEditQueue(object):
 
         dur_ms = 0
         try:
-            dur_ms = int(_music.get_duration(channel=_cue.vid_manager.channel or "") * 1000)
+            dur_ms = int(_music.get_duration(channel=self._editor._vid_manager.channel or "") * 1000)
         except Exception:
             _cue_log("EDITOR-START: get_duration failed")
 
         t = threading.Thread(
             target=_cue_probe_job,
-            args=(_cue.ffmpeg, job, dur_ms, _cue.paths.in_game_base_dir),
+            args=(self._editor._ffmpeg, job, dur_ms, self._editor._paths.in_game_base_dir),
         )
         t.daemon = True
         t.start()
@@ -759,7 +764,13 @@ class CueVideoEditor(object):
     MODE_INTERPOLATE = CUE_VE_MODE_INTERPOLATE
     MODE_FAST_PREVIEW = CUE_VE_MODE_FAST_PREVIEW
 
-    def __init__(self):
+    def __init__(self, ffmpeg, speed_resolver, vid_manager, paths, ctx):
+        # type: (CueFFmpeg, CueVidSpeedResolver, CueVideoManager, CuePaths, CueContext) -> None
+        self._ffmpeg = ffmpeg
+        self._speed_resolver = speed_resolver
+        self._vid_manager = vid_manager
+        self._paths = paths
+        self._ctx = ctx
         self._states = {}
         self._current = None
         self.active = False
@@ -811,7 +822,7 @@ class CueVideoEditor(object):
 
     def _get_video_vpath(self):
         # type: () -> Optional[str]
-        return _cue.vid_manager.get_video_path()
+        return self._vid_manager.get_video_path()
 
     def _get_video_fspath(self):
         # type: () -> Optional[str]
@@ -882,7 +893,7 @@ class CueVideoEditor(object):
         d = os.path.dirname(fs)
         if not os.access(d, os.W_OK):
             return ("error", "Video directory is read-only.")
-        if not _cue.ffmpeg.ffmpeg_available():
+        if not self._ffmpeg.ffmpeg_available():
             return ("error", "ffmpeg not found. Install ffmpeg and restart the game, "
                     "or set RENPY_CUE_FFMPEG environment variable.")
         return ("ok", "")
@@ -930,9 +941,9 @@ class CueVideoEditor(object):
 
     def _warm_cache(self):
         # type: () -> None
-        _cue.ffmpeg.ffmpeg_available()
-        _cue.ffmpeg.ffprobe_available()
-        _cue.ffmpeg.load_encoders()
+        self._ffmpeg.ffmpeg_available()
+        self._ffmpeg.ffprobe_available()
+        self._ffmpeg.load_encoders()
 
     def _warm_tools(self):
         # type: () -> None
@@ -1030,15 +1041,15 @@ class CueVideoEditor(object):
         if not fs:
             self.last_error = "Video file disappeared."
             return
-        vp = _cue.speed_resolver.base_path_for(_cue.current_file) or self._get_video_vpath()
+        vp = self._speed_resolver.base_path_for(self._ctx.current_file) or self._get_video_vpath()
         if not vp:
             return
         orig_vpath = vp.replace("\\", "/")
         orig_fs = os.path.normpath(os.path.join(_config.gamedir, orig_vpath))
-        out_fspath = _cue.speed_resolver.variant_path(orig_fs, factor)
-        _base, _ext = _cue.speed_resolver._split_ext(os.path.basename(orig_fs))
+        out_fspath = self._speed_resolver.variant_path(orig_fs, factor)
+        _base, _ext = self._speed_resolver._split_ext(os.path.basename(orig_fs))
         temp_path = os.path.join(
-            _cue.paths.video_dir,
+            self._paths.video_dir,
             "{}__cue_tmp_{:.1f}x{}".format(_base, factor, _ext),
         )
         input_fs = orig_fs
@@ -1061,7 +1072,7 @@ class CueVideoEditor(object):
             _cue_log("SPEED-VARIANT: apply_variant failed -- no filesystem path")
             renpy.restart_interaction()
             return
-        orig_vpath = _cue.speed_resolver.base_path_for(_cue.current_file) or vp
+        orig_vpath = self._speed_resolver.base_path_for(self._ctx.current_file) or vp
         if not orig_vpath:
             return
         orig_vpath = orig_vpath.replace("\\", "/")
@@ -1070,7 +1081,7 @@ class CueVideoEditor(object):
         if not ext:
             ext = ".webm"
         temp_path = os.path.join(
-            _cue.paths.video_dir,
+            self._paths.video_dir,
             "{}__cue_tmp_{:.1f}x{}".format(base, speed, ext),
         )
         input_fs = orig_fs
@@ -1093,13 +1104,13 @@ class CueVideoEditor(object):
             self._current = self._ensure_state(vp)
             self._current.last_error = ""
             fs = self._get_video_fspath()
-            if fs and _cue.ffmpeg.ffprobe_available():
-                self._current_has_audio = _cue.ffmpeg.probe_has_audio(fs)
+            if fs and self._ffmpeg.ffprobe_available():
+                self._current_has_audio = self._ffmpeg.probe_has_audio(fs)
             else:
                 self._current_has_audio = None
         else:
             self._current_has_audio = None
-        if _cue.ffmpeg._ffmpeg_cache == -1:
+        if self._ffmpeg._ffmpeg_cache == -1:
             self._ready = False
             t = threading.Thread(target=self._warm_tools)
             t.daemon = True

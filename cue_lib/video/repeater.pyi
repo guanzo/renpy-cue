@@ -1,11 +1,19 @@
 # Type stub for cue_lib.video.repeater
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from cue_lib._types import RepeaterOffset, VideoPoolDict
+from cue_lib.marker_store import CueMarkerStore
+from cue_lib.video.video import CueVideoManager
+from cue_lib.state import CueContext
+from cue_lib.markers import CueMarkerManager
 
 class CueMarkerRepeater:
     anchor: float
     anchor_text: str
+    _store: CueMarkerStore
+    _vid_manager: CueVideoManager
+    _ctx: CueContext
+    _markers: Optional[CueMarkerManager]
     _vid_key: str
     _pools_id: int
     _tracked: Optional[Dict[int, VideoPoolDict]]
@@ -18,8 +26,14 @@ class CueMarkerRepeater:
     dialog_visible: bool
     preview_sfx_enabled: bool
 
-    def __init__(self) -> None: ...
+    def __init__(
+        self,
+        store: CueMarkerStore,
+        vid_manager: CueVideoManager,
+        ctx: CueContext,
+        markers: Optional[CueMarkerManager] = None) -> None: ...
     def _sync_tracked(self) -> None: ...
+    def _video_ctx(self) -> Any: ...
     def _shift_selected(self, delta: float) -> None: ...
     def open(self) -> None: ...
     def apply(self) -> None: ...

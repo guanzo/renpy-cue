@@ -31,6 +31,12 @@ from cue_lib._types import (
 )
 
 
+# Bootstrap / coordinator functions.  They write to managers wired after
+# CueMarkerManager (trigger, etc.), so they live at module level and read _cue.
+def _cue_load_scalars_from_persistent() -> None: ...
+def _cue_paste_context() -> None: ...
+
+
 # =========================================================================
 # Context classes
 # =========================================================================

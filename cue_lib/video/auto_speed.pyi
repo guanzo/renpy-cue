@@ -1,6 +1,11 @@
 # Type stub for cue_lib.video.auto_speed
 from typing import Final, List, Optional
 
+from cue_lib.marker_store import CueMarkerStore
+from cue_lib.video.speed import CueVidSpeedResolver, CueVidSpeedSequence
+from cue_lib.video.video import CueVideoManager
+from cue_lib.state import CueContext
+
 CUE_AUTO_SPEED_MIN_VARIANTS: Final = 4
 CUE_AUTO_UNIT_ALLOWANCE_TU: Final = 10.0
 
@@ -23,8 +28,19 @@ class CueAutoSpeedGenerator:
     custom_intensity: float
     custom_volatility: float
     custom_center: float
+    _store: CueMarkerStore
+    _speed_resolver: CueVidSpeedResolver
+    _vid_manager: CueVideoManager
+    _video_sequence: CueVidSpeedSequence
+    _ctx: CueContext
 
-    def __init__(self) -> None: ...
+    def __init__(
+        self,
+        store: CueMarkerStore,
+        speed_resolver: CueVidSpeedResolver,
+        vid_manager: CueVideoManager,
+        video_sequence: CueVidSpeedSequence,
+        ctx: CueContext) -> None: ...
     def select_preset(self, preset_name: str) -> None: ...
     def shuffle(self) -> None: ...
     def toggle_speed(self, speed: float) -> None: ...

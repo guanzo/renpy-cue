@@ -4,6 +4,7 @@
 
 import renpy
 
+from cue_lib.constants import CUE_VOLUME_DEFAULT
 from cue_lib.state import _cue
 from cue_lib.util import create_vid_key, _cue_format_time, _cue_parse_time, _cue_clamp_time
 
@@ -11,6 +12,10 @@ MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional  # pyright: ignore[reportUnusedImport]
     from cue_lib._types import PoolDict, RepeaterOffset, VideoPoolDict  # pyright: ignore[reportUnusedImport]
+    from cue_lib.marker_store import CueMarkerStore  # pyright: ignore[reportUnusedImport]
+    from cue_lib.video.video import CueVideoManager  # pyright: ignore[reportUnusedImport]
+    from cue_lib.state import CueContext  # pyright: ignore[reportUnusedImport]
+    from cue_lib.markers import CueMarkerManager  # pyright: ignore[reportUnusedImport]
 
 
 class CueMarkerRepeater(object):
@@ -19,7 +24,12 @@ class CueMarkerRepeater(object):
     Opens over the selected video markers, lets the user set an interval
     and repeat count, then clones the pattern N times at that spacing."""
 
-    def __init__(self):
+    def __init__(self, store, vid_manager, ctx, markers=None):
+        # type: (CueMarkerStore, CueVideoManager, CueContext, Optional[CueMarkerManager]) -> None
+        self._store = store
+        self._vid_manager = vid_manager
+        self._ctx = ctx
+        self._markers = markers
         self._vid_key = ""
         self._pools_id = 0
         # id(pool) -> raw pool dict. Tracked pools are matched by object
@@ -35,6 +45,16 @@ class CueMarkerRepeater(object):
         self.count_text = ""
         self.dialog_visible = False
         self.preview_sfx_enabled = True
+
+    def _video_ctx(self):
+        # type: () -> Any
+        """Video context sub-object, reached via the markers coordinator.
+
+        Markers is wired after repeater (it needs the trigger engine), so it
+        is not a constructor dep -- fall back to the singleton at call time
+        unless a fake was injected."""
+        m = self._markers if self._markers is not None else _cue.markers
+        return m.video
 
     @property
     def anchor(self):
@@ -72,7 +92,7 @@ class CueMarkerRepeater(object):
         if not self.dialog_visible or not self._vid_key:
             return
 
-        cur_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
+        cur_key = create_vid_key(self._ctx.current_file) if self._ctx.current_file else ""
         if cur_key != self._vid_key:
             # Video changed under the dialog: no previews, dialog stays open.
             self._tracked = None
@@ -81,7 +101,7 @@ class CueMarkerRepeater(object):
             self.sel_count = 0
             return
 
-        entry = _cue.markers.get(self._vid_key)
+        entry = self._store.get(self._vid_key)
         if entry is None:
             # Entry cleared: every tracked marker is gone.
             self.dialog_visible = False
@@ -123,7 +143,7 @@ class CueMarkerRepeater(object):
         anchor_time = self._anchor_pool.get("time", 0.0)
         self._anchor_time = anchor_time
         for _, pool in tracked:
-            r = _cue.markers.resolve_pool(pool)
+            r = self._store.resolve_pool(pool)
             self.offsets.append({
                 "offset": pool.get("time", 0.0) - anchor_time,
                 "files": list(r.files),
@@ -142,30 +162,30 @@ class CueMarkerRepeater(object):
             return
         if not self._vid_key:
             return
-        entry = _cue.markers.get(self._vid_key)
+        entry = self._store.get(self._vid_key)
         if entry is None:
             return
         pools = entry.get("pools", [])  # type: Any
         if id(pools) != self._pools_id:
             return
-        dur = _cue.vid_manager.get_duration()
+        dur = self._vid_manager.get_duration()
         for pool in pools:
             if self._tracked.get(id(pool)) is pool:
                 val = pool.get("time", 0.0) + delta
                 pool["time"] = _cue_clamp_time(val, dur)
-        _cue.markers.video.finalize_drag()
+        self._video_ctx().finalize_drag()
 
     def open(self):
         # type: () -> None
         """Open the Repeat Pattern dialog for the current selection.
         Falls back to the active pool if nothing is selected."""
-        markers = _cue.markers.video.get_markers()
+        markers = self._video_ctx().get_markers()
         if not markers:
             return
 
-        sel = _cue.markers.video.get_selected()
+        sel = self._video_ctx().get_selected()
         if not sel:
-            active = _cue.markers.video.target_pool
+            active = self._video_ctx().target_pool
             if 0 <= active < len(markers):
                 sel = {active}
             else:
@@ -177,10 +197,10 @@ class CueMarkerRepeater(object):
         # copies get_markers() returns for preset-backed pools. Raw dicts
         # are the stable objects every edit path mutates in place, and
         # resolved order matches raw order 1:1.
-        vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
+        vid_key = create_vid_key(self._ctx.current_file) if self._ctx.current_file else ""
         if not vid_key:
             return
-        entry = _cue.markers.get(vid_key)
+        entry = self._store.get(vid_key)
         if entry is None:
             return
         pools = entry.get("pools", [])  # type: Any
@@ -218,7 +238,7 @@ class CueMarkerRepeater(object):
 
         # Max repeats that fit in video duration
         if not self.count_text:
-            dur = _cue.vid_manager.get_duration()
+            dur = self._vid_manager.get_duration()
             if dur > 0 and default_interval > 0:
                 max_count = int((dur - anchor_time - max_offset) / default_interval)
                 if max_count < 0:
@@ -246,12 +266,12 @@ class CueMarkerRepeater(object):
             return
 
         vid_key = self._vid_key
-        entry = _cue.markers._get_or_create_entry(vid_key)
+        entry = self._store._get_or_create_entry(vid_key)
         if "pools" not in entry:
             return
         pools = entry["pools"]
 
-        dur = _cue.vid_manager.get_duration()
+        dur = self._vid_manager.get_duration()
 
         new_count = 0
         for rep_idx in range(1, count + 1):
@@ -272,8 +292,8 @@ class CueMarkerRepeater(object):
 
         if new_count > 0:
             pools.sort(key=lambda e: e["time"])  # pyright: ignore[reportGeneralTypeIssues]
-        _cue.markers.video.selected = set()
-        _cue.markers.save_marker(vid_key)
+        self._video_ctx().selected = set()
+        self._store.save_marker(vid_key)
 
     def hide(self):
         # type: () -> None
@@ -310,7 +330,7 @@ class CueMarkerRepeater(object):
         if not self.offsets:
             return []
 
-        dur = _cue.vid_manager.get_duration()
+        dur = self._vid_manager.get_duration()
         previews = []
 
         for rep_idx in range(1, count + 1):
@@ -344,7 +364,7 @@ class CueMarkerRepeater(object):
         if not self.offsets:
             return []
 
-        dur = _cue.vid_manager.get_duration()
+        dur = self._vid_manager.get_duration()
         pools = []
 
         for rep_idx in range(1, count + 1):
@@ -358,7 +378,7 @@ class CueMarkerRepeater(object):
                 pools.append({
                     "time": time,
                     "files": list(offset.get("files", [])),
-                    "volume": offset.get("volume", _cue.volume.VOL_DEFAULT),
+                    "volume": offset.get("volume", CUE_VOLUME_DEFAULT),
                 })
 
         pools.sort(key=lambda e: e["time"])

@@ -6,6 +6,7 @@ import time as _time
 import random as _random
 import renpy.audio.music as _music
 
+from cue_lib.constants import CUE_VOLUME_DEFAULT
 from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
 from cue_lib.util import (
@@ -16,6 +17,11 @@ from cue_lib.util import (
 MYPY = False
 if MYPY:
     from typing import Any, List, Optional
+    from cue_lib.marker_store import CueMarkerStore  # pyright: ignore[reportUnusedImport]
+    from cue_lib.video.repeater import CueMarkerRepeater  # pyright: ignore[reportUnusedImport]
+    from cue_lib.video.speed import CueVidSpeedResolver  # pyright: ignore[reportUnusedImport]
+    from cue_lib.video.video import CueVideoManager  # pyright: ignore[reportUnusedImport]
+    from cue_lib.markers import CueMarkerManager  # pyright: ignore[reportUnusedImport]
 
 
 # Exclusive domains: loops and one-shots never interact. An exclusive SFX
@@ -70,7 +76,16 @@ class CueTriggerEngine(object):
     - _cue_refresh_context() when scene/dialogue/shake context changes
     """
 
-    def __init__(self):
+    def __init__(self, store, repeater, speed_resolver, vid_manager, markers=None):
+        # type: (CueMarkerStore, CueMarkerRepeater, CueVidSpeedResolver, CueVideoManager, Optional[CueMarkerManager]) -> None
+        self._store = store
+        self._repeater = repeater
+        self._speed_resolver = speed_resolver
+        self._vid_manager = vid_manager
+        # Context sub-objects (loop.get_delay, video.get_markers) live on the
+        # markers manager, wired after trigger.  Injected in tests; in the
+        # game it resolves to the singleton at call time.
+        self._markers = markers
         self.active = True
         self.loop_states = {}
         self.excl_channels = {}
@@ -78,6 +93,12 @@ class CueTriggerEngine(object):
         self.played_video_keys = set()
         self._prev_eff_elapsed = -1.0
         self._tick_count = 0
+
+    def _markers_ctx(self):
+        # type: () -> Any
+        """Markers manager -- wired after trigger, so fall back to the
+        singleton at call time unless a fake was injected."""
+        return self._markers if self._markers is not None else _cue.markers
 
     # -- exclusive tracking (channel -> {"kind", "scene", "line", "hold"}) --
     # Grouping for one-shots is two-dimensional: the "scene" (file) plus a
@@ -191,14 +212,14 @@ class CueTriggerEngine(object):
         for key in keys:
             if not key:
                 continue
-            entry = _cue.markers.get(key)
+            entry = self._store.get(key)
             if not entry:
                 continue
             pools = entry.get("pools", [])
             if not pools:
                 continue
-            vol = entry.get("volume", _cue.volume.VOL_DEFAULT)
-            total = sum(len(_cue.markers.resolve_pool(p).files) for p in pools)
+            vol = entry.get("volume", CUE_VOLUME_DEFAULT)
+            total = sum(len(self._store.resolve_pool(p).files) for p in pools)
 
             _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(
                 key, len(pools), total, vol))
@@ -212,7 +233,7 @@ class CueTriggerEngine(object):
 
             picked = []
             for pi, pool in enumerate(pools):
-                resolved = _cue.markers.resolve_pool(pool)
+                resolved = self._store.resolve_pool(pool)
                 if only_shake_pools and not resolved.trigger_on_shake:
                     continue
                 files = _cue_resolve_files(resolved.files)
@@ -252,14 +273,14 @@ class CueTriggerEngine(object):
         """Loop state machine for l: keys -- fires pooled SFX on a frequency cycle."""
         loop_key = create_loop_key(current_file or "")
 
-        entry = _cue.markers.get(loop_key)
+        entry = self._store.get(loop_key)
         if entry is None:
             return
         pools = entry.get("pools", [])
         # Collect frequencies from resolved pools with files, default 1
         freqs = []
         for p in pools:
-            resolved = _cue.markers.resolve_pool(p)
+            resolved = self._store.resolve_pool(p)
             if resolved.files:
                 freqs.append(resolved.frequency)
         if not freqs:
@@ -272,21 +293,21 @@ class CueTriggerEngine(object):
 
         picked = []
         for pi, pool in enumerate(pools):
-            resolved = _cue.markers.resolve_pool(pool)
+            resolved = self._store.resolve_pool(pool)
             files = _cue_resolve_files(resolved.files)
             if not files:
                 continue
 
             pst = ps.get(pi)
             if pst is None:
-                init_delay = _random.uniform(0.0, _cue.markers.loop.get_delay(resolved.frequency))
+                init_delay = _random.uniform(0.0, self._markers_ctx().loop.get_delay(resolved.frequency))
                 ps[pi] = {"ready_at": now + init_delay, "channels": [], "play_start": 0.0, "blocked_logged": False}
                 pst = ps[pi]
 
             # If this pool's channels are done playing, reset for next cycle
             if pst["channels"] and not _cue_loop_still_playing(pst["channels"]):
                 dur = now - pst["play_start"]
-                breathing = _cue.markers.loop.get_delay(resolved.frequency)
+                breathing = self._markers_ctx().loop.get_delay(resolved.frequency)
                 pst["ready_at"] = now + breathing
                 pst["channels"] = []
                 _cue_log("TICK#{} POOL-DONE  key={} pool={} dur={:.2f}s next_in={:.2f}s".format(
@@ -339,7 +360,7 @@ class CueTriggerEngine(object):
                 _cue_log("TICK#{} POOL-PLAY  key={} pool={} ch={} dur={:.2f}s next_in={:.2f}s".format(
                     tick, loop_key, pi, ch_used,
                     _music.get_duration(channel=ch_used) or 0.0,
-                    _cue.markers.loop.get_delay(resolved.frequency)))
+                    self._markers_ctx().loop.get_delay(resolved.frequency)))
 
     # -- video triggers (v: keys) --
 
@@ -354,16 +375,16 @@ class CueTriggerEngine(object):
           1. Forward window:  mt <= eff < mt + tolerance    (stationary / first tick)
           2. Cross check:     prev_eff < mt <= eff           (jumped past marker)
         """
-        ch = _cue.vid_manager.channel
+        ch = self._vid_manager.channel
         if not ch or top_layer_type != 'movie':
             return
 
-        elapsed = _cue.vid_manager.get_elapsed()
+        elapsed = self._vid_manager.get_elapsed()
         marker_tolerance = 0.08
 
         # Autoscale: markers are stored at 1x reference time, so convert
         # variant elapsed to reference time when speed != 1.0.
-        speed = _cue.speed_resolver.get_current_speed()
+        speed = self._speed_resolver.get_current_speed()
         effective_elapsed = elapsed * speed
 
         # Previous tick's effective position for cross-between-ticks detection.
@@ -374,14 +395,14 @@ class CueTriggerEngine(object):
         # Video markers
         if current_file:
             vid_key = create_vid_key(current_file)
-            markers = _cue.markers.video.get_markers()
-            vid_entry = _cue.markers.get(vid_key)
+            markers = self._markers_ctx().video.get_markers()
+            vid_entry = self._store.get(vid_key)
 
             # Tack preview markers onto the list -- they're already pool dicts
             # shaped like real video markers (time/files/volume).
             _preview_count = 0
-            if _cue.repeater.dialog_visible and _cue.repeater.preview_sfx_enabled:
-                preview_pools = _cue.repeater.compute_preview_pools()
+            if self._repeater.dialog_visible and self._repeater.preview_sfx_enabled:
+                preview_pools = self._repeater.compute_preview_pools()
                 markers.extend(preview_pools)
                 _preview_count = len(preview_pools)
 
@@ -423,15 +444,15 @@ class CueTriggerEngine(object):
         #      or fresh playback, e.g. after editing the multi-speed queue).
         #   2) elapsed < last_elapsed: playback looped/restarted (Ren'Py
         #      can't seek backwards, so a large backward jump means restart).
-        is_fresh_reset = _cue.vid_manager.last_elapsed == 0
+        is_fresh_reset = self._vid_manager.last_elapsed == 0
         is_backward_jump = (
-            _cue.vid_manager.last_elapsed > 0
-            and elapsed < _cue.vid_manager.last_elapsed - 0.3
+            self._vid_manager.last_elapsed > 0
+            and elapsed < self._vid_manager.last_elapsed - 0.3
         )
         if is_fresh_reset or is_backward_jump:
             self.played_video_keys.clear()
             self._prev_eff_elapsed = -1.0
 
-        _cue.vid_manager.last_elapsed = elapsed
+        self._vid_manager.last_elapsed = elapsed
         # Store for next tick's cross-between-ticks detection
         self._prev_eff_elapsed = effective_elapsed

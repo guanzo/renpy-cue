@@ -1,6 +1,12 @@
 # Type stub for cue_lib.video.video_editor
 from typing import Any, Optional
 
+from cue_lib.video.ffmpeg import CueFFmpeg
+from cue_lib.video.speed import CueVidSpeedResolver
+from cue_lib.video.video import CueVideoManager
+from cue_lib.paths import CuePaths
+from cue_lib.state import CueContext
+
 CUE_VE_MODE_NORMAL: int
 CUE_VE_MODE_INTERPOLATE: int
 CUE_VE_MODE_FAST_PREVIEW: int
@@ -94,8 +100,19 @@ class CueVideoEditor:
     remove_audio: bool
     _current_has_audio: Optional[bool]
     job_queue: CueVideoEditQueue
+    _ffmpeg: CueFFmpeg
+    _speed_resolver: CueVidSpeedResolver
+    _vid_manager: CueVideoManager
+    _paths: CuePaths
+    _ctx: CueContext
 
-    def __init__(self) -> None: ...
+    def __init__(
+        self,
+        ffmpeg: CueFFmpeg,
+        speed_resolver: CueVidSpeedResolver,
+        vid_manager: CueVideoManager,
+        paths: CuePaths,
+        ctx: CueContext) -> None: ...
     @property
     def processing(self) -> bool: ...
     @property

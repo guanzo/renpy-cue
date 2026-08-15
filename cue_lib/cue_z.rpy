@@ -78,6 +78,10 @@ init -999 python:
         _cue_create_select_speed, _cue_create_delete_sel, _cue_create_delete_speed,
     )
 
+    from cue_lib.markers import (
+        _cue_paste_context, _cue_load_scalars_from_persistent,
+    )
+
     from cue_lib.ui.dialogs import (
         CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog,
         _cue_confirm_delete_preset, _cue_confirm_delete_video_preset,
@@ -153,19 +157,26 @@ init -900 python:
     _cue.marker_store = CueMarkerStore(
         _cue.db, _cue.paths, lambda: _cue.undo.capture())
     _cue.markers = CueMarkerManager(_cue.marker_store)
-    _cue.trigger = CueTriggerEngine()
     _cue.vid_manager = CueVideoManager(_cue.ctx)
     _cue.volume = CueVolumeManager(_cue.marker_store, _cue.ctx)
-    _cue.repeater = CueMarkerRepeater()
+    _cue.video_sequence = CueVidSpeedSequence()
+    _cue.speed_toast = CueSpeedToast()
+    _cue.speed_resolver = CueVidSpeedResolver(
+        _cue.marker_store, _cue.vid_manager, _cue.ctx,
+        _cue.video_sequence, _cue.speed_toast, _cue.paths)
+    _cue.auto_speed = CueAutoSpeedGenerator(
+        _cue.marker_store, _cue.speed_resolver, _cue.vid_manager,
+        _cue.video_sequence, _cue.ctx)
+    _cue.repeater = CueMarkerRepeater(_cue.marker_store, _cue.vid_manager, _cue.ctx)
     _cue.ffmpeg = CueFFmpeg()
-    _cue.video_editor = CueVideoEditor()
+    _cue.video_editor = CueVideoEditor(
+        _cue.ffmpeg, _cue.speed_resolver, _cue.vid_manager,
+        _cue.paths, _cue.ctx)
     # undo takes the video editor (for post-restore UI refresh); both are
     # referenced only at call time by the store's on_save lambda above.
     _cue.undo = CueUndoManager(_cue.marker_store, _cue.ctx, _cue.video_editor)
-    _cue.speed_resolver = CueVidSpeedResolver()
-    _cue.video_sequence = CueVidSpeedSequence()
-    _cue.speed_toast = CueSpeedToast()
-    _cue.auto_speed = CueAutoSpeedGenerator()
+    _cue.trigger = CueTriggerEngine(
+        _cue.marker_store, _cue.repeater, _cue.speed_resolver, _cue.vid_manager)
     _cue.sfx_manager = CueSfxManager(_cue.paths, _cue.db)
     _cue.preset_dialog = CuePresetDialog()
     _cue.video_preset_dialog = CueVideoPresetDialog()
@@ -293,6 +304,7 @@ init 999 python:
 
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
         _cue.markers.load_persistent()
+        _cue_load_scalars_from_persistent()
         _cue.video_editor.job_queue.load_from_persistent()
         _cue.undo.seed()  # seed undo baseline after initial load
         _cue.speed_resolver.wrap_all_movies()

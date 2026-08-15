@@ -2,6 +2,11 @@
 from typing import Any, Dict, Final, List, Optional, Set, Tuple
 from renpy.display.video import Movie
 
+from cue_lib.marker_store import CueMarkerStore
+from cue_lib.video.video import CueVideoManager
+from cue_lib.state import CueContext
+from cue_lib.paths import CuePaths
+
 CUE_TOAST_DURATION: Final = 4.1
 CUE_TOAST_DURATION_SEAMLESS: Final = 1.6
 CUE_TOAST_FADE_DURATION: Final = 0.5
@@ -48,8 +53,21 @@ class CueVidSpeedResolver:
     paths: Dict[str, str]
     children: Dict[Any, Any]
     seamless_transition: bool
+    _store: CueMarkerStore
+    _vid_manager: CueVideoManager
+    _ctx: CueContext
+    _video_sequence: CueVidSpeedSequence
+    _speed_toast: CueSpeedToast
+    _paths: CuePaths
 
-    def __init__(self) -> None: ...
+    def __init__(
+        self,
+        store: CueMarkerStore,
+        vid_manager: CueVideoManager,
+        ctx: CueContext,
+        video_sequence: CueVidSpeedSequence,
+        speed_toast: CueSpeedToast,
+        paths: CuePaths) -> None: ...
     def speed_for(self, tag: str) -> float: ...
     def get_current_speed(self) -> float: ...
     def base_path_for(self, tag: str) -> Optional[str]: ...
@@ -68,8 +86,7 @@ class CueVidSpeedResolver:
 
     @staticmethod
     def preset_speeds() -> List[float]: ...
-    @classmethod
-    def variant_path(cls, base_path: str, speed: float) -> str: ...
+    def variant_path(self, base_path: str, speed: float) -> str: ...
     @classmethod
     def is_variant_of(cls, path: str, base_path: str) -> bool: ...
     @staticmethod

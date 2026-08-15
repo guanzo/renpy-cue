@@ -1105,39 +1105,9 @@ class CueMarkerManager(object):
 
     def load_persistent(self):
         # type: () -> None
-        """Load markers + presets from data store; scalars from persistent."""
+        """Load markers + presets from the data store."""
         self._store.load_from_db()
-        self._load_scalars_from_persistent()
         _cue_log("LOAD-MARKERS total_keys={}".format(len(self._data)))
-
-    def _load_scalars_from_persistent(self):
-        # type: () -> None
-        # Migrate from individual persistent._cue_* scalars to a single dict
-        _cue_dict = getattr(persistent, '_cue', None)
-        if _cue_dict is None:
-            _cue_dict = {
-                "disabled_files": set(getattr(persistent, '_cue_disabled_files', None) or ()),
-                "triggers_active": getattr(persistent, '_cue_triggers_active', True),
-                "encode_mode": getattr(persistent, '_cue_encode_mode', _cue.video_editor.MODE_INTERPOLATE),
-                "remove_audio": getattr(persistent, '_cue_remove_audio', True),
-                "seamless_transition": getattr(persistent, '_cue_seamless_transition', False),
-            }
-            persistent._cue = _cue_dict
-
-        # Migrate disabled_files from persistent._cue to shared config file.
-        # Shared config always wins if it already has the key.
-        shared = _cue.db.load_shared_config()
-        if "disabled_files" not in shared:
-            shared["disabled_files"] = list(_cue_dict.pop("disabled_files", set()))
-            _cue.db.save_shared_config(shared)
-        else:
-            _cue_dict.pop("disabled_files", None)
-
-        _cue.sfx_manager.disabled_files = set(shared.get("disabled_files", []))
-        _cue.trigger.active = _cue_dict.get("triggers_active", True)
-        _cue.video_editor.encode_mode = _cue_dict.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
-        _cue.video_editor.remove_audio = _cue_dict.get("remove_audio", True)
-        _cue.speed_resolver.seamless_transition = _cue_dict.get("seamless_transition", False)
 
 
     # ------------------------------------------------------------------
@@ -1187,6 +1157,7 @@ class CueMarkerManager(object):
             # treats an empty marker dir as fresh and skips presets, so
             # re-read presets to cover a markerless-but-preset restore.
             self.load_persistent()
+            _cue_load_scalars_from_persistent()
             self.reload_presets()
             self._session_created = set()
             _cue.undo.reset()
@@ -1259,6 +1230,56 @@ class CueMarkerManager(object):
                     pool_entry["time"] = t  # pyright: ignore[reportGeneralTypeIssues]  # video pools carry "time" but flow through PoolDict
             pasted_keys.append(new_key)
 
-        _cue.trigger.loop_states = {}
         if pasted_keys:
             self.save_markers(pasted_keys)
+
+
+# ---------------------------------------------------------------------------
+# Bootstrap / coordinator functions -- module-level because they write to
+# managers wired after CueMarkerManager (trigger, etc.).  They read _cue
+# directly; the manager itself no longer touches sibling managers.
+# ---------------------------------------------------------------------------
+
+
+def _cue_load_scalars_from_persistent():
+    # type: () -> None
+    """Fan out per-game scalars from persistent/shared config into the
+    owning managers.  Lives at module level (not on the manager) because it
+    writes to sfx_manager/trigger/video_editor/speed_resolver -- siblings the
+    coordinator is wired after."""
+    # Migrate from individual persistent._cue_* scalars to a single dict
+    _cue_dict = getattr(persistent, '_cue', None)
+    if _cue_dict is None:
+        _cue_dict = {
+            "disabled_files": set(getattr(persistent, '_cue_disabled_files', None) or ()),
+            "triggers_active": getattr(persistent, '_cue_triggers_active', True),
+            "encode_mode": getattr(persistent, '_cue_encode_mode', _cue.video_editor.MODE_INTERPOLATE),
+            "remove_audio": getattr(persistent, '_cue_remove_audio', True),
+            "seamless_transition": getattr(persistent, '_cue_seamless_transition', False),
+        }
+        persistent._cue = _cue_dict
+
+    # Migrate disabled_files from persistent._cue to shared config file.
+    # Shared config always wins if it already has the key.
+    shared = _cue.db.load_shared_config()
+    if "disabled_files" not in shared:
+        shared["disabled_files"] = list(_cue_dict.pop("disabled_files", set()))
+        _cue.db.save_shared_config(shared)
+    else:
+        _cue_dict.pop("disabled_files", None)
+
+    _cue.sfx_manager.disabled_files = set(shared.get("disabled_files", []))
+    _cue.trigger.active = _cue_dict.get("triggers_active", True)
+    _cue.video_editor.encode_mode = _cue_dict.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
+    _cue.video_editor.remove_audio = _cue_dict.get("remove_audio", True)
+    _cue.speed_resolver.seamless_transition = _cue_dict.get("seamless_transition", False)
+
+
+def _cue_paste_context():
+    # type: () -> None
+    """Paste clipboard markers, then reset loop playback state.
+
+    Wraps the manager method so the trigger reset lives in the bootstrap
+    layer -- the manager no longer writes to the trigger engine."""
+    _cue.markers.paste_context()
+    _cue.trigger.loop_states = {}
