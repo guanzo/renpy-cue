@@ -40,7 +40,6 @@ class Cue(_renpy_python.NoRollback):
         self.initialized = False
         self.is_overlay_visible = False
         self.overlay_active_page = CuePage.SFX
-        self.is_exclusive_row_visible = False
         self.collapsed_sections = {}       # section_name -> bool (cue_section_frame)
         self.sfx_library_overlay_mode = False  # SFX Library section floats at 50% height
         self.current_file = ""

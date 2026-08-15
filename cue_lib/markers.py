@@ -157,52 +157,46 @@ class CueMarkerContext(object):
             return False
         return bool(entry.get("pools"))
 
-    @staticmethod
-    def _excl_dict(pool):
-        # type: (Any) -> Dict[str, Any]
-        """Nested exclusive dict on a pool, created on first write."""
-        excl = pool.setdefault("exclusive", {})
-        if not isinstance(excl, dict):  # legacy bool, shouldn't survive load
-            excl = {}
-            pool["exclusive"] = excl
-        return excl
+    def _set_exclusive_payload(self, payload):
+        # type: (Optional[Dict[str, Any]]) -> None
+        """Write (or clear) the exclusive config on the active pool.
 
-    def set_exclusive_group(self, group):
-        # type: (int) -> None
+        ``payload`` is the full nested dict to store, or None to drop the
+        config (plain citizen)."""
         key = self._key()
         target = self.get_active()
         entry = self._mgr.get(key)
         if entry:
             pools = entry.get("pools", [])
             if pools and 0 <= target < len(pools):
-                if group == 0:
-                    # Off = plain citizen: drop the whole exclusive config.
+                if payload is None:
                     pools[target].pop("exclusive", None)
                 else:
-                    self._excl_dict(pools[target])["group"] = int(group)
+                    pools[target]["exclusive"] = payload
                 self._mgr._db_save_marker(key)
 
-    def set_exclusive_start(self, mode):
-        # type: (int) -> None
-        key = self._key()
-        target = self.get_active()
-        entry = self._mgr.get(key)
-        if entry:
-            pools = entry.get("pools", [])
-            if pools and 0 <= target < len(pools):
-                self._excl_dict(pools[target])["start"] = int(mode)
-                self._mgr._db_save_marker(key)
+    def set_exclusive(self, start, hold):
+        # type: (int, bool) -> None
+        """Enable exclusive playback on the active pool with a start mode."""
+        self._set_exclusive_payload({
+            "group": CUE_EXCLUSIVE_GROUP,
+            "start": int(start),
+            "hold": bool(hold),
+        })
 
-    def set_exclusive_hold(self, value):
-        # type: (bool) -> None
-        key = self._key()
-        target = self.get_active()
-        entry = self._mgr.get(key)
-        if entry:
-            pools = entry.get("pools", [])
-            if pools and 0 <= target < len(pools):
-                self._excl_dict(pools[target])["hold"] = bool(value)
-                self._mgr._db_save_marker(key)
+    def toggle_exclusive(self):
+        # type: () -> None
+        """Toggle exclusive playback on the active pool.
+
+        Off -> on uses the context default: loops wait then hold, one-shots
+        fade out other SFX and play immediately. On -> off clears the config."""
+        excl = self.get_active_pool().get("exclusive")
+        if isinstance(excl, dict) and excl.get("group"):
+            self._set_exclusive_payload(None)
+        elif self.ONE_SHOT:
+            self.set_exclusive(CueExclusiveStart.FADE, False)
+        else:
+            self.set_exclusive(CueExclusiveStart.WAIT, True)
 
     def apply_preset(self, preset_name):
         # type: (str) -> None
@@ -219,6 +213,12 @@ class CueMarkerContext(object):
         if folder_ref not in files:
             files.append(folder_ref)
         self._mgr._db_save_marker(key)
+
+
+# Nonzero group marks a pool as exclusive. Since friendship is now derived
+# from the trigger key (or per-pool scope) rather than the group number, the
+# group value is just an on/off flag -- any nonzero value works.
+CUE_EXCLUSIVE_GROUP = 1
 
 
 class CueExclusiveStart(object):
@@ -1444,7 +1444,6 @@ class CueMarkerManager(object):
                 "encode_mode": getattr(persistent, '_cue_encode_mode', _cue.video_editor.MODE_INTERPOLATE),
                 "remove_audio": getattr(persistent, '_cue_remove_audio', True),
                 "seamless_transition": getattr(persistent, '_cue_seamless_transition', False),
-                "exclusive_row_visible": False,
             }
             persistent._cue = _cue_dict
 
@@ -1462,7 +1461,6 @@ class CueMarkerManager(object):
         _cue.video_editor.encode_mode = _cue_dict.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
         _cue.video_editor.remove_audio = _cue_dict.get("remove_audio", True)
         _cue.speed_resolver.seamless_transition = _cue_dict.get("seamless_transition", False)
-        _cue.is_exclusive_row_visible = _cue_dict.get("exclusive_row_visible", False)
 
 
     # ------------------------------------------------------------------

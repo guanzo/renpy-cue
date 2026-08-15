@@ -40,7 +40,6 @@ class Cue:
     initialized: bool
     is_overlay_visible: bool
     overlay_active_page: int
-    is_exclusive_row_visible: bool
     collapsed_sections: Dict[str, bool]
     sfx_library_overlay_mode: bool
     current_file: str

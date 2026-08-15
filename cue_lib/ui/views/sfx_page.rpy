@@ -23,8 +23,6 @@ screen cue_sfx_page():
                 "Trigger on screen shake",
                 Function(_cue_toggle_shake_trigger),
                 "Play SFX when a screen shake occurs")
-            if _cue.is_exclusive_row_visible:
-                use cue_exclusive_row(_cue.markers.image, _img_r.exclusive)
 
     # --- Dialogue UI ---
     $ _is_dialogue = bool(_cue.current_dialogue)
@@ -32,10 +30,7 @@ screen cue_sfx_page():
         $ _dlg_key = _cue_create_dlg_key((_cue.current_file, _cue.current_dialogue))
         use cue_context_section("Dialogue SFX", _cue.markers.dialogue, _dlg_key,
             "Dialogue: " + _cue.current_dialogue, "dialogue", "D",
-            "SFX plays when this line of dialogue is displayed."):
-            if _cue.is_exclusive_row_visible:
-                $ _dlg_r = _cue.markers.resolve_pool(_cue.markers.dialogue.get_active_pool())
-                use cue_exclusive_row(_cue.markers.dialogue, _dlg_r.exclusive)
+            "SFX plays when this line of dialogue is displayed.")
 
     # Loop SFX
     $ _loop_key = _cue_create_loop_key(_cue.current_file or "")
@@ -75,7 +70,7 @@ screen cue_sfx_page():
                 Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FASTEST),
                 tt="~0.2s between plays")
 
-        if _cue.is_exclusive_row_visible:
+        if _loop_r.exclusive.group:
             use cue_exclusive_row(_cue.markers.loop, _loop_r.exclusive)
 
     # Audio file browser (in-flow, only when overlay mode is OFF)
