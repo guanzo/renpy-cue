@@ -7,7 +7,7 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
     $ _collapsed = _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
     $ _overlay_mode = _cue.sfx_manager.overlay_mode
     $ _arrow_icon = "chevron-right" if _collapsed else "chevron-down"
-    $ _arrow = _cue.icons.displayable_for(_arrow_icon) if _cue.icons is not None else None
+    $ _arrow = _cue.icons.displayable_for(_arrow_icon)
     $ _ov_icon = "square-plus" if _overlay_mode else "square-minus"
     $ _ov_tt = "Overlay Mode\nWhen enabled, this section will float on top when expanded.\n"
     $ _ov_tt = _ov_tt + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX) + " to toggle expansion."
@@ -39,8 +39,7 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
                                 _ov_tt,
                                 None
                             )
-                            if _arrow is not None:
-                                add _arrow yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
+                            add _arrow yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
             if not _collapsed:
                 if not _cue.sfx_manager.tree:
                     if _cue.sfx_manager.scan_error:

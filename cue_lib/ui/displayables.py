@@ -557,7 +557,8 @@ class CueTooltip(Displayable):
             self._text, style="cue_txt", size=12, color="#cccccc",
             italic=False, substitute=False,
         )
-        text_render = renpy.render(text_widget, 300, 100, st, at)
+        max_width = 350
+        text_render = renpy.render(text_widget, max_width, 100, st, at)
         tw, th = text_render.get_size()
 
         pad_x, pad_y = 4, 2

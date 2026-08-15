@@ -27,9 +27,13 @@ if MYPY:
     from typing import Any, Dict, Optional, Tuple
     from cue_lib.paths import CuePaths  # pyright: ignore[reportUnusedImport]
 
-# PNGs are rendered at 32px (2x the 16px button) and shown at 12px via
-# zoom 0.375, matching the size-12 text glyphs they replace.
-CUE_ICON_ZOOM = 0.375
+# PNGs are rendered at 32px (2x the 16px button) and shown at CUE_ICON_SIZE
+# via zoom CUE_ICON_SIZE / CUE_ICON_SRC_SIZE, matching the size-12 text
+# glyphs they replace.  displayable_for derives the zoom from the source
+# size, so an explicit size re-renders the original PNG at the exact zoom --
+# large icons stay crisp instead of scaling an already-zoomed smaller render.
+CUE_ICON_SRC_SIZE = 32
+CUE_ICON_SIZE = 12
 
 # name -> (filename, mirrored).  Mirrored entries flip the source
 # horizontally ("redo" is the mirrored "undo" hook arrow).
@@ -41,6 +45,7 @@ CUE_ICON_MAP = {
     "chevron-up": ("chevron-up-solid.png", False),
     "circle": ("circle-solid.png", False),
     "circle-outline": ("circle-regular.png", False),
+    "circle-question": ("circle-question-regular.png", False),
     "circle-xmark": ("circle-xmark-solid.png", False),
     "floppy-disk": ("floppy-disk-solid.png", False),
     "clipboard": ("clipboard-solid.png", False),
@@ -83,20 +88,27 @@ class CueIconManager(object):
     def __init__(self, paths):
         # type: (CuePaths) -> None
         self._paths = paths
-        self._displayables = {}  # type: Dict[Tuple[str, Optional[str]], Any]
+        self._displayables = {}  # type: Dict[Tuple[str, Optional[str], int], Any]
 
-    def displayable_for(self, name, color=None):
-        # type: (str, Optional[str]) -> Optional[Transform]
+    def displayable_for(self, name, color=None, size=None):
+        # type: (str, Optional[str], Optional[int]) -> Optional[Transform]
         """Resolve an icon name to a displayable, optionally recolored.
 
         The base (white) icon is cached per name; a colored variant is
         cached per (name, color) so each color is built once and reused.
         Color is any Ren'Py color: the tint maps the icon's white to it
         (black stays black), so the shape is preserved.  Tinting is done
-        with im.MatrixColor, which works on every Ren'Py 7.4+."""
+        with im.MatrixColor, which works on every Ren'Py 7.4+.
+
+        size is the on-screen size in pixels; None means the standard
+        CUE_ICON_SIZE (12px).  The zoom is derived from the source PNG's
+        resolution, so an explicit size re-renders the original at the exact
+        zoom -- never an upscaled smaller render."""
         if name not in CUE_ICON_MAP:
             return None
-        cache_key = (name, color)
+        if size is None:
+            size = CUE_ICON_SIZE
+        cache_key = (name, color, size)
         cached = self._displayables.get(cache_key)
         if cached is not None:
             return cached
@@ -112,7 +124,7 @@ class CueIconManager(object):
             _source = MatrixColor(_path, matrix.colorize("#000000", color))
         displayable = Transform(
             _source,
-            zoom=CUE_ICON_ZOOM,
+            zoom=size / float(CUE_ICON_SRC_SIZE),
             xzoom=-1.0 if _mirrored else 1.0,
         )
         self._displayables[cache_key] = displayable

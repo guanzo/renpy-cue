@@ -118,10 +118,29 @@ screen cue_icon_btn(label, action, tt=None, xsize=16, enabled=True, bg=None, ico
             if bg is not None:
                 background bg
 
+transform cue_icon_fade:
+    alpha 0.5
+    on hover:
+        linear 0.1 alpha 1.0
+    on idle:
+        linear 0.1 alpha 0.5
+
+screen cue_icon(label, tt=None, action=NullAction(), icon_color=None, size=12):
+    $ _icon = _cue.icons.displayable_for(label, icon_color, size)
+    button:
+        style "empty"
+        padding (0, 0)
+        background None
+        hover_background None
+        action action
+        if tt is not None:
+            tooltip tt
+        add _icon at cue_icon_fade
+
 # Base text button: all textbuttons should use this so style/typography
 # live in one place. Pass bg/tooltip/sensitive/xsize/ysize to override.
 screen cue_txt_button(label, action, bg=None, hover_bg=None, tt=None,
-                       sensitive=True, xsize=0, ysize=0):
+                    sensitive=True, xsize=0, ysize=0):
     textbutton label:
         style "cue_btn"
         text_style "cue_btn_text"
@@ -262,10 +281,9 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                 Function(exclusive_ctx.toggle_exclusive),
                 tt=_excl_tt,
                 bg=_excl_bg)
-        textbutton "+ Pool":
+        textbutton "+ SFX Pool":
             style "cue_btn"
             text_style "cue_btn_text"
-            xsize 48
             action add_action
             tooltip add_tt
         for pi in range(count):
@@ -384,10 +402,12 @@ style cue_section_hdr_btn is empty:
 
 # Usage: use cue_section_frame("Title"):  ...children...
 # Click the header to collapse/expand the section content.
-screen cue_section_frame(header_text):
+# tt: optional string shown on a "?" icon left of the arrow (None to skip).
+screen cue_section_frame(header_text, tt=None):
     $ _collapsed = _cue.collapsed_sections.get(header_text, False)
     $ _arrow_icon = "chevron-right" if _collapsed else "chevron-down"
-    $ _arrow = _cue.icons.displayable_for(_arrow_icon) if _cue.icons is not None else None
+    $ _arrow = _cue.icons.displayable_for(_arrow_icon)
+    $ _question_icon = _cue.icons.displayable_for("question")
     frame:
         background _cue_color_bg_panel
         padding (4, 4)
@@ -403,8 +423,14 @@ screen cue_section_frame(header_text):
                     xfill True
                     text header_text style "cue_hdr"
                     null width 8
-                    if _arrow is not None:
-                        add _arrow xalign 1.0 yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
+                    hbox:
+                        xalign 1.0
+                        spacing 10
+                        yalign 0.5
+                        if tt is not None:
+                            use cue_icon("circle-question", tt=tt, size=14)
+                        if _arrow is not None:
+                            add _arrow yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
             if not _collapsed:
                 transclude
 
@@ -518,7 +544,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
 screen cue_checkbox(checked, label, action, tt_on=None, tt_off=None,
                     on_bg=None, on_hover=None, off_bg=None, off_hover=None,
                     enabled=True):
-    $ _icon = _cue.icons.displayable_for("square-check" if checked else "square") if _cue.icons is not None else None
+    $ _icon = _cue.icons.displayable_for("square-check" if checked else "square")
     button:
         style "cue_btn"
         sensitive enabled
@@ -539,15 +565,14 @@ screen cue_checkbox(checked, label, action, tt_on=None, tt_off=None,
                 tooltip (tt_on if tt_off is None else tt_off)
         hbox:
             spacing 5
-            if _icon is not None:
-                add _icon yalign 0.5
+            add _icon yalign 0.5
             text label style "cue_btn_text" yalign 0.5
 
 # Radio button: solid circle icon tinted with the active color when
 # selected, outline circle when not.
 # Exclusivity within a group is enforced by the shared action target.
 screen cue_radio_btn(checked, label, action, tt=None, enabled=True):
-    $ _icon = _cue.icons.displayable_for("circle" if checked else "circle-outline") if _cue.icons is not None else None
+    $ _icon = _cue.icons.displayable_for("circle" if checked else "circle-outline")
     button:
         style "cue_btn"
         sensitive enabled
@@ -556,8 +581,7 @@ screen cue_radio_btn(checked, label, action, tt=None, enabled=True):
             tooltip tt
         hbox:
             spacing 5
-            if _icon is not None:
-                add _icon yalign 0.5
+            add _icon yalign 0.5
             text label style "cue_btn_text" yalign 0.5
 
 ## Colors matching the Bulma "is-link" notification style — tweak to taste
@@ -567,8 +591,8 @@ screen notification(text,
                     text_color=_cue_color_text,
                     icon=None,
                     icon_color=None):
-    $ _icon = _cue.icons.displayable_for(icon, icon_color) if _cue.icons is not None else None
-    $ _icon_close = _cue.icons.displayable_for("circle-xmark") if _cue.icons is not None else None
+    $ _icon = _cue.icons.displayable_for(icon, icon_color)
+    $ _icon_close = _cue.icons.displayable_for("circle-xmark")
 
     frame:
         background bg
@@ -577,8 +601,7 @@ screen notification(text,
 
         hbox:
             spacing 12
-            if _icon is not None:
-                add _icon yalign 0.0
+            add _icon yalign 0.0
 
             text text:
                 style "cue_txt"
