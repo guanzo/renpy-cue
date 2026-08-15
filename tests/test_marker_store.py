@@ -350,10 +350,7 @@ def test_delete_removed_files_deletes_dropped_marker(store, cue_env):
 
 
 def test_delete_removed_files_preset_only_when_session_created(store, cue_env):
-    # Save a marker first so db.is_fresh() is False and load_from_db() reads
-    # presets from disk (a markerless DB takes the fresh path and skips them).
-    store._data["i_a"] = {"pools": []}
-    store.save_all()
+    # load_from_db() always reads presets from disk -- no fresh fast-path.
     store.create_preset("Sess", {"files": ["a.ogg"]})
     store.create_preset("Old", {"files": ["b.ogg"]})
     # "Sess" is session-created; "Old" simulates a preset loaded from disk.

@@ -16,12 +16,18 @@ import json as _json
 
 from cue_lib.util import _cue_log, _cue_replace_file, _to_str
 from cue_lib.backup import CueBackupManager
+from cue_lib.constants import (
+    CUE_IMG_KEY_PREFIX,
+    CUE_LOOP_KEY_PREFIX,
+    CUE_DLG_KEY_PREFIX,
+    CUE_VID_KEY_PREFIX,
+)
 
 # Number of characters to keep from a SHA1 hex digest for file naming.
 CUE_HASH_TRUNC_LEN = 8
 
-# Filename for the per-replay default music trigger log, stored under the
-# markers/{game_id}/music/ subdir.
+# Filename for the per-replay default music trigger log, stored directly
+# under markers/{game_id}/.
 CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME = "default_music_triggers.json"
 
 MYPY = False
@@ -61,6 +67,19 @@ def _filename_to_key(filename):
     return ""
 
 
+def _is_marker_filename(name):
+    # type: (str) -> bool
+    """True if `name` is a marker file: a .json carrying a key type prefix.
+
+    Marker filenames always start with one of the type prefixes (i_, l_, d_,
+    v_) -- see _key_to_filename().  Whitelisting keeps non-marker JSON that
+    shares the marker dir (e.g. default_music_triggers.json) from being swept
+    up as a marker by load_markers()."""
+    return (name.endswith(".json")
+            and name.startswith((CUE_IMG_KEY_PREFIX, CUE_LOOP_KEY_PREFIX,
+                                 CUE_DLG_KEY_PREFIX, CUE_VID_KEY_PREFIX)))
+
+
 def _atomic_json_write(fpath, data, indent=None):
     # type: (str, Any, Optional[int]) -> None
     """Write `data` as JSON to fpath atomically.
@@ -84,7 +103,7 @@ class CueDatabase(object):
 
     Directory layout:
         {root}/data/markers/{game_id}/              -- one .json file per marker key
-        {root}/data/markers/{game_id}/music/        -- default music triggers file
+        {root}/data/markers/{game_id}/              -- default_music_triggers.json (non-marker log)
         {root}/data/presets/audio/                  -- one .json file per audio preset
         {root}/data/presets/video/                  -- one .json file per video preset
         {root}/video/{game_id}/                     -- speed-variant video files
@@ -107,7 +126,6 @@ class CueDatabase(object):
         """Ensure directory structure exists."""
         for _dir in [
             self.paths.marker_dir,
-            self.paths.music_triggers_dir,
             self.paths.audio_preset_dir,
             self.paths.video_preset_dir,
             self.paths.video_dir,
@@ -146,21 +164,6 @@ class CueDatabase(object):
                             "{}_{}.json".format(safe, h))
 
     # ------------------------------------------------------------------
-    # Freshness / migration
-    # ------------------------------------------------------------------
-
-    def is_fresh(self):
-        # type: () -> bool
-        """True if this game_id has no marker files yet."""
-        try:
-            for _name in os.listdir(self.paths.marker_dir):
-                if _name.endswith(".json"):
-                    return False
-        except Exception:
-            _cue_log("DB-FRESH: listdir failed for {}".format(self.paths.marker_dir))
-        return True
-
-    # ------------------------------------------------------------------
     # Markers
     # ------------------------------------------------------------------
 
@@ -175,7 +178,7 @@ class CueDatabase(object):
             _cue_log("DB-LOAD: listdir failed for {}".format(mdir))
             return result
         for name in names:
-            if not name.endswith(".json"):
+            if not _is_marker_filename(name):
                 continue
             fpath = os.path.join(mdir, name)
             entry = self._read_file(fpath)
@@ -335,12 +338,12 @@ class CueDatabase(object):
     # Shape: {replay_label: [ {"key_before": ..., "filepath": ...,
     # "key_after": ...}, ... ]}.  key_before = scene at the play call
     # (deterministic trigger); key_after = settled scene the user sees.
-    # Lives in the music/ subdir of the marker dir so load_markers() (which
-    # only scans direct children for .json) never sweeps it up as a marker.
+    # Lives directly in the marker dir; load_markers() whitelists marker
+    # filenames (i_/l_/d_/v_ prefixes) so it is never swept up as a marker.
 
     def _music_triggers_path(self):
         # type: () -> str
-        return os.path.join(self.paths.music_triggers_dir, CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME)
+        return os.path.join(self.paths.marker_dir, CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME)
 
     def load_default_music_triggers(self):
         # type: () -> Dict[str, Any]

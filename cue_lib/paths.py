@@ -163,11 +163,6 @@ class CuePaths(object):
         return os.path.join(self._root, "data", "markers", self._game_id) + "/"
 
     @property
-    def music_triggers_dir(self):
-        # type: () -> str
-        return os.path.join(self.marker_dir, "music") + "/"
-
-    @property
     def presets_dir(self):
         # type: () -> str
         return os.path.join(self._root, "data", "presets") + "/"

@@ -659,19 +659,14 @@ class CueMarkerStore(object):
             self._video_presets = {}
             return
 
-        if db.is_fresh():
-            self._data = {}
-            self._presets = {}
-            self._video_presets = {}
-        else:
-            self._data = db.load_markers()
-            self._presets, self._video_presets = db.load_presets()
-            self._migrate_video_timestamps_to_pools()
-            self._sanitize_video_pools()
-            self._sanitize_video_presets()
-            self._normalize_all()
-            self._migrate_speed_mode_rename()
-            self._migrate_legacy_exclusive()
+        self._data = db.load_markers()
+        self._presets, self._video_presets = db.load_presets()
+        self._migrate_video_timestamps_to_pools()
+        self._sanitize_video_pools()
+        self._sanitize_video_presets()
+        self._normalize_all()
+        self._migrate_speed_mode_rename()
+        self._migrate_legacy_exclusive()
 
     # -- backup --
 

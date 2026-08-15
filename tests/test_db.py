@@ -8,7 +8,12 @@ import os
 
 import pytest
 
-from cue_lib.db import CUE_HASH_TRUNC_LEN, CueDatabase, _key_to_filename
+from cue_lib.db import (
+    CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME,
+    CUE_HASH_TRUNC_LEN,
+    CueDatabase,
+    _key_to_filename,
+)
 from cue_lib.paths import CuePaths
 from cue_lib.util import _to_str
 
@@ -87,15 +92,6 @@ def test_open_creates_directory_structure(tmp_path):
 def test_close_marks_closed(db):
     db.close()
     assert not db.is_open()
-
-
-def test_is_fresh_true_without_markers(db):
-    assert db.is_fresh()
-
-
-def test_is_fresh_false_after_marker_save(db):
-    db.save_marker("v_key", {"pools": [[1.0, 2.0]]})
-    assert not db.is_fresh()
 
 
 # ---------------------------------------------------------------------------
@@ -220,3 +216,44 @@ def test_write_entry_does_not_mutate_caller_dict(db):
     db.save_marker("v_key", entry)
     # The caller's dict must not gain the _key stamp.
     assert "_key" not in entry
+
+
+# ---------------------------------------------------------------------------
+# Default music triggers -- live in the marker dir root, never read as markers
+# ---------------------------------------------------------------------------
+
+def test_load_markers_ignores_default_music_triggers(db):
+    db.save_default_music_triggers(
+        {"r1": [{"key_before": "v_a", "filepath": "music/x.ogg"}]})
+    fpath = os.path.join(db.paths.marker_dir, CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME)
+    assert os.path.isfile(fpath)
+    assert db.load_markers() == {}
+
+
+def test_load_markers_ignores_non_marker_json(db):
+    # A stray .json with no key type prefix is not a marker.
+    stray = os.path.join(db.paths.marker_dir, "notes.json")
+    with open(stray, "w") as _f:
+        _f.write("{}")
+    assert db.load_markers() == {}
+
+
+def test_default_music_triggers_round_trip(db):
+    db.update_default_music_triggers("r1", "v_a", "music/x.ogg")
+    assert db.load_default_music_triggers() == {
+        "r1": [{"key_before": "v_a", "filepath": "music/x.ogg"}]}
+    # Stored at the marker dir root, not in a music/ subdir.
+    fpath = os.path.join(db.paths.marker_dir, CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME)
+    assert os.path.isfile(fpath)
+    assert not os.path.isdir(os.path.join(db.paths.marker_dir, "music"))
+
+
+def test_update_default_music_triggers_updates_in_place(db):
+    db.update_default_music_triggers("r1", "v_a", "music/x.ogg")
+    db.update_default_music_triggers("r1", "v_a", "music/y.ogg")
+    db.update_default_music_triggers("r1", "v_b", "music/z.ogg")
+    assert db.load_default_music_triggers() == {
+        "r1": [
+            {"key_before": "v_a", "filepath": "music/y.ogg"},
+            {"key_before": "v_b", "filepath": "music/z.ogg"},
+        ]}
