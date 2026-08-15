@@ -240,7 +240,7 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=80):
 # delete_xsize/tab_xsize override the default button width (pass None for default).
 screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                      delete_tt, add_action, add_tt, tab_action_fn, tab_action_args,
-                     tab_tt):
+                     tab_tt, exclusive_ctx=None):
     hbox:
         spacing 5
         if show_delete:
@@ -250,6 +250,18 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                 delete_tt,
                 None,
             )
+        if show_delete and exclusive_ctx is not None:
+            # Only one-shots pass an exclusive_ctx -- the toggle lives in the
+            # per-pool controls row for loops.
+            $ _excl_on = bool(exclusive_ctx.get_active_pool().get("exclusive", {}).get("group"))
+            $ _excl_bg = _cue_color_active if _excl_on else None
+            $ _excl_tt = ("Disable exclusive playback" if _excl_on
+                else "Exclusive playback: fade out SFX from previous scene then plays.")
+            use cue_icon_btn(
+                "layer-group",
+                Function(exclusive_ctx.toggle_exclusive),
+                tt=_excl_tt,
+                bg=_excl_bg)
         textbutton "+ Pool":
             style "cue_btn"
             text_style "cue_btn_text"
@@ -426,11 +438,13 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
             $ _inc = Function(_cue.volume.adjust_master, key, 0.1)
             use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _entry, _inc, key)
         if key:
+            $ _excl_ctx = ctx if ctx.ONE_SHOT else None
             use cue_pool_tabs(len(_pools), _target, bool(_pools),
                 "Delete all {} for the current {}?".format(section_title.lower(), subject),
                 Function(ctx.clear), "Delete all {} for the current {}".format(section_title.lower(), subject),
                 Function(ctx.add_pool), "Create a SFX pool",
-                ctx.set_active, (), "Select {} target pool -- targets {} button".format(section_title, btn_letter))
+                ctx.set_active, (), "Select {} target pool -- targets {} button".format(section_title, btn_letter),
+                _excl_ctx)
 
         if _pools and 0 <= _target < len(_pools):
             $ _active_pool = _pools[_target]
@@ -455,19 +469,16 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                     "Save pool as a preset",
                     None,
                 )
-                $ _exclusive_on = bool(_r.exclusive.group)
-                $ _exclusive_bg = _cue_color_active if _exclusive_on else None
-                if ctx.ONE_SHOT:
+                if not ctx.ONE_SHOT:
+                    $ _exclusive_on = bool(_r.exclusive.group)
+                    $ _exclusive_bg = _cue_color_active if _exclusive_on else None
                     $ _excl_tt = ("Disable exclusive playback" if _exclusive_on
-                        else "Exclusive: fade out other SFX and play immediately")
-                else:
-                    $ _excl_tt = ("Disable exclusive playback" if _exclusive_on
-                        else "Exclusive: wait for other loops, then play alone")
-                use cue_icon_btn(
-                    "layer-group",
-                    Function(ctx.toggle_exclusive),
-                    tt=_excl_tt,
-                    bg=_exclusive_bg)
+                        else "Exclusive playback: wait for other Loop SFX to finish playing, then plays, blocking other Loop SFX until finished.")
+                    use cue_icon_btn(
+                        "layer-group",
+                        Function(ctx.toggle_exclusive),
+                        tt=_excl_tt,
+                        bg=_exclusive_bg)
                 use cue_icon_btn("xmark", Function(ctx.remove_pool, _target), "Delete pool", None)
                 $ _dec = Function(_cue.volume.adjust, key, -0.1, _target)
                 $ _inc = Function(_cue.volume.adjust, key, 0.1, _target)

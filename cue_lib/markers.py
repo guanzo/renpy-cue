@@ -159,21 +159,36 @@ class CueMarkerContext(object):
 
     def _set_exclusive_payload(self, payload):
         # type: (Optional[Dict[str, Any]]) -> None
-        """Write (or clear) the exclusive config on the active pool.
+        """Write (or clear) the exclusive config for this trigger.
+
+        One-shots carry a single exclusive flag for the whole trigger, so it
+        lands on every pool -- whichever pool fires clears the air for the
+        scene. Loops keep it per-pool so one loop can "sneak in" solo while
+        its siblings stay plain.
 
         ``payload`` is the full nested dict to store, or None to drop the
         config (plain citizen)."""
         key = self._key()
-        target = self.get_active()
         entry = self._mgr.get(key)
-        if entry:
-            pools = entry.get("pools", [])
-            if pools and 0 <= target < len(pools):
+        if entry is None:
+            return
+        pools = entry.get("pools", [])
+        if not pools:
+            return
+        if self.ONE_SHOT:
+            for pool in pools:
+                if payload is None:
+                    pool.pop("exclusive", None)
+                else:
+                    pool["exclusive"] = dict(payload)
+        else:
+            target = self.get_active()
+            if 0 <= target < len(pools):
                 if payload is None:
                     pools[target].pop("exclusive", None)
                 else:
                     pools[target]["exclusive"] = payload
-                self._mgr._db_save_marker(key)
+        self._mgr._db_save_marker(key)
 
     def set_exclusive(self, start, hold):
         # type: (int, bool) -> None
@@ -186,10 +201,12 @@ class CueMarkerContext(object):
 
     def toggle_exclusive(self):
         # type: () -> None
-        """Toggle exclusive playback on the active pool.
+        """Toggle exclusive playback for this trigger.
 
-        Off -> on uses the context default: loops wait then hold, one-shots
-        fade out other SFX and play immediately. On -> off clears the config."""
+        One-shots toggle the whole trigger (every pool); loops toggle the
+        active pool only. Off -> on uses the context default: loops wait
+        then hold, one-shots fade out other SFX and play immediately.
+        On -> off clears the config."""
         excl = self.get_active_pool().get("exclusive")
         if isinstance(excl, dict) and excl.get("group"):
             self._set_exclusive_payload(None)
