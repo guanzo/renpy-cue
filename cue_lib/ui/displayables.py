@@ -169,7 +169,7 @@ class CueVideoTimeline(Displayable):
                 fw = min(tw + 8, 300)
                 fh = th + 4
                 tip = renpy.Render(fw, fh)
-                tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))
+                tip.canvas().rect("#2e2e2e", (0, 0, fw, fh))
                 tip.blit(tip_render, (4, 2))
                 tx = rx + 12
                 ty = bar_y - fh - 2
@@ -584,7 +584,7 @@ class CueTooltip(Displayable):
 
         r = renpy.Render(1, 1)
         tip = renpy.Render(fw, fh)
-        tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))
+        tip.canvas().rect("#2e2e2e", (0, 0, fw, fh))
         tip.blit(text_render, (pad_x, pad_y))
         r.blit(tip, (tx, ty))
         return r
@@ -611,7 +611,7 @@ class CueMarkerTooltipOverlay(Displayable):
         fh = th + 4
 
         tip = renpy.Render(fw, fh)
-        tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))
+        tip.canvas().rect("#2e2e2e", (0, 0, fw, fh))
         tip.blit(tip_render, (4, 2))
 
         tx = getattr(_cue, '_marker_tip_x', 0)
@@ -765,7 +765,7 @@ class CueAutoSpeedChart(Displayable):
                 fw = min(tw + 8, 200)
                 fh = th + 4
                 tip = renpy.Render(fw, fh)
-                tip.canvas().rect("#2a2a2a", (0, 0, fw, fh))
+                tip.canvas().rect("#2e2e2e", (0, 0, fw, fh))
                 tip.blit(tip_render, (4, 2))
                 px, py = points[nearest_idx]
                 tx = px + 12

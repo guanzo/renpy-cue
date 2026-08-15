@@ -196,6 +196,8 @@ def _cue_refresh_context():
         changed += " file:{}->{}".format(old_file, _cue.current_file)
         if _cue.current_file:
             img_key = create_img_key(_cue.current_file)
+
+        _cue.music.play_custom_music()
         _cue.trigger.loop_states = {}
         _cue.trigger.played_video_keys.clear()
         _cue.trigger._prev_eff_elapsed = -1.0

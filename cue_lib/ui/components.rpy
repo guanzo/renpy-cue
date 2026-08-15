@@ -615,6 +615,41 @@ screen cue_radio_btn(checked, label, action, tt=None, enabled=True):
                 add _icon yalign 0.5
             text label style "cue_btn_text" yalign 0.5
 
+## Colors matching the Bulma "is-link" notification style — tweak to taste
+screen notification(text, 
+                    bg=_cue_color_bg_btn, 
+                    dismissable=False,
+                    text_color=_cue_color_text,
+                    icon=None,
+                    icon_color=None):
+    $ _icon = _cue.icons.displayable_for(icon, icon_color) if _cue.icons is not None else None
+    $ _icon_close = _cue.icons.displayable_for("circle-xmark") if _cue.icons is not None else None
+
+    frame:
+        background bg
+        padding (28, 24, 56, 24)  # extra right padding to leave room for the close button
+        xfill True
+
+        hbox:
+            spacing 12
+            if _icon is not None:
+                add _icon yalign 0.0
+
+            text text:
+                style "cue_txt"
+                color text_color
+                xfill True
+
+        if dismissable:
+            imagebutton:
+                idle _icon_close
+                hover _icon_close
+                xalign 1.0
+                yalign 0.0
+                xoffset -12
+                yoffset 12
+                action Hide("notification")
+
 # Popper anchor: wraps content and, on hover, captures the focused
 # displayable's rect under `name`, so a `popper target "name"` elsewhere can
 # position a popup against it.

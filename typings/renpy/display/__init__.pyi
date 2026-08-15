@@ -5,4 +5,3 @@ from renpy.display import im as im
 from renpy.display import image as image
 from renpy.display import behavior as behavior
 from renpy.display import transform as transform
-from renpy.display import matrixcolor as matrixcolor

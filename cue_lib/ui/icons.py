@@ -18,7 +18,9 @@ import renpy
 
 from cue_lib.state import _cue
 from cue_lib.util import _cue_log
-from renpy.display.matrixcolor import ColorizeMatrix
+# Tinting uses the classic im.MatrixColor operator, which ships with every
+# Ren'Py 7.4+ (the `matrixcolor` Transform property only arrived in 7.5).
+from renpy.display.im import MatrixColor, matrix
 from renpy.display.transform import Transform
 
 MYPY = False
@@ -39,6 +41,7 @@ CUE_ICON_MAP = {
     "chevron-up": ("chevron-up-solid.png", False),
     "circle": ("circle-solid.png", False),
     "circle-outline": ("circle-regular.png", False),
+    "circle-xmark": ("circle-xmark-solid.png", False),
     "floppy-disk": ("floppy-disk-solid.png", False),
     "clipboard": ("clipboard-solid.png", False),
     "clone": ("clone-regular.png", False),
@@ -64,6 +67,7 @@ CUE_ICON_MAP = {
     "square-check": ("square-check-regular.png", False),
     "square": ("square-regular.png", False),
     "trash-can": ("trash-can-solid.png", False),
+    "triangle-exclamation": ("triangle-exclamation-solid.png", False),
 }  # type: Dict[str, Tuple[str, bool]]
 
 
@@ -83,8 +87,9 @@ class CueIconManager(object):
 
         The base (white) icon is cached per name; a colored variant is
         cached per (name, color) so each color is built once and reused.
-        Color is any Ren'Py color: ColorizeMatrix maps the icon's white to
-        it (black stays black), so the shape is preserved."""
+        Color is any Ren'Py color: the tint maps the icon's white to it
+        (black stays black), so the shape is preserved.  Tinting is done
+        with im.MatrixColor, which works on every Ren'Py 7.4+."""
         if name not in CUE_ICON_MAP:
             return None
         cache_key = (name, color)
@@ -96,12 +101,15 @@ class CueIconManager(object):
         if not renpy.loadable(_path):
             _cue_log("CUE-ICON: missing image " + _path)
             return None
+        _source = _path
+        if color is not None:
+            # im.MatrixColor maps white -> color (black stays black);
+            # colorize's args are reversed vs ColorizeMatrix (black, white).
+            _source = MatrixColor(_path, matrix.colorize("#000000", color))
         displayable = Transform(
-            _path,
+            _source,
             zoom=CUE_ICON_ZOOM,
             xzoom=-1.0 if _mirrored else 1.0,
         )
-        if color is not None:
-            displayable = Transform(displayable, matrixcolor=ColorizeMatrix(color, "#000000"))
         self._displayables[cache_key] = displayable
         return displayable

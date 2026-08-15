@@ -11,6 +11,7 @@ from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_resolve_files, _cue_pick_file, _cue_loop_still_playing,
+    _cue_sfx_channel_name,
     create_loop_key, create_vid_key,
 )
 

@@ -67,9 +67,29 @@ class MarkerEntry(TypedDict, total=False):
     speed_sequence: List[float] # per-video speed sequence
     speed_mode: str             # "single" or "multi"
     disabled_auto_speeds: List[float]  # speeds toggled off in auto-speed
+    music: List[str]            # user-added songs only; default lives in the trigger log.
+                                # My Music files are stored relative to the My Music dir;
+                                # game-music files are stored game-relative.
+    music_default_disabled: bool  # recorded default music for this scene is toggled off
     timestamps: List[PoolDict]  # migration: old name for pools
     files: List[str]            # migration: old flat format
     frequency: int              # migration: old entry-level frequency
+
+
+# =========================================================================
+# Default music trigger log
+# =========================================================================
+
+class DefaultMusicTrigger(TypedDict):
+    """One recorded default-music trigger: the scene key anchoring the
+    replay's `play music` statement and the file that scripted it.
+
+    ``key_before`` is the scene visible at the play call (the deterministic
+    anchor); ``key_after`` is the settled scene, captured once the scene
+    batch lands (absent until then).  Either can match a scene key."""
+    key_before: str
+    filepath: str
+    key_after: NotRequired[str]
 
 
 # =========================================================================
