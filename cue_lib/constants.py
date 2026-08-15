@@ -108,6 +108,10 @@ CUE_DIR_OVERRIDE_FILENAME = "dir.txt"
 # keybinds).  Lives at {shared}/data/cue_config.json.
 CUE_SHARED_CONFIG_FILENAME = "cue_config.json"
 
+# Cap for the most-recently-used pool-items tracker (cue_lib/recent.py): the
+# per-game persistent list of recently added files/folders/presets.
+CUE_RECENT_MAX = 10
+
 
 # =========================================================================
 # Flat enum classes -- plain-int members so screens can compare against
@@ -141,3 +145,14 @@ class CuePage(object):
     SFX = 0       # SFX editor (markers / library)
     MUSIC = 1     # Music page
     SETTINGS = 2  # Settings page
+
+
+class CueRecentKind(object):
+    """Kinds of pool items tracked by the recent-files tracker (recent.py).
+
+    Stored beside the value in persistent._cue_recent_pool_items so a future
+    "recently used" UI can re-add via add_file / add_folder / apply_preset.
+    """
+    FILE = "file"
+    FOLDER = "folder"
+    PRESET = "preset"

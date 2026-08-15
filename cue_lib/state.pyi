@@ -19,6 +19,7 @@ from cue_lib.db import CueDatabase
 from cue_lib.volume import CueVolumeManager
 from cue_lib.audio.music import CueMusicManager
 from cue_lib.keybinds import CueKeybindsManager
+from cue_lib.recent import CueRecentManager
 from cue_lib.ui.icons import CueIconManager
 from cue_lib.paths import CuePaths
 from cue_lib.constants import CuePage  # pyright: ignore[reportUnusedImport]  # re-exported from constants
@@ -74,6 +75,7 @@ class Cue:
     keybinds: CueKeybindsManager
     icons: CueIconManager
     music: CueMusicManager
+    recent: CueRecentManager
 
     _cue_next_sfx_channel: int
     _shake_just_happened: bool

@@ -20,7 +20,9 @@ from cue_lib.backup import (
     CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME,
     validate_backup_zip, restore_pieces,
 )
-from cue_lib.constants import CUE_VOLUME_DEFAULT, CueExclusiveStart, CueLoopFrequency
+from cue_lib.constants import (
+    CUE_VOLUME_DEFAULT, CueExclusiveStart, CueLoopFrequency, CueRecentKind,
+)
 # ResolvedExclusive is re-exported (as X form = explicit re-export): tests
 # import both snapshots from cue_lib.markers.
 from cue_lib.marker_store import CueMarkerStore, ResolvedPool, ResolvedExclusive as ResolvedExclusive
@@ -84,6 +86,7 @@ class CueMarkerContext(object):
         if filename in self._mgr._sfx_manager.disabled_files:
             return
         self._mgr._add_file_to_pool(key, filename, self.get_active())
+        _cue.recent.touch(CueRecentKind.FILE, filename)
 
     def send_file(self, file_index):
         # type: (int) -> None
@@ -237,6 +240,7 @@ class CueMarkerContext(object):
         # type: (str) -> None
         key = self._key()
         self._mgr._stamp_preset(key, preset_name, self.get_active())
+        _cue.recent.touch(CueRecentKind.PRESET, preset_name)
 
     def add_folder(self, folder_path):
         # type: (str) -> None
@@ -248,6 +252,7 @@ class CueMarkerContext(object):
         if folder_ref not in files:
             files.append(folder_ref)
         self._mgr._db_save_marker(key)
+        _cue.recent.touch(CueRecentKind.FOLDER, folder_ref)
 
 
 # Nonzero group marks a pool as exclusive. Grouping is derived at runtime
@@ -368,6 +373,7 @@ class CueVideoContext(CueMarkerContext):
             self._append_pool(entry, pools,
                 {"time": elapsed, "files": [filename]})
         self._mgr._db_save_marker(vid_key)
+        _cue.recent.touch(CueRecentKind.FILE, filename)
 
     def remove_file(self, pool_index, file_index):
         # type: (int, int) -> None
@@ -400,6 +406,7 @@ class CueVideoContext(CueMarkerContext):
             self._append_pool(entry, pools,
                 {"time": elapsed, "files": [folder_ref]})
         self._mgr._db_save_marker(vid_key)
+        _cue.recent.touch(CueRecentKind.FOLDER, folder_ref)
 
     def clear(self):
         # type: () -> None
@@ -432,6 +439,7 @@ class CueVideoContext(CueMarkerContext):
             {"time": elapsed, "preset": preset_name})
         self.sync_text()
         self._mgr._db_save_marker(vid_key)
+        _cue.recent.touch(CueRecentKind.PRESET, preset_name)
 
     def apply_preset_active(self, preset_name):
         # type: (str) -> None
@@ -455,6 +463,7 @@ class CueVideoContext(CueMarkerContext):
             pools[self.target_pool] = {"time": time, "preset": preset_name}
         self.sync_text()
         self._mgr._db_save_marker(vid_key)
+        _cue.recent.touch(CueRecentKind.PRESET, preset_name)
 
     def send_preset(self, preset_name):
         # type: (str) -> None

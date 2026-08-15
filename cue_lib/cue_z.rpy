@@ -146,6 +146,7 @@ init -900 python:
     from cue_lib.ui.dialogs import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
     from cue_lib.db import CueDatabase
     from cue_lib.paths import CuePaths
+    from cue_lib.recent import CueRecentManager
     from cue_lib.state import _cue
 
     def _cue_wire_managers():
@@ -189,6 +190,7 @@ init -900 python:
         keybinds = CueKeybindsManager(db)
         icons = CueIconManager(paths)
         music = CueMusicManager(marker_store, _cue.ctx, db, paths)
+        recent = CueRecentManager()
 
         # markers is the coordinator, wired LAST so every injected collaborator
         # (vid_manager, sfx_manager, trigger, video_editor, confirm_dialog) is
@@ -220,6 +222,7 @@ init -900 python:
         _cue.keybinds = keybinds
         _cue.icons = icons
         _cue.music = music
+        _cue.recent = recent
         _cue.markers = markers
 
     _cue_wire_managers()
@@ -344,6 +347,7 @@ init 999 python:
         _cue.markers.load_persistent()
         _cue_load_scalars_from_persistent()
         _cue.video_editor.job_queue.load_from_persistent()
+        _cue.recent.load()
         _cue.undo.seed()  # seed undo baseline after initial load
         _cue.speed_resolver.wrap_all_movies()
         _cue.sfx_manager.scan()
