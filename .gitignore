@@ -10,6 +10,7 @@ bin/install_to_game.bat
 .local
 .venv/
 .coverage
+.pytest_cache/
 .vscode/
 
 # test_game harness artifacts (see bin/run_testcases.sh)
