@@ -25,6 +25,43 @@ CUE_EXCL_KIND_LOOP = "loop"
 CUE_EXCL_KIND_ONESHOT = "oneshot"
 
 
+def _cue_pick_deduped(files, picked, max_tries=3):
+    # type: (List[str], List[str], int) -> Optional[str]
+    """Pick a file from `files` not already in `picked` (dedupe rule).
+
+    Re-picks up to max_tries when a draw collides with an already-picked file,
+    so multi-pool triggers don't play the same file twice (echo artifacts).
+    Returns None when the dedupe can't be satisfied -- the caller should skip
+    that pool (a single-file pool repeating legitimately falls through here)."""
+    picked_set = set(picked)
+    tries = 0
+    while True:
+        file = _cue_pick_file(files)
+        if file not in picked_set or len(files) <= 1 or tries >= max_tries:
+            return None if file in picked_set else file
+        tries += 1
+
+
+def _cue_marker_reached(mt, effective_elapsed, prev_eff, marker_tolerance):
+    # type: (float, float, float, float) -> bool
+    """True if a marker at time mt was reached or crossed since the last tick.
+
+    Two complementary checks so markers aren't missed when playback position
+    jumps more than marker_tolerance between ticks (common on short videos,
+    high-speed playback, or coarse get_pos() steps):
+
+      1. Forward window:  mt <= eff < mt + tolerance    (stationary / first tick)
+      2. Cross check:     prev_eff < mt <= eff           (jumped past marker)
+    """
+    # Forward window: current position is within tolerance past the marker
+    if mt <= effective_elapsed < mt + marker_tolerance:
+        return True
+    # Cross check: we jumped past the marker since the last tick
+    if prev_eff < mt <= effective_elapsed:
+        return True
+    return False
+
+
 class CueTriggerEngine(object):
     """Owns trigger dispatch state and logic.
 
@@ -191,12 +228,8 @@ class CueTriggerEngine(object):
                         and self._excl_outgroup_busy(CUE_EXCL_KIND_ONESHOT, scene, line)):
                     _cue_log("CTX-DROPPED key={} pool={} (air busy)".format(key, pi))
                     continue
-                file = _cue_pick_file(files)
-                tries = 0
-                while file in picked and len(files) > 1 and tries < 3:
-                    file = _cue_pick_file(files)
-                    tries += 1
-                if file in picked:
+                file = _cue_pick_deduped(files, picked)
+                if file is None:
                     continue
                 picked.append(file)
 
@@ -285,12 +318,8 @@ class CueTriggerEngine(object):
                 continue
 
             # Pick a file and play
-            picked_file = _cue_pick_file(files)
-            tries = 0
-            while picked_file in picked and len(files) > 1 and tries < 3:
-                picked_file = _cue_pick_file(files)
-                tries += 1
-            if picked_file in picked:
+            picked_file = _cue_pick_deduped(files, picked)
+            if picked_file is None:
                 continue
             picked.append(picked_file)
             from cue_lib.runtime import _cue_play_pool, _cue_fade_out_sfx
@@ -342,20 +371,6 @@ class CueTriggerEngine(object):
         # via:  prev_eff(-1) < mt(0) <= eff(0).
         prev_eff = self._prev_eff_elapsed
 
-        # --- Helper: did we reach or cross this marker time? ---
-        def _marker_reached(mt):
-            # type: (float) -> bool
-            """Return True if the marker at mt was reached or crossed since
-            the last tick, either within the forward tolerance window or by
-            jumping past it between ticks."""
-            # Forward window: current position is within tolerance past the marker
-            if mt <= effective_elapsed < mt + marker_tolerance:
-                return True
-            # Cross check: we jumped past the marker since the last tick
-            if prev_eff < mt <= effective_elapsed:
-                return True
-            return False
-
         # Video markers
         if current_file:
             vid_key = create_vid_key(current_file)
@@ -397,7 +412,7 @@ class CueTriggerEngine(object):
                             _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(pool_entry))
                         continue
 
-                    if _marker_reached(pool_entry["time"]):
+                    if _cue_marker_reached(pool_entry["time"], effective_elapsed, prev_eff, marker_tolerance):
                         from cue_lib.runtime import _cue_play_pool
                         f = _cue_play_pool(entry, vid_key, pool_entry, pool_index, avoid_repeats=False)  # pyright: ignore[reportArgumentType]
                         if f:

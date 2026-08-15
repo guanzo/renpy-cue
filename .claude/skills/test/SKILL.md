@@ -43,6 +43,19 @@ Fix the failure, then re-run `/test` until green. Most failures are one of:
   `tests/conftest.py` intact: backup daemon threads write their log line
   after `save_marker()` returns, past per-test teardown.
 
+## Changing a test (check-in required)
+
+When a failure turns out to be in the test itself -- the assertion or fixture
+encodes an expectation the code doesn't document -- do NOT edit the test
+unilaterally. Treat the code as guilty first; investigate the failure, and if
+the fix requires changing an existing test's assertions, expectations,
+fixtures, or logic, check in with the user BEFORE editing. Explain the
+failure, why the test (not the code) is wrong, and what the edit is. The user
+decides whether to change the test, fix the code instead, or dig deeper.
+
+Adding a brand-new test or a new mock stub does NOT need a check-in -- only
+modifications to an existing test in response to a failure do.
+
 ## Coverage (optional)
 
 ```bash

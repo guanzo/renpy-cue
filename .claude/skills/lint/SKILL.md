@@ -5,14 +5,14 @@ description: Run pyright and report all diagnostics
 
 # /lint
 
-Run pyright and the 120-char line-length check on `cue_lib/` and report ALL
-diagnostics. Every diagnostic must either be fixed or suppressed with a
-`# pyright: ignore[rule]` comment.
+Run pyright and the 120-char line-length check on `cue_lib/` and `tests/` and
+report ALL diagnostics. Every diagnostic must either be fixed or suppressed
+with a `# pyright: ignore[rule]` comment.
 
 ## Command 1: pyright
 
 ```bash
-pyright cue_lib/ --outputjson 2>/dev/null | python3 -c "
+pyright cue_lib/ tests/ --outputjson 2>/dev/null | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 count=0
@@ -31,7 +31,7 @@ if count==0:
 ## Command 2: line length (120 chars)
 
 ```bash
-find cue_lib \( -name '*.py' -o -name '*.rpy' -o -name '*.pyi' \) -print0 \
+find cue_lib tests \( -name '*.py' -o -name '*.rpy' -o -name '*.pyi' \) -print0 \
   | xargs -0 awk 'length($0) > 120 && $0 !~ /^[[:space:]]*# type:/ \
       && $0 !~ /# pyright: ignore/ \
       {printf "%s:%d: %d chars\n", FILENAME, FNR, length($0)}'
@@ -116,3 +116,4 @@ referenced by `.rpy` with a project-wide grep (`grep -r name cue_lib/`).
 | `reportUnusedImport` on `__init__.py` side-effect imports | Required for Ren'Py `import_all()` module discovery | `__init__.py` |
 | `reportUnusedImport` on `.pyi` re-exports | Stub imports exist so consumers can import from the module | `state.pyi`, `ui_logic.pyi`, etc. |
 | `reportArgumentType` / `reportGeneralTypeIssues` on `PoolDict` | `PoolDict(total=False)` is a catch-all; video pools have `time` but flow through PoolDict APIs; TypedDict literals can't narrow via `# type:` comments | `repeater.py`, `trigger.py` |
+| `reportAttributeAccessIssue` / `reportArgumentType` in `tests/` | White-box tests deliberately poke private or duck-typed seams (`_mgr`, `_key`, `FakeManager`, private methods) against the `.pyi` production contract. Suppress inline -- this is expected, not a production-style failure | `tests/test_markers_context.py`, `tests/fakes.py` |
