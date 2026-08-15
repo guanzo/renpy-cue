@@ -1147,9 +1147,10 @@ class CueMarkerManager(object):
             _cue_log("RESTORE-MARKERS-INVALID {}".format(reason))
             return
         self._confirm_dialog.show(
-            "Restore from backups/backup.zip? This game's markers, shared "
-            "presets, and shared config will be replaced. The current state "
-            "is kept in data_bak. Other games' markers are untouched.",
+            "Restore from backups/backup.zip? This will overwrite this game's markers, presets, and shared "
+            "config with the backup's version. Data not included in the "
+            "backup — including anything added after, and other games' "
+            "markers — is left untouched. Previous data is saved to data_bak.",
             Function(self._apply_restore, zip_path),
         )
 
