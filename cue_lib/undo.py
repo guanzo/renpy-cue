@@ -18,7 +18,12 @@ from cue_lib.util import create_img_key, create_dlg_key, create_loop_key, create
 
 MYPY = False
 if MYPY:
+    from typing import Optional  # pyright: ignore[reportUnusedImport]
     from cue_lib._types import UndoSnapshot
+    from cue_lib.marker_store import CueMarkerStore
+    from cue_lib.state import CueContext
+    from cue_lib.video.video_editor import CueVideoEditor
+    from cue_lib.markers import CueMarkerManager
 
 
 class CueUndoManager(object):
@@ -28,7 +33,16 @@ class CueUndoManager(object):
     MAX_UNDO = 20
     DEDUPE_WINDOW = 0.15  # seconds -- saves within this window share a slot
 
-    def __init__(self):
+    def __init__(self, store, ctx, video_editor, markers=None):
+        # type: (CueMarkerStore, CueContext, CueVideoEditor, Optional[CueMarkerManager]) -> None
+        self._store = store
+        self._ctx = ctx
+        self._video_editor = video_editor
+        # Coordinator for _clamp_ui()'s selection-target reads.  Injected in
+        # tests; in the game it resolves to the singleton at call time because
+        # the manager is wired after undo (it depends on trigger, which is
+        # constructed later) -- so this stays None in cue_z.rpy.
+        self._markers = markers
         self._undo = []          # list of {"markers","presets","video_presets"}
         self._redo = []           # redo stack, same shape
         self._last_ts = 0.0       # time of last capture (for dedupe)
@@ -40,7 +54,7 @@ class CueUndoManager(object):
     def _snapshot(self):
         # type: () -> UndoSnapshot
         """Deep-copy the three marker stores to plain dicts."""
-        m = _cue.markers
+        m = self._store
         return {
             "markers": _copy.deepcopy(m._data),
             "presets": _copy.deepcopy(m._presets),
@@ -132,17 +146,17 @@ class CueUndoManager(object):
         recording a new undo entry, and clamp UI state."""
         self._recording = False
         try:
-            m = _cue.markers
-            old_marker_keys = set(m._data.keys())
-            old_presets = m._presets
-            old_video_presets = m._video_presets
-            old_session_created = set(m._session_created)
-            m._data = snap["markers"]
-            m._presets = snap["presets"]
-            m._video_presets = snap["video_presets"]
-            m._session_created = set(snap["session_created"])
-            m.save_all()
-            m.delete_removed_files(old_marker_keys, old_presets, old_video_presets, old_session_created)
+            store = self._store
+            old_marker_keys = set(store._data.keys())
+            old_presets = store._presets
+            old_video_presets = store._video_presets
+            old_session_created = set(store._session_created)
+            store._data = snap["markers"]
+            store._presets = snap["presets"]
+            store._video_presets = snap["video_presets"]
+            store._session_created = set(snap["session_created"])
+            store.save_all()
+            store.delete_removed_files(old_marker_keys, old_presets, old_video_presets, old_session_created)
         finally:
             self._recording = True
         # Seed _previous so the next real mutation pushes the correct
@@ -157,17 +171,19 @@ class CueUndoManager(object):
         # type: () -> None
         """Clamp active pool indices after a restore so they don't point
         past the end of the restored pool lists."""
-        m = _cue.markers
+        m = self._markers if self._markers is not None else _cue.markers
+        store = self._store
 
         def _count(key):
             # type: (str) -> int
-            entry = m._data.get(key)
+            entry = store._data.get(key)
             return len(entry.get("pools", [])) if entry else 0
 
-        img_key = create_img_key(_cue.current_file) if _cue.current_file else ""
-        dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue or "")) if _cue.current_file else ""
-        loop_key = create_loop_key(_cue.current_file or "")
-        vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
+        file_ = self._ctx.current_file
+        img_key = create_img_key(file_) if file_ else ""
+        dlg_key = create_dlg_key((file_, self._ctx.current_dialogue or "")) if file_ else ""
+        loop_key = create_loop_key(file_ or "")
+        vid_key = create_vid_key(file_) if file_ else ""
 
         if img_key:
             n = _count(img_key)
@@ -186,6 +202,6 @@ class CueUndoManager(object):
         # Update the video editor UI if visible
         if _cue.is_overlay_visible:
             try:
-                _cue.video_editor.refresh_ui()
+                self._video_editor.refresh_ui()
             except Exception:
                 _cue_log("UNDO-CLAMP: refresh_ui failed")

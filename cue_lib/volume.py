@@ -10,8 +10,11 @@ from cue_lib.util import create_vid_key
 
 MYPY = False
 if MYPY:
-    from typing import Optional
+    from typing import Optional  # pyright: ignore[reportUnusedImport]
     from cue_lib._types import MarkerEntry
+    from cue_lib.marker_store import CueMarkerStore
+    from cue_lib.state import CueContext
+    from cue_lib.markers import CueMarkerManager
 
 
 class CueVolumeManager(object):
@@ -24,6 +27,16 @@ class CueVolumeManager(object):
     VOL_MIN = 0.0
     VOL_DEFAULT = CUE_VOLUME_DEFAULT  # legacy alias; new code uses CUE_VOLUME_DEFAULT
     VOL_MAX = 5.0
+
+    def __init__(self, store, ctx, markers=None):
+        # type: (CueMarkerStore, CueContext, Optional[CueMarkerManager]) -> None
+        self._store = store
+        self._ctx = ctx
+        # Coordinator for adjust_video()'s active-pool read.  Injected in
+        # tests; in the game it resolves to the singleton at call time (the
+        # manager is wired after volume).  Everything else is data, served by
+        # the store.
+        self._markers = markers
 
     def get(self, entry, trigger_key=None, pool_index=None):
         # type: (Optional[MarkerEntry], Optional[str], Optional[int]) -> float
@@ -38,10 +51,10 @@ class CueVolumeManager(object):
             if pools:
                 idx = pool_index
                 if 0 <= idx < len(pools):
-                    resolved = _cue.markers.resolve_pool(pools[idx])
+                    resolved = self._store.resolve_pool(pools[idx])
                     return resolved.volume
                 if pools:
-                    resolved = _cue.markers.resolve_pool(pools[0])
+                    resolved = self._store.resolve_pool(pools[0])
                     return resolved.volume
         return entry.get("volume", self.VOL_DEFAULT)
 
@@ -49,7 +62,7 @@ class CueVolumeManager(object):
         # type: (str, float, Optional[int]) -> None
         """Clamp and persist a volume, then save + refresh.
         With pool_index writes that specific pool; otherwise entry-level."""
-        entry = _cue.markers.get(trigger_key)
+        entry = self._store.get(trigger_key)
         if entry is None:
             return
         new_vol = max(self.VOL_MIN, min(self.VOL_MAX, round(new_vol, 1)))
@@ -59,14 +72,14 @@ class CueVolumeManager(object):
                 pools[pool_index]["volume"] = new_vol
         else:
             entry["volume"] = new_vol
-        _cue.markers.save_marker(trigger_key)
+        self._store.save_marker(trigger_key)
         renpy.restart_interaction()
 
     def adjust(self, trigger_key, delta, pool_index=None):
         # type: (str, float, Optional[int]) -> None
         """Adjust volume up/down by delta, clamped to [MIN, MAX].
         pool_index targets one pool; None = entry-level."""
-        entry = _cue.markers.get(trigger_key)
+        entry = self._store.get(trigger_key)
         if entry is None:
             return
         current = self.get(entry, trigger_key, pool_index)
@@ -77,7 +90,7 @@ class CueVolumeManager(object):
     def get_master(self, trigger_key):
         # type: (str) -> float
         """Entry-level master volume for a key. Returns VOL_DEFAULT if unset."""
-        entry = _cue.markers.get(trigger_key)
+        entry = self._store.get(trigger_key)
         if entry is None:
             return self.VOL_DEFAULT
         return entry.get("volume", self.VOL_DEFAULT)
@@ -86,12 +99,12 @@ class CueVolumeManager(object):
         # type: (str, float) -> None
         """Set entry-level master volume (clamped, persisted).
         Writes entry["volume"] directly so it works for all key types."""
-        entry = _cue.markers.get(trigger_key)
+        entry = self._store.get(trigger_key)
         if entry is None:
             return
         new_vol = max(self.VOL_MIN, min(self.VOL_MAX, round(value, 1)))
         entry["volume"] = new_vol
-        _cue.markers.save_marker(trigger_key)
+        self._store.save_marker(trigger_key)
         renpy.restart_interaction()
 
     def adjust_master(self, trigger_key, delta):
@@ -116,10 +129,10 @@ class CueVolumeManager(object):
         if pools:
             idx = pool_index
             if 0 <= idx < len(pools):
-                resolved = _cue.markers.resolve_pool(pools[idx])
+                resolved = self._store.resolve_pool(pools[idx])
                 return max(self.VOL_MIN, min(self.VOL_MAX, master * resolved.volume))
             if pools:
-                resolved = _cue.markers.resolve_pool(pools[0])
+                resolved = self._store.resolve_pool(pools[0])
                 return max(self.VOL_MIN, min(self.VOL_MAX, master * resolved.volume))
         return master
 
@@ -128,10 +141,10 @@ class CueVolumeManager(object):
     def adjust_video(self, delta):
         # type: (float) -> None
         """Adjust volume on the active video pool."""
-        vid_key = create_vid_key(_cue.current_file)
-        entry = _cue.markers.get(vid_key)
+        vid_key = create_vid_key(self._ctx.current_file)
+        entry = self._store.get(vid_key)
         if entry is None:
             return
-        pi = _cue.markers.video.target_pool
+        pi = (self._markers if self._markers is not None else _cue.markers).video.target_pool
         current = self.get(entry, vid_key, pool_index=pi)
         self.write(vid_key, current + delta, pool_index=pi)

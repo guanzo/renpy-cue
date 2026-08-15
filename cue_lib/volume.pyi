@@ -2,13 +2,23 @@
 from typing import Optional
 
 from cue_lib._types import MarkerEntry
+from cue_lib.marker_store import CueMarkerStore
+from cue_lib.state import CueContext
+from cue_lib.markers import CueMarkerManager
 
 class CueVolumeManager:
     VOL_MIN: float
     VOL_DEFAULT: float
     VOL_MAX: float
+    _store: CueMarkerStore
+    _ctx: CueContext
+    _markers: Optional[CueMarkerManager]
 
-    def __init__(self) -> None: ...
+    def __init__(
+        self,
+        store: CueMarkerStore,
+        ctx: CueContext,
+        markers: Optional[CueMarkerManager] = None) -> None: ...
     def get(
         self,
         entry: Optional[MarkerEntry],

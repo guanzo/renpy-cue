@@ -153,13 +153,15 @@ init -900 python:
     _cue.marker_store = CueMarkerStore(
         _cue.db, _cue.paths, lambda: _cue.undo.capture())
     _cue.markers = CueMarkerManager(_cue.marker_store)
-    _cue.undo = CueUndoManager()
     _cue.trigger = CueTriggerEngine()
     _cue.vid_manager = CueVideoManager(_cue.ctx)
-    _cue.volume = CueVolumeManager()
+    _cue.volume = CueVolumeManager(_cue.marker_store, _cue.ctx)
     _cue.repeater = CueMarkerRepeater()
     _cue.ffmpeg = CueFFmpeg()
     _cue.video_editor = CueVideoEditor()
+    # undo takes the video editor (for post-restore UI refresh); both are
+    # referenced only at call time by the store's on_save lambda above.
+    _cue.undo = CueUndoManager(_cue.marker_store, _cue.ctx, _cue.video_editor)
     _cue.speed_resolver = CueVidSpeedResolver()
     _cue.video_sequence = CueVidSpeedSequence()
     _cue.speed_toast = CueSpeedToast()
@@ -170,7 +172,7 @@ init -900 python:
     _cue.confirm_dialog = CueConfirmDialog()
     _cue.keybinds = CueKeybindsManager(_cue.db)
     _cue.icons = CueIconManager(_cue.paths)
-    _cue.music = CueMusicManager()
+    _cue.music = CueMusicManager(_cue.marker_store, _cue.ctx, _cue.db, _cue.paths)
 
 
 init 999 python:

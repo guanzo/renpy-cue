@@ -4,6 +4,10 @@ from typing import Any, Dict, List, Optional, Tuple
 from cue_lib._types import DefaultMusicTrigger
 from cue_lib.audio.user_music import CueUserMusic
 from cue_lib.audio.game_music import CueGameMusic
+from cue_lib.marker_store import CueMarkerStore
+from cue_lib.state import CueContext
+from cue_lib.db import CueDatabase
+from cue_lib.paths import CuePaths
 
 class CueMusicManager:
     _is_installed: bool
@@ -18,8 +22,17 @@ class CueMusicManager:
     expanded_file_refs: Dict[str, bool]
     user_music: CueUserMusic
     game_music: CueGameMusic
+    _store: CueMarkerStore
+    _ctx: CueContext
+    _db: CueDatabase
+    _paths: CuePaths
 
-    def __init__(self) -> None: ...
+    def __init__(
+        self,
+        store: CueMarkerStore,
+        ctx: CueContext,
+        db: CueDatabase,
+        paths: CuePaths) -> None: ...
     def install(self) -> None: ...
     def play_untracked(self, full_path: str, volume: float = 1.0) -> None: ...
     def now_playing(self) -> Optional[str]: ...

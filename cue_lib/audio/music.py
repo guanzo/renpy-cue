@@ -15,8 +15,12 @@ from cue_lib.util import _cue_log, _cue_strip_key_prefix, _cue_ui_refresh, creat
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List, Optional, Tuple
+    from typing import Any, Dict, List, Optional, Tuple  # pyright: ignore[reportUnusedImport]
     from cue_lib._types import DefaultMusicTrigger
+    from cue_lib.marker_store import CueMarkerStore
+    from cue_lib.state import CueContext
+    from cue_lib.db import CueDatabase
+    from cue_lib.paths import CuePaths
 
 CUE_DEFAULT_MUSIC_CHANNEL = "music"
 
@@ -47,7 +51,12 @@ class CueMusicManager(object):
     self.last_event and logs it (debug mode only); other channels are
     forwarded untouched."""
 
-    def __init__(self):
+    def __init__(self, store, ctx, db, paths):
+        # type: (CueMarkerStore, CueContext, CueDatabase, CuePaths) -> None
+        self._store = store
+        self._ctx = ctx
+        self._db = db
+        self._paths = paths
         self._is_installed = False
         self.last_event = None  # type: Optional[Dict[str, Any]]
         # replay_label -> [DefaultMusicTrigger, ...]  (mirror)
@@ -116,7 +125,7 @@ class CueMusicManager(object):
             return None
         if not path:
             return None
-        root = _cue.paths.root
+        root = self._paths.root
         if path.startswith(root):
             path = path[len(root):].lstrip("/")
         return path
@@ -207,7 +216,7 @@ class CueMusicManager(object):
     def load_triggers(self):
         # type: () -> None
         """Load the default music trigger log from disk into the mirror."""
-        self._triggers = _cue.db.load_default_music_triggers()
+        self._triggers = self._db.load_default_music_triggers()
 
     def triggers_for(self, replay_id):
         # type: (Optional[str]) -> List[DefaultMusicTrigger]
@@ -218,11 +227,11 @@ class CueMusicManager(object):
     def _current_scene_key(self):
         # type: () -> str
         """i_/v_ key of the scene currently on screen ("" if none)."""
-        if not _cue.current_file:
+        if not self._ctx.current_file:
             return ""
-        if _cue.top_layer_type == "movie":
-            return create_vid_key(_cue.current_file)
-        return create_img_key(_cue.current_file)
+        if self._ctx.top_layer_type == "movie":
+            return create_vid_key(self._ctx.current_file)
+        return create_img_key(self._ctx.current_file)
 
     def _record_default_trigger(self, filenames, in_replay):
         # type: (Any, Any) -> None
@@ -235,7 +244,7 @@ class CueMusicManager(object):
         unrelated replay entries are never clobbered.
 
         Rollback/roll-forward is skipped: it only re-executes statements that
-        already played (and were recorded) forward, and _cue.current_file is
+        already played (and were recorded) forward, and self._ctx.current_file is
         NoRollback so the anchor would be computed from drifted state anyway.
         """
         if not in_replay or renpy.in_rollback():
@@ -246,7 +255,7 @@ class CueMusicManager(object):
             filenames = filenames[0]
 
         path = str(filenames).replace("\\", "/")
-        if not path or not _cue.current_file:
+        if not path or not self._ctx.current_file:
             return
         key_before = self._current_scene_key()
         if not key_before:
@@ -261,7 +270,7 @@ class CueMusicManager(object):
             items.append({"key_before": key_before, "filepath": path})
 
         self._pending = {"replay_id": in_replay, "key_before": key_before, "filepath": path}
-        _cue.db.update_default_music_triggers(in_replay, key_before, path)
+        self._db.update_default_music_triggers(in_replay, key_before, path)
 
     def capture_display(self):
         # type: () -> None
@@ -287,7 +296,7 @@ class CueMusicManager(object):
             if item["key_before"] == pending["key_before"]:
                 item["key_after"] = key_after
                 break
-        _cue.db.update_default_music_triggers(
+        self._db.update_default_music_triggers(
             pending["replay_id"], pending["key_before"], pending["filepath"], key_after)
 
     # ------------------------------------------------------------------
@@ -324,7 +333,7 @@ class CueMusicManager(object):
         for trig in self._triggers.get(replay_id or "", []):
             if trig.get("key_after") == key or trig.get("key_before") == key:
                 return True
-        entry = _cue.markers.get(key)
+        entry = self._store.get(key)
         return (
             entry is not None
             and entry.get("music") is not None
@@ -354,12 +363,12 @@ class CueMusicManager(object):
         The trigger is real and persists even while empty -- it appears
         immediately with an empty song list, and the tree "+" buttons add
         to it.  Deleting it entirely is delete_trigger()'s job."""
-        if not _cue.current_file:
+        if not self._ctx.current_file:
             return
         key = self._current_scene_key()
-        entry = _cue.markers._get_or_create_entry(key)
+        entry = self._store._get_or_create_entry(key)
         entry.setdefault("music", [])
-        _cue.markers.save_marker(key)
+        self._store.save_marker(key)
         self.selected_key = key
 
     def default_path_for(self, key):
@@ -445,12 +454,12 @@ class CueMusicManager(object):
         if tag == CUE_MUSIC_USER_TAG:
             if path.startswith(CUE_MUSIC_PREFIX):
                 path = path[len(CUE_MUSIC_PREFIX):]
-            return _cue.paths.music_dir + path
+            return self._paths.music_dir + path
         if tag == CUE_MUSIC_GAME_TAG:
             return path
         # Legacy untagged entry -- probe the disk to tell user from game.
-        root = _cue.paths.root
-        music_dir = _cue.paths.music_dir
+        root = self._paths.root
+        music_dir = self._paths.music_dir
         root_prefix = root.rstrip("/") + "/"
         if stored.startswith(root_prefix):
             stored = stored[len(root_prefix):]
@@ -469,7 +478,7 @@ class CueMusicManager(object):
         """Compose the playable music pool for a scene: the recorded default
         (unless disabled) plus the user-added custom songs, each resolved to
         a playable path.  Customization applies globally, across replays."""
-        entry = _cue.markers.get(scene_key)
+        entry = self._store.get(scene_key)
         default_path = self.default_path_for(scene_key)
         pool = []
         if default_path and not (entry and entry.get("music_default_disabled")):
@@ -513,14 +522,14 @@ class CueMusicManager(object):
         key = self.selected_key
         if not key:
             return
-        entry = _cue.markers._get_or_create_entry(key)
+        entry = self._store._get_or_create_entry(key)
         music = entry.setdefault("music", [])
         is_first_song = not music
         if ref not in music:
             music.append(ref)
         if is_first_song and self.default_path_for(key) and not entry.get("music_default_disabled"):
             entry["music_default_disabled"] = True
-        _cue.markers.save_marker(key)
+        self._store.save_marker(key)
 
     @_cue_ui_refresh
     def remove_song_from_trigger(self, key, path):
@@ -531,14 +540,14 @@ class CueMusicManager(object):
         list -- an empty trigger is a legal state (it plays its
         default, or nothing if disabled).  delete_trigger() removes the
         whole trigger."""
-        entry = _cue.markers.get(key)
+        entry = self._store.get(key)
         if entry is None:
             return
         music = entry.get("music")
         if not music or path not in music:
             return
         music.remove(path)
-        _cue.markers.save_marker(key)
+        self._store.save_marker(key)
 
     @_cue_ui_refresh
     def toggle_file_ref_expand(self, folder_ref):
@@ -557,7 +566,7 @@ class CueMusicManager(object):
         The folder ref is materialized into an explicit list of its remaining
         files (mirroring SFX _detach_folder_ref_in_files), so removing a child
         converts the folder ref into concrete entries minus that child."""
-        entry = _cue.markers.get(key)
+        entry = self._store.get(key)
         if entry is None:
             return
         music = entry.get("music")
@@ -573,15 +582,15 @@ class CueMusicManager(object):
         if tag:
             resolved = [tag + f for f in resolved]
         music[file_index:file_index + 1] = resolved
-        _cue.markers.save_marker(key)
+        self._store.save_marker(key)
 
     @_cue_ui_refresh
     def toggle_default(self, key):
         # type: (str) -> None
         """Flip whether the recorded default music plays for a scene."""
-        entry = _cue.markers._get_or_create_entry(key)
+        entry = self._store._get_or_create_entry(key)
         entry["music_default_disabled"] = not entry.get("music_default_disabled", False)
-        _cue.markers.save_marker(key)
+        self._store.save_marker(key)
 
     @_cue_ui_refresh
     def delete_trigger(self, key):
@@ -592,7 +601,7 @@ class CueMusicManager(object):
         Only the music fields are removed -- the marker's other pools (SFX,
         video) are untouched -- so a default trigger simply reverts to
         playing its recorded default."""
-        entry = _cue.markers.get(key)
+        entry = self._store.get(key)
         if entry is None:
             return
         entry.pop("music", None)
@@ -602,7 +611,7 @@ class CueMusicManager(object):
             # Forget the anchor so the next render re-auto-selects whatever
             # trigger the current scene still has (if the scene keeps one).
             self._last_auto_scene = None
-        _cue.markers.save_marker(key)
+        self._store.save_marker(key)
 
     def triggers(self):
         # type: () -> List[Dict[str, Any]]
@@ -626,7 +635,7 @@ class CueMusicManager(object):
             if not key or key in seen:
                 continue
             seen.add(key)
-            entry = _cue.markers.get(key) or {}
+            entry = self._store.get(key) or {}
             result.append({
                 "key": key,
                 "label": _cue_strip_key_prefix(key),
@@ -641,7 +650,7 @@ class CueMusicManager(object):
         # empty list still counts -- empty triggers are legal); list those
         # belonging to the current replay (skipping keys already shown as
         # default triggers) so the list stays replay-scoped.
-        for key, entry in _cue.markers.items():
+        for key, entry in self._store.items():
             if key in seen:
                 continue
             if entry.get("music") is None:
@@ -675,7 +684,7 @@ class CueMusicManager(object):
         if trig is None:
             return None
         key_after = trig.get("key_after") or key_before
-        entry = _cue.markers.get(key_after)
+        entry = self._store.get(key_after)
         if entry is None or (entry.get("music") is None and not entry.get("music_default_disabled")):
             return None
         pool = self.music_pool_for(key_after)
