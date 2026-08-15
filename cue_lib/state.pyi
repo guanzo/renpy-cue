@@ -45,6 +45,7 @@ class Cue:
     overlay_active_page: int
     collapsed_sections: Dict[str, bool]
     sfx_library_overlay_mode: bool
+    ctx: CueContext
     current_file: str
     current_dialogue: str
     prev_dialogue: str

@@ -165,15 +165,15 @@ def _cue_refresh_context():
     old_layer_type = _cue.top_layer_type
 
     if renpy.get_screen("say") is None:
-        _cue.current_dialogue = ""
-        _cue.prev_dialogue = ""
+        _cue.ctx.current_dialogue = ""
+        _cue.ctx.prev_dialogue = ""
 
     top_name, top_type, top_d = _cue_get_top_layer()
     if top_name is None:
         return
 
-    _cue.current_file = top_name
-    _cue.top_layer_type = top_type
+    _cue.ctx.current_file = top_name
+    _cue.ctx.top_layer_type = top_type
     _cue.top_displayable = top_d
     # The scene batch has now landed, so current_file is the settled scene --
     # the right moment to stamp key_after for any music that just played.

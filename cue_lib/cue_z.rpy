@@ -249,11 +249,11 @@ init 999 python:
         # detection now lives in start_interact_callbacks below).
         def _cue_char_callback(event, interact=True, **kwargs):
             if event == "show":
-                _cue.prev_dialogue = _cue.current_dialogue
-                _cue.current_dialogue = getattr(store, '_last_say_what', '')
+                _cue.ctx.prev_dialogue = _cue.ctx.current_dialogue
+                _cue.ctx.current_dialogue = getattr(store, '_last_say_what', '')
             elif event == "end":
-                _cue.prev_dialogue = _cue.current_dialogue
-                _cue.current_dialogue = ""
+                _cue.ctx.prev_dialogue = _cue.ctx.current_dialogue
+                _cue.ctx.current_dialogue = ""
 
         config.all_character_callbacks.append(_cue_char_callback)
 

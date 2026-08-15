@@ -42,10 +42,7 @@ class Cue(_renpy_python.NoRollback):
         self.overlay_active_page = CuePage.SFX
         self.collapsed_sections = {}       # section_name -> bool (cue_section_frame)
         self.sfx_library_overlay_mode = False  # SFX Library section floats at 50% height
-        self.current_file = ""
-        self.current_dialogue = ""
-        self.prev_dialogue = ""
-        self.top_layer_type = ""
+        self.ctx = CueContext()          # per-frame scene state (current_file, dialogue, top layer)
         self.top_displayable = None
         self.setup_dir_text = ""      # text bound to the Shared Dir input
         self.shared_dir_error = ""    # error line under the Shared Dir input
@@ -88,6 +85,55 @@ class Cue(_renpy_python.NoRollback):
         self._vtl_screen_y = 0
         self._chart_screen_x = 0
         self._chart_screen_y = 0
+
+    # ------------------------------------------------------------------
+    # Scene state (read-through to ctx)
+    #
+    # The per-frame scene values now live on _cue.ctx.  These properties
+    # keep the 80+ legacy `_cue.current_file` readers/writers working
+    # without touching them.  Producers in runtime.py/cue_z.rpy write the
+    # context directly; everyone else reads through these.
+    # ------------------------------------------------------------------
+
+    @property
+    def current_file(self):
+        # type: () -> str
+        return self.ctx.current_file
+
+    @current_file.setter
+    def current_file(self, value):
+        # type: (str) -> None
+        self.ctx.current_file = value
+
+    @property
+    def current_dialogue(self):
+        # type: () -> str
+        return self.ctx.current_dialogue
+
+    @current_dialogue.setter
+    def current_dialogue(self, value):
+        # type: (str) -> None
+        self.ctx.current_dialogue = value
+
+    @property
+    def prev_dialogue(self):
+        # type: () -> str
+        return self.ctx.prev_dialogue
+
+    @prev_dialogue.setter
+    def prev_dialogue(self, value):
+        # type: (str) -> None
+        self.ctx.prev_dialogue = value
+
+    @property
+    def top_layer_type(self):
+        # type: () -> str
+        return self.ctx.top_layer_type
+
+    @top_layer_type.setter
+    def top_layer_type(self, value):
+        # type: (str) -> None
+        self.ctx.top_layer_type = value
 
     # ------------------------------------------------------------------
     # Section frames (shared by all pages via cue_section_frame)
