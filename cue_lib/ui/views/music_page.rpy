@@ -72,6 +72,7 @@ screen cue_music_page():
 
         $ my_music_tt = "Add music files to\n{}".format(_cue.paths.music_dir)
         use cue_section_frame("My Music", tt=my_music_tt):
+            use cue_search_bar("_cue.music.user_music.search_query", _cue.music.user_music)
             use grow_and_scroll(200, max(int(0.30 * renpy.config.screen_height), 400)):
                 if not _cue.music.user_music.tree:
                     if _cue.music.user_music.scan_error:
@@ -84,6 +85,7 @@ screen cue_music_page():
 
         $ game_music_tt = "Game music is found with heuristics, this list may not be accurate."
         use cue_section_frame("Game Music", tt=game_music_tt):
+            use cue_search_bar("_cue.music.game_music.search_query", _cue.music.game_music)
             use grow_and_scroll(200, max(int(0.30 * renpy.config.screen_height), 400)):
                 if not _cue.music.game_music.tree:
                     if _cue.music.game_music.scan_error:
@@ -221,19 +223,25 @@ screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
 # My Music folder/file tree. Mirrors the SFX Library tree (cue_file_tree) but
 # each file row carries a play button plus an add-to-trigger "+" button.
 screen cue_music_tree():
-    use _cue_music_file_tree(
-        _cue.music.user_music.visible_tree,
-        _cue.music.add_user_folder_to_trigger,
-        _cue.music.user_music.toggle_folder,
-        _cue_preview_music,
-        _cue.music.add_user_song_to_trigger)
+    if _cue.music.user_music.search_query.strip() and not _cue.music.user_music.visible_tree:
+        text 'No files found for "{}".'.format(_cue.music.user_music.search_query) style "cue_txt"
+    else:
+        use _cue_music_file_tree(
+            _cue.music.user_music.visible_tree,
+            _cue.music.add_user_folder_to_trigger,
+            _cue.music.user_music.toggle_folder,
+            _cue_preview_music,
+            _cue.music.add_user_song_to_trigger)
 
 # Game Music folder/file tree. Lists the game's own bundled audio, discovered
 # from the virtual filesystem by dir-name heuristic.
 screen cue_game_music_tree():
-    use _cue_music_file_tree(
-        _cue.music.game_music.visible_tree,
-        _cue.music.add_game_folder_to_trigger,
-        _cue.music.game_music.toggle_folder,
-        _cue_preview_game_music,
-        _cue.music.add_game_song_to_trigger)
+    if _cue.music.game_music.search_query.strip() and not _cue.music.game_music.visible_tree:
+        text 'No files found for "{}".'.format(_cue.music.game_music.search_query) style "cue_txt"
+    else:
+        use _cue_music_file_tree(
+            _cue.music.game_music.visible_tree,
+            _cue.music.add_game_folder_to_trigger,
+            _cue.music.game_music.toggle_folder,
+            _cue_preview_game_music,
+            _cue.music.add_game_song_to_trigger)

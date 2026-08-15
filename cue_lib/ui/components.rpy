@@ -254,6 +254,21 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=80):
             SetLocalVariable("editing", True),
             xsize=xsize, ysize=16, tt="Click to edit. Press Enter to confirm.")
 
+# Search bar: live-in-name search for the audio-library file trees (SFX
+# Library, My Music, Game Music).  Built on cue_text_input: click to edit,
+# Enter to filter.  field_path is the _CueFieldValue dotted path to the
+# manager's search_query; manager supplies the rebuild/clear actions.  The
+# label shows the active query, or hint when empty; the xmark clears it.
+screen cue_search_bar(field_path, manager, hint="Search..."):
+    $ _q = manager.search_query
+    $ _label = _q if _q.strip() else hint
+    hbox:
+        spacing 6
+        xfill True
+        use cue_text_input(field_path, Function(manager.rebuild_tree), _label, xsize=160)
+        if _q.strip():
+            use cue_icon_btn("xmark", Function(manager.clear_search), "Clear search", None)
+
 # Pool tab row: optional Delete button, + Pool button, numbered tabs [1][2]...
 # tab_action_fn(tab_action_args..., pi) is called when tab pi is clicked.
 # delete_xsize/tab_xsize override the default button width (pass None for default).

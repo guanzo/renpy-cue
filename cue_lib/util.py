@@ -312,6 +312,54 @@ def _cue_build_tree(flat_files):
     return _build(root)
 
 
+def _cue_filter_tree(tree, query):
+    # type: (List[Dict[str, Any]], str) -> List[Dict[str, Any]]
+    """Build a filtered copy of a nested tree for a search query.
+
+    A file matches when every whitespace-separated term of the lowercased
+    query appears somewhere in the lowercased full path (so file-name,
+    folder-name, and multi-term searches all work).  A folder is kept when it
+    matches the query itself (keeping ALL its descendants) or when it has a
+    matching descendant (keeping only the matching branches).  Result nodes
+    mirror _cue_build_tree's shapes; folder nodes are new dicts, file leaves
+    are reused unchanged.  The source tree is never mutated, and ordering is
+    preserved -- nodes are only removed, never reordered.
+    """
+    query = query.strip()
+    if not query:
+        return []
+
+    terms = query.lower().split()
+
+    def _matches(path):
+        # type: (str) -> bool
+        path = path.lower()
+        return all(term in path for term in terms)
+
+    def _filter(items, prefix):
+        # type: (List[Dict[str, Any]], str) -> List[Dict[str, Any]]
+        result = []
+        for item in items:
+            full = prefix + item["name"]
+            if item["type"] == "file":
+                if _matches(full):
+                    result.append(item)
+            else:
+                folder_matches = _matches(full)
+                children = _filter(item.get("children", []), full)
+                if folder_matches or children:
+                    result.append({
+                        "type": "folder",
+                        "name": item["name"],
+                        "children": item.get("children", []) if folder_matches else children,
+                        "expanded": item.get("expanded", False),
+                        "has_files": item.get("has_files", False),
+                    })
+        return result
+
+    return _filter(tree, "")
+
+
 # --------------------------------------------------------------------------
 # Utility: Time Formatting
 # --------------------------------------------------------------------------

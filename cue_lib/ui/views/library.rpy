@@ -22,6 +22,7 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
             text ("Place {} files there "
                 "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_txt"
         else:
+            use cue_search_bar("_cue.sfx_manager.search_query", _cue.sfx_manager)
             use cue_sfx_library_content(_is_video, _has_image, _is_dialogue)
 
 screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
@@ -48,7 +49,10 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
             if _cue.sfx_manager.video_presets_expanded:
                 use cue_video_presets_list(_is_video, _has_image, _is_dialogue)
 
-            use cue_file_tree(_is_video, _has_image, _is_dialogue)
+            if _cue.sfx_manager.search_query.strip() and not _cue.sfx_manager.visible_tree:
+                text 'No files found for "{}".'.format(_cue.sfx_manager.search_query) style "cue_txt"
+            else:
+                use cue_file_tree(_is_video, _has_image, _is_dialogue)
 
 
 # Audio preset rows, shown when the Presets folder is expanded.

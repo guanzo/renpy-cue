@@ -10,7 +10,7 @@ import os
 import time
 
 from cue_lib.constants import CUE_AUDIO_EXTS
-from cue_lib.util import _cue_build_tree, _cue_log
+from cue_lib.util import _cue_build_tree, _cue_filter_tree, _cue_log
 
 MYPY = False
 if MYPY:
@@ -38,6 +38,7 @@ class CueAudioTreeManager(object):
         self.scan_error = ""        # non-empty only when the scan fails
         self.visible_tree = []      # flat, depth-annotated rows for the screen
         self.expanded_folders = {}  # folder_path -> bool
+        self.search_query = ""      # non-empty -> visible_tree is a filtered view
 
     # ------------------------------------------------------------------
     # Scanning
@@ -105,27 +106,52 @@ class CueAudioTreeManager(object):
     def rebuild_tree(self):
         # type: () -> None
         """Rebuild self.visible_tree from self.tree.
-        Only expanded folders are recursed into."""
+
+        With a search query set, self.tree is filtered (see _cue_filter_tree)
+        and every kept folder is force-expanded so all matches are visible;
+        otherwise only expanded folders are recursed into.  self.tree and
+        self.expanded_folders are never modified here, so clearing the search
+        restores the exact pre-search view."""
+        query = self.search_query.strip()
+
+        if query:
+            source = _cue_filter_tree(self.tree, query)
+            force_expand = True
+        else:
+            source = self.tree
+            force_expand = False
+
         result = []
-        self._walk_tree(self.tree, "", 0, result)
+        self._walk_tree(source, "", 0, result, force_expand)
         self.visible_tree = result
 
-    def _walk_tree(self, items, prefix, depth, result):
-        # type: (List[Dict[str, Any]], str, int, List[Dict[str, Any]]) -> None
-        """Recursively walk tree, only descending into expanded folders."""
+    def clear_search(self):
+        # type: () -> None
+        """Clear the search query and rebuild the full, unexpanded tree."""
+        if self.search_query:
+            self.search_query = ""
+            self.rebuild_tree()
+
+    def _walk_tree(self, items, prefix, depth, result, force_expand=False):
+        # type: (List[Dict[str, Any]], str, int, List[Dict[str, Any]], bool) -> None
+        """Recursively walk tree, only descending into expanded folders.
+
+        force_expand (search mode) treats every folder as expanded so all
+        filtered rows are produced; otherwise self.expanded_folders decides."""
         for item in items:
             full = prefix + item["name"]
             if item["type"] == "folder":
+                expanded = force_expand or self.expanded_folders.get(full, False)
                 result.append({
                     "type": "folder",
                     "name": item["name"],
                     "full_path": full,
                     "depth": depth,
-                    "expanded": self.expanded_folders.get(full, False),
+                    "expanded": expanded,
                     "has_files": item.get("has_files", False),
                 })
-                if self.expanded_folders.get(full, False):
-                    self._walk_tree(item.get("children", []), full, depth + 1, result)
+                if expanded:
+                    self._walk_tree(item.get("children", []), full, depth + 1, result, force_expand)
             else:
                 result.append(self._file_node(item, full, depth))
 
@@ -145,7 +171,13 @@ class CueAudioTreeManager(object):
 
     def toggle_folder(self, folder_path):
         # type: (str) -> None
-        """Toggle expand/collapse for a folder in the tree."""
+        """Toggle expand/collapse for a folder in the tree.
+
+        No-op while a search is active -- search results are always
+        auto-expanded, and toggling must not disturb the saved expansion
+        state that clear_search restores."""
+        if self.search_query.strip():
+            return
         if folder_path in self.expanded_folders:
             self.expanded_folders[folder_path] = not self.expanded_folders[folder_path]
         else:
