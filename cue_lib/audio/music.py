@@ -15,7 +15,7 @@ from cue_lib.util import _cue_log, _cue_strip_key_prefix, _cue_ui_refresh, creat
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List, Optional
+    from typing import Any, Dict, List, Optional, Tuple
     from cue_lib._types import DefaultMusicTrigger
 
 CUE_DEFAULT_MUSIC_CHANNEL = "music"
@@ -23,6 +23,14 @@ CUE_DEFAULT_MUSIC_CHANNEL = "music"
 # Sentinel from _pick_for_override: play nothing (default disabled with no
 # replacement songs).  Distinct from None (no override) and from a filepath.
 _SUPPRESS_MUSIC = object()
+
+# Source tags for refs stored in a trigger's music list.  My Music and Game
+# Music can both contain a "music/" folder, so a bare path is ambiguous.
+# The tag records which cache the ref was added from, so resolution never
+# has to probe the disk to tell them apart.  Tags are stripped before
+# display and before playing.
+CUE_MUSIC_USER_TAG = "u:"
+CUE_MUSIC_GAME_TAG = "g:"
 
 # True originals, cached once at module level so a Shift+R load_triggers (which
 # re-instantiates the manager but does NOT re-import this module) never
@@ -383,42 +391,69 @@ class CueMusicManager(object):
         # type: (List[str]) -> List[str]
         """Expand folder refs (trailing '/') to matching available files.
 
-        Music twin of _cue_resolve_files, but resolves against both the My
-        Music cache (root-relative, "music/"-prefixed) and the Game Music
-        cache (game-relative).  Direct refs pass through unchanged; results
-        are deduped."""
+        A tagged ref ("u:" My Music / "g:" Game Music) expands only against
+        that cache; an untagged legacy ref expands against both.  Direct refs
+        pass through unchanged; results are deduped."""
         result = []
         for item in files:
             if item.endswith("/"):
-                for f in self.user_music.files:
-                    if f.startswith(item) and f not in result:
-                        result.append(f)
-                for f in self.game_music.files:
-                    if f.startswith(item) and f not in result:
-                        result.append(f)
+                self._resolve_folder_ref(item, result)
             elif item not in result:
                 result.append(item)
         return result
+
+    def _resolve_folder_ref(self, folder_ref, result):
+        # type: (str, List[str]) -> None
+        """Expand a single folder ref into concrete file paths."""
+        tag, ref = self._split_ref_tag(folder_ref)
+        if tag == CUE_MUSIC_USER_TAG:
+            sources = [self.user_music.files]
+        elif tag == CUE_MUSIC_GAME_TAG:
+            sources = [self.game_music.files]
+        else:
+            # Legacy untagged ref -- ambiguous, match both caches.
+            sources = [self.user_music.files, self.game_music.files]
+        for files in sources:
+            for f in files:
+                if f.startswith(ref) and f not in result:
+                    result.append(f)
+
+    def _split_ref_tag(self, ref):
+        # type: (str) -> Tuple[Optional[str], str]
+        """Split a stored ref into (tag, path); tag is None if untagged."""
+        if ref.startswith(CUE_MUSIC_USER_TAG):
+            return CUE_MUSIC_USER_TAG, ref[len(CUE_MUSIC_USER_TAG):]
+        if ref.startswith(CUE_MUSIC_GAME_TAG):
+            return CUE_MUSIC_GAME_TAG, ref[len(CUE_MUSIC_GAME_TAG):]
+        return None, ref
+
+    def ref_path(self, ref):
+        # type: (str) -> str
+        """Stored ref without its source tag, for display."""
+        return self._split_ref_tag(ref)[1]
 
     def _resolve_music_path(self, stored):
         # type: (str) -> str
         """Turn a stored music entry into a playable path.
 
-        My Music files are stored relative to the shared root, prefixed with
-        "music/" ("music/Folder/song.ogg"); game-music files are stored
-        game-relative and play directly.  The two are told apart at resolve
-        time: a shared file exists on disk under the music dir, a game file
-        does not (it lives in the game's archive).  Legacy entries -- absolute
-        under the shared root, or relative to the music dir without the
-        "music/" prefix -- are normalized too."""
+        Tagged refs resolve by source: "u:" (My Music) is root-relative under
+        the shared music dir, "g:" (Game Music) is game-relative and plays
+        directly -- no disk check needed.  Untagged legacy refs fall back to
+        the on-disk probe: a shared file exists under the music dir, a game
+        file does not (it lives in the game's archive)."""
+        tag, path = self._split_ref_tag(stored)
+        if tag == CUE_MUSIC_USER_TAG:
+            if path.startswith(CUE_MUSIC_PREFIX):
+                path = path[len(CUE_MUSIC_PREFIX):]
+            return _cue.paths.music_dir + path
+        if tag == CUE_MUSIC_GAME_TAG:
+            return path
+        # Legacy untagged entry -- probe the disk to tell user from game.
         root = _cue.paths.root
         music_dir = _cue.paths.music_dir
         root_prefix = root.rstrip("/") + "/"
         if stored.startswith(root_prefix):
             stored = stored[len(root_prefix):]
-        # A game "music/..." path shares the user prefix, so probe the disk
-        # to tell them apart: user music exists under the music dir; a game
-        # file does not (it lives in the game's archive).
         candidates = []
         if stored.startswith(CUE_MUSIC_PREFIX):
             candidates.append(stored[len(CUE_MUSIC_PREFIX):])
@@ -447,25 +482,28 @@ class CueMusicManager(object):
         return pool
 
     @_cue_ui_refresh
-    def add_song_to_trigger(self, path):
+    def add_user_song_to_trigger(self, path):
         # type: (str) -> None
-        """Add a song to the selected trigger's music list.
-
-        My Music files are stored relative to the shared root ("music/...");
-        game-music files are stored game-relative.  Both play after
-        _resolve_music_path.  The first custom song auto-disables the recorded
-        default so the user's pick wins; it can be re-enabled via the
-        "Default:" toggle."""
-        self._add_ref_to_trigger(path)
+        """Add a My Music song to the selected trigger's music list."""
+        self._add_ref_to_trigger(CUE_MUSIC_USER_TAG + path)
 
     @_cue_ui_refresh
-    def add_folder_to_trigger(self, folder_path):
+    def add_game_song_to_trigger(self, path):
         # type: (str) -> None
-        """Add a whole folder (a trailing-'/' ref) to the selected trigger.
+        """Add a Game Music song to the selected trigger's music list."""
+        self._add_ref_to_trigger(CUE_MUSIC_GAME_TAG + path)
 
-        Mirrors the SFX add_folder: the ref is normalized to a trailing slash
-        so it is treated as a folder ref and expanded at play time."""
-        self._add_ref_to_trigger(folder_path.rstrip("/") + "/")
+    @_cue_ui_refresh
+    def add_user_folder_to_trigger(self, folder_path):
+        # type: (str) -> None
+        """Add a whole My Music folder (a trailing-'/' ref) to the trigger."""
+        self._add_ref_to_trigger(CUE_MUSIC_USER_TAG + folder_path.rstrip("/") + "/")
+
+    @_cue_ui_refresh
+    def add_game_folder_to_trigger(self, folder_path):
+        # type: (str) -> None
+        """Add a whole Game Music folder (a trailing-'/' ref) to the trigger."""
+        self._add_ref_to_trigger(CUE_MUSIC_GAME_TAG + folder_path.rstrip("/") + "/")
 
     def _add_ref_to_trigger(self, ref):
         # type: (str) -> None
@@ -528,9 +566,12 @@ class CueMusicManager(object):
         folder_ref = music[file_index]
         if not folder_ref.endswith("/"):
             return
+        tag, _ = self._split_ref_tag(folder_ref)
         resolved = self.resolve_music_files([folder_ref])
         if child_file in resolved:
             resolved.remove(child_file)
+        if tag:
+            resolved = [tag + f for f in resolved]
         music[file_index:file_index + 1] = resolved
         _cue.markers.save_marker(key)
 

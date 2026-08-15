@@ -124,6 +124,7 @@ screen trigger_list(triggers):
                         for _idx, _song in enumerate(trigger["songs"]):
                             if _song.endswith("/"):
                                 # Folder ref: expandable, count + detachable children.
+                                $ _song_path = _cue.music.ref_path(_song)
                                 $ _folder_expanded = _cue.music.expanded_file_refs.get(_song, False)
                                 $ _folder_files = _cue.music.resolve_music_files([_song])
                                 hbox:
@@ -137,7 +138,7 @@ screen trigger_list(triggers):
                                         "Remove folder from trigger",
                                         None)
                                     use cue_txt_button(
-                                        _song,
+                                        _song_path,
                                         Function(_cue.music.toggle_file_ref_expand, _song))
                                     text ("({} files)".format(len(_folder_files))) style "cue_help"
                                 if _folder_expanded:
@@ -154,7 +155,7 @@ screen trigger_list(triggers):
                                                     _child),
                                                 "Remove file from the folder",
                                                 None)
-                                            $ _child_display = _child[len(_song):]
+                                            $ _child_display = _child[len(_song_path):]
                                             text _child_display style "cue_txt"
                             else:
                                 $ _song_name = _song.rsplit("/", 1)[-1]
@@ -188,7 +189,7 @@ screen cue_music_tree():
                 if item["type"] == "folder":
                     use cue_icon_btn(
                         "plus",
-                        Function(_cue.music.add_folder_to_trigger, item["full_path"]),
+                        Function(_cue.music.add_user_folder_to_trigger, item["full_path"]),
                         _tree_add_folder_tt,
                         None,
                         enabled=_tree_add_enabled)
@@ -200,7 +201,7 @@ screen cue_music_tree():
                     use cue_icon_btn("play", Function(_cue_preview_music, item["full_path"]), "Play song", None)
                     use cue_icon_btn(
                         "plus",
-                        Function(_cue.music.add_song_to_trigger, item["full_path"]),
+                        Function(_cue.music.add_user_song_to_trigger, item["full_path"]),
                         _tree_add_tt,
                         None,
                         enabled=_tree_add_enabled)
@@ -223,7 +224,7 @@ screen cue_game_music_tree():
                 if item["type"] == "folder":
                     use cue_icon_btn(
                         "plus",
-                        Function(_cue.music.add_folder_to_trigger, item["full_path"]),
+                        Function(_cue.music.add_game_folder_to_trigger, item["full_path"]),
                         _game_add_folder_tt,
                         None,
                         enabled=_game_add_enabled)
@@ -240,7 +241,7 @@ screen cue_game_music_tree():
                     )
                     use cue_icon_btn(
                         "plus",
-                        Function(_cue.music.add_song_to_trigger, item["full_path"]),
+                        Function(_cue.music.add_game_song_to_trigger, item["full_path"]),
                         _game_add_tt,
                         None,
                         enabled=_game_add_enabled)
