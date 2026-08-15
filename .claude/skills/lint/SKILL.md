@@ -9,40 +9,33 @@ Run pyright and the 120-char line-length check on `cue_lib/` and `tests/` and
 report ALL diagnostics. Every diagnostic must either be fixed or suppressed
 with a `# pyright: ignore[rule]` comment.
 
-## Command 1: pyright
+## Command
 
 ```bash
-pyright cue_lib/ tests/ --outputjson 2>/dev/null | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-count=0
-for diag in d.get('generalDiagnostics',[]):
-    count+=1
-    print('{}:{}: {}'.format(diag.get('file','?'),diag.get('range',{}).get('start',{}).get('line','?'),diag.get('message','')))
-for f in d.get('diagnostics',[]):
-    for diag in f.get('diagnostics',[]):
-        count+=1
-        print('{}:{}: {}'.format(f.get('file','?'),diag.get('range',{}).get('start',{}).get('line','?'),diag.get('message','')))
-if count==0:
-    print('CLEAN')
-"
+bin/lint.sh
 ```
 
-## Command 2: line length (120 chars)
+The checks live in `bin/lint.sh` -- the single source of truth shared with
+CI, so the two callers can't drift apart. It runs pyright plus the 120-char
+line-length check and prints every finding.
 
-```bash
-find cue_lib tests \( -name '*.py' -o -name '*.rpy' -o -name '*.pyi' \) -print0 \
-  | xargs -0 awk 'length($0) > 120 && $0 !~ /^[[:space:]]*# type:/ \
-      && $0 !~ /# pyright: ignore/ \
-      {printf "%s:%d: %d chars\n", FILENAME, FNR, length($0)}'
-```
+**/lint is CLEAN only when `bin/lint.sh` exits 0 and prints `CLEAN`.** It
+exits 1 and prints each `file:line: message` otherwise. (The raw pyright/awk
+commands always exit 0 -- that's exactly why the script aggregates and
+exits nonzero, and why both CI and this skill call the script rather than
+inlining the commands.)
 
-No output means no violations. `# type:` comment lines are exempt -- a
-comment cannot be wrapped. Lines carrying a `# pyright: ignore` comment are
-also exempt -- see rule 5 below.
+How the script maps to the two checks:
 
-**/lint is CLEAN only when Command 1 prints `CLEAN` and Command 2 prints
-nothing.**
+1. **pyright**: `pyright cue_lib/ tests/ --outputjson 2>/dev/null`, with the
+   JSON parsed as `file:line: message`. Prints `CLEAN` when there are zero
+   diagnostics. Missing `pyright` on PATH is a hard failure (exit 1), not a
+   silent pass.
+2. **line length (120 chars)**: `find cue_lib tests \( -name '*.py' -o
+   -name '*.rpy' -o -name '*.pyi' \)` piped through awk, reporting lines over
+   120 chars. `# type:` comment lines are exempt -- a comment cannot be
+   wrapped. Lines carrying a `# pyright: ignore` comment are also exempt --
+   see rule 5 below.
 
 ## Reformatting lines over 120 chars
 
@@ -116,4 +109,4 @@ referenced by `.rpy` with a project-wide grep (`grep -r name cue_lib/`).
 | `reportUnusedImport` on `__init__.py` side-effect imports | Required for Ren'Py `import_all()` module discovery | `__init__.py` |
 | `reportUnusedImport` on `.pyi` re-exports | Stub imports exist so consumers can import from the module | `state.pyi`, `ui_logic.pyi`, etc. |
 | `reportArgumentType` / `reportGeneralTypeIssues` on `PoolDict` | `PoolDict(total=False)` is a catch-all; video pools have `time` but flow through PoolDict APIs; TypedDict literals can't narrow via `# type:` comments | `repeater.py`, `trigger.py` |
-| `reportAttributeAccessIssue` / `reportArgumentType` in `tests/` | White-box tests deliberately poke private or duck-typed seams (`_mgr`, `_key`, `FakeManager`, private methods) against the `.pyi` production contract. Suppress inline -- this is expected, not a production-style failure | `tests/test_markers_context.py`, `tests/fakes.py` |
+| `reportAttributeAccessIssue` / `reportArgumentType` in `tests/` | White-box tests deliberately poke private or duck-typed seams (`_mgr`, `_key`, `FakeManager`, private methods) against the `.pyi` production contract. Suppress inline -- this is expected, not a production-style failure | `tests/test_markers_context.py`, `tests/fakes.py`, `tests/test_marker_store.py`, `tests/test_undo.py` |

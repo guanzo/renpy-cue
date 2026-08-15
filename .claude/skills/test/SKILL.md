@@ -11,23 +11,29 @@ Run the full test suite in the poetry venv and report the result. Run after
 ## Command
 
 ```bash
-poetry run pytest tests/ -q
+bin/test.sh
 ```
 
-`-q` prints a per-file progress line. Drop `-q` for the verbose failure dump
-when a test is failing.
+Runs `poetry run pytest tests/ -q` -- the same command CI invokes
+(`bin/test.sh` is the single source of truth shared with the GitHub Actions
+workflow, so the two can't drift apart). It exits through pytest's exit code.
 
-**/test passes when every test passes and nothing is written into the repo
-root.**
+**/test passes when `bin/test.sh` exits 0, every test passes, and nothing is
+written into the repo root.**
+
+`-q` prints a per-file progress line. If a test is failing, run the verbose
+dump yourself (`poetry run pytest tests/ -q -x`, or drop `-q`) for the full
+traceback.
 
 ## Expected output
 
 A progress line, then a summary:
 
 ```
-........................................................................ [ 85%]
-............                                                             [100%]
-84 passed in 1.03s
+........................................................................ [ 41%]
+........................................................................ [ 83%]
+.............................                                            [100%]
+173 passed in 2.13s
 ```
 
 ## On failure
