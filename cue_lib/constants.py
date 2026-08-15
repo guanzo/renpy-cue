@@ -72,6 +72,12 @@ CUE_GAME_MUSIC_DIRS = ("music", "bgm", "ost", "soundtrack")
 # back to an absolute file.  A single constant so the two never drift.
 CUE_MUSIC_PREFIX = "music/"
 
+# Default pool / preset volume (1.0 = identity).  Shared by the marker store,
+# volume manager, trigger, and repeater -- was CueVolumeManager.VOL_DEFAULT
+# before the marker data layer was extracted.  CueVolumeManager.VOL_DEFAULT
+# still aliases this so legacy _cue.volume.VOL_DEFAULT references keep working.
+CUE_VOLUME_DEFAULT = 1.0
+
 # Popper displayable defaults — distance from anchor and viewport edge clearance.
 CUE_POPPER_DEFAULT_OFFSET = 5
 CUE_POPPER_DEFAULT_MARGIN = 8
@@ -101,3 +107,37 @@ CUE_DIR_OVERRIDE_FILENAME = "dir.txt"
 # Shared-config JSON file inside the shared data/ tree (disabled_files,
 # keybinds).  Lives at {shared}/data/cue_config.json.
 CUE_SHARED_CONFIG_FILENAME = "cue_config.json"
+
+
+# =========================================================================
+# Flat enum classes -- plain-int members so screens can compare against
+# stored ints (Python 2.7-safe, no enum base class).  Moved here so the
+# marker data layer (cue_lib.marker_store) can use them without importing
+# back into the modules that define the coordinators.
+# =========================================================================
+
+class CueExclusiveStart(object):
+    """Exclusive 'start' behavior values (exclusive.start)."""
+    PLAY = 0   # start immediately, overlapping whatever is playing
+    FADE = 1   # cross-fade out non-group SFX, then play
+    WAIT = 2   # wait until no non-group SFX is playing (loops only)
+
+
+class CueLoopFrequency(object):
+    """Loop SFX interval presets. Values match CueLoopContext.get_delay()."""
+    SLOWEST = 4   # ~6.3s
+    SLOW = 0      # ~3.8s
+    NORMAL = 1    # ~2.1s
+    FAST = 2      # ~0.6s
+    FASTEST = 3   # ~0.2s
+
+
+class CuePage(object):
+    """Overlay sidebar page tabs.
+
+    Members are plain ints so screens can compare against _cue.overlay_active_page
+    (Python 2.7-safe -- no enum base class).
+    """
+    SFX = 0       # SFX editor (markers / library)
+    MUSIC = 1     # Music page
+    SETTINGS = 2  # Settings page

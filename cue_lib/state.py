@@ -11,16 +11,7 @@
 import renpy
 import renpy.python as _renpy_python
 
-
-class CuePage(object):
-    """Overlay sidebar page tabs.
-
-    Members are plain ints so screens can compare against _cue.overlay_active_page
-    (Python 2.7-safe -- no enum base class).
-    """
-    SFX = 0       # SFX editor (markers / library)
-    MUSIC = 1     # Music page
-    SETTINGS = 2  # Settings page
+from cue_lib.constants import CuePage  # re-exported: consumers import it from cue_lib.state
 
 
 class CueContext(object):

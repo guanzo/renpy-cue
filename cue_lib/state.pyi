@@ -4,6 +4,7 @@ from cue_lib.video.repeater import CueMarkerRepeater
 from cue_lib.video.ffmpeg import CueFFmpeg
 from cue_lib.audio.sfx_manager import CueSfxManager
 from cue_lib.markers import CueMarkerManager
+from cue_lib.marker_store import CueMarkerStore
 from cue_lib._types import (
     MarkerEntry, PoolDict, UndoSnapshot, VideoPreset,  # pyright: ignore[reportUnusedImport]
 )
@@ -20,11 +21,7 @@ from cue_lib.audio.music import CueMusicManager
 from cue_lib.keybinds import CueKeybindsManager
 from cue_lib.ui.icons import CueIconManager
 from cue_lib.paths import CuePaths
-
-class CuePage:
-    SFX: int
-    MUSIC: int
-    SETTINGS: int
+from cue_lib.constants import CuePage  # pyright: ignore[reportUnusedImport]  # re-exported from constants
 
 
 class CueContext:
@@ -58,6 +55,7 @@ class Cue:
 
     db: CueDatabase
     paths: CuePaths
+    marker_store: CueMarkerStore
     markers: CueMarkerManager
     undo: CueUndoManager
     trigger: CueTriggerEngine

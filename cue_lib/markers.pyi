@@ -5,6 +5,21 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 # in the source). Declared as Any so tests can monkeypatch it.
 _random: Any
 
+# Re-exported from their canonical homes: enum classes live in
+# cue_lib.constants, the data layer + resolve snapshots in cue_lib.marker_store.
+# Consumers (screens, trigger.py, tests) import them from cue_lib.markers.
+# The `as X` form is pyright's explicit re-export -- plain imports from a stub
+# are not re-exported when implicitReexport is off.
+from cue_lib.constants import (
+    CueExclusiveStart as CueExclusiveStart,
+    CueLoopFrequency as CueLoopFrequency,
+)
+from cue_lib.marker_store import (
+    CueMarkerStore as CueMarkerStore,
+    ResolvedExclusive as ResolvedExclusive,
+    ResolvedPool as ResolvedPool,
+)
+
 # All TypedDicts are defined in cue_lib._types (the single canonical source)
 # and re-exported here for consumers that import from cue_lib.markers.
 from cue_lib._types import (
@@ -14,39 +29,6 @@ from cue_lib._types import (
     VideoPoolDict,
     VideoPreset,
 )
-
-
-# =========================================================================
-# ResolvedPool
-# =========================================================================
-
-class CueExclusiveStart:
-    PLAY: int  # 0 -- start immediately, overlapping whatever is playing
-    FADE: int  # 1 -- cross-fade out non-group SFX, then play
-    WAIT: int  # 2 -- wait until no non-group SFX is playing (loops only)
-
-class ResolvedExclusive:
-    """Resolved exclusive config snapshot. group 0 = Off."""
-    group: int
-    start: int
-    hold: bool
-    def __init__(self, group: int = 0, start: int = CueExclusiveStart.PLAY, hold: bool = False) -> None: ...
-    def to_dict(self) -> Dict[str, Any]: ...
-
-class ResolvedPool:
-    """Immutable pool snapshot after resolving presets."""
-    files: List[str]
-    volume: float
-    frequency: int
-    trigger_on_shake: bool
-    exclusive: ResolvedExclusive
-    def __init__(
-        self,
-        files: List[str],
-        volume: float,
-        frequency: int,
-        trigger_on_shake: bool,
-        exclusive: Optional[ResolvedExclusive] = None) -> None: ...
 
 
 # =========================================================================
@@ -114,13 +96,6 @@ class CueVideoContext(CueMarkerContext):
     def set_time(self, idx: int, new_time: float) -> None: ...
     def sync_text(self) -> None: ...
 
-class CueLoopFrequency(object):
-    SLOWEST: int  # 4, ~6.3s
-    SLOW: int     # 0, ~3.8s
-    NORMAL: int   # 1, ~2.1s
-    FAST: int     # 2, ~0.6s
-    FASTEST: int  # 3, ~0.2s
-
 class CueLoopContext(CueMarkerContext):
     def __init__(self, manager: "CueMarkerManager") -> None: ...
     def add_pool(self) -> None: ...
@@ -142,7 +117,7 @@ class CueMarkerManager:
     loop: CueLoopContext
     clipboard: Optional[ClipboardData]
 
-    def __init__(self) -> None: ...
+    def __init__(self, store: CueMarkerStore) -> None: ...
     def get(self, key: str, default: Optional[MarkerEntry] = None) -> Optional[MarkerEntry]: ...
     def setdefault(self, key: str, default: MarkerEntry) -> MarkerEntry: ...
     def pop(self, key: str, *args: MarkerEntry) -> MarkerEntry: ...
@@ -184,16 +159,32 @@ class CueMarkerManager:
     def paste_context(self) -> None: ...
 
     # Internal (accessed within cue_lib package)
+    _store: CueMarkerStore
     _img_target: int
     _dlg_target: int
     _loop_target: int
-    _data: Dict[str, MarkerEntry]
-    _presets: Dict[str, PoolDict]
-    _video_presets: Dict[str, VideoPreset]
-    _session_created: Set[Tuple[str, str]]
+
+    @property
+    def _data(self) -> Dict[str, MarkerEntry]: ...
+    @_data.setter
+    def _data(self, value: Dict[str, MarkerEntry]) -> None: ...
+    @property
+    def _presets(self) -> Dict[str, PoolDict]: ...
+    @_presets.setter
+    def _presets(self, value: Dict[str, PoolDict]) -> None: ...
+    @property
+    def _video_presets(self) -> Dict[str, VideoPreset]: ...
+    @_video_presets.setter
+    def _video_presets(self, value: Dict[str, VideoPreset]) -> None: ...
+    @property
+    def _session_created(self) -> Set[Tuple[str, str]]: ...
+    @_session_created.setter
+    def _session_created(self, value: Set[Tuple[str, str]]) -> None: ...
+
     def _apply_restore(self, zip_path: str) -> None: ...
     def _get_or_create_entry(self, trigger_key: str) -> MarkerEntry: ...
     def _ensure_pool(self, trigger_key: str, pool_index: int) -> PoolDict: ...
     def _detach_pool(self, trigger_key: str, pool_index: int) -> bool: ...
+    def _resolve_video_pools(self, entry: Any) -> List[VideoPoolDict]: ...
     def detach_active_video_ts(self, *args: Any) -> None: ...
     def detach_pool_at(self, trigger_key: str, pool_index: int) -> None: ...

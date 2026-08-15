@@ -38,9 +38,8 @@ init -999 python:
     # ---- Store bridge: bind every name that remaining .rpy files reference ----
     # _cue lives in cue_lib.state — bound to store at init -900 below
 
-    from cue_lib.state import CuePage
-
     from cue_lib.constants import (
+        CuePage, CueLoopFrequency,
         CUE_DEBUG, CUE_DEBUG_LOG_FILENAME, CUE_SFX_CHANNEL_COUNT,
         CUE_DEFAULT_VIDEO_SPEED, CUE_POPPER_DEFAULT_OFFSET,
         CUE_POPPER_DEFAULT_MARGIN, CUE_SFX_LIBRARY_HEADER, CUE_AUDIO_EXTS,
@@ -100,7 +99,6 @@ init -999 python:
         CueSpeedMode, CUE_TOAST_DURATION, CUE_TOAST_DURATION_SEAMLESS,
         CUE_TOAST_FADE_DURATION, CUE_TOAST_FADE_OFFSET,
     )
-    from cue_lib.markers import CueLoopFrequency
     from cue_lib.video.auto_speed import (
         _cue_auto_preset_label, _cue_auto_preset_description,
     )
@@ -126,7 +124,8 @@ init -900 python:
     # not at module level) to avoid circular refs — every manager module
     # does "from cue_lib.state import _cue", so state.py itself must not
     # import them.
-    from cue_lib.markers import CueMarkerManager, CueLoopFrequency
+    from cue_lib.marker_store import CueMarkerStore
+    from cue_lib.markers import CueMarkerManager
     from cue_lib.undo import CueUndoManager
     from cue_lib.trigger import CueTriggerEngine
     from cue_lib.video.video import CueVideoManager
@@ -149,7 +148,11 @@ init -900 python:
     _cue.db = CueDatabase(_cue.paths)
     _cue.db.open()
 
-    _cue.markers = CueMarkerManager()
+    # The marker store owns the data layer; the manager coordinates around it.
+    # on_save resolves _cue.undo at call time (capture runs on every DB write).
+    _cue.marker_store = CueMarkerStore(
+        _cue.db, _cue.paths, lambda: _cue.undo.capture())
+    _cue.markers = CueMarkerManager(_cue.marker_store)
     _cue.undo = CueUndoManager()
     _cue.trigger = CueTriggerEngine()
     _cue.vid_manager = CueVideoManager(_cue.ctx)

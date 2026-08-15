@@ -1,0 +1,398 @@
+# -*- coding: utf-8 -*-
+# Tests for cue_lib.marker_store.CueMarkerStore -- the extracted marker data
+# leaf behind CueMarkerManager.
+#
+# The store is constructed with a real CueDatabase + CuePaths (both already
+# tested) plus an on_save callback, so the whole data/persistence layer runs
+# headlessly with no _cue singleton.  This is the safety net the marker data
+# layer lacked before the extraction: existing marker tests only exercised the
+# context sub-objects through FakeManager.
+
+import os
+
+import pytest
+
+from cue_lib.backup import CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME
+from cue_lib.constants import CUE_VOLUME_DEFAULT, CueLoopFrequency
+from cue_lib.marker_store import CueMarkerStore, ResolvedExclusive, ResolvedPool
+
+
+@pytest.fixture
+def store(cue_env):
+    """A store on a fresh temp DB, with a no-op on_save."""
+    return CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+
+
+# ---------------------------------------------------------------------------
+# Dict-like surface
+# ---------------------------------------------------------------------------
+
+def test_dict_set_get_del(store):
+    store["v_a"] = {"pools": []}
+    assert "v_a" in store
+    assert store["v_a"] == {"pools": []}
+    del store["v_a"]
+    assert "v_a" not in store
+
+
+def test_dict_len_items_keys(store):
+    store["v_a"] = {"pools": []}
+    store["i_b"] = {"pools": [{"files": ["s.ogg"]}]}
+    assert len(store) == 2
+    assert set(store.keys()) == {"v_a", "i_b"}
+    assert dict(store.items())["v_a"] == {"pools": []}
+
+
+def test_get_missing_returns_default(store):
+    assert store.get("v_nope") is None
+    assert store.get("v_nope", "fallback") == "fallback"
+
+
+def test_get_returns_normalized_entry(store):
+    # Legacy entry with no "pools" gets wrapped in place.
+    store._data["v_a"] = {"files": ["s.ogg"]}
+    entry = store.get("v_a")
+    assert entry["pools"] == [{"files": ["s.ogg"]}]
+    assert store._data["v_a"]["pools"] == [{"files": ["s.ogg"]}]
+
+
+def test_get_drops_replay_id_and_defaults_replay(store):
+    store._data["v_a"] = {"pools": [], "replay_id": "stale"}
+    entry = store.get("v_a")
+    assert "replay_id" not in entry
+    assert entry["replay"] is False
+
+
+def test_setdefault_and_pop(store):
+    created = store.setdefault("v_a", {"pools": []})
+    assert created == {"pools": []}
+    assert store.setdefault("v_a", {"other": True}) == {"pools": []}
+    assert store.pop("v_a") == {"pools": []}
+    assert store.pop("v_a", "gone") == "gone"
+
+
+# ---------------------------------------------------------------------------
+# Entry / pool mutators
+# ---------------------------------------------------------------------------
+
+def test_get_or_create_entry_creates_and_reuses(store):
+    entry = store._get_or_create_entry("i_a")
+    # _normalize_entry defaults the "replay" flag in place.
+    assert entry == {"pools": [], "replay": False}
+    assert store._data["i_a"] is entry
+
+
+def test_ensure_pool_creates_pool_with_default_volume(store):
+    pool = store._ensure_pool("i_a", 0)
+    assert pool == {"files": [], "volume": CUE_VOLUME_DEFAULT}
+
+
+def test_ensure_pool_clamps_stale_index(store):
+    store._data["i_a"] = {"pools": [{"files": ["s.ogg"]}]}
+    assert store._ensure_pool("i_a", 99) == {"files": ["s.ogg"]}
+    assert store._ensure_pool("i_a", -3) == {"files": ["s.ogg"]}
+
+
+def test_add_file_to_pool_is_idempotent(cue_env):
+    calls = []
+    s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: calls.append(1))
+    s._add_file_to_pool("i_a", "s.ogg")
+    s._add_file_to_pool("i_a", "s.ogg")
+    assert s._data["i_a"]["pools"][0]["files"] == ["s.ogg"]
+    assert len(calls) == 2  # one on_save per save
+
+
+def test_remove_file_from_pool_prunes_empty(store):
+    store._data["i_a"] = {"pools": [{"files": ["a.ogg", "b.ogg"]}]}
+    store._remove_file_from_pool("i_a", 0)
+    assert store._data["i_a"]["pools"][0]["files"] == ["b.ogg"]
+    store._remove_file_from_pool("i_a", 0)
+    assert "i_a" not in store._data
+
+
+def test_stamp_preset_stamps_pool(store):
+    store._stamp_preset("i_a", "My Preset")
+    assert store._data["i_a"]["pools"][0] == {"preset": "My Preset"}
+
+
+def test_detach_pool_resolves_preset_into_files(store):
+    store.create_preset("Growl", {"files": ["a.ogg"], "volume": 0.8})
+    store._data["i_a"] = {"pools": [{"preset": "Growl"}]}
+    assert store._detach_pool("i_a", 0) is True
+    pool = store._data["i_a"]["pools"][0]
+    assert pool["files"] == ["a.ogg"]
+    assert pool["volume"] == 0.8
+    assert "preset" not in pool
+
+
+def test_detach_pool_plain_pool_noop(store):
+    store._data["i_a"] = {"pools": [{"files": ["a.ogg"]}]}
+    assert store._detach_pool("i_a", 0) is False
+    assert store._data["i_a"]["pools"][0]["files"] == ["a.ogg"]
+
+
+def test_resolve_pool_uses_defaults(store):
+    store.create_preset("Growl", {"files": ["a.ogg"], "volume": 0.8,
+                                  "trigger_on_shake": True})
+    r = store.resolve_pool({"preset": "Growl"})
+    assert r.files == ["a.ogg"]
+    assert r.volume == 0.8
+    assert r.trigger_on_shake is True
+    assert r.frequency == CueLoopFrequency.NORMAL
+    assert r.exclusive.group == 0
+
+
+def test_resolve_video_pools_resolves_preset_pools(store):
+    store.create_preset("Growl", {"files": ["a.ogg"]})
+    entry = {"pools": [{"time": 1.0, "preset": "Growl"}, {"time": 2.0, "files": ["b.ogg"]}]}
+    resolved = store._resolve_video_pools(entry)
+    assert resolved[0]["files"] == ["a.ogg"]
+    assert "preset" not in resolved[0]
+    assert resolved[1]["files"] == ["b.ogg"]
+
+
+# ---------------------------------------------------------------------------
+# Preset CRUD
+# ---------------------------------------------------------------------------
+
+def test_preset_crud_round_trip(store):
+    store.create_preset("Growl", {"files": ["a.ogg"], "volume": 0.8})
+    assert store.get_preset("Growl")["files"] == ["a.ogg"]
+    assert store.list_presets() == ["Growl"]
+    store.delete_preset("Growl")
+    assert store.get_preset("Growl") is None
+    assert store.list_presets() == []
+
+
+def test_create_preset_deepcopies_input(store):
+    pool = {"files": ["a.ogg"]}
+    store.create_preset("G", pool)
+    # Mutating the input after creation does not leak into the store.
+    pool["files"].append("b.ogg")
+    assert store.get_preset("G")["files"] == ["a.ogg"]
+
+
+def test_video_preset_crud_round_trip(store):
+    entry = {"pools": [{"time": 3.0, "files": ["b.mp4"]},
+                       {"time": 1.0, "files": ["a.mp4"]}],
+             "volume": 0.5}
+    store.create_video_preset("VP", entry, source_dur=10.0)
+    preset = store.get_video_preset("VP")
+    # Pools are time-sorted; missing volume defaults to CUE_VOLUME_DEFAULT.
+    assert preset["pools"] == [{"time": 1.0, "files": ["a.mp4"], "volume": CUE_VOLUME_DEFAULT},
+                               {"time": 3.0, "files": ["b.mp4"], "volume": CUE_VOLUME_DEFAULT}]
+    assert preset["volume"] == 0.5
+    assert preset["source_duration"] == 10.0
+    assert store.list_video_presets() == ["VP"]
+    store.delete_video_preset("VP")
+    assert store.get_video_preset("VP") is None
+
+
+def test_create_video_preset_skips_time_less_pools(store):
+    entry = {"pools": [{"time": 1.0}, {"no_time": True}, {"time": 3.0}]}
+    store.create_video_preset("VP", entry)
+    # Kept pools are normalized with an explicit (empty) files list.
+    assert store.get_video_preset("VP")["pools"] == [
+        {"time": 1.0, "files": [], "volume": CUE_VOLUME_DEFAULT},
+        {"time": 3.0, "files": [], "volume": CUE_VOLUME_DEFAULT},
+    ]
+
+
+def test_create_video_preset_no_pools_returns(store):
+    store.create_video_preset("VP", {"pools": []})
+    assert store.get_video_preset("VP") is None
+
+
+# ---------------------------------------------------------------------------
+# Sanitize / migration passes
+# ---------------------------------------------------------------------------
+
+def test_sanitize_video_pools_strips_time_less(store):
+    store._data["v_a"] = {"pools": [{"time": 1.0}, {"no_time": True}, {"time": 3.0}]}
+    store._data["i_b"] = {"pools": [{"no_time": True}]}  # non-vid untouched
+    assert store._sanitize_video_pools() == 1
+    assert store._data["v_a"]["pools"] == [{"time": 1.0}, {"time": 3.0}]
+    assert store._data["i_b"]["pools"] == [{"no_time": True}]
+
+
+def test_sanitize_video_presets_strips_time_less(store):
+    store._video_presets["VP"] = {"pools": [{"time": 1.0}, {"no_time": True}]}
+    assert store._sanitize_video_presets() == 1
+    assert store._video_presets["VP"]["pools"] == [{"time": 1.0}]
+
+
+def test_normalize_all_wraps_pool_less_entries(store):
+    store._data["i_a"] = {"files": ["s.ogg"]}
+    assert store._normalize_all() is True
+    assert store._data["i_a"]["pools"] == [{"files": ["s.ogg"]}]
+
+
+def test_normalize_all_fans_loop_frequency_into_pools(store):
+    store._data["l_a"] = {"pools": [{"files": []}, {"files": []}], "frequency": 2}
+    assert store._normalize_all() is True
+    for pool in store._data["l_a"]["pools"]:
+        assert pool["frequency"] == 2
+    assert "frequency" not in store._data["l_a"]
+
+
+def test_normalize_all_no_change(store):
+    store._data["i_a"] = {"pools": [{"files": ["s.ogg"]}]}
+    assert store._normalize_all() is False
+
+
+def test_migrate_legacy_exclusive_bool_true(store):
+    store._data["l_a"] = {"pools": [{"exclusive": True}]}
+    assert store._migrate_legacy_exclusive() == 1
+    assert store._data["l_a"]["pools"][0]["exclusive"] == {
+        "group": 1, "start": 2, "hold": True}
+
+
+def test_migrate_legacy_exclusive_bool_false_removed(store):
+    store._data["l_a"] = {"pools": [{"exclusive": False}]}
+    assert store._migrate_legacy_exclusive() == 1
+    assert "exclusive" not in store._data["l_a"]["pools"][0]
+
+
+def test_migrate_legacy_exclusive_idempotent(store):
+    store._data["l_a"] = {"pools": [{"exclusive": {"group": 1}}]}
+    assert store._migrate_legacy_exclusive() == 0
+
+
+def test_migrate_colon_key():
+    assert CueMarkerStore._migrate_colon_key("v:file") == "v_file"
+    assert CueMarkerStore._migrate_colon_key("i:a") == "i_a"
+    assert CueMarkerStore._migrate_colon_key("l:a") == "l_a"
+    assert CueMarkerStore._migrate_colon_key("d:a") == "d_a"
+    assert CueMarkerStore._migrate_colon_key("d_a|b") == "d_a__b"
+
+
+def test_migrate_speed_mode_rename(store):
+    store._data["v_a"] = {"pools": [], "speed_mode": "sequence"}
+    store._data["i_b"] = {"pools": [], "speed_mode": "sequence"}  # non-vid untouched
+    store._video_presets["VP"] = {"speed_mode": "sequence"}
+    store._migrate_speed_mode_rename()
+    assert store._data["v_a"]["speed_mode"] == "multi"
+    assert store._data["i_b"]["speed_mode"] == "sequence"
+    assert store._video_presets["VP"]["speed_mode"] == "multi"
+
+
+def test_migrate_video_timestamps_to_pools(store):
+    store._data["v_a"] = {"timestamps": [{"time": 1.0}]}
+    store._data["i_b"] = {"timestamps": [{"time": 2.0}]}  # non-vid untouched
+    store._video_presets["VP"] = {"timestamps": [{"time": 3.0}]}
+    entries, presets = store._migrate_video_timestamps_to_pools()
+    assert (entries, presets) == (1, 1)
+    assert store._data["v_a"]["pools"] == [{"time": 1.0}]
+    assert "timestamps" not in store._data["v_a"]
+    assert "timestamps" in store._data["i_b"]
+    assert store._video_presets["VP"]["pools"] == [{"time": 3.0}]
+
+
+# ---------------------------------------------------------------------------
+# Persistence round-trips (against a real CueDatabase)
+# ---------------------------------------------------------------------------
+
+def test_save_all_and_load_from_db_round_trip(store, cue_env):
+    store._data["v_a"] = {"pools": [{"time": 1.0}]}
+    store._data["i_b"] = {"pools": [{"files": ["s.ogg"]}]}
+    store._presets["G"] = {"files": ["a.ogg"]}
+    store._video_presets["VP"] = {"pools": [{"time": 1.0}]}
+    store.save_all()
+
+    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh.load_from_db()
+    assert fresh._data["v_a"]["pools"] == [{"time": 1.0}]
+    assert fresh._data["i_b"]["pools"] == [{"files": ["s.ogg"]}]
+    assert fresh._presets["G"]["files"] == ["a.ogg"]
+    assert fresh._video_presets["VP"]["pools"] == [{"time": 1.0}]
+
+
+def test_load_from_db_runs_migrations(store, cue_env):
+    store._data["v_a"] = {"timestamps": [{"time": 1.0}], "speed_mode": "sequence"}
+    store.save_all()
+
+    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh.load_from_db()
+    assert fresh._data["v_a"]["pools"] == [{"time": 1.0}]
+    assert fresh._data["v_a"]["speed_mode"] == "multi"
+
+
+def test_save_marker_single_key_round_trip(store, cue_env):
+    store._data["v_a"] = {"pools": [{"time": 5.0}]}
+    store.save_marker("v_a")
+
+    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh.load_from_db()
+    assert fresh._data["v_a"]["pools"] == [{"time": 5.0}]
+
+
+def test_reload_presets_merges_disk(store, cue_env):
+    other = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    other.create_preset("Disk", {"files": ["d.ogg"]})
+
+    store.reload_presets()
+    assert store.get_preset("Disk") is not None
+
+
+def test_delete_removed_files_deletes_dropped_marker(store, cue_env):
+    store._data["v_a"] = {"pools": []}
+    store._data["v_b"] = {"pools": []}
+    store.save_all()
+
+    old_keys = set(store._data)
+    del store._data["v_a"]
+    store.delete_removed_files(old_keys, {}, {}, set())
+
+    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh.load_from_db()
+    assert "v_a" not in fresh._data
+    assert "v_b" in fresh._data
+
+
+def test_delete_removed_files_preset_only_when_session_created(store, cue_env):
+    # Save a marker first so db.is_fresh() is False and load_from_db() reads
+    # presets from disk (a markerless DB takes the fresh path and skips them).
+    store._data["i_a"] = {"pools": []}
+    store.save_all()
+    store.create_preset("Sess", {"files": ["a.ogg"]})
+    store.create_preset("Old", {"files": ["b.ogg"]})
+    # "Sess" is session-created; "Old" simulates a preset loaded from disk.
+    store._session_created = {("audio", "Sess")}
+    old_presets = {"Sess": {"files": ["a.ogg"]}, "Old": {"files": ["b.ogg"]}}
+    store._presets = {}  # restore drops both
+    store.delete_removed_files(set(), old_presets, {}, {("audio", "Sess")})
+
+    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh.load_from_db()
+    assert "Sess" not in fresh._presets
+    assert "Old" in fresh._presets
+
+
+def test_backup_to_file_creates_zip(store, cue_env):
+    store._data["v_a"] = {"pools": []}
+    store.save_all()
+    store.backup_to_file()
+    zip_path = os.path.join(cue_env.paths.root, CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME)
+    assert os.path.isfile(zip_path)
+
+
+# ---------------------------------------------------------------------------
+# on_save hook
+# ---------------------------------------------------------------------------
+
+def test_post_save_invokes_on_save_once_per_write(cue_env):
+    calls = []
+    s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: calls.append(1))
+    s._data["v_a"] = {"pools": [{"time": 1.0}]}
+    s.save_marker("v_a")
+    s._db_save_marker("v_a")
+    assert len(calls) == 2
+
+
+def test_save_all_invokes_on_save_once(cue_env):
+    calls = []
+    s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: calls.append(1))
+    s._data["v_a"] = {"pools": []}
+    s._data["i_b"] = {"pools": []}
+    s.save_all()
+    assert len(calls) == 1

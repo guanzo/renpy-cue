@@ -4,6 +4,7 @@
 
 import renpy
 
+from cue_lib.constants import CUE_VOLUME_DEFAULT
 from cue_lib.state import _cue
 from cue_lib.util import create_vid_key
 
@@ -21,7 +22,7 @@ class CueVolumeManager(object):
     Effective playback volume = master x target, clamped to [MIN, MAX]."""
 
     VOL_MIN = 0.0
-    VOL_DEFAULT = 1.0
+    VOL_DEFAULT = CUE_VOLUME_DEFAULT  # legacy alias; new code uses CUE_VOLUME_DEFAULT
     VOL_MAX = 5.0
 
     def get(self, entry, trigger_key=None, pool_index=None):

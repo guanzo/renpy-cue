@@ -12,7 +12,8 @@ from renpy.store import persistent
 from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
 from cue_lib.db import CueDatabase
 from cue_lib.paths import CuePaths
-from cue_lib.state import _cue, CuePage
+from cue_lib.constants import CuePage
+from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_ui_refresh, _cue_unwrap_displayable, _cue_get_movie_play,
     _cue_resolve_files, _cue_pick_file,

@@ -16,6 +16,8 @@ CUE_SFX_LIBRARY_HEADER: Final = "SFX Library"
 CUE_AUDIO_EXTS: Final = (".ogg", ".mp3", ".wav", ".opus")
 CUE_GAME_MUSIC_DIRS: Final = ("music", "bgm", "ost", "soundtrack")
 CUE_MUSIC_PREFIX: Final = "music/"
+CUE_VOLUME_DEFAULT: Final = 1.0
+
 CUE_KEYMAP_TOGGLE_OVERLAY: Final = "cue_toggle_overlay"
 CUE_KEYMAP_QUIT_RELAUNCH: Final = "cue_quit_relaunch"
 CUE_KEYMAP_COPY_CONTEXT: Final = "cue_copy_context"
@@ -32,5 +34,22 @@ CUE_DIR_OVERRIDE_FILENAME: Final = "dir.txt"
 CUE_SHARED_CONFIG_FILENAME: Final = "cue_config.json"
 CUE_DEBUG: bool = True  # not Final -- tests flip this to silence debug.log
 CUE_DEBUG_LOG_FILENAME: Final = "debug.log"
+
+class CueExclusiveStart:
+    PLAY: Final = 0
+    FADE: Final = 1
+    WAIT: Final = 2
+
+class CueLoopFrequency:
+    SLOWEST: Final = 4
+    SLOW: Final = 0
+    NORMAL: Final = 1
+    FAST: Final = 2
+    FASTEST: Final = 3
+
+class CuePage:
+    SFX: Final = 0
+    MUSIC: Final = 1
+    SETTINGS: Final = 2
 
 def _cue_env_flag(name: str, default: bool = False) -> bool: ...
