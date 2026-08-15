@@ -37,6 +37,10 @@ rm -f "$GAME/game/testcases.rpyc"
 # Clear stale engine artifacts so a prior run's errors can't be mistaken
 # for this run's (the engine overwrites, but a crash may leave them behind).
 rm -f "$GAME/errors.txt" "$GAME/traceback.txt"
+# The mod's debug log appends -- a fresh run must start empty, or the
+# print-on-failure below would surface a prior run's lines instead of this
+# run's.
+rm -f "$GAME/game/renpy_cue/debug.log"
 
 # --- Wire in the mod and the scratch data root. ---
 MOD="$GAME/game/renpy_cue"
@@ -62,8 +66,13 @@ if [ "$DSL" = "legacy" ]; then
     rc=0
     for name in $NAMES; do
         echo "[cue] running testcase: $name"
+        rm -f "$MOD/debug.log"
         if ! "$LAUNCHER" "$GAME" test "$name"; then
             echo "[cue] testcase FAILED: $name" >&2
+            if [ -f "$MOD/debug.log" ]; then
+                echo "[cue] renpy_cue/debug.log:" >&2
+                cat "$MOD/debug.log" >&2
+            fi
             rc=1
         fi
     done
@@ -82,5 +91,9 @@ if grep -q "Status: PASSED" "$LOG"; then
 fi
 
 echo "[cue] test run did not pass (see summary above)" >&2
+if [ -f "$MOD/debug.log" ]; then
+    echo "[cue] renpy_cue/debug.log:" >&2
+    cat "$MOD/debug.log" >&2
+fi
 rm -f "$LOG"
 exit 1
