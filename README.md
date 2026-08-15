@@ -63,23 +63,6 @@ Press **`** (backquote) to open the Cue overlay. It has three pages:
 - **Music** — Now Playing and Current Scene readouts, per-replay music triggers (assign songs while playing through a scene), and the **My Music** (shared `music/` folder) and **Game Music** (the game's own bundled audio) trees.
 - **Settings** — relocate the **Cue Data Directory**, and view, rebind, or reset every hotkey.
 
-### Hotkeys
-
-All hotkeys are rebindable from **Settings → Keybinds**.
-
-| Action | Default |
-| --- | --- |
-| Toggle overlay | `` ` `` |
-| Toggle SFX triggers on/off | Shift+3 |
-| Toggle SFX Library section | Shift+S |
-| Pause the game (auto-advancing scenes) | Shift+4 |
-| Copy current marker config | Shift+1 |
-| Paste marker config | Shift+2 |
-| Undo last marker change | Shift+Q |
-| Redo last undone change | Shift+W |
-| Video speed up / down | M / N |
-| Quit & relaunch the game (dev only) | F5 |
-
 ## Data directory
 
 All markers, presets, shared config, user audio/music, backups, and speed-variant videos live in one shared directory. By default:
