@@ -23,7 +23,7 @@ screen cue_settings_page():
 screen cue_data_dir():
     use cue_section_frame("Cue Data Directory"):
         vbox:
-            spacing 5
+            spacing 8
             text "Cue stores everything (markers, video, audio, backups, etc.) in this directory." style "cue_txt"
             text ("If you change the directory, you must move all files to the new "
                 "directory and restart the game.") style "cue_txt"

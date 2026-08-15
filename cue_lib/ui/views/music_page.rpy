@@ -56,6 +56,17 @@ screen cue_music_page():
                                 "in My/Game Music to add a song to the trigger. "
                                 "If you add multiple songs, one will be picked at random.") style "cue_txt"
                         use trigger_list(triggers)
+                    
+                    if not renpy.store._in_replay:
+                        null height 4
+                        $ _warn_icon = _cue.icons.displayable_for("triangle-exclamation", _cue_color_warn) if _cue.icons is not None else None
+                        hbox:
+                            spacing 6
+                            if _warn_icon is not None:
+                                add _warn_icon yalign 0.5
+                            text ("Customizing Music is only fully supported in replays, "
+                                    "it may not work properly in game.") style "cue_txt" color _cue_color_warn
+                    
                     null height 4
                     use cue_txt_button("+ Add music starting at current scene", Function(_cue.music.add_custom_trigger))
 
