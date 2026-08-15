@@ -132,7 +132,8 @@ screen cue_icon(label, tt=None, action=NullAction(), icon_color=None, size=12):
         padding (0, 0)
         background None
         hover_background None
-        action action
+        if action is not None:
+            action action
         if tt is not None:
             tooltip tt
         add _icon at cue_icon_fade
@@ -403,7 +404,7 @@ style cue_section_hdr_btn is empty:
 # Usage: use cue_section_frame("Title"):  ...children...
 # Click the header to collapse/expand the section content.
 # tt: optional string shown on a "?" icon left of the arrow (None to skip).
-screen cue_section_frame(header_text, tt=None):
+screen cue_section_frame(header_text, tt=None, icons=[]):
     $ _collapsed = _cue.collapsed_sections.get(header_text, False)
     $ _arrow_icon = "chevron-right" if _collapsed else "chevron-down"
     $ _arrow = _cue.icons.displayable_for(_arrow_icon)
@@ -427,10 +428,16 @@ screen cue_section_frame(header_text, tt=None):
                         xalign 1.0
                         spacing 10
                         yalign 0.5
+                        for _icon in icons:
+                            use cue_icon(
+                                _icon["name"],
+                                action=_icon.get("action", NullAction()),
+                                tt=_icon.get("tt"),
+                                size=_icon.get("size", 14),
+                            )
                         if tt is not None:
                             use cue_icon("circle-question", tt=tt, size=14)
-                        if _arrow is not None:
-                            add _arrow yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
+                        add _arrow yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
             if not _collapsed:
                 transclude
 

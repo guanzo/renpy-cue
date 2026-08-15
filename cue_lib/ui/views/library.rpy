@@ -4,50 +4,24 @@
 ###############################################################################
 
 screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
-    $ _collapsed = _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
     $ _overlay_mode = _cue.sfx_manager.overlay_mode
-    $ _arrow_icon = "chevron-right" if _collapsed else "chevron-down"
-    $ _arrow = _cue.icons.displayable_for(_arrow_icon)
-    $ _ov_icon = "square-plus" if _overlay_mode else "square-minus"
     $ _ov_tt = "Overlay Mode\nWhen enabled, this section will float on top when expanded.\n"
     $ _ov_tt = _ov_tt + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX) + " to toggle expansion."
-    frame:
-        background _cue_color_bg_panel
-        padding (4, 4)
-        xfill True
-        yminimum 0
-        vbox:
-            spacing 8
-            xfill True
-            hbox:
-                xfill True
-                button:
-                    style "cue_section_hdr_btn"
-                    action Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
-                    hbox:
-                        xfill True
-                        text CUE_SFX_LIBRARY_HEADER style "cue_hdr"
-                        null width 8
-                        hbox:
-                            xalign 1.0
-                            spacing 10
-                            yalign 0.5
 
-                            use cue_icon_btn(
-                                _ov_icon,
-                                Function(_cue.sfx_manager.toggle_overlay_mode),
-                                _ov_tt,
-                                None
-                            )
-                            add _arrow yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
-            if not _collapsed:
-                if not _cue.sfx_manager.tree:
-                    if _cue.sfx_manager.scan_error:
-                        text "[_cue.sfx_manager.scan_error]" style "cue_txt" color _cue_color_error
-                    text ("Place {} files there "
-                        "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_txt"
-                else:
-                    use cue_sfx_library_content(_is_video, _has_image, _is_dialogue)
+    $ _icons = [{
+        "name": "square-plus" if _overlay_mode else "square-minus", 
+        "action": Function(_cue.sfx_manager.toggle_overlay_mode), 
+        "tt": _ov_tt
+    }]
+
+    use cue_section_frame(CUE_SFX_LIBRARY_HEADER, icons=_icons):
+        if not _cue.sfx_manager.tree:
+            if _cue.sfx_manager.scan_error:
+                text "[_cue.sfx_manager.scan_error]" style "cue_txt" color _cue_color_error
+            text ("Place {} files there "
+                "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_txt"
+        else:
+            use cue_sfx_library_content(_is_video, _has_image, _is_dialogue)
 
 screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
     viewport:
@@ -59,7 +33,6 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
         vscrollbar_unscrollable "hide"
         vbox:
             spacing 2
-            # --- Presets folder (matches audio tree folder UI) ---
             hbox:
                 spacing 2
                 use cue_txt_button("Presets/", Function(_cue.sfx_manager.toggle_presets_expand))
@@ -67,7 +40,6 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
             if _cue.sfx_manager.presets_expanded:
                 use cue_audio_presets_list(_is_video, _has_image, _is_dialogue)
 
-            # --- Video Presets folder ---
             hbox:
                 spacing 2
                 use cue_txt_button("Video Presets/", Function(_cue.sfx_manager.toggle_video_presets_expand))
@@ -75,7 +47,6 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
             if _cue.sfx_manager.video_presets_expanded:
                 use cue_video_presets_list(_is_video, _has_image, _is_dialogue)
 
-            # --- Folder/file tree ---
             use cue_file_tree(_is_video, _has_image, _is_dialogue)
 
 
