@@ -171,13 +171,27 @@ class FakeSpeedResolver(object):
 
 
 class FakeVidManager(object):
-    """Video-manager stand-in for the tick surface: channel / get_elapsed /
-    last_elapsed.  last_elapsed is written by the engine each tick."""
+    """Video-manager stand-in for the tick surface (channel / get_elapsed /
+    last_elapsed) plus the duration seam markers.py reads.  last_elapsed is
+    written by the engine each tick."""
 
-    def __init__(self, channel="cue_vid", elapsed=0.0):
+    def __init__(self, channel="cue_vid", elapsed=0.0, duration=0.0):
         self.channel = channel
         self._elapsed = elapsed
         self.last_elapsed = 0
+        self.duration = duration
 
     def get_elapsed(self):
         return self._elapsed
+
+    def get_duration(self):
+        return self.duration
+
+
+class FakeSfxManager(object):
+    """SFX-library stand-in for the folder-ref expansion surface markers.py
+    reads: the files list + disabled_files set."""
+
+    def __init__(self, files=None, disabled_files=None):
+        self.files = files if files is not None else []
+        self.disabled_files = disabled_files if disabled_files is not None else set()
