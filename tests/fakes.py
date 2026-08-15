@@ -31,3 +31,22 @@ class FakeManager(object):
 
     def _db_save_marker(self, key):
         self.saved_keys.append(key)
+
+
+class FakeDb(object):
+    """Shared-config db stand-in for managers that persist via the db.
+
+    Mirrors the real CueDatabase's shared-config surface only: keybinds and
+    music read it via load_shared_config(); writes are recorded in `saved`
+    (list of the dicts passed to update_shared_config).
+    """
+
+    def __init__(self):
+        self.shared = {}   # type: dict
+        self.saved = []    # type: list
+
+    def load_shared_config(self):
+        return self.shared
+
+    def update_shared_config(self, data):
+        self.saved.append(data)
