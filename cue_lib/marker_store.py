@@ -18,7 +18,7 @@ import os
 import copy as _copy
 import renpy
 
-from cue_lib.backup import CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME, zip_tree
+from cue_lib.backup import CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME, zip_shared_tree
 from cue_lib.constants import CUE_VOLUME_DEFAULT, CueExclusiveStart, CueLoopFrequency
 from cue_lib.util import (
     _cue_log,
@@ -672,13 +672,13 @@ class CueMarkerStore(object):
 
     def backup_to_file(self):
         # type: () -> None
-        """Zip the shared data/ tree to {shared}/backups/backup.zip."""
+        """Zip the shared data/ tree plus audio/ and music/ to
+        {shared}/backups/backup.zip."""
         try:
             db = self._db
             if db is None or not db.is_open():
                 return
-            data_dir = os.path.join(self._paths.root, "data")
-            if not os.path.isdir(data_dir):
+            if not os.path.isdir(os.path.join(self._paths.root, "data")):
                 _cue_log("DUMP-MARKERS-NO-DATA")
                 return
             backups_dir = os.path.join(self._paths.root, CUE_BACKUP_DIR)
@@ -695,7 +695,7 @@ class CueMarkerStore(object):
             zip_path = os.path.join(backups_dir, CUE_MANUAL_BACKUP_NAME)
             tmp_path = os.path.join(
                 backups_dir, "{}.{}.tmp".format(CUE_MANUAL_BACKUP_NAME, self._paths.game_id))
-            count = zip_tree(data_dir, zip_path, tmp_path)
+            count = zip_shared_tree(self._paths.root, zip_path, tmp_path)
             _cue_log("DUMP-MARKERS files={} path={}".format(count, zip_path))
         except Exception as e:
             _cue_log("DUMP-MARKERS-ERROR {}".format(str(e)))

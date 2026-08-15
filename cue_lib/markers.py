@@ -1147,21 +1147,22 @@ class CueMarkerManager(object):
             _cue_log("RESTORE-MARKERS-INVALID {}".format(reason))
             return
         self._confirm_dialog.show(
-            "Restore from backups/backup.zip? This will overwrite this game's markers, presets, and shared "
-            "config with the backup's version. Data not included in the "
-            "backup — including anything added after, and other games' "
-            "markers — is left untouched. Previous data is saved to data_bak.",
+            "Restore from backups/backup.zip? This will overwrite this "
+            "game's markers, presets, shared config, and the audio/ and "
+            "music/ folders with the backup's version. Data not included in "
+            "the backup -- including anything added after, and other games' "
+            "markers -- is left untouched. Previous data is saved to data_bak.",
             Function(self._apply_restore, zip_path),
         )
 
     def _apply_restore(self, zip_path):
         # type: (str) -> None
-        """Swap files on disk from backup.zip, then reload in-memory state."""
+        """Merge backup.zip over the live tree, then reload in-memory state."""
         try:
             db = self._store._db
             if db is None or not db.is_open():
                 return
-            # Don't mutate data/ while the auto-backup thread is zipping it.
+            # Don't mutate the live tree while the auto-backup is zipping it.
             if not db._backup.wait_until_idle():
                 _cue_log("RESTORE-MARKERS: timed out waiting for auto backup")
                 return
@@ -1175,7 +1176,10 @@ class CueMarkerManager(object):
             self.reload_presets()
             self._session_created = set()
             _cue.undo.reset()
-            self._sfx_manager.rebuild_tree()
+            # Re-scan the media folders so restored audio/music shows up.
+            self._sfx_manager.scan()
+            if _cue.music is not None and _cue.music.user_music is not None:
+                _cue.music.user_music.scan()
             self._video_editor.refresh()
             # Capture the restored tree in a fresh auto-backup.
             db._backup.force_backup()
