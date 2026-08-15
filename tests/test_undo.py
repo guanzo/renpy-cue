@@ -69,7 +69,7 @@ def store():
 
 @pytest.fixture
 def undo(store):
-    return CueUndoManager(store, CueContext(), FakeVideoEditor(), markers=FakeMarkers())
+    return CueUndoManager(store, CueContext(), FakeVideoEditor(), markers=FakeMarkers())  # pyright: ignore[reportArgumentType]
 
 
 # ---------------------------------------------------------------------------

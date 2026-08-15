@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # Run the Ren'Py testcases harness against pinned SDKs -- the code path
+  # pytest cannot cover (real .rpy screens + the 7.x/Py2 runtime). The SDK
+  # launcher (renpy.sh at the SDK root) is passed straight to
+  # bin/run_testcases.sh, which sniffs the bundled major version from
+  # renpy/__init__.py and runs the matching DSL template.
+  testcases:
+    name: testcases (Ren'Py ${{ matrix.renpy }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - renpy: "7.4.10"
+            os: ubuntu-22.04
+          - renpy: "8.5.3"
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    env:
+      # Explicit fixture root (empty is fine -- CueDatabase.open() creates all
+      # subdirs at init). Never let the run inherit a machine-local pointer
+      # file, which would override the env var.
+      RENPY_CUE_DIR: ${{ github.workspace }}/tests/fixtures/data
+      # Headless runner: no audio device. The testcases play no audio.
+      SDL_AUDIODRIVER: dummy
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Ren'Py SDK
+        run: |
+          curl -fL "https://www.renpy.org/dl/${{ matrix.renpy }}/renpy-${{ matrix.renpy }}-sdk.tar.bz2" -o sdk.tar.bz2
+          tar xjf sdk.tar.bz2
+          echo "SDK_DIR=$PWD/renpy-${{ matrix.renpy }}-sdk" >> "$GITHUB_ENV"
+
+      # The `test` command is uses_display=True and the 7.x leg forces
+      # SDL_VIDEODRIVER=x11 -- both need a real X server. xvfb provides it.
+      - name: Run testcases
+        # Explicit `bash` invocation: the repo lives on a filesystem that
+        # doesn't persist the exec bit (core.fileMode=false), so the scripts
+        # aren't executable in the working tree.
+        run: xvfb-run -a bash bin/run_testcases.sh "$SDK_DIR/renpy.sh"
+
+  # Fast gate: pyright + 120-char lint, then the pytest suite, under the
+  # modern toolchain. Mirrors the /lint and /test skills via bin/*.sh.
+  check:
+    name: lint + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install poetry + deps
+        run: |
+          python -m pip install --upgrade pip "poetry==2.4.1"
+          poetry install
+
+      # bin/lint.sh calls bare `pyright` (not `poetry run pyright`), so the
+      # project venv's bin/ must be on PATH.
+      #
+      # pyrightconfig.json's extraPaths point at the SDK (relative ./sdk plus
+      # machine-local absolute paths that don't exist here). Download the SDK
+      # and symlink it into ./sdk so pyright can resolve renpy.* on this
+      # clean runner.
+      - name: Download Ren'Py SDK for pyright
+        run: |
+          curl -fL "https://www.renpy.org/dl/8.5.3/renpy-8.5.3-sdk.tar.bz2" -o sdk.tar.bz2
+          tar xjf sdk.tar.bz2
+          ln -s "$PWD/renpy-8.5.3-sdk" sdk
+
+      - name: Lint
+        run: |
+          export PATH="$(poetry env info -p)/bin:$PATH"
+          bash bin/lint.sh
+
+      - name: Test
+        run: bash bin/test.sh

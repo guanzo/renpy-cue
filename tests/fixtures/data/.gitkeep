@@ -1,0 +1,7 @@
+# Empty-by-design fixture data root for the Ren'Py testcases harness.
+#
+# The mod's CueDatabase.open() creates every required subdir (data/, music/,
+# video/, ...) at init, so an empty root boots cleanly -- the smoke testcases
+# never read real media. CI points RENPY_CUE_DIR here (see .github/workflows/
+# ci.yml). Future testcases that exercise real files commit them under this
+# directory.
