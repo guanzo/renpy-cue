@@ -4,7 +4,9 @@
     "C:/Program Files/renpy-8.5.3-sdk/renpy",
     "C:/Program Files/renpy-8.5.3-sdk",
     "/mnt/c/Program Files/renpy-8.5.3-sdk/renpy",
-    "/mnt/c/Program Files/renpy-8.5.3-sdk"
+    "/mnt/c/Program Files/renpy-8.5.3-sdk",
+    "./sdk/renpy",
+    "./sdk"
   ],
   "pythonVersion": "3.9",
   "typeCheckingMode": "standard",
