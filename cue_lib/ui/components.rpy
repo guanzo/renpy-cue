@@ -462,7 +462,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                         else "Exclusive: fade out other SFX and play immediately")
                 else:
                     $ _excl_tt = ("Disable exclusive playback" if _exclusive_on
-                        else "Exclusive: play this loop alone")
+                        else "Exclusive: wait for other loops, then play alone")
                 use cue_icon_btn(
                     "layer-group",
                     Function(ctx.toggle_exclusive),
@@ -530,35 +530,6 @@ screen cue_checkbox(checked, label, action, tt_on=None, tt_off=None,
             if _icon is not None:
                 add _icon yalign 0.5
             text label style "cue_btn_text" yalign 0.5
-
-# Exclusive controls for loop pools. The layer-group toggle button turns
-# exclusive playback on/off; this row (shown only while on) picks how an
-# exclusive loop enters: wait for other SFX to finish, or fade them out.
-# exclusive: resolved exclusive snapshot for the active pool.
-screen cue_exclusive_row(ctx, exclusive):
-    $ _start = exclusive.start
-
-    vbox:
-        spacing 8
-        null height 2
-        use cue_h_divider()
-        hbox:
-            spacing 5
-            box_wrap True
-            box_wrap_spacing 3
-            text "Exclusive Playback:" style "cue_txt"
-            use cue_select_btn(
-                "Wait",
-                (_start == CueExclusiveStart.WAIT),
-                Function(ctx.set_exclusive, CueExclusiveStart.WAIT, True),
-                tt="Wait for other SFX to finish")
-            use cue_select_btn(
-                "Immediate",
-                (_start == CueExclusiveStart.FADE),
-                Function(ctx.set_exclusive, CueExclusiveStart.FADE, True),
-                tt="Fade out other SFX and play immediately")
-        use cue_h_divider()
-        null height 2
 
 # Radio button: solid circle icon tinted with the active color when
 # selected, outline circle when not.

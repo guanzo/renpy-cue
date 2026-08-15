@@ -125,7 +125,7 @@ init -900 python:
     # not at module level) to avoid circular refs — every manager module
     # does "from cue_lib.state import _cue", so state.py itself must not
     # import them.
-    from cue_lib.markers import CueMarkerManager, CueLoopFrequency, CueExclusiveStart
+    from cue_lib.markers import CueMarkerManager, CueLoopFrequency
     from cue_lib.undo import CueUndoManager
     from cue_lib.trigger import CueTriggerEngine
     from cue_lib.video.video import CueVideoManager
