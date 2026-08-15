@@ -8,4 +8,6 @@ bin/install_to_game.bat
 .claude/*
 !.claude/skills/
 .local
+.venv/
+.coverage
 .vscode/

@@ -1,0 +1,18 @@
+[project]
+name = "renpy-cue"
+version = "0.1.0"
+description = "Ren'Py mod: advanced marker/trigger/video/SFX cue system"
+requires-python = ">=3.10"
+readme = "README.md"
+
+[tool.poetry]
+packages = [{ include = "cue_lib" }]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.0"
+coverage = "^7.0"
+pyright = "^1.1"
+
+[build-system]
+requires = ["poetry-core>=2.0.0"]
+build-backend = "poetry.core.masonry.api"
