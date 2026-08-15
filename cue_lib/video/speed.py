@@ -439,27 +439,30 @@ class CueVidSpeedResolver(object):
         return [0.5, 1.5, 2.0]
 
     def _prune_deleted_speed_from_sequence(self, speed):
-        # type: (float) -> None
+        # type: (float) -> bool
+        """Remove `speed` from the current file's speed_sequence.
+        Returns True if the sequence was modified."""
         if _cue.video_sequence is None:
-            return
+            return False
         tag = _cue.current_file
         if not tag:
-            return
+            return False
         entry = _cue.markers.get(create_vid_key(tag))
         if entry is None:
-            return
+            return False
         seq = entry.get("speed_sequence")
         if not seq:
-            return
+            return False
         new_seq = [s for s in seq if s != speed]
         if len(new_seq) == len(seq):
-            return
+            return False
         if new_seq:
             entry["speed_sequence"] = new_seq
         else:
             entry.pop("speed_sequence", None)
         if _cue.video_sequence.active_tag:
             _cue.video_sequence.start(_cue.video_sequence.active_tag)
+        return True
 
     def delete_variant(self, base_path, speed):
         # type: (str, float) -> None
@@ -504,9 +507,11 @@ class CueVidSpeedResolver(object):
         for tag, base in self.paths.items():
             if base == base_path:
                 self.children.pop((tag, speed), None)
-        self._prune_deleted_speed_from_sequence(speed)
+        if self._prune_deleted_speed_from_sequence(speed):
+            tag = _cue.current_file
+            if tag:
+                _cue.markers.save_marker(create_vid_key(tag))
         _cue_log("DELETE-VARIANT: removed {} (speed={:.1f}x)".format(vpath, speed))
-        _cue.markers.save_all()
         renpy.restart_interaction()
 
 

@@ -439,7 +439,6 @@ class CueVideoEditQueue(object):
                 state.last_error = ""
                 _cue_log("Variant: generated {:.1f}x at {} (job_id={})".format(
                     speed, os.path.basename(out), job.job_id))
-                _cue.markers.save_all()
                 return
             except Exception:
                 if _attempt < 3:

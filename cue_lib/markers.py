@@ -1272,6 +1272,20 @@ class CueMarkerManager(object):
         """Persist one marker entry to data store. Call after mutating self._data[key]."""
         self._db_save_marker(key)
 
+    def save_markers(self, keys):
+        # type: (List[str]) -> None
+        """Persist several marker entries in one batch. Call after mutating
+        self._data[key] for each key. Side effects run once for the whole
+        batch, so a multi-key edit produces a single undo step."""
+        db = _cue.db
+        if db is not None and db.is_open():
+            for key in keys:
+                if key in self._data:
+                    db.save_marker(key, self._data[key])
+                else:
+                    db.delete_marker(key)
+        self._post_save()
+
     def save_preset(self, name):
         # type: (str) -> None
         """Persist one audio preset to data store."""
@@ -1557,6 +1571,7 @@ class CueMarkerManager(object):
         ctx_file = _cue.current_file
         ctx_dlg = _cue.current_dialogue
         source_file = self.clipboard.get("source_file", "")
+        pasted_keys = []
 
         for source_key, entry in self.clipboard.get("markers", {}).items():
             if get_key_file(source_key) != source_file:
@@ -1584,6 +1599,8 @@ class CueMarkerManager(object):
                     else:
                         t = max(0.0, t)
                     pool_entry["time"] = t
+            pasted_keys.append(new_key)
 
         _cue.trigger.loop_states = {}
-        self.save_all()
+        if pasted_keys:
+            self.save_markers(pasted_keys)
