@@ -22,7 +22,7 @@ import time as _time
 import zipfile as _zipfile
 
 from cue_lib.constants import CUE_SHARED_CONFIG_FILENAME
-from cue_lib.util import _cue_log, _to_str
+from cue_lib.util import _cue_log, _cue_replace_file, _to_str
 
 # Automatic backup of the data/ tree.  After any disk CRUD, when at least
 # CUE_BACKUP_INTERVAL seconds have passed since the last backup, zip the
@@ -74,22 +74,6 @@ def _safe_extract_path(out_dir, name):
     return _to_str(os.path.join(out_dir, *parts))
 
 
-def _replace_file(src, dst):
-    # type: (str, str) -> None
-    """Rename src over dst, overwriting an existing dst.
-
-    POSIX os.rename overwrites atomically; on Windows it refuses with Error
-    183, so a stale destination is removed first.  The destination here is
-    always a zip we just finished writing, so the brief absence between
-    remove and rename is harmless."""
-    if os.name == "nt" and os.path.lexists(dst):
-        try:
-            os.remove(dst)
-        except Exception:
-            pass  # Rename below fails loudly if the stale file persists
-    os.rename(src, dst)
-
-
 def zip_tree(data_dir, zip_path, tmp_path=None):
     # type: (str, str, Optional[str]) -> int
     """Zip a directory tree into zip_path. Writes tmp_path first (default
@@ -104,7 +88,7 @@ def zip_tree(data_dir, zip_path, tmp_path=None):
                 arcname = _to_str(os.path.relpath(fpath, data_dir))
                 zf.write(fpath, arcname)
                 count += 1
-    _replace_file(tmp_path, zip_path)
+    _cue_replace_file(tmp_path, zip_path)
     return count
 
 
@@ -211,7 +195,7 @@ def restore_pieces(zip_path, shared_dir, game_id):
         parent = os.path.dirname(bak_target)
         if not os.path.isdir(parent):
             os.makedirs(parent)
-        os.rename(cur, bak_target)
+        _cue_replace_file(cur, bak_target)
     # Move restored pieces into place (only those the backup actually has).
     for rel in rel_pieces:
         staged = os.path.join(staging, *rel.split("/"))
@@ -221,7 +205,7 @@ def restore_pieces(zip_path, shared_dir, game_id):
         parent = os.path.dirname(target)
         if not os.path.isdir(parent):
             os.makedirs(parent)
-        os.rename(staged, target)
+        _cue_replace_file(staged, target)
 
     _shutil.rmtree(staging, ignore_errors=True)
     return count

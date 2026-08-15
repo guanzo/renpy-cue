@@ -15,7 +15,7 @@ from renpy.store import persistent
 
 from cue_lib.video.ffmpeg import CREATIONFLAGS, _cue_probe_job
 from cue_lib.state import _cue
-from cue_lib.util import _cue_log, _cue_ui_refresh, _cue_unwrap_persistent
+from cue_lib.util import _cue_log, _cue_replace_file, _cue_ui_refresh, _cue_unwrap_persistent
 
 MYPY = False
 if MYPY:
@@ -1137,9 +1137,7 @@ def _cue_swap_job(job):
     _time.sleep(0.5)
     for _attempt in range(4):
         try:
-            if os.path.exists(out):
-                os.remove(out)
-            os.rename(tmp, out)
+            _cue_replace_file(tmp, out)
             job._swap_ok = True
             job._swap_error_msg = ""
             break

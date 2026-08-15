@@ -14,7 +14,7 @@
 import os
 import json as _json
 
-from cue_lib.util import _cue_log, _to_str
+from cue_lib.util import _cue_log, _cue_replace_file, _to_str
 from cue_lib.backup import CueBackupManager
 
 # Number of characters to keep from a SHA1 hex digest for file naming.
@@ -59,6 +59,20 @@ def _filename_to_key(filename):
     # type: (str) -> str
     """Fallback. The _key field in the JSON is authoritative."""
     return ""
+
+
+def _atomic_json_write(fpath, data, indent=None):
+    # type: (str, Any, Optional[int]) -> None
+    """Write `data` as JSON to fpath atomically.
+
+    Writes a temp file in the same directory, then renames it over fpath.
+    A mid-write kill never truncates the file at its real path -- the
+    destination always holds one complete version (worst case is a stray
+    .tmp).  indent=2 for the human-readable config / trigger logs."""
+    tmp = fpath + ".tmp"
+    with open(tmp, "w") as _f:
+        _json.dump(data, _f, sort_keys=True, indent=indent)
+    _cue_replace_file(tmp, fpath)
 
 
 # =========================================================================
@@ -269,8 +283,7 @@ class CueDatabase(object):
     @staticmethod
     def _write_file(fpath, entry):
         # type: (str, Any) -> None
-        with open(fpath, "w") as f:
-            _json.dump(entry, f, sort_keys=True)
+        _atomic_json_write(fpath, entry)
 
     def _write_entry(self, fpath, key, data):
         # type: (str, str, Any) -> None
@@ -304,8 +317,7 @@ class CueDatabase(object):
         try:
             if not os.path.isdir(dpath):
                 os.makedirs(dpath)
-            with open(fpath, "w") as f:
-                _json.dump(data, f, indent=2, sort_keys=True)
+            _atomic_json_write(fpath, data, indent=2)
         except Exception:
             _cue_log("SHARED-CONFIG: save failed for {}".format(fpath))
         self._backup.maybe()
@@ -351,8 +363,7 @@ class CueDatabase(object):
         try:
             if not os.path.isdir(dpath):
                 os.makedirs(dpath)
-            with open(fpath, "w") as f:
-                _json.dump(data, f, indent=2, sort_keys=True)
+            _atomic_json_write(fpath, data, indent=2)
         except Exception:
             _cue_log("MUSIC-TRIGGERS: save failed for {}".format(fpath))
 

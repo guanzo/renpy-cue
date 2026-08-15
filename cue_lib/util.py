@@ -468,6 +468,28 @@ def _cue_pick_file(files, avoid_repeats=True):
 
 
 # --------------------------------------------------------------------------
+# File System Helpers
+# --------------------------------------------------------------------------
+
+def _cue_replace_file(src, dst):
+    # type: (str, str) -> None
+    """Rename src over dst, overwriting an existing dst.
+
+    POSIX os.rename overwrites atomically; on Windows it refuses with Error
+    183, so a stale destination is removed first.  Reaching for this rather
+    than bare os.rename is what keeps overwrite semantics working on both
+    platforms (see CLAUDE.md).  Callers that rewrite a file in place should
+    write a temp file first, then _cue_replace_file(tmp, final), so a
+    mid-write kill never truncates the file at its real path."""
+    if os.name == "nt" and os.path.lexists(dst):
+        try:
+            os.remove(dst)
+        except Exception:
+            pass  # Rename below fails loudly if the stale file persists
+    os.rename(src, dst)
+
+
+# --------------------------------------------------------------------------
 # Screen Helpers
 # --------------------------------------------------------------------------
 

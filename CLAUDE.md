@@ -62,9 +62,10 @@ Code must work for 7.4.x and up.
   create a file when that file already exists`. If the destination may
   already exist (a zip you rewrite in place, a file you move into place),
   remove the stale destination first on `os.name == "nt"` before renaming —
-  see `_replace_file()` in `cue_lib/backup.py`. This has bitten us multiple
-  times; always reach for `_replace_file()` (or equivalent) rather than bare
-  `os.rename` for overwrite semantics.
+  see `_cue_replace_file()` in `cue_lib/util.py`. This has bitten us multiple
+  times; always reach for `_cue_replace_file()` rather than bare `os.rename`
+  for overwrite semantics. Callers that rewrite a file in place should write
+  a temp file first, then `_cue_replace_file(tmp, final)`.
 
 ## Naming Conventions
 
