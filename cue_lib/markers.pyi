@@ -30,6 +30,14 @@ from cue_lib._types import (
     VideoPreset,
 )
 
+# Constructor-injected collaborators (wired in cue_z.rpy init -900, markers last).
+from cue_lib.state import CueContext
+from cue_lib.video.video import CueVideoManager
+from cue_lib.audio.sfx_manager import CueSfxManager
+from cue_lib.trigger import CueTriggerEngine
+from cue_lib.video.video_editor import CueVideoEditor
+from cue_lib.ui.dialogs import CueConfirmDialog
+
 
 # Bootstrap / coordinator functions.  They write to managers wired after
 # CueMarkerManager (trigger, etc.), so they live at module level and read _cue.
@@ -123,7 +131,15 @@ class CueMarkerManager:
     loop: CueLoopContext
     clipboard: Optional[ClipboardData]
 
-    def __init__(self, store: CueMarkerStore) -> None: ...
+    def __init__(
+        self,
+        store: CueMarkerStore,
+        ctx: CueContext,
+        vid_manager: CueVideoManager,
+        sfx_manager: CueSfxManager,
+        trigger: CueTriggerEngine,
+        video_editor: CueVideoEditor,
+        confirm_dialog: CueConfirmDialog) -> None: ...
     def get(self, key: str, default: Optional[MarkerEntry] = None) -> Optional[MarkerEntry]: ...
     def setdefault(self, key: str, default: MarkerEntry) -> MarkerEntry: ...
     def pop(self, key: str, *args: MarkerEntry) -> MarkerEntry: ...
@@ -166,6 +182,12 @@ class CueMarkerManager:
 
     # Internal (accessed within cue_lib package)
     _store: CueMarkerStore
+    _ctx: CueContext
+    _vid_manager: CueVideoManager
+    _sfx_manager: CueSfxManager
+    _trigger: CueTriggerEngine
+    _video_editor: CueVideoEditor
+    _confirm_dialog: CueConfirmDialog
     _img_target: int
     _dlg_target: int
     _loop_target: int

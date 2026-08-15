@@ -39,6 +39,13 @@ if MYPY:
     from cue_lib._types import (
         ClipboardData, MarkerEntry, PoolDict, VideoPoolDict, VideoPreset,  # pyright: ignore[reportUnusedImport]
     )
+    # Injected constructor collaborators (type-only; resolved at wiring time).
+    from cue_lib.state import CueContext  # pyright: ignore[reportUnusedImport]
+    from cue_lib.video.video import CueVideoManager  # pyright: ignore[reportUnusedImport]
+    from cue_lib.audio.sfx_manager import CueSfxManager  # pyright: ignore[reportUnusedImport]
+    from cue_lib.trigger import CueTriggerEngine  # pyright: ignore[reportUnusedImport]
+    from cue_lib.video.video_editor import CueVideoEditor  # pyright: ignore[reportUnusedImport]
+    from cue_lib.ui.dialogs import CueConfirmDialog  # pyright: ignore[reportUnusedImport]
 
 # =========================================================================
 # CueMarkerContext -- pool-based markers (shared by .image and .dialogue)
@@ -68,13 +75,13 @@ class CueMarkerContext(object):
 
     def add_file(self, file_index):
         # type: (int) -> None
-        if not _cue.sfx_manager.files:
+        if not self._mgr._sfx_manager.files:
             return
-        if file_index < 0 or file_index >= len(_cue.sfx_manager.files):
+        if file_index < 0 or file_index >= len(self._mgr._sfx_manager.files):
             return
         key = self._key()
-        filename = _cue.sfx_manager.files[file_index]
-        if filename in _cue.sfx_manager.disabled_files:
+        filename = self._mgr._sfx_manager.files[file_index]
+        if filename in self._mgr._sfx_manager.disabled_files:
             return
         self._mgr._add_file_to_pool(key, filename, self.get_active())
 
@@ -258,7 +265,7 @@ class CueImageContext(CueMarkerContext):
 
     def _key(self):
         # type: () -> str
-        return create_img_key(_cue.current_file)
+        return create_img_key(self._mgr._ctx.current_file)
 
     def _get_target(self):
         # type: () -> int
@@ -278,7 +285,7 @@ class CueDialogueContext(CueMarkerContext):
 
     def _key(self):
         # type: () -> str
-        return create_dlg_key((_cue.current_file, _cue.current_dialogue or ""))
+        return create_dlg_key((self._mgr._ctx.current_file, self._mgr._ctx.current_dialogue or ""))
 
     def _get_target(self):
         # type: () -> int
@@ -302,7 +309,7 @@ class CueVideoContext(CueMarkerContext):
 
     def _key(self):
         # type: () -> str
-        return create_vid_key(_cue.current_file) if _cue.current_file else ""
+        return create_vid_key(self._mgr._ctx.current_file) if self._mgr._ctx.current_file else ""
 
     def _get_target(self):
         # type: () -> int
@@ -341,12 +348,12 @@ class CueVideoContext(CueMarkerContext):
 
     def add_file(self, file_index):
         # type: (int) -> None
-        if not _cue.sfx_manager.files:
+        if not self._mgr._sfx_manager.files:
             return
-        if file_index < 0 or file_index >= len(_cue.sfx_manager.files):
+        if file_index < 0 or file_index >= len(self._mgr._sfx_manager.files):
             return
-        filename = _cue.sfx_manager.files[file_index]
-        if filename in _cue.sfx_manager.disabled_files:
+        filename = self._mgr._sfx_manager.files[file_index]
+        if filename in self._mgr._sfx_manager.disabled_files:
             return
         vid_key = self._key()
         entry = self._mgr._get_or_create_entry(vid_key)
@@ -357,7 +364,7 @@ class CueVideoContext(CueMarkerContext):
             if filename not in files:
                 files.append(filename)
         else:
-            elapsed = _cue.vid_manager.get_elapsed()
+            elapsed = self._mgr._vid_manager.get_elapsed()
             self._append_pool(entry, pools,
                 {"time": elapsed, "files": [filename]})
         self._mgr._db_save_marker(vid_key)
@@ -377,7 +384,7 @@ class CueVideoContext(CueMarkerContext):
 
     def add_folder(self, folder_path):
         # type: (str) -> None
-        if not _cue.current_file:
+        if not self._mgr._ctx.current_file:
             return
         folder_ref = folder_path.rstrip("/") + "/"
         vid_key = self._key()
@@ -389,7 +396,7 @@ class CueVideoContext(CueMarkerContext):
             if folder_ref not in pool_files:
                 pool_files.append(folder_ref)
         else:
-            elapsed = _cue.vid_manager.get_elapsed()
+            elapsed = self._mgr._vid_manager.get_elapsed()
             self._append_pool(entry, pools,
                 {"time": elapsed, "files": [folder_ref]})
         self._mgr._db_save_marker(vid_key)
@@ -402,7 +409,7 @@ class CueVideoContext(CueMarkerContext):
 
     def add_pool(self):
         # type: () -> None
-        elapsed = _cue.vid_manager.get_elapsed()
+        elapsed = self._mgr._vid_manager.get_elapsed()
         vid_key = self._key()
         entry = self._mgr._get_or_create_entry(vid_key)
         pools = entry["pools"]
@@ -412,9 +419,9 @@ class CueVideoContext(CueMarkerContext):
 
     def apply_preset(self, preset_name):
         # type: (str) -> None
-        if not _cue.current_file:
+        if not self._mgr._ctx.current_file:
             return
-        elapsed = _cue.vid_manager.get_elapsed()
+        elapsed = self._mgr._vid_manager.get_elapsed()
         r = self._mgr.resolve_pool({"preset": preset_name})
         if not r.files:
             return
@@ -430,7 +437,7 @@ class CueVideoContext(CueMarkerContext):
         # type: (str) -> None
         """Stamp a preset onto the active video pool, creating one at the
         playhead if the context has no pools yet."""
-        if not _cue.current_file:
+        if not self._mgr._ctx.current_file:
             return
         r = self._mgr.resolve_pool({"preset": preset_name})
         if not r.files:
@@ -439,12 +446,12 @@ class CueVideoContext(CueMarkerContext):
         entry = self._mgr._get_or_create_entry(vid_key)
         pools = entry["pools"]
         if not pools or not (0 <= self.target_pool < len(pools)):
-            elapsed = _cue.vid_manager.get_elapsed()
+            elapsed = self._mgr._vid_manager.get_elapsed()
             self._append_pool(entry, pools,
                 {"time": elapsed, "preset": preset_name})
         else:
             pool = pools[self.target_pool]
-            time = pool.get("time", _cue.vid_manager.get_elapsed())
+            time = pool.get("time", self._mgr._vid_manager.get_elapsed())
             pools[self.target_pool] = {"time": time, "preset": preset_name}
         self.sync_text()
         self._mgr._db_save_marker(vid_key)
@@ -607,7 +614,7 @@ class CueVideoContext(CueMarkerContext):
 
     def get_duration(self):
         # type: () -> float
-        return _cue.vid_manager.get_duration()
+        return self._mgr._vid_manager.get_duration()
 
 
 # =========================================================================
@@ -620,7 +627,7 @@ class CueLoopContext(CueMarkerContext):
 
     def _key(self):
         # type: () -> str
-        return create_loop_key(_cue.current_file or "")
+        return create_loop_key(self._mgr._ctx.current_file or "")
 
     def _get_target(self):
         # type: () -> int
@@ -646,7 +653,7 @@ class CueLoopContext(CueMarkerContext):
         # type: () -> None
         key = self._key()
         self._mgr.pop(key, None)
-        _cue.trigger.loop_states.pop(key, None)
+        self._mgr._trigger.loop_states.pop(key, None)
         self._mgr._db_save_marker(key)
 
     def set_frequency(self, freq):
@@ -681,9 +688,15 @@ class CueLoopContext(CueMarkerContext):
 
 class CueMarkerManager(object):
 
-    def __init__(self, store):
-        # type: (CueMarkerStore) -> None
+    def __init__(self, store, ctx, vid_manager, sfx_manager, trigger, video_editor, confirm_dialog):
+        # type: (CueMarkerStore, CueContext, CueVideoManager, CueSfxManager, CueTriggerEngine, CueVideoEditor, CueConfirmDialog) -> None
         self._store = store
+        self._ctx = ctx
+        self._vid_manager = vid_manager
+        self._sfx_manager = sfx_manager
+        self._trigger = trigger
+        self._video_editor = video_editor
+        self._confirm_dialog = confirm_dialog
         self._img_target = 0
         self._dlg_target = 0
         self._loop_target = 0
@@ -802,8 +815,8 @@ class CueMarkerManager(object):
         for fi, f in enumerate(files):
             if f.endswith("/") and file_path.startswith(f):
                 resolved = []
-                for rf in _cue.sfx_manager.files:
-                    if rf.startswith(f) and rf not in _cue.sfx_manager.disabled_files and rf not in resolved:
+                for rf in self._sfx_manager.files:
+                    if rf.startswith(f) and rf not in self._sfx_manager.disabled_files and rf not in resolved:
                         resolved.append(rf)
                 if file_path in resolved:
                     resolved.remove(file_path)
@@ -817,7 +830,7 @@ class CueMarkerManager(object):
         # type: (str, Any) -> None
         """Save a video preset. The source duration comes from the video
         manager; the store has no video dependency."""
-        source_dur = _cue.vid_manager.get_duration() if hasattr(_cue, 'vid_manager') else 0.0
+        source_dur = self._vid_manager.get_duration()
         self._store.create_video_preset(name, entry, source_dur)
 
     def delete_video_preset(self, name):
@@ -837,7 +850,7 @@ class CueMarkerManager(object):
         preset = self._video_presets.get(name)
         if preset is None:
             return 0
-        dur = _cue.vid_manager.get_duration()
+        dur = self._vid_manager.get_duration()
         if dur is None or dur <= 0:
             return 0
         out = 0
@@ -852,10 +865,10 @@ class CueMarkerManager(object):
         preset = self._video_presets.get(name)
         if preset is None:
             return
-        if not _cue.current_file:
+        if not self._ctx.current_file:
             return
-        vid_key = create_vid_key(_cue.current_file)
-        dur = _cue.vid_manager.get_duration()
+        vid_key = create_vid_key(self._ctx.current_file)
+        dur = self._vid_manager.get_duration()
         dropped = 0
         new_pools = []
         for pool in preset.get("pools", []):
@@ -920,7 +933,7 @@ class CueMarkerManager(object):
 
     def detach_active_video_ts(self, *args):
         # type: (*Any) -> None
-        vid_key = create_vid_key(_cue.current_file) if _cue.current_file else ""
+        vid_key = create_vid_key(self._ctx.current_file) if self._ctx.current_file else ""
         if not vid_key:
             return
         entry = self.get(vid_key)
@@ -944,8 +957,8 @@ class CueMarkerManager(object):
         if not folder_ref.endswith("/"):
             return
         resolved = []
-        for f in _cue.sfx_manager.files:
-            if f.startswith(folder_ref) and f not in _cue.sfx_manager.disabled_files and f not in resolved:
+        for f in self._sfx_manager.files:
+            if f.startswith(folder_ref) and f not in self._sfx_manager.disabled_files and f not in resolved:
                 resolved.append(f)
         if child_file in resolved:
             resolved.remove(child_file)
@@ -1122,10 +1135,10 @@ class CueMarkerManager(object):
     def restore_from_file(self):
         # type: () -> None
         """Validate backup.zip, then ask the user to confirm a restore."""
-        db = _cue.db
+        db = self._store._db
         if db is None or not db.is_open():
             return
-        zip_path = os.path.join(_cue.paths.root, CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME)
+        zip_path = os.path.join(self._store._paths.root, CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME)
         if not os.path.isfile(zip_path):
             _cue_log("RESTORE-MARKERS-NO-FILE path={}".format(zip_path))
             return
@@ -1133,7 +1146,7 @@ class CueMarkerManager(object):
         if not ok:
             _cue_log("RESTORE-MARKERS-INVALID {}".format(reason))
             return
-        _cue.confirm_dialog.show(
+        self._confirm_dialog.show(
             "Restore from backups/backup.zip? This game's markers, shared "
             "presets, and shared config will be replaced. The current state "
             "is kept in data_bak. Other games' markers are untouched.",
@@ -1144,14 +1157,14 @@ class CueMarkerManager(object):
         # type: (str) -> None
         """Swap files on disk from backup.zip, then reload in-memory state."""
         try:
-            db = _cue.db
+            db = self._store._db
             if db is None or not db.is_open():
                 return
             # Don't mutate data/ while the auto-backup thread is zipping it.
             if not db._backup.wait_until_idle():
                 _cue_log("RESTORE-MARKERS: timed out waiting for auto backup")
                 return
-            count = restore_pieces(zip_path, _cue.paths.root, _cue.paths.game_id)
+            count = restore_pieces(zip_path, self._store._paths.root, self._store._paths.game_id)
             db.open()
             # Reload the stores from the restored files.  load_persistent
             # treats an empty marker dir as fresh and skips presets, so
@@ -1161,8 +1174,8 @@ class CueMarkerManager(object):
             self.reload_presets()
             self._session_created = set()
             _cue.undo.reset()
-            _cue.sfx_manager.rebuild_tree()
-            _cue.video_editor.refresh()
+            self._sfx_manager.rebuild_tree()
+            self._video_editor.refresh()
             # Capture the restored tree in a fresh auto-backup.
             db._backup.force_backup()
             renpy.restart_interaction()
@@ -1174,8 +1187,8 @@ class CueMarkerManager(object):
 
     def copy_context(self):
         # type: () -> None
-        ctx_file = _cue.current_file
-        ctx_dlg = _cue.current_dialogue
+        ctx_file = self._ctx.current_file
+        ctx_dlg = self._ctx.current_dialogue
         copied = {}
         all_keys = [
             create_vid_key(ctx_file),
@@ -1197,8 +1210,8 @@ class CueMarkerManager(object):
         # type: () -> None
         if self.clipboard is None:
             return
-        ctx_file = _cue.current_file
-        ctx_dlg = _cue.current_dialogue
+        ctx_file = self._ctx.current_file
+        ctx_dlg = self._ctx.current_dialogue
         source_file = self.clipboard.get("source_file", "")
         pasted_keys = []
 
@@ -1219,7 +1232,7 @@ class CueMarkerManager(object):
                 self._data[new_key]["replay"] = renpy.store._in_replay
             _cue_log("{} {}".format(new_key, str(entry)))
             if is_vid_key(source_key):
-                dur = _cue.vid_manager.get_duration()
+                dur = self._vid_manager.get_duration()
                 pasted_entry = self._data[new_key]
                 for pool_entry in pasted_entry.get("pools", []):
                     t = pool_entry.get("time", 0)

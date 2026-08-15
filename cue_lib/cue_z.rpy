@@ -156,7 +156,6 @@ init -900 python:
     # on_save resolves _cue.undo at call time (capture runs on every DB write).
     _cue.marker_store = CueMarkerStore(
         _cue.db, _cue.paths, lambda: _cue.undo.capture())
-    _cue.markers = CueMarkerManager(_cue.marker_store)
     _cue.vid_manager = CueVideoManager(_cue.ctx)
     _cue.volume = CueVolumeManager(_cue.marker_store, _cue.ctx)
     _cue.video_sequence = CueVidSpeedSequence()
@@ -184,6 +183,15 @@ init -900 python:
     _cue.keybinds = CueKeybindsManager(_cue.db)
     _cue.icons = CueIconManager(_cue.paths)
     _cue.music = CueMusicManager(_cue.marker_store, _cue.ctx, _cue.db, _cue.paths)
+
+    # markers is the coordinator, wired LAST so every injected collaborator
+    # (vid_manager, sfx_manager, trigger, video_editor, confirm_dialog) is
+    # already constructed.  The store is its data layer; ctx carries the
+    # per-scene context state.
+    _cue.markers = CueMarkerManager(
+        _cue.marker_store, _cue.ctx, _cue.vid_manager,
+        _cue.sfx_manager, _cue.trigger, _cue.video_editor,
+        _cue.confirm_dialog)
 
 
 init 999 python:
