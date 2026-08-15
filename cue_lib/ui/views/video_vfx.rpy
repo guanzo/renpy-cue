@@ -14,7 +14,7 @@ screen _cue_edit_queue_vbox():
         for job in _cue.video_editor.job_queue.jobs:
             hbox:
                 spacing 5
-                if job.status in ("queued", "analyzing", "encoding"):
+                if job.status in ("queued", "analyzing", "encoding", "finalizing"):
                     use cue_icon_btn(
                         "xmark",
                         Function(_cue.video_editor.job_queue.cancel, job.job_id),
@@ -288,7 +288,7 @@ screen cue_video_vfx():
                 ]
                 frame:
                     background _cue_color_bg_panel
-                    padding (4, 0)
+                    padding (0, 0)
                     yminimum 0
                     xfill True
                     $ _queue_len = len(_cue.video_editor.job_queue.jobs)

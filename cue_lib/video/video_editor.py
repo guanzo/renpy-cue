@@ -68,6 +68,8 @@ class CueVideoJob(object):
         self._done = False
         self._ok = False
         self._resume_pass2 = False
+        # Retry of a finished encode: skip encoding, go straight to the swap.
+        self._needs_swap = False
         # Staging fields: set by probe thread, consumed by main-thread poll()
         self._launched = False
         self._cmds = []             # type: list
@@ -76,6 +78,12 @@ class CueVideoJob(object):
         self._log_path = ""
         self._progress_path = ""
         self._progress_offset = 0
+        # Swap state: written by the background swap thread, consumed by
+        # main-thread poll(). job.status is "finalizing" while _swapping is True.
+        self._swapping = False
+        self._swap_done = False
+        self._swap_ok = False
+        self._swap_error_msg = ""
 
     def elapsed(self):
         # type: () -> float
@@ -94,6 +102,8 @@ class CueVideoJob(object):
         if self.status == "encoding":
             _pct = int(self.progress * 100)
             return "Encoding {}%".format(_pct)
+        if self.status == "finalizing":
+            return "Finalizing"
         if self.status == "done":
             return "Done"
         if self.status == "error":
@@ -168,6 +178,15 @@ class CueVideoEditQueue(object):
 
         self._current = job
         job.start_time = _time.time()
+
+        if job._needs_swap:
+            # Retry of a finished encode whose file swap failed.  Skip the
+            # probe/encode path and go straight to the file swap.
+            job._needs_swap = False
+            self._start_swap(job)
+            renpy.restart_interaction()
+            return
+
         job.status = "analyzing"
 
         dur_ms = 0
@@ -331,6 +350,13 @@ class CueVideoEditQueue(object):
             self._start_if_idle()
             return
 
+        # ---- 0. Swap running on the background thread ----
+        if job._swapping:
+            if job._swap_done:
+                self._finish_swap(job)
+                self._advance_queue()
+            return
+
         # ---- 1. Encode fully finished (all passes done / error / cancelled) ----
         if job._done:
             job.end_time = _time.time()
@@ -344,11 +370,10 @@ class CueVideoEditQueue(object):
                 job.status = "error"
                 _cue_log("Speed: job failed (job_id={})".format(job.job_id))
             else:
-                self._finish(job)
-            self._current = None
-            self._start_next()
-            self.save_to_persistent()
-            renpy.restart_interaction()
+                if self._start_swap(job):
+                    renpy.restart_interaction()
+                    return
+            self._advance_queue()
             return
 
         # ---- 2. Probe thread still staging (status "analyzing") ----
@@ -396,29 +421,40 @@ class CueVideoEditQueue(object):
             renpy.restart_interaction()
             return
 
-    def _finish(self, job):
-        # type: (CueVideoJob) -> None
+    def _advance_queue(self):
+        # type: () -> None
+        """Clear the finished current job and start the next queued job."""
+        self._current = None
+        self._start_next()
+        self.save_to_persistent()
+        renpy.restart_interaction()
+
+    def _start_swap(self, job):
+        # type: (CueVideoJob) -> bool
+        """Validate the encoded temp file and kick off the file swap on a
+        background thread.  Main-thread only: _music.stop() is a Ren'Py API
+        call.  Returns False (and marks the job error) if the temp is bad."""
         tmp = job.fspath_tmp
         out = job.fspath_out
-        speed = job.factor
-        vp = job.vpath
         if not tmp or not out:
             _cue_log("Variant: FAILED -- missing tmp or out path (job_id={})".format(job.job_id))
             job.status = "error"
             job.error_msg = "Missing paths"
-            return
+            return False
         try:
             if not os.path.exists(tmp) or os.path.getsize(tmp) == 0:
                 self._cleanup_temp(job)
                 _cue_log("Variant: FAILED -- empty or missing temp (job_id={})".format(job.job_id))
                 job.status = "error"
                 job.error_msg = "Empty output"
-                return
+                return False
         except Exception:
             self._cleanup_temp(job)
             job.status = "error"
             job.error_msg = "Cannot read temp"
-            return
+            return False
+        # Stop any channel playing the target file so the swap below can
+        # replace it on disk.
         try:
             for _ch_name in _aaudio.channels:
                 _playing = _music.get_playing(channel=_ch_name)
@@ -428,28 +464,45 @@ class CueVideoEditQueue(object):
                         _music.stop(channel=_ch_name, fadeout=0)
         except Exception:
             _cue_log("EDITOR-FINISH: channel stop failed")
-        _time.sleep(0.5)
-        for _attempt in range(4):
-            try:
-                if os.path.exists(out):
-                    os.remove(out)
-                os.rename(tmp, out)
-                job.status = "done"
-                state = self._editor._ensure_state(vp)
-                state.last_error = ""
-                _cue_log("Variant: generated {:.1f}x at {} (job_id={})".format(
-                    speed, os.path.basename(out), job.job_id))
-                return
-            except Exception:
-                if _attempt < 3:
-                    _time.sleep(1.0)
+        job.status = "finalizing"
+        job._swapping = True
+        job._swap_done = False
+        job._swap_ok = False
+        job._swap_error_msg = ""
+        t = threading.Thread(target=_cue_swap_job, args=(job,))
+        t.daemon = True
+        t.start()
+        return True
+
+    def _finish_swap(self, job):
+        # type: (CueVideoJob) -> None
+        """Complete the job on the main thread after the background swap
+        thread reports done.  Runs all Ren'Py/DB side effects here."""
+        vp = job.vpath
+        out = job.fspath_out
         state = self._editor._ensure_state(vp)
-        state.last_error = _cue_esc(
-            "The game still has this video file open. "
-            "Advance past this video scene, then try again.")
-        job.status = "error"
-        job.error_msg = "File locked -- retry later"
-        _cue_log("Variant: swap FAILED -- file locked (job_id={})".format(job.job_id))
+        if not out:
+            job.status = "error"
+            job.error_msg = "Missing paths"
+            return
+        if job.cancelled:
+            state.last_error = ""
+            job.status = "error"
+            job.error_msg = "Cancelled"
+            _cue_log("Speed: swap cancelled (job_id={})".format(job.job_id))
+        elif job._swap_ok:
+            job.status = "done"
+            state.last_error = ""
+            _cue_log("Variant: generated {:.1f}x at {} (job_id={})".format(
+                job.factor, os.path.basename(out), job.job_id))
+        else:
+            state.last_error = _cue_esc(
+                "The game still has this video file open. "
+                "Advance past this video scene, then try again.")
+            job.status = "error"
+            job.error_msg = job._swap_error_msg or "File locked -- retry later"
+            _cue_log("Variant: swap FAILED -- {} (job_id={})".format(
+                job._swap_error_msg or "file locked", job.job_id))
 
     def retry(self, job_id):
         # type: (int) -> None
@@ -458,10 +511,15 @@ class CueVideoEditQueue(object):
             return
         if os.path.exists(job.fspath_tmp):
             _cue_log("Speed: retry finish (job_id={})".format(job_id))
-            self._finish(job)
+            job.status = "queued"
+            job._needs_swap = True
+            job._done = True
+            job._ok = True
+            self._start_if_idle()
         else:
             _cue_log("Speed: retry encode (job_id={})".format(job_id))
             job.status = "queued"
+            job._needs_swap = False
             job._done = False
             job._ok = False
             job._launched = False
@@ -1051,3 +1109,44 @@ class CueVideoEditor(object):
         if self.processing:
             self.last_error = ""
         renpy.restart_interaction()
+
+
+# ==================================================================
+# Background file swap
+# ==================================================================
+# Module-level so threading.Thread can reference it by name.  Only writes
+# job._swap_* fields; poll() finalizes status and runs side effects on the
+# main thread.  Pure Python + OS calls -- never blocks the main thread.
+
+def _cue_swap_job(job):
+    # type: (CueVideoJob) -> None
+    """Wait for the stopped channel to release the output handle, then
+    replace the output file with the encoded temp file.
+
+    The 0.5s initial delay and the retry sleeps are the reason this must
+    run off the main thread -- they'd otherwise freeze the render loop
+    (the old stutter).  A failed swap leaves tmp on disk so retry() can
+    re-attempt it."""
+    tmp = job.fspath_tmp
+    out = job.fspath_out
+    if not tmp or not out:
+        job._swap_ok = False
+        job._swap_error_msg = "Missing paths"
+        job._swap_done = True
+        return
+    _time.sleep(0.5)
+    for _attempt in range(4):
+        try:
+            if os.path.exists(out):
+                os.remove(out)
+            os.rename(tmp, out)
+            job._swap_ok = True
+            job._swap_error_msg = ""
+            break
+        except Exception:
+            if _attempt < 3:
+                _time.sleep(1.0)
+    else:
+        job._swap_ok = False
+        job._swap_error_msg = "File locked -- retry later"
+    job._swap_done = True

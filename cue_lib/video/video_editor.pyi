@@ -6,6 +6,7 @@ CUE_VE_MODE_INTERPOLATE: int
 CUE_VE_MODE_FAST_PREVIEW: int
 
 def _cue_esc(text: str) -> str: ...
+def _cue_swap_job(job: CueVideoJob) -> None: ...
 
 class CueVideoEditorState:
     vpath: str
@@ -34,6 +35,7 @@ class CueVideoJob:
     _done: bool
     _ok: bool
     _resume_pass2: bool
+    _needs_swap: bool
     _launched: bool
     _cmds: list
     _pass_idx: int
@@ -41,6 +43,10 @@ class CueVideoJob:
     _log_path: str
     _progress_path: str
     _progress_offset: int
+    _swapping: bool
+    _swap_done: bool
+    _swap_ok: bool
+    _swap_error_msg: str
 
     def __init__(
         self,
