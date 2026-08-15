@@ -68,6 +68,8 @@ CUE_ICON_MAP = {
     "square": ("square-regular.png", False),
     "trash-can": ("trash-can-solid.png", False),
     "triangle-exclamation": ("triangle-exclamation-solid.png", False),
+    "volume": ("volume-solid.png", False),
+    "volume-xmark": ("volume-xmark-solid.png", False),
 }  # type: Dict[str, Tuple[str, bool]]
 
 

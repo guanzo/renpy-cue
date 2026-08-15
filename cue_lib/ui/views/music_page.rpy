@@ -53,10 +53,11 @@ screen cue_music_page():
                         text "No music triggers for this replay yet." style "cue_txt"
                     else:
                         text ("Click a trigger to select it, then click the + button "
-                              "in My/Game Music to add a song to the trigger.") style "cue_txt"
+                                "in My/Game Music to add a song to the trigger. "
+                                "If you add multiple songs, one will be picked at random.") style "cue_txt"
                         use trigger_list(triggers)
                     null height 4
-                    use cue_txt_button("+ Add music to current scene", Function(_cue.music.add_custom_trigger))
+                    use cue_txt_button("+ Add music starting at current scene", Function(_cue.music.add_custom_trigger))
 
         use cue_section_frame("My Music"):
             use grow_and_scroll(200, max(int(0.30 * renpy.config.screen_height), 400)):
@@ -100,7 +101,7 @@ screen trigger_list(triggers):
                     hbox:
                         spacing 6
                         use cue_icon_btn(
-                            "trash-can",
+                            ("rotate-right" if trigger["is_default"] else "trash-can"),
                             Function(_cue.music.delete_trigger, trigger["key"]),
                             ("Reset to default" if trigger["is_default"] else "Delete trigger"),
                             None)
@@ -110,7 +111,7 @@ screen trigger_list(triggers):
                         hbox:
                             spacing 6
                             use cue_icon_btn(
-                                "xmark",
+                                ("volume" if trigger["default_enabled"] else "volume-xmark"),
                                 Function(_cue.music.toggle_default, trigger["key"]),
                                 "Toggle default song",
                                 None)
