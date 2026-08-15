@@ -10,7 +10,7 @@ from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_resolve_files, _cue_pick_file, _cue_loop_still_playing,
-    create_loop_key, create_vid_key,
+    create_loop_key, create_vid_key, get_key_file,
 )
 
 MYPY = False
@@ -44,9 +44,10 @@ class CueTriggerEngine(object):
 
     # -- exclusive tracking (channel -> {"scope": scope, "kind": kind, "hold": bool}) --
     # "scope" is a friendship identity: SFX sharing a scope are friends and
-    # won't fade/block each other. One-shots use the trigger key (all pools
-    # of a trigger fire as one unit); loops use a per-pool scope so each loop
-    # competes with its siblings to "sneak in" solo.
+    # won't fade/block each other. One-shots use the scene (file) so every
+    # image/dialogue/shake trigger for one file is a friend; loops use a
+    # per-pool scope so each loop competes with its siblings to "sneak in"
+    # solo.
     #
     # "kind" is the domain (loop vs one-shot). Domains never interact, so an
     # exclusive loop only waits for / fades / blocks other loops.
@@ -151,6 +152,10 @@ class CueTriggerEngine(object):
             _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(
                 key, len(pools), total, vol))
 
+            # Scene-wide scope: all one-shots for this file (image, dialogue,
+            # shake) are friends; a previous file's SFX is cut.
+            scope = get_key_file(key)
+
             picked = []
             for pi, pool in enumerate(pools):
                 resolved = _cue.markers.resolve_pool(pool)
@@ -161,11 +166,11 @@ class CueTriggerEngine(object):
                     continue
                 excl = resolved.exclusive
                 # Hold gate: a holding non-friend owns the air -- drop this pool.
-                if self._excl_hold_blocked(key, CUE_EXCL_KIND_ONESHOT):
+                if self._excl_hold_blocked(scope, CUE_EXCL_KIND_ONESHOT):
                     _cue_log("CTX-DROPPED key={} pool={} (held)".format(key, pi))
                     continue
                 # One-shot pools can't defer: "wait" only plays into open air.
-                if excl.start == CueExclusiveStart.WAIT and self._excl_nonfriend_busy(key, CUE_EXCL_KIND_ONESHOT):
+                if excl.start == CueExclusiveStart.WAIT and self._excl_nonfriend_busy(scope, CUE_EXCL_KIND_ONESHOT):
                     _cue_log("CTX-DROPPED key={} pool={} (air busy)".format(key, pi))
                     continue
                 file = _cue_pick_file(files)
@@ -180,14 +185,14 @@ class CueTriggerEngine(object):
                 # _cue_play_pool is in runtime.py; import lazily to avoid cycle
                 from cue_lib.runtime import _cue_play_pool, _cue_fade_out_sfx
                 if excl.start == CueExclusiveStart.FADE:
-                    # Cut-in: fade out one-shots from other keys, plus any
+                    # Cut-in: fade out one-shots from other files, plus any
                     # playing loops and video SFX (one-shots cut loops).
                     faded = _cue_fade_out_sfx(
-                        exclude_channels=self._excl_friends(key, CUE_EXCL_KIND_ONESHOT))
+                        exclude_channels=self._excl_friends(scope, CUE_EXCL_KIND_ONESHOT))
                     _cue_log("CTX-FADE key={} pool={} faded={}".format(
                         key, pi, faded))
                 ch_used = _cue_play_pool(entry, key, pool, pi, file=file)
-                self._excl_track(ch_used, key, CUE_EXCL_KIND_ONESHOT, excl.hold)
+                self._excl_track(ch_used, scope, CUE_EXCL_KIND_ONESHOT, excl.hold)
 
     # -- loop triggers (l: keys) --
 
