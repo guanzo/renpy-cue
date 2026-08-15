@@ -113,7 +113,7 @@ class CueIconManager(object):
         if cached is not None:
             return cached
         _filename, _mirrored = CUE_ICON_MAP[name]
-        _path = self._paths.in_game_base_dir + "/cue_lib/images/icons/" + _filename
+        _path = self._paths.icon(_filename)
         if not renpy.loadable(_path):
             _cue_log("CUE-ICON: missing image " + _path)
             return None

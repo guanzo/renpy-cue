@@ -67,6 +67,10 @@ class CuePaths(object):
         # type: () -> str
         return CUE_MOD_DIRNAME
 
+    def icon(self, filename):
+        # type: (str) -> str
+        return self.in_game_base_dir + "/cue_lib/images/icons/" + filename
+
     # ------------------------------------------------------------------
     # Root resolution -- "where IS the shared dir?" (class-level: no game
     # instance needed).  The pointer file lives in the platform-default dir

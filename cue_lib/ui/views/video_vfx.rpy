@@ -42,7 +42,9 @@ screen _cue_edit_queue_vbox():
                         Function(_cue.video_editor.job_queue.retry, job.job_id))
 
 screen cue_video_vfx():
-    use cue_section_frame("Video VFX"):
+    $ _vfx_tt = ("Video SFX markers on the original video (1.0x) will autoscale "
+            "to all created videos.")
+    use cue_section_frame("Video VFX", tt=_vfx_tt):
         # --- Pre-compute speed availability ---
         $ _vid_path = _cue.speed_resolver.base_path_for(_cue.current_file)
         $ _has_speeds = False
@@ -206,8 +208,6 @@ screen cue_video_vfx():
             $ _ved = _cue.video_editor
             vbox:
                 spacing 5
-                text ("Video SFX markers on the original video (1.0x) will autoscale "
-                    "to all created videos.") style "cue_txt"
                 # --- Created speeds: select one for deletion ---
                 $ _del_sel = _cue_create_delete_sel()
                 hbox:

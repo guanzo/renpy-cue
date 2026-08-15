@@ -183,15 +183,16 @@ screen trigger_list(triggers):
                     elif not trigger["is_default"]:
                         text "No music added." style "cue_txt"
 
-# My Music folder/file tree. Mirrors the SFX Library tree (cue_file_tree) but
-# each file row carries a play button plus an add-to-trigger "+" button.
-screen cue_music_tree():
+# My/Game Music file tree. Each row carries a play button plus an
+# add-to-trigger "+" button. Shared by the two wrappers below, which pass the
+# tree source (user- vs game-music) and the user/game-specific callables.
+screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
     $ _tree_add_tt = "Add song to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
     $ _tree_add_folder_tt = "Add folder to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
     $ _tree_add_enabled = _cue.music.selected_key is not None
     vbox:
         spacing 2
-        for item in _cue.music.user_music.visible_tree:
+        for item in tree:
             hbox:
                 spacing 2
                 if item["depth"] > 0:
@@ -199,60 +200,40 @@ screen cue_music_tree():
                 if item["type"] == "folder":
                     use cue_icon_btn(
                         "plus",
-                        Function(_cue.music.add_user_folder_to_trigger, item["full_path"]),
+                        Function(add_folder, item["full_path"]),
                         _tree_add_folder_tt,
                         None,
                         enabled=_tree_add_enabled)
                     use cue_txt_button(
                         item["name"],
-                        Function(_cue.music.user_music.toggle_folder, item["full_path"]),
+                        Function(toggle_folder, item["full_path"]),
                     )
                 else:
-                    use cue_icon_btn("play", Function(_cue_preview_music, item["full_path"]), "Play song", None)
+                    use cue_icon_btn("play", Function(preview, item["full_path"]), "Play song", None)
                     use cue_icon_btn(
                         "plus",
-                        Function(_cue.music.add_user_song_to_trigger, item["full_path"]),
+                        Function(add_song, item["full_path"]),
                         _tree_add_tt,
                         None,
                         enabled=_tree_add_enabled)
                     text item["name"] style "cue_txt" color _cue_color_text_accent
 
+# My Music folder/file tree. Mirrors the SFX Library tree (cue_file_tree) but
+# each file row carries a play button plus an add-to-trigger "+" button.
+screen cue_music_tree():
+    use _cue_music_file_tree(
+        _cue.music.user_music.visible_tree,
+        _cue.music.add_user_folder_to_trigger,
+        _cue.music.user_music.toggle_folder,
+        _cue_preview_music,
+        _cue.music.add_user_song_to_trigger)
 
-# Game Music folder/file tree. Mirrors cue_music_tree but lists the game's own
-# bundled audio, discovered from the virtual filesystem by dir-name heuristic.
+# Game Music folder/file tree. Lists the game's own bundled audio, discovered
+# from the virtual filesystem by dir-name heuristic.
 screen cue_game_music_tree():
-    $ _game_add_tt = "Add song to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
-    $ _game_add_folder_tt = "Add folder to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
-    $ _game_add_enabled = _cue.music.selected_key is not None
-    vbox:
-        spacing 2
-        for item in _cue.music.game_music.visible_tree:
-            hbox:
-                spacing 2
-                if item["depth"] > 0:
-                    text " " * item["depth"] style "cue_txt"
-                if item["type"] == "folder":
-                    use cue_icon_btn(
-                        "plus",
-                        Function(_cue.music.add_game_folder_to_trigger, item["full_path"]),
-                        _game_add_folder_tt,
-                        None,
-                        enabled=_game_add_enabled)
-                    use cue_txt_button(
-                        item["name"],
-                        Function(_cue.music.game_music.toggle_folder, item["full_path"]),
-                    )
-                else:
-                    use cue_icon_btn(
-                        "play",
-                        Function(_cue_preview_game_music, item["full_path"]),
-                        "Play song",
-                        None,
-                    )
-                    use cue_icon_btn(
-                        "plus",
-                        Function(_cue.music.add_game_song_to_trigger, item["full_path"]),
-                        _game_add_tt,
-                        None,
-                        enabled=_game_add_enabled)
-                    text item["name"] style "cue_txt" color _cue_color_text_accent
+    use _cue_music_file_tree(
+        _cue.music.game_music.visible_tree,
+        _cue.music.add_game_folder_to_trigger,
+        _cue.music.game_music.toggle_folder,
+        _cue_preview_game_music,
+        _cue.music.add_game_song_to_trigger)
