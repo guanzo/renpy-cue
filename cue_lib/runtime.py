@@ -165,7 +165,6 @@ def _cue_hide_overlay():
 
 def _cue_refresh_context():
     # type: () -> None
-    _cue.current_replay = renpy.store._in_replay
     old_file = _cue.current_file
     old_channel = _cue.vid_manager.channel
     old_layer_type = _cue.top_layer_type

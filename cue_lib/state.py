@@ -48,7 +48,6 @@ class Cue(_renpy_python.NoRollback):
         self.prev_dialogue = ""
         self.top_layer_type = ""
         self.top_displayable = None
-        self.current_replay = None
         self.setup_dir_text = ""      # text bound to the Shared Dir input
         self.shared_dir_error = ""    # error line under the Shared Dir input
         self.shared_dir_success = ""  # success line under the Shared Dir input

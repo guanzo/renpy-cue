@@ -46,7 +46,7 @@ screen cue_music_page():
                     null height 5
 
                     $ discover_tip = "Default music triggers must be discovered by playing through the replay."
-                    $ triggers = _cue.music.trigger_boxes()
+                    $ triggers = _cue.music.triggers()
                    
                     text discover_tip style "cue_txt"
                     if not triggers:
@@ -54,7 +54,7 @@ screen cue_music_page():
                     else:
                         text ("Click a trigger to select it, then click the + button "
                               "in My/Game Music to add a song to the trigger.") style "cue_txt"
-                        use trigger_box_list(triggers)
+                        use trigger_list(triggers)
                     null height 4
                     use cue_txt_button("+ Add music to current scene", Function(_cue.music.add_custom_trigger))
 
@@ -82,7 +82,7 @@ screen cue_music_page():
                         text "Game music is found with heuristics, this list may not be accurate." style "cue_txt"
                         use cue_game_music_tree()
 
-screen trigger_box_list(triggers):
+screen trigger_list(triggers):
     for trigger in triggers:
         null height 2
         frame:

@@ -48,7 +48,6 @@ class Cue:
     prev_dialogue: str
     top_layer_type: Optional[str]
     top_displayable: Any
-    current_replay: Any
     setup_dir_text: str
     shared_dir_error: str
     shared_dir_success: str
