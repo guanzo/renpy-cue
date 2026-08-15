@@ -1,13 +1,51 @@
 # -*- coding: utf-8 -*-
 # Tests for the pure logic in cue_lib.util -- key helpers, time formatting,
-# and persistent unwrapping.  These functions were decoupled from the _cue
-# singleton / Ren'Py runtime so they can be tested in isolation.
+# persistent unwrapping, file-tree / file-picking, OS-safe file replace, and
+# the displayable/movie/SFX helpers.  Functions that reach the _cue singleton
+# or Ren'Py runtime monkeypatch the specific seam (e.g. _cue.sfx_manager,
+# _music.is_playing) instead of touching the real runtime.
+
+import functools
+import os
+from types import SimpleNamespace
+
+import cue_lib.util as _util
+import cue_lib.constants as _constants
+import pygame
+import renpy
+import renpy.atl as _atl
+import renpy.audio.music as _music
+import renpy.config as _config
+import renpy.display.im as _im
+import renpy.display.video as _video
+
+from cue_lib.state import _cue
 
 from cue_lib.util import (
+    _cue_atl_child_displayables,
+    _cue_build_tree,
     _cue_clamp_time,
+    _cue_clear_debug_log,
     _cue_format_time,
+    _cue_get_movie_or_image,
+    _cue_get_movie_play,
+    _cue_is_screenshake,
+    _cue_loop_still_playing,
+    _cue_log,
+    _cue_make_tab_action,
     _cue_parse_time,
+    _cue_pick_file,
+    _cue_replace_file,
+    _cue_resolve_files,
+    _cue_sfx_channel_index,
+    _cue_sfx_channel_name,
+    _cue_shift_held,
     _cue_speed_label,
+    _cue_strip_key_prefix,
+    _cue_top_layer_name,
+    _cue_top_movie_name,
+    _cue_ui_refresh,
+    _cue_unwrap_displayable,
     _cue_unwrap_persistent,
     create_dlg_key,
     create_img_key,
@@ -21,6 +59,11 @@ from cue_lib.util import (
     is_loop_key,
     is_vid_key,
 )
+
+
+def Move(**kwargs):
+    """Stand-in for renpy.transitions.Move (a plain callable named Move)."""
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -251,3 +294,483 @@ def test_unwrap_persistent_duck_typed_mapping():
     result = _cue_unwrap_persistent(FakeDict())
     assert type(result) is dict
     assert result == {"x": 1, "y": [2]}
+
+
+# ---------------------------------------------------------------------------
+# Key-prefix stripping
+# ---------------------------------------------------------------------------
+
+def test_strip_key_prefix_each_type():
+    assert _cue_strip_key_prefix("i_bg") == "bg"
+    assert _cue_strip_key_prefix("v_movie") == "movie"
+    assert _cue_strip_key_prefix("l_file") == "file"
+    assert _cue_strip_key_prefix("d_file__dlg") == "file__dlg"
+
+
+def test_strip_key_prefix_no_match_returns_unchanged():
+    assert _cue_strip_key_prefix("plain") == "plain"
+
+
+# ---------------------------------------------------------------------------
+# UI refresh decorator
+# ---------------------------------------------------------------------------
+
+def test_ui_refresh_returns_result(monkeypatch):
+    calls = []
+    monkeypatch.setattr(renpy, "restart_interaction", lambda *a, **k: calls.append(1))
+
+    @_cue_ui_refresh
+    def _double(x):
+        return x * 2
+
+    assert _double(21) == 42
+    assert calls == [1]
+
+
+def test_ui_refresh_runs_on_exception(monkeypatch):
+    calls = []
+    monkeypatch.setattr(renpy, "restart_interaction", lambda *a, **k: calls.append(1))
+
+    @_cue_ui_refresh
+    def _boom():
+        raise ValueError("nope")
+
+    import pytest
+    with pytest.raises(ValueError):
+        _boom()
+    assert calls == [1]
+
+
+# ---------------------------------------------------------------------------
+# File tree building
+# ---------------------------------------------------------------------------
+
+def test_build_tree_empty():
+    assert _cue_build_tree([]) == []
+
+
+def test_build_tree_root_files_only():
+    assert _cue_build_tree(["b.ogg", "a.ogg"]) == [
+        {"type": "file", "name": "a.ogg"},
+        {"type": "file", "name": "b.ogg"},
+    ]
+
+
+def test_build_tree_folders_before_files_nested():
+    tree = _cue_build_tree(["a/b/c.ogg", "a/b/d.ogg", "a/x.ogg", "z.ogg"])
+    assert [n["name"] for n in tree] == ["a/", "z.ogg"]
+    a = tree[0]
+    assert a["type"] == "folder"
+    assert a["expanded"] is False
+    assert a["has_files"] is True
+    assert [c["name"] for c in a["children"]] == ["b/", "x.ogg"]
+    b = a["children"][0]
+    assert b["has_files"] is True
+    assert [c["name"] for c in b["children"]] == ["c.ogg", "d.ogg"]
+
+
+def test_build_tree_folder_without_direct_files():
+    tree = _cue_build_tree(["a/b/c.ogg"])
+    assert tree[0]["name"] == "a/"
+    assert tree[0]["has_files"] is False  # only a nested folder, no direct file
+    assert [c["name"] for c in tree[0]["children"]] == ["b/"]
+    assert tree[0]["children"][0]["has_files"] is True
+
+
+# ---------------------------------------------------------------------------
+# File resolution / random picking
+# ---------------------------------------------------------------------------
+
+def test_resolve_files_expands_folder_refs(monkeypatch):
+    monkeypatch.setattr(_cue, "sfx_manager",
+                        SimpleNamespace(files=["music/a.ogg", "music/b.ogg", "other.ogg"],
+                                        disabled_files=set(["music/b.ogg"])))
+    assert _cue_resolve_files(["music/"]) == ["music/a.ogg"]
+
+
+def test_resolve_files_passthrough_and_dedupe(monkeypatch):
+    monkeypatch.setattr(_cue, "sfx_manager",
+                        SimpleNamespace(files=["music/a.ogg"], disabled_files=set()))
+    assert _cue_resolve_files(["music/", "music/a.ogg", "other.ogg"]) == ["music/a.ogg", "other.ogg"]
+
+
+def test_resolve_files_skips_disabled_direct(monkeypatch):
+    monkeypatch.setattr(_cue, "sfx_manager",
+                        SimpleNamespace(files=["music/a.ogg"], disabled_files=set(["music/a.ogg"])))
+    assert _cue_resolve_files(["music/a.ogg"]) == []
+
+
+def test_pick_file_empty_returns_none(monkeypatch):
+    monkeypatch.setattr(_util._cue, "trigger", SimpleNamespace(last_played=[]))
+    assert _cue_pick_file([]) is None
+
+
+def test_pick_file_single_skips_choice(monkeypatch):
+    monkeypatch.setattr(_util._cue, "trigger", SimpleNamespace(last_played=[]))
+    calls = []
+    monkeypatch.setattr(_util._random, "choice", lambda f: calls.append(f) or f[0])
+    assert _cue_pick_file(["only.ogg"]) == "only.ogg"
+    assert calls == []
+
+
+def test_pick_file_avoids_repeats(monkeypatch):
+    last = ["a.ogg"]
+    monkeypatch.setattr(_util._cue, "trigger", SimpleNamespace(last_played=last))
+    # choice returns the recent file first, then a fresh one
+    choices = iter(["a.ogg", "b.ogg"])
+    monkeypatch.setattr(_util._random, "choice", lambda f: next(choices))
+    assert _cue_pick_file(["a.ogg", "b.ogg"]) == "b.ogg"
+    assert last == ["a.ogg", "b.ogg"]
+
+
+def test_pick_file_prunes_last_played(monkeypatch):
+    last = ["a.ogg", "b.ogg"]
+    monkeypatch.setattr(_util._cue, "trigger", SimpleNamespace(last_played=last))
+    monkeypatch.setattr(_util._random, "choice", lambda f: "c.ogg")
+    assert _cue_pick_file(["a.ogg", "b.ogg", "c.ogg"]) == "c.ogg"
+    assert last == ["b.ogg", "c.ogg"]
+
+
+def test_pick_file_reroll_capped(monkeypatch):
+    last = ["a.ogg"]
+    monkeypatch.setattr(_util._cue, "trigger", SimpleNamespace(last_played=last))
+    # choice always returns the recent file: the 10-try guard must cap the loop
+    monkeypatch.setattr(_util._random, "choice", lambda f: "a.ogg")
+    assert _cue_pick_file(["a.ogg", "b.ogg"]) == "a.ogg"
+    assert last == ["a.ogg", "a.ogg"]
+
+
+def test_pick_file_no_avoid_does_not_touch_last(monkeypatch):
+    last = ["a.ogg"]
+    monkeypatch.setattr(_util._cue, "trigger", SimpleNamespace(last_played=last))
+    monkeypatch.setattr(_util._random, "choice", lambda f: "a.ogg")
+    assert _cue_pick_file(["a.ogg", "b.ogg"], avoid_repeats=False) == "a.ogg"
+    assert last == ["a.ogg"]
+
+
+# ---------------------------------------------------------------------------
+# _cue_replace_file (POSIX / Windows branches)
+# ---------------------------------------------------------------------------
+
+def test_replace_file_posix_plain_rename(tmp_path):
+    src = tmp_path / "src.ogg"
+    dst = tmp_path / "dst.ogg"
+    src.write_bytes(b"data")
+    dst.write_bytes(b"old")
+    _cue_replace_file(str(src), str(dst))
+    assert dst.read_bytes() == b"data"
+    assert not src.exists()
+
+
+def test_replace_file_nt_removes_stale_dst(tmp_path, monkeypatch):
+    src = tmp_path / "src.ogg"
+    dst = tmp_path / "dst.ogg"
+    src.write_bytes(b"data")
+    dst.write_bytes(b"old")
+    removed = []
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setattr(os, "remove", lambda p: removed.append(p))
+    _cue_replace_file(str(src), str(dst))
+    assert removed == [str(dst)]  # stale dst removed before rename
+    assert dst.read_bytes() == b"data"
+
+
+def test_replace_file_nt_remove_failure_swallowed(tmp_path, monkeypatch):
+    src = tmp_path / "src.ogg"
+    dst = tmp_path / "dst.ogg"
+    src.write_bytes(b"data")
+    dst.write_bytes(b"old")
+
+    def _boom(p):
+        raise OSError("locked")
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setattr(os, "remove", _boom)
+    _cue_replace_file(str(src), str(dst))  # rename below still runs
+    assert dst.read_bytes() == b"data"
+
+
+def test_replace_file_nt_no_stale_dst(tmp_path, monkeypatch):
+    src = tmp_path / "src.ogg"
+    dst = tmp_path / "dst.ogg"
+    src.write_bytes(b"data")
+    removed = []
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setattr(os, "remove", lambda p: removed.append(p))
+    _cue_replace_file(str(src), str(dst))
+    assert removed == []  # lexists(dst) false -> no remove
+    assert dst.read_bytes() == b"data"
+
+
+# ---------------------------------------------------------------------------
+# SFX channel helpers
+# ---------------------------------------------------------------------------
+
+def test_sfx_channel_name_and_index():
+    assert _cue_sfx_channel_name(3) == "_cue_3"
+    assert _cue_sfx_channel_index("_cue_7") == 7
+
+
+def test_loop_still_playing_all_silent(monkeypatch):
+    monkeypatch.setattr(_music, "is_playing", lambda channel="music", **k: False)
+    assert _cue_loop_still_playing(["a", "b"]) is False
+
+
+def test_loop_still_playing_one_playing(monkeypatch):
+    def _is_playing(channel="music", **k):
+        return channel == "b"
+    monkeypatch.setattr(_music, "is_playing", _is_playing)
+    assert _cue_loop_still_playing(["a", "b"]) is True
+
+
+def test_loop_still_playing_unknown_channel_skipped(monkeypatch):
+    def _is_playing(channel="music", **k):
+        raise Exception("unknown channel")
+    monkeypatch.setattr(_music, "is_playing", _is_playing)
+    assert _cue_loop_still_playing(["x"]) is False
+
+
+# ---------------------------------------------------------------------------
+# Debug logging
+# ---------------------------------------------------------------------------
+
+def test_log_writes_when_debug_enabled(tmp_path, monkeypatch):
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    _cue_log("hello world")
+    log_file = tmp_path / "renpy_cue" / "debug.log"
+    assert log_file.exists()
+    assert "hello world" in log_file.read_text()
+
+
+def test_log_disabled_writes_nothing(tmp_path, monkeypatch):
+    monkeypatch.setattr(_constants, "CUE_DEBUG", False)
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    _cue_log("hello world")
+    assert not (tmp_path / "renpy_cue" / "debug.log").exists()
+
+
+def test_log_missing_paths_never_raises(monkeypatch):
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    monkeypatch.setattr(_cue, "paths", None)  # AttributeError inside -> swallowed
+    _cue_log("no paths")  # must not raise
+
+
+def test_clear_debug_log_truncates(tmp_path, monkeypatch):
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    log_file = tmp_path / "renpy_cue" / "debug.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    log_file.write_text("stale content")
+    _cue_clear_debug_log()
+    assert log_file.read_text() == ""
+
+
+# ---------------------------------------------------------------------------
+# Tab action / shift held
+# ---------------------------------------------------------------------------
+
+def test_make_tab_action_appends_index(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(_util, "Function", lambda fn, *args: captured.update(fn=fn, args=args))
+    result = _cue_make_tab_action(_cue_sfx_channel_name, ("a", "b"), 3)
+    assert captured["fn"] is _cue_sfx_channel_name
+    assert captured["args"] == ("a", "b", 3)
+    assert result is None
+
+
+def test_shift_held(monkeypatch):
+    mods = []
+    monkeypatch.setattr(pygame, "key", SimpleNamespace(get_mods=lambda: mods[-1]), raising=False)
+    monkeypatch.setattr(pygame, "KMOD_LSHIFT", 1, raising=False)
+    monkeypatch.setattr(pygame, "KMOD_RSHIFT", 2, raising=False)
+    mods.append(0)
+    assert _cue_shift_held() is False
+    mods.append(1)  # LSHIFT held
+    assert _cue_shift_held() is True
+    mods.append(2)  # RSHIFT held
+    assert _cue_shift_held() is True
+
+
+# ---------------------------------------------------------------------------
+# Screenshake detection
+# ---------------------------------------------------------------------------
+
+def test_screenshake_none_is_false():
+    assert _cue_is_screenshake(None) is False
+
+
+def test_screenshake_partial_move_true():
+    trans = functools.partial(Move, bounce=True, repeat=True, delay=0.3)
+    assert _cue_is_screenshake(trans) is True
+
+
+def test_screenshake_partial_wrong_func_false():
+    def Other():
+        return None
+    assert _cue_is_screenshake(functools.partial(Other, delay=0.3)) is False
+
+
+def test_screenshake_partial_delay_too_long_false():
+    trans = functools.partial(Move, bounce=True, repeat=True, delay=0.5)
+    assert _cue_is_screenshake(trans) is False
+
+
+def test_screenshake_partial_missing_keys_false():
+    assert _cue_is_screenshake(functools.partial(Move)) is False
+
+
+def test_screenshake_curry_shaped_true():
+    trans = SimpleNamespace(callable=Move, kwargs={"bounce": True, "repeat": True, "delay": 0.1})
+    assert _cue_is_screenshake(trans) is True
+
+
+def test_screenshake_plain_object_false():
+    assert _cue_is_screenshake(object()) is False
+
+
+def test_screenshake_partial_delay_non_numeric_false():
+    trans = functools.partial(Move, bounce=True, repeat=True, delay="0.3")
+    assert _cue_is_screenshake(trans) is False
+
+
+# ---------------------------------------------------------------------------
+# Displayable unwrapping / naming
+# ---------------------------------------------------------------------------
+
+def test_unwrap_displayable_plain_returns_self():
+    d = object()
+    assert _cue_unwrap_displayable(d) is d
+
+
+def test_unwrap_displayable_child_chain():
+    inner = object()
+    outer = SimpleNamespace(child=inner)
+    assert _cue_unwrap_displayable(outer) is inner
+
+
+def test_unwrap_displayable_target_callable():
+    inner = object()
+    outer = SimpleNamespace(_target=lambda: inner)
+    assert _cue_unwrap_displayable(outer) is inner
+
+
+def test_unwrap_displayable_target_callable_self_breaks():
+    d = SimpleNamespace(_target=lambda: None)
+    assert _cue_unwrap_displayable(d) is d  # resolved None -> break keeps d
+
+
+def test_unwrap_displayable_attr_target():
+    inner = object()
+    outer = SimpleNamespace(target=inner)
+    assert _cue_unwrap_displayable(outer) is inner
+
+
+def test_unwrap_displayable_string_branch(monkeypatch):
+    inner = object()
+    monkeypatch.setattr(renpy, "displayable", lambda name: inner)
+    assert _cue_unwrap_displayable("bg forest") is inner
+
+
+def test_get_movie_or_image_movie():
+    m = _video.Movie(play="m.webm")
+    kind, d = _cue_get_movie_or_image(m)
+    assert kind == "movie"
+    assert d is m
+
+
+def test_get_movie_or_image_image():
+    i = _im.Image("img.png")
+    kind, d = _cue_get_movie_or_image(i)
+    assert kind == "image"
+    assert d is i
+
+
+def test_get_movie_or_image_other():
+    kind, d = _cue_get_movie_or_image(object())
+    assert kind is None
+    assert d is not None
+
+
+def test_atl_child_displayables_not_atl():
+    assert _cue_atl_child_displayables(object()) is None
+
+
+def test_atl_child_displayables_missing_block_none():
+    # ATLTransformBase with no block: the compile attempt yields nothing
+    d = _atl.ATLTransformBase()
+    assert _cue_atl_child_displayables(d) is None
+
+
+def test_atl_child_displayables_compile_raises():
+    d = _atl.ATLTransformBase()
+    d.compile = lambda: (_ for _ in ()).throw(RuntimeError("bad"))
+    assert _cue_atl_child_displayables(d) is None
+
+
+def test_atl_child_displayables_no_statements():
+    d = _atl.ATLTransformBase()
+    d.block = SimpleNamespace(statements=[])
+    assert _cue_atl_child_displayables(d) is None
+
+
+def test_atl_child_displayables_collects_children():
+    class FakeStatement(_atl.Child):
+        def __init__(self, child):
+            self.child = child
+
+    disp = object()
+    stmts = [FakeStatement(disp), "not-a-statement"]
+    d = _atl.ATLTransformBase()
+    d.block = SimpleNamespace(statements=stmts)
+    assert _cue_atl_child_displayables(d) == [disp]
+
+
+def test_top_layer_name():
+    assert _cue_top_layer_name(None) is None
+    assert _cue_top_layer_name(("bg", "forest")) == "bg"
+    assert _cue_top_layer_name("bg") == "bg"
+    assert _cue_top_layer_name("") is None
+
+
+def test_top_movie_name():
+    m = _video.Movie(play="movies/scene.webm")
+    assert _cue_top_movie_name(m) == "scene.webm"
+
+
+def test_top_movie_name_play_list():
+    m = _video.Movie(play=["a.webm", "b.webm"])
+    assert _cue_top_movie_name(m) == "a.webm"
+
+
+def test_top_movie_name_explicit_name_wins():
+    m = _video.Movie(play="movies/scene.webm")
+    m.name = "custom_tag"
+    assert _cue_top_movie_name(m) == "custom_tag"
+
+
+def test_top_movie_name_no_play():
+    m = _video.Movie()
+    assert _cue_top_movie_name(m) is None
+
+
+def test_get_movie_play_original_wins():
+    m = SimpleNamespace(_original_play="orig.webm", _play="fallback.webm")
+    assert _cue_get_movie_play(m) == "orig.webm"
+
+
+def test_get_movie_play_falls_back_to_play():
+    m = SimpleNamespace(_original_play=None, _play="fallback.webm")
+    assert _cue_get_movie_play(m) == "fallback.webm"
+
+
+def test_get_movie_play_list_first_item():
+    m = SimpleNamespace(_original_play=None, _play=["a.webm", "b.webm"])
+    assert _cue_get_movie_play(m) == "a.webm"
+
+
+def test_get_movie_play_empty():
+    m = SimpleNamespace()
+    assert _cue_get_movie_play(m) == ""
