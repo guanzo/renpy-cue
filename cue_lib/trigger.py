@@ -10,7 +10,7 @@ from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_resolve_files, _cue_pick_file, _cue_loop_still_playing,
-    create_loop_key, create_vid_key, get_key_file,
+    create_loop_key, create_vid_key, get_key_file, is_dlg_key,
 )
 
 MYPY = False
@@ -44,10 +44,10 @@ class CueTriggerEngine(object):
 
     # -- exclusive tracking (channel -> {"scope": scope, "kind": kind, "hold": bool}) --
     # "scope" is a friendship identity: SFX sharing a scope are friends and
-    # won't fade/block each other. One-shots use the scene (file) so every
-    # image/dialogue/shake trigger for one file is a friend; loops use a
-    # per-pool scope so each loop competes with its siblings to "sneak in"
-    # solo.
+    # won't fade/block each other. Image/shake one-shots use the file (so all
+    # pools of a scene coexist); dialogue one-shots use the full line key so
+    # each line cuts the previous one. Loops use a per-pool scope so each loop
+    # competes with its siblings to "sneak in" solo.
     #
     # "kind" is the domain (loop vs one-shot). Domains never interact, so an
     # exclusive loop only waits for / fades / blocks other loops.
@@ -152,9 +152,10 @@ class CueTriggerEngine(object):
             _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(
                 key, len(pools), total, vol))
 
-            # Scene-wide scope: all one-shots for this file (image, dialogue,
-            # shake) are friends; a previous file's SFX is cut.
-            scope = get_key_file(key)
+            # Friendship scope: image/shake one-shots share the file (a whole
+            # scene coexists); dialogue one-shots use the full line key so a
+            # new line cuts the previous line's still-playing moan.
+            scope = key if is_dlg_key(key) else get_key_file(key)
 
             picked = []
             for pi, pool in enumerate(pools):
