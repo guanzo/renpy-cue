@@ -1062,41 +1062,6 @@ class CueVideoEditor(object):
         _cue_log("Speed variant job queued: id={}, factor={:.1f}, out={}".format(
             job_id, factor, os.path.basename(out_fspath)))
 
-    def apply_variant(self, speed, out_fspath):
-        # type: (float, str) -> None
-        if self.job_queue.processing:
-            return
-        vp = self._get_video_vpath()
-        fs = self._get_video_fspath()
-        if not fs:
-            _cue_log("SPEED-VARIANT: apply_variant failed -- no filesystem path")
-            renpy.restart_interaction()
-            return
-        orig_vpath = self._speed_resolver.base_path_for(self._ctx.current_file) or vp
-        if not orig_vpath:
-            return
-        orig_vpath = orig_vpath.replace("\\", "/")
-        orig_fs = os.path.normpath(os.path.join(_config.gamedir, orig_vpath))
-        base, ext = os.path.splitext(os.path.basename(orig_fs))
-        if not ext:
-            ext = ".webm"
-        temp_path = os.path.join(
-            self._paths.video_dir,
-            "{}__cue_tmp_{:.1f}x{}".format(base, speed, ext),
-        )
-        input_fs = orig_fs
-        job_id = self.job_queue._next_job_id
-        self.job_queue._next_job_id += 1
-        _enc_mode = self.encode_mode
-        if _enc_mode == self.MODE_FAST_PREVIEW:
-            _enc_mode = self.MODE_NORMAL
-        job = CueVideoJob(job_id, vp, input_fs, temp_path, speed,
-                          _enc_mode, fspath_out=out_fspath,
-                          remove_audio=self.remove_audio)
-        self.job_queue.enqueue(job)
-        _cue_log("Variant job queued: id={}, speed={:.1f}, out={}".format(
-            job_id, speed, os.path.basename(out_fspath)))
-
     def refresh(self):
         # type: () -> None
         vp = self._get_video_vpath()

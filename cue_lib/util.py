@@ -427,6 +427,19 @@ def _cue_log(msg):
         pass  # Never let logging break the game
 
 
+def _cue_clear_debug_log():
+    # type: () -> None
+    """Truncate (or create) the debug log for a fresh session.  Never raises."""
+    try:
+        log_dir = os.path.join(_config.gamedir, _cue.paths.in_game_base_dir)
+        if not os.path.isdir(log_dir):
+            os.makedirs(log_dir)
+        log_path = os.path.join(log_dir, _constants.CUE_DEBUG_LOG_FILENAME)
+        open(log_path, "w").close()
+    except Exception:
+        pass  # Never let clearing the log break the game
+
+
 # --------------------------------------------------------------------------
 # File Resolution & Random Picking
 # --------------------------------------------------------------------------

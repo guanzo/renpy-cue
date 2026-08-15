@@ -192,8 +192,11 @@ class CueKeybindsManager(object):
         # type: () -> None
         """Register keymap entries and load saved overrides from shared config.
 
-        Must be called once at init time (cue_z.rpy init 999), after the game's
-        config.keymap is fully populated so collision scanning sees all built-ins.
+        Runs on every init (cue_z.rpy init 999, unguarded): reload_all()
+        restores config.keymap to its post-import default, so the cue entries
+        are wiped on Shift+R reload and must be re-registered.  Must run after
+        the game's config.keymap is fully populated so collision scanning sees
+        all built-ins.  Idempotent -- existing entries are left untouched.
         """
         # 1. Register defaults for any names not already present.
         for action in self.actions:

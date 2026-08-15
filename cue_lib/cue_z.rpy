@@ -40,7 +40,7 @@ init -999 python:
 
     from cue_lib.constants import (
         CuePage, CueLoopFrequency,
-        CUE_DEBUG, CUE_DEBUG_LOG_FILENAME, CUE_SFX_CHANNEL_COUNT,
+        CUE_DEBUG, CUE_SFX_CHANNEL_COUNT,
         CUE_DEFAULT_VIDEO_SPEED, CUE_POPPER_DEFAULT_OFFSET,
         CUE_POPPER_DEFAULT_MARGIN, CUE_SFX_LIBRARY_HEADER, CUE_AUDIO_EXTS,
         CUE_GAME_MUSIC_DIRS,
@@ -59,6 +59,7 @@ init -999 python:
         _cue_top_layer_name, _cue_top_movie_name, _cue_get_movie_play,
         _cue_unwrap_persistent,
         _cue_make_tab_action,
+        _cue_clear_debug_log,
     )
 
     from cue_lib.runtime import (
@@ -147,51 +148,81 @@ init -900 python:
     from cue_lib.paths import CuePaths
     from cue_lib.state import _cue
 
-    _cue.paths = CuePaths(CuePaths.resolve_root(), renpy.config.save_directory)
+    def _cue_wire_managers():
+        """Build every manager as a function-local, in dependency order, then
+        hand them to _cue in one assignment block.  Locals, not store vars, so
+        the wiring leaves no footprint on the game's store namespace."""
+        paths = CuePaths(CuePaths.resolve_root(), renpy.config.save_directory)
 
-    _cue.db = CueDatabase(_cue.paths)
-    _cue.db.open()
+        db = CueDatabase(paths)
+        db.open()
 
-    # The marker store owns the data layer; the manager coordinates around it.
-    # on_save resolves _cue.undo at call time (capture runs on every DB write).
-    _cue.marker_store = CueMarkerStore(
-        _cue.db, _cue.paths, lambda: _cue.undo.capture())
-    _cue.vid_manager = CueVideoManager(_cue.ctx)
-    _cue.volume = CueVolumeManager(_cue.marker_store, _cue.ctx)
-    _cue.video_sequence = CueVidSpeedSequence()
-    _cue.speed_toast = CueSpeedToast()
-    _cue.speed_resolver = CueVidSpeedResolver(
-        _cue.marker_store, _cue.vid_manager, _cue.ctx,
-        _cue.video_sequence, _cue.speed_toast, _cue.paths)
-    _cue.auto_speed = CueAutoSpeedGenerator(
-        _cue.marker_store, _cue.speed_resolver, _cue.vid_manager,
-        _cue.video_sequence, _cue.ctx)
-    _cue.repeater = CueMarkerRepeater(_cue.marker_store, _cue.vid_manager, _cue.ctx)
-    _cue.ffmpeg = CueFFmpeg()
-    _cue.video_editor = CueVideoEditor(
-        _cue.ffmpeg, _cue.speed_resolver, _cue.vid_manager,
-        _cue.paths, _cue.ctx)
-    # undo takes the video editor (for post-restore UI refresh); both are
-    # referenced only at call time by the store's on_save lambda above.
-    _cue.undo = CueUndoManager(_cue.marker_store, _cue.ctx, _cue.video_editor)
-    _cue.trigger = CueTriggerEngine(
-        _cue.marker_store, _cue.repeater, _cue.speed_resolver, _cue.vid_manager)
-    _cue.sfx_manager = CueSfxManager(_cue.paths, _cue.db)
-    _cue.preset_dialog = CuePresetDialog()
-    _cue.video_preset_dialog = CueVideoPresetDialog()
-    _cue.confirm_dialog = CueConfirmDialog()
-    _cue.keybinds = CueKeybindsManager(_cue.db)
-    _cue.icons = CueIconManager(_cue.paths)
-    _cue.music = CueMusicManager(_cue.marker_store, _cue.ctx, _cue.db, _cue.paths)
+        # The marker store owns the data layer; the manager coordinates around
+        # it.  on_save closes over the undo local (late-bound: undo is built
+        # below, but capture only runs on DB writes, after wiring completes).
+        marker_store = CueMarkerStore(db, paths, lambda: undo.capture())
 
-    # markers is the coordinator, wired LAST so every injected collaborator
-    # (vid_manager, sfx_manager, trigger, video_editor, confirm_dialog) is
-    # already constructed.  The store is its data layer; ctx carries the
-    # per-scene context state.
-    _cue.markers = CueMarkerManager(
-        _cue.marker_store, _cue.ctx, _cue.vid_manager,
-        _cue.sfx_manager, _cue.trigger, _cue.video_editor,
-        _cue.confirm_dialog)
+        vid_manager = CueVideoManager(_cue.ctx)
+        volume = CueVolumeManager(marker_store, _cue.ctx)
+        video_sequence = CueVidSpeedSequence()
+        speed_toast = CueSpeedToast()
+        speed_resolver = CueVidSpeedResolver(
+            marker_store, vid_manager, _cue.ctx,
+            video_sequence, speed_toast, paths)
+        auto_speed = CueAutoSpeedGenerator(
+            marker_store, speed_resolver, vid_manager,
+            video_sequence, _cue.ctx)
+        repeater = CueMarkerRepeater(marker_store, vid_manager, _cue.ctx)
+        ffmpeg = CueFFmpeg()
+        video_editor = CueVideoEditor(
+            ffmpeg, speed_resolver, vid_manager,
+            paths, _cue.ctx)
+        # undo takes the video editor (for post-restore UI refresh); both are
+        # referenced only at call time by the store's on_save lambda above.
+        undo = CueUndoManager(marker_store, _cue.ctx, video_editor)
+        trigger = CueTriggerEngine(
+            marker_store, repeater, speed_resolver, vid_manager)
+        sfx_manager = CueSfxManager(paths, db)
+        preset_dialog = CuePresetDialog()
+        video_preset_dialog = CueVideoPresetDialog()
+        confirm_dialog = CueConfirmDialog()
+        keybinds = CueKeybindsManager(db)
+        icons = CueIconManager(paths)
+        music = CueMusicManager(marker_store, _cue.ctx, db, paths)
+
+        # markers is the coordinator, wired LAST so every injected collaborator
+        # (vid_manager, sfx_manager, trigger, video_editor, confirm_dialog) is
+        # already constructed.  The store is its data layer; ctx carries the
+        # per-scene context state.
+        markers = CueMarkerManager(
+            marker_store, _cue.ctx, vid_manager,
+            sfx_manager, trigger, video_editor,
+            confirm_dialog)
+
+        _cue.paths = paths
+        _cue.db = db
+        _cue.marker_store = marker_store
+        _cue.vid_manager = vid_manager
+        _cue.volume = volume
+        _cue.video_sequence = video_sequence
+        _cue.speed_toast = speed_toast
+        _cue.speed_resolver = speed_resolver
+        _cue.auto_speed = auto_speed
+        _cue.repeater = repeater
+        _cue.ffmpeg = ffmpeg
+        _cue.video_editor = video_editor
+        _cue.undo = undo
+        _cue.trigger = trigger
+        _cue.sfx_manager = sfx_manager
+        _cue.preset_dialog = preset_dialog
+        _cue.video_preset_dialog = video_preset_dialog
+        _cue.confirm_dialog = confirm_dialog
+        _cue.keybinds = keybinds
+        _cue.icons = icons
+        _cue.music = music
+        _cue.markers = markers
+
+    _cue_wire_managers()
 
 
 init 999 python:
@@ -202,48 +233,44 @@ init 999 python:
     if CUE_DEBUG:
         config.keymap['console'].append('shift_K_t')
 
-    # Register cue keybinds and load any saved overrides from shared config.
-    # Must run after config.keymap is fully populated (after the console
-    # append above) so collision scanning sees all built-in entries.
-    _cue.keybinds.setup()
+    def _cue_patch_runtime():
+        """Reinstall the Ren'Py monkey patches.  Runs on every init (including
+        Shift+R reload), because Ren'Py rebuilds config fresh on reload."""
+        # monkeypatch renpy.with_statement
+        _original_with_statement = renpy.with_statement
 
-    # Clear debug log for fresh session
-    try:
-        log_dir = os.path.join(renpy.config.gamedir, _cue.paths.in_game_base_dir)
-        if not os.path.isdir(log_dir):
-            os.makedirs(log_dir)
-        log_path = os.path.join(log_dir, CUE_DEBUG_LOG_FILENAME)
-        open(log_path, "w").close()
-    except Exception:
-        pass
-    
-    # monkeypatch renpy.with_statement
-    _original_with_statement = renpy.with_statement
-    def _cue_with_hook(trans, always=False, paired=None, clear=True):
-        if _cue_is_screenshake(trans):
-            _cue._shake_just_happened = True
-        if _original_with_statement is not None:
-            return _original_with_statement(trans, always=always, paired=paired, clear=clear)
-    renpy.with_statement = _cue_with_hook
+        def _cue_with_hook(trans, always=False, paired=None, clear=True):
+            if _cue_is_screenshake(trans):
+                _cue._shake_just_happened = True
+            if _original_with_statement is not None:
+                return _original_with_statement(trans, always=always, paired=paired, clear=clear)
 
-    # Hook config.show to detect vpunch/hpunch applied as at-transforms
-    # (e.g. "scene foo at vpunch, cum1").  When shakes are applied via "at"
-    # instead of "with", they bypass with_statement entirely.
-    _original_config_show = renpy.config.show
-    def _cue_config_show(name, at_list=None, layer='master', what=None,
-                            zorder=None, tag=None, behind=None, atl=None):
-        if at_list:
-            for t in at_list:
-                if _cue_is_screenshake(t):
-                    _cue._shake_just_happened = True
-                    break
-        if _original_config_show is not None:
-            return _original_config_show(name, at_list=at_list, layer=layer,
-                                        what=what, zorder=zorder, tag=tag,
-                                        behind=behind, atl=atl)
-    renpy.config.show = _cue_config_show
+        renpy.with_statement = _cue_with_hook
 
-    if not _cue.initialized:
+        # Hook config.show to detect vpunch/hpunch applied as at-transforms
+        # (e.g. "scene foo at vpunch, cum1").  When shakes are applied via "at"
+        # instead of "with", they bypass with_statement entirely.
+        _original_config_show = renpy.config.show
+
+        def _cue_config_show(name, at_list=None, layer='master', what=None,
+                                zorder=None, tag=None, behind=None, atl=None):
+            if at_list:
+                for t in at_list:
+                    if _cue_is_screenshake(t):
+                        _cue._shake_just_happened = True
+                        break
+            if _original_config_show is not None:
+                return _original_config_show(name, at_list=at_list, layer=layer,
+                                            what=what, zorder=zorder, tag=tag,
+                                            behind=behind, atl=atl)
+
+        renpy.config.show = _cue_config_show
+
+    def _cue_install_callbacks():
+        """Version detect, SFX channels, the overlay layer, and the game hooks
+        (after-load / character / start-interact / replay).  Reinstalled on
+        every init, like the patches: reload_all() restores renpy.* modules to
+        their post-import state, wiping the config callback lists too."""
         # Detect Ren'Py version for relative_volume support (added in 7.5)
         _v = getattr(renpy, 'version_tuple', (0, 0, 0))
         _cue._has_relative_volume = (_v >= (7, 5, 0))
@@ -310,6 +337,9 @@ init 999 python:
 
         config.after_replay_callback = _cue_after_replay
 
+    def _cue_load_initial_data():
+        """Hydrate the freshly-wired managers from persistent/shared config and
+        prime the SFX/music libraries.  Runs once, right after callbacks."""
         # Load markers from persistent so SFX work immediately (before overlay is ever opened)
         _cue.markers.load_persistent()
         _cue_load_scalars_from_persistent()
@@ -323,3 +353,22 @@ init 999 python:
 
         _cue.initialized = True
         _cue_log("INIT: Done")
+
+    # Everything below runs on every init (incl. Shift+R reload).
+    # reload_all() restores all renpy.* modules to their post-import state,
+    # wiping config.keymap, the monkey patches, and the config callback lists
+    # -- so keybinds, patches, and hooks must be reinstalled each time.
+    # config.keymap is fully populated by this point (after the console append
+    # above), so collision scanning sees all built-in entries.
+    _cue.keybinds.setup()
+
+    # Clear debug log for fresh session
+    _cue_clear_debug_log()
+
+    _cue_patch_runtime()
+    _cue_install_callbacks()
+
+    # Only the data hydration is one-time -- the managers themselves survive
+    # reload, so re-hydrating would re-wrap movies / re-seed undo.
+    if not _cue.initialized:
+        _cue_load_initial_data()
