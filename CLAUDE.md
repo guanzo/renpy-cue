@@ -171,6 +171,15 @@ Two places to store state that survives restarts:
   custom keybinds. Access via `_cue.db.load_shared_config()` /
   `_cue.db.update_shared_config()`.
 
+## Tests
+
+New logic in `cue_lib/*.py` ships with tests in the same commit. Managers are
+constructor-injected specifically so their logic is testable headlessly against
+`tests/mock_renpy/`. The split: pure logic and state transitions -> pytest;
+screen, render, and engine-invoked code -> the testcases harness. A change must
+not lower total `cue_lib` coverage without a one-line note. Before any chunk is
+committed, `/lint` prints `CLEAN` and `python3 -m pytest tests/ -q` passes.
+
 ## Type Stubs
 
 Pylance can't resolve most `renpy.*` names (Ren'Py uses dynamic `import *` from `renpy.exports`). To get autocomplete and type-checking:
