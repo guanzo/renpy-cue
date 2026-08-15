@@ -180,6 +180,13 @@ screen, render, and engine-invoked code -> the testcases harness. A change must
 not lower total `cue_lib` coverage without a one-line note. Before any chunk is
 committed, `/lint` prints `CLEAN` and `python3 -m pytest tests/ -q` passes.
 
+To run a harness testcase, `bin/run_testcases.sh <sdk>/renpy.sh` needs a real
+Ren'Py SDK (pytest's mock can't drive it). A testcase that must pass on both
+engine generations goes in BOTH `test_game/templates/testcases_modern.rpy` (8.x)
+and `templates/testcases_legacy.rpy` (7.x) -- the active `testcases.rpy` is
+materialized per SDK. The 3 smoke testcases need no media; the sfx/music/video
+tiers need fixture files first. CI runs the harness on every push/PR (7.4.10 + 8.5.3).
+
 ## Type Stubs
 
 Pylance can't resolve most `renpy.*` names (Ren'Py uses dynamic `import *` from `renpy.exports`). To get autocomplete and type-checking:
