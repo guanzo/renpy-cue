@@ -2,12 +2,34 @@
 # Cross-file constants shared by multiple cue_lib modules.
 # Every constant has a CUE_ prefix to avoid collisions in the flat Ren'Py store.
 
-# Key prefixes for marker trigger keys.  Single source of truth -- the key
-# helpers in util.py read them via _cue, and db.py keys on the same strings.
+import os
+
+# Key prefixes for marker trigger keys.  Single source of truth -- db.py keys
+# on the same strings, and util.py key helpers read them directly.
 CUE_IMG_KEY_PREFIX = "i_"
 CUE_LOOP_KEY_PREFIX = "l_"
 CUE_DLG_KEY_PREFIX = "d_"
 CUE_VID_KEY_PREFIX = "v_"
+
+# Debug mode, from the RENPY_CUE_DEBUG env var (1/true/yes/on, case-
+# insensitive).  Unset keeps debug on.  Read at import time, so the var must
+# be set before the game launches.
+def _cue_env_flag(name, default=False):
+    # type: (str, bool) -> bool
+    """Parse a boolean env var: 1/true/yes/on (case-insensitive) are true.
+
+    Unset/empty falls back to ``default``; any other value is false, so a
+    Windows user pasting a stray value can't silently flip a feature on."""
+    val = os.environ.get(name, "").strip().lower()
+    if not val:
+        return default
+    return val in ("1", "true", "yes", "on")
+
+
+CUE_DEBUG = _cue_env_flag("RENPY_CUE_DEBUG", True)
+
+# Debug log filename, written into the in-game base dir.
+CUE_DEBUG_LOG_FILENAME = "debug.log"
 
 # Number of dedicated SFX channels on the "sfx" mixer.
 # Channels are named _cue_1 through _cue_N.

@@ -30,3 +30,7 @@ CUE_KEYMAP_TOGGLE_SFX: Final = "cue_toggle_sfx"
 CUE_SHARED_KEY_KEYBINDS: Final = "keybinds"
 CUE_DIR_OVERRIDE_FILENAME: Final = "dir.txt"
 CUE_SHARED_CONFIG_FILENAME: Final = "cue_config.json"
+CUE_DEBUG: bool = True  # not Final -- tests flip this to silence debug.log
+CUE_DEBUG_LOG_FILENAME: Final = "debug.log"
+
+def _cue_env_flag(name: str, default: bool = False) -> bool: ...

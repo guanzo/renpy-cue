@@ -15,6 +15,11 @@ import renpy.display.video as _video
 import renpy.display.im as _im
 import renpy.audio.music as _music
 
+import cue_lib.constants as _constants  # module ref so CUE_DEBUG stays live (tests flip it)
+
+from cue_lib.constants import (
+    CUE_IMG_KEY_PREFIX, CUE_LOOP_KEY_PREFIX, CUE_DLG_KEY_PREFIX, CUE_VID_KEY_PREFIX,
+)
 from cue_lib.state import _cue
 from renpy.store import Function
 
@@ -52,50 +57,50 @@ def _cue_ui_refresh(fn):
 def create_img_key(file):
     # type: (str) -> str
     """Build an image trigger key: 'i:<file>'."""
-    return _cue.IMG_KEY_PREFIX + file
+    return CUE_IMG_KEY_PREFIX + file
 
 def create_vid_key(file):
     # type: (str) -> str
     """Build a video trigger key: 'v:<file>'."""
-    return _cue.VID_KEY_PREFIX + file
+    return CUE_VID_KEY_PREFIX + file
 
 def create_loop_key(file):
     # type: (str) -> str
     """Build a loop trigger key: 'l:<file>'. file may be '' for global pool."""
-    return _cue.LOOP_KEY_PREFIX + file
+    return CUE_LOOP_KEY_PREFIX + file
 
 def create_dlg_key(dlg_pair):
     # type: (Tuple[str, str]) -> str
     """Build a dialogue trigger key from a (file, dialogue) pair.
     Usage: create_dlg_key((_cue.current_file, _cue.current_dialogue))"""
     file, dialogue = dlg_pair
-    return _cue.DLG_KEY_PREFIX + file + "__" + dialogue
+    return CUE_DLG_KEY_PREFIX + file + "__" + dialogue
 
 def is_img_key(key):
     # type: (str) -> bool
     """Check if key is an image trigger key."""
-    return key.startswith(_cue.IMG_KEY_PREFIX)
+    return key.startswith(CUE_IMG_KEY_PREFIX)
 
 def is_vid_key(key):
     # type: (str) -> bool
     """Check if key is a video trigger key."""
-    return key.startswith(_cue.VID_KEY_PREFIX)
+    return key.startswith(CUE_VID_KEY_PREFIX)
 
 def is_dlg_key(key):
     # type: (str) -> bool
     """Check if key is a dialogue trigger key."""
-    return key.startswith(_cue.DLG_KEY_PREFIX)
+    return key.startswith(CUE_DLG_KEY_PREFIX)
 
 def is_loop_key(key):
     # type: (str) -> bool
     """Check if key is a loop trigger key."""
-    return key.startswith(_cue.LOOP_KEY_PREFIX)
+    return key.startswith(CUE_LOOP_KEY_PREFIX)
 
 def _cue_strip_key_prefix(key):
     # type: (str) -> str
     """Strip the leading type prefix ('i_', 'v_', 'l_', 'd_') from a trigger key."""
-    for prefix in (_cue.IMG_KEY_PREFIX, _cue.VID_KEY_PREFIX,
-                   _cue.LOOP_KEY_PREFIX, _cue.DLG_KEY_PREFIX):
+    for prefix in (CUE_IMG_KEY_PREFIX, CUE_VID_KEY_PREFIX,
+                   CUE_LOOP_KEY_PREFIX, CUE_DLG_KEY_PREFIX):
         if key.startswith(prefix):
             return key[len(prefix):]
     return key
@@ -103,7 +108,7 @@ def _cue_strip_key_prefix(key):
 def get_key_file(key):
     # type: (str) -> str
     """Strip the 2-char prefix from any key, returning the file portion."""
-    file_part = key[len(_cue.IMG_KEY_PREFIX):]
+    file_part = key[len(CUE_IMG_KEY_PREFIX):]
     if is_dlg_key(key):
         # Handle both legacy | and current __ separators
         sep = file_part.find("__")
@@ -115,7 +120,7 @@ def get_key_file(key):
 
 def get_key_dialogue(key):
     # type: (str) -> str
-    file_part = key[len(_cue.DLG_KEY_PREFIX):]
+    file_part = key[len(CUE_DLG_KEY_PREFIX):]
     # Handle both legacy | and current __ separators
     for sep_str in ("__", "|"):
         parts = file_part.split(sep_str, 1)
@@ -126,7 +131,7 @@ def get_key_dialogue(key):
 def get_key_prefix(key):
     # type: (str) -> str
     """Return the 2-char prefix of a key ('i:', 'v:', 'd:', or 'l:')."""
-    return key[:len(_cue.IMG_KEY_PREFIX)]
+    return key[:len(CUE_IMG_KEY_PREFIX)]
 
 
 # --------------------------------------------------------------------------
@@ -409,12 +414,12 @@ def _cue_log(msg):
     # type: (str) -> None
     """Append a debug message to renpy_cue/debug.log."""
     try:
-        if not _cue.debug:
+        if not _constants.CUE_DEBUG:
             return
         log_dir = os.path.join(_config.gamedir, _cue.paths.in_game_base_dir)
         if not os.path.isdir(log_dir):
             os.makedirs(log_dir)
-        log_path = os.path.join(log_dir, _cue.debug_log_filename)
+        log_path = os.path.join(log_dir, _constants.CUE_DEBUG_LOG_FILENAME)
         with open(log_path, "a") as f:
             ts = time.strftime("%H:%M:%S") + ".{:03d}".format(int(time.time() * 1000) % 1000)
             f.write("[{}] {}\n".format(ts, msg))

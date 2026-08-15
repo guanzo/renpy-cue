@@ -16,6 +16,7 @@ import renpy.display.behavior as _behavior  # pyright: ignore[reportMissingImpor
 
 from cue_lib.state import _cue
 from cue_lib.constants import (
+    CUE_DEBUG,
     CUE_KEYMAP_TOGGLE_OVERLAY,
     CUE_KEYMAP_QUIT_RELAUNCH,
     CUE_KEYMAP_COPY_CONTEXT,
@@ -128,7 +129,7 @@ class CueKeybindsManager(object):
         #   default     - default Ren'Py keysym string
         #   label       - human-readable display name
         #   desc        - tooltip description
-        #   debug_only  - if True, only active when _cue.debug is True
+        #   debug_only  - if True, only active when CUE_DEBUG is True
         self.actions = [
             {"id": CUE_KEYMAP_TOGGLE_OVERLAY,
              "default": "K_BACKQUOTE",
@@ -282,14 +283,14 @@ class CueKeybindsManager(object):
         # type: () -> list
         """Return the list of action dicts that should be shown in settings.
 
-        Filters out debug_only actions when _cue.debug is False, and
-        always hides quit_relaunch (dev tool, not user-configurable).
+        Filters out debug_only actions when CUE_DEBUG is False, and always
+        hides quit_relaunch (dev tool, not user-configurable).
         """
         result = []
         for a in self.actions:
             if a["id"] == CUE_KEYMAP_QUIT_RELAUNCH:
                 continue
-            if a.get("debug_only") and not _cue.debug:
+            if a.get("debug_only") and not CUE_DEBUG:
                 continue
             result.append(a)
         return result

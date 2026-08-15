@@ -21,7 +21,7 @@ screen cue_key_listener():
     key CUE_KEYMAP_SPEED_UP action Function(_cue.speed_resolver.cycle_speed, 1)
     key CUE_KEYMAP_SPEED_DOWN action Function(_cue.speed_resolver.cycle_speed, -1)
     key CUE_KEYMAP_TOGGLE_SFX action Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
-    if _cue.debug:
+    if CUE_DEBUG:
         key CUE_KEYMAP_QUIT_RELAUNCH action Function(renpy.quit, relaunch=True)
     timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
 

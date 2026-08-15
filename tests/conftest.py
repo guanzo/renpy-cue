@@ -22,17 +22,17 @@ if MOCK_RENPY_DIR not in sys.path:
 def _silence_debug_log():
     """Keep _cue_log a no-op during tests.
 
-    _cue_log reads the module-level _cue singleton and writes
-    {gamedir}/renpy_cue/debug.log -- in tests that would land in the repo
-    root (mock gamedir is "") and clobber the real game's log file.
+    _cue_log reads CUE_DEBUG and writes {gamedir}/renpy_cue/debug.log -- in
+    tests that would land in the repo root (mock gamedir is "") and clobber
+    the real game's log file.
 
     Session-scoped and never restored: backups write their log line from a
     daemon thread after save_marker() returns, so a per-test restore would
-    re-enable logging before the thread fires.  No test depends on _cue.debug.
+    re-enable logging before the thread fires.  No test depends on CUE_DEBUG.
     """
-    import cue_lib.state as _state
+    import cue_lib.constants as _constants
 
-    _state._cue.debug = False
+    _constants.CUE_DEBUG = False
     yield
 
 

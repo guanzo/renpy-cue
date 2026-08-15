@@ -41,9 +41,10 @@ init -999 python:
     from cue_lib.state import CuePage
 
     from cue_lib.constants import (
-        CUE_SFX_CHANNEL_COUNT, CUE_DEFAULT_VIDEO_SPEED,
-        CUE_POPPER_DEFAULT_OFFSET, CUE_POPPER_DEFAULT_MARGIN,
-        CUE_SFX_LIBRARY_HEADER, CUE_AUDIO_EXTS, CUE_GAME_MUSIC_DIRS,
+        CUE_DEBUG, CUE_DEBUG_LOG_FILENAME, CUE_SFX_CHANNEL_COUNT,
+        CUE_DEFAULT_VIDEO_SPEED, CUE_POPPER_DEFAULT_OFFSET,
+        CUE_POPPER_DEFAULT_MARGIN, CUE_SFX_LIBRARY_HEADER, CUE_AUDIO_EXTS,
+        CUE_GAME_MUSIC_DIRS,
     )
     from cue_lib.util import (
         create_img_key as _cue_create_img_key,
@@ -174,7 +175,7 @@ init 999 python:
     config.developer = True
     config.console = True
 
-    if _cue.debug:
+    if CUE_DEBUG:
         config.keymap['console'].append('shift_K_t')
 
     # Register cue keybinds and load any saved overrides from shared config.
@@ -187,7 +188,7 @@ init 999 python:
         log_dir = os.path.join(renpy.config.gamedir, _cue.paths.in_game_base_dir)
         if not os.path.isdir(log_dir):
             os.makedirs(log_dir)
-        log_path = os.path.join(log_dir, _cue.debug_log_filename)
+        log_path = os.path.join(log_dir, CUE_DEBUG_LOG_FILENAME)
         open(log_path, "w").close()
     except Exception:
         pass

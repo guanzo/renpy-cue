@@ -50,13 +50,3 @@ def test_keymap_names_are_distinct():
     assert len(set(names)) == len(names)
 
 
-def test_cue_instance_keeps_prefix_attributes_for_backward_compat():
-    # .rpy screens historically read _cue.IMG_KEY_PREFIX etc.  The
-    # canonical values now live in constants.py, but _cue still mirrors
-    # them so nothing breaks.
-    from cue_lib.state import _cue
-
-    assert _cue.IMG_KEY_PREFIX == constants.CUE_IMG_KEY_PREFIX
-    assert _cue.VID_KEY_PREFIX == constants.CUE_VID_KEY_PREFIX
-    assert _cue.DLG_KEY_PREFIX == constants.CUE_DLG_KEY_PREFIX
-    assert _cue.LOOP_KEY_PREFIX == constants.CUE_LOOP_KEY_PREFIX

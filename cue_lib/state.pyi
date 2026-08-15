@@ -27,15 +27,18 @@ class CuePage:
     SETTINGS: int
 
 
-class Cue:
-    debug: bool
-    config_filename: str
-    debug_log_filename: str
+class CueContext:
+    current_file: str
+    current_dialogue: str
+    prev_dialogue: str
+    top_layer_type: Optional[str]
+    initialized: bool
 
-    IMG_KEY_PREFIX: str
-    LOOP_KEY_PREFIX: str
-    DLG_KEY_PREFIX: str
-    VID_KEY_PREFIX: str
+    def __init__(self) -> None: ...
+
+
+class Cue:
+    config_filename: str
 
     initialized: bool
     is_overlay_visible: bool

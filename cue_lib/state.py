@@ -4,18 +4,12 @@
 # therefore invisible to Ren'Py's rollback system.
 #
 # Managers are wired externally by cue_z.rpy init -900 to avoid circular
-# imports.  state.py imports only cue_lib.constants (a leaf module with no
-# imports of its own), while every manager module imports _cue from here.
+# imports.  state.py imports nothing from other cue_lib modules at the top
+# -- every manager imports _cue from here, so importing them back would
+# deadlock.
 
 import renpy
 import renpy.python as _renpy_python
-
-from cue_lib.constants import (
-    CUE_IMG_KEY_PREFIX,
-    CUE_LOOP_KEY_PREFIX,
-    CUE_DLG_KEY_PREFIX,
-    CUE_VID_KEY_PREFIX,
-)
 
 
 class CuePage(object):
@@ -29,22 +23,19 @@ class CuePage(object):
     SETTINGS = 2  # Settings page
 
 
+class CueContext(object):
+    def __init__(self):
+        self.current_file = ""
+        self.current_dialogue = ""
+        self.prev_dialogue = ""
+        self.top_layer_type = ""
+        self.initialized = False
+
+
 class Cue(_renpy_python.NoRollback):
     """Root object for the Cue mod -- state, managers, constants, and caches."""
 
     def __init__(self):
-        # --- Debug ---
-        self.debug = True
-        self.debug_log_filename = "debug.log"
-
-        # --- Constants ---
-        # Mirrors of constants.py values, kept as _cue attrs for backward
-        # compat -- .rpy screens and util.py key helpers read them here.
-        self.IMG_KEY_PREFIX = CUE_IMG_KEY_PREFIX
-        self.LOOP_KEY_PREFIX = CUE_LOOP_KEY_PREFIX
-        self.DLG_KEY_PREFIX = CUE_DLG_KEY_PREFIX
-        self.VID_KEY_PREFIX = CUE_VID_KEY_PREFIX
-
         # --- Runtime state ---
         self.initialized = False
         self.is_overlay_visible = False
