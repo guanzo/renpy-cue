@@ -6,18 +6,23 @@ import time as _time
 import random as _random
 import renpy.audio.music as _music
 
-from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
 from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_resolve_files, _cue_pick_file, _cue_loop_still_playing,
-    _cue_sfx_channel_name,
     create_loop_key, create_vid_key,
 )
 
 MYPY = False
 if MYPY:
     from typing import Any, List, Optional
+
+
+# Exclusive domains: loops and one-shots never interact. An exclusive SFX
+# only waits for / fades / blocks other SFX in its own domain, so an
+# exclusive loop leaves image/dialogue SFX untouched and vice versa.
+CUE_EXCL_KIND_LOOP = "loop"
+CUE_EXCL_KIND_ONESHOT = "oneshot"
 
 
 class CueTriggerEngine(object):
@@ -37,11 +42,14 @@ class CueTriggerEngine(object):
         self._prev_eff_elapsed = -1.0
         self._tick_count = 0
 
-    # -- exclusive tracking (channel -> {"scope": scope, "hold": bool}) --
+    # -- exclusive tracking (channel -> {"scope": scope, "kind": kind, "hold": bool}) --
     # "scope" is a friendship identity: SFX sharing a scope are friends and
     # won't fade/block each other. One-shots use the trigger key (all pools
     # of a trigger fire as one unit); loops use a per-pool scope so each loop
     # competes with its siblings to "sneak in" solo.
+    #
+    # "kind" is the domain (loop vs one-shot). Domains never interact, so an
+    # exclusive loop only waits for / fades / blocks other loops.
 
     def _prune_excl(self):
         # type: () -> None
@@ -50,47 +58,52 @@ class CueTriggerEngine(object):
             if not _music.is_playing(channel=ch):
                 del self.excl_channels[ch]
 
-    def _excl_friends(self, scope):
-        # type: (str) -> List[str]
-        """Channels currently playing a SFX from the same scope."""
+    def _excl_friends(self, scope, kind):
+        # type: (str, str) -> List[str]
+        """Channels playing a same-scope, same-kind SFX (friends)."""
         if not scope:
             return []
-        return [ch for ch, info in self.excl_channels.items() if info.get("scope") == scope]
+        return [ch for ch, info in self.excl_channels.items()
+                if info.get("scope") == scope and info.get("kind") == kind]
 
-    def _excl_hold_blocked(self, scope):
-        # type: (str) -> bool
-        """True if a holding SFX from a different scope is playing -- a
-        non-friend owns the air, so this SFX may not start.
+    def _excl_kind_channels(self, kind):
+        # type: (str) -> List[str]
+        """Channels currently playing in the given domain (kind)."""
+        return [ch for ch, info in self.excl_channels.items() if info.get("kind") == kind]
+
+    def _excl_hold_blocked(self, scope, kind):
+        # type: (str, str) -> bool
+        """True if a holding SFX in the same domain but a different scope is
+        playing -- a non-friend owns the air, so this SFX may not start.
 
         Only fire_context and _tick_loop consult this gate; SFX played
         elsewhere (video markers, preview) are hold-immune by construction.
         The cut-in sweep, by contrast, is channel-based and hits everything
-        that isn't a scope friend."""
+        in the same domain that isn't a scope friend."""
         self._prune_excl()
         for info in self.excl_channels.values():
-            if info["hold"] and info.get("scope") != scope:
+            if (info["hold"] and info.get("kind") == kind
+                    and info.get("scope") != scope):
                 return True
         return False
 
-    def _excl_nonfriend_busy(self, scope):
-        # type: (str) -> bool
-        """True if any shared _cue_ channel that isn't a scope friend is
+    def _excl_nonfriend_busy(self, scope, kind):
+        # type: (str, str) -> bool
+        """True if any same-domain channel that isn't a scope friend is
         playing -- polite holders wait for this to clear."""
         self._prune_excl()
-        friends = set(self._excl_friends(scope))
-        for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
-            ch_name = _cue_sfx_channel_name(i)
-            if ch_name in friends:
+        for info in self.excl_channels.values():
+            if info.get("kind") != kind:
                 continue
-            if _music.is_playing(channel=ch_name):
+            if info.get("scope") != scope:
                 return True
         return False
 
-    def _excl_track(self, channel, scope, hold):
-        # type: (Optional[str], str, bool) -> None
-        """Record a playing SFX's friendship scope + hold state."""
+    def _excl_track(self, channel, scope, kind, hold):
+        # type: (Optional[str], str, str, bool) -> None
+        """Record a playing SFX's friendship scope, domain, and hold state."""
         if channel and scope is not None:
-            self.excl_channels[channel] = {"scope": scope, "hold": hold}
+            self.excl_channels[channel] = {"scope": scope, "kind": kind, "hold": hold}
 
     # -- tick entry point --
 
@@ -148,11 +161,11 @@ class CueTriggerEngine(object):
                     continue
                 excl = resolved.exclusive
                 # Hold gate: a holding non-friend owns the air -- drop this pool.
-                if self._excl_hold_blocked(key):
+                if self._excl_hold_blocked(key, CUE_EXCL_KIND_ONESHOT):
                     _cue_log("CTX-DROPPED key={} pool={} (held)".format(key, pi))
                     continue
                 # One-shot pools can't defer: "wait" only plays into open air.
-                if excl.start == CueExclusiveStart.WAIT and self._excl_nonfriend_busy(key):
+                if excl.start == CueExclusiveStart.WAIT and self._excl_nonfriend_busy(key, CUE_EXCL_KIND_ONESHOT):
                     _cue_log("CTX-DROPPED key={} pool={} (air busy)".format(key, pi))
                     continue
                 file = _cue_pick_file(files)
@@ -167,12 +180,14 @@ class CueTriggerEngine(object):
                 # _cue_play_pool is in runtime.py; import lazily to avoid cycle
                 from cue_lib.runtime import _cue_play_pool, _cue_fade_out_sfx
                 if excl.start == CueExclusiveStart.FADE:
-                    # Cut-in: fade out everything that isn't a same-scope friend.
-                    faded = _cue_fade_out_sfx(exclude_channels=self._excl_friends(key))
+                    # Cut-in: fade out one-shots from other keys (never loops).
+                    faded = _cue_fade_out_sfx(
+                        exclude_channels=self._excl_friends(key, CUE_EXCL_KIND_ONESHOT),
+                        only_channels=self._excl_kind_channels(CUE_EXCL_KIND_ONESHOT))
                     _cue_log("CTX-FADE key={} pool={} faded={}".format(
                         key, pi, faded))
                 ch_used = _cue_play_pool(entry, key, pool, pi, file=file)
-                self._excl_track(ch_used, key, excl.hold)
+                self._excl_track(ch_used, key, CUE_EXCL_KIND_ONESHOT, excl.hold)
 
     # -- loop triggers (l: keys) --
 
@@ -232,15 +247,15 @@ class CueTriggerEngine(object):
             # Gate: a holding non-friend owns the air -- defer and retry.
             # Logged once per blocked episode (flag clears on play) so the
             # 0.1s retry cadence doesn't spam the log.
-            if self._excl_hold_blocked(scope):
+            if self._excl_hold_blocked(scope, CUE_EXCL_KIND_LOOP):
                 if not pst.get("blocked_logged"):
                     _cue_log("TICK#{} POOL-DEFER reason=hold key={} pool={}".format(tick, loop_key, pi))
                     pst["blocked_logged"] = True
                 pst["ready_at"] = now + 0.1
                 continue
 
-            # Gate: wait mode defers until no non-friend SFX is playing.
-            if excl.start == CueExclusiveStart.WAIT and self._excl_nonfriend_busy(scope):
+            # Gate: wait mode defers until no non-friend loop SFX is playing.
+            if excl.start == CueExclusiveStart.WAIT and self._excl_nonfriend_busy(scope, CUE_EXCL_KIND_LOOP):
                 if not pst.get("blocked_logged"):
                     _cue_log("TICK#{} POOL-DEFER reason=wait key={} pool={}".format(tick, loop_key, pi))
                     pst["blocked_logged"] = True
@@ -258,8 +273,10 @@ class CueTriggerEngine(object):
             picked.append(picked_file)
             from cue_lib.runtime import _cue_play_pool, _cue_fade_out_sfx
             if excl.start == CueExclusiveStart.FADE:
-                # Cut-in: fade out everything that isn't a same-scope friend.
-                faded = _cue_fade_out_sfx(exclude_channels=self._excl_friends(scope))
+                # Cut-in: fade out other loops (never image/dialogue SFX).
+                faded = _cue_fade_out_sfx(
+                    exclude_channels=self._excl_friends(scope, CUE_EXCL_KIND_LOOP),
+                    only_channels=self._excl_kind_channels(CUE_EXCL_KIND_LOOP))
                 _cue_log("TICK#{} POOL-SWEEP key={} pool={} faded={}".format(
                     tick, loop_key, pi, faded))
             ch_used = _cue_play_pool(entry, loop_key, pool, pi, file=picked_file)
@@ -267,7 +284,7 @@ class CueTriggerEngine(object):
                 pst["channels"] = [ch_used]
                 pst["play_start"] = now
                 pst["blocked_logged"] = False
-                self._excl_track(ch_used, scope, excl.hold)
+                self._excl_track(ch_used, scope, CUE_EXCL_KIND_LOOP, excl.hold)
                 _cue_log("TICK#{} POOL-PLAY  key={} pool={} ch={} dur={:.2f}s next_in={:.2f}s".format(
                     tick, loop_key, pi, ch_used,
                     _music.get_duration(channel=ch_used) or 0.0,

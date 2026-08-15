@@ -524,15 +524,20 @@ def _cue_play_sfx(filename, source="", volume=1.0):
 CUE_EXCLUSIVE_FADE = 0.1
 
 
-def _cue_fade_out_sfx(exclude_channels=None):
-    # type: (Optional[List[str]]) -> int
-    """Quickly fade out every SFX playing on the shared _cue_ channels,
-    except the channels in exclude_channels (same-group friends).
-    Returns the number of channels faded."""
+def _cue_fade_out_sfx(exclude_channels=None, only_channels=None):
+    # type: (Optional[List[str]], Optional[List[str]]) -> int
+    """Quickly fade out SFX on the shared _cue_ channels.
+
+    ``exclude_channels`` are same-scope friends to spare; ``only_channels``
+    restricts the sweep to a single domain (loops fade only loops, one-shots
+    fade only one-shots). Returns the number of channels faded."""
     excluded = set(exclude_channels) if exclude_channels else set()
+    only = set(only_channels) if only_channels is not None else None
     faded = 0
     for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
         ch_name = _cue_sfx_channel_name(i)
+        if only is not None and ch_name not in only:
+            continue
         if ch_name in excluded:
             continue
         if _music.is_playing(channel=ch_name):
