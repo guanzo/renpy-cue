@@ -3,6 +3,10 @@
 # Styles — all properties explicit, no inheritance
 ###############################################################################
 
+# Color defines must exist before init-time style blocks in components.rpy
+# reference them (components.rpy sorts before styles.rpy). Run them earlier.
+init offset = -1
+
 # --- Surfaces (dark theme, darkest → lightest) ---
 define _cue_color_bg_overlay = "#000000ee"
 define _cue_color_bg_scrollbar = "#1a1a1a"
