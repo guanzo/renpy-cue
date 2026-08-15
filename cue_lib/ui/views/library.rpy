@@ -14,7 +14,8 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
         "tt": _ov_tt
     }]
 
-    use cue_section_frame(CUE_SFX_LIBRARY_HEADER, icons=_icons):
+    $ sfx_tt = "Add SFX files to\n{}".format(_cue.paths.audio_dir)
+    use cue_section_frame(CUE_SFX_LIBRARY_HEADER, tt=sfx_tt, icons=_icons):
         if not _cue.sfx_manager.tree:
             if _cue.sfx_manager.scan_error:
                 text "[_cue.sfx_manager.scan_error]" style "cue_txt" color _cue_color_error

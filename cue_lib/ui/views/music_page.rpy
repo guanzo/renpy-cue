@@ -30,9 +30,11 @@ screen grow_and_scroll(ymin=None, ymax=None, id=None):
 screen cue_music_page():
     vbox:
         spacing 5
-        $ music_tt = ("Click a trigger to select it, then click the + button "
-                        "in My/Game Music to add a song to the trigger.\n"
-                        "If you add multiple songs, one will be picked at random.")
+        $ music_tt = (
+            "Click a trigger to select it, then click the + button "
+            "in My/Game Music to add a song to the trigger.\n"
+            "If you add multiple songs, one will be picked at random.\n\n"
+            "Default music triggers must be discovered by playing through the replay.")
         use cue_section_frame("Music", tt=music_tt):
             use grow_and_scroll(200, max(int(0.30 * renpy.config.screen_height), 400)):
                 vbox:
@@ -48,16 +50,12 @@ screen cue_music_page():
                     
                     null height 5
 
-                    $ discover_tip = "Default music triggers must be discovered by playing through the replay."
                     $ triggers = _cue.music.triggers()
                    
-                    text discover_tip style "cue_txt"
                     if not triggers:
                         text "No music triggers for this replay yet." style "cue_txt"
                     else:
-                        text ("Click a trigger to select it, then click the + button "
-                                "in My/Game Music to add a song to the trigger. "
-                                "If you add multiple songs, one will be picked at random.") style "cue_txt"
+                        text "Music Triggers:" style "cue_txt"
                         use trigger_list(triggers)
                     
                     if not renpy.store._in_replay:
@@ -100,7 +98,7 @@ screen trigger_list(triggers):
         null height 2
         frame:
             background (_cue_color_green if trigger["selected"] else _cue_color_text_dim)
-            padding (1, 1)  # this is your border thickness
+            padding (1, 1)  # border thickness
             xfill True
             button:
                 background _cue_color_bg_panel

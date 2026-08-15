@@ -21,6 +21,7 @@ screen cue_video_sfx():
                 add CueSelfUpdatingLabel(_cue.vid_manager.frame_label, style="cue_txt")
         hbox:
             spacing 5
+            yalign 0.5
             use cue_icon_btn(
                 ("play" if _cue.vid_manager.paused else "pause"),
                 Function(_cue.vid_manager.toggle_pause),
@@ -38,13 +39,13 @@ screen cue_video_sfx():
                 "Delete selected markers" if _has_markers else "No markers to delete", None)
             use cue_txt_button("Repeat Markers", Function(_cue.repeater.open),
                 tt="Repeat selected markers at regular intervals across the video")
-            use cue_icon_btn("question",
-                NullAction(),
+            use cue_icon("circle-question",
                 ("• Markers and marker groups are draggable.\n"
-                + "• (Alt + Click) or (Shift + Click) to create a marker group.\n"
-                + "• Use Repeat to copy selected markers at an interval.\n"
-                + "• Get your markers timed to the first 'beat', then use Repeat to find to right interval."),
-                None)
+                + "• (Shift + Click) or (Alt + Click) to create a marker group.\n"
+                + "• Use \"Repeat Markers\" to copy selected markers at an interval.\n"
+                + "• Get your markers timed to the first \"beat\", then use "
+                + "\"Repeat Markers\" to find to right interval."),
+                size=14)
         # --- Timeline visualizer ---
         frame:
             background None
