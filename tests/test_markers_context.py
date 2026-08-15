@@ -140,7 +140,7 @@ def test_append_pool_adds_sorts_and_clears_selection():
     entry = {"pools": [{"time": 3.0}]}
     pools = entry["pools"]
     ctx.selected = {0}
-    ctx._append_pool(entry, pools, {"time": 2.0})  # pyright: ignore[reportArgumentType]
+    ctx._append_pool(entry, pools, {"time": 2.0})
     assert pools == [{"time": 2.0}, {"time": 3.0}]
     assert ctx.target_pool == 0
     assert ctx.selected == set()

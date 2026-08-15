@@ -86,6 +86,7 @@ def test_open_creates_directory_structure(tmp_path):
     assert os.path.isdir(os.path.join(str(tmp_path), "data", "presets", "audio"))
     assert os.path.isdir(os.path.join(str(tmp_path), "data", "presets", "video"))
     assert os.path.isdir(os.path.join(str(tmp_path), "video", "g1"))
+    assert os.path.isdir(os.path.join(str(tmp_path), "audio"))
     assert database.is_open()
 
 

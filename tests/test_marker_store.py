@@ -98,7 +98,7 @@ def test_add_file_to_pool_is_idempotent(cue_env):
     s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: calls.append(1))
     s._add_file_to_pool("i_a", "s.ogg")
     s._add_file_to_pool("i_a", "s.ogg")
-    assert s._data["i_a"]["pools"][0]["files"] == ["s.ogg"]  # pyright: ignore[reportTypedDictNotRequiredAccess]
+    assert s._data["i_a"]["pools"][0]["files"] == ["s.ogg"]
     assert len(calls) == 2  # one on_save per save
 
 
@@ -301,9 +301,9 @@ def test_save_all_and_load_from_db_round_trip(store, cue_env):
 
     fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
-    assert fresh._data["v_a"]["pools"] == [{"time": 1.0}]  # pyright: ignore[reportTypedDictNotRequiredAccess]
-    assert fresh._data["i_b"]["pools"] == [{"files": ["s.ogg"]}]  # pyright: ignore[reportTypedDictNotRequiredAccess]
-    assert fresh._presets["G"]["files"] == ["a.ogg"]  # pyright: ignore[reportTypedDictNotRequiredAccess]
+    assert fresh._data["v_a"]["pools"] == [{"time": 1.0}]
+    assert fresh._data["i_b"]["pools"] == [{"files": ["s.ogg"]}]
+    assert fresh._presets["G"]["files"] == ["a.ogg"]
     assert fresh._video_presets["VP"]["pools"] == [{"time": 1.0}]
 
 
@@ -313,8 +313,8 @@ def test_load_from_db_runs_migrations(store, cue_env):
 
     fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
-    assert fresh._data["v_a"]["pools"] == [{"time": 1.0}]  # pyright: ignore[reportTypedDictNotRequiredAccess]
-    assert fresh._data["v_a"]["speed_mode"] == "multi"  # pyright: ignore[reportTypedDictNotRequiredAccess]
+    assert fresh._data["v_a"]["pools"] == [{"time": 1.0}]
+    assert fresh._data["v_a"]["speed_mode"] == "multi"
 
 
 def test_save_marker_single_key_round_trip(store, cue_env):
@@ -323,7 +323,7 @@ def test_save_marker_single_key_round_trip(store, cue_env):
 
     fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
-    assert fresh._data["v_a"]["pools"] == [{"time": 5.0}]  # pyright: ignore[reportTypedDictNotRequiredAccess]
+    assert fresh._data["v_a"]["pools"] == [{"time": 5.0}]
 
 
 def test_reload_presets_merges_disk(store, cue_env):
@@ -380,7 +380,7 @@ def test_backup_to_file_creates_zip(store, cue_env):
 def test_post_save_invokes_on_save_once_per_write(cue_env):
     calls = []
     s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: calls.append(1))
-    s._data["v_a"] = {"pools": [{"time": 1.0}]}  # pyright: ignore[reportArgumentType]
+    s._data["v_a"] = {"pools": [{"time": 1.0}]}
     s.save_marker("v_a")
     s._db_save_marker("v_a")
     assert len(calls) == 2

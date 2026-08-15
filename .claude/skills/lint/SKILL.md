@@ -5,9 +5,14 @@ description: Run pyright and report all diagnostics
 
 # /lint
 
-Run pyright and the 120-char line-length check on `cue_lib/` and `tests/` and
-report ALL diagnostics. Every diagnostic must either be fixed or suppressed
-with a `# pyright: ignore[rule]` comment.
+Run pyright on `cue_lib/` and the 120-char line-length check on `cue_lib/`
+and `tests/` and report ALL findings. Every pyright diagnostic must either be
+fixed or suppressed with a `# pyright: ignore[rule]` comment.
+
+`tests/` is deliberately excluded from the pyright pass: the test suite is
+white-box (pokes private seams, injects fakes, patches module aliases), so
+strict type-checking against the `.pyi` public contract produces ~150 false
+positives. The 120-char check still covers `tests/`.
 
 ## Command
 
@@ -27,10 +32,10 @@ inlining the commands.)
 
 How the script maps to the two checks:
 
-1. **pyright**: `pyright cue_lib/ tests/ --outputjson 2>/dev/null`, with the
-   JSON parsed as `file:line: message`. Prints `CLEAN` when there are zero
-   diagnostics. Missing `pyright` on PATH is a hard failure (exit 1), not a
-   silent pass.
+1. **pyright**: `pyright cue_lib/ --outputjson 2>/dev/null` (tests/ excluded
+   by design), with the JSON parsed as `file:line: message`. Prints `CLEAN`
+   when there are zero diagnostics. Missing `pyright` on PATH is a hard
+   failure (exit 1), not a silent pass.
 2. **line length (120 chars)**: `find cue_lib tests \( -name '*.py' -o
    -name '*.rpy' -o -name '*.pyi' \)` piped through awk, reporting lines over
    120 chars. `# type:` comment lines are exempt -- a comment cannot be
@@ -109,4 +114,7 @@ referenced by `.rpy` with a project-wide grep (`grep -r name cue_lib/`).
 | `reportUnusedImport` on `__init__.py` side-effect imports | Required for Ren'Py `import_all()` module discovery | `__init__.py` |
 | `reportUnusedImport` on `.pyi` re-exports | Stub imports exist so consumers can import from the module | `state.pyi`, `ui_logic.pyi`, etc. |
 | `reportArgumentType` / `reportGeneralTypeIssues` on `PoolDict` | `PoolDict(total=False)` is a catch-all; video pools have `time` but flow through PoolDict APIs; TypedDict literals can't narrow via `# type:` comments | `repeater.py`, `trigger.py` |
-| `reportAttributeAccessIssue` / `reportArgumentType` in `tests/` | White-box tests deliberately poke private or duck-typed seams (`_mgr`, `_key`, `FakeManager`, private methods) against the `.pyi` production contract. Suppress inline -- this is expected, not a production-style failure | `tests/test_markers_context.py`, `tests/fakes.py`, `tests/test_marker_store.py`, `tests/test_undo.py` |
+
+Note: `tests/` produces many `reportAttributeAccessIssue` / `reportArgumentType`
+diagnostics because the suite is white-box (pokes private seams, injects fakes)
+-- that is why tests/ is excluded from the pyright pass (see top).

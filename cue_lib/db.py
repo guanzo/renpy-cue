@@ -130,6 +130,7 @@ class CueDatabase(object):
             self.paths.video_preset_dir,
             self.paths.video_dir,
             self.paths.music_dir,
+            self.paths.audio_dir,
         ]:
             if not os.path.isdir(_dir):
                 try:
