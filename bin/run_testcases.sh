@@ -6,6 +6,11 @@
 # dir under test_game/ so runs are self-contained; set the env var explicitly
 # to point at a real shared data tree instead.
 #
+# Runs are headless by default when xvfb-run is installed, so the engine
+# window doesn't pop up and steal focus. Set RENPY_HEADLESS=0 to show the
+# window (e.g. to watch a testcase run); CI already wraps the invocation in
+# xvfb-run and is skipped. Install xvfb (apt-get install xvfb) to enable it.
+#
 # The testcases DSL differs between Ren'Py generations, so the active
 # testcases file is materialized from a template by the bundled version:
 #   - 8.x (modern):  testsuite/testcase/keysym/teardown -- one suite run,
@@ -51,6 +56,21 @@ export RENPY_CUE_DIR="${RENPY_CUE_DIR:-$GAME/cue_data}"
 
 echo "[cue] runtime: $DSL testcases DSL ($LAUNCHER)"
 
+# Headless by default: a local run shouldn't pop a window that steals focus.
+# CI already wraps the whole invocation in xvfb-run, so skip the inner wrap
+# there (a nested Xvfb server is wasted). Opt out with RENPY_HEADLESS=0 to
+# see the engine window.
+HEADLESS="${RENPY_HEADLESS:-1}"
+RUN_PREFIX=""
+if [ "$HEADLESS" = "1" ] && [ -z "${CI:-}" ]; then
+    if command -v xvfb-run >/dev/null 2>&1; then
+        RUN_PREFIX="xvfb-run -a "
+        export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-dummy}"
+    else
+        echo "[cue] xvfb-run not found -- engine window will be visible (install xvfb for headless runs)" >&2
+    fi
+fi
+
 if [ "$DSL" = "legacy" ]; then
     # 7.x registers `test` without uses_display, so post_init forces the dummy
     # video driver and gl_test can't open a window. Override with x11 (WSLg)
@@ -67,7 +87,7 @@ if [ "$DSL" = "legacy" ]; then
     for name in $NAMES; do
         echo "[cue] running testcase: $name"
         rm -f "$MOD/debug.log"
-        if ! "$LAUNCHER" "$GAME" test "$name"; then
+        if ! $RUN_PREFIX "$LAUNCHER" "$GAME" test "$name"; then
             echo "[cue] testcase FAILED: $name" >&2
             if [ -f "$MOD/debug.log" ]; then
                 echo "[cue] renpy_cue/debug.log:" >&2
@@ -82,7 +102,7 @@ fi
 # 8.x: one suite run. The test `exit` statement raises QuitException so the
 # process exits 0 regardless of pass/fail -- parse the reporter summary.
 LOG="$(mktemp -t cue_testcases.XXXXXX.log)"
-"$LAUNCHER" "$GAME" test "$@" > "$LOG" 2>&1 || true
+$RUN_PREFIX "$LAUNCHER" "$GAME" test "$@" > "$LOG" 2>&1 || true
 cat "$LOG"
 
 if grep -q "Status: PASSED" "$LOG"; then

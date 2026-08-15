@@ -23,3 +23,7 @@ test_game/errors.txt
 test_game/traceback.txt
 # testcases.rpy is materialized from test_game/templates/ by bin/run_testcases.sh
 test_game/game/testcases.rpy
+
+# runtime db/backup writes into the shared fixtures root (see cue_lib/db.py)
+tests/fixtures/data/data/
+tests/fixtures/data/backups/

@@ -187,6 +187,10 @@ and `templates/testcases_legacy.rpy` (7.x) -- the active `testcases.rpy` is
 materialized per SDK. The 3 smoke testcases need no media; the sfx/music/video
 tiers need fixture files first. CI runs the harness on every push/PR (7.4.10 + 8.5.3).
 
+Local harness runs are headless by default (wrapped in `xvfb-run -a` when
+installed), so the engine window doesn't steal focus; set `RENPY_HEADLESS=0`
+to show it, e.g. to watch a testcase run. CI already wraps in xvfb-run.
+
 ## Type Stubs
 
 Pylance can't resolve most `renpy.*` names (Ren'Py uses dynamic `import *` from `renpy.exports`). To get autocomplete and type-checking:
