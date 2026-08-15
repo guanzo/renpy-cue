@@ -22,3 +22,25 @@ testcase confirm_dialog_escape:
     assert screen "cue_confirm_dialog" layer "cue_layer"
     keysym "K_ESCAPE"
     assert not screen "cue_confirm_dialog" layer "cue_layer"
+
+testcase sfx_library_rows:
+    run Jump("start")
+    assert eval (len(_cue.sfx_manager.files) >= 2)
+    assert eval (_cue.sfx_manager.scan_error == "")
+    assert eval ("sfx_001.ogg" in _cue.sfx_manager.files)
+
+testcase sfx_file_tree_expand:
+    run Jump("start")
+    run Function(_cue.sfx_manager.toggle_folder, "Sub/")
+    assert eval (_cue.sfx_manager.expanded_folders.get("Sub/", False))
+
+testcase music_my_music_rows:
+    run Jump("start")
+    assert eval (len(_cue.music.user_music.files) >= 1)
+    assert eval (_cue.music.user_music.files[0].startswith("music/"))
+
+testcase audio_presets_list:
+    run Jump("start")
+    run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    assert eval ("Test Preset" in _cue.markers.list_presets())
+    assert eval (_cue.markers.get_preset("Test Preset")["files"] == ["sfx_001.ogg"])
