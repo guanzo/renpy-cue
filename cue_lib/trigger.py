@@ -180,10 +180,10 @@ class CueTriggerEngine(object):
                 # _cue_play_pool is in runtime.py; import lazily to avoid cycle
                 from cue_lib.runtime import _cue_play_pool, _cue_fade_out_sfx
                 if excl.start == CueExclusiveStart.FADE:
-                    # Cut-in: fade out one-shots from other keys (never loops).
+                    # Cut-in: fade out one-shots from other keys, plus any
+                    # playing loops and video SFX (one-shots cut loops).
                     faded = _cue_fade_out_sfx(
-                        exclude_channels=self._excl_friends(key, CUE_EXCL_KIND_ONESHOT),
-                        only_channels=self._excl_kind_channels(CUE_EXCL_KIND_ONESHOT))
+                        exclude_channels=self._excl_friends(key, CUE_EXCL_KIND_ONESHOT))
                     _cue_log("CTX-FADE key={} pool={} faded={}".format(
                         key, pi, faded))
                 ch_used = _cue_play_pool(entry, key, pool, pi, file=file)
