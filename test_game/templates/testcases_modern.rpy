@@ -44,3 +44,36 @@ testcase audio_presets_list:
     run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
     assert eval ("Test Preset" in _cue.markers.list_presets())
     assert eval (_cue.markers.get_preset("Test Preset")["files"] == ["sfx_001.ogg"])
+
+testcase video_movie_detected:
+    run Jump("start")
+    $ renpy.show("cuevid")
+    pause 1.0
+    assert eval (_cue.top_layer_type == "movie")
+    assert eval (_cue.vid_manager.channel is not None)
+    assert eval (_cue.vid_manager.get_duration() > 0)
+
+testcase video_sfx_timeline_seeded:
+    run Jump("start")
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.markers.video.add_pool()
+    assert eval (_cue.markers.video.has_markers())
+    assert eval (len(_cue.markers.video.get_markers()) >= 1)
+    assert eval (0 <= _cue.markers.video.target_pool < len(_cue.markers.video.get_markers()))
+
+testcase video_vfx_speed_sequence:
+    run Jump("start")
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.markers.video.add_pool()
+    $ _cue.video_sequence.append_speed(1.5)
+    assert eval (1.5 in (_cue.video_sequence.speeds_for(_cue.current_file) or []))
+    assert eval (_cue.video_sequence.get_mode() == CueSpeedMode.SINGLE)
+
+testcase video_auto_speed_state:
+    run Jump("start")
+    $ renpy.show("cuevid")
+    pause 1.0
+    assert eval (_cue.auto_speed.active_preset == "roller_coaster")
+    assert eval (len(_cue.auto_speed.enabled_speeds) >= 1)

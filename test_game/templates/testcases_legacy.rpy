@@ -79,3 +79,52 @@ testcase audio_presets_list:
     $ _ok = _ok and _cue.markers.get_preset("Test Preset")["files"] == ["sfx_001.ogg"]
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
+
+testcase video_movie_detected:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _ok = _cue.top_layer_type == "movie"
+    $ _ok = _ok and _cue.vid_manager.channel is not None
+    $ _ok = _ok and _cue.vid_manager.get_duration() > 0
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase video_sfx_timeline_seeded:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.markers.video.add_pool()
+    $ _ok = _cue.markers.video.has_markers()
+    $ _ok = _ok and len(_cue.markers.video.get_markers()) >= 1
+    $ _ok = _ok and 0 <= _cue.markers.video.target_pool < len(_cue.markers.video.get_markers())
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase video_vfx_speed_sequence:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.markers.video.add_pool()
+    $ _cue.video_sequence.append_speed(1.5)
+    $ _ok = 1.5 in (_cue.video_sequence.speeds_for(_cue.current_file) or [])
+    $ _ok = _ok and _cue.video_sequence.get_mode() == CueSpeedMode.SINGLE
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase video_auto_speed_state:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _ok = _cue.auto_speed.active_preset == "roller_coaster"
+    $ _ok = _ok and len(_cue.auto_speed.enabled_speeds) >= 1
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
