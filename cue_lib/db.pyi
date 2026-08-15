@@ -6,6 +6,8 @@ from cue_lib.paths import CuePaths
 CUE_HASH_TRUNC_LEN: Final = 8
 CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME: Final = "default_music_triggers.json"
 
+def _key_to_filename(key: str) -> str: ...
+
 class CueDatabase(object):
     _backup: CueBackupManager
     paths: CuePaths

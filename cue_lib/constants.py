@@ -2,6 +2,13 @@
 # Cross-file constants shared by multiple cue_lib modules.
 # Every constant has a CUE_ prefix to avoid collisions in the flat Ren'Py store.
 
+# Key prefixes for marker trigger keys.  Single source of truth -- the key
+# helpers in util.py read them via _cue, and db.py keys on the same strings.
+CUE_IMG_KEY_PREFIX = "i_"
+CUE_LOOP_KEY_PREFIX = "l_"
+CUE_DLG_KEY_PREFIX = "d_"
+CUE_VID_KEY_PREFIX = "v_"
+
 # Number of dedicated SFX channels on the "sfx" mixer.
 # Channels are named _cue_1 through _cue_N.
 CUE_SFX_CHANNEL_COUNT = 8

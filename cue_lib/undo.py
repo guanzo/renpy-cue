@@ -77,10 +77,12 @@ class CueUndoManager(object):
         snap = self._snapshot()          # post-mutation state
         now = _time.time()
         if self._previous is not None:
-            # Push pre-mutation state to undo stack
-            if self._undo and (now - self._last_ts) < self.DEDUPE_WINDOW:
-                self._undo[-1] = self._previous  # overwrite top of stack
-            else:
+            # Push pre-mutation state to undo stack.  Rapid saves within the
+            # dedupe window are one compound operation (e.g. remove_file
+            # detaches a preset and saves mid-flight) -- keep the FIRST
+            # save's entry, which already holds the pre-op state, instead of
+            # overwriting it with the mid-flight state.
+            if not (self._undo and (now - self._last_ts) < self.DEDUPE_WINDOW):
                 self._undo.append(self._previous)
                 if len(self._undo) > self.MAX_UNDO:
                     self._undo.pop(0)

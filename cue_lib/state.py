@@ -10,6 +10,13 @@
 import renpy
 import renpy.python as _renpy_python
 
+from cue_lib.constants import (
+    CUE_IMG_KEY_PREFIX,
+    CUE_LOOP_KEY_PREFIX,
+    CUE_DLG_KEY_PREFIX,
+    CUE_VID_KEY_PREFIX,
+)
+
 
 class CuePage(object):
     """Overlay sidebar page tabs.
@@ -31,10 +38,12 @@ class Cue(_renpy_python.NoRollback):
         self.debug_log_filename = "debug.log"
 
         # --- Constants ---
-        self.IMG_KEY_PREFIX = "i_"
-        self.LOOP_KEY_PREFIX = "l_"
-        self.DLG_KEY_PREFIX = "d_"
-        self.VID_KEY_PREFIX = "v_"
+        # Mirrors of constants.py values, kept as _cue attrs for backward
+        # compat -- .rpy screens and util.py key helpers read them here.
+        self.IMG_KEY_PREFIX = CUE_IMG_KEY_PREFIX
+        self.LOOP_KEY_PREFIX = CUE_LOOP_KEY_PREFIX
+        self.DLG_KEY_PREFIX = CUE_DLG_KEY_PREFIX
+        self.VID_KEY_PREFIX = CUE_VID_KEY_PREFIX
 
         # --- Runtime state ---
         self.initialized = False

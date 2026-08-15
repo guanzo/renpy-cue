@@ -1,5 +1,9 @@
 from typing import Final
 
+CUE_IMG_KEY_PREFIX: Final = "i_"
+CUE_LOOP_KEY_PREFIX: Final = "l_"
+CUE_DLG_KEY_PREFIX: Final = "d_"
+CUE_VID_KEY_PREFIX: Final = "v_"
 CUE_SFX_CHANNEL_COUNT: Final = 8
 CUE_MAX_INTERP_FPS: Final = 60
 CUE_DEFAULT_VIDEO_SPEED: Final = 1.0

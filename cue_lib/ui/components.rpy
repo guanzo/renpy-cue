@@ -473,7 +473,8 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                     $ _exclusive_on = bool(_r.exclusive.group)
                     $ _exclusive_bg = _cue_color_active if _exclusive_on else None
                     $ _excl_tt = ("Disable exclusive playback" if _exclusive_on
-                        else "Exclusive playback: wait for other Loop SFX to finish playing, then plays, blocking other Loop SFX until finished.")
+                        else ("Exclusive playback: wait for other Loop SFX to finish "
+                              "playing, then plays, blocking other Loop SFX until finished."))
                     use cue_icon_btn(
                         "layer-group",
                         Function(ctx.toggle_exclusive),
