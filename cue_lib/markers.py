@@ -215,9 +215,9 @@ class CueMarkerContext(object):
         self._mgr._db_save_marker(key)
 
 
-# Nonzero group marks a pool as exclusive. Since friendship is now derived
-# from the trigger key (or per-pool scope) rather than the group number, the
-# group value is just an on/off flag -- any nonzero value works.
+# Nonzero group marks a pool as exclusive. Grouping is derived at runtime
+# (scene + line for one-shots; loops never group), so the stored group value
+# is just an on/off flag -- any nonzero value works.
 CUE_EXCLUSIVE_GROUP = 1
 
 
@@ -1160,7 +1160,7 @@ class CueMarkerManager(object):
         """Legacy bool 'exclusive' -> nested dict (idempotent).
 
         Old loop-exclusive pools become G1 + Wait + hold: polite
-        wait-then-reserve, now with G1 friendship in the unified system.
+        wait-then-reserve, now with G1 membership in the unified system.
         Legacy False values are cleaned up (absence = plain citizen)."""
         migrated = 0
         for entry in list(self._data.values()):

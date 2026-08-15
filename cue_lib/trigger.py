@@ -43,11 +43,11 @@ class CueTriggerEngine(object):
         self._tick_count = 0
 
     # -- exclusive tracking (channel -> {"kind", "scene", "line", "hold"}) --
-    # Friendship for one-shots is two-dimensional: the "scene" (file) plus a
-    # "line" (dialogue key, None for image/shake). Two one-shots are friends
+    # Grouping for one-shots is two-dimensional: the "scene" (file) plus a
+    # "line" (dialogue key, None for image/shake). Two one-shots share a group
     # when they share a scene AND (either side is non-dialogue OR they share a
     # line) -- so image and dialogue coexist, but a new dialogue line cuts the
-    # previous one. Loops are never friends; each loop competes with the rest.
+    # previous one. Loops never share a group; each loop competes with the rest.
     #
     # "kind" is the domain (loop vs one-shot). Domains never interact, so an
     # exclusive loop only waits for / fades / blocks other loops.
@@ -59,11 +59,11 @@ class CueTriggerEngine(object):
             if not _music.is_playing(channel=ch):
                 del self.excl_channels[ch]
 
-    def _excl_is_friend(self, info, kind, scene, line):
+    def _excl_same_group(self, info, kind, scene, line):
         # type: (Any, str, Optional[str], Optional[str]) -> bool
-        """True if a same-domain tracked channel is a friend of self.
+        """True if a same-domain tracked channel shares self's group.
 
-        Loops are never friends. One-shots are friends when they share a
+        Loops never share a group. One-shots share a group when they share a
         scene AND (either side is non-dialogue OR they share a line)."""
         if kind == CUE_EXCL_KIND_LOOP:
             return False
@@ -73,11 +73,11 @@ class CueTriggerEngine(object):
             return True
         return info.get("line") == line
 
-    def _excl_friends(self, kind, scene, line):
+    def _excl_group_channels(self, kind, scene, line):
         # type: (str, Optional[str], Optional[str]) -> List[str]
-        """Channels in this domain that are friends of self."""
+        """Channels in this domain that share self's group."""
         return [ch for ch, info in self.excl_channels.items()
-                if info.get("kind") == kind and self._excl_is_friend(info, kind, scene, line)]
+                if info.get("kind") == kind and self._excl_same_group(info, kind, scene, line)]
 
     def _excl_kind_channels(self, kind):
         # type: (str) -> List[str]
@@ -86,36 +86,36 @@ class CueTriggerEngine(object):
 
     def _excl_hold_blocked(self, kind, scene, line):
         # type: (str, Optional[str], Optional[str]) -> bool
-        """True if a holding SFX in the same domain that isn't a friend is
-        playing -- a non-friend owns the air, so this SFX may not start.
+        """True if a holding SFX in the same domain but not self's group is
+        playing -- an out-group SFX owns the air, so this SFX may not start.
 
         Only fire_context and _tick_loop consult this gate; SFX played
         elsewhere (video markers, preview) are hold-immune by construction.
         The cut-in sweep, by contrast, is channel-based and hits everything
-        in the same domain that isn't a friend."""
+        in the same domain outside self's group."""
         self._prune_excl()
         for info in self.excl_channels.values():
             if info.get("kind") != kind:
                 continue
-            if info["hold"] and not self._excl_is_friend(info, kind, scene, line):
+            if info["hold"] and not self._excl_same_group(info, kind, scene, line):
                 return True
         return False
 
-    def _excl_nonfriend_busy(self, kind, scene, line):
+    def _excl_outgroup_busy(self, kind, scene, line):
         # type: (str, Optional[str], Optional[str]) -> bool
-        """True if any same-domain channel that isn't a friend is playing --
+        """True if any same-domain channel outside self's group is playing --
         polite holders wait for this to clear."""
         self._prune_excl()
         for info in self.excl_channels.values():
             if info.get("kind") != kind:
                 continue
-            if not self._excl_is_friend(info, kind, scene, line):
+            if not self._excl_same_group(info, kind, scene, line):
                 return True
         return False
 
     def _excl_track(self, channel, kind, scene, line, hold):
         # type: (Optional[str], str, Optional[str], Optional[str], bool) -> None
-        """Record a playing SFX's domain, friendship identity, and hold state."""
+        """Record a playing SFX's domain, group identity, and hold state."""
         if channel:
             self.excl_channels[channel] = {
                 "kind": kind, "scene": scene, "line": line, "hold": hold}
@@ -166,10 +166,10 @@ class CueTriggerEngine(object):
             _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(
                 key, len(pools), total, vol))
 
-            # Friendship identity: scene (file) + line (dialogue key, or None
-            # for image/shake). Same scene AND (either is non-dialogue OR same
-            # line) are friends -- image/dialogue coexist, a new line cuts the
-            # previous one.
+            # Group identity: scene (file) + line (dialogue key, or None for
+            # image/shake). Same scene AND (either is non-dialogue OR same
+            # line) share a group -- image/dialogue coexist, a new line cuts
+            # the previous one.
             scene = get_key_file(key)
             line = key if is_dlg_key(key) else None
 
@@ -182,13 +182,13 @@ class CueTriggerEngine(object):
                 if not files:
                     continue
                 excl = resolved.exclusive
-                # Hold gate: a holding non-friend owns the air -- drop this pool.
+                # Hold gate: a holding out-group SFX owns the air -- drop this pool.
                 if self._excl_hold_blocked(CUE_EXCL_KIND_ONESHOT, scene, line):
                     _cue_log("CTX-DROPPED key={} pool={} (held)".format(key, pi))
                     continue
                 # One-shot pools can't defer: "wait" only plays into open air.
                 if (excl.start == CueExclusiveStart.WAIT
-                        and self._excl_nonfriend_busy(CUE_EXCL_KIND_ONESHOT, scene, line)):
+                        and self._excl_outgroup_busy(CUE_EXCL_KIND_ONESHOT, scene, line)):
                     _cue_log("CTX-DROPPED key={} pool={} (air busy)".format(key, pi))
                     continue
                 file = _cue_pick_file(files)
@@ -203,10 +203,10 @@ class CueTriggerEngine(object):
                 # _cue_play_pool is in runtime.py; import lazily to avoid cycle
                 from cue_lib.runtime import _cue_play_pool, _cue_fade_out_sfx
                 if excl.start == CueExclusiveStart.FADE:
-                    # Cut-in: fade out non-friend one-shots plus any playing
-                    # loops and video SFX (one-shots cut loops).
+                    # Cut-in: fade out one-shots outside this group, plus any
+                    # playing loops and video SFX (one-shots cut loops).
                     faded = _cue_fade_out_sfx(
-                        exclude_channels=self._excl_friends(CUE_EXCL_KIND_ONESHOT, scene, line))
+                        exclude_channels=self._excl_group_channels(CUE_EXCL_KIND_ONESHOT, scene, line))
                     _cue_log("CTX-FADE key={} pool={} faded={}".format(
                         key, pi, faded))
                 ch_used = _cue_play_pool(entry, key, pool, pi, file=file)
@@ -266,7 +266,7 @@ class CueTriggerEngine(object):
                 continue
 
             excl = resolved.exclusive
-            # Gate: a holding non-friend owns the air -- defer and retry.
+            # Gate: a holding out-group SFX owns the air -- defer and retry.
             # Logged once per blocked episode (flag clears on play) so the
             # 0.1s retry cadence doesn't spam the log.
             if self._excl_hold_blocked(CUE_EXCL_KIND_LOOP, None, None):
@@ -276,8 +276,8 @@ class CueTriggerEngine(object):
                 pst["ready_at"] = now + 0.1
                 continue
 
-            # Gate: wait mode defers until no non-friend loop SFX is playing.
-            if excl.start == CueExclusiveStart.WAIT and self._excl_nonfriend_busy(CUE_EXCL_KIND_LOOP, None, None):
+            # Gate: wait mode defers until no out-group loop SFX is playing.
+            if excl.start == CueExclusiveStart.WAIT and self._excl_outgroup_busy(CUE_EXCL_KIND_LOOP, None, None):
                 if not pst.get("blocked_logged"):
                     _cue_log("TICK#{} POOL-DEFER reason=wait key={} pool={}".format(tick, loop_key, pi))
                     pst["blocked_logged"] = True
@@ -297,7 +297,7 @@ class CueTriggerEngine(object):
             if excl.start == CueExclusiveStart.FADE:
                 # Cut-in: fade out other loops (never image/dialogue SFX).
                 faded = _cue_fade_out_sfx(
-                    exclude_channels=self._excl_friends(CUE_EXCL_KIND_LOOP, None, None),
+                    exclude_channels=self._excl_group_channels(CUE_EXCL_KIND_LOOP, None, None),
                     only_channels=self._excl_kind_channels(CUE_EXCL_KIND_LOOP))
                 _cue_log("TICK#{} POOL-SWEEP key={} pool={} faded={}".format(
                     tick, loop_key, pi, faded))

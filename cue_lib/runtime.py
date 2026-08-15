@@ -528,7 +528,7 @@ def _cue_fade_out_sfx(exclude_channels=None, only_channels=None):
     # type: (Optional[List[str]], Optional[List[str]]) -> int
     """Quickly fade out SFX on the shared _cue_ channels.
 
-    ``exclude_channels`` are same-scope friends to spare; ``only_channels``
+    ``exclude_channels`` are same-group channels to spare; ``only_channels``
     restricts the sweep to a single domain (loops fade only loops, one-shots
     fade only one-shots). Returns the number of channels faded."""
     excluded = set(exclude_channels) if exclude_channels else set()
