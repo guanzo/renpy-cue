@@ -11,3 +11,14 @@ bin/install_to_game.bat
 .venv/
 .coverage
 .vscode/
+
+# test_game harness artifacts (see bin/run_testcases.sh)
+test_game/game/renpy_cue/
+test_game/cue_data/
+test_game/game/cache/
+test_game/game/saves/
+test_game/log.txt
+test_game/errors.txt
+test_game/traceback.txt
+# testcases.rpy is materialized from test_game/templates/ by bin/run_testcases.sh
+test_game/game/testcases.rpy
