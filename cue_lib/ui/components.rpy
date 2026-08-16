@@ -237,37 +237,60 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
 # field_name: string for _CueFieldValue (e.g. "_cue.setup_dir_text")
 # commit_action: Function() called on Enter to confirm
 # display_text: the label shown on the textbutton
-screen cue_text_input(field_name, commit_action, display_text, xsize=80):
+# editing_ref: optional object with a search_is_editing attribute; the screen
+#   mirrors its local editing flag there so a parent screen can show/hide
+#   sibling controls (e.g. the search bar's clear button while typing).
+screen cue_text_input(field_name, commit_action, display_text, xsize=None, editing_ref=None):
     default editing = False
+    $ height = 16
+    if editing_ref is not None:
+        $ editing_ref.search_is_editing = editing
     if editing:
-        key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
-        key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
-        input:
-            style "cue_input"
-            value _CueFieldValue(field_name)
-            default True
-            copypaste True
-            xsize xsize
-            ysize 16
+        frame:
+            # key must be inside frame, otherwise a parent vbox will add spacing
+            # because it considers "key" to be a UI element.
+            key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
+            key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
+            background _cue_color_bg_input
+            padding (2, 0)
+            ysize height
+            #xfill True
+            input:
+                style "cue_input"
+                value _CueFieldValue(field_name)
+                default True
+                copypaste True
+                if xsize is not None:
+                    xsize xsize
+                ysize height
     else:
         use cue_txt_button(display_text,
             SetLocalVariable("editing", True),
-            xsize=xsize, ysize=16, tt="Click to edit. Press Enter to confirm.")
+            xsize=xsize, ysize=height, tt="Click to type. Enter to confirm.")
 
 # Search bar: live-in-name search for the audio-library file trees (SFX
-# Library, My Music, Game Music).  Built on cue_text_input: click to edit,
-# Enter to filter.  field_path is the _CueFieldValue dotted path to the
-# manager's search_query; manager supplies the rebuild/clear actions.  The
-# label shows the active query, or hint when empty; the xmark clears it.
+# Library, My Music, Game Music).  Built on cue_text_input: click to edit.
+# Typing writes manager.search_query live (via _CueFieldValue); a 0.25s timer
+# calls manager.maybe_rebuild(), which rebuilds only when the query changed --
+# that debounces the filter so typing stays responsive.  A broad query is
+# capped (see CUE_SEARCH_MAX_ROWS) and the overflow count is shown below the
+# bar.  Enter commits (closes the editor); the xmark clears the query.  The
+# xmark shows while the input is in edit mode (even with an empty query) and
+# whenever a query is set.
 screen cue_search_bar(field_path, manager, hint="Search..."):
+    timer 0.25 repeat True action Function(manager.maybe_rebuild)
     $ _q = manager.search_query
     $ _label = _q if _q.strip() else hint
-    hbox:
-        spacing 6
-        xfill True
-        use cue_text_input(field_path, Function(manager.rebuild_tree), _label, xsize=160)
-        if _q.strip():
-            use cue_icon_btn("xmark", Function(manager.clear_search), "Clear search", None)
+    vbox:
+        spacing 4
+        hbox:
+            spacing 6
+            if _q.strip() or manager.search_is_editing:
+                use cue_icon_btn("xmark", Function(manager.clear_search), "Clear search", None)
+            use cue_text_input(field_path, Function(manager.rebuild_tree), _label, editing_ref=manager)
+
+        if manager.search_truncated:
+            text "{} more results -- narrow your search".format(manager.search_truncated) style "cue_help"
 
 # Pool tab row: optional Delete button, + Pool button, numbered tabs [1][2]...
 # tab_action_fn(tab_action_args..., pi) is called when tab pi is clicked.

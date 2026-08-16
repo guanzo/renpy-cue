@@ -312,29 +312,82 @@ def _cue_build_tree(flat_files):
     return _build(root)
 
 
+def _cue_split_pipes(query):
+    # type: (str) -> List[str]
+    """Split query into OR alternatives on unescaped pipes.
+
+    A backslash-pipe (\\|) is a literal pipe character inside one alternative,
+    so a filename that itself contains a pipe can still be matched literally
+    (e.g. "a\\|b" matches the file "a|b").  A lone trailing backslash is kept
+    literally."""
+    parts = []
+    current = []
+    i = 0
+    while i < len(query):
+        ch = query[i]
+        if ch == "\\" and i + 1 < len(query) and query[i + 1] == "|":
+            current.append("|")
+            i += 2
+            continue
+        if ch == "|":
+            parts.append("".join(current))
+            current = []
+            i += 1
+            continue
+        current.append(ch)
+        i += 1
+    parts.append("".join(current))
+    return parts
+
+
+def _cue_compile_query(query):
+    # type: (str) -> Callable[[str], bool]
+    """Build a path matcher from a search query.
+
+    The query is an OR of pipe-separated alternatives; each alternative is an
+    AND of whitespace-separated terms.  So "amira|slide" matches a path
+    containing "amira" OR "slide", and "nora intense|amira" matches one
+    containing both "nora" and "intense" OR one containing "amira".  A query
+    with no pipe matches exactly as before (AND over its terms).  A backslash
+    before a pipe (\\|) escapes it -- a literal pipe inside one alternative,
+    for matching filenames that themselves contain "|".  Matching is
+    case-insensitive substring against the full path; an all-empty query
+    matches nothing (callers that want match-all guard for it).
+    """
+    alternatives = _cue_split_pipes(query)
+
+    def _match(path):
+        # type: (str) -> bool
+        path = path.lower()
+        for alt in alternatives:
+            terms = alt.lower().split()
+            if not terms:
+                continue
+            if all(term in path for term in terms):
+                return True
+        return False
+
+    return _match
+
+
 def _cue_filter_tree(tree, query):
     # type: (List[Dict[str, Any]], str) -> List[Dict[str, Any]]
     """Build a filtered copy of a nested tree for a search query.
 
-    A file matches when every whitespace-separated term of the lowercased
-    query appears somewhere in the lowercased full path (so file-name,
-    folder-name, and multi-term searches all work).  A folder is kept when it
-    matches the query itself (keeping ALL its descendants) or when it has a
-    matching descendant (keeping only the matching branches).  Result nodes
-    mirror _cue_build_tree's shapes; folder nodes are new dicts, file leaves
-    are reused unchanged.  The source tree is never mutated, and ordering is
+    A file matches when the query matches its full path (see _cue_compile_query
+    -- OR of pipe-separated alternatives, each an AND of whitespace-separated
+    terms; case-insensitive substring).  A folder is kept when it matches the
+    query itself (keeping ALL its descendants) or when it has a matching
+    descendant (keeping only the matching branches).  Result nodes mirror
+    _cue_build_tree's shapes; folder nodes are new dicts, file leaves are
+    reused unchanged.  The source tree is never mutated, and ordering is
     preserved -- nodes are only removed, never reordered.
     """
     query = query.strip()
     if not query:
         return []
 
-    terms = query.lower().split()
-
-    def _matches(path):
-        # type: (str) -> bool
-        path = path.lower()
-        return all(term in path for term in terms)
+    _matches = _cue_compile_query(query)
 
     def _filter(items, prefix):
         # type: (List[Dict[str, Any]], str) -> List[Dict[str, Any]]
@@ -358,6 +411,20 @@ def _cue_filter_tree(tree, query):
         return result
 
     return _filter(tree, "")
+
+
+def _cue_query_matches(name, query):
+    # type: (str, str) -> bool
+    """True when the query matches name (see _cue_compile_query: OR of
+    pipe-separated alternatives, each an AND of terms, case-insensitive
+    substring), matching _cue_filter_tree's path semantics.  An empty query
+    matches everything.
+
+    Used by the search bar to filter preset names the same way the file tree
+    filters paths."""
+    if not query.strip():
+        return True
+    return _cue_compile_query(query)(name)
 
 
 # --------------------------------------------------------------------------

@@ -1,6 +1,8 @@
 # Type stub for cue_lib.audio.audio_tree
 from typing import Any, Dict, List, Set
 
+CUE_SEARCH_MAX_ROWS: int
+
 class CueAudioTreeManager:
     files: List[str]
     tree: List[Dict[str, Any]]
@@ -8,6 +10,9 @@ class CueAudioTreeManager:
     visible_tree: List[Dict[str, Any]]
     expanded_folders: Dict[str, bool]
     search_query: str
+    search_truncated: int
+    search_is_editing: bool
+    _search_applied: str
 
     def __init__(self) -> None: ...
     def scan(self) -> None: ...
@@ -15,6 +20,7 @@ class CueAudioTreeManager:
     def _discover_walk_dir(self, results_set: Set[str], search_path: str) -> None: ...
     def rebuild_tree(self) -> None: ...
     def clear_search(self) -> None: ...
+    def maybe_rebuild(self) -> None: ...
     def _walk_tree(
         self,
         items: List[Dict[str, Any]],

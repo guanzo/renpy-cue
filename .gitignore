@@ -4,6 +4,7 @@
 *.pyo
 notes.txt
 bin/install_to_game.bat
+/cue_lib/cue_win_reposition.rpy
 
 .claude/*
 !.claude/skills/

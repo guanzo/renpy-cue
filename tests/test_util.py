@@ -774,3 +774,49 @@ def test_get_movie_play_list_first_item():
 def test_get_movie_play_empty():
     m = SimpleNamespace()
     assert _cue_get_movie_play(m) == ""
+
+
+# ---------------------------------------------------------------------------
+# _cue_query_matches (search-bar preset-name matcher)
+# ---------------------------------------------------------------------------
+
+def test_query_matches_case_insensitive_substring():
+    assert _util._cue_query_matches("Intense Moans", "intense")
+    assert _util._cue_query_matches("Intense Moans", "MOANS")
+    assert not _util._cue_query_matches("Subtle Moans", "intense")
+
+
+def test_query_matches_multi_term_and():
+    assert _util._cue_query_matches("Intense Moans", "intense moans")
+    assert not _util._cue_query_matches("Intense Moans", "intense scream")
+
+
+def test_query_matches_empty_query():
+    assert _util._cue_query_matches("Anything", "")
+    assert _util._cue_query_matches("Anything", "   ")
+
+
+def test_split_pipes_plain_and_escaped():
+    assert _util._cue_split_pipes("amira|slide") == ["amira", "slide"]
+    assert _util._cue_split_pipes("mix\\|take") == ["mix|take"]
+    assert _util._cue_split_pipes("a\\|b|c") == ["a|b", "c"]
+    assert _util._cue_split_pipes("plain") == ["plain"]
+    assert _util._cue_split_pipes("trailing\\") == ["trailing\\"]
+
+
+def test_query_matches_pipe_or():
+    assert _util._cue_query_matches("Amira Moans", "amira|slide")
+    assert _util._cue_query_matches("Slide Whistle", "amira|slide")
+    assert not _util._cue_query_matches("Footsteps", "amira|slide")
+
+
+def test_query_matches_pipe_or_with_and_alternative():
+    # Each pipe alternative is AND over its whitespace terms.
+    assert _util._cue_query_matches("Nora Intense Moans", "nora intense|amira")
+    assert _util._cue_query_matches("Amira Moans", "nora intense|amira")
+    assert not _util._cue_query_matches("Nora Moans", "nora intense|amira")
+
+
+def test_query_matches_escaped_pipe_literal():
+    assert _util._cue_query_matches("Mix|Take.wav", "mix\\|take")
+    assert not _util._cue_query_matches("MixTake.wav", "mix\\|take")

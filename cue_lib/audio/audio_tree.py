@@ -16,6 +16,12 @@ MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Set
 
+# Broad search queries ("a" matches most files) can force-expand thousands of
+# rows, which is slow to render.  Search results are capped at this many rows;
+# the overflow count is left in search_truncated so the UI can ask for a
+# narrower query.
+CUE_SEARCH_MAX_ROWS = 100
+
 
 class CueAudioTreeManager(object):
     """Folder/file tree state shared by the SFX library and music managers.
@@ -39,6 +45,9 @@ class CueAudioTreeManager(object):
         self.visible_tree = []      # flat, depth-annotated rows for the screen
         self.expanded_folders = {}  # folder_path -> bool
         self.search_query = ""      # non-empty -> visible_tree is a filtered view
+        self.search_truncated = 0   # rows dropped by the search cap (0 when idle)
+        self.search_is_editing = False  # search bar input is in edit mode
+        self._search_applied = ""   # query last rebuilt for (debounce marker)
 
     # ------------------------------------------------------------------
     # Scanning
@@ -111,7 +120,9 @@ class CueAudioTreeManager(object):
         and every kept folder is force-expanded so all matches are visible;
         otherwise only expanded folders are recursed into.  self.tree and
         self.expanded_folders are never modified here, so clearing the search
-        restores the exact pre-search view."""
+        restores the exact pre-search view.  During a search the rows are
+        capped at CUE_SEARCH_MAX_ROWS and the overflow count is left in
+        search_truncated (0 when under the cap or not searching)."""
         query = self.search_query.strip()
 
         if query:
@@ -123,6 +134,13 @@ class CueAudioTreeManager(object):
 
         result = []
         self._walk_tree(source, "", 0, result, force_expand)
+
+        if force_expand and len(result) > CUE_SEARCH_MAX_ROWS:
+            self.search_truncated = len(result) - CUE_SEARCH_MAX_ROWS
+            del result[CUE_SEARCH_MAX_ROWS:]
+        else:
+            self.search_truncated = 0
+
         self.visible_tree = result
 
     def clear_search(self):
@@ -130,7 +148,20 @@ class CueAudioTreeManager(object):
         """Clear the search query and rebuild the full, unexpanded tree."""
         if self.search_query:
             self.search_query = ""
+            self._search_applied = ""
             self.rebuild_tree()
+
+    def maybe_rebuild(self):
+        # type: () -> None
+        """Rebuild the filtered tree when the search query changed since the
+        last rebuild; no-op otherwise.  Called on a timer from the search bar
+        (every 0.25s), which debounces live typing into at most one rebuild
+        per pause instead of one per keystroke."""
+        q = self.search_query
+        if q == self._search_applied:
+            return
+        self.rebuild_tree()
+        self._search_applied = q
 
     def _walk_tree(self, items, prefix, depth, result, force_expand=False):
         # type: (List[Dict[str, Any]], str, int, List[Dict[str, Any]], bool) -> None

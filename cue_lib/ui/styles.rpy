@@ -110,9 +110,10 @@ style cue_input is cue_txt:
     size 12
     color _cue_color_text_white
     background _cue_color_bg_input
-    xsize 72
-    padding (2, 2)
-    ypadding 2
+    yalign 0.5
+    yanchor 0.5
+    adjust_spacing False
+
 
 style cue_vscrollbar:
     xsize 6
