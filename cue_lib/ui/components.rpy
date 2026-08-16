@@ -300,6 +300,8 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                      tab_tt, exclusive_ctx=None):
     hbox:
         spacing 5
+        box_wrap True
+        box_wrap_spacing 3
         if show_delete:
             use cue_icon_btn(
                 "xmark",

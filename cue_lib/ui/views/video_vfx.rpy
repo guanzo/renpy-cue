@@ -201,7 +201,7 @@ screen cue_video_vfx():
                         if _seq and len(_seq) >= 2:
                             add CueAutoSpeedChart() xsize 440 ysize 80
             else:
-                text "No speed variants available. Make some in the Create tab." style "cue_txt"
+                text "No speed variants available. Generate them in the Create tab." style "cue_txt"
 
         # --- Create tab ---
         if _cue.video_editor.active:

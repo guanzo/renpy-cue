@@ -26,7 +26,7 @@ class CueVolumeManager(object):
 
     VOL_MIN = 0.0
     VOL_DEFAULT = CUE_VOLUME_DEFAULT  # legacy alias; new code uses CUE_VOLUME_DEFAULT
-    VOL_MAX = 5.0
+    VOL_MAX = 3.0
 
     def __init__(self, store, ctx, markers=None):
         # type: (CueMarkerStore, CueContext, Optional[CueMarkerManager]) -> None
