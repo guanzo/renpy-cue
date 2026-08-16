@@ -28,3 +28,7 @@ test_game/game/testcases.rpy
 # runtime db/backup writes into the shared fixtures root (see cue_lib/db.py)
 tests/fixtures/data/data/
 tests/fixtures/data/backups/
+
+# beat_extractor runtime artifacts (default --out is ./output)
+__pycache__/
+tools/beat_extractor/output/
