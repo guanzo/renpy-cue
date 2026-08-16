@@ -152,9 +152,9 @@ screen cue_txt_button(label, action, bg=None, hover_bg=None, tt=None,
             hover_background hover_bg
         if tt is not None:
             tooltip tt
-        if xsize > 0:
+        if xsize is not None and xsize > 0:
             xsize xsize
-        if ysize > 0:
+        if ysize is not None and ysize > 0:
             ysize ysize
 
 # Selectable textbutton: highlights when selected, dims when not.
