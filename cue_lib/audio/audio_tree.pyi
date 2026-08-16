@@ -5,6 +5,7 @@ CUE_SEARCH_MAX_ROWS: int
 
 class CueAudioTreeManager:
     files: List[str]
+    _file_index: Dict[str, int]
     tree: List[Dict[str, Any]]
     scan_error: str
     visible_tree: List[Dict[str, Any]]

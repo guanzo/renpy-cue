@@ -40,6 +40,7 @@ class CueAudioTreeManager(object):
 
     def __init__(self):
         self.files = []             # flat sorted relative paths
+        self._file_index = {}       # path -> position in files (rebuilt in scan)
         self.tree = []              # nested folder/file nodes from _cue_build_tree
         self.scan_error = ""        # non-empty only when the scan fails
         self.visible_tree = []      # flat, depth-annotated rows for the screen
@@ -67,6 +68,7 @@ class CueAudioTreeManager(object):
             self._discover(results_set)
         except Exception as err:
             self.files = []
+            self._file_index = {}
             self.tree = []
             self.scan_error = "Failed to scan {}: {}".format(self._scan_label, err)
             return
@@ -74,6 +76,7 @@ class CueAudioTreeManager(object):
         results = sorted(results_set)
         self.files = results
         self.tree = _cue_build_tree(results)
+        self._file_index = {path: i for i, path in enumerate(results)}
 
         # Empty is fine -- nothing found yet
         self.scan_error = ""

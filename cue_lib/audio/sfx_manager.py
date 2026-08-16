@@ -67,10 +67,7 @@ class CueSfxManager(CueAudioTreeManager):
         # type: (Dict[str, Any], str, int) -> Dict[str, Any]
         """File row with index/enabled for the SFX Library."""
         node = super(CueSfxManager, self)._file_node(item, full, depth)
-        try:
-            node["index"] = self.files.index(full)
-        except ValueError:
-            node["index"] = -1
+        node["index"] = self._file_index.get(full, -1)
         node["enabled"] = full not in self.disabled_files
         return node
 
