@@ -7,8 +7,16 @@ tail plays out) plus a CSV audit report. See SPEC.md for the design.
 
 Dev tool, system Python 3. Deps: numpy + ffmpeg on PATH.
 
+Windows paths (e.g. E:\\Porn\\VR\\spatial\\song.mp4) are converted to WSL
+paths (/mnt/e/Porn/VR/spatial/song.mp4) automatically.
+
 Example:
 python3 beat_extractor.py "song.mp4" --start 00:13:10 --end 00:13:12
+
+Batch mode -- windows come from an Audacity label export (start<TAB>end per
+line); beats across every window are numbered sequentially and land flat in
+the output dir:
+python3 beat_extractor.py "song.mp4" --labels "E:\\Labels 1.txt"
 """
 
 from __future__ import print_function
@@ -28,6 +36,46 @@ except ImportError:  # pragma: no cover -- wave is stdlib, never missing
     pass
 
 # ---------------------------------------------------------------------------
+# Path helpers
+
+
+def win_to_wsl(path):
+    """Convert a Windows path to a WSL path so ffmpeg can open it.
+
+    'E:\\test\\haha\\a b.mp4' -> '/mnt/e/test/haha/a b.mp4'.
+    POSIX paths (already absolute) and relative paths pass through, with stray
+    backslashes fixed to forward slashes; a trailing double-quote from a sloppy
+    copy-paste is dropped.
+    """
+    s = path.strip()
+    if len(s) >= 2 and s[-1] == '"':
+        s = s[:-1]
+    if s.startswith("/"):
+        return s
+    if len(s) >= 2 and s[0].isalpha() and s[1] == ":":
+        drive = s[0].lower()
+        rest = s[2:].lstrip("\\/").replace("\\", "/")
+        return "/mnt/%s/%s" % (drive, rest)
+    return s.replace("\\", "/")
+
+
+def _clear_dir(path):
+    """Recursively delete a directory tree, path-based.
+
+    shutil.rmtree is NOT used: since Python 3.12 it deletes via fd-relative
+    syscalls (os.unlink(..., dir_fd=...)), which fail with EACCES on WSL
+    drvfs mounts (/mnt/...). Plain path-based unlink works there. Raises
+    OSError naming the file if a Windows process holds a lock on it.
+    """
+    for root, dirs, files in os.walk(path, topdown=False):
+        for name in files:
+            os.unlink(os.path.join(root, name))
+        for name in dirs:
+            os.rmdir(os.path.join(root, name))
+    os.rmdir(path)
+
+
+# ---------------------------------------------------------------------------
 # Timestamps
 
 
@@ -42,6 +90,34 @@ def parse_timestamp(text):
             return float(parts[0]) * 3600.0 + float(parts[1]) * 60.0 + float(parts[2])
         raise ValueError("cannot parse timestamp: %r" % text)
     return float(text)
+
+
+# ---------------------------------------------------------------------------
+# Label files (Audacity exports)
+
+
+def read_labels(path):
+    """Parse an Audacity label export into (start, end) windows.
+
+    Each data line is 'start<TAB>end<TAB>[label]' -- the label text is
+    ignored, blank lines are skipped, times may be fractional seconds or
+    mm:ss/hh:mm:ss. Returns a list of (start, end) tuples.
+    """
+    windows = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            fields = line.split()
+            if len(fields) < 2:
+                raise ValueError("bad label line: %r" % line)
+            start = parse_timestamp(fields[0])
+            end = parse_timestamp(fields[1])
+            if start >= end:
+                raise ValueError("label start not before end: %r" % line)
+            windows.append((start, end))
+    return windows
 
 
 # ---------------------------------------------------------------------------
@@ -258,15 +334,44 @@ def _refine_clip_start(x, sr, peak_i, max_lead_in_s):
     return k
 
 
-def build_clips(beats, window_len_s, sr):
-    """Set clip boundaries. Start = refined attack base, end = next beat's
-    crossing (so a beat's tail never swallows the next beat's rise). The last
-    beat ends at the analysis window's end (soft cap)."""
+def _refine_clip_end(x, sr, peak_i, crossing_i):
+    """Cut at the deepest silence before the next beat; return the exclusive
+    end index (one past the last quiet sample).
+
+    The current beat's tail decays toward the noise floor, then the next
+    beat's precursor rises into its crossing -- the "sudden rise at the very
+    end" a too-long clip shows. Find the envelope trough in the gap
+    [peak_i, crossing_i): the point where the declining volume bottoms out
+    before rising into the next attack. End the clip there, so it finishes in
+    genuine silence and never carries any of the next beat's rise, however
+    gradual the precursor. A dirty/overlapping gap (no real silence) still
+    ends at its quietest point, which the gap check flags.
+    """
+    env, hop = _peak_envelope(x, sr)
+    j0 = peak_i // hop
+    j1 = min(len(env) - 1, crossing_i // hop)
+    if j1 <= j0:
+        return crossing_i
+    k = int(np.argmin(env[j0:j1 + 1]))  # trough hop offset from j0
+    return min((j0 + k + 1) * hop, crossing_i)  # one past the trough hop
+
+
+def build_clips(beats, window_len_s, sr, x=None, max_lead_in_s=0.08):
+    """Set clip boundaries. Start = refined attack base, end = the envelope
+    trough in the gap before the next beat (where its rise meets the noise
+    floor) so the current clip ends in genuine silence and never swallows the
+    next beat's rise. The last beat ends at the analysis window's end (soft
+    cap)."""
     for i, b in enumerate(beats):
         b["clip_start_s"] = b["clip_start_i"] / sr
     for i, b in enumerate(beats):
         if i + 1 < len(beats):
-            b["clip_end_s"] = beats[i + 1]["crossing_i"] / sr
+            nxt = beats[i + 1]
+            if x is not None:
+                b["clip_end_s"] = _refine_clip_end(
+                    x, sr, b["peak_i"], nxt["crossing_i"]) / sr
+            else:
+                b["clip_end_s"] = nxt["clip_start_i"] / sr
         else:
             b["clip_end_s"] = window_len_s
         if b["clip_end_s"] <= b["clip_start_s"]:
@@ -366,20 +471,30 @@ def classification(b):
 # Report
 
 
-def write_report(path, beats, window_start):
-    """One CSV row per beat, times absolute into the original file."""
+def write_report(path, beats, window_start, include_window=False):
+    """One CSV row per beat, times absolute into the original file.
+
+    With include_window, each row carries the window's label (source start)
+    in a leading "window" column -- used for --labels runs. Every beat must
+    carry "window_start" (absolute source offset); window_start is the
+    fallback for single-window runs where beats lack it.
+    """
     with open(path, "w", newline="") as f:
         out = csv.writer(f)
-        out.writerow([
+        header = [
             "index", "start_sec", "end_sec", "duration_sec", "peak_db",
             "classification", "duration_median", "duration_band",
             "loudness_median", "loudness_band",
-        ])
+        ]
+        if include_window:
+            header.insert(1, "window")
+        out.writerow(header)
         for i, b in enumerate(beats):
-            out.writerow([
+            ws = b.get("window_start", window_start)
+            row = [
                 i,
-                _fmt(window_start + b["clip_start_s"]),
-                _fmt(window_start + b["clip_end_s"]),
+                _fmt(ws + b["clip_start_s"]),
+                _fmt(ws + b["clip_end_s"]),
                 _fmt(b["duration_s"]),
                 _fmt(b["peak_db"]),
                 classification(b),
@@ -387,7 +502,10 @@ def write_report(path, beats, window_start):
                 _band(b.get("duration_band")),
                 _fmt(b.get("loudness_median", "")) if "loudness_median" in b else "",
                 _band(b.get("loudness_band")),
-            ])
+            ]
+            if include_window:
+                row.insert(1, _fmt(b.get("window_start", window_start)))
+            out.writerow(row)
 
 
 def _fmt(value):
@@ -414,6 +532,10 @@ def build_parser():
     p.add_argument("input", help="video or audio file")
     p.add_argument("--start", help="window start (mm:ss, hh:mm:ss, or seconds)")
     p.add_argument("--end", help="window end (mm:ss, hh:mm:ss, or seconds)")
+    p.add_argument("--labels",
+                   help="Audacity label export (start<TAB>end per line): process "
+                        "every window in one run. Exclusive with --start/--end. "
+                        "Windows paths accepted.")
     p.add_argument("--out", default="output",
                    help="output directory (default: ./output)")
     p.add_argument("--amplitude-threshold", type=float, default=0.15,
@@ -443,58 +565,117 @@ def build_parser():
     return p
 
 
-def main(argv=None):
-    args = build_parser().parse_args(argv)
-
-    start = parse_timestamp(args.start) if args.start else None
-    end = parse_timestamp(args.end) if args.end else None
-    if start is not None and end is not None and start >= end:
-        sys.exit("error: --start must be before --end")
-
-    os.makedirs(args.out, exist_ok=True)
-    analysis_path = os.path.join(args.out, "_analysis.wav")
-    extract_analysis(args.input, start, end, analysis_path)
-
-    x, sr = read_wav(analysis_path)
+def _analyze_window(x, sr, args):
+    """Run detection + the four filters on one analysis window."""
     window_len_s = len(x) / sr
     beats = detect_beats(x, sr, args.amplitude_threshold,
                          args.max_lead_in_ms / 1000.0)
-    build_clips(beats, window_len_s, sr)
+    build_clips(beats, window_len_s, sr, x,
+                max_lead_in_s=args.max_lead_in_ms / 1000.0)
     filter_duration(beats, args.min_beat_ms / 1000.0, args.duration_ratio)
     classify_gaps(x, sr, beats, 10.0 ** (args.noise_floor_db / 20.0))
     filter_loudness(beats, args.loudness_outlier_db)
+    return beats
 
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    input_path = win_to_wsl(args.input)
+
+    if args.labels:
+        if args.start is not None or args.end is not None:
+            sys.exit("error: --labels is exclusive with --start/--end")
+        labels_path = win_to_wsl(args.labels)
+        try:
+            windows = read_labels(labels_path)
+        except (IOError, ValueError) as e:
+            sys.exit("error: %s" % e)
+    else:
+        start = parse_timestamp(args.start) if args.start else None
+        end = parse_timestamp(args.end) if args.end else None
+        if start is not None and end is not None and start >= end:
+            sys.exit("error: --start must be before --end")
+        windows = [(start, end)]
+
+    # Clear stale output from a previous run so leftover beat_*.wav files
+    # (different beat count, renamed windows, etc.) can't linger next to fresh
+    # ones. Keeps a rerun honest: output/ holds exactly this run's output.
+    if os.path.isdir(args.out):
+        try:
+            _clear_dir(args.out)
+        except OSError as e:
+            sys.exit("error: cannot clear %s (is the file open in another "
+                     "program?): %s" % (args.out, e))
+    os.makedirs(args.out, exist_ok=True)
+    raw_dir = os.path.join(args.out, "_raw")
     if not args.dry_run:
-        raw_dir = os.path.join(args.out, "_raw")
         os.makedirs(raw_dir, exist_ok=True)
-        for i, b in enumerate(beats):
-            if classification(b) == "clean":
-                raw_path = os.path.join(raw_dir, "beat_%03d_raw.wav" % i)
-                out_path = os.path.join(args.out, "beat_%03d.wav" % i)
-                i0, i1 = clip_indices(b["clip_start_s"], b["clip_end_s"], sr,
-                                      args.pre_roll_ms / 1000.0)
-                write_wav(raw_path, x[i0:i1], sr)
-                process_clip(raw_path, out_path, args.denoise,
-                             not args.no_normalize, args.denoise_strength)
 
-    write_report(os.path.join(args.out, "beat_report.csv"), beats, start or 0.0)
+    # Run every window; beats get a global sequential index (candidate_index)
+    # so files and CSV rows line up across windows.
+    all_beats = []
+    written = []  # (candidate_index, duration_s, peak_db) of extracted files
+    window_info = []  # (index, start, end, analysis_len_s) for the summary
+
+    for w_index, (start, end) in enumerate(windows):
+        if args.labels:
+            analysis_dir = os.path.join(args.out, "_analysis")
+            os.makedirs(analysis_dir, exist_ok=True)
+            analysis_path = os.path.join(analysis_dir, "win%03d.wav" % w_index)
+        else:
+            analysis_path = os.path.join(args.out, "_analysis.wav")
+        extract_analysis(input_path, start, end, analysis_path)
+
+        x, sr = read_wav(analysis_path)
+        window_len_s = len(x) / sr
+        beats = _analyze_window(x, sr, args)
+
+        ws = start if start is not None else 0.0
+        for i, b in enumerate(beats):
+            b["window_start"] = ws
+            b["candidate_index"] = len(all_beats) + i
+        all_beats.extend(beats)
+        window_info.append((w_index, start, end, window_len_s))
+
+        if not args.dry_run:
+            for b in beats:
+                if classification(b) == "clean":
+                    idx = b["candidate_index"]
+                    raw_path = os.path.join(raw_dir, "beat_%03d_raw.wav" % idx)
+                    out_path = os.path.join(args.out, "beat_%03d.wav" % idx)
+                    i0, i1 = clip_indices(b["clip_start_s"], b["clip_end_s"], sr,
+                                          args.pre_roll_ms / 1000.0)
+                    write_wav(raw_path, x[i0:i1], sr)
+                    process_clip(raw_path, out_path, args.denoise,
+                                 not args.no_normalize, args.denoise_strength)
+                    written.append((idx, b["duration_s"], b["peak_db"]))
+
+    write_report(os.path.join(args.out, "beat_report.csv"), all_beats, 0.0,
+                 include_window=args.labels)
 
     counts = {}
-    for b in beats:
+    for b in all_beats:
         counts[classification(b)] = counts.get(classification(b), 0) + 1
-    print("window: %s -> %s (%.3fs)" % (
-        _fmt(start) if start is not None else "0", _fmt(end) if end is not None else "EOF",
-        window_len_s))
-    print("detected %d beat(s):" % len(beats))
+
+    if args.labels:
+        print("labels: %d window(s) from %s" % (len(windows), labels_path))
+        for w_index, start, end, wlen in window_info:
+            print("  win%03d: %s -> %s (%.3fs)" % (
+                w_index, _fmt(start), _fmt(end), wlen))
+    else:
+        start, end = windows[0]
+        print("window: %s -> %s (%.3fs)" % (
+            _fmt(start) if start is not None else "0",
+            _fmt(end) if end is not None else "EOF",
+            window_info[0][3]))
+    print("detected %d beat(s):" % len(all_beats))
     for name in ("clean", "dirty", "skipped_too_short",
                  "dropped_duration_outlier", "dropped_loudness_outlier"):
         if counts.get(name):
             print("  %-26s %d" % (name, counts[name]))
     if not args.dry_run:
-        for i, b in enumerate(beats):
-            if classification(b) == "clean":
-                print("  wrote beat_%03d.wav  %.3fs  %.3f dBFS" % (
-                    i, b["duration_s"], b["peak_db"]))
+        for idx, dur, peak in written:
+            print("  wrote beat_%03d.wav  %.3fs  %.3f dBFS" % (idx, dur, peak))
     print("report: %s" % os.path.join(args.out, "beat_report.csv"))
 
 

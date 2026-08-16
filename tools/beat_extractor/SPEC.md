@@ -34,8 +34,19 @@ none of the `cue_lib` compatibility constraints apply.
      `--max-lead-in-ms` (default 80). Then pad `--pre-roll-ms` (default 25) of *real*
      pre-spike source audio before that -- so the hit sits a small distance into the file
      with the natural buildup/lead-in included, instead of being jammed at sample zero.
-   - **End:** the next beat's attack. The **last** beat ends at the analysis window's
-     end (soft cap) -- the final beat is never lost.
+   - **End:** the **envelope trough** in the gap before the *next* beat. The current
+     beat's tail decays toward the noise floor, then the next beat's precursor rises
+     into its crossing -- a "sudden rise at the very end" that a too-long clip shows as
+     a visible volume bump. The end is found by scanning the 1ms envelope between this
+     beat's peak and the next beat's crossing and taking its **global minimum**: the
+     point where the declining tail bottoms out before rising into the next attack. The
+     clip ends one hop past that trough, so it finishes in genuine silence and never
+     swallows any of the next beat's rise, however gradual the precursor. (A simple
+     amplitude-floor walk back from the crossing fails here: it stops at the *first*
+     quiet dip below the floor, which sits inside the rising precursor -- the tail
+     still shows the end bump.) Beats are not contiguous; the gap between a beat's
+     tail and the next beat's attack stays out of both files. The **last** beat ends
+     at the analysis window's end (soft cap) -- the final beat is never lost.
 4. **Hard floor** -> clips shorter than `--min-beat-ms` are dropped as `skipped_too_short`.
 5. **Duration consistency** -> compute the median clip length; drop clips outside
    `--duration-ratio` x .. 1/`--duration-ratio` x the median as `dropped_duration_outlier`.
@@ -68,13 +79,15 @@ none of the `cue_lib` compatibility constraints apply.
 
 ```
 python3 beat_extractor.py INPUT --start T --end T --out DIR [options]
+python3 beat_extractor.py INPUT --labels LABELS.TXT --out DIR [options]
 ```
 
 | Flag | Default | Effect |
 |---|---|---|
 | `INPUT` (positional) | -- | Video or audio file |
 | `--start` / `--end` | none | Window in the source (mm:ss, hh:mm:ss, or raw seconds). Omit both for the whole file |
-| `--out` | `./output` | Output directory |
+| `--labels` | none | Audacity label export (`start<TAB>end` per line): process every window in one run. Exclusive with `--start`/`--end`; Windows paths accepted |
+| `--out` | `./output` | Output directory (cleared before each run) |
 | `--amplitude-threshold` | 0.15 | "Loud enough = beat"; 0.1-0.4 all worked on reference material |
 | `--max-lead-in-ms` | 80 | Max pre-spike buildup kept in a clip |
 | `--pre-roll-ms` | 25 | Real pre-spike lead-in kept before each beat's hit (0 = spike at file start) |
@@ -89,6 +102,8 @@ python3 beat_extractor.py INPUT --start T --end T --out DIR [options]
 
 ## Output layout
 
+Single window (`--start`/`--end`):
+
 ```
 <out>/
   _analysis.wav         mono 44.1k window (input normalization)
@@ -97,13 +112,32 @@ python3 beat_extractor.py INPUT --start T --end T --out DIR [options]
   beat_report.csv       audit trail
 ```
 
-Files are named by **candidate index**, matching the CSV rows -- if `beat_001` was dirty,
-there is simply no `beat_001.wav`, and row 1 in the CSV says why.
+Batch (`--labels`): beats from every window share one flat `beat_*.wav` set,
+numbered **sequentially across all windows** in report order; each window keeps
+its own analysis WAV.
+
+```
+<out>/
+  _analysis/win000.wav  mono 44.1k window for label 0
+  _analysis/win001.wav  ... one per label
+  _raw/beat_002_raw.wav raw clips, one per surviving beat (pre-cleanup)
+  beat_002.wav          final processed SFX
+  beat_report.csv       audit trail (one combined report, "window" column)
+```
+
+`<out>` is **cleared before each run**, so a rerun never mixes stale files with
+fresh ones. Files are named by **candidate index**, matching the CSV rows -- if
+`beat_001` was dirty, there is simply no `beat_001.wav`, and row 1 in the CSV
+says why. In batch mode the candidate index counts across every window.
 
 ## Report columns
 
 `index, start_sec, end_sec, duration_sec, peak_db, classification, duration_median,
 duration_band, loudness_median, loudness_band`
+
+In batch (`--labels`) mode the report adds a leading **`window`** column carrying
+each beat's window start (absolute into the source), so rows from different windows
+are distinguishable.
 
 - Times are **absolute into the original file** (window offset already added), so a row
   can be used to re-run a narrower window over a misclassified region.

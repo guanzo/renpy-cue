@@ -6,7 +6,9 @@ import tempfile
 import numpy as np
 
 from beat_extractor import (
+    _clear_dir,
     _peak_envelope,
+    _refine_clip_end,
     _refine_clip_start,
     build_clips,
     classify_gaps,
@@ -15,6 +17,7 @@ from beat_extractor import (
     filter_duration,
     filter_loudness,
     parse_timestamp,
+    read_labels,
     read_wav,
     write_wav,
 )
@@ -121,6 +124,49 @@ class TestRefineClipStart(object):
         assert peak_i - start <= 0.08 * SR + 10
 
 
+class TestRefineClipEnd(object):
+    def _two_spikes(self, gap_amp=0.001):
+        """Two spikes separated by a quiet gap.
+
+        Returns (x, peak0, cross1): the first spike's peak index and the
+        second spike's crossing (first sample >= threshold).
+        """
+        sr = SR
+        x = np.zeros(int(0.8 * sr))
+        n_rise = 60
+        # first spike: fast rise to the peak, then a decaying tail
+        x[2000:2000 + n_rise] = 0.8 * np.linspace(0.02, 1.0, n_rise)
+        x[2000 + n_rise:2000 + n_rise + 600] = np.exp(
+            -np.arange(600) / 120.0) * 0.8
+        # quiet gap (ambient noise floor)
+        x[2600:16000] = gap_amp * np.random.default_rng(1).normal(
+            size=16000 - 2600)
+        # second spike: rises past threshold
+        x[16000:16000 + n_rise] = 0.8 * np.linspace(0.02, 1.0, n_rise)
+        x[16000 + n_rise:16000 + n_rise + 600] = np.exp(
+            -np.arange(600) / 120.0) * 0.8
+        peak0 = 2000 + n_rise - 1  # top of the first spike's rise
+        cross1 = 16000 + int(np.argmax(np.abs(x[16000:]) >= 0.15))
+        return x, peak0, cross1
+
+    def test_cuts_at_trough_before_next_attack(self):
+        x, peak0, cross1 = self._two_spikes()
+        end = _refine_clip_end(x, SR, peak0, cross1)
+        # end lands in the quiet gap, before the next spike's rise
+        assert peak0 < end < cross1
+        # the sample right before end is quiet (ambient floor), so the clip
+        # never swallows the next beat's attack rise
+        assert abs(x[end - 1]) < 0.05
+
+    def test_excludes_next_attack_rise(self):
+        x, peak0, cross1 = self._two_spikes()
+        end = _refine_clip_end(x, SR, peak0, cross1)
+        # end stops before the crossing, which is mid-attack of beat two
+        assert end < cross1
+        # the tail up to the end is at/below the ambient floor, not rising
+        assert np.abs(x[end - 5:end]).max() < 0.05
+
+
 class TestBuildClips(object):
     def _beats(self):
         b1 = {"crossing_i": 1000, "clip_start_i": 990}
@@ -130,13 +176,29 @@ class TestBuildClips(object):
     def test_boundaries(self):
         beats = self._beats()
         build_clips(beats, window_len_s=1.0, sr=SR)
-        assert beats[0]["clip_end_s"] == 2000 / SR  # next crossing
+        # without x, falls back to the next beat's refined attack base
+        assert beats[0]["clip_end_s"] == 1990 / SR
         assert abs(beats[1]["clip_end_s"] - 1.0) < 1e-9  # last -> window end
 
     def test_last_beat_not_lost(self):
         beats = self._beats()
         build_clips(beats, 0.5, SR)
         assert beats[1]["duration_s"] > 0
+
+    def test_end_in_silence_before_next_attack(self):
+        # two beats separated by real silence; the first clip must end in the
+        # quiet gap before the second beat's rise, never on its attack
+        b0 = _beat(SR, 0.12)
+        gap = _ambient(SR, 0.4, amp=0.005)
+        b1 = _beat(SR, 0.12)
+        x = np.concatenate([b0, gap, b1])
+        beats = detect_beats(x, SR, threshold=0.15, max_lead_in_s=0.08)
+        assert len(beats) == 2
+        build_clips(beats, len(x) / SR, SR, x, max_lead_in_s=0.08)
+        end0 = int(beats[0]["clip_end_s"] * SR)
+        cross1 = beats[1]["crossing_i"]
+        assert end0 < cross1  # ends before the next beat's attack
+        assert abs(x[end0 - 1]) < 0.02  # last sample is quiet gap, not a rise
 
 
 class TestClipIndices(object):
@@ -231,6 +293,61 @@ class TestFilterLoudness(object):
         beats = self._beats([-10, -10, -10, -10])
         filter_loudness(beats, 6.0)
         assert abs(beats[0]["loudness_median"] - (-10.0)) < 1e-9
+
+
+# ---------------------------------------------------------------------------
+# label files
+
+
+class TestReadLabels(object):
+    def _write(self, tmp_path, text):
+        path = os.path.join(tmp_path, "labels.txt")
+        with open(path, "w") as f:
+            f.write(text)
+        return path
+
+    def test_parses_tab_separated(self, tmp_path):
+        p = self._write(tmp_path, "12.939698\t14.298222\n15.358063\t16.822571\n")
+        assert read_labels(p) == [(12.939698, 14.298222), (15.358063, 16.822571)]
+
+    def test_ignores_label_text_and_blank_lines(self, tmp_path):
+        p = self._write(tmp_path, "1.0\t2.0\tbeat one\n\n3.0\t4.0\t\n")
+        assert read_labels(p) == [(1.0, 2.0), (3.0, 4.0)]
+
+    def test_accepts_mm_ss_timestamps(self, tmp_path):
+        p = self._write(tmp_path, "01:00\t02:00\n")
+        assert read_labels(p) == [(60.0, 120.0)]
+
+    def test_rejects_start_not_before_end(self, tmp_path):
+        p = self._write(tmp_path, "5.0\t2.0\n")
+        import pytest
+        with pytest.raises(ValueError):
+            read_labels(p)
+
+    def test_rejects_garbage_line(self, tmp_path):
+        p = self._write(tmp_path, "1.0\t2.0\nbanana\n")
+        import pytest
+        with pytest.raises(ValueError):
+            read_labels(p)
+
+
+# ---------------------------------------------------------------------------
+# directory clearing
+
+
+class TestClearDir(object):
+    def test_removes_populated_tree(self, tmp_path):
+        d = tmp_path / "out"
+        (d / "sub").mkdir(parents=True)
+        (d / "a.wav").write_text("x")
+        (d / "sub" / "b.csv").write_text("y")
+        _clear_dir(str(d))
+        assert not os.path.exists(str(d))
+
+    def test_missing_path_raises(self, tmp_path):
+        import pytest
+        with pytest.raises(OSError):
+            _clear_dir(str(tmp_path / "nope"))
 
 
 # ---------------------------------------------------------------------------
