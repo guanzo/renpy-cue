@@ -454,6 +454,8 @@ class CueFFmpeg(object):
         """Build the audio tempo filter string for the given speed factor.
         Uses librubberband (pitch-corrected) when available; falls back to
         atempo (pitch changes with speed)."""
+        if speed <= 0:
+            speed = 0.1  # the atempo chain divides by 0.5; 0.0 hangs forever
         self.load_encoders()  # ensures _has_rubberband is probed
         if self._has_rubberband:
             return "rubberband=tempo={:.4f}".format(speed)

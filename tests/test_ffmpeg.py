@@ -291,6 +291,18 @@ def test_audio_filter_atempo_chained_low(ff_ready):
         "atempo=0.5000,atempo=0.5000"
 
 
+def test_audio_filter_zero_speed_terminates(ff_ready):
+    # A speed of 0.0 would divide forever in the atempo chain; the guard
+    # clamps to the UI floor so the filter chain terminates.
+    filt = ff_ready.build_audio_filter(0.0)
+    assert isinstance(filt, str) and filt
+
+
+def test_audio_filter_negative_speed_terminates(ff_ready):
+    filt = ff_ready.build_audio_filter(-1.0)
+    assert isinstance(filt, str) and filt
+
+
 # ---------------------------------------------------------------------------
 # ffmpeg command builder
 # ---------------------------------------------------------------------------
