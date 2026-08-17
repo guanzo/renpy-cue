@@ -265,8 +265,20 @@ class CueMarkerManager(object):
         # type: (Any) -> List[VideoPoolDict]
         return self._store._resolve_video_pools(entry)
 
+    def _video_multi_file_edit(self, trigger_key):
+        # type: (str) -> bool
+        """True when a file-list edit should fan out to every selected pool:
+        the target is the current video and a multi-select is active."""
+        if len(self.video.get_selected()) <= 1:
+            return False
+        vid_key = create_vid_key(self._ctx.current_file) if self._ctx.current_file else ""
+        return bool(vid_key) and vid_key == trigger_key
+
     def _remove_file_from_preset_pool(self, trigger_key, pool_index, _dummy_fi, child_file):
         # type: (str, int, int, str) -> None
+        if self._video_multi_file_edit(trigger_key):
+            self.video._remove_path_from_selected(child_file)
+            return
         self._detach_pool(trigger_key, pool_index)
         entry = self._data.get(trigger_key)
         if entry is None:
@@ -306,7 +318,12 @@ class CueMarkerManager(object):
         entry = self.get(vid_key)
         if entry is None:
             return
-        self._detach_pool(vid_key, self.video.target_pool)
+        sel = self.video.get_selected()
+        if len(sel) > 1:
+            for idx in sorted(sel):
+                self._detach_pool(vid_key, idx)
+        else:
+            self._detach_pool(vid_key, self.video.target_pool)
         self.save_marker(vid_key)
 
     def detach_pool_at(self, trigger_key, pool_index):
@@ -333,6 +350,9 @@ class CueMarkerManager(object):
 
     def _remove_file_from_folder_ref(self, trigger_key, pool_index, file_index, child_file):
         # type: (str, int, int, str) -> None
+        if self._video_multi_file_edit(trigger_key):
+            self.video._remove_path_from_selected(child_file)
+            return
         self._detach_pool(trigger_key, pool_index)
         entry = self._data.get(trigger_key)
         if entry is None:

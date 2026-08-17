@@ -320,6 +320,55 @@ class CueVideoContext(CueMarkerContext):
         self._sort_and_track(pools, pool_dict)
         self.selected = set()
 
+    def _add_file(self, vid_key, filename, pool_index):
+        # type: (str, str, int) -> None
+        """Append *filename* to one pool, detaching a preset first. No save;
+        the caller persists once for single or multi edits."""
+        entry = self._mgr.get(vid_key, {})
+        pools = entry.get("pools", [])
+        if not (0 <= pool_index < len(pools)):
+            return
+        self._mgr._detach_pool(vid_key, pool_index)
+        files = pools[pool_index].setdefault("files", [])
+        if filename not in files:
+            files.append(filename)
+
+    def _remove_file(self, vid_key, path, pool_index):
+        # type: (str, str, int) -> None
+        """Remove *path* from one pool, no-op where absent. A folder-ref
+        entry is removed whole; a child under a folder ref shrinks that ref.
+        Detaches a preset-backed pool first. No save; the caller persists
+        once for single or multi edits."""
+        entry = self._mgr.get(vid_key, {})
+        pools = entry.get("pools", [])
+        if not (0 <= pool_index < len(pools)):
+            return
+        self._mgr._detach_pool(vid_key, pool_index)
+        files = pools[pool_index].get("files", [])
+        for i, item in enumerate(files):
+            if item.endswith("/") and path.startswith(item):
+                if path == item:
+                    # Removing the folder-ref entry itself: drop the ref,
+                    # don't expand it into its children.
+                    files.pop(i)
+                else:
+                    self._mgr._detach_folder_ref_in_files(files, i, path)
+                break
+        else:
+            if path in files:
+                files.remove(path)
+
+    def _remove_path_from_selected(self, path):
+        # type: (str) -> None
+        """Remove *path* from every selected pool (one save). Entry point for
+        preset/folder child deletes in markers.py; no-op when not multi."""
+        vid_key = self._key()
+        if len(self.selected) <= 1:
+            return
+        for idx in sorted(self.selected):
+            self._remove_file(vid_key, path, idx)
+        self._mgr._db_save_marker(vid_key)
+
     def add_file(self, file_index):
         # type: (int) -> None
         if not self._mgr._sfx_manager.files:
@@ -332,11 +381,11 @@ class CueVideoContext(CueMarkerContext):
         vid_key = self._key()
         entry = self._mgr._get_or_create_entry(vid_key)
         pools = entry["pools"]
-        if pools and 0 <= self.target_pool < len(pools):
-            self._mgr._detach_pool(vid_key, self.target_pool)
-            files = pools[self.target_pool].setdefault("files", [])
-            if filename not in files:
-                files.append(filename)
+        if len(self.selected) > 1:
+            for idx in sorted(self.selected):
+                self._add_file(vid_key, filename, idx)
+        elif pools and 0 <= self.target_pool < len(pools):
+            self._add_file(vid_key, filename, self.target_pool)
         else:
             elapsed = self._mgr._vid_manager.get_elapsed()
             self._append_pool(entry, pools,
@@ -351,10 +400,16 @@ class CueVideoContext(CueMarkerContext):
         if not (0 <= pool_index < len(pools)):
             return
         self._mgr._detach_pool(vid_key, pool_index)
-        files = pools[pool_index].get("files", [])
-        if 0 <= file_index < len(files):
-            files.pop(file_index)
-            self._mgr._db_save_marker(vid_key)
+        ref_files = pools[pool_index].get("files", [])
+        if not (0 <= file_index < len(ref_files)):
+            return
+        path = ref_files[file_index]
+        if len(self.selected) > 1:
+            for idx in sorted(self.selected):
+                self._remove_file(vid_key, path, idx)
+        else:
+            self._remove_file(vid_key, path, pool_index)
+        self._mgr._db_save_marker(vid_key)
 
     def add_folder(self, folder_path):
         # type: (str) -> None
@@ -364,11 +419,11 @@ class CueVideoContext(CueMarkerContext):
         vid_key = self._key()
         entry = self._mgr._get_or_create_entry(vid_key)
         pools = entry["pools"]
-        if pools and 0 <= self.target_pool < len(pools):
-            self._mgr._detach_pool(vid_key, self.target_pool)
-            pool_files = pools[self.target_pool].setdefault("files", [])
-            if folder_ref not in pool_files:
-                pool_files.append(folder_ref)
+        if len(self.selected) > 1:
+            for idx in sorted(self.selected):
+                self._add_file(vid_key, folder_ref, idx)
+        elif pools and 0 <= self.target_pool < len(pools):
+            self._add_file(vid_key, folder_ref, self.target_pool)
         else:
             elapsed = self._mgr._vid_manager.get_elapsed()
             self._append_pool(entry, pools,
@@ -409,8 +464,8 @@ class CueVideoContext(CueMarkerContext):
 
     def apply_preset_active(self, preset_name):
         # type: (str) -> None
-        """Stamp a preset onto the active video pool, creating one at the
-        playhead if the context has no pools yet."""
+        """Stamp a preset onto the active (or every selected) video pool,
+        creating one at the playhead if the context has no pools yet."""
         if not self._mgr._ctx.current_file:
             return
         r = self._mgr.resolve_pool({"preset": preset_name})
@@ -419,7 +474,12 @@ class CueVideoContext(CueMarkerContext):
         vid_key = self._key()
         entry = self._mgr._get_or_create_entry(vid_key)
         pools = entry["pools"]
-        if not pools or not (0 <= self.target_pool < len(pools)):
+        if len(self.selected) > 1:
+            for idx in sorted(self.selected):
+                if 0 <= idx < len(pools):
+                    time = pools[idx].get("time", self._mgr._vid_manager.get_elapsed())
+                    pools[idx] = {"time": time, "preset": preset_name}
+        elif not pools or not (0 <= self.target_pool < len(pools)):
             elapsed = self._mgr._vid_manager.get_elapsed()
             self._append_pool(entry, pools,
                 {"time": elapsed, "preset": preset_name})
@@ -504,46 +564,71 @@ class CueVideoContext(CueMarkerContext):
         self.selected = set()
         self.set_active(pool_index)
 
+    def clear_selection(self):
+        # type: () -> None
+        """Drop the multi-select set; the active marker stays put."""
+        self.selected = set()
+
+    def set_selected_volume(self, value):
+        # type: (float) -> None
+        """Write *value* to every selected pool's volume.
+
+        Multi-select edit path; preset-backed pools get a volume override
+        (matching single-pool volume edits) rather than a detach. No save --
+        the caller (_CueVolumeValue.changed) queues the write so slider drags
+        coalesce into one disk write."""
+        vid_key = self._key()
+        entry = self._mgr.get(vid_key, {})
+        pools = entry.get("pools", [])
+
+        if len(self.selected) <= 1:
+            return
+        for idx in sorted(self.selected):
+            if 0 <= idx < len(pools):
+                pools[idx]["volume"] = value
+
+    def clear_selected_files(self):
+        # type: () -> None
+        """Clear the files list of every selected pool (active when not
+        multi-selected), detaching preset-backed pools first."""
+        vid_key = self._key()
+        entry = self._mgr.get(vid_key, {})
+        pools = entry.get("pools", [])
+        if len(self.selected) > 1:
+            targets = sorted(self.selected)
+        elif 0 <= self.target_pool < len(pools):
+            targets = [self.target_pool]
+        else:
+            return
+        for idx in targets:
+            if 0 <= idx < len(pools):
+                self._mgr._detach_pool(vid_key, idx)
+                pools[idx]["files"] = []
+        self._mgr._db_save_marker(vid_key)
+
+    def _shift_pool_time(self, pools, idx, delta):
+        # type: (List[Dict[str, Any]], int, float) -> None
+        """Add *delta* to one pool's time, clamped to [0, duration]."""
+        if 0 <= idx < len(pools):
+            dur = self.get_duration()
+            pools[idx]["time"] = _cue_clamp_time(pools[idx].get("time", 0.0) + delta, dur)
+
     def nudge(self, delta):
         # type: (float) -> None
         _, pools = self._entry_and_pools()
         if not (0 <= self.target_pool < len(pools)):
             return
         if len(self.selected) > 1:
-            self._shift_selected(delta)
+            for idx in sorted(self.selected):
+                self._shift_pool_time(pools, idx, delta)
+            self.finalize_drag()
+            self.sync_text()
             return
-        pool_entry = pools[self.target_pool]
-        dur = self.get_duration()
-        new_time = pool_entry["time"] + delta
-        if dur > 0:
-            new_time = _cue_clamp_time(new_time, dur)
-        else:
-            new_time = max(0.0, new_time)
-        pool_entry["time"] = new_time
-        self._sort_and_track(pools, pool_entry)
-        self.edit_text = _cue_format_time(new_time)
+        self._shift_pool_time(pools, self.target_pool, delta)
+        self._sort_and_track(pools, pools[self.target_pool])
+        self.edit_text = _cue_format_time(pools[self.target_pool]["time"])
         self.selected = set()
         self._mgr._db_save_marker(self._key())
-
-    def _shift_selected(self, delta):
-        # type: (float) -> None
-        """Shift every selected marker by *delta* seconds, clamped per marker.
-
-        Multi-select edit path only: mutates the raw pools in place, then
-        finalize_drag() re-sorts, remaps the selection by object identity,
-        and persists in a single save (one undo step).  The active marker
-        becomes the earliest selected; the selection survives for chained
-        edits."""
-        _, pools = self._entry_and_pools()
-        if not pools or len(self.selected) <= 1:
-            return
-        dur = self.get_duration()
-        for idx in sorted(self.selected):
-            if 0 <= idx < len(pools):
-                val = pools[idx].get("time", 0.0) + delta
-                pools[idx]["time"] = _cue_clamp_time(val, dur)
-        self.finalize_drag()
-        self.sync_text()
 
     def set_time(self, idx, new_time):
         # type: (int, float) -> None
@@ -590,14 +675,14 @@ class CueVideoContext(CueMarkerContext):
         if new_time is not None and new_time >= 0:
             if len(self.selected) > 1:
                 anchor_time = pools[self.target_pool]["time"]
-                self._shift_selected(new_time - anchor_time)
+                for idx in sorted(self.selected):
+                    self._shift_pool_time(pools, idx, new_time - anchor_time)
+                self.finalize_drag()
+                self.sync_text()
             else:
-                edited_entry = pools[self.target_pool]
-                dur = self.get_duration()
-                if dur > 0:
-                    new_time = _cue_clamp_time(new_time, dur)
-                edited_entry["time"] = new_time
-                self._sort_and_track(pools, edited_entry)
+                self._shift_pool_time(
+                    pools, self.target_pool, new_time - pools[self.target_pool]["time"])
+                self._sort_and_track(pools, pools[self.target_pool])
                 self.selected = set()
                 self._mgr._db_save_marker(self._key())
         self.edit_text = _cue_format_time(pools[self.target_pool]["time"])

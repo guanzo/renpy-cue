@@ -142,6 +142,23 @@ def test_detach_active_video_ts(mgr):
     assert pool["time"] == 1.0  # marker time survives the detach
 
 
+def test_detach_active_video_ts_multi_detaches_all_selected(mgr):
+    mgr._ctx.current_file = "scene.ogv"
+    mgr.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
+    mgr["v_scene.ogv"] = {"pools": [
+        {"preset": "basic", "time": 1.0},
+        {"preset": "basic", "time": 2.0},
+        {"time": 3.0, "files": ["c.ogg"]},
+    ]}
+    mgr.video.selected = {0, 1}
+    mgr.video.target_pool = 0
+    mgr.detach_active_video_ts()
+    pools = mgr.get("v_scene.ogv")["pools"]
+    assert pools[0] == {"time": 1.0, "files": ["a.ogg"], "volume": 0.8}
+    assert pools[1] == {"time": 2.0, "files": ["a.ogg"], "volume": 0.8}
+    assert pools[2] == {"time": 3.0, "files": ["c.ogg"]}  # untouched (not selected)
+
+
 def test_detach_active_video_ts_no_current_file(mgr):
     mgr.detach_active_video_ts()  # must not raise
 
@@ -238,6 +255,55 @@ def test_remove_file_from_folder_ref(mgr):
     mgr._remove_file_from_folder_ref("i_scene.ogg", 0, 0, "music/a.ogg")
     pool = mgr.get("i_scene.ogg")["pools"][0]
     assert pool["files"] == ["music/b.ogg"]
+
+
+def test_remove_file_from_preset_pool_multi_fans_out(mgr):
+    # A multi-select on the current video routes the preset-child delete
+    # through _remove_path_from_selected: every selected pool is detached and
+    # the child dropped from each.
+    mgr._ctx.current_file = "scene.ogv"
+    mgr._sfx_manager.files = ["music/a.ogg", "music/b.ogg"]
+    mgr.create_preset("fold", {"files": ["music/a.ogg", "music/b.ogg"]})
+    mgr._data["v_scene.ogv"] = {"pools": [
+        {"preset": "fold", "time": 1.0},
+        {"preset": "fold", "time": 2.0},
+    ]}
+    mgr.video.target_pool = 0
+    mgr.video.selected = {0, 1}
+    mgr._remove_file_from_preset_pool("v_scene.ogv", 0, 0, "music/a.ogg")
+    pools = mgr.get("v_scene.ogv")["pools"]
+    assert pools[0]["files"] == ["music/b.ogg"]
+    assert "preset" not in pools[0]  # detached
+    assert pools[1]["files"] == ["music/b.ogg"]
+    assert "preset" not in pools[1]
+
+
+def test_remove_file_from_folder_ref_multi_fans_out(mgr):
+    mgr._ctx.current_file = "scene.ogv"
+    mgr._sfx_manager.files = ["music/a.ogg", "music/b.ogg"]
+    mgr._data["v_scene.ogv"] = {"pools": [
+        {"time": 1.0, "files": ["music/"]},
+        {"time": 2.0, "files": ["music/"]},
+    ]}
+    mgr.video.target_pool = 0
+    mgr.video.selected = {0, 1}
+    mgr._remove_file_from_folder_ref("v_scene.ogv", 0, 0, "music/a.ogg")
+    pools = mgr.get("v_scene.ogv")["pools"]
+    assert pools[0]["files"] == ["music/b.ogg"]
+    assert pools[1]["files"] == ["music/b.ogg"]
+
+
+def test_video_multi_file_edit_matches_current_video(mgr):
+    mgr._ctx.current_file = "scene.ogv"
+    mgr.video.selected = {0, 1}
+    assert mgr._video_multi_file_edit("v_scene.ogv") is True
+    assert mgr._video_multi_file_edit("v_other.ogv") is False
+
+
+def test_video_multi_file_edit_requires_multi_selection(mgr):
+    mgr._ctx.current_file = "scene.ogv"
+    mgr.video.selected = {0}
+    assert mgr._video_multi_file_edit("v_scene.ogv") is False
 
 
 # ---------------------------------------------------------------------------

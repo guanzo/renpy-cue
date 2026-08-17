@@ -547,7 +547,7 @@ class CueVideoMarkerTimeline(Displayable):
                 renpy.redraw(self, 0)
                 renpy.restart_interaction()
                 raise IgnoreEvent()
-            return None
+            raise IgnoreEvent()
 
         return None
 

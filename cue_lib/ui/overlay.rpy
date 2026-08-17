@@ -51,7 +51,7 @@ screen cue_overlay():
         yalign 0.0
         xsize int(500 / _z)
         ysize int(renpy.config.screen_height / _z)
-        action NullAction()
+        action Function(_cue.markers.video.clear_selection)
         background None
         hover_background None
         frame:

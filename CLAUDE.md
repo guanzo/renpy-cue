@@ -173,6 +173,12 @@ Two places to store state that survives restarts:
 
 ## Tests
 
+Write new logic TDD-style: red (write a failing pytest test for the behavior
+first), green (minimal code to pass), refactor (clean up under the test's
+safety net, re-run the suite). Skip to a harness testcase only for screen,
+render, or engine-invoked code where a headless pytest can't express the
+behavior.
+
 New logic in `cue_lib/*.py` ships with tests in the same commit. Managers are
 constructor-injected specifically so their logic is testable headlessly against
 `tests/mock_renpy/`. The split: pure logic and state transitions -> pytest;

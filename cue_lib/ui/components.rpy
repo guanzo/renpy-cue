@@ -30,13 +30,27 @@ init -900 python:
         """A DictValue that persists the owning marker after the bar changes.
 
         DictValue writes ``dict[key]`` through its changed() hook; we save the
-        marker (passed in as marker_key) on top of that."""
-        def __init__(self, entry_dict, field, marker_key, **kwargs):
+        marker (passed in as marker_key) on top of that via the deferred save
+        queue (marker_queue_save) so a slider drag coalesces into one disk
+        write. When ``multi_setter`` is given, changed() also fans the write
+        out to every other selected pool (the video SFX multi-select volume
+        path); the active pool is handled by DictValue's own write."""
+        # FieldEquality over equality_fields gates Ren'Py's displayable-reuse
+        # cache: a bar whose new value equals the cached one reuses it. Without
+        # _multi_setter, a value built while multi_setter was None (rendered
+        # before entering multi-select) compares equal to a method-carrying one,
+        # so the None instance is reused and the fan-out is silently dropped.
+        equality_fields = tuple(DictValue.equality_fields) + ('_multi_setter',)
+
+        def __init__(self, entry_dict, field, marker_key, multi_setter=None, **kwargs):
             DictValue.__init__(self, entry_dict, field, **kwargs)
             self._marker_key = marker_key
+            self._multi_setter = multi_setter
 
         def changed(self, value):
             super(_CueVolumeValue, self).changed(value)
+            if self._multi_setter is not None:
+                self._multi_setter(value)
             _cue.volume.marker_queue_save(self._marker_key)
 
 
@@ -53,13 +67,14 @@ screen cue_h_divider(color=None):
     add Solid(color or _cue_color_divider) ysize 1
 
 
-# Volume row: label + slider bar
-screen cue_vol_row(label_text, entry_dict, key):
+# Volume row: label + slider bar. Pass multi_setter (a callable taking the
+# new volume) to write to every selected pool during a video multi-select.
+screen cue_vol_row(label_text, entry_dict, key, multi_setter=None):
     hbox:
         spacing 3
         text label_text style "cue_txt" size 11
         bar:
-            value _CueVolumeValue(entry_dict, "volume", key, range=_cue.volume.VOL_MAX)
+            value _CueVolumeValue(entry_dict, "volume", key, multi_setter=multi_setter, range=_cue.volume.VOL_MAX)
             xsize 60
             ysize 14
             left_bar Solid(_cue_color_bar_active)

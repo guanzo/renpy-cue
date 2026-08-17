@@ -72,6 +72,7 @@ screen cue_video_sfx():
         $ _vid_count = len(_vid_entries)
         $ _vid_target = _cue.markers.video.target_pool
         $ _vid_target = max(0, min(_vid_target, _vid_count - 1)) if _vid_entries else 0
+        $ _multi_selected = len(_cue.markers.video.get_selected()) > 1
         # --- Draggable video marker timeline ---
         if _vid_entries:
             add CueVideoMarkerTimeline(
@@ -139,12 +140,19 @@ screen cue_video_sfx():
                         "Delete pool",
                         None,
                     )
+                    use cue_icon_btn(
+                        "trash-can",
+                        Function(_cue.markers.video.clear_selected_files),
+                        "Delete all files from the selected pool(s)",
+                        None,
+                    )
 
                     # Volume controls
                     $ _vol_target.setdefault("volume", _cue.volume.VOL_DEFAULT)
                     null width 5
                     $ _vol_label = "Volume: {:.1f}".format(_active_vol)
-                    use cue_vol_row(_vol_label, _vol_target, _vid_key)
+                    $ _vol_multi_setter = _cue.markers.video.set_selected_volume if _multi_selected else None
+                    use cue_vol_row(_vol_label, _vol_target, _vid_key, multi_setter=_vol_multi_setter)
                 hbox:
                     spacing 3
                     text "Time:" style "cue_txt" size 11
