@@ -226,11 +226,10 @@ init -900 python:
 
 
 init 999 python:
-    # Enable dev tools for this mod (Shift+R reload, Shift+O console)
-    config.developer = True
-    config.console = True
-
     if CUE_DEBUG:
+        # Enable dev tools for this mod (Shift+R reload, Shift+O console)
+        config.developer = True
+        config.console = True
         config.keymap['console'].append('shift_K_t')
 
     def _cue_patch_runtime():

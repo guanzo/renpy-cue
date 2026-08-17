@@ -26,7 +26,7 @@ def _cue_env_flag(name, default=False):
     return val in ("1", "true", "yes", "on")
 
 
-CUE_DEBUG = _cue_env_flag("RENPY_CUE_DEBUG", True)
+CUE_DEBUG = _cue_env_flag("RENPY_CUE_DEBUG", False)
 
 # Debug log filename, written into the in-game base dir.
 CUE_DEBUG_LOG_FILENAME = "debug.log"
