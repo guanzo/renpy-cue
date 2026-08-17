@@ -180,7 +180,7 @@ screen, render, and engine-invoked code -> the testcases harness. A change must
 not lower total `cue_lib` coverage without a one-line note. Before any chunk is
 committed, `/lint` prints `CLEAN` and `python3 -m pytest tests/ -q` passes.
 
-To run a harness testcase, `bin/run_testcases.sh <sdk>/renpy.sh` needs a real
+To run a harness testcase, `bin/test_harness.sh <sdk>/renpy.sh` needs a real
 Ren'Py SDK (pytest's mock can't drive it). A testcase that must pass on both
 engine generations goes in BOTH `test_game/templates/testcases_modern.rpy` (8.x)
 and `templates/testcases_legacy.rpy` (7.x) -- the active `testcases.rpy` is

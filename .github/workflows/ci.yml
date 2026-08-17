@@ -9,7 +9,7 @@ jobs:
   # Run the Ren'Py testcases harness against pinned SDKs -- the code path
   # pytest cannot cover (real .rpy screens + the 7.x/Py2 runtime). The SDK
   # launcher (renpy.sh at the SDK root) is passed straight to
-  # bin/run_testcases.sh, which sniffs the bundled major version from
+  # bin/test_harness.sh, which sniffs the bundled major version from
   # renpy/__init__.py and runs the matching DSL template.
   testcases:
     name: testcases (Ren'Py ${{ matrix.renpy }})
@@ -44,7 +44,7 @@ jobs:
         # Explicit `bash` invocation: the repo lives on a filesystem that
         # doesn't persist the exec bit (core.fileMode=false), so the scripts
         # aren't executable in the working tree.
-        run: xvfb-run -a bash bin/run_testcases.sh "$SDK_DIR/renpy.sh"
+        run: xvfb-run -a bash bin/test_harness.sh "$SDK_DIR/renpy.sh"
 
   # Fast gate: pyright + 120-char lint, then the pytest suite, under the
   # modern toolchain. Mirrors the /lint and /test skills via bin/*.sh.
