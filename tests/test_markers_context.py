@@ -344,6 +344,93 @@ def test_sync_text_out_of_range_target_leaves_text():
 
 
 # ---------------------------------------------------------------------------
+# Multi-select time edits (_shift_selected via nudge / commit_text)
+# ---------------------------------------------------------------------------
+
+def test_nudge_multi_selection_shifts_all_selected_and_preserves_selection():
+    mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 3.0}, {"time": 5.0}]}})
+    ctx = VideoCtx(mgr, duration=10.0)
+    ctx.target_pool = 0  # active = earliest selected
+    ctx.selected = {0, 2}
+    ctx.nudge(0.5)
+    pools = mgr._data["v_key"]["pools"]
+    assert pools == [{"time": 1.5}, {"time": 3.0}, {"time": 5.5}]
+    assert ctx.selected == {0, 2}  # preserved for chained edits
+    assert ctx.target_pool == 0  # earliest selected stays active
+    assert ctx.edit_text == "00:01.50"
+    assert mgr.saved_keys == ["v_key"]  # one save = one undo step
+
+
+def test_nudge_multi_selection_remaps_selection_by_identity_after_sort():
+    # The unselected middle pool keeps its slot, so selection indices move
+    # to wherever the identity-shifted pools land after re-sort.
+    mgr = FakeManager({"v_key": {"pools": [{"time": 4.0}, {"time": 1.0}, {"time": 2.0}]}})
+    ctx = VideoCtx(mgr, duration=10.0)
+    ctx.target_pool = 0  # the 4.0 pool
+    ctx.selected = {0, 2}  # the 4.0 and 2.0 pools
+    ctx.nudge(-2.0)
+    pools = mgr._data["v_key"]["pools"]
+    assert pools == [{"time": 0.0}, {"time": 1.0}, {"time": 2.0}]
+    assert ctx.selected == {0, 2}
+    assert ctx.target_pool == 0
+    assert ctx.edit_text == "00:00.00"
+
+
+def test_nudge_multi_selection_clamps_to_zero():
+    mgr = FakeManager({"v_key": {"pools": [{"time": 0.5}, {"time": 3.0}]}})
+    ctx = VideoCtx(mgr, duration=10.0)
+    ctx.target_pool = 0
+    ctx.selected = {0, 1}
+    ctx.nudge(-1.0)
+    pools = mgr._data["v_key"]["pools"]
+    assert pools == [{"time": 0.0}, {"time": 2.0}]
+    assert ctx.selected == {0, 1}
+
+
+def test_commit_text_multi_selection_shifts_all_by_delta():
+    # Anchor-style: field shows active (1.0), commit to 4.0 shifts the
+    # selection by delta = 3.0. The untouched middle pool re-sorts between
+    # them, so selection indices remap to {1, 2}.
+    mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 3.0}, {"time": 5.0}]}})
+    ctx = VideoCtx(mgr, duration=10.0)
+    ctx.target_pool = 0
+    ctx.selected = {0, 2}
+    ctx.edit_text = "00:04.00"
+    ctx.commit_text()
+    pools = mgr._data["v_key"]["pools"]
+    assert pools == [{"time": 3.0}, {"time": 4.0}, {"time": 8.0}]
+    assert ctx.selected == {1, 2}
+    assert ctx.target_pool == 1
+    assert ctx.edit_text == "00:04.00"
+    assert mgr.saved_keys == ["v_key"]
+
+
+def test_commit_text_multi_selection_clamps_at_duration():
+    mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 9.0}]}})
+    ctx = VideoCtx(mgr, duration=10.0)
+    ctx.target_pool = 0
+    ctx.selected = {0, 1}
+    ctx.edit_text = "00:08.00"
+    ctx.commit_text()
+    pools = mgr._data["v_key"]["pools"]
+    assert pools == [{"time": 8.0}, {"time": 10.0}]
+    assert ctx.selected == {0, 1}
+
+
+def test_nudge_single_selection_still_clears_selection():
+    # Regression guard: the single-pool path is untouched by the multi-select
+    # branch -- a lone selected marker still clears the selection.
+    mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 2.0}]}})
+    ctx = VideoCtx(mgr, duration=10.0)
+    ctx.target_pool = 0
+    ctx.selected = {0}
+    ctx.nudge(0.5)
+    pools = mgr._data["v_key"]["pools"]
+    assert pools == [{"time": 1.5}, {"time": 2.0}]
+    assert ctx.selected == set()
+
+
+# ---------------------------------------------------------------------------
 # Pool removal / duplication
 # ---------------------------------------------------------------------------
 

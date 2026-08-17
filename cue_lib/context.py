@@ -509,6 +509,9 @@ class CueVideoContext(CueMarkerContext):
         _, pools = self._entry_and_pools()
         if not (0 <= self.target_pool < len(pools)):
             return
+        if len(self.selected) > 1:
+            self._shift_selected(delta)
+            return
         pool_entry = pools[self.target_pool]
         dur = self.get_duration()
         new_time = pool_entry["time"] + delta
@@ -521,6 +524,26 @@ class CueVideoContext(CueMarkerContext):
         self.edit_text = _cue_format_time(new_time)
         self.selected = set()
         self._mgr._db_save_marker(self._key())
+
+    def _shift_selected(self, delta):
+        # type: (float) -> None
+        """Shift every selected marker by *delta* seconds, clamped per marker.
+
+        Multi-select edit path only: mutates the raw pools in place, then
+        finalize_drag() re-sorts, remaps the selection by object identity,
+        and persists in a single save (one undo step).  The active marker
+        becomes the earliest selected; the selection survives for chained
+        edits."""
+        _, pools = self._entry_and_pools()
+        if not pools or len(self.selected) <= 1:
+            return
+        dur = self.get_duration()
+        for idx in sorted(self.selected):
+            if 0 <= idx < len(pools):
+                val = pools[idx].get("time", 0.0) + delta
+                pools[idx]["time"] = _cue_clamp_time(val, dur)
+        self.finalize_drag()
+        self.sync_text()
 
     def set_time(self, idx, new_time):
         # type: (int, float) -> None
@@ -565,14 +588,18 @@ class CueVideoContext(CueMarkerContext):
             return
         new_time = _cue_parse_time(self.edit_text)
         if new_time is not None and new_time >= 0:
-            edited_entry = pools[self.target_pool]
-            dur = self.get_duration()
-            if dur > 0:
-                new_time = _cue_clamp_time(new_time, dur)
-            edited_entry["time"] = new_time
-            self._sort_and_track(pools, edited_entry)
-            self.selected = set()
-            self._mgr._db_save_marker(self._key())
+            if len(self.selected) > 1:
+                anchor_time = pools[self.target_pool]["time"]
+                self._shift_selected(new_time - anchor_time)
+            else:
+                edited_entry = pools[self.target_pool]
+                dur = self.get_duration()
+                if dur > 0:
+                    new_time = _cue_clamp_time(new_time, dur)
+                edited_entry["time"] = new_time
+                self._sort_and_track(pools, edited_entry)
+                self.selected = set()
+                self._mgr._db_save_marker(self._key())
         self.edit_text = _cue_format_time(pools[self.target_pool]["time"])
 
     def get_markers(self):
