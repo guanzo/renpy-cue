@@ -162,6 +162,17 @@ def _cue_hide_overlay():
 
 def _cue_refresh_context():
     # type: () -> None
+    # Runs on every interaction start.  Guard the whole body so one malformed
+    # marker or an unexpected None logs and continues instead of wedging the
+    # callback chain every frame (mirrors _cue_get_top_layer).
+    try:
+        _cue_refresh_context_impl()
+    except Exception as exc:
+        _cue_log("REFRESH-CTX-ERR {}".format(repr(exc)))
+
+
+def _cue_refresh_context_impl():
+    # type: () -> None
     old_file = _cue.current_file
     old_channel = _cue.vid_manager.channel
     old_layer_type = _cue.top_layer_type
@@ -381,6 +392,16 @@ _cue_slow_tick_last = 0.0
 
 
 def _cue_tick_trigger():
+    # type: () -> None
+    # Runs at 50 Hz from a screen timer.  Guard the whole body so a bad edge
+    # in any collaborator logs and continues instead of wedging the mod every
+    # frame (mirrors _cue_get_top_layer).
+    try:
+        _cue_tick_trigger_impl()
+    except Exception as exc:
+        _cue_log("TICK-ERR {}".format(repr(exc)))
+
+def _cue_tick_trigger_impl():
     # type: () -> None
     if _cue.current_file is not None:
         top_name, top_type, __ = _cue_get_top_layer()
