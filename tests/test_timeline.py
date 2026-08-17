@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
-# CueVideoMarkerTimeline interaction tests.  A plain click on empty timeline
-# space drops the multi-select group; that path must restart the interaction
-# so the SFX panel re-renders its tab highlights immediately.  Regression:
-# the stale blue selected-tab bg lingered until the mouse left the timeline
-# area, because the click cleared the selection without restarting the
-# interaction (mouse motion over the timeline is swallowed by IgnoreEvent,
-# so the screen never re-evaluated while the cursor stayed on it).
+# CueVideoMarkerTimeline interaction tests.  The timeline drops the
+# multi-select group when the user clicks empty space, and group creation
+# keeps the active marker as the anchor.
+#
+# Empty-click clear must restart the interaction so the SFX panel re-renders
+# its tab highlights immediately -- regression: the stale blue selected-tab
+# bg lingered until the mouse left the timeline area, because the click
+# cleared the selection without restarting the interaction (motion over the
+# timeline is swallowed by IgnoreEvent, so the screen never re-evaluated).
+#
+# Group creation must NOT move the active marker to the leftmost selected --
+# regression: with pool 4 active, alt-clicking/shift-clicking a group made
+# pool 1 active.
 
 import pytest
 from types import SimpleNamespace
@@ -23,34 +29,46 @@ class _FakeSpeedResolver(object):
 
 
 class _FakeVideoContext(object):
-    """Stand-in for _cue.markers.video: the selected set plus the getter
-    the timeline reads on every click."""
+    """Stand-in for _cue.markers.video: the selected set, the active pool
+    index, and the getter/setter the timeline's event() touches."""
 
-    def __init__(self, selected):
+    def __init__(self, selected, active=0):
         self.selected = set(selected)
+        self.active = active
+        self.set_active_calls = []
 
     def get_selected(self):
         return set(self.selected)
 
+    def get_active(self):
+        return self.active
 
-def _make_timeline(selected):
-    """A timeline over a 2s video with two marker pools at base speed,
-    with the module _cue singleton pointed at the given selection group."""
+    def set_active(self, pool_index):
+        self.active = pool_index
+        self.set_active_calls.append(pool_index)
+
+
+def _make_timeline(selected, active=0, times=None):
+    """A timeline over a 2s video at base speed, with the module _cue
+    singleton pointed at the given selection/active state.  Returns the
+    timeline plus the fake video context so tests can assert on it."""
     _cue.speed_resolver = _FakeSpeedResolver()
-    _cue.markers = SimpleNamespace(video=_FakeVideoContext(selected))
-    return CueVideoMarkerTimeline(
-        get_markers=lambda: [{"time": 0.2}, {"time": 0.4}],
-        get_active=lambda: 0,
-        set_active=lambda i: None,
+    video = _FakeVideoContext(selected, active)
+    _cue.markers = SimpleNamespace(video=video)
+    if times is None:
+        times = [0.2, 0.4]
+    timeline = CueVideoMarkerTimeline(
+        get_markers=lambda: [{"time": t} for t in times],
+        get_active=video.get_active,
+        set_active=video.set_active,
         set_time=lambda i, t: None,
         get_dur=lambda: 2.0,
     )
+    return timeline, video
 
 
-def _click_empty():
-    """MOUSEBUTTONDOWN at a spot with no marker tab under the cursor.
-    Both marker tabs sit at px=0 on the default 1px width, so x=15 is clear
-    of both while still inside the padded track (PAD_X=10, width=1)."""
+def _click():
+    """A plain left MOUSEBUTTONDOWN (position passed to event())."""
     return SimpleNamespace(type=pygame.MOUSEBUTTONDOWN, button=1)
 
 
@@ -58,12 +76,45 @@ def test_empty_click_drops_group_and_restarts_interaction(monkeypatch):
     calls = []
     monkeypatch.setattr(renpy, "restart_interaction",
                         lambda *a, **k: calls.append(a))
-    timeline = _make_timeline({0, 1})
+    timeline, video = _make_timeline({0, 1})
 
-    assert _cue.markers.video.selected == {0, 1}
+    assert video.selected == {0, 1}
     with pytest.raises(IgnoreEvent):
-        timeline.event(_click_empty(), 15, 5, 0.0)
+        # Both marker tabs sit at px=0 on the default 1px width, so x=15 is
+        # clear of both while still inside the padded track (PAD_X=10, w=1).
+        timeline.event(_click(), 15, 5, 0.0)
 
-    assert _cue.markers.video.selected == set()
+    assert video.selected == set()
     assert calls, ("empty-click clear must restart the interaction so the "
                    "SFX panel re-renders the tab highlights immediately")
+
+
+def test_alt_click_group_keeps_active_anchor(monkeypatch):
+    monkeypatch.setattr(pygame.key, "get_mods", lambda: pygame.KMOD_LALT)
+    timeline, video = _make_timeline(selected=set(), active=3,
+                                     times=[0.2, 0.4, 0.6, 0.8])
+    timeline._w = 200
+    # Alt-click marker 1: its tab spans inner_x [13, 27] (px=20 on a 200px
+    # track), so a screen click at x=30 lands on it.
+    with pytest.raises(IgnoreEvent):
+        timeline.event(_click(), 30, 15, 0.0)
+
+    assert video.selected == {0, 3}
+    assert video.active == 3, "group creation must keep the active anchor"
+    assert video.set_active_calls == []
+
+
+def test_shift_click_range_keeps_active_anchor(monkeypatch):
+    monkeypatch.setattr(pygame.key, "get_mods", lambda: pygame.KMOD_SHIFT)
+    timeline, video = _make_timeline(selected=set(), active=3,
+                                     times=[0.2, 0.4, 0.6, 0.8])
+    timeline._w = 200
+    # Shift-click marker 2: its tab spans inner_x [33, 47] (px=40), so a
+    # screen click at x=50 lands on it.  Range runs active(0.8) back to the
+    # click(0.4), selecting pools 2..4.
+    with pytest.raises(IgnoreEvent):
+        timeline.event(_click(), 50, 15, 0.0)
+
+    assert video.selected == {1, 2, 3}
+    assert video.active == 3, "group creation must keep the active anchor"
+    assert video.set_active_calls == []

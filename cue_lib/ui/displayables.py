@@ -292,7 +292,6 @@ class CueVideoMarkerTimeline(Displayable):
         markers = self.get_markers()
         active = self.get_active()
         sel = self._get_selected()
-        multi_active = len(sel) > 1
         speed = _cue.speed_resolver.get_current_speed()
         is_scaled = speed != 1.0
 
@@ -311,8 +310,6 @@ class CueVideoMarkerTimeline(Displayable):
             else:
                 if i == self._drag_idx and self._drag_on:
                     lc = "#7777cc"
-                elif i == active and multi_active:
-                    lc = "#5599cc"
                 elif i == active:
                     lc = "#669966"
                 elif in_sel:
@@ -490,8 +487,8 @@ class CueVideoMarkerTimeline(Displayable):
                     sel.discard(hit_idx)
                 else:
                     sel.add(hit_idx)
-                if sel:
-                    self.set_active(min(sel))
+                # Active stays the anchor: it was pulled into the group
+                # above, so it must not jump to the leftmost marker.
                 _cue.markers.video.selected = sel
                 renpy.redraw(self, 0)
                 renpy.restart_interaction()
@@ -516,8 +513,8 @@ class CueVideoMarkerTimeline(Displayable):
                 for i, m in enumerate(markers):
                     if lo <= m["time"] <= hi:
                         sel.add(i)
-                if sel:
-                    self.set_active(min(sel))
+                # Active stays the anchor: the reference marker is already
+                # in the range, so it must not jump to the leftmost marker.
                 _cue.markers.video.selected = sel
                 renpy.redraw(self, 0)
                 renpy.restart_interaction()
