@@ -164,7 +164,7 @@ init -900 python:
 
         vid_manager = CueVideoManager(_cue.ctx)
         volume = CueVolumeManager(_cue.ctx, marker_store)
-        video_sequence = CueVidSpeedSequence()
+        video_sequence = CueVidSpeedSequence(_cue.ctx, marker_store, vid_manager)
         speed_toast = CueSpeedToast()
         speed_resolver = CueVidSpeedResolver(
             _cue.ctx, marker_store, vid_manager,
@@ -172,6 +172,9 @@ init -900 python:
         auto_speed = CueAutoSpeedGenerator(
             _cue.ctx, marker_store, speed_resolver,
             vid_manager, video_sequence)
+        # speed_resolver and auto_speed both take the sequence in their
+        # constructors (a cycle), so the sequence late-binds them here.
+        video_sequence.bind(speed_resolver, auto_speed)
         repeater = CueMarkerRepeater(_cue.ctx, marker_store, vid_manager)
         ffmpeg = CueFFmpeg()
         video_editor = CueVideoEditor(

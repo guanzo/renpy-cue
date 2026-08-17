@@ -4,6 +4,7 @@ from renpy.display.video import Movie
 
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.video.video import CueVideoManager
+from cue_lib.video.auto_speed import CueAutoSpeedGenerator
 from cue_lib.state import CueContext
 from cue_lib.paths import CuePaths
 
@@ -29,8 +30,14 @@ class CueSpeedToast:
 
 class CueVidSpeedSequence:
     active_tag: Optional[str]
+    _ctx: CueContext
+    _store: CueMarkerStore
+    _vid_manager: CueVideoManager
+    _speed_resolver: Optional[CueVidSpeedResolver]
+    _auto_speed: Optional[CueAutoSpeedGenerator]
 
-    def __init__(self) -> None: ...
+    def __init__(self, ctx: CueContext, store: CueMarkerStore, vid_manager: CueVideoManager) -> None: ...
+    def bind(self, speed_resolver: CueVidSpeedResolver, auto_speed: CueAutoSpeedGenerator) -> None: ...
     def speeds_for(self, tag: str) -> Optional[List[float]]: ...
     def current_step_index(self) -> int: ...
     def speeds_grouped(self, tag: str) -> Optional[List[Tuple[float, int, int]]]: ...

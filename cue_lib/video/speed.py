@@ -31,6 +31,7 @@ if MYPY:
     from cue_lib._types import MarkerEntry
     from cue_lib.marker_store import CueMarkerStore  # pyright: ignore[reportUnusedImport]
     from cue_lib.video.video import CueVideoManager  # pyright: ignore[reportUnusedImport]
+    from cue_lib.video.auto_speed import CueAutoSpeedGenerator  # pyright: ignore[reportUnusedImport]
     from cue_lib.paths import CuePaths  # pyright: ignore[reportUnusedImport]
     from cue_lib.state import CueContext  # pyright: ignore[reportUnusedImport]
 
@@ -528,18 +529,32 @@ class CueVidSpeedResolver(object):
 
 
 class CueVidSpeedSequence(object):
-    def __init__(self):
+    def __init__(self, ctx, store, vid_manager):
+        # type: (CueContext, CueMarkerStore, CueVideoManager) -> None
+        self._ctx = ctx
+        self._store = store
+        self._vid_manager = vid_manager
+        # The resolver and auto_speed both take this sequence in their own
+        # constructors, so they are late-bound via bind() in cue_z.rpy.
+        self._speed_resolver = None  # type: Optional[CueVidSpeedResolver]
+        self._auto_speed = None  # type: Optional[CueAutoSpeedGenerator]
         self.active_tag = None
         self.last_playing = None
         self.last_elapsed = 0.0
         self.play_count = 0
         self._step_index = -1
 
+    def bind(self, speed_resolver, auto_speed):
+        # type: (CueVidSpeedResolver, CueAutoSpeedGenerator) -> None
+        """Late-bind the two cyclic collaborators (construction cycle)."""
+        self._speed_resolver = speed_resolver
+        self._auto_speed = auto_speed
+
     def speeds_for(self, tag):
         # type: (str) -> Optional[List[float]]
         if not tag:
             return None
-        entry = _cue.markers.get(create_vid_key(tag))
+        entry = self._store.get(create_vid_key(tag))
         if entry is None:
             return None
         seq = entry.get("speed_sequence")
@@ -571,7 +586,7 @@ class CueVidSpeedSequence(object):
 
     def contains(self, speed):
         # type: (float) -> bool
-        seq = self.speeds_for(_cue.current_file)
+        seq = self.speeds_for(self._ctx.current_file)
         if not seq:
             return False
         for s in seq:
@@ -583,14 +598,14 @@ class CueVidSpeedSequence(object):
         # type: (str) -> Any
         if not tag:
             return None
-        return _cue.markers._get_or_create_entry(create_vid_key(tag))
+        return self._store._get_or_create_entry(create_vid_key(tag))
 
     def get_disabled_auto_speeds(self, tag):
         # type: (str) -> set
         """Return the set of speeds disabled for auto-speed generation."""
         if not tag:
             return set()
-        entry = _cue.markers.get(create_vid_key(tag))
+        entry = self._store.get(create_vid_key(tag))
         if entry is None:
             return set()
         _stored = entry.get("disabled_auto_speeds", None)
@@ -608,11 +623,11 @@ class CueVidSpeedSequence(object):
             entry["disabled_auto_speeds"] = list(speeds)
         else:
             entry.pop("disabled_auto_speeds", None)
-        _cue.markers.save_marker(create_vid_key(tag))
+        self._store.save_marker(create_vid_key(tag))
 
     def append_speed(self, speed):
         # type: (float) -> None
-        tag = _cue.current_file
+        tag = self._ctx.current_file
         if not tag:
             return
         entry = self._get_entry(tag)
@@ -623,15 +638,15 @@ class CueVidSpeedSequence(object):
         _cue_log("VQ-APPEND tag={} speed={} seq={}".format(tag, speed, seq))
         if len(seq) >= CUE_MULTI_SPEED_MIN_VARIANTS:
             self.start(tag)
-        _cue.markers.save_marker(create_vid_key(tag))
+        self._store.save_marker(create_vid_key(tag))
         renpy.restart_interaction()
 
     def remove_at(self, index):
         # type: (int) -> None
-        tag = _cue.current_file
+        tag = self._ctx.current_file
         if not tag:
             return
-        entry = _cue.markers.get(create_vid_key(tag))
+        entry = self._store.get(create_vid_key(tag))
         if entry is None:
             return
         seq = entry.get("speed_sequence")
@@ -640,7 +655,7 @@ class CueVidSpeedSequence(object):
         seq.pop(index)
         if not seq:
             entry.pop("speed_sequence", None)
-        _cue.markers.save_marker(create_vid_key(tag))
+        self._store.save_marker(create_vid_key(tag))
         if self.active_tag == tag:
             self.start(tag)
         else:
@@ -648,10 +663,10 @@ class CueVidSpeedSequence(object):
 
     def move(self, index, delta):
         # type: (int, int) -> None
-        tag = _cue.current_file
+        tag = self._ctx.current_file
         if not tag:
             return
-        entry = _cue.markers.get(create_vid_key(tag))
+        entry = self._store.get(create_vid_key(tag))
         if entry is None:
             return
         seq = entry.get("speed_sequence")
@@ -661,7 +676,7 @@ class CueVidSpeedSequence(object):
         if new_index < 0 or new_index >= len(seq):
             return
         seq[index], seq[new_index] = seq[new_index], seq[index]
-        _cue.markers.save_marker(create_vid_key(tag))
+        self._store.save_marker(create_vid_key(tag))
         if self.active_tag == tag:
             self.start(tag)
         else:
@@ -670,23 +685,23 @@ class CueVidSpeedSequence(object):
     def clear_sequence(self, tag=None):
         # type: (Optional[str]) -> None
         if tag is None:
-            tag = _cue.current_file
+            tag = self._ctx.current_file
         if not tag:
             return
-        entry = _cue.markers.get(create_vid_key(tag))
+        entry = self._store.get(create_vid_key(tag))
         if entry is not None and "speed_sequence" in entry:
             del entry["speed_sequence"]
-            _cue.markers.save_marker(create_vid_key(tag))
+            self._store.save_marker(create_vid_key(tag))
         self.cancel()
         renpy.restart_interaction()
 
     def get_mode(self, tag=None):
         # type: (Optional[str]) -> str
         if tag is None:
-            tag = _cue.current_file
+            tag = self._ctx.current_file
         if not tag:
             return CueSpeedMode.SINGLE
-        entry = _cue.markers.get(create_vid_key(tag))
+        entry = self._store.get(create_vid_key(tag))
         if entry is None:
             return CueSpeedMode.SINGLE
         return entry.get("speed_mode", CueSpeedMode.SINGLE)
@@ -694,14 +709,14 @@ class CueVidSpeedSequence(object):
     def set_mode(self, mode, tag=None):
         # type: (str, Optional[str]) -> None
         if tag is None:
-            tag = _cue.current_file
+            tag = self._ctx.current_file
         if not tag or mode not in (CueSpeedMode.SINGLE, CueSpeedMode.MULTI, CueSpeedMode.AUTO):
             return
         entry = self._get_entry(tag)
         if entry is None:
             return
         entry["speed_mode"] = mode
-        _cue.markers.save_marker(create_vid_key(tag))
+        self._store.save_marker(create_vid_key(tag))
         if mode == CueSpeedMode.MULTI:
             self.start(tag)
         elif mode == CueSpeedMode.AUTO:
@@ -713,12 +728,14 @@ class CueVidSpeedSequence(object):
     def paths_for(self, tag):
         # type: (str) -> Optional[List[str]]
         speeds = self.speeds_for(tag)
-        base_path = _cue.speed_resolver.base_path_for(tag)
+        if self._speed_resolver is None:
+            return None
+        base_path = self._speed_resolver.base_path_for(tag)
         if not speeds or not base_path:
             return None
         paths = []
         for sp in speeds:
-            vpath = _cue.speed_resolver.variant_path(base_path, sp)
+            vpath = self._speed_resolver.variant_path(base_path, sp)
             # variant_path returns absolute FS paths; 1.0x points to
             # the original file, other speeds point into shared_dir.
             if os.path.exists(vpath):
@@ -729,18 +746,20 @@ class CueVidSpeedSequence(object):
 
     def start(self, tag):
         # type: (str) -> None
+        if self._speed_resolver is None:
+            return
         paths = self.paths_for(tag)
         if not paths:
             _cue_log("VQ-NOSTART tag={} paths={}".format(tag, paths is not None))
             self.active_tag = None
             return
-        _cue.speed_resolver.invalidate(tag)
+        self._speed_resolver.invalidate(tag)
         self.active_tag = tag
         self.play_count = 0
         self._step_index = 0
 
         try:
-            ch = _cue.vid_manager.channel
+            ch = self._vid_manager.channel
             now = _music.get_playing(channel=ch) if ch else None
         except Exception:
             _cue_log("SPEED-START: get_playing failed")
@@ -777,8 +796,8 @@ class CueVidSpeedSequence(object):
                     self.start(tag)
         elif old_tag:
             self.active_tag = None
-            if _cue.top_layer_type != 'movie':
-                ch = _cue.vid_manager.channel
+            if self._ctx.top_layer_type != 'movie':
+                ch = self._vid_manager.channel
                 if ch:
                     try:
                         _music.stop(channel=ch, fadeout=0)
@@ -791,10 +810,10 @@ class CueVidSpeedSequence(object):
 
     def tick(self):
         # type: () -> None
-        if not self.active_tag or not _cue.vid_manager.channel:
+        if not self.active_tag or not self._vid_manager.channel:
             return
         try:
-            ch = _cue.vid_manager.channel
+            ch = self._vid_manager.channel
             now_playing = _music.get_playing(channel=ch)
             now_elapsed = _music.get_pos(channel=ch) or 0.0
         except Exception:
@@ -813,8 +832,8 @@ class CueVidSpeedSequence(object):
                     # AUTO mode: wrap-around triggers regeneration
                     if (self.get_mode(self.active_tag) == CueSpeedMode.AUTO
                             and new_index == 0
-                            and hasattr(_cue, 'auto_speed')):
-                        _cue.auto_speed.on_wrap_around()
+                            and self._auto_speed is not None):
+                        self._auto_speed.on_wrap_around()
                         # on_wrap_around() calls start() which resets all
                         # tick state -- bail out so we don't overwrite it
                         return
@@ -835,23 +854,25 @@ class CueVidSpeedSequence(object):
     def start_auto(self, tag):
         # type: (str) -> None
         """Generate a fresh auto sequence and start playback."""
-        if not hasattr(_cue, 'auto_speed'):
+        if self._auto_speed is None:
             self.start(tag)
             return
-        
-        base_path = _cue.speed_resolver.base_path_for(tag)
+        if self._speed_resolver is None:
+            return
+
+        base_path = self._speed_resolver.base_path_for(tag)
         if not base_path:
             return
         
-        available = _cue.auto_speed.enabled_speeds
+        available = self._auto_speed.enabled_speeds
         
         if len(available) < CUE_AUTO_SPEED_MIN_VARIANTS:
             return
 
-        new_seq = _cue.auto_speed.generate(available)
-        entry = _cue.markers._get_or_create_entry(create_vid_key(tag))
+        new_seq = self._auto_speed.generate(available)
+        entry = self._store._get_or_create_entry(create_vid_key(tag))
         entry["speed_sequence"] = new_seq
-        _cue.markers.save_marker(create_vid_key(tag))
+        self._store.save_marker(create_vid_key(tag))
         self.start(tag)
 
     def _debug_verify_step(self, now_playing):
@@ -867,7 +888,9 @@ class CueVidSpeedSequence(object):
         _seq = self.speeds_for(_tag)
         if not _seq:
             return
-        _base = _cue.speed_resolver.base_path_for(_tag)
+        if self._speed_resolver is None:
+            return
+        _base = self._speed_resolver.base_path_for(_tag)
         if not _base:
             return
         
@@ -875,7 +898,7 @@ class CueVidSpeedSequence(object):
         _matches = []
         
         for _i, _sp in enumerate(_seq):
-            _vp = _cue.speed_resolver.variant_path(_base, _sp)
+            _vp = self._speed_resolver.variant_path(_base, _sp)
             if os.path.basename(_vp) == _now_name:
                 _matches.append(str(_i))
 
