@@ -13,6 +13,8 @@ screen cue_video_sfx():
         #     editing is locked off otherwise. ---
         $ _cur_speed = _cue.speed_resolver.get_current_speed()
         $ _is_base_speed = (_cur_speed == CUE_DEFAULT_VIDEO_SPEED)
+        # Multi-select group present (drives the toolbar/tab highlighting).
+        $ _multi_selected = len(_cue.markers.video.get_selected()) > 1
 
         # --- SFX content ---
         hbox:
@@ -40,6 +42,7 @@ screen cue_video_sfx():
                     Function(_cue.video_preset_dialog.open),
                     "Save all video markers as a preset",
                     None,
+                    enabled=(not _multi_selected),
                 )
                 use cue_icon_btn("xmark",
                     (Function(_cue.markers.video.remove_selected) if _has_markers else NullAction()),
@@ -72,7 +75,6 @@ screen cue_video_sfx():
         $ _vid_count = len(_vid_entries)
         $ _vid_target = _cue.markers.video.target_pool
         $ _vid_target = max(0, min(_vid_target, _vid_count - 1)) if _vid_entries else 0
-        $ _multi_selected = len(_cue.markers.video.get_selected()) > 1
         # --- Draggable video marker timeline ---
         if _vid_entries:
             add CueVideoMarkerTimeline(
@@ -99,7 +101,8 @@ screen cue_video_sfx():
                 "Delete all video markers for the current video?",
                 Function(_cue.markers.video.clear), "Delete all video SFX for the current video",
                 Function(_cue.markers.video.add_pool), "Create a new empty marker at current time",
-                _cue.markers.video.select_tab, (), "Select pool — V button adds files here")
+                _cue.markers.video.select_tab, (), "Select pool — V button adds files here",
+                selected_tabs=_cue.markers.video.get_selected())
 
             # Active pool display
             if _vid_entries and 0 <= _vid_target < _vid_count:
@@ -136,8 +139,8 @@ screen cue_video_sfx():
                     )
                     use cue_icon_btn(
                         "xmark",
-                        Function(_cue.markers.video.remove_pool, _vid_target),
-                        "Delete pool",
+                        Function(_cue.markers.video.delete_pool_ui),
+                        ("Delete selected pools" if _multi_selected else "Delete pool"),
                         None,
                     )
                     use cue_icon_btn(

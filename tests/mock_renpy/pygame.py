@@ -22,8 +22,26 @@ class _Constants(object):
 constants = _Constants()
 
 KEYDOWN = 2
+MOUSEMOTION = 4
+MOUSEBUTTONDOWN = 5
+MOUSEBUTTONUP = 6
 
 KMOD_ALT = 256
 KMOD_CTRL = 64
 KMOD_META = 1024
 KMOD_SHIFT = 1
+KMOD_LALT = 256
+KMOD_RALT = 512
+KMOD_LSHIFT = 1
+KMOD_RSHIFT = 2
+
+
+class _Key(object):
+    """Stub of pygame.key -- the timeline reads modifier state via
+    get_mods(); tests that need a modifier raise the flags directly."""
+
+    def get_mods(self):
+        return 0
+
+
+key = _Key()

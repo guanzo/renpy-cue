@@ -467,8 +467,11 @@ class CueVideoMarkerTimeline(Displayable):
                 if shift_held and markers:
                     pass
                 else:
+                    # Plain click on empty timeline: drop the multi-select group.
                     _cue.markers.video.selected = set()
-                    return None
+                    renpy.redraw(self, 0)
+                    renpy.restart_interaction()
+                    raise IgnoreEvent()
 
             if alt_held and shift_held and hit_idx >= 0:
                 # Interval-add: every marker that continues the clicked-to-
@@ -547,7 +550,7 @@ class CueVideoMarkerTimeline(Displayable):
                 renpy.redraw(self, 0)
                 renpy.restart_interaction()
                 raise IgnoreEvent()
-            raise IgnoreEvent()
+            return None
 
         return None
 

@@ -6,7 +6,9 @@
 # Ren'Py; tests use FakeManager and pin the _cue-coupled seams (_key,
 # get_duration) via small subclasses, so the pool logic runs headlessly.
 
-from cue_lib.constants import CUE_INTERVAL_SELECT_TOLERANCE
+import pytest
+
+from cue_lib.constants import CUE_DUPLICATE_GAP_FRAC, CUE_INTERVAL_SELECT_TOLERANCE
 from cue_lib.context import (
     CueImageContext,
     CueLoopContext,
@@ -789,6 +791,8 @@ def test_remove_selected_last_pool_deletes_entry():
 
 
 def test_duplicate_pool_clones_and_targets_clone():
+    # Zero duration -> no gap, so the copy shares the source's time but is a
+    # fresh object and becomes the selection.
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 3.0}]}})
     ctx = VideoCtx(mgr)
     ctx.duplicate_pool(0)
@@ -796,7 +800,62 @@ def test_duplicate_pool_clones_and_targets_clone():
     assert pools == [{"time": 1.0}, {"time": 1.0}, {"time": 3.0}]
     assert ctx.target_pool == 1
     assert pools[0] is not pools[1]  # deep-copied, not shared
+    assert ctx.selected == {1}
+
+
+def test_duplicate_pool_single_lands_gap_after_source_and_selects_copy():
+    mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 3.0}]}})
+    ctx = VideoCtx(mgr, duration=120.0)
+    ctx.duplicate_pool(0)
+    pools = mgr._data["v_key"]["pools"]
+    gap = CUE_DUPLICATE_GAP_FRAC * 120.0
+    assert len(pools) == 3
+    assert pools[2]["time"] == pytest.approx(1.0 + gap)
+    assert ctx.target_pool == 2
+    assert ctx.selected == {2}
+    assert pools[2] is not pools[0]
+    assert mgr.saved_keys == ["v_key"]
+
+
+def test_duplicate_pool_multi_fans_out_and_selects_copies():
+    mgr = FakeManager({"v_key": {"pools": [
+        {"time": 1.0}, {"time": 3.0}, {"time": 5.0}]}})
+    ctx = VideoCtx(mgr, duration=120.0)
+    ctx.selected = {0, 2}
+    ctx.duplicate_pool(0)   # ts_index is ignored under multi-select
+    pools = mgr._data["v_key"]["pools"]
+    gap = CUE_DUPLICATE_GAP_FRAC * 120.0
+    assert len(pools) == 5
+    assert [p["time"] for p in pools] == pytest.approx([1.0, 3.0, 5.0, 1.0 + gap, 5.0 + gap])
+    assert ctx.selected == {3, 4}
+    assert ctx.target_pool == 3
+    assert mgr.saved_keys == ["v_key"]
+
+
+def test_delete_pool_ui_multi_routes_to_remove_selected():
+    mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 2.0}, {"time": 3.0}]}})
+    ctx = VideoCtx(mgr)
+    ctx.target_pool = 1
+    ctx.selected = {0, 2}
+    ctx.delete_pool_ui()
+    assert mgr._data["v_key"]["pools"] == [{"time": 2.0}]
     assert ctx.selected == set()
+    assert ctx.target_pool == 0
+    assert mgr.saved_keys == ["v_key"]
+
+
+def test_delete_pool_ui_single_uses_active_pool():
+    # A stray single selection is ignored: single-mode delete acts on the
+    # active pool, mirroring the non-multi button behavior.
+    mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 2.0}, {"time": 3.0}]}})
+    ctx = VideoCtx(mgr)
+    ctx.target_pool = 1
+    ctx.selected = {0}
+    ctx.delete_pool_ui()
+    assert mgr._data["v_key"]["pools"] == [{"time": 1.0}, {"time": 3.0}]
+    assert ctx.selected == set()
+    assert ctx.target_pool == 1
+    assert mgr.saved_keys == ["v_key"]
 
 
 def test_duplicate_pool_out_of_range_noop():
@@ -804,6 +863,26 @@ def test_duplicate_pool_out_of_range_noop():
     ctx = VideoCtx(mgr)
     ctx.duplicate_pool(5)
     assert len(mgr._data["v_key"]["pools"]) == 1
+
+
+def test_duplicate_pool_no_pools_noop():
+    mgr = FakeManager({"v_key": {"pools": []}})
+    ctx = VideoCtx(mgr, duration=120.0)
+    ctx.duplicate_pool(0)
+    assert mgr.saved_keys == []
+
+
+def test_duplicate_pool_multi_skips_invalid_selected_index():
+    mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 3.0}, {"time": 5.0}]}})
+    ctx = VideoCtx(mgr, duration=120.0)
+    ctx.selected = {0, 9}   # 9 is out of range and is skipped
+    ctx.duplicate_pool(1)
+    pools = mgr._data["v_key"]["pools"]
+    gap = CUE_DUPLICATE_GAP_FRAC * 120.0
+    assert len(pools) == 4
+    assert ctx.selected == {3}
+    assert ctx.target_pool == 3
+    assert pools[3]["time"] == pytest.approx(1.0 + gap)
 
 
 # ---------------------------------------------------------------------------

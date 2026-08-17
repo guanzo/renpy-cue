@@ -133,6 +133,55 @@ testcase video_multi_edit_fans_out:
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
+testcase video_multi_duplicate_fans_out:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    # The fixture video carries pre-loaded marker data, so start from a clean
+    # slate with three pools at times well inside the video duration (the
+    # ~2s fixture would clamp copies of later sources to the end).
+    $ _cue.markers.video.clear()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.add_pool()
+    $ _vpools = _cue.markers.get(_cue.markers.video._key())["pools"]
+    $ _vpools[0]["time"] = 0.2
+    $ _vpools[1]["time"] = 0.4
+    $ _vpools[2]["time"] = 0.6
+    $ _cue.markers.video.selected = {0, 2}
+    $ _gap = _cue.markers.video._duplicate_gap()
+    $ _cue.markers.video.duplicate_pool(0)
+    $ _vpools = _cue.markers.get(_cue.markers.video._key())["pools"]
+    $ _ok = len(_vpools) == 5
+    $ _times = [p["time"] for p in _vpools]
+    $ _copy1 = any(abs(t - (0.2 + _gap)) < 1e-6 for t in _times)
+    $ _copy2 = any(abs(t - (0.6 + _gap)) < 1e-6 for t in _times)
+    $ _ok = _ok and _copy1 and _copy2
+    $ _ok = _ok and len(_cue.markers.video.selected) == 2
+    $ _ok = _ok and (_cue.markers.video.target_pool in _cue.markers.video.selected)
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase video_multi_delete_pool_group:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.markers.video.clear()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.selected = {0, 2}
+    $ _cue.markers.video.delete_pool_ui()
+    $ _vpools = _cue.markers.get(_cue.markers.video._key())["pools"]
+    $ _ok = len(_vpools) == 1
+    $ _ok = _ok and (_cue.markers.video.selected == set())
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
 testcase volume_value_equality_distinguishes_multisetter:
     $ _cue.is_overlay_visible = True
     run Jump("start")
@@ -201,5 +250,26 @@ testcase video_auto_speed_state:
     pause 1.0
     $ _ok = _cue.auto_speed.active_preset == "roller_coaster"
     $ _ok = _ok and len(_cue.auto_speed.enabled_speeds) >= 1
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase click_create_tab_opens_editor:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _ok = not _cue.video_editor.active
+    # Real mouse click on the Video VFX "Create" tab. Regression: the marker
+    # timeline's MOUSEBUTTONUP handler once raised IgnoreEvent() on every
+    # release (even over sibling buttons), which swallowed the button's
+    # release globally and made the whole Video VFX tab unclickable.
+    $ import renpy.test.testfocus as _testfocus
+    $ import renpy.test.testmouse as _testmouse
+    $ _focus = _testfocus.find_focus("Create")
+    $ _pos = _testfocus.find_position(_focus, (None, None))
+    $ _testmouse.click_mouse(1, _pos[0], _pos[1])
+    pause 0.5
+    $ _ok = _ok and _cue.video_editor.active
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()

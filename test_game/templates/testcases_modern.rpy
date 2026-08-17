@@ -86,6 +86,48 @@ testcase video_multi_edit_fans_out:
     assert eval (_vpools[0].get("files") == ["sfx_001.ogg"])
     assert eval (_vpools[1].get("files") == ["sfx_001.ogg"])
 
+testcase video_multi_duplicate_fans_out:
+    run Jump("start")
+    $ renpy.show("cuevid")
+    pause 1.0
+    # The fixture video carries pre-loaded marker data, so start from a clean
+    # slate with three pools at times well inside the video duration (the
+    # ~2s fixture would clamp copies of later sources to the end).
+    $ _cue.markers.video.clear()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.add_pool()
+    $ _vpools = _cue.markers.get(_cue.markers.video._key())["pools"]
+    $ _vpools[0]["time"] = 0.2
+    $ _vpools[1]["time"] = 0.4
+    $ _vpools[2]["time"] = 0.6
+    $ _cue.markers.video.selected = {0, 2}
+    $ _gap = _cue.markers.video._duplicate_gap()
+    $ _cue.markers.video.duplicate_pool(0)
+    $ _vpools = _cue.markers.get(_cue.markers.video._key())["pools"]
+    assert eval (len(_vpools) == 5)
+    $ _times = [p["time"] for p in _vpools]
+    $ _copy1 = any(abs(t - (0.2 + _gap)) < 1e-6 for t in _times)
+    $ _copy2 = any(abs(t - (0.6 + _gap)) < 1e-6 for t in _times)
+    assert eval (_copy1 and _copy2)
+    $ _sel = _cue.markers.video.selected
+    assert eval (len(_sel) == 2)
+    assert eval (_cue.markers.video.target_pool in _sel)
+
+testcase video_multi_delete_pool_group:
+    run Jump("start")
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.markers.video.clear()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.selected = {0, 2}
+    $ _cue.markers.video.delete_pool_ui()
+    $ _vpools = _cue.markers.get(_cue.markers.video._key())["pools"]
+    assert eval (len(_vpools) == 1)
+    assert eval (_cue.markers.video.selected == set())
+
 testcase volume_value_equality_distinguishes_multisetter:
     run Jump("start")
     $ _d = {"volume": 1.0}
@@ -143,3 +185,26 @@ testcase video_auto_speed_state:
     pause 1.0
     assert eval (_cue.auto_speed.active_preset == "roller_coaster")
     assert eval (len(_cue.auto_speed.enabled_speeds) >= 1)
+
+testcase click_create_tab_opens_editor:
+    run Jump("start")
+    $ _test.timeout = 5.0
+    # page_nav leaves overlay_active_page on MUSIC, and store state persists
+    # between testcases in the same process. _cue_set_page restarts the
+    # interaction, so the sidebar actually rebuilds with the SFX page.
+    run Function(_cue_set_page, CuePage.SFX)
+    $ renpy.show("cuevid")
+    pause 2.0
+    assert eval (_cue.top_layer_type == "movie")
+    # The store says movie, but the SFX page's video sections only appear
+    # after the screen rebuilds -- restart + render one frame so the Create
+    # tab is in the tree the click will target.
+    $ renpy.restart_interaction()
+    pause 0.3
+    assert eval (not _cue.video_editor.active)
+    # Real mouse click on the Video VFX "Create" tab. Regression: the marker
+    # timeline's MOUSEBUTTONUP handler once raised IgnoreEvent() on every
+    # release (even over sibling buttons), which swallowed the button's
+    # release globally and made the whole Video VFX tab unclickable.
+    click "Create"
+    assert eval (_cue.video_editor.active)

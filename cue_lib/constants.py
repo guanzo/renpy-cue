@@ -87,6 +87,15 @@ CUE_POPPER_DEFAULT_MARGIN = 8
 # spacing when it lands within +/- this of the projected grid position.
 CUE_INTERVAL_SELECT_TOLERANCE = 0.010
 
+# Duplicated markers land a fixed pixel gap after their source on the
+# timeline, so the copy doesn't overlap it.  The gap is defined in pixels at a
+# reference width and converted to a frac of the timeline width, then to
+# seconds via frac * duration -- the same geometry the timeline's _time_to_x
+# uses (frac = (t/speed)/dur, at the base speed duplicates are gated to).
+CUE_DUPLICATE_GAP_PX = 28      # two 14px marker tabs of separation
+CUE_TIMELINE_REF_W = 480       # reference inner width the gap is defined at
+CUE_DUPLICATE_GAP_FRAC = CUE_DUPLICATE_GAP_PX / float(CUE_TIMELINE_REF_W)
+
 # Keymap names for rebindable cue hotkeys (registered in config.keymap).
 CUE_KEYMAP_TOGGLE_OVERLAY  = "cue_toggle_overlay"
 CUE_KEYMAP_QUIT_RELAUNCH   = "cue_quit_relaunch"

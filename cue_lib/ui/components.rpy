@@ -290,7 +290,7 @@ screen cue_search_bar(field_path, manager, hint="Search..."):
 # delete_xsize/tab_xsize override the default button width (pass None for default).
 screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                      delete_tt, add_action, add_tt, tab_action_fn, tab_action_args,
-                     tab_tt, exclusive_ctx=None):
+                     tab_tt, exclusive_ctx=None, selected_tabs=()):
     hbox:
         spacing 5
         box_wrap True
@@ -321,11 +321,15 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
             tooltip add_tt
         for pi in range(count):
             $ _is_active = (pi == target)
+            # Selected-but-not-active tabs get a blue highlight so the
+            # multi-select group reads at a glance (active green wins).
+            $ _tab_bg = (_cue_color_active if _is_active
+                         else (_cue_color_selected if (pi in selected_tabs) else _cue_color_bg_btn))
             textbutton str(pi + 1):
                 style "cue_btn"
                 text_style "cue_btn_text"
                 xsize 14
-                background (_cue_color_active if _is_active else _cue_color_bg_btn)
+                background _tab_bg
                 action _cue_make_tab_action(tab_action_fn, tab_action_args, pi)
                 tooltip tab_tt
 

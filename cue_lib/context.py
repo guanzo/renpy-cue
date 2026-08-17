@@ -7,7 +7,8 @@ import copy as _copy
 import random as _random
 
 from cue_lib.constants import (
-    CUE_INTERVAL_SELECT_TOLERANCE, CUE_VOLUME_DEFAULT, CueExclusiveStart, CueLoopFrequency,
+    CUE_DUPLICATE_GAP_FRAC, CUE_INTERVAL_SELECT_TOLERANCE, CUE_VOLUME_DEFAULT,
+    CueExclusiveStart, CueLoopFrequency,
 )
 from cue_lib.util import (
     _cue_clamp_time, _cue_format_time, _cue_parse_time, _cue_shift_held,
@@ -502,19 +503,57 @@ class CueVideoContext(CueMarkerContext):
         super(CueVideoContext, self).remove_pool(pool_index)
         self.selected = set()
 
+    def delete_pool_ui(self):
+        # type: () -> None
+        """Per-pool delete button: act on the whole selected group when
+        multi-selected, else on the active pool."""
+        if len(self.selected) > 1:
+            self.remove_selected()
+        else:
+            self.remove_pool(self.target_pool)
+
+    def _duplicate_gap(self):
+        # type: () -> float
+        """Time offset a duplicate sits after its source: the fixed pixel gap
+        converted via the timeline's frac geometry (gap_frac * duration)."""
+        return CUE_DUPLICATE_GAP_FRAC * self.get_duration()
+
     def duplicate_pool(self, ts_index):
         # type: (int) -> None
+        """Duplicate the selected pools (multi) or the pool at *ts_index*.
+
+        Each copy lands a fixed pixel gap after its source so it doesn't
+        overlap on the timeline.  The copies become the selection; the old
+        selection clears."""
         vid_key = self._key()
         entry = self._mgr.get(vid_key, {})
         pools = entry.get("pools", [])
-        if not (0 <= ts_index < len(pools)):
+        if not pools:
             return
-        original = pools[ts_index]
-        clone = _copy.deepcopy(original)
-        pools.append(clone)
+        if len(self.selected) > 1:
+            targets = sorted(self.selected)
+        else:
+            targets = [ts_index]
+        if not (0 <= targets[0] < len(pools)):
+            return
+        gap = self._duplicate_gap()
+        copies = []
+        for idx in targets:
+            if not (0 <= idx < len(pools)):
+                continue
+            original = pools[idx]
+            clone = _copy.deepcopy(original)
+            clone["time"] = _cue_clamp_time(
+                original.get("time", 0.0) + gap, self.get_duration())
+            pools.append(clone)
+            copies.append(clone)
         pools.sort(key=lambda e: e["time"])
-        self.target_pool = next(i for i, pool in enumerate(pools) if pool is clone)
-        self.selected = set()
+        new_sel = set()
+        for clone in copies:
+            new_sel.add(next(i for i, pool in enumerate(pools) if pool is clone))
+        self.selected = new_sel
+        if new_sel:
+            self.target_pool = min(new_sel)
         self._mgr._db_save_marker(vid_key)
 
     def remove_selected(self):
