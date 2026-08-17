@@ -147,7 +147,7 @@ screen cue_video_presets_list(_is_video, _has_image, _is_dialogue, name_filter=N
             use cue_icon_btn(
                 "play",
                 Function(_cue_preview_video_preset, _vpname),
-                "Preview random file from video preset", None)
+                "Play random file from video preset", None)
             use cue_icon_btn(
                 "V",
                 Function(_cue_maybe_apply_video_preset, _vpname),
@@ -194,7 +194,7 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
                     use cue_icon_btn(
                         "play",
                         Function(_cue_preview_folder, item["full_path"]),
-                        "Preview random file from folder", None)
+                        "Play random file from folder", None)
                     use cue_icon_btn(
                         "V",
                         Function(_cue.markers.video.send_folder, item["full_path"]),
