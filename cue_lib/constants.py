@@ -39,6 +39,14 @@ CUE_SFX_CHANNEL_COUNT = 8
 # Doubled source framerate is clamped to this ceiling.
 CUE_MAX_INTERP_FPS = 60
 
+# ffmpeg/ffprobe subprocess hang guards.  A hung binary can't block a thread
+# forever: _cue_run_proc joins a communicate() thread with CUE_SUBPROC_TIMEOUT
+# and _cue_wait_proc polls with CUE_KILL_WAIT_TIMEOUT.  The thread/poll
+# implementations work on both Python 2.7 (Ren'Py 7.x) and Python 3 (8.x) --
+# the native communicate(timeout=) kwarg only exists on Py3, so it isn't used.
+CUE_SUBPROC_TIMEOUT = 10.0   # probe / encoder discovery communicate()
+CUE_KILL_WAIT_TIMEOUT = 5.0  # post-kill reap in _kill_proc
+
 # Default video playback speed (1.0 = original speed).
 CUE_DEFAULT_VIDEO_SPEED = 1.0
 

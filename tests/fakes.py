@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import time
 from typing import Optional
 
 # Shared test doubles for cue_lib managers.
@@ -268,19 +269,27 @@ class FakeProc(object):
     communicate() returns out_bytes (decoded downstream); returncode is
     settable; poll() returns poll_result (None = still running, an int =
     exited). kill()/wait() record their calls so _kill_proc paths can assert.
+    timeout_error simulates a hung process: communicate() blocks until
+    kill() is called -- mirrors a real process unblocking on SIGKILL, so the
+    _cue_run_proc hang guard can reap it.
     """
 
-    def __init__(self, out_bytes=b"", returncode=0, poll_result=None):
+    def __init__(self, out_bytes=b"", returncode=0, poll_result=None,
+                 timeout_error=False):
         self.out_bytes = out_bytes
         self.returncode = returncode
         self.poll_result = poll_result
         self.pid = 1234
         self.killed = False
         self.waited = False
+        self.timeout_error = timeout_error
         self.stdout = None
         self.stderr = None
 
     def communicate(self):
+        if self.timeout_error:
+            while not self.killed:
+                time.sleep(0.002)
         return self.out_bytes, None
 
     def poll(self):

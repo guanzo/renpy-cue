@@ -18,6 +18,7 @@ import renpy.config as _config
 from renpy.store import persistent
 
 from cue_lib.state import CueContext
+from cue_lib.video import ffmpeg as _ffmpeg_mod
 from cue_lib.video import video_editor as _veditor
 from cue_lib.video.video_editor import (
     CUE_VE_MODE_FAST_PREVIEW,
@@ -363,6 +364,23 @@ def test_poll_not_launched_cancelled(ve, tmp_path):
 
 
 def test_poll_cancelled_kills_proc(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._current = job
+    job._launched = True
+    proc = FakeProc(poll_result=0)  # exited after kill, so the reap poll returns
+    job.proc = proc
+    job.cancelled = True
+    q.poll()
+    assert job._done is True
+    assert proc.killed is True
+    assert job.proc is None
+
+
+def test_poll_cancelled_wait_timeout_still_reaps(ve, tmp_path, monkeypatch):
+    # Post-kill reap bound: a wait that times out must not wedge poll() or
+    # raise -- the job is already cancelled, proc just can't be reaped.
+    monkeypatch.setattr(_ffmpeg_mod, "CUE_KILL_WAIT_TIMEOUT", 0.05)
     q = ve.job_queue
     job = make_job(ve, tmp_path)
     q._current = job
@@ -735,11 +753,10 @@ def test_remove_only_terminal(ve, tmp_path):
 def test_kill_proc(ve, tmp_path):
     q = ve.job_queue
     job = make_job(ve, tmp_path)
-    proc = FakeProc(poll_result=None)
+    proc = FakeProc(poll_result=0)  # exits immediately on the reap poll
     job.proc = proc
     q._kill_proc(job)
     assert proc.killed is True
-    assert proc.waited is True
     assert job.proc is None
 
 

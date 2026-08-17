@@ -13,7 +13,12 @@ import renpy.audio.audio as _aaudio
 
 from renpy.store import persistent
 
-from cue_lib.video.ffmpeg import CREATIONFLAGS, _cue_probe_job
+from cue_lib.video.ffmpeg import (
+    CREATIONFLAGS,
+    CueSubprocessTimeout,
+    _cue_probe_job,
+    _cue_wait_proc,
+)
 from cue_lib.state import _cue
 from cue_lib.util import _cue_log, _cue_replace_file, _cue_ui_refresh, _cue_unwrap_persistent
 
@@ -573,7 +578,7 @@ class CueVideoEditQueue(object):
                 # stdout/stderr are file handles (not pipes), so p.stdout
                 # and p.stderr are None. Just wait for the process to exit.
                 try:
-                    p.wait()
+                    _cue_wait_proc(p)
                 except Exception:
                     _cue_log("KILL-PROC: wait failed for pid {}".format(p.pid))
         except Exception:
@@ -1070,7 +1075,13 @@ class CueVideoEditor(object):
             self._current.last_error = ""
             fs = self._get_video_fspath()
             if fs and self._ffmpeg.ffprobe_available():
-                self._current_has_audio = self._ffmpeg.probe_has_audio(fs)
+                # A probe hang must not escape to the main thread; degrade to
+                # "has audio" (today's ffprobe-missing default) on timeout.
+                try:
+                    self._current_has_audio = self._ffmpeg.probe_has_audio(fs)
+                except CueSubprocessTimeout:
+                    _cue_log("REFRESH: audio probe timed out, assuming has audio")
+                    self._current_has_audio = True
             else:
                 self._current_has_audio = None
         else:

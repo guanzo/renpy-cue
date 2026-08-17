@@ -556,3 +556,46 @@ def test_probe_job_fast_preview_mode(ff, job, monkeypatch):
     _cue_probe_job(ff, job, 1000, "renpy_cue")
     c = job._cmds[0]
     assert c[c.index("-preset") + 1] == "veryfast"  # quality fast map
+
+
+# ---------------------------------------------------------------------------
+# subprocess timeout guard
+# ---------------------------------------------------------------------------
+
+def test_run_proc_returns_communicate():
+    out, _ = _ffmpeg_mod._cue_run_proc(FakeProc(out_bytes=b"x"))
+    assert out == b"x"
+
+
+def test_run_proc_timeout_kills_and_raises():
+    p = FakeProc(timeout_error=True)
+    with pytest.raises(_ffmpeg_mod.CueSubprocessTimeout):
+        _ffmpeg_mod._cue_run_proc(p, timeout=0.05)
+    assert p.killed is True  # hung process is killed and reaped
+
+
+def test_probe_exe_timeout_degrades_to_false(monkeypatch):
+    # Binary detection: a hung ffmpeg -version is "unavailable", not an error.
+    monkeypatch.setattr(_ffmpeg_mod, "CUE_SUBPROC_TIMEOUT", 0.05)
+    monkeypatch.setattr(_ffmpeg_mod.subprocess, "Popen",
+                        lambda *a, **k: FakeProc(timeout_error=True))
+    assert CueFFmpeg()._probe_exe("ffmpeg") is False
+
+
+def test_probe_fps_timeout_raises(ff, patch_popen, monkeypatch):
+    # Media probes on the encode path surface the timeout so the job errors.
+    monkeypatch.setattr(_ffmpeg_mod, "CUE_SUBPROC_TIMEOUT", 0.05)
+    patch_popen(FakeProc(timeout_error=True))
+    with pytest.raises(_ffmpeg_mod.CueSubprocessTimeout):
+        ff.probe_fps("mov.mp4")
+
+
+def test_probe_job_probe_timeout_errors_job(ff, job, monkeypatch):
+    monkeypatch.setattr(ff, "ffprobe_available", lambda: True)
+    monkeypatch.setattr(
+        ff, "probe_codecs",
+        lambda fs: (_ for _ in ()).throw(_ffmpeg_mod.CueSubprocessTimeout(10)))
+    _cue_probe_job(ff, job, 1000, "renpy_cue")
+    assert job._done is True
+    assert "ffmpeg error" in job.error_msg
+    assert job._launched is True  # never left unset, so poll() advances
