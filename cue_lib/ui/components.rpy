@@ -37,7 +37,7 @@ init -900 python:
 
         def changed(self, value):
             super(_CueVolumeValue, self).changed(value)
-            _cue.markers.save_marker(self._marker_key)
+            _cue.volume.marker_queue_save(self._marker_key)
 
 
 
@@ -268,17 +268,7 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=None, editi
             SetLocalVariable("editing", True),
             xsize=xsize, ysize=height, tt="Click to type. Enter to confirm.")
 
-# Search bar: live-in-name search for the audio-library file trees (SFX
-# Library, My Music, Game Music).  Built on cue_text_input: click to edit.
-# Typing writes manager.search_query live (via _CueFieldValue); a 0.25s timer
-# calls manager.maybe_rebuild(), which rebuilds only when the query changed --
-# that debounces the filter so typing stays responsive.  A broad query is
-# capped (see CUE_SEARCH_MAX_ROWS) and the overflow count is shown below the
-# bar.  Enter commits (closes the editor); the xmark clears the query.  The
-# xmark shows while the input is in edit mode (even with an empty query) and
-# whenever a query is set.
 screen cue_search_bar(field_path, manager, hint="Search..."):
-    timer 0.25 repeat True action Function(manager.maybe_rebuild)
     $ _q = manager.search_query
     $ _label = _q if _q.strip() else hint
     vbox:
@@ -336,14 +326,6 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                 action _cue_make_tab_action(tab_action_fn, tab_action_args, pi)
                 tooltip tab_tt
 
-# Scrollable file list: ✕ remove + ▶ preview per row.
-# remove_fn(remove_args..., fi) is called for row fi.
-# preview_vol is the effective volume passed to _cue_preview_sfx.
-# row_spacing controls horizontal gap in each row (5 for most, 2 for loop).
-# folder_child_remove_fn(trigger_key, pool_index, fi, child_file) is called when
-#   removing a single file from an expanded folder (detach operation).
-#   Pass None to hide ✕ on folder children (e.g. for video pools).
-# Inner vbox — extracted so cue_file_list can conditionally wrap it in a viewport.
 screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
                             trigger_key, pool_index, folder_child_remove_fn,
                             folder_label, folder_children):

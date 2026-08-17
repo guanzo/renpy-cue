@@ -7,6 +7,7 @@ import random as _random
 import renpy
 import renpy.audio.music as _music
 import renpy.audio.audio as _aaudio
+import time as _time
 
 from renpy.store import persistent
 from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
@@ -375,20 +376,39 @@ def _cue_refresh_channel(displayable=None):
 # SFX Trigger Engine (Tick)
 # --------------------------------------------------------------------------
 
+CUE_SLOW_TICK_INTERVAL = 0.25
+_cue_slow_tick_last = 0.0
+
+
 def _cue_tick_trigger():
     # type: () -> None
     if _cue.current_file is not None:
         top_name, top_type, __ = _cue_get_top_layer()
         if top_name != _cue.current_file or top_type != _cue.top_layer_type:
             _cue_refresh_context()
+
     if _cue.top_layer_type == 'movie':
         _cue_refresh_channel(displayable=_cue.top_displayable)
+
     _cue.vid_manager.sync_paused()
-    if _cue.video_editor.processing:
-        _cue.video_editor.job_queue.poll()
     _cue.vid_manager.poll_autopause()
     _cue.video_sequence.tick()
     _cue.trigger.tick(_cue.current_file, _cue.top_layer_type or "")
+
+    # Slow lane: work that doesn't need the 20ms cadence runs at most every
+    # 0.25s -- search-bar rebuilds and anything else deferred here.
+    global _cue_slow_tick_last
+    is_slow_tick = _time.time() - _cue_slow_tick_last >= CUE_SLOW_TICK_INTERVAL
+    if is_slow_tick:
+        _cue_slow_tick_last = _time.time()
+
+        _cue.volume.flush_pending_saves()
+
+        if _cue.video_editor.processing:
+            _cue.video_editor.job_queue.poll()
+
+        for _m in (_cue.sfx_manager, _cue.music.user_music, _cue.music.game_music):
+            _m.maybe_rebuild()
 
 
 def _cue_preview_preset(preset_name):

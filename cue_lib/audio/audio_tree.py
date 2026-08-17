@@ -156,10 +156,6 @@ class CueAudioTreeManager(object):
 
     def maybe_rebuild(self):
         # type: () -> None
-        """Rebuild the filtered tree when the search query changed since the
-        last rebuild; no-op otherwise.  Called on a timer from the search bar
-        (every 0.25s), which debounces live typing into at most one rebuild
-        per pause instead of one per keystroke."""
         q = self.search_query
         if q == self._search_applied:
             return

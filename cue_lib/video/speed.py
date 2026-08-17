@@ -268,6 +268,7 @@ class CueVidSpeedResolver(object):
                 now_playing = None
             transitioned = (now_playing and pending_variant
                 and os.path.normpath(now_playing) == os.path.normpath(pending_variant))
+
             if transitioned:
                 _cue_log("VQ-SEAMLESS complete tag={} speed={}".format(
                     tag, self._pending_speed))
@@ -276,6 +277,7 @@ class CueVidSpeedResolver(object):
                 self._pre_pending_speed = None
                 self._speed_toast.show(tag, duration=CUE_TOAST_DURATION_SEAMLESS)
                 renpy.restart_interaction()
+                
             # Always return the stable Movie during seamless pending --
             # the channel is being driven by music.queue(), not by the
             # Movie's play parameter.
@@ -289,13 +291,17 @@ class CueVidSpeedResolver(object):
             speed = self._get_speed_pref(tag)
             if speed == CUE_DEFAULT_VIDEO_SPEED:
                 return self._movie_for(tag, base_path, orig_movie), None
-            variant = self.variant_path(base_path, speed)
-            if not os.path.exists(variant):
-                return self._movie_for(tag, base_path, orig_movie), None
+            
             cache_key = (tag, speed)
             cached = self.children.get(cache_key, None)
+
             if cached is not None:
                 return cached, None
+            variant = self.variant_path(base_path, speed)
+
+            if not os.path.exists(variant):
+                return self._movie_for(tag, base_path, orig_movie), None
+            
             kwargs = _cue_capture_kwargs(orig_movie)
             kwargs["play"] = variant
             child = Movie(**kwargs)

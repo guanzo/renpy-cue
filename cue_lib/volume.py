@@ -37,6 +37,18 @@ class CueVolumeManager(object):
         # manager is wired after volume).  Everything else is data, served by
         # the store.
         self._markers = markers
+        self._pending_saves = set()
+
+    def marker_queue_save(self, key):
+        # type: (str) -> None
+        self._pending_saves.add(key)
+
+    def flush_pending_saves(self):
+        # type: () -> None
+        # Discarding mid-iteration mutates the set -- copy first.
+        for key in list(self._pending_saves):
+            self._pending_saves.discard(key)
+            _cue.markers.save_marker(key)
 
     def get(self, entry, trigger_key=None, pool_index=None):
         # type: (Optional[MarkerEntry], Optional[str], Optional[int]) -> float

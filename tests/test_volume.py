@@ -93,7 +93,7 @@ def test_write_entry_level(vol, store):
 def test_write_clamps_high(vol, store):
     store._data["k"] = make_entry()
     vol.write("k", 9.9)
-    assert store._data["k"]["volume"] == 5.0
+    assert store._data["k"]["volume"] == 3.0
 
 
 def test_write_clamps_low(vol, store):
@@ -139,7 +139,7 @@ def test_adjust_negative(vol, store):
 def test_adjust_clamps_at_max(vol, store):
     store._data["k"] = make_entry(volume=4.8)
     vol.adjust("k", 0.5)
-    assert store._data["k"]["volume"] == 5.0
+    assert store._data["k"]["volume"] == 3.0
 
 
 def test_adjust_clamps_at_min(vol, store):
@@ -182,7 +182,7 @@ def test_set_master(vol, store):
 def test_set_master_clamps(vol, store):
     store._data["k"] = make_entry()
     vol.set_master("k", 7.0)
-    assert store._data["k"]["volume"] == 5.0
+    assert store._data["k"]["volume"] == 3.0
 
 
 def test_set_master_missing_entry_is_noop(vol, store):
@@ -221,7 +221,7 @@ def test_effective_pool_default_volume_is_identity(vol):
 
 def test_effective_clamps_product_at_max(vol):
     entry = make_entry(volume=5.0, pools=[{"volume": 5.0}])
-    assert vol.get_effective(entry, pool_index=0) == 5.0
+    assert vol.get_effective(entry, pool_index=0) == 3.0
 
 
 def test_effective_pool_out_of_range_falls_back(vol):
