@@ -97,7 +97,7 @@ screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue, name_filter=N
             use cue_icon_btn(
                 "play",
                 Function(_cue_preview_preset, _pname),
-                "Preview random file from preset", None)
+                "Play random file from preset", None)
             use cue_icon_btn(
                 "V",
                 Function(_cue.markers.video.send_preset, _pname),

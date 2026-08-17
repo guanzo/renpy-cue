@@ -80,7 +80,7 @@ init -999 python:
     )
 
     from cue_lib.markers import (
-        _cue_paste_context, _cue_load_scalars_from_persistent,
+        _cue_load_scalars_from_persistent,
     )
 
     from cue_lib.ui.dialogs import (

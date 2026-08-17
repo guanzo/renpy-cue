@@ -1,19 +1,21 @@
 # -*- coding: utf-8 -*-
-# Tests for the Cue*Context classes in cue_lib.markers.
+# Tests for the Cue*Context classes in cue_lib.context.
 #
 # Contexts are constructed with a manager (constructor injection) and read
 # entries via self._mgr.get(key).  The real manager is wired to _cue and
 # Ren'Py; tests use FakeManager and pin the _cue-coupled seams (_key,
 # get_duration) via small subclasses, so the pool logic runs headlessly.
 
-from cue_lib.markers import (
-    CueExclusiveStart,
+from cue_lib.context import (
     CueImageContext,
     CueLoopContext,
+    CueVideoContext,
+)
+from cue_lib.markers import (
+    CueExclusiveStart,
     CueLoopFrequency,
     ResolvedExclusive,
     ResolvedPool,
-    CueVideoContext,
 )
 
 from tests.fakes import FakeManager
@@ -345,8 +347,8 @@ def test_loop_set_frequency_missing_entry_noop():
 
 
 def test_get_delay_bases_with_zero_jitter(monkeypatch):
-    import cue_lib.markers as _markers
-    monkeypatch.setattr(_markers._random, "uniform", lambda a, b: 0.0)
+    import cue_lib.context as _context
+    monkeypatch.setattr(_context._random, "uniform", lambda a, b: 0.0)
     assert CueLoopContext.get_delay(CueLoopFrequency.SLOWEST) == 5.0
     assert CueLoopContext.get_delay(CueLoopFrequency.FASTEST) == 0.15
     assert CueLoopContext.get_delay(CueLoopFrequency.FAST) == 0.5

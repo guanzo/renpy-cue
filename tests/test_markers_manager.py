@@ -320,3 +320,100 @@ def test_paste_context_clamps_video_times_to_duration(mgr):
     mgr._ctx.current_file = "new.ogv"
     mgr.paste_context()
     assert mgr["v_new.ogv"]["pools"][0]["time"] == 10.0
+
+
+def test_copy_context_whitelists_entry_keys(mgr):
+    # Speed keys reference variant files the target context may not have,
+    # music is per-trigger audio intent, _key is derived, replay is
+    # re-stamped -- none of them travel with a copied context.
+    mgr._ctx.current_file = "scene.ogv"
+    mgr["v_scene.ogv"] = {
+        "pools": [{"time": 1.0, "files": ["a.ogg"]}],
+        "volume": 0.8,
+        "video_file_muted": True,
+        "speed_pref": 2.0,
+        "speed_sequence": [2.0, 1.0],
+        "speed_mode": "manual",
+        "disabled_auto_speeds": [1.0],
+        "music": {"path": "bgm.ogg"},
+        "_key": "v_scene.ogv",
+        "replay": "some_replay",
+    }
+    mgr.copy_context()
+    copied = mgr.clipboard["markers"]["v_scene.ogv"]
+    assert set(copied.keys()) == {"pools", "volume", "video_file_muted"}
+    assert copied["pools"][0]["time"] == 1.0
+    assert copied["volume"] == 0.8
+    assert copied["video_file_muted"] is True
+
+
+def test_paste_context_drops_infra_keys(mgr):
+    # The original bug: a 2.0x context's speed keys leaked into a pasted
+    # context that never had those speeds, breaking its markers.
+    mgr._ctx.current_file = "scene.ogv"
+    mgr["v_scene.ogv"] = {
+        "pools": [{"time": 1.0, "files": ["a.ogg"]}],
+        "speed_pref": 2.0,
+        "speed_mode": "manual",
+        "music": {"path": "bgm.ogg"},
+        "replay": "old_replay",
+    }
+    mgr.copy_context()
+
+    mgr._ctx.current_file = "new.ogv"
+    mgr.paste_context()
+    pasted = mgr["v_new.ogv"]
+    assert set(pasted.keys()) == {"pools"}
+    assert "speed_pref" not in pasted
+    assert "speed_mode" not in pasted
+    assert "music" not in pasted
+    assert "replay" not in pasted  # not replaying, so no replay stamp
+
+
+def test_paste_context_re_stamps_replay_when_in_replay(monkeypatch, mgr):
+    import renpy.store
+
+    mgr._ctx.current_file = "scene.ogv"
+    mgr["i_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}
+    mgr.copy_context()
+
+    monkeypatch.setattr(renpy.store, "_in_replay", "replay_x")
+    mgr._ctx.current_file = "new.ogv"
+    mgr.paste_context()
+    assert mgr["i_new.ogv"]["pools"][0]["files"] == ["a.ogg"]
+    assert mgr["i_new.ogv"]["replay"] == "replay_x"
+
+
+class _Trigger(object):
+    """Trigger stand-in: only the loop_states seam paste_context pops."""
+
+    def __init__(self):
+        self.loop_states = {}
+
+
+def test_paste_context_clears_target_loop_state(mgr):
+    trig = _Trigger()
+    trig.loop_states = {"l_new.ogv": {"0": {"channels": ["old_ch"]}},
+                        "l_other.ogv": {"0": {"channels": ["ch2"]}}}
+    mgr._trigger = trig
+    mgr._ctx.current_file = "scene.ogv"
+    mgr["l_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}
+    mgr.copy_context()
+
+    mgr._ctx.current_file = "new.ogv"
+    mgr.paste_context()
+    assert "l_new.ogv" not in trig.loop_states  # stale state for the pasted key dropped
+    assert "l_other.ogv" in trig.loop_states  # unrelated keys untouched
+
+
+def test_paste_context_keeps_loop_state_when_no_loop_pasted(mgr):
+    trig = _Trigger()
+    trig.loop_states = {"l_scene.ogv": {"0": {"channels": ["ch"]}}}
+    mgr._trigger = trig
+    mgr._ctx.current_file = "scene.ogv"
+    mgr["i_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}  # image only
+    mgr.copy_context()
+
+    mgr._ctx.current_file = "new.ogv"
+    mgr.paste_context()
+    assert "l_scene.ogv" in trig.loop_states  # untouched
