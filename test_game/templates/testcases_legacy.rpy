@@ -128,3 +128,80 @@ testcase video_auto_speed_state:
     $ _ok = _ok and len(_cue.auto_speed.enabled_speeds) >= 1
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
+
+testcase video_speed_variant_created:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.video_editor.create(1.5)
+    python:
+        import os as _os
+        import time as _time
+        # Drive the encode to completion from here.  The job state machine only
+        # advances via job_queue.poll() -- the tick timer can't run while this
+        # python block holds the main thread, and renpy.pause is forbidden
+        # inside a test python block (it starts an interaction mid-interaction).
+        _queue = _cue.video_editor.job_queue
+        _deadline = _time.time() + 30.0
+        while _queue.processing and _time.time() < _deadline:
+            _queue.poll()
+            _time.sleep(0.1)
+        _base = _cue.speed_resolver.base_path_for(_cue.current_file)
+        _variant = _cue.speed_resolver.variant_path(_base, 1.5)
+        _ok = not _queue.processing
+        _ok = _ok and bool(_base)
+        _ok = _ok and _os.path.exists(_variant)
+        _ok = _ok and (1.5 in _cue.speed_resolver.get_available_speeds(_base))
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase video_seamless_transition_preserves_position:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.video_editor.create(1.5)
+    python:
+        import os as _os
+        import time as _time
+        _queue = _cue.video_editor.job_queue
+        _deadline = _time.time() + 30.0
+        while _queue.processing and _time.time() < _deadline:
+            _queue.poll()
+            _time.sleep(0.1)
+        _base = _cue.speed_resolver.base_path_for(_cue.current_file)
+        # Isolate: base speed, no speed sequence, seamless off -- the base
+        # file is what plays before the flip.  Explicit even though legacy
+        # runs a fresh process per testcase, to mirror the modern template.
+        _cue.video_sequence.clear_sequence()
+        _cue.speed_resolver.seamless_transition = False
+        _cue.speed_resolver._set_speed_pref(_cue.current_file, 1.0)
+        renpy.restart_interaction()
+    pause 0.3
+    $ _before_ch = _cue.vid_manager.channel
+    $ _before_playing = _cue.vid_manager.get_video_path()
+    $ _ok = _before_ch is not None
+    $ _ok = _ok and _os.path.basename(_before_playing or "") == _os.path.basename(_base)
+    $ if not _ok: renpy.quit(status=1)
+    $ _cue.speed_resolver.toggle_seamless()
+    $ _cue.speed_resolver.set_speed(1.5)
+    # set_speed() queues the variant with loop=True, which drops the base from
+    # the channel's loop list -- the base plays to EOF (<=2s), SDL advances to
+    # the queued variant (which then loops), and resolve() commits the flip on
+    # the next render.  The pauses keep interactions flowing so resolve() runs;
+    # capturing late is safe because the variant loops.
+    pause 2.0
+    pause 2.0
+    $ _after_ch = _cue.vid_manager.channel
+    $ _after_playing = _cue.vid_manager.get_video_path()
+    $ _after_pos = _cue.vid_manager.get_elapsed()
+    $ _after_dur = _cue.vid_manager.get_duration()
+    $ _variant = _cue.speed_resolver.variant_path(_base, 1.5)
+    $ _ok = _ok and (_after_ch == _before_ch)
+    $ _ok = _ok and (_os.path.normpath(_after_playing) == _os.path.normpath(_variant))
+    $ _ok = _ok and (0.0 <= _after_pos < _after_dur)
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()

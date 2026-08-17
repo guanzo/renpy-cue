@@ -2,9 +2,10 @@
 # Usage: bin/run_testcases.sh /path/to/game/Game.sh [testcase...] [test-options...]
 #
 # Runs the harness game (test_game/) under the given Ren'Py runtime with the
-# mod's cue_lib symlinked in.  RENPY_CUE_DIR defaults to a gitignored scratch
-# dir under test_game/ so runs are self-contained; set the env var explicitly
-# to point at a real shared data tree instead.
+# mod's cue_lib symlinked in.  RENPY_CUE_DIR defaults to the committed
+# fixtures root (tests/fixtures/data) -- the same tree CI points at -- so
+# local runs exercise the sfx/music fixtures exactly like CI does. Generated
+# artifacts (video variants, db writes) land under gitignored subdirs.
 #
 # Runs are headless by default when xvfb-run is installed, so the engine
 # window doesn't pop up and steal focus. Set RENPY_HEADLESS=0 to show the
@@ -51,8 +52,7 @@ rm -f "$GAME/game/renpy_cue/debug.log"
 MOD="$GAME/game/renpy_cue"
 mkdir -p "$MOD"
 [ -e "$MOD/cue_lib" ] || ln -s "$ROOT/cue_lib" "$MOD/cue_lib"
-mkdir -p "$GAME/cue_data"
-export RENPY_CUE_DIR="${RENPY_CUE_DIR:-$GAME/cue_data}"
+export RENPY_CUE_DIR="${RENPY_CUE_DIR:-$ROOT/tests/fixtures/data}"
 
 echo "[cue] runtime: $DSL testcases DSL ($LAUNCHER)"
 

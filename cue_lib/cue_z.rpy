@@ -269,6 +269,43 @@ init 999 python:
 
         renpy.config.show = _cue_config_show
 
+        # Patch renpy.loader.load/loadable so absolute paths into the shared
+        # data dir (video variants, SFX, My Music) survive the POSIX lstrip.
+        # Inline here with the other hooks (engine code, verified by the
+        # harness testcases, not pytest).
+        import renpy.loader as _rl
+
+        if not getattr(_rl.load, "_cue_loader_wrapped", False):
+            # Idempotent: on Shift+R reload renpy.loader keeps our wrappers, so
+            # skip re-wrapping (re-capturing would stack wrapper layers).
+            _cue_orig_loader_load = _rl.load
+            _cue_orig_loader_loadable = _rl.loadable
+            _cue_orig_loader_open = _rl.open_file
+
+            def _cue_loader_load(name, *args, **kwargs):
+                try:
+                    if os.path.isabs(name) and os.path.isfile(name):
+                        # 8.5.3's open_file is RWopsIO (what the audio stack
+                        # expects); 7.4.10's is plain open. Return whichever the
+                        # engine natively produces, not a bare open().
+                        return _cue_orig_loader_open(name, "rb")
+                except (TypeError, ValueError):
+                    # name is not a path string (AudioData, int, ...) -- delegate.
+                    pass
+                return _cue_orig_loader_load(name, *args, **kwargs)
+
+            def _cue_loader_loadable(name, *args, **kwargs):
+                try:
+                    if os.path.isabs(name) and os.path.isfile(name):
+                        return True
+                except (TypeError, ValueError):
+                    pass
+                return _cue_orig_loader_loadable(name, *args, **kwargs)
+
+            _rl.load = _cue_loader_load
+            _rl.loadable = _cue_loader_loadable
+            _rl.load._cue_loader_wrapped = True
+
     def _cue_install_callbacks():
         """Version detect, SFX channels, the overlay layer, and the game hooks
         (after-load / character / start-interact / replay).  Reinstalled on

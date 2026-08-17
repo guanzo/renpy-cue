@@ -25,9 +25,11 @@ test_game/traceback.txt
 # testcases.rpy is materialized from test_game/templates/ by bin/run_testcases.sh
 test_game/game/testcases.rpy
 
-# runtime db/backup writes into the shared fixtures root (see cue_lib/db.py)
+# runtime writes into the shared fixtures root (see cue_lib/db.py): db/backup
+# files, plus video variants generated per harness run.
 tests/fixtures/data/data/
 tests/fixtures/data/backups/
+tests/fixtures/data/video/
 
 # beat_extractor runtime artifacts (default --out is ./output)
 __pycache__/

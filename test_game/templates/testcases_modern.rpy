@@ -77,3 +77,46 @@ testcase video_auto_speed_state:
     pause 1.0
     assert eval (_cue.auto_speed.active_preset == "roller_coaster")
     assert eval (len(_cue.auto_speed.enabled_speeds) >= 1)
+
+testcase video_speed_variant_created:
+    run Jump("start")
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.video_editor.create(1.5)
+    pause 0.1 until eval (not _cue.video_editor.job_queue.processing) timeout 30.0
+    $ _base = _cue.speed_resolver.base_path_for(_cue.current_file)
+    $ _variant = _cue.speed_resolver.variant_path(_base, 1.5)
+    $ import os as _os
+    assert eval (_base is not None)
+    assert eval (_os.path.exists(_variant))
+    assert eval (1.5 in _cue.speed_resolver.get_available_speeds(_base))
+
+testcase video_seamless_transition_preserves_position:
+    run Jump("start")
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.video_editor.create(1.5)
+    pause 0.1 until eval (not _cue.video_editor.job_queue.processing) timeout 30.0
+    $ _base = _cue.speed_resolver.base_path_for(_cue.current_file)
+    # Isolate from prior testcases: base speed, no speed sequence, seamless off
+    # -- so the base file is what's actually playing before the flip.
+    $ _cue.video_sequence.clear_sequence()
+    $ _cue.speed_resolver.seamless_transition = False
+    $ _cue.speed_resolver._set_speed_pref(_cue.current_file, 1.0)
+    $ renpy.restart_interaction()
+    pause 0.3
+    $ _before_ch = _cue.vid_manager.channel
+    $ _before_playing = _cue.vid_manager.get_video_path()
+    assert eval (_before_ch is not None)
+    assert eval (_os.path.basename(_before_playing or "") == _os.path.basename(_base))
+    $ _cue.speed_resolver.toggle_seamless()
+    $ _cue.speed_resolver.set_speed(1.5)
+    pause 0.1 until eval (_cue.speed_resolver._pending_speed is None) timeout 15.0
+    $ _after_ch = _cue.vid_manager.channel
+    $ _after_playing = _cue.vid_manager.get_video_path()
+    $ _after_pos = _cue.vid_manager.get_elapsed()
+    $ _after_dur = _cue.vid_manager.get_duration()
+    $ _variant = _cue.speed_resolver.variant_path(_base, 1.5)
+    assert eval (_after_ch == _before_ch)
+    assert eval (_os.path.normpath(_after_playing) == _os.path.normpath(_variant))
+    assert eval (0.0 <= _after_pos < _after_dur)
