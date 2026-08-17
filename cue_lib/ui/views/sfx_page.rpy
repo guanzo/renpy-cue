@@ -34,9 +34,10 @@ screen cue_sfx_page():
 
     # Loop SFX
     $ _loop_key = _cue_create_loop_key(_cue.current_file or "")
+    $ _loop_word = "video" if _is_video else "image"
     use cue_context_section("Loop SFX", _cue.markers.loop, _loop_key,
         None, "file", "L",
-        "SFX plays on a loop when this image/video is displayed."):
+        "SFX plays on a loop when this {} is displayed.".format(_loop_word)):
         $ _loop_r = _cue.markers.resolve_pool(_cue.markers.loop.get_active_pool())
         $ _freq = _loop_r.frequency
         hbox:
