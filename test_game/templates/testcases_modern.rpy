@@ -62,6 +62,16 @@ testcase video_sfx_timeline_seeded:
     assert eval (len(_cue.markers.video.get_markers()) >= 1)
     assert eval (0 <= _cue.markers.video.target_pool < len(_cue.markers.video.get_markers()))
 
+testcase video_sfx_edit_locked_off_base_speed:
+    run Jump("start")
+    $ renpy.show("cuevid")
+    pause 1.0
+    assert eval (_cue.speed_resolver.get_current_speed() == CUE_DEFAULT_VIDEO_SPEED)
+    $ _cue.speed_resolver.set_speed(1.5)
+    assert eval (_cue.speed_resolver.get_current_speed() == 1.5)
+    $ _cue.speed_resolver.set_speed(CUE_DEFAULT_VIDEO_SPEED)
+    assert eval (_cue.speed_resolver.get_current_speed() == CUE_DEFAULT_VIDEO_SPEED)
+
 testcase video_vfx_speed_sequence:
     run Jump("start")
     $ renpy.show("cuevid")

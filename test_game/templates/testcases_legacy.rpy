@@ -105,6 +105,20 @@ testcase video_sfx_timeline_seeded:
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
+testcase video_sfx_edit_locked_off_base_speed:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _ok = _cue.speed_resolver.get_current_speed() == CUE_DEFAULT_VIDEO_SPEED
+    $ _cue.speed_resolver.set_speed(1.5)
+    $ _ok = _ok and _cue.speed_resolver.get_current_speed() == 1.5
+    $ _cue.speed_resolver.set_speed(CUE_DEFAULT_VIDEO_SPEED)
+    $ _ok = _ok and _cue.speed_resolver.get_current_speed() == CUE_DEFAULT_VIDEO_SPEED
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
 testcase video_vfx_speed_sequence:
     $ _cue.is_overlay_visible = True
     run Jump("start")
