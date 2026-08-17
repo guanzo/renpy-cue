@@ -115,15 +115,23 @@ class FakeMarkerStore(object):
 
 
 class FakeVideoContext(object):
-    """Stand-in for CueVideoContext: carries target_pool.
-    and the get_markers() list (_tick_video)."""
+    """Stand-in for CueVideoContext: carries target_pool, the get_markers()
+    list (_tick_video), and the repeater's selection / drag seams."""
 
-    def __init__(self, target_pool=0, markers=None):
+    def __init__(self, target_pool=0, markers=None, selected=None):
         self.target_pool = target_pool
         self.markers = markers if markers is not None else []
+        self.selected = selected if selected is not None else set()
+        self.drag_calls = 0
 
     def get_markers(self):
         return self.markers
+
+    def get_selected(self):
+        return self.selected
+
+    def finalize_drag(self):
+        self.drag_calls += 1
 
 
 class FakeLoopContext(object):
