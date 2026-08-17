@@ -142,8 +142,7 @@ screen cue_header_toolbar():
             spacing 5
             use cue_checkbox(_cue.trigger.active, "SFX Active",
                 Function(_cue_toggle_active),
-                _toggle_on_tt, _toggle_off_tt,
-                _cue_color_active, _cue_color_green_hover, _cue_color_red, _cue_color_red_hover)        
+                _toggle_on_tt, _toggle_off_tt)        
                 
             null width 10
 

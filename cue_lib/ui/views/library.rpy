@@ -235,9 +235,9 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
                     "L",
                     Function(_cue.markers.loop.send_file, item["index"]),
                     _loop_tt, None)
-                use cue_icon_btn(
-                    ("square-check" if item.get("enabled", True) else "square"),
-                    Function(_cue.sfx_manager.toggle_file_enabled, item["full_path"]),
-                    "Click to {} globally".format("disable" if item.get("enabled", True) else "enable"),
-                    None)
+                # use cue_icon_btn(
+                #     ("square-check" if item.get("enabled", True) else "square"),
+                #     Function(_cue.sfx_manager.toggle_file_enabled, item["full_path"]),
+                #     "Click to {} globally".format("disable" if item.get("enabled", True) else "enable"),
+                #     None)
                 text item["name"] style "cue_txt" color _cue_color_text_accent
