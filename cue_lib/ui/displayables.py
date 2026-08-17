@@ -470,6 +470,14 @@ class CueVideoMarkerTimeline(Displayable):
                     _cue.markers.video.selected = set()
                     return None
 
+            if alt_held and shift_held and hit_idx >= 0:
+                # Interval-add: every marker that continues the clicked-to-
+                # active spacing joins the selection group (active stays put).
+                _cue.markers.video.add_interval_selection(hit_idx)
+                renpy.redraw(self, 0)
+                renpy.restart_interaction()
+                raise IgnoreEvent()
+
             if alt_held and hit_idx >= 0:
                 if not sel:
                     active = self.get_active()

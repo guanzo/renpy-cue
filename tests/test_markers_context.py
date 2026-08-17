@@ -6,6 +6,7 @@
 # Ren'Py; tests use FakeManager and pin the _cue-coupled seams (_key,
 # get_duration) via small subclasses, so the pool logic runs headlessly.
 
+from cue_lib.constants import CUE_INTERVAL_SELECT_TOLERANCE
 from cue_lib.context import (
     CueImageContext,
     CueLoopContext,
@@ -161,6 +162,107 @@ def test_get_selected_returns_selection():
     ctx = VideoCtx(FakeManager())
     ctx.selected = {1, 3}
     assert ctx.get_selected() == {1, 3}
+
+
+def test_add_interval_selection_selects_spacing_chain():
+    # User's example: 1 active (0.0s), click 3 (1.0s). Spacing 1.0s.
+    # Markers 5 (2.0s) and 7 (2.99s) continue the grid; 2/4/6 (half-beats) don't.
+    mgr = FakeManager({"v_key": {"pools": [
+        {"time": 0.0}, {"time": 0.5}, {"time": 1.0},
+        {"time": 1.5}, {"time": 2.0}, {"time": 2.5}, {"time": 2.99}]}})
+    ctx = VideoCtx(mgr)
+    ctx.target_pool = 0  # active marker 1
+    ctx.add_interval_selection(2)  # click marker 3
+    assert ctx.selected == {0, 2, 4, 6}  # markers 1, 3, 5, 7
+
+
+def test_add_interval_selection_backward_extension():
+    # Grid continues behind the active marker too: 0, 1, 2, 3 at 1s spacing,
+    # active at index 1 (1.0s), click index 2 (2.0s) -> spacing 1.0s.
+    mgr = FakeManager({"v_key": {"pools": [
+        {"time": 0.0}, {"time": 1.0}, {"time": 2.0}, {"time": 3.0}]}})
+    ctx = VideoCtx(mgr)
+    ctx.target_pool = 1
+    ctx.add_interval_selection(2)
+    assert ctx.selected == {0, 1, 2, 3}
+
+
+def test_add_interval_selection_reversed_anchor():
+    # Click a marker behind the active: active at 2.0s, click 0.0s,
+    # spacing 2.0s. Grid: 0.0, 2.0 (and 4.0, none). 1.0s marker is off-grid.
+    mgr = FakeManager({"v_key": {"pools": [
+        {"time": 0.0}, {"time": 1.0}, {"time": 2.0}, {"time": 3.0}]}})
+    ctx = VideoCtx(mgr)
+    ctx.target_pool = 2
+    ctx.add_interval_selection(0)
+    assert ctx.selected == {0, 2}
+
+
+def test_add_interval_selection_merges_into_existing_selection():
+    mgr = FakeManager({"v_key": {"pools": [
+        {"time": 0.0}, {"time": 0.5}, {"time": 1.0},
+        {"time": 1.5}, {"time": 2.0}]}})
+    ctx = VideoCtx(mgr)
+    ctx.target_pool = 0
+    ctx.selected = {1}  # off-grid half-beat stays selected
+    ctx.add_interval_selection(2)
+    assert ctx.selected == {0, 1, 2, 4}
+
+
+def test_add_interval_selection_keeps_active_marker():
+    mgr = FakeManager({"v_key": {"pools": [
+        {"time": 0.0}, {"time": 0.5}, {"time": 1.0},
+        {"time": 1.5}, {"time": 2.0}]}})
+    ctx = VideoCtx(mgr)
+    ctx.target_pool = 0
+    ctx.add_interval_selection(2)
+    assert ctx.target_pool == 0
+
+
+def test_add_interval_selection_tolerance_boundaries():
+    # Gap of 0.99s vs 1.0s spacing is exactly at tolerance (included);
+    # gap of 0.97s is beyond it (excluded).
+    mgr = FakeManager({"v_key": {"pools": [
+        {"time": 0.0}, {"time": 1.0},
+        {"time": 2.0}, {"time": 2.99}, {"time": 2.97}]}})
+    ctx = VideoCtx(mgr)
+    ctx.target_pool = 0
+    ctx.add_interval_selection(1)
+    assert ctx.selected == {0, 1, 2, 3}
+
+
+def test_add_interval_selection_uses_imported_tolerance():
+    assert CUE_INTERVAL_SELECT_TOLERANCE == 0.010
+    mgr = FakeManager({"v_key": {"pools": [
+        {"time": 0.0}, {"time": 1.0},
+        {"time": 1.0 + CUE_INTERVAL_SELECT_TOLERANCE / 2},  # 5ms inside edge
+        {"time": 2.0 + CUE_INTERVAL_SELECT_TOLERANCE / 2},  # 5ms inside next edge
+    ]}})
+    ctx = VideoCtx(mgr)
+    ctx.target_pool = 0
+    ctx.add_interval_selection(1)
+    assert ctx.selected == {0, 1, 2, 3}
+
+
+def test_add_interval_selection_clicking_active_selects_it():
+    mgr = FakeManager({"v_key": {"pools": [
+        {"time": 0.0}, {"time": 0.5}, {"time": 1.0}]}})
+    ctx = VideoCtx(mgr)
+    ctx.target_pool = 0
+    ctx.add_interval_selection(0)  # zero spacing
+    assert ctx.selected == {0}
+
+
+def test_add_interval_selection_invalid_index_noop():
+    ctx = VideoCtx(FakeManager({"v_key": {"pools": [{"time": 1.0}]}}))
+    ctx.add_interval_selection(5)
+    assert ctx.selected == set()
+
+
+def test_add_interval_selection_no_pools_noop():
+    ctx = VideoCtx(FakeManager())
+    ctx.add_interval_selection(0)
+    assert ctx.selected == set()
 
 
 def test_delete_message_no_selection_no_markers():

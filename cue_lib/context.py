@@ -6,7 +6,9 @@
 import copy as _copy
 import random as _random
 
-from cue_lib.constants import CUE_VOLUME_DEFAULT, CueExclusiveStart, CueLoopFrequency
+from cue_lib.constants import (
+    CUE_INTERVAL_SELECT_TOLERANCE, CUE_VOLUME_DEFAULT, CueExclusiveStart, CueLoopFrequency,
+)
 from cue_lib.util import (
     _cue_clamp_time, _cue_format_time, _cue_parse_time, _cue_shift_held,
     create_img_key, create_vid_key, create_dlg_key, create_loop_key,
@@ -583,6 +585,37 @@ class CueVideoContext(CueMarkerContext):
     def get_selected(self):
         # type: () -> Set[int]
         return self.selected
+
+    def add_interval_selection(self, pool_index):
+        # type: (int) -> None
+        """Union every marker that continues the clicked-to-active spacing
+        into the selection group.
+
+        The spacing is the interval between the clicked marker and the active
+        marker.  A marker joins when it lands within
+        ``CUE_INTERVAL_SELECT_TOLERANCE`` of a projected grid position
+        (active time + k*spacing), so a chain of evenly spaced markers is
+        selected in one click.  The active marker is left unchanged -- it
+        stays the anchor."""
+        _, pools = self._entry_and_pools()
+        if not (0 <= pool_index < len(pools)):
+            return
+        active = self.get_active()
+        if not (0 <= active < len(pools)):
+            return
+        t_click = pools[pool_index]["time"]
+        t_active = pools[active]["time"]
+        spacing = abs(t_click - t_active)
+        if spacing <= CUE_INTERVAL_SELECT_TOLERANCE:
+            # No real spacing: the span collapses to a point.
+            self.selected.add(active)
+            self.selected.add(pool_index)
+            return
+        for i, pool in enumerate(pools):
+            offset = pool["time"] - t_active
+            k = round(offset / spacing)
+            if abs(offset - k * spacing) <= CUE_INTERVAL_SELECT_TOLERANCE:
+                self.selected.add(i)
 
     def get_duration(self):
         # type: () -> float

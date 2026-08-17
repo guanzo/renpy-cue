@@ -49,6 +49,8 @@ screen cue_video_sfx():
                 use cue_icon("circle-question",
                     ("• Markers and marker groups are draggable.\n"
                     + "• (Shift + Click) or (Alt + Click) to create a marker group.\n"
+                    + "• (Alt + Shift + Click) adds every marker that continues "
+                    + "the interval between the active marker and the click.\n"
                     + "• Use \"Repeat Markers\" to copy selected markers at an interval.\n"
                     + "• Get your markers timed to the first \"beat\", then use "
                     + "\"Repeat Markers\" to find to right interval."),
