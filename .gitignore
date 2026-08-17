@@ -32,3 +32,4 @@ tests/fixtures/data/backups/
 # beat_extractor runtime artifacts (default --out is ./output)
 __pycache__/
 tools/beat_extractor/output/
+tools/beat_extractor/samples/

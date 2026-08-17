@@ -15,7 +15,7 @@ python3 beat_extractor.py "song.mp4" --start 00:13:10 --end 00:13:12
 
 Batch mode -- windows come from an Audacity label export (start<TAB>end per
 line); beats across every window are numbered sequentially and land flat in
-the output dir:
+beats/ next to _raw/:
 python3 beat_extractor.py "song.mp4" --labels "E:\\Labels 1.txt"
 """
 
@@ -34,6 +34,13 @@ try:
     import wave  # noqa: F401  (imported explicitly where used, kept here for clarity)
 except ImportError:  # pragma: no cover -- wave is stdlib, never missing
     pass
+
+from intensity import DEFAULT_CENT_HIGH as _DEFAULT_CENT_HIGH
+from intensity import DEFAULT_CENT_LOW as _DEFAULT_CENT_LOW
+from intensity import DEFAULT_RMS_REF as _DEFAULT_RMS_REF
+from intensity import analyze_files as _intensity_analyze
+from intensity import classify as _intensity_classify
+from intensity import copy_tiers as _intensity_copy
 
 # ---------------------------------------------------------------------------
 # Path helpers
@@ -334,6 +341,105 @@ def _refine_clip_start(x, sr, peak_i, max_lead_in_s):
     return k
 
 
+def _find_subthreshold_beats(x, sr, beats, max_lead_in_s,
+                             secondary_ratio=0.25, contrast_ratio=6.0,
+                             min_gap_s=0.05, merge_s=0.04):
+    """Find real impacts that sit below the amplitude threshold inside the
+    quiet gap before the next detected beat, so a clip that swallowed a second
+    beat gets split into two.
+
+    The amplitude threshold finds "loud enough = beat", but a quieter second
+    impact in the same window slips under it and gets absorbed by the previous
+    clip's tail: the clip-end trough logic finds the *global* envelope minimum,
+    which after a second beat sits in the far silence past it, so the clip
+    carries both impacts (and after loudnorm the second is clearly audible).
+    A candidate is a local envelope maximum between this beat's peak and the
+    next beat's crossing (or the window end, for the last beat) that clears a
+    minimum gap on both sides, reaches `secondary_ratio` x the primary beat's
+    peak, and stands out from the decaying tail by `contrast_ratio` x the
+    **median** envelope between them -- a genuine rise out of the decay, not
+    tail ring-in or room tone. The median (not the min) is the floor: a single
+    low noise hop in an elevated floor otherwise fabricates a deep trough and
+    lets the hum masquerade as a beat. Candidates within `merge_s` merge,
+    keeping the louder.
+
+    Returns new beat dicts (same shape as detect_beats) sorted by crossing.
+    """
+    if not beats:
+        return []
+    env, hop = _peak_envelope(x, sr)
+    min_gap = int(min_gap_s * sr)
+    merge_hop = max(1, int(round(merge_s * sr / float(hop))))
+    extra = []
+    for i in range(len(beats)):
+        a = beats[i]
+        if i + 1 < len(beats):
+            nxt_crossing = beats[i + 1]["crossing_i"]
+        else:
+            # the last beat's clip ends at the window end, so a quiet second
+            # impact in its tail is swallowed too -- scan to the window end.
+            nxt_crossing = len(x)
+        j0 = (a["peak_i"] + min_gap) // hop
+        j1 = min(len(env) - 1, (nxt_crossing - min_gap) // hop)
+        if j1 <= j0:
+            continue
+        cand = []
+        for k in range(j0, j1 + 1):
+            if k > j0 and env[k - 1] > env[k]:
+                continue
+            if k < j1 and env[k + 1] > env[k]:
+                continue
+            v = env[k]
+            if v <= 0:
+                continue
+            if v < secondary_ratio * a["peak"]:
+                continue
+            if v < contrast_ratio * np.median(env[j0:k + 1]):
+                continue
+            cand.append((k, v))
+        cand.sort()
+        merged = []
+        for k, v in cand:
+            if merged and k - merged[-1][0] <= merge_hop:
+                if v > merged[-1][1]:
+                    merged[-1] = (k, v)
+            else:
+                merged.append((k, v))
+        for k, _v in merged:
+            lo = k * hop
+            hi = min(len(x), (k + 1) * hop)
+            seg = x[lo:hi]
+            off = int(np.argmax(np.abs(seg)))
+            peak_i = lo + off
+            peak = abs(seg[off])
+            extra.append({
+                "crossing_i": peak_i,
+                "peak_i": peak_i,
+                "peak": peak,
+                "peak_db": 20.0 * np.log10(peak + 1e-12),
+                "clip_start_i": _refine_clip_start(x, sr, peak_i,
+                                                   max_lead_in_s),
+                "status": None,
+            })
+    extra.sort(key=lambda b: b["crossing_i"])
+    return extra
+
+
+def _merge_beats(detected, extra):
+    """Combine detected + sub-threshold beats, sorted by crossing, dropping
+    any overlap (a secondary landing on an already-detected beat)."""
+    if not extra:
+        return detected
+    all_beats = detected + extra
+    all_beats.sort(key=lambda b: b["crossing_i"])
+    merged = []
+    for b in all_beats:
+        if merged and b["crossing_i"] <= merged[-1]["crossing_i"]:
+            continue  # overlap -- keep the earlier
+        merged.append(b)
+    return merged
+
+
 def _refine_clip_end(x, sr, peak_i, crossing_i):
     """Cut at the deepest silence before the next beat; return the exclusive
     end index (one past the last quiet sample).
@@ -396,15 +502,21 @@ def clip_indices(clip_start_s, clip_end_s, sr, pre_roll_s):
 # Filters
 
 
-def filter_duration(beats, min_beat_s, ratio):
-    """Hard floor (skipped_too_short) then duration-consistency outlier drop."""
+def filter_duration(beats, min_beat_s, ratio, min_count=3):
+    """Hard floor (skipped_too_short) then duration-consistency outlier drop.
+
+    The band needs a meaningful "typical length" to judge against. With fewer
+    than `min_count` survivors the median is too fragile -- a single long beat
+    (e.g. a clip that swallowed a second impact) is half the data and drags the
+    band up around itself. That mirrors the loudness filter's min_count guard.
+    """
     survivors = []
     for b in beats:
         if b["duration_s"] < min_beat_s:
             b["status"] = "too_short"
         else:
             survivors.append(b)
-    if not survivors:
+    if len(survivors) < min_count:
         return
     durations = np.array([b["duration_s"] for b in survivors])
     median = float(np.median(durations))
@@ -467,17 +579,52 @@ def classification(b):
     return STATUS_NAMES[b.get("status") or "clean"]
 
 
+def _write_outputs(beats, x, sr, args, raw_dir, beats_dir, dropped_dir):
+    """Write every beat's clip from the analysis window.
+
+    Clean beats go to _raw/ (raw slice) + beats/ (processed SFX); every
+    non-clean beat's raw slice goes to beats_dropped/<category>/ so a dropped
+    beat can be inspected next to its CSV row (dirty/, skipped_too_short/,
+    dropped_duration_outlier/, dropped_loudness_outlier/). Returns (written,
+    dropped): (idx, duration_s, peak_db) and (idx, category) pairs.
+    """
+    written = []
+    dropped = []
+    for b in beats:
+        idx = b["candidate_index"]
+        i0, i1 = clip_indices(b["clip_start_s"], b["clip_end_s"], sr,
+                              args.pre_roll_ms / 1000.0)
+        if classification(b) == "clean":
+            raw_path = os.path.join(raw_dir, "beat_%03d_raw.wav" % idx)
+            out_path = os.path.join(beats_dir, "beat_%03d.wav" % idx)
+            write_wav(raw_path, x[i0:i1], sr)
+            process_clip(raw_path, out_path, args.denoise,
+                         args.normalize, args.denoise_strength)
+            written.append((idx, b["duration_s"], b["peak_db"]))
+        else:
+            cat_dir = os.path.join(dropped_dir, classification(b))
+            os.makedirs(cat_dir, exist_ok=True)
+            write_wav(os.path.join(cat_dir, "beat_%03d.wav" % idx),
+                      x[i0:i1], sr)
+            dropped.append((idx, classification(b)))
+    return written, dropped
+
+
 # ---------------------------------------------------------------------------
 # Report
 
 
-def write_report(path, beats, window_start, include_window=False):
+def write_report(path, beats, window_start, include_window=False,
+                 include_intensity=False):
     """One CSV row per beat, times absolute into the original file.
 
     With include_window, each row carries the window's label (source start)
-    in a leading "window" column -- used for --labels runs. Every beat must
-    carry "window_start" (absolute source offset); window_start is the
-    fallback for single-window runs where beats lack it.
+    in a leading "window" column -- used for --labels runs. With
+    include_intensity, each row gains the intensity columns (centroid, rms,
+    peak, plus each mode's score/tier) populated only on clean beats (blank
+    elsewhere) -- added by the --intensity pass. Every beat must carry
+    "window_start" (absolute source offset); window_start is the fallback for
+    single-window runs where beats lack it.
     """
     with open(path, "w", newline="") as f:
         out = csv.writer(f)
@@ -488,6 +635,11 @@ def write_report(path, beats, window_start, include_window=False):
         ]
         if include_window:
             header.insert(1, "window")
+        if include_intensity:
+            header += ["centroid_hz", "rms_db", "intensity_score",
+                       "intensity_tier", "intensity_peak_db",
+                       "loud_rms_score", "loud_rms_tier",
+                       "loud_peak_score", "loud_peak_tier"]
         out.writerow(header)
         for i, b in enumerate(beats):
             ws = b.get("window_start", window_start)
@@ -505,6 +657,18 @@ def write_report(path, beats, window_start, include_window=False):
             ]
             if include_window:
                 row.insert(1, _fmt(b.get("window_start", window_start)))
+            if include_intensity:
+                row += [
+                    _fmt(b.get("centroid_hz", "")) if "centroid_hz" in b else "",
+                    _fmt(b.get("rms_db", "")) if "rms_db" in b else "",
+                    _fmt(b.get("intensity_score", "")) if "intensity_score" in b else "",
+                    _fmt(b.get("intensity_tier", "")) if "intensity_tier" in b else "",
+                    _fmt(b.get("intensity_peak_db", "")) if "intensity_peak_db" in b else "",
+                    _fmt(b.get("loud_rms_score", "")) if "loud_rms_score" in b else "",
+                    _fmt(b.get("loud_rms_tier", "")) if "loud_rms_tier" in b else "",
+                    _fmt(b.get("loud_peak_score", "")) if "loud_peak_score" in b else "",
+                    _fmt(b.get("loud_peak_tier", "")) if "loud_peak_tier" in b else "",
+                ]
             out.writerow(row)
 
 
@@ -558,8 +722,36 @@ def build_parser():
     p.add_argument("--denoise-strength", type=float, default=12.0,
                    help="afftdn noise reduction in dB; higher = quieter noise "
                         "floor but risk of artifacts (default 12)")
-    p.add_argument("--no-normalize", action="store_true",
-                   help="skip loudnorm")
+    p.add_argument("--normalize", action="store_true",
+                   help="apply loudnorm to each beat (off by default, so raw "
+                        "source amplitude differences are preserved)")
+    p.add_argument("--intensity", action="store_true",
+                   help="classify clean beats by intensity and copy them into "
+                        "intensity_N/ subfolders (columns added to the report)")
+    p.add_argument("--intensity-mode",
+                   choices=["bright_loud", "loud_rms", "loud_peak", "all"],
+                   default="bright_loud",
+                   help="intensity score axis: bright_loud (brightness + RMS, "
+                        "default), loud_rms (RMS only), loud_peak (peak only), "
+                        "or all (all three, under <out>/intensity_groups/)")
+    p.add_argument("--thresholds", choices=["fixed", "adaptive"],
+                   default="adaptive",
+                   help="intensity tier boundary mode, bright_loud only; "
+                        "loud-only modes are always adaptive "
+                        "(default: adaptive)")
+    p.add_argument("--tiers", type=int, default=3,
+                   help="number of intensity tiers (default: 3)")
+    p.add_argument("--intensity-centroid-low", type=float,
+                   default=_DEFAULT_CENT_LOW,
+                   help="fixed-mode low/high centroid boundary, Hz "
+                        "(default: %s)" % _DEFAULT_CENT_LOW)
+    p.add_argument("--intensity-centroid-high", type=float,
+                   default=_DEFAULT_CENT_HIGH,
+                   help="fixed-mode high centroid boundary, Hz "
+                        "(default: %s)" % _DEFAULT_CENT_HIGH)
+    p.add_argument("--intensity-rms-ref", type=float, default=_DEFAULT_RMS_REF,
+                   help="fixed-mode absolute RMS reference, dBFS "
+                        "(default: %s)" % _DEFAULT_RMS_REF)
     p.add_argument("--dry-run", action="store_true",
                    help="report only, no extraction")
     return p
@@ -570,12 +762,78 @@ def _analyze_window(x, sr, args):
     window_len_s = len(x) / sr
     beats = detect_beats(x, sr, args.amplitude_threshold,
                          args.max_lead_in_ms / 1000.0)
+    # Recover real impacts that fell below the amplitude threshold inside the
+    # quiet gaps (a clip that swallowed a second beat gets split into two).
+    beats = _merge_beats(beats, _find_subthreshold_beats(
+        x, sr, beats, args.max_lead_in_ms / 1000.0))
     build_clips(beats, window_len_s, sr, x,
                 max_lead_in_s=args.max_lead_in_ms / 1000.0)
     filter_duration(beats, args.min_beat_ms / 1000.0, args.duration_ratio)
     classify_gaps(x, sr, beats, 10.0 ** (args.noise_floor_db / 20.0))
     filter_loudness(beats, args.loudness_outlier_db)
     return beats
+
+
+def _intensity_pass(beats, args):
+    """Score + tier the extracted clean beats (--intensity).
+
+    Runs on the already-extracted beat WAVs (raw levels unless --normalize
+    was set) and attaches each mode's score/tier to every clean beat dict so
+    the report is the full audit. Copies tiered files per --intensity-mode:
+    single modes (bright_loud default, loud_rms, loud_peak) write the old
+    flat <out>/intensity_1..N/; 'all' writes the three variants under
+    <out>/intensity_groups/intensity_by_<which>/intensity_1..N/. The common
+    features (centroid_hz, rms_db, intensity_peak_db) are attached once for
+    every run; the score/tier keys are per-mode (intensity_* for bright_loud,
+    loud_rms_* / loud_peak_* for the loud-only variants). Returns
+    {which: (boundaries, ref)} or None when nothing was classified.
+    """
+    clean = [b for b in beats if classification(b) == "clean"]
+    if not clean:
+        print("intensity: no clean beats to classify")
+        return None
+    paths = [os.path.join(args.out, "beats", "beat_%03d.wav"
+                          % b["candidate_index"]) for b in clean]
+    feats = _intensity_analyze(paths)  # already extracted; no second normalize
+
+    for b, f in zip(clean, feats):
+        b["centroid_hz"] = f["centroid_hz"]
+        b["rms_db"] = f["rms_db"]
+        b["intensity_peak_db"] = f["peak_db"]
+
+    if args.intensity_mode == "all":
+        which_list = ["bright_loud", "loud_rms", "loud_peak"]
+    else:
+        which_list = [args.intensity_mode]
+
+    result = {}
+    for which in which_list:
+        work = [dict(f) for f in feats]  # classify mutates; keep shared feats
+        if which == "bright_loud":
+            work, boundaries, ref = _intensity_classify(
+                work, args.thresholds, tiers=args.tiers,
+                cent_low=args.intensity_centroid_low,
+                cent_high=args.intensity_centroid_high,
+                rms_ref=args.intensity_rms_ref, which=which)
+        else:
+            work, boundaries, ref = _intensity_classify(
+                work, args.thresholds, tiers=args.tiers, which=which)
+        for b, f in zip(clean, work):
+            if which == "bright_loud":
+                b["intensity_score"] = f["score"]
+                b["intensity_tier"] = f["tier"]
+            else:
+                suffix = which[len("loud_"):]  # "loud_rms" -> "rms"
+                b["loud_%s_score" % suffix] = f["score"]
+                b["loud_%s_tier" % suffix] = f["tier"]
+        if args.intensity_mode == "all":
+            out_dir = os.path.join(args.out, "intensity_groups",
+                                   "intensity_by_%s" % which)
+        else:
+            out_dir = args.out
+        _intensity_copy(work, out_dir)
+        result[which] = (boundaries, ref)
+    return result
 
 
 def main(argv=None):
@@ -608,13 +866,18 @@ def main(argv=None):
                      "program?): %s" % (args.out, e))
     os.makedirs(args.out, exist_ok=True)
     raw_dir = os.path.join(args.out, "_raw")
+    beats_dir = os.path.join(args.out, "beats")
+    dropped_dir = os.path.join(args.out, "beats_dropped")
     if not args.dry_run:
         os.makedirs(raw_dir, exist_ok=True)
+        os.makedirs(beats_dir, exist_ok=True)
+        os.makedirs(dropped_dir, exist_ok=True)
 
     # Run every window; beats get a global sequential index (candidate_index)
     # so files and CSV rows line up across windows.
     all_beats = []
     written = []  # (candidate_index, duration_s, peak_db) of extracted files
+    dropped = []  # (candidate_index, category) of non-clean files
     window_info = []  # (index, start, end, analysis_len_s) for the summary
 
     for w_index, (start, end) in enumerate(windows):
@@ -638,20 +901,31 @@ def main(argv=None):
         window_info.append((w_index, start, end, window_len_s))
 
         if not args.dry_run:
-            for b in beats:
-                if classification(b) == "clean":
-                    idx = b["candidate_index"]
-                    raw_path = os.path.join(raw_dir, "beat_%03d_raw.wav" % idx)
-                    out_path = os.path.join(args.out, "beat_%03d.wav" % idx)
-                    i0, i1 = clip_indices(b["clip_start_s"], b["clip_end_s"], sr,
-                                          args.pre_roll_ms / 1000.0)
-                    write_wav(raw_path, x[i0:i1], sr)
-                    process_clip(raw_path, out_path, args.denoise,
-                                 not args.no_normalize, args.denoise_strength)
-                    written.append((idx, b["duration_s"], b["peak_db"]))
+            w, d = _write_outputs(beats, x, sr, args, raw_dir, beats_dir,
+                                  dropped_dir)
+            written.extend(w)
+            dropped.extend(d)
+
+    if args.intensity:
+        if args.dry_run:
+            print("intensity pass skipped (dry run -- nothing extracted)")
+        else:
+            res = _intensity_pass(all_beats, args)
+            if res:
+                n_clean = sum(1 for b in all_beats
+                              if classification(b) == "clean")
+                for which, (boundaries, ref) in sorted(res.items()):
+                    thr = args.thresholds if which == "bright_loud" \
+                        else "adaptive"
+                    print("intensity[%s]: %d clean beat(s) -> %d tier(s), "
+                          "%s thresholds (ref %.1f dBFS)"
+                          % (which, n_clean, args.tiers, thr, ref))
+                    if boundaries:
+                        print("  boundaries: " +
+                              ", ".join("%.3f" % b for b in boundaries))
 
     write_report(os.path.join(args.out, "beat_report.csv"), all_beats, 0.0,
-                 include_window=args.labels)
+                 include_window=args.labels, include_intensity=args.intensity)
 
     counts = {}
     for b in all_beats:
@@ -675,7 +949,10 @@ def main(argv=None):
             print("  %-26s %d" % (name, counts[name]))
     if not args.dry_run:
         for idx, dur, peak in written:
-            print("  wrote beat_%03d.wav  %.3fs  %.3f dBFS" % (idx, dur, peak))
+            print("  wrote beats/beat_%03d.wav  %.3fs  %.3f dBFS"
+                  % (idx, dur, peak))
+        for idx, cat in dropped:
+            print("  dropped beats_dropped/%s/beat_%03d.wav" % (cat, idx))
     print("report: %s" % os.path.join(args.out, "beat_report.csv"))
 
 

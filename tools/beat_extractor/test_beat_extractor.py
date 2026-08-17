@@ -1,5 +1,7 @@
 """Pure-logic tests for beat_extractor -- no ffmpeg needed."""
 
+import argparse
+import csv
 import os
 import tempfile
 
@@ -7,9 +9,13 @@ import numpy as np
 
 from beat_extractor import (
     _clear_dir,
+    _find_subthreshold_beats,
+    _intensity_pass,
+    _merge_beats,
     _peak_envelope,
     _refine_clip_end,
     _refine_clip_start,
+    _write_outputs,
     build_clips,
     classify_gaps,
     clip_indices,
@@ -19,8 +25,11 @@ from beat_extractor import (
     parse_timestamp,
     read_labels,
     read_wav,
+    write_report,
     write_wav,
 )
+
+import beat_extractor as _be
 
 SR = 44100
 
@@ -167,6 +176,96 @@ class TestRefineClipEnd(object):
         assert np.abs(x[end - 5:end]).max() < 0.05
 
 
+class TestFindSubthresholdBeats(object):
+    """A real impact below the amplitude threshold in a quiet gap must be
+    recovered as its own beat, so a clip that swallowed it gets split."""
+
+    def _three_beats(self, gap_amp=0.01):
+        """primary (0.8) + sub-threshold secondary (0.3) + third (0.9)."""
+        sr = SR
+        b1 = _beat(sr, 0.15, amp=0.8)
+        b2 = _beat(sr, 0.15, amp=0.3)
+        b3 = _beat(sr, 0.15, amp=0.9)
+        return np.concatenate([b1, _ambient(sr, 0.4, gap_amp),
+                               b2, _ambient(sr, 0.4, gap_amp), b3])
+
+    def test_recovers_subthreshold_second_beat(self):
+        x = self._three_beats()
+        beats = detect_beats(x, SR, threshold=0.5, max_lead_in_s=0.08)
+        assert len(beats) == 2  # 0.3 sits below the 0.5 threshold
+        extra = _find_subthreshold_beats(x, SR, beats, 0.08)
+        assert len(extra) == 1
+        # sits between the two detected peaks, at the planted 0.3 level
+        assert beats[0]["peak_i"] < extra[0]["peak_i"] < beats[1]["peak_i"]
+        assert extra[0]["peak"] > 0.25
+
+    def test_clean_gap_finds_nothing(self):
+        x = np.concatenate([_beat(SR, 0.15, amp=0.8),
+                            _ambient(SR, 0.4),
+                            _beat(SR, 0.15, amp=0.9)])
+        beats = detect_beats(x, SR, threshold=0.5, max_lead_in_s=0.08)
+        assert len(beats) == 2
+        assert _find_subthreshold_beats(x, SR, beats, 0.08) == []
+
+    def test_bump_on_elevated_floor_not_a_beat(self):
+        # a 0.22 bump over an elevated floor passes the size ratio
+        # (0.22 >= 0.25*0.8) but rises off ~0.05 of floor, not out of silence
+        # (contrast < 6) -- tail ring / hum, not a real separate beat
+        sr = SR
+        x = np.concatenate([
+            _beat(sr, 0.15, amp=0.8),
+            _ambient(sr, 0.4, amp=0.02),   # elevated floor (1ms env ~0.05)
+            _beat(sr, 0.15, amp=0.22),      # passes ratio, lacks contrast
+            _ambient(sr, 0.4, amp=0.02),
+            _beat(sr, 0.15, amp=0.9),
+        ])
+        beats = detect_beats(x, sr, threshold=0.5, max_lead_in_s=0.08)
+        assert len(beats) == 2
+        assert _find_subthreshold_beats(x, sr, beats, 0.08) == []
+
+    def test_recovers_secondary_in_last_beats_tail(self):
+        # a sub-threshold impact swallowed by the LAST beat is the win013
+        # failure mode: the last clip ends at the window end, so the second
+        # beat lives after the final detected crossing, not between two.
+        sr = SR
+        x = np.concatenate([
+            _beat(sr, 0.15, amp=0.8),
+            _ambient(sr, 0.4),
+            _beat(sr, 0.15, amp=0.6),
+            _ambient(sr, 0.4),
+            _beat(sr, 0.15, amp=0.3),       # sub-threshold, after the last
+            _ambient(sr, 0.2),
+        ])
+        beats = detect_beats(x, sr, threshold=0.5, max_lead_in_s=0.08)
+        assert len(beats) == 2  # 0.3 sits below the 0.5 threshold
+        extra = _find_subthreshold_beats(x, sr, beats, 0.08)
+        assert len(extra) == 1
+        assert extra[0]["peak_i"] > beats[-1]["peak_i"]  # past the last beat
+        assert extra[0]["peak"] > 0.25
+        # and it becomes a real clip boundary, splitting the long last beat
+        merged = _merge_beats(beats, extra)
+        build_clips(merged, len(x) / sr, sr, x, max_lead_in_s=0.08)
+        assert len(merged) == 3
+        assert merged[-1]["clip_end_s"] == len(x) / sr
+
+
+class TestMergeBeats(object):
+    def test_interleaves_and_sorts(self):
+        b = [{"crossing_i": 100}, {"crossing_i": 300}]
+        extra = [{"crossing_i": 200}, {"crossing_i": 50}]
+        m = _merge_beats(b, extra)
+        assert [x["crossing_i"] for x in m] == [50, 100, 200, 300]
+
+    def test_no_extra_returns_detected(self):
+        b = [{"crossing_i": 100}]
+        assert _merge_beats(b, []) is b
+
+    def test_overlap_dropped(self):
+        b = [{"crossing_i": 100}, {"crossing_i": 200}]
+        m = _merge_beats(b, [{"crossing_i": 200}])
+        assert [x["crossing_i"] for x in m] == [100, 200]
+
+
 class TestBuildClips(object):
     def _beats(self):
         b1 = {"crossing_i": 1000, "clip_start_i": 990}
@@ -245,6 +344,13 @@ class TestFilterDuration(object):
         assert abs(beats[0]["duration_median"] - 1.0) < 1e-9
         assert beats[0]["duration_band"][0] == 0.5
         assert beats[0]["duration_band"][1] == 2.0
+
+    def test_too_few_survivors_no_band(self):
+        # 2 beats: the 4x-long outlier IS half the data, so the median can't
+        # judge it -- the band must not engage (mirrors filter_loudness)
+        beats = self._beats([0.5, 2.0])
+        filter_duration(beats, 0.1, 0.5)
+        assert all(b["status"] is None for b in beats)
 
 
 class TestClassifyGaps(object):
@@ -364,3 +470,143 @@ class TestWav(object):
         assert sr == SR
         assert len(y) == len(x)
         assert np.max(np.abs(y - x)) < 0.002  # 16-bit quantization
+
+
+# ---------------------------------------------------------------------------
+# _intensity_pass (flat vs grouped out dirs + per-mode report keys)
+
+
+class TestIntensityPass(object):
+    """_intensity_pass needs real beat WAVs (analyze_files reads them) but
+    no ffmpeg -- write_wav provides the inputs."""
+
+    def _make(self, tmp_path, intensity_mode):
+        out = str(tmp_path / "out")
+        beats = os.path.join(out, "beats")
+        os.makedirs(beats)
+        write_wav(os.path.join(beats, "beat_000.wav"),
+                  _beat(SR, 0.3, freq=400.0, amp=0.2), SR)
+        write_wav(os.path.join(beats, "beat_001.wav"),
+                  _beat(SR, 0.3, freq=4000.0, amp=0.9), SR)
+        beats = [
+            {"candidate_index": 0, "clip_start_s": 1.0, "clip_end_s": 1.3,
+             "duration_s": 0.3, "peak_db": -6.0},
+            {"candidate_index": 1, "clip_start_s": 1.4, "clip_end_s": 1.7,
+             "duration_s": 0.3, "peak_db": -1.0},
+        ]
+        args = argparse.Namespace(
+            out=out,
+            intensity_mode=intensity_mode,
+            thresholds="adaptive",
+            tiers=3,
+            intensity_centroid_low=3000.0,
+            intensity_centroid_high=4500.0,
+            intensity_rms_ref=-30.0,
+        )
+        return beats, args
+
+    def test_all_writes_grouped_tree_and_all_keys(self, tmp_path):
+        beats, args = self._make(tmp_path, "all")
+        res = _intensity_pass(beats, args)
+        assert sorted(res) == ["bright_loud", "loud_peak", "loud_rms"]
+        groups = os.path.join(args.out, "intensity_groups")
+        for which in ("bright_loud", "loud_rms", "loud_peak"):
+            root = os.path.join(groups, "intensity_by_%s" % which)
+            tiers = sorted(d for d in os.listdir(root)
+                           if d.startswith("intensity_"))
+            assert tiers  # at least one tier folder holding copies
+            n_files = sum(len(os.listdir(os.path.join(root, t)))
+                          for t in tiers)
+            assert n_files == 2
+        for b in beats:
+            # common features always attached; every mode scored + tiered
+            assert b["centroid_hz"] > 0
+            assert b["rms_db"] < 0
+            assert b["intensity_peak_db"] < 0
+            assert b["intensity_tier"] in (1, 2, 3)
+            assert b["loud_rms_tier"] in (1, 2, 3)
+            assert b["loud_peak_tier"] in (1, 2, 3)
+
+    def test_single_loud_peak_writes_flat_layout(self, tmp_path):
+        beats, args = self._make(tmp_path, "loud_peak")
+        _intensity_pass(beats, args)
+        assert not os.path.exists(os.path.join(args.out, "intensity_groups"))
+        tiers = sorted(d for d in os.listdir(args.out)
+                       if d.startswith("intensity_"))
+        assert tiers
+        assert len(os.listdir(os.path.join(args.out, tiers[0]))) >= 1
+
+    def test_report_carries_every_axis_column(self, tmp_path):
+        beats, args = self._make(tmp_path, "bright_loud")
+        _intensity_pass(beats, args)
+        report = os.path.join(args.out, "beat_report.csv")
+        write_report(report, beats, 0.0, include_intensity=True)
+        with open(report) as f:
+            header = f.readline().strip().split(",")
+        for col in ("centroid_hz", "rms_db", "intensity_score",
+                    "intensity_tier", "intensity_peak_db",
+                    "loud_rms_score", "loud_rms_tier",
+                    "loud_peak_score", "loud_peak_tier"):
+            assert col in header, col
+        # bright_loud-only run: bright columns filled, loud axes blank
+        with open(report) as f:
+            rows = list(csv.reader(f))[1:]
+        for row in rows:
+            assert row[header.index("intensity_score")] != ""
+            assert row[header.index("loud_rms_score")] == ""
+
+
+# ---------------------------------------------------------------------------
+# _write_outputs (clean -> beats/, non-clean -> beats_dropped/<cat>/)
+
+
+class TestWriteOutputs(object):
+    """_write_outputs slices every beat out of the analysis window; clean ones
+    go processed to beats/, every other category to beats_dropped/<cat>/."""
+
+    def _make(self, tmp_path):
+        out = str(tmp_path / "out")
+        raw_dir = os.path.join(out, "_raw")
+        beats_dir = os.path.join(out, "beats")
+        dropped_dir = os.path.join(out, "beats_dropped")
+        for d in (out, raw_dir, beats_dir, dropped_dir):
+            os.makedirs(d)
+        x = _ambient(SR, 1.5, 0.5)
+        beats = [
+            {"candidate_index": 0, "clip_start_s": 0.05, "clip_end_s": 0.35,
+             "duration_s": 0.3, "peak_db": -10.0},
+            {"candidate_index": 1, "clip_start_s": 0.40, "clip_end_s": 0.70,
+             "duration_s": 0.3, "peak_db": -9.0, "status": "dirty"},
+            {"candidate_index": 2, "clip_start_s": 0.75, "clip_end_s": 0.95,
+             "duration_s": 0.2, "peak_db": -8.0, "status": "too_short"},
+            {"candidate_index": 3, "clip_start_s": 1.00, "clip_end_s": 1.40,
+             "duration_s": 0.4, "peak_db": -7.0, "status": "duration_outlier"},
+        ]
+        args = argparse.Namespace(pre_roll_ms=0.0, denoise=False,
+                                  normalize=False, denoise_strength=12.0)
+        return x, beats, args, raw_dir, beats_dir, dropped_dir
+
+    def test_clean_processed_and_dropped_categorized(self, tmp_path, monkeypatch):
+        x, beats, args, raw_dir, beats_dir, dropped_dir = self._make(tmp_path)
+        # process_clip shells out to ffmpeg; stub it as a raw->processed copy
+        monkeypatch.setattr(
+            _be, "process_clip",
+            lambda r, o, d, n, s: write_wav(o, read_wav(r)[0], SR))
+        written, dropped = _write_outputs(beats, x, SR, args, raw_dir,
+                                          beats_dir, dropped_dir)
+
+        assert [w[0] for w in written] == [0]
+        assert os.path.exists(os.path.join(raw_dir, "beat_000_raw.wav"))
+        assert os.path.exists(os.path.join(beats_dir, "beat_000.wav"))
+
+        assert sorted(set(c for _, c in dropped)) == [
+            "dirty", "dropped_duration_outlier", "skipped_too_short"]
+        assert os.path.exists(
+            os.path.join(dropped_dir, "dirty", "beat_001.wav"))
+        assert os.path.exists(
+            os.path.join(dropped_dir, "skipped_too_short", "beat_002.wav"))
+        assert os.path.exists(
+            os.path.join(dropped_dir, "dropped_duration_outlier",
+                         "beat_003.wav"))
+        # nothing clean leaked into a category dir, nothing dropped into beats/
+        assert sorted(os.listdir(beats_dir)) == ["beat_000.wav"]
