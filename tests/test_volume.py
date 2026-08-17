@@ -2,19 +2,16 @@
 # Tests for cue_lib.volume -- CueVolumeManager master/target volume math.
 #
 # The manager is data-pure: it reads/writes marker entries through the store
-# (FakeMarkerStore: get/save_marker/resolve_pool), touches only ctx.current_file
-# for the video key, and pokes renpy.restart_interaction (mocked no-op) after
-# writes.  adjust_video's active-pool read goes through an injected markers
-# seam so the singleton is never needed.
+# (FakeMarkerStore: get/save_marker/resolve_pool), and pokes
+# renpy.restart_interaction (mocked no-op) after writes.
 
 import pytest
 
 from cue_lib.volume import CueVolumeManager
-from cue_lib.state import _cue, CueContext
+from cue_lib.state import CueContext
 from cue_lib.constants import CUE_VOLUME_DEFAULT
-from cue_lib.util import create_vid_key
 
-from tests.fakes import FakeMarkerStore, FakeMarkers
+from tests.fakes import FakeMarkerStore
 
 
 def make_entry(volume=None, pools=None):
@@ -240,40 +237,27 @@ def test_effective_negative_clamps_at_min(vol):
 
 
 # ---------------------------------------------------------------------------
-# adjust_video -- active video pool via injected markers seam
+# marker_queue_save / flush_pending_saves -- deferred save queue
 # ---------------------------------------------------------------------------
 
-def test_adjust_video_writes_active_pool(vol, store, ctx):
-    ctx.current_file = "scene.ogv"
-    key = create_vid_key("scene.ogv")
-    store._data[key] = make_entry(volume=2.0, pools=[{"volume": 1.0}])
-    injected = CueVolumeManager(store, ctx, markers=FakeMarkers(target_pool=0))
-    injected.adjust_video(0.5)
-    assert store._data[key]["pools"][0]["volume"] == 1.5
-    assert store.saved_keys == [key]
+def test_flush_saves_queued_keys_once(store, ctx):
+    injected = CueVolumeManager(store, ctx)
+    injected.marker_queue_save("a")
+    injected.marker_queue_save("b")
+    injected.flush_pending_saves()
+    assert sorted(store.saved_keys) == ["a", "b"]
+    assert injected._pending_saves == set()
 
 
-def test_adjust_video_uses_injected_target_pool(vol, store, ctx):
-    ctx.current_file = "scene.ogv"
-    key = create_vid_key("scene.ogv")
-    store._data[key] = make_entry(
-        volume=2.0, pools=[{"volume": 1.0}, {"volume": 1.0}])
-    injected = CueVolumeManager(store, ctx, markers=FakeMarkers(target_pool=1))
-    injected.adjust_video(0.4)
-    assert store._data[key]["pools"][0]["volume"] == 1.0  # untouched
-    assert store._data[key]["pools"][1]["volume"] == 1.4
+def test_flush_empty_queue_is_noop(store, ctx):
+    injected = CueVolumeManager(store, ctx)
+    injected.flush_pending_saves()
+    assert store.saved_keys == []
 
 
-def test_adjust_video_missing_entry_is_noop(vol, ctx):
-    ctx.current_file = "nope.ogv"
-    vol.adjust_video(0.5)
-    assert vol._store.saved_keys == []
-
-
-def test_adjust_video_falls_back_to_singleton_markers(store, ctx, monkeypatch):
-    ctx.current_file = "scene.ogv"
-    key = create_vid_key("scene.ogv")
-    store._data[key] = make_entry(volume=2.0, pools=[{"volume": 1.0}])
-    monkeypatch.setattr(_cue, "markers", FakeMarkers(target_pool=0))
-    CueVolumeManager(store, ctx).adjust_video(0.5)
-    assert store._data[key]["pools"][0]["volume"] == 1.5
+def test_requeue_before_flush_dedupes(store, ctx):
+    injected = CueVolumeManager(store, ctx)
+    injected.marker_queue_save("a")
+    injected.marker_queue_save("a")
+    injected.flush_pending_saves()
+    assert store.saved_keys == ["a"]

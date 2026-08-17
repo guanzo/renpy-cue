@@ -53,18 +53,11 @@ screen cue_h_divider(color=None):
     add Solid(color or _cue_color_divider) ysize 1
 
 
-# Volume row: label + - button + slider bar + + button
-# dec_action/inc_action are pre-built Function() objects — call sites differ
-# in which adjust function they use (master vs pool vs video-pool vs loop).
-screen cue_vol_row(label_text, dec_action, entry_dict, inc_action, key):
+# Volume row: label + slider bar
+screen cue_vol_row(label_text, entry_dict, key):
     hbox:
         spacing 3
         text label_text style "cue_txt" size 11
-        # textbutton "-":
-        #     style "cue_btn_icon"
-        #     text_style "cue_btn_icon_text"
-        #     xsize 18
-        #     action dec_action
         bar:
             value _CueVolumeValue(entry_dict, "volume", key, range=_cue.volume.VOL_MAX)
             xsize 60
@@ -73,11 +66,6 @@ screen cue_vol_row(label_text, dec_action, entry_dict, inc_action, key):
             right_bar Solid(_cue_color_bg_input)
             thumb Solid(_cue_color_text)
             hover_thumb Solid(_cue_color_text_white)
-        # textbutton "+":
-        #     style "cue_btn_icon"
-        #     text_style "cue_btn_icon_text"
-        #     xsize 18
-        #     action inc_action
 
 # Icon button: tiny button with cue_btn_icon / cue_btn_icon_text styles.
 # Most callers don't need xsize (style default is 14); pass an int to override.
@@ -488,9 +476,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
         if _entry:
             $ _entry.setdefault("volume", _cue.volume.VOL_DEFAULT)
             $ _master_vol = _entry.get("volume", _cue.volume.VOL_DEFAULT)
-            $ _dec = Function(_cue.volume.adjust_master, key, -0.1)
-            $ _inc = Function(_cue.volume.adjust_master, key, 0.1)
-            use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _dec, _entry, _inc, key)
+            use cue_vol_row("Master Volume: {:.1f}".format(_master_vol), _entry, key)
         if key:
             $ _excl_ctx = ctx if ctx.ONE_SHOT else None
             use cue_pool_tabs(len(_pools), _target, bool(_pools),
@@ -535,11 +521,9 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                         tt=_excl_tt,
                         bg=_exclusive_bg)
                 use cue_icon_btn("xmark", Function(ctx.remove_pool, _target), "Delete pool", None)
-                $ _dec = Function(_cue.volume.adjust, key, -0.1, _target)
-                $ _inc = Function(_cue.volume.adjust, key, 0.1, _target)
                 null width 5
                 $ _vol_label = "Volume: {:.1f}".format(_active_vol)
-                use cue_vol_row(_vol_label, _dec, _active_pool, _inc, key)
+                use cue_vol_row(_vol_label, _active_pool, key)
 
             transclude
             if _r.files:

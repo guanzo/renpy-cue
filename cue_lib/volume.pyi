@@ -1,10 +1,9 @@
 # Type stub for cue_lib.volume
-from typing import Optional
+from typing import Optional, Set
 
 from cue_lib._types import MarkerEntry
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.state import CueContext
-from cue_lib.markers import CueMarkerManager
 
 class CueVolumeManager:
     VOL_MIN: float
@@ -12,13 +11,12 @@ class CueVolumeManager:
     VOL_MAX: float
     _store: CueMarkerStore
     _ctx: CueContext
-    _markers: Optional[CueMarkerManager]
+    _pending_saves: Set[str]
 
     def __init__(
         self,
         store: CueMarkerStore,
-        ctx: CueContext,
-        markers: Optional[CueMarkerManager] = None) -> None: ...
+        ctx: CueContext) -> None: ...
     def get(
         self,
         entry: Optional[MarkerEntry],
@@ -34,6 +32,5 @@ class CueVolumeManager:
         entry: Optional[MarkerEntry],
         trigger_key: Optional[str] = None,
         pool_index: Optional[int] = None) -> float: ...
-    def adjust_video(self, delta: float) -> None: ...
     def marker_queue_save(self, key: str) -> None: ...
     def flush_pending_saves(self) -> None: ...

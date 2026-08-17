@@ -115,7 +115,7 @@ class FakeMarkerStore(object):
 
 
 class FakeVideoContext(object):
-    """Stand-in for CueVideoContext: carries target_pool (volume.adjust_video)
+    """Stand-in for CueVideoContext: carries target_pool.
     and the get_markers() list (_tick_video)."""
 
     def __init__(self, target_pool=0, markers=None):

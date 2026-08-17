@@ -5,8 +5,6 @@
 import renpy
 
 from cue_lib.constants import CUE_VOLUME_DEFAULT
-from cue_lib.state import _cue
-from cue_lib.util import create_vid_key
 
 MYPY = False
 if MYPY:
@@ -14,7 +12,6 @@ if MYPY:
     from cue_lib._types import MarkerEntry
     from cue_lib.marker_store import CueMarkerStore
     from cue_lib.state import CueContext
-    from cue_lib.markers import CueMarkerManager
 
 
 class CueVolumeManager(object):
@@ -28,15 +25,10 @@ class CueVolumeManager(object):
     VOL_DEFAULT = CUE_VOLUME_DEFAULT  # legacy alias; new code uses CUE_VOLUME_DEFAULT
     VOL_MAX = 3.0
 
-    def __init__(self, store, ctx, markers=None):
-        # type: (CueMarkerStore, CueContext, Optional[CueMarkerManager]) -> None
+    def __init__(self, store, ctx):
+        # type: (CueMarkerStore, CueContext) -> None
         self._store = store
         self._ctx = ctx
-        # Coordinator for adjust_video()'s active-pool read.  Injected in
-        # tests; in the game it resolves to the singleton at call time (the
-        # manager is wired after volume).  Everything else is data, served by
-        # the store.
-        self._markers = markers
         self._pending_saves = set()
 
     def marker_queue_save(self, key):
@@ -48,7 +40,7 @@ class CueVolumeManager(object):
         # Discarding mid-iteration mutates the set -- copy first.
         for key in list(self._pending_saves):
             self._pending_saves.discard(key)
-            _cue.markers.save_marker(key)
+            self._store.save_marker(key)
 
     def get(self, entry, trigger_key=None, pool_index=None):
         # type: (Optional[MarkerEntry], Optional[str], Optional[int]) -> float
@@ -148,15 +140,3 @@ class CueVolumeManager(object):
                 return max(self.VOL_MIN, min(self.VOL_MAX, master * resolved.volume))
         return master
 
-    # --- Convenience: video pool volume ---
-
-    def adjust_video(self, delta):
-        # type: (float) -> None
-        """Adjust volume on the active video pool."""
-        vid_key = create_vid_key(self._ctx.current_file)
-        entry = self._store.get(vid_key)
-        if entry is None:
-            return
-        pi = (self._markers if self._markers is not None else _cue.markers).video.target_pool
-        current = self.get(entry, vid_key, pool_index=pi)
-        self.write(vid_key, current + delta, pool_index=pi)
