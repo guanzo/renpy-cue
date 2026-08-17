@@ -128,36 +128,16 @@ screen cue_video_sfx():
                     box_wrap True
                     box_wrap_spacing 3
                     text _active_label style "cue_txt"
+                    if _multi_selected:
+                        $ _n_selected = len(_cue.markers.video.get_selected())
+                        text "(Edits apply to all {} selected markers)".format(_n_selected) style "cue_help"
 
-                    null width 5
 
-                    use cue_icon_btn(
-                        "clone",
-                        Function(_cue.markers.video.duplicate_pool, _vid_target),
-                        "Duplicate pool",
-                        None,
-                    )
-                    use cue_icon_btn(
-                        "xmark",
-                        Function(_cue.markers.video.delete_pool_ui),
-                        ("Delete selected pools" if _multi_selected else "Delete pool"),
-                        None,
-                    )
-                    use cue_icon_btn(
-                        "trash-can",
-                        Function(_cue.markers.video.clear_selected_files),
-                        "Delete all files from the selected pool(s)",
-                        None,
-                    )
-
-                    # Volume controls
-                    $ _vol_target.setdefault("volume", _cue.volume.VOL_DEFAULT)
-                    null width 5
-                    $ _vol_label = "Volume: {:.1f}".format(_active_vol)
-                    $ _vol_multi_setter = _cue.markers.video.set_selected_volume if _multi_selected else None
-                    use cue_vol_row(_vol_label, _vol_target, _vid_key, multi_setter=_vol_multi_setter)
                 hbox:
-                    spacing 3
+                    spacing 5
+                    box_wrap True
+                    box_wrap_spacing 3
+
                     text "Time:" style "cue_txt" size 11
                     $ _dec10 = Function(_cue.markers.video.nudge, -0.01)
                     $ _dec100 = Function(_cue.markers.video.nudge, -0.1)
@@ -167,6 +147,35 @@ screen cue_video_sfx():
                     $ _display = _cue_format_time(_active_pool.get("time", 0))
                     use cue_time_input("_cue.markers.video.edit_text", _commit, _dec100, _dec10,
                                         _inc10, _inc100, _display)
+                                     
+                    null width 5
+                       
+                    use cue_icon_btn(
+                        "clone",
+                        Function(_cue.markers.video.duplicate_pool, _vid_target),
+                        ("Duplicate selected pools" if _multi_selected else "Duplicate pool"),
+                        None,
+                    )
+                    use cue_icon_btn(
+                        "folder-minus",
+                        Function(_cue.markers.video.delete_pool_ui),
+                        ("Delete selected pools" if _multi_selected else "Delete pool"),
+                        None,
+                    )
+                    use cue_icon_btn(
+                        "file-circle-minus",
+                        Function(_cue.markers.video.clear_selected_files),
+                        ("Delete all files from selected pools" if _multi_selected else "Delete all files from pool"),
+                        None,
+                    )
+
+                    null width 5
+                    # Volume controls
+                    $ _vol_target.setdefault("volume", _cue.volume.VOL_DEFAULT)
+                    $ _vol_label = "Volume: {:.1f}".format(_active_vol)
+                    $ _vol_multi_setter = _cue.markers.video.set_selected_volume if _multi_selected else None
+                    use cue_vol_row(_vol_label, _vol_target, _vid_key, multi_setter=_vol_multi_setter)
+                
                 # File list
                 if _is_preset_ts:
                     # Preset-backed: render as expandable folder via cue_file_list

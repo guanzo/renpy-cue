@@ -218,7 +218,7 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
     default editing = False
     hbox:
         spacing 3
-        use cue_icon_btn("--", dec100_action, None, 22)
+        #use cue_icon_btn("--", dec100_action, None, 22)
         use cue_icon_btn("-", dec10_action)
 
         if editing:
@@ -234,7 +234,7 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
                 tt="Click to edit. Press Enter to confirm.")
 
         use cue_icon_btn("+", inc10_action)
-        use cue_icon_btn("++", inc100_action, None, 22)
+        #use cue_icon_btn("++", inc100_action, None, 22)
 
 # Text input: textbutton that becomes an input on click, Enter to confirm.
 # field_name: string for _CueFieldValue (e.g. "_cue.setup_dir_text")

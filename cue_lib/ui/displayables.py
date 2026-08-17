@@ -487,8 +487,13 @@ class CueVideoMarkerTimeline(Displayable):
                     sel.discard(hit_idx)
                 else:
                     sel.add(hit_idx)
-                # Active stays the anchor: it was pulled into the group
-                # above, so it must not jump to the leftmost marker.
+                # The active stays anchored while the group grows.  If the
+                # active marker itself was just toggled out, re-anchor to the
+                # nearest remaining group member so the panel keeps showing a
+                # selected pool.
+                if hit_idx == self.get_active() and hit_idx not in sel and sel:
+                    nearest = min(sel, key=lambda i: abs(markers[i]["time"] - markers[hit_idx]["time"]))
+                    self.set_active(nearest)
                 _cue.markers.video.selected = sel
                 renpy.redraw(self, 0)
                 renpy.restart_interaction()

@@ -52,6 +52,8 @@ CUE_ICON_MAP = {
     "clone": ("clone-regular.png", False),
     "copy": ("copy-regular.png", False),
     "file": ("file-solid.png", False),
+    "file-circle-minus": ("file-circle-minus-solid.png", False),
+    "folder-minus": ("folder-minus-solid.png", False),
     "folder-open": ("folder-open-solid.png", False),
     "undo": ("reply-solid.png", False),
     "redo": ("reply-solid.png", True),

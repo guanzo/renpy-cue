@@ -104,6 +104,37 @@ def test_alt_click_group_keeps_active_anchor(monkeypatch):
     assert video.set_active_calls == []
 
 
+def test_alt_click_active_toggles_out_and_reanchors(monkeypatch):
+    monkeypatch.setattr(pygame.key, "get_mods", lambda: pygame.KMOD_LALT)
+    timeline, video = _make_timeline(selected={0, 1, 3}, active=3,
+                                     times=[0.2, 0.4, 0.6, 0.8])
+    timeline._w = 200
+    # Alt-click the active marker (pool 4, px=80 -> screen x=90): the group
+    # drops it and the active re-anchors to the nearest remaining member by
+    # time (pool 2 at 0.4 is closest to the removed 0.8, not pool 1 at 0.2).
+    with pytest.raises(IgnoreEvent):
+        timeline.event(_click(), 90, 15, 0.0)
+
+    assert video.selected == {0, 1}
+    assert video.active == 1
+    assert video.set_active_calls == [1]
+
+
+def test_alt_click_other_member_keeps_active(monkeypatch):
+    monkeypatch.setattr(pygame.key, "get_mods", lambda: pygame.KMOD_LALT)
+    timeline, video = _make_timeline(selected={0, 1, 3}, active=3,
+                                     times=[0.2, 0.4, 0.6, 0.8])
+    timeline._w = 200
+    # Alt-click a NON-active group member (pool 2, px=40 -> screen x=50):
+    # it leaves the group but the active stays anchored.
+    with pytest.raises(IgnoreEvent):
+        timeline.event(_click(), 50, 15, 0.0)
+
+    assert video.selected == {0, 3}
+    assert video.active == 3
+    assert video.set_active_calls == []
+
+
 def test_shift_click_range_keeps_active_anchor(monkeypatch):
     monkeypatch.setattr(pygame.key, "get_mods", lambda: pygame.KMOD_SHIFT)
     timeline, video = _make_timeline(selected=set(), active=3,
