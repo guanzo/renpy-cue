@@ -51,8 +51,8 @@ class CueMusicManager(object):
     self.last_event and logs it (debug mode only); other channels are
     forwarded untouched."""
 
-    def __init__(self, store, ctx, db, paths):
-        # type: (CueMarkerStore, CueContext, CueDatabase, CuePaths) -> None
+    def __init__(self, ctx, store, db, paths):
+        # type: (CueContext, CueMarkerStore, CueDatabase, CuePaths) -> None
         self._store = store
         self._ctx = ctx
         self._db = db

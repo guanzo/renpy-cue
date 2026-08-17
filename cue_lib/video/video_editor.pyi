@@ -108,11 +108,11 @@ class CueVideoEditor:
 
     def __init__(
         self,
+        ctx: CueContext,
         ffmpeg: CueFFmpeg,
         speed_resolver: CueVidSpeedResolver,
         vid_manager: CueVideoManager,
-        paths: CuePaths,
-        ctx: CueContext) -> None: ...
+        paths: CuePaths) -> None: ...
     @property
     def processing(self) -> bool: ...
     @property

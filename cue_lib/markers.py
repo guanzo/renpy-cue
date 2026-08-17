@@ -688,8 +688,8 @@ class CueLoopContext(CueMarkerContext):
 
 class CueMarkerManager(object):
 
-    def __init__(self, store, ctx, vid_manager, sfx_manager, trigger, video_editor, confirm_dialog):
-        # type: (CueMarkerStore, CueContext, CueVideoManager, CueSfxManager, CueTriggerEngine, CueVideoEditor, CueConfirmDialog) -> None
+    def __init__(self, ctx, store, vid_manager, sfx_manager, trigger, video_editor, confirm_dialog):
+        # type: (CueContext, CueMarkerStore, CueVideoManager, CueSfxManager, CueTriggerEngine, CueVideoEditor, CueConfirmDialog) -> None
         self._store = store
         self._ctx = ctx
         self._vid_manager = vid_manager

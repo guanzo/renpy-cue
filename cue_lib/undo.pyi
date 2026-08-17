@@ -18,8 +18,8 @@ class CueUndoManager:
 
     def __init__(
         self,
-        store: CueMarkerStore,
         ctx: CueContext,
+        store: CueMarkerStore,
         video_editor: CueVideoEditor,
         markers: Optional[CueMarkerManager] = None) -> None: ...
     def seed(self) -> None: ...

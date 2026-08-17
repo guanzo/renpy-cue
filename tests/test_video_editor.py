@@ -61,11 +61,11 @@ def ve(tmp_path, monkeypatch):
     """A real CueVideoEditor wired to fakes; gamedir points at tmp_path."""
     monkeypatch.setattr(_config, "gamedir", str(tmp_path))
     return CueVideoEditor(
+        CueContext(),
         FakeFFmpeg(cache=0),
         FakeVidSpeedResolver(),
         FakeVidPathManager(vpath="movies/scene.webm"),
         FakePathsVideo(video_dir=str(tmp_path)),
-        CueContext(),
     )
 
 

@@ -33,8 +33,8 @@ class CueUndoManager(object):
     MAX_UNDO = 20
     DEDUPE_WINDOW = 0.15  # seconds -- saves within this window share a slot
 
-    def __init__(self, store, ctx, video_editor, markers=None):
-        # type: (CueMarkerStore, CueContext, CueVideoEditor, Optional[CueMarkerManager]) -> None
+    def __init__(self, ctx, store, video_editor, markers=None):
+        # type: (CueContext, CueMarkerStore, CueVideoEditor, Optional[CueMarkerManager]) -> None
         self._store = store
         self._ctx = ctx
         self._video_editor = video_editor

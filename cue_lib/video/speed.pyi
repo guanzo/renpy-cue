@@ -62,9 +62,9 @@ class CueVidSpeedResolver:
 
     def __init__(
         self,
+        ctx: CueContext,
         store: CueMarkerStore,
         vid_manager: CueVideoManager,
-        ctx: CueContext,
         video_sequence: CueVidSpeedSequence,
         speed_toast: CueSpeedToast,
         paths: CuePaths) -> None: ...

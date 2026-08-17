@@ -764,8 +764,8 @@ class CueVideoEditor(object):
     MODE_INTERPOLATE = CUE_VE_MODE_INTERPOLATE
     MODE_FAST_PREVIEW = CUE_VE_MODE_FAST_PREVIEW
 
-    def __init__(self, ffmpeg, speed_resolver, vid_manager, paths, ctx):
-        # type: (CueFFmpeg, CueVidSpeedResolver, CueVideoManager, CuePaths, CueContext) -> None
+    def __init__(self, ctx, ffmpeg, speed_resolver, vid_manager, paths):
+        # type: (CueContext, CueFFmpeg, CueVidSpeedResolver, CueVideoManager, CuePaths) -> None
         self._ffmpeg = ffmpeg
         self._speed_resolver = speed_resolver
         self._vid_manager = vid_manager

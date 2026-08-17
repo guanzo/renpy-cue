@@ -132,8 +132,8 @@ def _cue_auto_preset_description(preset_name):
 class CueAutoSpeedGenerator(object):
     """Procedural speed sequence generator."""
 
-    def __init__(self, store, speed_resolver, vid_manager, video_sequence, ctx):
-        # type: (CueMarkerStore, CueVidSpeedResolver, CueVideoManager, CueVidSpeedSequence, CueContext) -> None
+    def __init__(self, ctx, store, speed_resolver, vid_manager, video_sequence):
+        # type: (CueContext, CueMarkerStore, CueVidSpeedResolver, CueVideoManager, CueVidSpeedSequence) -> None
         self._store = store
         self._speed_resolver = speed_resolver
         self._vid_manager = vid_manager

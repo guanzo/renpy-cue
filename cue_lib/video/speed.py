@@ -52,8 +52,8 @@ class CueSpeedMode(object):
 
 
 class CueVidSpeedResolver(object):
-    def __init__(self, store, vid_manager, ctx, video_sequence, speed_toast, paths):
-        # type: (CueMarkerStore, CueVideoManager, CueContext, CueVidSpeedSequence, CueSpeedToast, CuePaths) -> None
+    def __init__(self, ctx, store, vid_manager, video_sequence, speed_toast, paths):
+        # type: (CueContext, CueMarkerStore, CueVideoManager, CueVidSpeedSequence, CueSpeedToast, CuePaths) -> None
         self._store = store
         self._vid_manager = vid_manager
         self._ctx = ctx

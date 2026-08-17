@@ -163,23 +163,23 @@ init -900 python:
         marker_store = CueMarkerStore(db, paths, lambda: undo.capture())
 
         vid_manager = CueVideoManager(_cue.ctx)
-        volume = CueVolumeManager(marker_store, _cue.ctx)
+        volume = CueVolumeManager(_cue.ctx, marker_store)
         video_sequence = CueVidSpeedSequence()
         speed_toast = CueSpeedToast()
         speed_resolver = CueVidSpeedResolver(
-            marker_store, vid_manager, _cue.ctx,
+            _cue.ctx, marker_store, vid_manager,
             video_sequence, speed_toast, paths)
         auto_speed = CueAutoSpeedGenerator(
-            marker_store, speed_resolver, vid_manager,
-            video_sequence, _cue.ctx)
-        repeater = CueMarkerRepeater(marker_store, vid_manager, _cue.ctx)
+            _cue.ctx, marker_store, speed_resolver,
+            vid_manager, video_sequence)
+        repeater = CueMarkerRepeater(_cue.ctx, marker_store, vid_manager)
         ffmpeg = CueFFmpeg()
         video_editor = CueVideoEditor(
-            ffmpeg, speed_resolver, vid_manager,
-            paths, _cue.ctx)
+            _cue.ctx, ffmpeg, speed_resolver,
+            vid_manager, paths)
         # undo takes the video editor (for post-restore UI refresh); both are
         # referenced only at call time by the store's on_save lambda above.
-        undo = CueUndoManager(marker_store, _cue.ctx, video_editor)
+        undo = CueUndoManager(_cue.ctx, marker_store, video_editor)
         trigger = CueTriggerEngine(
             marker_store, repeater, speed_resolver, vid_manager)
         sfx_manager = CueSfxManager(paths, db)
@@ -188,14 +188,14 @@ init -900 python:
         confirm_dialog = CueConfirmDialog()
         keybinds = CueKeybindsManager(db)
         icons = CueIconManager(paths)
-        music = CueMusicManager(marker_store, _cue.ctx, db, paths)
+        music = CueMusicManager(_cue.ctx, marker_store, db, paths)
 
         # markers is the coordinator, wired LAST so every injected collaborator
         # (vid_manager, sfx_manager, trigger, video_editor, confirm_dialog) is
         # already constructed.  The store is its data layer; ctx carries the
         # per-scene context state.
         markers = CueMarkerManager(
-            marker_store, _cue.ctx, vid_manager,
+            _cue.ctx, marker_store, vid_manager,
             sfx_manager, trigger, video_editor,
             confirm_dialog)
 

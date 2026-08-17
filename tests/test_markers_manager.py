@@ -21,7 +21,7 @@ def mgr(cue_env):
     ctx = CueContext()
     vid = FakeVidManager(duration=10.0)
     sfx = FakeSfxManager()
-    return CueMarkerManager(store, ctx, vid, sfx, None, None, None)
+    return CueMarkerManager(ctx, store, vid, sfx, None, None, None)
 
 
 # ---------------------------------------------------------------------------

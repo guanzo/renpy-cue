@@ -133,8 +133,8 @@ class CueMarkerManager:
 
     def __init__(
         self,
-        store: CueMarkerStore,
         ctx: CueContext,
+        store: CueMarkerStore,
         vid_manager: CueVideoManager,
         sfx_manager: CueSfxManager,
         trigger: CueTriggerEngine,

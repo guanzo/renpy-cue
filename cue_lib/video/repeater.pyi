@@ -28,9 +28,9 @@ class CueMarkerRepeater:
 
     def __init__(
         self,
+        ctx: CueContext,
         store: CueMarkerStore,
         vid_manager: CueVideoManager,
-        ctx: CueContext,
         markers: Optional[CueMarkerManager] = None) -> None: ...
     def _sync_tracked(self) -> None: ...
     def _video_ctx(self) -> Any: ...

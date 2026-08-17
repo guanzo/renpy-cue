@@ -15,8 +15,8 @@ class CueVolumeManager:
 
     def __init__(
         self,
-        store: CueMarkerStore,
-        ctx: CueContext) -> None: ...
+        ctx: CueContext,
+        store: CueMarkerStore) -> None: ...
     def get(
         self,
         entry: Optional[MarkerEntry],

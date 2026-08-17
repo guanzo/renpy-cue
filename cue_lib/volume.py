@@ -25,8 +25,8 @@ class CueVolumeManager(object):
     VOL_DEFAULT = CUE_VOLUME_DEFAULT  # legacy alias; new code uses CUE_VOLUME_DEFAULT
     VOL_MAX = 3.0
 
-    def __init__(self, store, ctx):
-        # type: (CueMarkerStore, CueContext) -> None
+    def __init__(self, ctx, store):
+        # type: (CueContext, CueMarkerStore) -> None
         self._store = store
         self._ctx = ctx
         self._pending_saves = set()

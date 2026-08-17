@@ -24,8 +24,8 @@ class CueMarkerRepeater(object):
     Opens over the selected video markers, lets the user set an interval
     and repeat count, then clones the pattern N times at that spacing."""
 
-    def __init__(self, store, vid_manager, ctx, markers=None):
-        # type: (CueMarkerStore, CueVideoManager, CueContext, Optional[CueMarkerManager]) -> None
+    def __init__(self, ctx, store, vid_manager, markers=None):
+        # type: (CueContext, CueMarkerStore, CueVideoManager, Optional[CueMarkerManager]) -> None
         self._store = store
         self._vid_manager = vid_manager
         self._ctx = ctx

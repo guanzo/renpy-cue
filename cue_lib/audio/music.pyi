@@ -29,8 +29,8 @@ class CueMusicManager:
 
     def __init__(
         self,
-        store: CueMarkerStore,
         ctx: CueContext,
+        store: CueMarkerStore,
         db: CueDatabase,
         paths: CuePaths) -> None: ...
     def install(self) -> None: ...

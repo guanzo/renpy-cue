@@ -36,7 +36,7 @@ def ctx():
 
 @pytest.fixture
 def vol(store, ctx):
-    return CueVolumeManager(store, ctx)
+    return CueVolumeManager(ctx, store)
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +241,7 @@ def test_effective_negative_clamps_at_min(vol):
 # ---------------------------------------------------------------------------
 
 def test_flush_saves_queued_keys_once(store, ctx):
-    injected = CueVolumeManager(store, ctx)
+    injected = CueVolumeManager(ctx, store)
     injected.marker_queue_save("a")
     injected.marker_queue_save("b")
     injected.flush_pending_saves()
@@ -250,13 +250,13 @@ def test_flush_saves_queued_keys_once(store, ctx):
 
 
 def test_flush_empty_queue_is_noop(store, ctx):
-    injected = CueVolumeManager(store, ctx)
+    injected = CueVolumeManager(ctx, store)
     injected.flush_pending_saves()
     assert store.saved_keys == []
 
 
 def test_requeue_before_flush_dedupes(store, ctx):
-    injected = CueVolumeManager(store, ctx)
+    injected = CueVolumeManager(ctx, store)
     injected.marker_queue_save("a")
     injected.marker_queue_save("a")
     injected.flush_pending_saves()
