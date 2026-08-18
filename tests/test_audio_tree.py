@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
-# Tests for the audio-library tree managers: CueAudioTreeManager (scan, tree
-# walk, search cap), CueUserMusic / CueGameMusic (scan sources), and
+# Tests for the audio-library tree managers: the pure _cue_filter_tree search
+# helper (util.py), CueAudioTreeManager (scan, tree walk, search cap,
+# debounced rebuild), CueUserMusic / CueGameMusic (scan sources), and
 # CueSfxManager (file enable toggle, preset/folder expand state, pool-ref
 # rows, overlay mode).
 
+import copy
 import os
 import types
 
@@ -21,8 +23,23 @@ from cue_lib.audio.game_music import CueGameMusic
 from cue_lib.audio.sfx_manager import CueSfxManager
 from cue_lib.audio.user_music import CueUserMusic
 from cue_lib.constants import CUE_MUSIC_PREFIX
+from cue_lib.util import _cue_build_tree, _cue_filter_tree
 
 from tests.fakes import FakeDb
+
+# Small tree spanning folder-name, file-name, and multi-term matches.
+FILES = [
+    "v2/agrat/01_SubtleMo.mp3",
+    "v2/agrat/02_IntenseMo.mp3",
+    "v2/agrat/03_ClosedMo.mp3",
+    "v2/amira/01_NormalMo.mp3",
+    "v2/anya/04_IntenseMo.mp3",
+    "v2/nora/03_IntenseMo.mp3",
+]
+
+
+def _children_names(items):
+    return [c["name"] for c in items]
 
 
 class _ScanSrc(CueAudioTreeManager):
@@ -39,6 +56,93 @@ class _ScanSrc(CueAudioTreeManager):
 def _rows(manager):
     return [(r["type"], r["name"], r["full_path"], r["depth"])
             for r in manager.visible_tree]
+
+
+# ==========================================================================
+# _cue_filter_tree (pure)
+# ==========================================================================
+
+def test_filter_tree_case_insensitive_file_match():
+    tree = _cue_build_tree(["v2/agrat/02_IntenseMo.mp3", "v2/amira/01_NormalMo.mp3"])
+    filtered = _cue_filter_tree(tree, "intense")
+    # v2/ and agrat/ survive as ancestors of the match; amira/ is pruned.
+    assert _children_names(filtered) == ["v2/"]
+    v2 = filtered[0]
+    assert _children_names(v2["children"]) == ["agrat/"]
+    assert _children_names(v2["children"][0]["children"]) == ["02_IntenseMo.mp3"]
+
+
+def test_filter_tree_folder_match_keeps_full_contents():
+    tree = _cue_build_tree(["v2/agrat/01_SubtleMo.mp3", "v2/agrat/02_IntenseMo.mp3",
+                            "v2/agrat/03_ClosedMo.mp3"])
+    filtered = _cue_filter_tree(tree, "agrat")
+    assert _children_names(filtered) == ["v2/"]
+    agrat = filtered[0]["children"][0]
+    assert _children_names(agrat["children"]) == [
+        "01_SubtleMo.mp3", "02_IntenseMo.mp3", "03_ClosedMo.mp3",
+    ]
+
+
+def test_filter_tree_prunes_unrelated_branches():
+    filtered = _cue_filter_tree(_cue_build_tree(FILES), "intense")
+    assert _children_names(filtered) == ["v2/"]
+    v2 = filtered[0]
+    # amira/ removed entirely; siblings keep only their matching file.
+    assert _children_names(v2["children"]) == ["agrat/", "anya/", "nora/"]
+    assert _children_names(v2["children"][0]["children"]) == ["02_IntenseMo.mp3"]
+    assert _children_names(v2["children"][1]["children"]) == ["04_IntenseMo.mp3"]
+    assert _children_names(v2["children"][2]["children"]) == ["03_IntenseMo.mp3"]
+
+
+def test_filter_tree_multi_term_and():
+    filtered = _cue_filter_tree(_cue_build_tree(FILES), "nora intense")
+    v2 = filtered[0]
+    assert _children_names(v2["children"]) == ["nora/"]
+    assert _children_names(v2["children"][0]["children"]) == ["03_IntenseMo.mp3"]
+
+
+def test_filter_tree_pipe_or():
+    filtered = _cue_filter_tree(_cue_build_tree(FILES), "amira|anya")
+    v2 = filtered[0]
+    assert _children_names(v2["children"]) == ["amira/", "anya/"]
+    # Folder-name matches keep all descendants.
+    assert _children_names(v2["children"][0]["children"]) == ["01_NormalMo.mp3"]
+
+
+def test_filter_tree_pipe_or_with_and_alternative():
+    filtered = _cue_filter_tree(_cue_build_tree(FILES), "nora intense|amira")
+    v2 = filtered[0]
+    # amira matches by folder name (all contents); nora matches only the file
+    # that contains both "nora" and "intense".
+    assert _children_names(v2["children"]) == ["amira/", "nora/"]
+    assert _children_names(v2["children"][0]["children"]) == ["01_NormalMo.mp3"]
+    assert _children_names(v2["children"][1]["children"]) == ["03_IntenseMo.mp3"]
+
+
+def test_filter_tree_escaped_pipe_literal():
+    tree = _cue_build_tree(["v2/mix|take/01.wav"])
+    filtered = _cue_filter_tree(tree, "mix\\|take")
+    assert _children_names(filtered) == ["v2/"]
+    assert _children_names(filtered[0]["children"]) == ["mix|take/"]
+
+
+def test_filter_tree_empty_query_matches_nothing():
+    tree = _cue_build_tree(FILES)
+    assert _cue_filter_tree(tree, "") == []
+    assert _cue_filter_tree(tree, "   ") == []
+
+
+def test_filter_tree_preserves_ordering():
+    tree = _cue_build_tree(["b/x.mp3", "a/x.mp3"])
+    filtered = _cue_filter_tree(tree, "x")
+    assert _children_names(filtered) == ["a/", "b/"]
+
+
+def test_filter_tree_does_not_mutate_source():
+    tree = _cue_build_tree(FILES)
+    snapshot = copy.deepcopy(tree)
+    _cue_filter_tree(tree, "intense")
+    assert tree == snapshot
 
 
 # ==========================================================================
@@ -107,40 +211,70 @@ def test_rebuild_tree_expanded_folder_shows_children():
     ]
 
 
-def test_rebuild_tree_search_filters_and_force_expands():
-    m = _ScanSrc(["a/b.ogg", "a/c.ogg", "z.ogg"])
-    m.scan()
-    m.search_query = "b"
-    m.rebuild_tree()
-    assert _rows(m) == [
-        ("folder", "a/", "a/", 0),
-        ("file", "b.ogg", "a/b.ogg", 1),
+def test_rebuild_tree_search_filters_and_expands_all():
+    mgr = CueAudioTreeManager()
+    mgr.tree = _cue_build_tree(FILES)
+    mgr.search_query = "intense"
+    mgr.rebuild_tree()
+    folders = [row for row in mgr.visible_tree if row["type"] == "folder"]
+    assert folders
+    assert all(row["expanded"] for row in folders)
+    files = [row["full_path"] for row in mgr.visible_tree if row["type"] == "file"]
+    assert files == [
+        "v2/agrat/02_IntenseMo.mp3",
+        "v2/anya/04_IntenseMo.mp3",
+        "v2/nora/03_IntenseMo.mp3",
     ]
-    assert m.search_truncated == 0
 
 
-def test_rebuild_tree_search_truncates_overflow():
-    files = ["f{:03d}.ogg".format(i) for i in range(150)]
-    m = _ScanSrc(files)
-    m.scan()
-    m.search_query = "f"
-    m.rebuild_tree()
-    assert m.search_truncated == 150 - CUE_SEARCH_MAX_ROWS
-    assert len(m.visible_tree) == CUE_SEARCH_MAX_ROWS
+def test_rebuild_tree_idle_respects_expansion():
+    mgr = CueAudioTreeManager()
+    mgr.tree = _cue_build_tree(["v2/a.mp3", "v2/b.mp3"])
+    mgr.expanded_folders = {"v2/": False}
+    mgr.rebuild_tree()
+    # Collapsed v2/ shows as a folder row only; children stay hidden.
+    assert [row["type"] for row in mgr.visible_tree] == ["folder"]
+    assert len(mgr.visible_tree) == 1
 
 
-def test_clear_search_restores_full_tree():
-    m = _ScanSrc(["a/b.ogg", "z.ogg"])
-    m.scan()
-    m.search_query = "b"
-    m.rebuild_tree()
-    m.clear_search()
-    assert m.search_query == ""
-    assert m._search_applied == ""
-    assert _rows(m) == [
-        ("folder", "a/", "a/", 0),
-        ("file", "z.ogg", "z.ogg", 0),
-    ]
+def test_rebuild_tree_search_caps_broad_query():
+    mgr = CueAudioTreeManager()
+    mgr.tree = _cue_build_tree(["f{}.mp3".format(i) for i in range(300)])
+    mgr.search_query = "f"
+    mgr.rebuild_tree()
+    assert len(mgr.visible_tree) <= CUE_SEARCH_MAX_ROWS
+    assert mgr.search_truncated == 300 - CUE_SEARCH_MAX_ROWS
+
+
+def test_rebuild_tree_idle_not_capped():
+    mgr = CueAudioTreeManager()
+    mgr.tree = _cue_build_tree(["f{}.mp3".format(i) for i in range(300)])
+    mgr.rebuild_tree()
+    assert mgr.search_truncated == 0
+    assert len(mgr.visible_tree) == 300
+
+
+def test_clear_search_restores_tree_and_expansion_state():
+    mgr = CueAudioTreeManager()
+    mgr.tree = _cue_build_tree(FILES)
+    mgr.expanded_folders = {"v2/": True, "v2/amira/": True}
+    mgr.rebuild_tree()
+    full_before = list(mgr.visible_tree)
+
+    mgr.search_query = "intense"
+    mgr.rebuild_tree()
+    # Search force-expands everything, so the view can be longer than the
+    # idle one; the invariants are that unrelated branches are pruned and
+    # the saved user expansion state is never touched.
+    search_files = [row["full_path"] for row in mgr.visible_tree if row["type"] == "file"]
+    assert "v2/amira/01_NormalMo.mp3" not in search_files
+    assert all(row["expanded"] for row in mgr.visible_tree if row["type"] == "folder")
+    assert mgr.expanded_folders == {"v2/": True, "v2/amira/": True}
+
+    mgr.clear_search()
+    assert mgr.search_query == ""
+    assert mgr.expanded_folders == {"v2/": True, "v2/amira/": True}
+    assert mgr.visible_tree == full_before
 
 
 def test_clear_search_noop_when_empty(monkeypatch):
@@ -152,16 +286,22 @@ def test_clear_search_noop_when_empty(monkeypatch):
     assert rec == []
 
 
-def test_maybe_rebuild_only_when_query_changed(monkeypatch):
-    m = _ScanSrc(["z.ogg"])
-    m.scan()
-    rec = []
-    monkeypatch.setattr(m, "rebuild_tree", lambda: rec.append(1))
-    m.maybe_rebuild()  # "" == applied -> no rebuild
-    m.search_query = "z"
-    m.maybe_rebuild()  # changed -> rebuild
-    m.maybe_rebuild()  # same -> no rebuild
-    assert rec == [1]
+def test_toggle_folder_noop_during_search():
+    mgr = CueAudioTreeManager()
+    mgr.tree = _cue_build_tree(FILES)
+    mgr.search_query = "intense"
+    mgr.expanded_folders = {"v2/agrat/": False}
+    mgr.rebuild_tree()
+    mgr.toggle_folder("v2/agrat/")
+    assert mgr.expanded_folders == {"v2/agrat/": False}
+
+
+def test_toggle_folder_normal_when_idle():
+    mgr = CueAudioTreeManager()
+    mgr.tree = _cue_build_tree(["v2/a.mp3", "v2/b.mp3"])
+    mgr.rebuild_tree()
+    mgr.toggle_folder("v2/")
+    assert mgr.expanded_folders.get("v2/") is True
 
 
 def test_toggle_folder_expands_new_and_flips_existing():
@@ -173,12 +313,35 @@ def test_toggle_folder_expands_new_and_flips_existing():
     assert m.expanded_folders["a/"] is False
 
 
-def test_toggle_folder_noop_during_search():
-    m = _ScanSrc(["a/b.ogg"])
-    m.scan()
-    m.search_query = "b"
-    m.toggle_folder("a/")
-    assert "a/" not in m.expanded_folders
+def test_maybe_rebuild_only_on_query_change():
+    mgr = CueAudioTreeManager()
+    mgr.tree = _cue_build_tree(FILES)
+    mgr.search_query = "intense"
+    mgr.maybe_rebuild()
+    files = [row["full_path"] for row in mgr.visible_tree if row["type"] == "file"]
+    assert files == [
+        "v2/agrat/02_IntenseMo.mp3",
+        "v2/anya/04_IntenseMo.mp3",
+        "v2/nora/03_IntenseMo.mp3",
+    ]
+    before = list(mgr.visible_tree)
+    mgr.maybe_rebuild()  # unchanged query -> no-op
+    assert mgr.visible_tree == before
+    mgr.search_query = "nora"
+    mgr.maybe_rebuild()
+    files = [row["full_path"] for row in mgr.visible_tree if row["type"] == "file"]
+    assert files == ["v2/nora/03_IntenseMo.mp3"]
+
+
+def test_clear_search_resets_debounce_state():
+    mgr = CueAudioTreeManager()
+    mgr.tree = _cue_build_tree(FILES)
+    mgr.search_query = "intense"
+    mgr.maybe_rebuild()
+    assert mgr._search_applied == "intense"
+    mgr.clear_search()
+    assert mgr._search_applied == ""
+    assert mgr.search_truncated == 0
 
 
 # ==========================================================================

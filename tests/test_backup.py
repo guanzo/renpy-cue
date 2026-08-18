@@ -7,6 +7,7 @@
 # shared presets/config and other games' markers are untouched), and must
 # cover the shared audio/ and music/ folders as well as data/.
 
+import errno
 import os
 import zipfile
 
@@ -262,6 +263,29 @@ def test_backup_to_file_includes_media(cue_env):
     assert any(n.startswith("markers/") for n in entries)
     assert "audio/hit.ogg" in entries
     assert "music/song.ogg" in entries
+
+
+def test_backup_to_file_eeexist_race_benign(cue_env, monkeypatch):
+    # The auto-backup thread can create {root}/backups/ between backup_to_file's
+    # isdir check and its own makedirs. EEXIST is benign -- the backup proceeds.
+    store = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    _write(cue_env.paths.root, os.path.join("data", "markers", "test_game", "v_a.json"),
+           '{"pools": []}')
+
+    backups_dir = os.path.join(cue_env.paths.root, CUE_BACKUP_DIR)
+    real_makedirs = os.makedirs
+
+    def _racing_makedirs(path):
+        real_makedirs(path)
+        if path == backups_dir:
+            raise OSError(errno.EEXIST, "exists")
+
+    monkeypatch.setattr(os, "makedirs", _racing_makedirs)
+
+    store.backup_to_file()  # must not raise
+
+    zip_path = os.path.join(backups_dir, CUE_MANUAL_BACKUP_NAME)
+    assert os.path.exists(zip_path)
 
 
 def test_auto_backup_excludes_media(cue_env):
