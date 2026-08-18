@@ -11,6 +11,10 @@ def restart_interaction(*args, **kwargs):
     pass
 
 
+def in_rollback(*args, **kwargs):
+    return False
+
+
 def redraw(d, when, *args, **kwargs):
     pass
 
