@@ -41,7 +41,7 @@ define _cue_color_error = "#ff6666"
 define _cue_color_bar_active = "#007AFF"
 
 style cue_frame is empty:
-    background _cue_color_bg_overlay
+    background _cue_color_bg_panel
     padding (4, 4)
     xfill True
 

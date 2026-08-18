@@ -53,11 +53,11 @@ screen cue_overlay():
         xsize int(500 / _z)
         ysize int(renpy.config.screen_height / _z)
         action NullAction()
+        padding (4, 4)
         background None
         hover_background None
         frame:
-            style "cue_frame"
-            xfill True
+            background _cue_color_bg_overlay
             yfill True
             use cue_overlay_content()
 

@@ -206,7 +206,6 @@ screen cue_float_input(field_name, commit_action, display_text,
             key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
             key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
             input:
-                style "cue_input"
                 value _CueFieldValue(field_name)
                 default True
                 xsize 80
@@ -237,7 +236,6 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
             key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
             key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
             input:
-                style "cue_input"
                 value _CueFieldValue(field_name)
                 default True
         else:
@@ -273,7 +271,6 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=None, editi
             ysize height
             #xfill True
             input:
-                style "cue_input"
                 value _CueFieldValue(field_name)
                 default True
                 copypaste True
