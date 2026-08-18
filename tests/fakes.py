@@ -411,6 +411,10 @@ def make_runtime_cue(root="", audio_dir=""):
         play_custom_music=_rec("music", "play_custom_music"),
         play_untracked=_rec("music", "play_untracked"),
         _resolve_music_path=lambda filename: filename,
+        library=types.SimpleNamespace(
+            rebuild_tree=_rec("music.library", "rebuild_tree"),
+            maybe_rebuild=_rec("music.library", "maybe_rebuild"),
+        ),
     )
 
     # video_editor -- processing flag gates job_queue.poll

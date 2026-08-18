@@ -565,8 +565,8 @@ class CueMarkerManager(object):
             _cue.undo.reset()
             # Re-scan the media folders so restored audio/music shows up.
             self._sfx_manager.scan()
-            if _cue.music is not None and _cue.music.user_music is not None:
-                _cue.music.user_music.scan()
+            _cue.music.user_music.scan()
+            _cue.music.library.maybe_rebuild()
             self._video_editor.refresh()
             # Capture the restored tree in a fresh auto-backup.
             db._backup.force_backup()

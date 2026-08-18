@@ -32,13 +32,31 @@ from tests.fakes import (
 GAME_ID = "test_game"
 
 
+class FakeMusicRestore(object):
+    """Music-manager stand-in for _apply_restore's re-scan + re-merge.  The
+    real manager is always wired by the time a restore runs (overlay button
+    after init), so user_music/library must exist here too."""
+
+    def __init__(self):
+        self.user_music = types.SimpleNamespace(scan_calls=0)
+        self.library = types.SimpleNamespace(maybe_rebuild_calls=0)
+
+        def _scan():
+            self.user_music.scan_calls += 1
+        self.user_music.scan = _scan
+
+        def _maybe_rebuild():
+            self.library.maybe_rebuild_calls += 1
+        self.library.maybe_rebuild = _maybe_rebuild
+
+
 def _make_fake_cue():
     """Module-singleton stand-in carrying every attribute the persistence
     glue dereferences: undo (reset), music, db (shared config), and the
     scalar-fan-out siblings."""
     return types.SimpleNamespace(
         undo=FakeUndo(),
-        music=None,
+        music=FakeMusicRestore(),
         db=FakeDb(),
         sfx_manager=FakeSfxManager(),
         trigger=FakeTrigger(),
@@ -82,7 +100,7 @@ def _seed_marker_file(cue_env, name, content):
 # _apply_restore -- happy path through a real backup zip
 # ==========================================================================
 
-def test_apply_restore_reloads_store_from_zip(cue_env, mgr):
+def test_apply_restore_reloads_store_from_zip(cue_env, mgr, _fake_singletons):
     # _key is authoritative (the DB writes it into every marker file; the
     # filename heuristic is only a fallback).
     _seed_marker_file(cue_env, "v_scene.ogv.json",
@@ -98,6 +116,8 @@ def test_apply_restore_reloads_store_from_zip(cue_env, mgr):
     assert mgr._store._data["v_scene.ogv"]["pools"][0]["files"] == ["a.ogg"]
     # Post-restore side effects all fired.
     assert mgr._sfx_manager.scan_calls == 1
+    assert _fake_singletons.music.user_music.scan_calls == 1
+    assert _fake_singletons.music.library.maybe_rebuild_calls == 1
     assert mgr._video_editor.refresh_calls == 1
     assert _markers._cue.undo.reset_calls == 1
     assert mgr._session_created == set()

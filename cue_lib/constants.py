@@ -105,6 +105,13 @@ CUE_GAME_MUSIC_DIRS = ("music", "bgm", "ost", "soundtrack")
 # back to an absolute file.  A single constant so the two never drift.
 CUE_MUSIC_PREFIX = "music/"
 
+# Synthetic top-level folder names in the combined Music Library tree.  The
+# combined view (CueCombinedMusicTree) wraps each source's tree under one of
+# these display-only folders, so the Music page shows exactly two top-level
+# folders no matter how many top-level dirs the Game Music heuristic finds.
+CUE_MY_MUSIC_FOLDER = "My Music/"
+CUE_GAME_MUSIC_FOLDER = "Game Music/"
+
 # Default pool / preset volume (1.0 = identity).  Shared by the marker store,
 # volume manager, trigger, and repeater -- was CueVolumeManager.VOL_DEFAULT
 # before the marker data layer was extracted.  CueVolumeManager.VOL_DEFAULT

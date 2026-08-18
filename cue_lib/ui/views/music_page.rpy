@@ -41,10 +41,14 @@ screen cue_music_page():
                     spacing 5
                     hbox:
                         spacing 8
+                        box_wrap True
+                        box_wrap_spacing 3
                         text "Now Playing:" style "cue_txt"
                         text (_cue.music.now_playing() or "(None)") style "cue_txt" color _cue_color_text_accent
                     hbox:
                         spacing 8
+                        box_wrap True
+                        box_wrap_spacing 3
                         text "Current Scene:" style "cue_txt"
                         text (_cue.current_file or "(None)") style "cue_txt" color _cue_color_text_accent
                     
@@ -72,130 +76,121 @@ screen cue_music_page():
                         "+ Play music starting at current scene",
                         Function(_cue.music.add_custom_trigger))
 
-        $ my_music_tt = "Add {} files to\n{}".format(", ".join(CUE_AUDIO_EXTS), _cue.paths.music_dir)
-        use cue_section_frame("My Music", tt=my_music_tt):
-            if _cue.music.user_music.tree:
-                use cue_search_bar("_cue.music.user_music.search_query", _cue.music.user_music)
+        $ music_lib_tt = (
+            "My Music: add {} files to \n{}.\n\n"
+            "Game Music is found with heuristics, it may not find all music.").format(
+                ", ".join(CUE_AUDIO_EXTS), _cue.paths.music_dir)
+        use cue_section_frame("Music Library", tt=music_lib_tt):
+            if _cue.music.user_music.tree or _cue.music.game_music.tree:
+                use cue_search_bar("_cue.music.library.search_query", _cue.music.library)
             use grow_and_scroll(200, max(int(0.30 * renpy.config.screen_height), 400)):
                 vbox:
                     spacing 5
+                    # Per-source empty/error states -- one source can be empty
+                    # while the other has files.
                     if not _cue.music.user_music.tree:
                         if _cue.music.user_music.scan_error:
                             text "[_cue.music.user_music.scan_error]" style "cue_txt" color _cue_color_error
                         text "No music found in: [_cue.paths.music_dir]" style "cue_txt"
                         text ("Add {} files there "
                             "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_txt"
-                    else:
-                        use cue_music_tree()
-
-        $ game_music_tt = "Game music is found with heuristics, this list may not be accurate."
-        use cue_section_frame("Game Music", tt=game_music_tt):
-            if _cue.music.game_music.tree:
-                use cue_search_bar("_cue.music.game_music.search_query", _cue.music.game_music)
-            use grow_and_scroll(200, max(int(0.30 * renpy.config.screen_height), 400)):
-                vbox:
-                    spacing 5
                     if not _cue.music.game_music.tree:
                         if _cue.music.game_music.scan_error:
                             text "[_cue.music.game_music.scan_error]" style "cue_txt" color _cue_color_error
-                        text ("No music found in game directory.").format(
-                            ", ".join(CUE_GAME_MUSIC_DIRS)) style "cue_txt"
-                    else:
-                        use cue_game_music_tree()
+                        text "No music found in game directory." style "cue_txt"
+                    if _cue.music.user_music.tree or _cue.music.game_music.tree:
+                        use cue_music_tree()
 
 screen trigger_list(triggers):
     for trigger in triggers:
         null height 2
-        frame:
-            background (_cue_color_green if trigger["selected"] else _cue_color_text_dim)
-            padding (1, 1)  # border thickness
+        button:
+            background (_cue_color_bg_input if trigger["selected"] else _cue_color_bg_panel)
+            hover_background _cue_color_bg_input
+            action Function(_cue.music.select_trigger, trigger["key"])
+            padding (4, 4)
             xfill True
-            button:
-                background _cue_color_bg_panel
-                hover_background _cue_color_bg_input
-                action Function(_cue.music.select_trigger, trigger["key"])
-                padding (4, 4)
-                xfill True
-                vbox:
-                    spacing 3
+            vbox:
+                spacing 3
+                hbox:
+                    spacing 6
+                    use cue_icon_btn(
+                        ("rotate-right" if trigger["is_default"] else "trash-can"),
+                        Function(_cue.music.delete_trigger, trigger["key"]),
+                        ("Reset to default" if trigger["is_default"] else "Delete trigger"),
+                        None)
+                    text trigger["label"] style "cue_txt" color _cue_color_text_accent
+                if trigger["is_default"]:
+                    $ _default_path = trigger["default_path"] or ""
                     hbox:
                         spacing 6
                         use cue_icon_btn(
-                            ("rotate-right" if trigger["is_default"] else "trash-can"),
-                            Function(_cue.music.delete_trigger, trigger["key"]),
-                            ("Reset to default" if trigger["is_default"] else "Delete trigger"),
+                            ("volume" if trigger["default_enabled"] else "volume-xmark"),
+                            Function(_cue.music.toggle_default, trigger["key"]),
+                            "Toggle default song",
                             None)
-                        text trigger["label"] style "cue_txt" color _cue_color_text_accent
-                    if trigger["is_default"]:
-                        $ _default_path = trigger["default_path"] or ""
-                        hbox:
-                            spacing 6
-                            use cue_icon_btn(
-                                ("volume" if trigger["default_enabled"] else "volume-xmark"),
-                                Function(_cue.music.toggle_default, trigger["key"]),
-                                "Toggle default song",
-                                None)
-                            if trigger["default_enabled"]:
-                                text "Default: [_default_path]" style "cue_txt"
-                            else:
-                                text ("Default: [_default_path] "
-                                        "(Disabled)") style "cue_txt" color _cue_color_text_muted
-                    if trigger["songs"]:
-                        for _idx, _song in enumerate(trigger["songs"]):
-                            if _song.endswith("/"):
-                                # Folder ref: expandable, count + detachable children.
-                                $ _song_path = _cue.music.ref_path(_song)
-                                $ _folder_expanded = _cue.music.expanded_file_refs.get(_song, False)
-                                $ _folder_files = _cue.music.resolve_music_files([_song])
-                                hbox:
-                                    spacing 6
-                                    use cue_icon_btn(
-                                        "xmark",
-                                        Function(
-                                            _cue.music.remove_song_from_trigger,
-                                            trigger["key"],
-                                            _song),
-                                        "Remove folder from trigger",
-                                        None)
-                                    use cue_txt_button(
-                                        _song_path,
-                                        Function(_cue.music.toggle_file_ref_expand, _song))
-                                    text ("({} files)".format(len(_folder_files))) style "cue_help"
-                                if _folder_expanded:
-                                    for _child in _folder_files:
-                                        hbox:
-                                            spacing 6
-                                            text "    " style "cue_txt"
-                                            use cue_icon_btn(
-                                                "xmark",
-                                                Function(
-                                                    _cue.music.remove_song_from_folder_ref,
-                                                    trigger["key"],
-                                                    _idx,
-                                                    _child),
-                                                "Remove file from the folder",
-                                                None)
-                                            $ _child_display = _child[len(_song_path):]
-                                            text _child_display style "cue_txt"
-                            else:
-                                $ _song_name = _song.rsplit("/", 1)[-1]
-                                hbox:
-                                    spacing 6
-                                    use cue_icon_btn(
-                                        "xmark",
-                                        Function(
-                                            _cue.music.remove_song_from_trigger,
-                                            trigger["key"],
-                                            _song),
-                                        "Remove song from trigger",
-                                        None)
-                                    text _song_name style "cue_txt"
-                    elif not trigger["is_default"]:
-                        text "No music added." style "cue_txt"
+                        if trigger["default_enabled"]:
+                            text "Default: [_default_path]" style "cue_txt"
+                        else:
+                            text ("Default: [_default_path] "
+                                    "(Disabled)") style "cue_txt" color _cue_color_text_muted
+                if trigger["songs"]:
+                    for _idx, _song in enumerate(trigger["songs"]):
+                        if _song.endswith("/"):
+                            # Folder ref: expandable, count + detachable children.
+                            $ _song_path = _cue.music.ref_path(_song)
+                            $ _folder_expanded = _cue.music.expanded_file_refs.get(_song, False)
+                            $ _folder_files = _cue.music.resolve_music_files([_song])
+                            hbox:
+                                spacing 6
+                                use cue_icon_btn(
+                                    "xmark",
+                                    Function(
+                                        _cue.music.remove_song_from_trigger,
+                                        trigger["key"],
+                                        _song),
+                                    "Remove folder from trigger",
+                                    None)
+                                use cue_txt_button(
+                                    _song_path,
+                                    Function(_cue.music.toggle_file_ref_expand, _song))
+                                text ("({} files)".format(len(_folder_files))) style "cue_help"
+                            if _folder_expanded:
+                                for _child in _folder_files:
+                                    hbox:
+                                        spacing 6
+                                        text "    " style "cue_txt"
+                                        use cue_icon_btn(
+                                            "xmark",
+                                            Function(
+                                                _cue.music.remove_song_from_folder_ref,
+                                                trigger["key"],
+                                                _idx,
+                                                _child),
+                                            "Remove file from the folder",
+                                            None)
+                                        $ _child_display = _child[len(_song_path):]
+                                        text _child_display style "cue_txt"
+                        else:
+                            $ _song_name = _song.rsplit("/", 1)[-1]
+                            hbox:
+                                spacing 6
+                                use cue_icon_btn(
+                                    "xmark",
+                                    Function(
+                                        _cue.music.remove_song_from_trigger,
+                                        trigger["key"],
+                                        _song),
+                                    "Remove song from trigger",
+                                    None)
+                                text _song_name style "cue_txt"
+                elif not trigger["is_default"]:
+                    text "No music added." style "cue_txt"
 
-# My/Game Music file tree. Each row carries a play button plus an
-# add-to-trigger "+" button. Shared by the two wrappers below, which pass the
-# tree source (user- vs game-music) and the user/game-specific callables.
+# Combined Music Library file tree. Each row carries a play button plus an
+# add-to-trigger "+" button. The combined manager routes display paths back to
+# the correct (user- vs game-music) data model, and clears can_add on the
+# synthetic "Game Music/" root.
 screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
     $ _tree_add_tt = "Add song to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
     $ _tree_add_folder_tt = "Add folder to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
@@ -208,12 +203,15 @@ screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
                 if item["depth"] > 0:
                     text " " * item["depth"] style "cue_txt"
                 if item["type"] == "folder":
+                    # can_add is False only on the synthetic "Game Music/" root,
+                    # which groups several real folders and has no single data
+                    # path to add.
                     use cue_icon_btn(
                         "plus",
                         Function(add_folder, item["full_path"]),
                         _tree_add_folder_tt,
                         None,
-                        enabled=_tree_add_enabled)
+                        enabled=(_tree_add_enabled and item.get("can_add", True)))
                     use cue_txt_button(
                         item["name"],
                         Function(toggle_folder, item["full_path"]),
@@ -228,28 +226,15 @@ screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
                         enabled=_tree_add_enabled)
                     text item["name"] style "cue_txt" color _cue_color_text_accent
 
-# My Music folder/file tree. Mirrors the SFX Library tree (cue_file_tree) but
-# each file row carries a play button plus an add-to-trigger "+" button.
+# Combined My/Game Music tree. One shared search bar filters both sources; the
+# combined manager's visible_tree holds the merged display rows.
 screen cue_music_tree():
-    if _cue.music.user_music.search_query.strip() and not _cue.music.user_music.visible_tree:
-        text 'No files found for "{}".'.format(_cue.music.user_music.search_query) style "cue_txt"
+    if _cue.music.library.search_query.strip() and not _cue.music.library.visible_tree:
+        text 'No files found for "{}".'.format(_cue.music.library.search_query) style "cue_txt"
     else:
         use _cue_music_file_tree(
-            _cue.music.user_music.visible_tree,
-            _cue.music.add_user_folder_to_trigger,
-            _cue.music.user_music.toggle_folder,
-            _cue_preview_music,
-            _cue.music.add_user_song_to_trigger)
-
-# Game Music folder/file tree. Lists the game's own bundled audio, discovered
-# from the virtual filesystem by dir-name heuristic.
-screen cue_game_music_tree():
-    if _cue.music.game_music.search_query.strip() and not _cue.music.game_music.visible_tree:
-        text 'No files found for "{}".'.format(_cue.music.game_music.search_query) style "cue_txt"
-    else:
-        use _cue_music_file_tree(
-            _cue.music.game_music.visible_tree,
-            _cue.music.add_game_folder_to_trigger,
-            _cue.music.game_music.toggle_folder,
-            _cue_preview_game_music,
-            _cue.music.add_game_song_to_trigger)
+            _cue.music.library.visible_tree,
+            _cue.music.library.add_folder_to_trigger,
+            _cue.music.library.toggle_folder,
+            _cue.music.library.preview,
+            _cue.music.library.add_song_to_trigger)

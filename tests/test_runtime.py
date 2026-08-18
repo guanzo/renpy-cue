@@ -66,7 +66,7 @@ def test_show_overlay_scans_empty_libraries(cue):
     assert cue.is_overlay_visible is True
     assert cue.calls["sfx_manager.scan"] == [((), {})]
     assert cue.calls["music.user_music.scan"] == [((), {})]
-    assert cue.calls["sfx_manager.rebuild_tree"] == [((), {})]
+    assert cue.calls["sfx_manager.maybe_rebuild"] == [((), {})]
     assert cue.calls["video_editor.refresh"] == [((), {})]
 
 
@@ -83,11 +83,6 @@ def test_hide_overlay(cue):
     cue.is_overlay_visible = True
     _runtime._cue_hide_overlay()
     assert cue.is_overlay_visible is False
-
-
-def test_reload_presets(cue):
-    _runtime._cue_reload_presets()
-    assert cue.calls["markers.reload_presets"] == [((), {})]
 
 
 def test_refresh_overlay_scans_and_reloads(cue):
@@ -341,7 +336,9 @@ def test_refresh_context_no_change(cue, monkeypatch):
                         lambda: ("scene.ogv", "image", None))
     _runtime._cue_refresh_context()
     assert cue.calls["music.capture_display"] == [((), {})]
-    assert cue.calls["sfx_manager.rebuild_tree"] == [((), {})]
+    # Context refresh does not rebuild the SFX tree -- its inputs (files,
+    # search, expanded folders) only change on scan/toggle, not on scene change.
+    assert "sfx_manager.maybe_rebuild" not in cue.calls
     assert "trigger.fire_context" not in cue.calls
     assert "video_sequence.handle" not in cue.calls
 
@@ -764,8 +761,7 @@ def test_tick_slow_lane_flushes(cue, monkeypatch):
     _runtime._cue_tick_trigger()
     assert cue.calls["volume.flush_pending_saves"] == [((), {})]
     assert cue.calls["sfx_manager.maybe_rebuild"] == [((), {})]
-    assert cue.calls["music.user_music.maybe_rebuild"] == [((), {})]
-    assert cue.calls["music.game_music.maybe_rebuild"] == [((), {})]
+    assert cue.calls["music.library.maybe_rebuild"] == [((), {})]
     assert _runtime._cue_slow_tick_last == 1.0
 
 
@@ -876,18 +872,6 @@ def test_preview_sfx_no_previous(cue, monkeypatch):
     _runtime._cue_preview_sfx("new.ogg")
     assert cue._preview_channel == "cue_1"
 
-
-def test_preview_music_resolves_path(cue):
-    cue.music._resolve_music_path = lambda f: "music/" + f
-    _runtime._cue_preview_music("song.ogg")
-    assert cue.calls["music.play_untracked"] == [
-        (("music/song.ogg",), {"volume": 1.0})]
-
-
-def test_preview_game_music(cue):
-    _runtime._cue_preview_game_music("bgm/intro.ogg")
-    assert cue.calls["music.play_untracked"] == [
-        (("bgm/intro.ogg",), {"volume": 1.0})]
 
 
 # ==========================================================================

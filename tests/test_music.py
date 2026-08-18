@@ -17,6 +17,9 @@ import renpy.audio.music as _music_mock
 import renpy.store as _store
 
 import cue_lib.audio.music as _music_mod
+from cue_lib.constants import (
+    CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_PREFIX, CUE_MY_MUSIC_FOLDER,
+)
 from cue_lib.audio.music import (
     CUE_DEFAULT_MUSIC_CHANNEL, CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG,
     _SUPPRESS_MUSIC, CueMusicManager,
@@ -104,8 +107,11 @@ def test_play_untracked_absolute_volume(mgr, monkeypatch):
 
 def test_now_playing_strips_root(mgr):
     root = mgr._paths.root
-    _music_mock.play(root + "/music/song.ogg", channel=CUE_DEFAULT_MUSIC_CHANNEL)
-    assert mgr.now_playing() == "music/song.ogg"
+    _music_mock.play(root + "/" + CUE_MUSIC_PREFIX + "song.ogg",
+                     channel=CUE_DEFAULT_MUSIC_CHANNEL)
+    # My Music files are reported under the synthetic "My Music/" display
+    # folder -- the data-model "music/" prefix is stripped.
+    assert mgr.now_playing() == CUE_MY_MUSIC_FOLDER + "song.ogg"
 
 
 def test_now_playing_none_when_idle(mgr):
@@ -122,7 +128,9 @@ def test_now_playing_exception(mgr, monkeypatch):
 
 def test_now_playing_game_relative_unchanged(mgr):
     _music_mock.play("music/bgm.ogg", channel=CUE_DEFAULT_MUSIC_CHANNEL)
-    assert mgr.now_playing() == "music/bgm.ogg"
+    # Game-music files play game-relative and are reported under the
+    # synthetic "Game Music/" display folder.
+    assert mgr.now_playing() == CUE_GAME_MUSIC_FOLDER + "music/bgm.ogg"
 
 
 # ==========================================================================

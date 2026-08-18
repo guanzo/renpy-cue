@@ -131,24 +131,26 @@ def _cue_show_overlay():
         _cue.sfx_manager.scan()
     if not _cue.music.user_music.files:
         _cue.music.user_music.scan()
-    _cue.sfx_manager.rebuild_tree()
+
     _cue_refresh_context()
+    _cue.music.library.maybe_rebuild()
+    _cue.sfx_manager.maybe_rebuild()
     _cue.video_editor.refresh()
+
     renpy.show_screen("cue_overlay", _layer="cue_layer")
     renpy.restart_interaction()
-
-def _cue_reload_presets():
-    # type: () -> None
-    """Re-read shared presets from disk (picks up changes from other games)."""
-    _cue.markers.reload_presets()
 
 def _cue_refresh_overlay():
     # type: () -> None
     """Refresh overlay data: presets, context, and SFX/music file scans."""
-    _cue_reload_presets()
     _cue_refresh_context()
+    _cue.markers.reload_presets()
+
     _cue.sfx_manager.scan()
     _cue.music.user_music.scan()
+
+    _cue.sfx_manager.maybe_rebuild()
+    _cue.music.library.maybe_rebuild()
 
 def _cue_hide_overlay():
     # type: () -> None
@@ -192,7 +194,6 @@ def _cue_refresh_context_impl():
     # the right moment to stamp key_after for any music that just played.
     _cue.music.capture_display()
     _cue_refresh_channel(displayable=top_d)
-    _cue.sfx_manager.rebuild_tree()
     _cue_log_context()
 
     changed = ""
@@ -433,7 +434,7 @@ def _cue_tick_trigger_impl():
         # extraction happens before a job exists).
         _cue.video_editor.poll_extract()
 
-        for _m in (_cue.sfx_manager, _cue.music.user_music, _cue.music.game_music):
+        for _m in (_cue.sfx_manager, _cue.music.library):
             _m.maybe_rebuild()
 
 
@@ -482,29 +483,6 @@ def _cue_preview_sfx(filename, volume=1.0):
     if prev_ch is not None and _music.is_playing(channel=prev_ch):
         _music.stop(channel=prev_ch, fadeout=0)
     _cue._preview_channel = _cue_play_sfx(filename, "preview", volume=volume)
-
-
-def _cue_preview_music(filename, volume=1.0):
-    # type: (str, float) -> None
-    """Preview a My Music file on the music channel (untracked).
-
-    `filename` is root-relative with a "music/" prefix (the tree's full_path),
-    so it is resolved through CueMusicManager before playing -- unlike a raw
-    music-dir join, this also tolerates legacy no-prefix entries.  Plays
-    through CueMusicManager.play_untracked so the preview replaces any
-    currently playing music without being recorded as a default trigger.
-    """
-    _cue.music.play_untracked(_cue.music._resolve_music_path(filename), volume=volume)
-
-
-def _cue_preview_game_music(filename, volume=1.0):
-    # type: (str, float) -> None
-    """Preview a discovered game-music file on the music channel (untracked).
-
-    `filename` is already a game-relative path from renpy.list_files(), so it
-    is passed straight through to play_untracked -- no shared-dir join.
-    """
-    _cue.music.play_untracked(filename, volume=volume)
 
 
 def _cue_play_sfx(filename, source="", volume=1.0):

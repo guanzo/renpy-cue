@@ -1,0 +1,26 @@
+# Type stub for cue_lib.audio.music_tree
+from typing import Any, Dict, List
+
+from cue_lib.audio.audio_tree import CueAudioTreeManager
+from cue_lib.audio.game_music import CueGameMusic
+from cue_lib.audio.music import CueMusicManager
+from cue_lib.audio.user_music import CueUserMusic
+
+class CueCombinedMusicTree(CueAudioTreeManager):
+    _music: CueMusicManager
+    user_music: CueUserMusic
+    game_music: CueGameMusic
+    _user_tree_id: object
+    _game_tree_id: object
+
+    def __init__(
+        self,
+        music: CueMusicManager,
+        user_music: CueUserMusic,
+        game_music: CueGameMusic) -> None: ...
+    def rebuild_tree(self) -> None: ...
+    def _merged_tree(self) -> List[Dict[str, Any]]: ...
+    def maybe_rebuild(self) -> None: ...
+    def add_song_to_trigger(self, display_path: str) -> None: ...
+    def add_folder_to_trigger(self, display_path: str) -> None: ...
+    def preview(self, display_path: str, volume: float = 1.0) -> None: ...

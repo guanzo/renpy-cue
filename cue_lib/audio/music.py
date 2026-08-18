@@ -10,7 +10,10 @@ import renpy.audio.music as _music
 from cue_lib.state import _cue
 from cue_lib.audio.user_music import CueUserMusic
 from cue_lib.audio.game_music import CueGameMusic
-from cue_lib.constants import CUE_MUSIC_PREFIX
+from cue_lib.audio.music_tree import CueCombinedMusicTree
+from cue_lib.constants import (
+    CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_PREFIX, CUE_MY_MUSIC_FOLDER,
+)
 from cue_lib.util import _cue_log, _cue_strip_key_prefix, _cue_ui_refresh, create_img_key, create_vid_key
 
 MYPY = False
@@ -75,6 +78,8 @@ class CueMusicManager(object):
         self.user_music = CueUserMusic()
         # Game Music page: discovered game audio, tree expand/collapse state.
         self.game_music = CueGameMusic()
+        # Combined "Music Library" display tree (UI-only merge of the two).
+        self.library = CueCombinedMusicTree(self, self.user_music, self.game_music)  # pyright: ignore[reportArgumentType]
 
     def install(self):
         # type: () -> None
@@ -116,9 +121,10 @@ class CueMusicManager(object):
         """File currently playing on the music channel, or None.
 
         My Music files play from an absolute path under the shared root; they
-        are reported relative to it ("music/Folder/song.ogg") so the readout
-        matches the Music page's tree.  Game-music files play game-relative
-        already and are reported unchanged."""
+        are reported as a display path under "My Music/" (the "music/" data
+        prefix is stripped).  Game-music files play game-relative already and
+        are reported under "Game Music/".  Both match the combined Music
+        Library tree."""
         try:
             path = _music.get_playing(channel=CUE_DEFAULT_MUSIC_CHANNEL)
         except Exception:
@@ -128,7 +134,10 @@ class CueMusicManager(object):
         root = self._paths.root
         if path.startswith(root):
             path = path[len(root):].lstrip("/")
-        return path
+            if path.startswith(CUE_MUSIC_PREFIX):
+                path = path[len(CUE_MUSIC_PREFIX):]
+            return CUE_MY_MUSIC_FOLDER + path
+        return CUE_GAME_MUSIC_FOLDER + path
 
     def _on_play(self, *args, **kwargs):
         # type: (Any, Any) -> Any
