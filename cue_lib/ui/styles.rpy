@@ -40,6 +40,8 @@ define _cue_color_error = "#ff6666"
 # --- Controls ---
 define _cue_color_bar_active = "#007AFF"
 
+define _cue_btn_height = 16
+
 style cue_frame is empty:
     background _cue_color_bg_panel
     padding (4, 4)
@@ -51,6 +53,7 @@ style cue_popper_frame is empty:
     xfill False
 
 style cue_button is empty:
+    ysize _cue_btn_height
     background _cue_color_bg_btn
     hover_background _cue_color_bg_btn_hover
     padding (2, 0)
@@ -66,10 +69,11 @@ style cue_button_text is empty:
     yalign 0.5
     xanchor 0.5
     yanchor 0.5
+    yoffset 1
     adjust_spacing False
 
 style cue_icon_button is empty:
-    xysize (16, 16)
+    xysize (_cue_btn_height, _cue_btn_height)
     padding (0, 0)
     background _cue_color_bg_btn
     hover_background _cue_color_bg_btn_hover
@@ -86,11 +90,8 @@ style cue_icon_button_text is empty:
     yalign 0.5
     xanchor 0.5
     yanchor 0.5
+    yoffset 1
     adjust_spacing False
-    hover_xoffset 0
-    hover_yoffset 0
-    hover_xalign 0.5
-    hover_yalign 0.5
     padding (0, 0)
 
 style cue_text is empty:
