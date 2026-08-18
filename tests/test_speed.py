@@ -957,3 +957,666 @@ def test_create_delete_speed_executes_delete(env):
     finally:
         _cue.current_file = prev_file
         _cue._create_delete_speed = prev_sel
+
+
+# ==========================================================================
+# Resolver -- cycle_speed
+# ==========================================================================
+
+
+def test_cycle_speed_advances(env):
+    _seamless_env(env)
+    _write(env.resolver.variant_path(env.base_fs, 2.0))
+    env.resolver._set_speed_pref(env.tag, 1.5)
+    env.resolver.cycle_speed(1)
+    assert env.resolver._get_speed_pref(env.tag) == 2.0
+
+
+def test_cycle_speed_wraps_down(env):
+    _seamless_env(env)
+    _write(env.resolver.variant_path(env.base_fs, 2.0))
+    env.resolver._set_speed_pref(env.tag, 1.5)
+    env.resolver.cycle_speed(-1)
+    assert env.resolver._get_speed_pref(env.tag) == CUE_DEFAULT_VIDEO_SPEED
+
+
+def test_cycle_speed_unlisted_current_falls_back(env):
+    _seamless_env(env)
+    env.resolver._set_speed_pref(env.tag, 0.75)  # not in available speeds
+    env.resolver.cycle_speed(1)
+    assert env.resolver._get_speed_pref(env.tag) == 1.5
+
+
+def test_cycle_speed_not_movie_noop(env):
+    _seamless_env(env)
+    env.ctx.top_layer_type = "image"
+    env.resolver.cycle_speed(1)
+
+
+def test_cycle_speed_no_tag_noop(env):
+    _seamless_env(env)
+    env.ctx.current_file = ""
+    env.resolver.cycle_speed(1)
+
+
+def test_cycle_speed_no_base_path_noop(env):
+    env.ctx.top_layer_type = "movie"
+    env.ctx.current_file = env.tag
+    env.resolver.cycle_speed(1)
+
+
+def test_cycle_speed_only_default_noop(env):
+    env.ctx.top_layer_type = "movie"
+    env.ctx.current_file = env.tag
+    env.resolver.paths[env.tag] = env.base_fs
+    _write(env.base_fs)
+    env.resolver.cycle_speed(1)
+
+
+# ==========================================================================
+# Resolver -- set_speed guard branches
+# ==========================================================================
+
+
+def test_set_speed_no_tag_noop(env):
+    env.ctx.top_layer_type = "movie"
+    env.ctx.current_file = ""
+    env.resolver.set_speed(1.5)
+    assert env.resolver._get_speed_pref(env.tag) == CUE_DEFAULT_VIDEO_SPEED
+
+
+def test_set_speed_seamless_no_base_path_noop(env):
+    env.ctx.top_layer_type = "movie"
+    env.ctx.current_file = env.tag
+    env.resolver.seamless_transition = True
+    env.resolver.set_speed(1.5)
+    assert env.resolver._pending_speed is None
+
+
+def test_set_speed_seamless_queue_failure_logs(env, monkeypatch):
+    from cue_lib.video import speed as _speed
+
+    logs = []
+    monkeypatch.setattr(_speed, "_cue_log", lambda m: logs.append(m))
+    _seamless_env(env)
+    env.resolver.seamless_transition = True
+
+    def _boom(*a, **k):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(env.music, "queue", _boom)
+    env.resolver.set_speed(1.5)
+    assert env.resolver._pending_speed == 1.5
+    assert any("queue failed" in m for m in logs)
+
+
+# ==========================================================================
+# Resolver -- base_path_for variant fallback + resolve branches
+# ==========================================================================
+
+
+def test_base_path_for_resolves_variant_back_to_base(env):
+    env.resolver.paths[env.tag] = env.base_fs
+    env.vid.channel = "movie"
+    variant = env.resolver.variant_path(env.base_fs, 1.5)
+    env.music._registry["movie"] = {"playing": variant, "position": 0.0}
+    assert env.resolver.base_path_for("unmapped") == env.base_fs
+
+
+def test_resolve_sequence_queue_cached(env):
+    _seamless_env(env)
+    env.seq.append_speed(1.0)
+    env.seq.append_speed(1.5)  # active_tag set
+    first = env.resolver.resolve(0, 0, env.tag, env.base_fs, _make_orig(env.base_fs))[0]
+    second = env.resolver.resolve(0, 0, env.tag, env.base_fs, _make_orig(env.base_fs))[0]
+    assert first is second
+    assert first is env.resolver.children.get((env.tag, "__queue__"))
+
+
+def test_resolve_seamless_get_playing_failure(env, monkeypatch):
+    from cue_lib.video import speed as _speed
+
+    logs = []
+    monkeypatch.setattr(_speed, "_cue_log", lambda m: logs.append(m))
+    _seamless_env(env)
+    env.resolver.seamless_transition = True
+    env.resolver._pending_speed = 1.5
+
+    def _boom(*a, **k):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(env.music, "get_playing", _boom)
+    movie, _ = env.resolver.resolve(0, 0, env.tag, env.base_fs, _make_orig(env.base_fs))
+    assert movie is env.resolver.children.get(env.tag)
+    assert any("get_playing failed" in m for m in logs)
+
+
+def test_resolve_non_seamless_missing_variant_uses_stable(env):
+    variants = _seamless_env(env)
+    os.remove(variants[1.5])
+    entry = env.store._get_or_create_entry(create_vid_key(env.tag))
+    entry["speed_pref"] = 1.5
+    movie, _ = env.resolver.resolve(0, 0, env.tag, env.base_fs, _make_orig(env.base_fs))
+    assert movie is env.resolver.children.get(env.tag)
+    assert movie.play == env.base_fs
+
+
+def test_resolve_seamless_idle_stable_movie(env):
+    _seamless_env(env)
+    env.resolver.seamless_transition = True
+    movie, _ = env.resolver.resolve(0, 0, env.tag, env.base_fs, _make_orig(env.base_fs))
+    assert movie is env.resolver.children.get(env.tag)
+
+
+# ==========================================================================
+# Resolver -- wrap_all_movies (image registry passes)
+# ==========================================================================
+
+
+def _reg_movie(env):
+    m = Movie(play=env.base_fs, channel="movie")
+    m.size = (1280, 720)
+    return m
+
+
+def _atl_entry(statements):
+    import renpy.atl as _atl
+
+    atl = _atl.ATLTransformBase()
+    atl.block = types.SimpleNamespace(statements=statements)
+    return atl
+
+
+def _child(obj):
+    import renpy.atl as _atl
+
+    stmt = _atl.Child()
+    stmt.child = obj
+    return stmt
+
+
+def test_wrap_all_movies_first_pass(env, monkeypatch):
+    import renpy as _renpy
+    from renpy.display.image import images as _display_images
+    from renpy.display.layout import DynamicDisplayable
+
+    _display_images.clear()
+    try:
+        _display_images[("scene",)] = _reg_movie(env)
+        _display_images[("noplay",)] = Movie(play="", channel="movie")
+        _display_images[("obj",)] = types.SimpleNamespace()
+        _display_images[("dd",)] = DynamicDisplayable(lambda *a: None)
+        monkeypatch.setattr(
+            _renpy, "image",
+            lambda name, d, **k: _display_images.__setitem__(name, d))
+        env.resolver.wrap_all_movies()
+        assert env.resolver.paths[env.tag] == env.base_fs
+        assert isinstance(_display_images[("scene",)], DynamicDisplayable)
+        assert "noplay" not in env.resolver.paths
+        assert "obj" not in env.resolver.paths
+        assert "dd" not in env.resolver.paths
+    finally:
+        _display_images.clear()
+
+
+def test_wrap_all_movies_atl_pass(env):
+    from renpy.display.image import images as _display_images
+
+    _display_images.clear()
+    try:
+        _display_images[("scene",)] = _reg_movie(env)
+        # First child unnamed -> continue; second is a bare tag string.
+        _display_images[("bg", "strtag")] = _atl_entry(
+            [_child(types.SimpleNamespace()), _child("scene")])
+        _display_images[("bg", "movtag")] = _atl_entry([_child(_reg_movie(env))])
+        _display_images[("bg", "tuptag")] = _atl_entry(
+            [_child(types.SimpleNamespace(name=("scene",)))])
+        env.resolver.wrap_all_movies()
+        assert env.resolver.paths["bg strtag"] == env.base_fs
+        assert env.resolver.paths["bg movtag"] == env.base_fs
+        assert env.resolver.paths["bg tuptag"] == env.base_fs
+    finally:
+        _display_images.clear()
+
+
+# ==========================================================================
+# Sequence -- guard branches
+# ==========================================================================
+
+
+def test_sequence_contains_no_seq(env):
+    env.ctx.current_file = env.tag
+    assert env.seq.contains(1.5) is False
+
+
+def test_sequence_get_entry_empty_tag(env):
+    assert env.seq._get_entry("") is None
+
+
+def test_disabled_auto_speeds_empty_tag(env):
+    assert env.seq.get_disabled_auto_speeds("") == set()
+
+
+def test_set_disabled_auto_speeds_empty_tag(env):
+    env.seq.set_disabled_auto_speeds("", {1.5})
+    assert env.seq.get_disabled_auto_speeds("") == set()
+
+
+def test_sequence_append_empty_tag_noop(env):
+    env.seq.append_speed(1.5)
+    assert env.store.get(create_vid_key(env.tag)) is None
+
+
+def test_sequence_remove_at_empty_tag_noop(env):
+    env.seq.remove_at(0)
+
+
+def test_sequence_remove_at_no_entry_noop(env):
+    env.ctx.current_file = env.tag
+    env.seq.remove_at(0)
+    assert env.store.get(create_vid_key(env.tag)) is None
+
+
+def test_sequence_remove_at_restarts_active(env):
+    env.ctx.current_file = env.tag
+    env.resolver.paths[env.tag] = env.base_fs
+    _write_variants(env, [1.5])
+    env.seq.append_speed(1.0)
+    env.seq.append_speed(1.5)  # active
+    env.seq.remove_at(1)
+    assert env.seq.speeds_for(env.tag) == [1.0]
+    assert env.seq.active_tag == env.tag
+
+
+def test_sequence_move_empty_tag_noop(env):
+    env.seq.move(0, 1)
+
+
+def test_sequence_move_no_entry_noop(env):
+    env.ctx.current_file = env.tag
+    env.seq.move(0, 1)
+    assert env.store.get(create_vid_key(env.tag)) is None
+
+
+def test_sequence_move_no_seq_noop(env):
+    env.ctx.current_file = env.tag
+    entry = env.store._get_or_create_entry(create_vid_key(env.tag))
+    assert "speed_sequence" not in entry
+    env.seq.move(0, 1)
+
+
+def test_sequence_move_inactive_restarts(env):
+    env.ctx.current_file = env.tag
+    env.seq.append_speed(1.0)
+    env.seq.append_speed(1.5)  # variants missing -> no start, active stays None
+    env.seq.move(0, 1)
+    assert env.seq.speeds_for(env.tag) == [1.5, 1.0]
+    assert env.seq.active_tag is None
+
+
+def test_sequence_clear_sequence_uses_current_file(env):
+    env.ctx.current_file = env.tag
+    env.resolver.paths[env.tag] = env.base_fs
+    _write_variants(env, [1.5])
+    env.seq.append_speed(1.0)
+    env.seq.append_speed(1.5)
+    env.seq.clear_sequence()
+    assert env.seq.speeds_for(env.tag) is None
+    assert env.seq.active_tag is None
+
+
+def test_sequence_clear_sequence_empty_tag_noop(env):
+    env.seq.clear_sequence()
+
+
+def test_sequence_get_mode_uses_current_file(env):
+    env.ctx.current_file = env.tag
+    assert env.seq.get_mode() == CueSpeedMode.SINGLE
+
+
+def test_sequence_set_mode_auto_starts_auto(env):
+    fake = FakeAutoSpeed([0.5, 1.0, 1.5, 2.0], [1.0, 1.5])
+    env.seq.bind(env.resolver, fake)
+    env.ctx.current_file = env.tag
+    env.resolver.paths[env.tag] = env.base_fs
+    _write_variants(env, [1.5])
+    env.seq.set_mode(CueSpeedMode.AUTO)
+    assert env.seq.get_mode(env.tag) == CueSpeedMode.AUTO
+    assert env.seq.active_tag == env.tag
+
+
+def test_sequence_paths_for_no_resolver(env):
+    env.ctx.current_file = env.tag
+    env.seq.append_speed(1.0)
+    env.seq.append_speed(1.5)
+    env.seq._speed_resolver = None
+    assert env.seq.paths_for(env.tag) is None
+
+
+def test_sequence_paths_for_none_when_no_files(env):
+    env.resolver.paths[env.tag] = env.base_fs
+    env.ctx.current_file = env.tag
+    env.seq.append_speed(1.0)
+    env.seq.append_speed(1.5)  # variants not written -> no paths exist
+    assert env.seq.paths_for(env.tag) is None
+
+
+# ==========================================================================
+# Sequence -- start / handle / tick edge cases
+# ==========================================================================
+
+
+def test_sequence_start_no_resolver(env):
+    env.seq._speed_resolver = None
+    env.seq.start(env.tag)
+    assert env.seq.active_tag is None
+
+
+def test_sequence_start_get_playing_failure(env, monkeypatch):
+    from cue_lib.video import speed as _speed
+
+    logs = []
+    monkeypatch.setattr(_speed, "_cue_log", lambda m: logs.append(m))
+    env.ctx.current_file = env.tag
+    env.resolver.paths[env.tag] = env.base_fs
+    _write_variants(env, [1.5])
+    env.vid.channel = "movie"
+    env.seq.append_speed(1.0)
+    env.seq.append_speed(1.5)
+    env.seq.cancel()
+
+    def _boom(*a, **k):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(env.music, "get_playing", _boom)
+    env.seq.start(env.tag)
+    assert env.seq.active_tag == env.tag
+    assert env.seq.last_playing is None
+    assert any("get_playing failed" in m for m in logs)
+
+
+def test_sequence_tick_playback_query_failure(env, monkeypatch):
+    from cue_lib.video import speed as _speed
+
+    logs = []
+    monkeypatch.setattr(_speed, "_cue_log", lambda m: logs.append(m))
+    _started_seq(env)
+
+    def _boom(*a, **k):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(env.music, "get_playing", _boom)
+    env.seq.tick()
+    assert any("playback query failed" in m for m in logs)
+    assert env.seq.last_playing is None
+    assert env.seq.last_elapsed == 0.0
+
+
+def test_sequence_handle_auto_starts_auto(env):
+    fake = FakeAutoSpeed([0.5, 1.0, 1.5, 2.0], [1.0, 1.5])
+    env.seq.bind(env.resolver, fake)
+    env.ctx.current_file = env.tag
+    env.resolver.paths[env.tag] = env.base_fs
+    _write_variants(env, [1.5])
+    entry = env.store._get_or_create_entry(create_vid_key(env.tag))
+    entry["speed_mode"] = CueSpeedMode.AUTO
+    entry["speed_sequence"] = [1.0, 1.5]
+    env.seq.cancel()
+    env.seq.handle(env.tag)
+    assert env.seq.active_tag == env.tag
+
+
+def test_sequence_handle_stop_failure(env, monkeypatch):
+    from cue_lib.video import speed as _speed
+
+    logs = []
+    monkeypatch.setattr(_speed, "_cue_log", lambda m: logs.append(m))
+    env.ctx.current_file = env.tag
+    env.resolver.paths[env.tag] = env.base_fs
+    _write_variants(env, [1.5])
+    env.vid.channel = "movie"
+    env.seq.append_speed(1.0)
+    env.seq.append_speed(1.5)  # active
+    entry = env.store._get_or_create_entry(create_vid_key(env.tag))
+    entry["speed_mode"] = CueSpeedMode.SINGLE
+    env.ctx.top_layer_type = "image"
+
+    def _boom(*a, **k):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(env.music, "stop", _boom)
+    env.seq.handle(env.tag)
+    assert env.seq.active_tag is None
+    assert any("stop failed" in m for m in logs)
+
+
+def test_start_auto_no_resolver(env):
+    fake = FakeAutoSpeed([0.5, 1.0, 1.5, 2.0], [1.0, 1.5])
+    env.seq.bind(None, fake)
+    env.ctx.current_file = env.tag
+    env.seq.start_auto(env.tag)
+    assert env.seq.active_tag is None
+
+
+def test_start_auto_too_few_enabled_speeds(env):
+    fake = FakeAutoSpeed([1.0], [])
+    env.seq.bind(env.resolver, fake)
+    env.ctx.current_file = env.tag
+    env.resolver.paths[env.tag] = env.base_fs
+    env.seq.start_auto(env.tag)
+    assert env.seq.active_tag is None
+    assert env.store.get(create_vid_key(env.tag)) is None
+
+
+# ==========================================================================
+# Sequence -- _debug_verify_step
+# ==========================================================================
+
+
+def test_debug_verify_step_guards(env):
+    env.seq._debug_verify_step(None)              # now_playing None
+    env.seq._debug_verify_step(env.base_fs)       # no active_tag
+    env.ctx.current_file = env.tag
+    env.seq.active_tag = env.tag
+    env.seq._debug_verify_step(env.base_fs)       # no speed_sequence
+    entry = env.store._get_or_create_entry(create_vid_key(env.tag))
+    entry["speed_sequence"] = [1.0, 1.5]
+    env.seq._speed_resolver = None
+    env.seq._debug_verify_step(env.base_fs)       # resolver None
+    env.seq._speed_resolver = env.resolver
+    env.seq._debug_verify_step(env.base_fs)       # no base_path
+
+
+def test_debug_verify_step_no_matches(env):
+    env.ctx.current_file = env.tag
+    env.resolver.paths[env.tag] = env.base_fs
+    _write_variants(env, [1.5])
+    env.seq.append_speed(1.0)
+    env.seq.append_speed(1.5)
+    env.seq._debug_verify_step("unrelated.webm")
+
+
+def test_debug_verify_step_logs_desync_once(env, monkeypatch):
+    from cue_lib.video import speed as _speed
+
+    logs = []
+    monkeypatch.setattr(_speed, "_cue_log", lambda m: logs.append(m))
+    env.ctx.current_file = env.tag
+    env.resolver.paths[env.tag] = env.base_fs
+    _write_variants(env, [1.5])
+    env.seq.append_speed(1.0)
+    env.seq.append_speed(1.5)  # active, _step_index 0
+    variant15 = env.resolver.variant_path(env.base_fs, 1.5)
+    env.seq._debug_verify_step(variant15)  # step 0 vs file for step 1 -> desync
+    env.seq._debug_verify_step(variant15)  # same (step, file) -> rate-limited
+    assert len([m for m in logs if "VQ-DESYNC" in m]) == 1
+
+
+# ==========================================================================
+# Module wrappers + create-tab delete edge cases
+# ==========================================================================
+
+
+def test_cue_resolver_module_wrapper(env):
+    from cue_lib.video import speed as _speed
+
+    orig = _make_orig(env.base_fs)
+    child, _ = _speed._cue_resolver(0, 0, env.tag, env.base_fs, orig)
+    assert child is env.resolver.children.get(env.tag)
+
+
+def test_seamless_play_callback_exception(env, monkeypatch):
+    from cue_lib.video import speed as _speed
+
+    calls = []
+    monkeypatch.setattr(
+        _speed, "_default_play_callback", lambda old, new: calls.append((old, new)))
+    monkeypatch.setattr(
+        env.music, "get_playing",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    new = types.SimpleNamespace(channel="movie", _play=env.base_fs)
+    _speed._cue_seamless_play_callback(None, new)
+    assert calls == [(None, new)]
+
+
+def test_capture_kwargs_with_group(env):
+    m = Movie(play="x", channel="movie")
+    m.size = (1280, 720)
+    m.group = "scene"
+    kw = _cue_capture_kwargs(m)
+    assert kw["group"] == "scene"
+
+
+def test_create_delete_speed_no_selection_noop(env):
+    from cue_lib.video import speed as _speed
+
+    _cue = _state._cue
+    prev_sel = getattr(_cue, "_create_delete_speed", None)
+    _cue._create_delete_speed = None
+    try:
+        _speed._cue_create_delete_speed()
+    finally:
+        _cue._create_delete_speed = prev_sel
+
+
+def test_create_delete_speed_stale_selection_noop(env):
+    from cue_lib.video import speed as _speed
+
+    _cue = _state._cue
+    prev_file = getattr(_cue, "current_file", None)
+    prev_sel = getattr(_cue, "_create_delete_speed", None)
+    _cue.current_file = "other"
+    _cue._create_delete_speed = ("scene", 1.5)
+    try:
+        _speed._cue_create_delete_speed()
+        assert _cue._create_delete_speed == ("scene", 1.5)  # untouched
+    finally:
+        _cue.current_file = prev_file
+        _cue._create_delete_speed = prev_sel
+
+
+def test_create_delete_speed_default_speed_noop(env):
+    from cue_lib.video import speed as _speed
+
+    _cue = _state._cue
+    prev_file = getattr(_cue, "current_file", None)
+    prev_sel = getattr(_cue, "_create_delete_speed", None)
+    _cue.current_file = env.tag
+    _cue._create_delete_speed = (env.tag, CUE_DEFAULT_VIDEO_SPEED)
+    try:
+        _speed._cue_create_delete_speed()
+        assert _cue._create_delete_speed is None
+    finally:
+        _cue.current_file = prev_file
+        _cue._create_delete_speed = prev_sel
+
+
+# ==========================================================================
+# Resolver -- parse / list / prune / delete edge cases
+# ==========================================================================
+
+
+def test_parse_variant_speed_bad_float(env):
+    parse = CueVidSpeedResolver._parse_variant_speed
+    assert parse("scene_cue1.5x.webm", "scene", ".webm") == 1.5
+    assert parse("scene_cuexyzx.webm", "scene", ".webm") is None
+
+
+def test_get_available_speeds_listdir_failure(env, monkeypatch):
+    from cue_lib.video import speed as _speed
+
+    logs = []
+    monkeypatch.setattr(_speed, "_cue_log", lambda m: logs.append(m))
+    monkeypatch.setattr(
+        os, "listdir", lambda d: (_ for _ in ()).throw(OSError("nope")))
+    assert env.resolver.get_available_speeds(env.base_fs) == [CUE_DEFAULT_VIDEO_SPEED]
+    assert any("os.listdir failed" in m for m in logs)
+
+
+def test_prune_deleted_speed_empty_tag(env):
+    env.ctx.current_file = ""
+    assert env.resolver._prune_deleted_speed_from_sequence(1.5) is False
+
+
+def test_prune_deleted_speed_not_in_seq(env):
+    env.ctx.current_file = env.tag
+    env.seq.append_speed(1.0)
+    assert env.resolver._prune_deleted_speed_from_sequence(1.5) is False
+    assert env.seq.speeds_for(env.tag) == [1.0]
+
+
+def test_prune_deleted_speed_removes_last(env):
+    env.ctx.current_file = env.tag
+    env.seq.append_speed(1.5)
+    assert env.resolver._prune_deleted_speed_from_sequence(1.5) is True
+    assert "speed_sequence" not in env.store.get(create_vid_key(env.tag))
+
+
+def test_delete_variant_channel_stop_failure(env, monkeypatch):
+    from cue_lib.video import speed as _speed
+
+    logs = []
+    monkeypatch.setattr(_speed, "_cue_log", lambda m: logs.append(m))
+    _seamless_env(env)
+    _audio_mock.channels["cue_vid_1"] = None
+    env.music._registry["cue_vid_1"] = {"playing": env.base_fs, "position": 0.0}
+
+    def _boom(*a, **k):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(env.music, "get_playing", _boom)
+    env.resolver.delete_variant(env.base_fs, 1.5)
+    assert any("channel stop failed" in m for m in logs)
+
+
+def test_delete_variant_resets_current_file_pref(env):
+    _seamless_env(env)
+    env.resolver.paths = {}  # base not registered, but current_file is set
+    env.resolver._set_speed_pref(env.tag, 1.5)
+    env.resolver.delete_variant(env.base_fs, 1.5)
+    assert env.resolver._get_speed_pref(env.tag) == CUE_DEFAULT_VIDEO_SPEED
+
+
+def test_delete_variant_remove_retries_then_succeeds(env, monkeypatch):
+    _seamless_env(env)
+    real_remove = os.remove
+    attempt = []
+
+    def _flaky(p):
+        attempt.append(p)
+        if len(attempt) < 3:
+            raise OSError("busy")
+        real_remove(p)
+    monkeypatch.setattr(os, "remove", _flaky)
+    env.resolver.delete_variant(env.base_fs, 1.5)
+    assert len(attempt) == 3
+    assert not os.path.exists(env.resolver.variant_path(env.base_fs, 1.5))
+
+
+def test_delete_variant_remove_all_failed_logs(env, monkeypatch):
+    from cue_lib.video import speed as _speed
+
+    logs = []
+    monkeypatch.setattr(_speed, "_cue_log", lambda m: logs.append(m))
+    _seamless_env(env)
+
+    def _boom(p):
+        raise OSError("perm denied")
+    monkeypatch.setattr(os, "remove", _boom)
+    env.resolver.delete_variant(env.base_fs, 1.5)
+    assert any("all attempts failed" in m for m in logs)
+    assert os.path.exists(env.resolver.variant_path(env.base_fs, 1.5))
