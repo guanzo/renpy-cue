@@ -725,6 +725,40 @@ def _cue_is_screenshake(trans):
         return False
 
 
+def _cue_wrap_with_statement(original_with_statement):
+    # type: (Any) -> Any
+    """Build the renpy.with_statement wrapper.  Flags screenshake transitions
+    (SFX trigger), then forwards every arg unchanged so a future engine that
+    adds kwargs can't break the hook."""
+    def _wrapped(*args, **kwargs):
+        trans = args[0] if args else kwargs.get("trans")
+        if trans is not None and _cue_is_screenshake(trans):
+            _cue._shake_just_happened = True
+        if original_with_statement is not None:
+            return original_with_statement(*args, **kwargs)
+    return _wrapped
+
+
+def _cue_wrap_config_show(original_config_show):
+    # type: (Any) -> Any
+    """Build the renpy.config.show wrapper.  Screenshake applied via "at"
+    (e.g. "scene foo at vpunch, cum1") bypasses with_statement, so at_list is
+    scanned here too.  Forwards every arg unchanged -- a future engine adding
+    kwargs (transient, munge_name, ...) must not break the hook."""
+    def _wrapped(*args, **kwargs):
+        at_list = kwargs.get("at_list")
+        if at_list is None and len(args) >= 2:
+            at_list = args[1]
+        if at_list:
+            for t in at_list:
+                if _cue_is_screenshake(t):
+                    _cue._shake_just_happened = True
+                    break
+        if original_config_show is not None:
+            return original_config_show(*args, **kwargs)
+    return _wrapped
+
+
 # --------------------------------------------------------------------------
 # SFX Playback Helpers
 # --------------------------------------------------------------------------
