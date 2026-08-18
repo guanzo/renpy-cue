@@ -54,6 +54,15 @@ mkdir -p "$MOD"
 [ -e "$MOD/cue_lib" ] || ln -s "$ROOT/cue_lib" "$MOD/cue_lib"
 export RENPY_CUE_DIR="${RENPY_CUE_DIR:-$ROOT/tests/fixtures/data}"
 
+# The mod writes runtime state (marker DB, presets, generated video variants,
+# Ren'Py saves/persistent) into the shared fixtures root and the test game's
+# saves dir -- all gitignored.  They accumulate across local runs and can flip
+# timing-sensitive testcases; CI starts from a fresh checkout, so it never
+# sees the residue.  Start every run from the same clean slate (the committed
+# audio/ and music/ fixtures are outside these dirs and are left alone).
+rm -rf "$RENPY_CUE_DIR/data" "$RENPY_CUE_DIR/backups" "$RENPY_CUE_DIR/video"
+rm -rf "$GAME/game/saves"
+
 echo "[cue] runtime: $DSL testcases DSL ($LAUNCHER)"
 
 # Headless by default: a local run shouldn't pop a window that steals focus.

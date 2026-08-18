@@ -13,6 +13,38 @@
 # get_keycode() crashes on `ord(u) < 32`. Patch the map to the real ESC
 # control char first -- down() and up() both read it.
 
+# Runs after the mod's init 999 (which hydrates seamless_transition from
+# persistent): video_seamless_transition_preserves_position leaves it on via
+# persistent, so a later run's video_sfx_edit_locked_off_base_speed would
+# start with set_speed in queue mode -- it needs the 1.5x variant to exist and
+# never writes the pref, so the assertion sees the base speed.
+init 1000 python:
+    # Reset trigger/context state so each testcase starts clean.  Legacy forks
+    # a fresh process per testcase, so this is belt-and-suspenders, but the
+    # direct marker seeding below writes no disk state and reads no leaked
+    # state -- the fields exist across both DSLs.
+    def _cue_test_reset():
+        _cue.trigger.active = True
+        _cue.trigger.last_played = []
+        _cue.trigger.played_video_keys.clear()
+        _cue.trigger.loop_states = {}
+        _cue.trigger.excl_channels.clear()
+        _cue.trigger._prev_eff_elapsed = -1.0
+        _cue.current_file = ""
+        _cue.current_dialogue = ""
+        _cue.prev_dialogue = ""
+        _cue._shake_just_happened = False
+        _cue.vid_manager.last_elapsed = 0.0
+        # The test game's start label never clears the scene, so a prior
+        # testcase's displayable stays on the master layer.  Re-showing a
+        # different image then puts the new one BELOW the stale top entry and
+        # fire_context never sees the intended change.  Clear the layer so each
+        # show is a genuine context change (mirrors a real game's scene cut).
+        renpy.scene()
+
+    # The video_seamless testcase re-enables it itself.
+    _cue.speed_resolver.seamless_transition = False
+
 testcase overlay_shows_on_start:
     $ _cue.is_overlay_visible = True
     run Jump("start")
@@ -348,5 +380,127 @@ testcase video_seamless_transition_preserves_position:
     $ _ok = _ok and (_after_ch == _before_ch)
     $ _ok = _ok and (_os.path.normpath(_after_playing) == _os.path.normpath(_variant))
     $ _ok = _ok and (0.0 <= _after_pos < _after_dur)
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase img_trigger_fires_on_show:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _cue_test_reset()
+    $ _cue.markers._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    $ _ok = len(_cue.trigger.last_played) >= 1
+    $ _cue.markers.pop("i_cueimg_a", None)
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase dlg_trigger_fires_on_say:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _cue_test_reset()
+    $ _cue.markers._get_or_create_entry("d_cueimg_a__Hello")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
+    run Jump("cue_say_fire")
+    pause 1.0
+    $ _ok = len(_cue.trigger.last_played) >= 1
+    $ _cue.markers.pop("d_cueimg_a__Hello", None)
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase loop_trigger_fires_on_cycle:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _cue_test_reset()
+    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
+    $ renpy.show("cueimg_a")
+    pause 2.0
+    $ _ok = len(_cue.trigger.last_played) >= 1
+    $ _cue.markers.pop("l_cueimg_a", None)
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase video_marker_fires_at_ts:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _cue_test_reset()
+    $ _cue.markers._get_or_create_entry("v_cuevid")["pools"] = [{"time": 0.0, "files": ["sfx_001.ogg"], "volume": 1.0}]
+    $ renpy.show("cuevid")
+    # Wait out the 7.x movie startup: the v_ marker fires on the first tick
+    # even before the movie advances, but played_video_keys is wiped every tick
+    # while last_elapsed == 0.  Only once the movie actually plays (elapsed > 0)
+    # does the fired key stick -- 7.x startup under xvfb is slow enough that a
+    # short fixed pause races it.
+    pause 5.0
+    $ _ok = _cue.top_layer_type == "movie"
+    $ _ok = _ok and _cue.vid_manager.get_duration() > 0
+    $ _ok = _ok and _cue.vid_manager.get_elapsed() > 0.0
+    $ _ok = _ok and len(_cue.trigger.played_video_keys) >= 1
+    $ _cue.markers.pop("v_cuevid", None)
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase img_oneshot_dedup_no_refire:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _cue_test_reset()
+    $ _cue.markers._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
+    $ _cue.markers._get_or_create_entry("i_cueimg_b")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    $ _ok = len(_cue.trigger.last_played) == 1
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    $ _ok = _ok and len(_cue.trigger.last_played) == 1
+    $ renpy.show("cueimg_b")
+    pause 1.0
+    $ _ok = _ok and len(_cue.trigger.last_played) == 2
+    $ _cue.markers.pop("i_cueimg_a", None)
+    $ _cue.markers.pop("i_cueimg_b", None)
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase shake_fires_on_with_vpunch:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _cue_test_reset()
+    $ _cue.markers._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0, "trigger_on_shake": True}]
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    $ _cue.trigger.last_played = []
+    run Jump("cue_shake_with")
+    pause 1.0
+    $ _ok = len(_cue.trigger.last_played) >= 1
+    $ _cue.markers.pop("i_cueimg_a", None)
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase shake_fires_on_at_vpunch:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _cue_test_reset()
+    $ _cue.markers._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0, "trigger_on_shake": True}]
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    $ _cue.trigger.last_played = []
+    run Jump("cue_shake_at")
+    pause 1.0
+    $ _ok = len(_cue.trigger.last_played) >= 1
+    $ _cue.markers.pop("i_cueimg_a", None)
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase music_play_interceptor_installed:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ import renpy.audio.music as _music
+    $ _ok = getattr(_music.play, "__name__", "") == "_on_play"
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()

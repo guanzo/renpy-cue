@@ -1,3 +1,35 @@
+# Runs after the mod's init 999 (which hydrates seamless_transition from
+# persistent): video_seamless_transition_preserves_position leaves it on via
+# persistent, so a later run's video_sfx_edit_locked_off_base_speed would
+# start with set_speed in queue mode -- it needs the 1.5x variant to exist and
+# never writes the pref, so the assertion sees the base speed.
+init 1000 python:
+    # Reset trigger/context state so each testcase starts clean.  The modern
+    # suite runs every testcase in one process, so last_played, loop_states,
+    # played_video_keys, current_file, and the dialogue fields all leak
+    # between testcases without this.
+    def _cue_test_reset():
+        _cue.trigger.active = True
+        _cue.trigger.last_played = []
+        _cue.trigger.played_video_keys.clear()
+        _cue.trigger.loop_states = {}
+        _cue.trigger.excl_channels.clear()
+        _cue.trigger._prev_eff_elapsed = -1.0
+        _cue.current_file = ""
+        _cue.current_dialogue = ""
+        _cue.prev_dialogue = ""
+        _cue._shake_just_happened = False
+        _cue.vid_manager.last_elapsed = 0.0
+        # The test game's start label never clears the scene, so a prior
+        # testcase's displayable stays on the master layer.  Re-showing a
+        # different image then puts the new one BELOW the stale top entry and
+        # fire_context never sees the intended change.  Clear the layer so each
+        # show is a genuine context change (mirrors a real game's scene cut).
+        renpy.scene()
+
+    # The video_seamless testcase re-enables it itself.
+    _cue.speed_resolver.seamless_transition = False
+
 testsuite global:
     before testcase:
         $ _test.timeout = 2.0
@@ -251,3 +283,94 @@ testcase video_seamless_transition_preserves_position:
     assert eval (_after_ch == _before_ch)
     assert eval (_os.path.normpath(_after_playing) == _os.path.normpath(_variant))
     assert eval (0.0 <= _after_pos < _after_dur)
+
+testcase img_trigger_fires_on_show:
+    run Jump("start")
+    $ _cue_test_reset()
+    $ _cue.markers._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    assert eval (len(_cue.trigger.last_played) >= 1)
+    $ _cue.markers.pop("i_cueimg_a", None)
+
+testcase dlg_trigger_fires_on_say:
+    run Jump("start")
+    $ _cue_test_reset()
+    $ _cue.markers._get_or_create_entry("d_cueimg_a__Hello")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
+    run Jump("cue_say_fire")
+    pause 1.0
+    assert eval (_cue.current_file == "cueimg_a")
+    assert eval (_cue.current_dialogue == "Hello")
+    assert eval (_cue.markers.get("d_cueimg_a__Hello") is not None)
+    assert eval (len(_cue.trigger.last_played) >= 1)
+    $ _cue.markers.pop("d_cueimg_a__Hello", None)
+
+testcase loop_trigger_fires_on_cycle:
+    run Jump("start")
+    $ _cue_test_reset()
+    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
+    $ renpy.show("cueimg_a")
+    pause 0.1 until eval (len(_cue.trigger.last_played) >= 1) timeout 5.0
+    assert eval (len(_cue.trigger.last_played) >= 1)
+    $ _cue.markers.pop("l_cueimg_a", None)
+
+testcase video_marker_fires_at_ts:
+    run Jump("start")
+    $ _cue_test_reset()
+    $ _cue.markers._get_or_create_entry("v_cuevid")["pools"] = [{"time": 0.0, "files": ["sfx_001.ogg"], "volume": 1.0}]
+    $ renpy.show("cuevid")
+    pause 1.0
+    assert eval (_cue.top_layer_type == "movie")
+    assert eval (_cue.vid_manager.get_duration() > 0)
+    # played_video_keys is wiped every tick while last_elapsed == 0, so a stuck
+    # audio clock would hang the poll below. Fail here instead.
+    assert eval (_cue.vid_manager.get_elapsed() > 0.0)
+    pause 0.1 until eval (len(_cue.trigger.played_video_keys) >= 1) timeout 10.0
+    assert eval (len(_cue.trigger.played_video_keys) == 1)
+    $ _cue.markers.pop("v_cuevid", None)
+
+testcase img_oneshot_dedup_no_refire:
+    run Jump("start")
+    $ _cue_test_reset()
+    $ _cue.markers._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
+    $ _cue.markers._get_or_create_entry("i_cueimg_b")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    assert eval (len(_cue.trigger.last_played) == 1)
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    assert eval (len(_cue.trigger.last_played) == 1)
+    $ renpy.show("cueimg_b")
+    pause 1.0
+    assert eval (len(_cue.trigger.last_played) == 2)
+    $ _cue.markers.pop("i_cueimg_a", None)
+    $ _cue.markers.pop("i_cueimg_b", None)
+
+testcase shake_fires_on_with_vpunch:
+    run Jump("start")
+    $ _cue_test_reset()
+    $ _cue.markers._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0, "trigger_on_shake": True}]
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    $ _cue.trigger.last_played = []
+    run Jump("cue_shake_with")
+    pause 1.0
+    assert eval (len(_cue.trigger.last_played) >= 1)
+    $ _cue.markers.pop("i_cueimg_a", None)
+
+testcase shake_fires_on_at_vpunch:
+    run Jump("start")
+    $ _cue_test_reset()
+    $ _cue.markers._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0, "trigger_on_shake": True}]
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    $ _cue.trigger.last_played = []
+    run Jump("cue_shake_at")
+    pause 1.0
+    assert eval (len(_cue.trigger.last_played) >= 1)
+    $ _cue.markers.pop("i_cueimg_a", None)
+
+testcase music_play_interceptor_installed:
+    run Jump("start")
+    $ import renpy.audio.music as _music
+    assert eval (getattr(_music.play, "__name__", "") == "_on_play")
