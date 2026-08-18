@@ -157,7 +157,7 @@ screen cue_video_sfx():
                         None,
                     )
                     use cue_icon_btn(
-                        "folder-minus",
+                        "xmark",
                         Function(_cue.markers.video.delete_pool_ui),
                         ("Delete selected pools" if _multi_selected else "Delete pool"),
                         None,
