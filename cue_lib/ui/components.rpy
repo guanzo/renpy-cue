@@ -455,9 +455,6 @@ screen cue_section_frame(header_text, tt=None, icons=[]):
     $ _arrow = _cue.icons.displayable_for(_arrow_icon)
     $ _question_icon = _cue.icons.displayable_for("question")
     frame:
-        background _cue_color_bg_panel
-        padding (4, 4)
-        xfill True
         yminimum 0
         vbox:
             spacing 8

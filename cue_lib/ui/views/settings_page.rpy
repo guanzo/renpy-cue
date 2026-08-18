@@ -14,9 +14,6 @@ screen cue_settings_page():
             spacing 5
             frame:
                 text "Settings" style "cue_hdr" xoffset 4
-                background _cue_color_bg_panel
-                padding (4, 4)
-                xfill True
                 yminimum 0
 
             use cue_data_dir()

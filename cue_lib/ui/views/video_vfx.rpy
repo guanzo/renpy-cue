@@ -292,10 +292,8 @@ screen cue_video_vfx():
                     Function(_cue.video_editor.job_queue.refresh_ui),
                 ]
                 frame:
-                    background _cue_color_bg_panel
                     padding (0, 0)
                     yminimum 0
-                    xfill True
                     $ _queue_len = len(_cue.video_editor.job_queue.jobs)
                     if _queue_len > 6:
                         viewport:

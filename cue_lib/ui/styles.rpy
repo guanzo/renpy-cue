@@ -60,18 +60,6 @@ style cue_button is empty:
     hover_sound None
     activate_sound None
 
-style cue_button_text is empty:
-    size 12
-    color _cue_color_text_white
-    hover_color _cue_color_text_white
-    font "DejaVuSans.ttf"
-    xalign 0.5
-    yalign 0.5
-    xanchor 0.5
-    yanchor 0.5
-    yoffset 1
-    adjust_spacing False
-
 style cue_icon_button is empty:
     xysize (_cue_btn_height, _cue_btn_height)
     padding (0, 0)
@@ -81,23 +69,24 @@ style cue_icon_button is empty:
     hover_sound None
     activate_sound None
 
-style cue_icon_button_text is empty:
+style cue_text is empty:
     size 12
-    color _cue_color_text_white
-    insensitive_color _cue_color_bg_btn_hover
+    color _cue_color_text
     font "DejaVuSans.ttf"
+
+style cue_button_text is cue_text:
+    color _cue_color_text_white
+    hover_color _cue_color_text_white
     xalign 0.5
     yalign 0.5
     xanchor 0.5
     yanchor 0.5
     yoffset 1
     adjust_spacing False
-    padding (0, 0)
 
-style cue_text is empty:
-    size 12
-    color _cue_color_text
-    font "DejaVuSans.ttf"
+style cue_icon_button_text is cue_button_text:
+    insensitive_color _cue_color_bg_btn_hover
+    padding (0, 0)
 
 style cue_hdr is cue_text:
     size 14
@@ -109,7 +98,6 @@ style cue_help is cue_text:
     color _cue_color_text_muted
 
 style cue_input is cue_text:
-    size 12
     color _cue_color_text_white
     background _cue_color_bg_input
     yalign 0.5
