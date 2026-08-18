@@ -519,7 +519,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
 
     use cue_section_frame(section_title):
         if subtitle is not None:
-            text subtitle style "cue_text"
+            text subtitle
         if _entry:
             $ _entry.setdefault("volume", _cue.volume.VOL_DEFAULT)
             $ _master_vol = _entry.get("volume", _cue.volume.VOL_DEFAULT)
@@ -548,7 +548,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 spacing 5
                 box_wrap True
                 box_wrap_spacing 3
-                text _active_label style "cue_text"
+                text _active_label
                 null width 5
                 use cue_icon_btn(
                     "floppy-disk",
@@ -587,16 +587,16 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                         folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
             else:
                 if key and description is not None:
-                    text description style "cue_text"
+                    text description
                 if key:
                     text ("Click the {} button in the SFX Library "
-                        "to add files to this pool.").format(btn_letter) style "cue_text"
+                        "to add files to this pool.").format(btn_letter)
         else:
             if key and description is not None:
-                text description style "cue_text"
+                text description
             if key:
                 text ("Click the {} button in the SFX Library to create a new pool "
-                    "or add files to the active pool.").format(btn_letter) style "cue_text"
+                    "or add files to the active pool.").format(btn_letter)
 
 # Toggle button: square-check icon when checked, square when unchecked.
 # on_bg/on_hover/off_bg/off_hover override backgrounds per state (None = style default).
@@ -666,7 +666,6 @@ screen notification(text,
             add _icon yalign 0.0
 
             text text:
-                style "cue_text"
                 color text_color
                 xfill True
 

@@ -11,7 +11,7 @@ screen _cue_edit_queue_vbox():
 
     vbox:
         spacing 3
-        text "Edit Queue" style "cue_text" size 14 bold True
+        text "Edit Queue" size 14 bold True
         null height 2
         for job in _cue.video_editor.job_queue.jobs:
             hbox:
@@ -29,18 +29,18 @@ screen _cue_edit_queue_vbox():
                         "xmark",
                         Function(_cue.video_editor.job_queue.remove, job.job_id),
                         "Remove from queue", None)
-                text job.filename() + " " + job.speed_label style "cue_text" size 11
-                text "(" + job.status_text() + ")" style "cue_text" size 11
+                text job.filename() + " " + job.speed_label size 11
+                text "(" + job.status_text() + ")" size 11
                 if job.status != CueJobStatus.QUEUED:
                     $ _elapsed = int(job.elapsed())
                     $ _elapsed_text = "%d:%02d" % (_elapsed // 60, _elapsed % 60)
-                    text _elapsed_text style "cue_text" size 11 color _cue_color_text_muted
+                    text _elapsed_text size 11 color _cue_color_text_muted
 
             if job.status == CueJobStatus.ERROR and job.error_msg and not job.cancelled:
                 hbox:
                     spacing 5
                     null width 20
-                    text job.error_msg style "cue_text" size 11 color _cue_color_error
+                    text job.error_msg size 11 color _cue_color_error
                     use cue_txt_button("Retry",
                         Function(_cue.video_editor.job_queue.retry, job.job_id))
 
@@ -86,7 +86,7 @@ screen cue_video_vfx():
                     $ _cur = _cue.speed_resolver.speed_for(_cue.current_file)
                     vbox:
                         spacing 5
-                        text "The video will only play at the selected speed" style "cue_text"
+                        text "The video will only play at the selected speed"
                         hbox:
                             spacing 5
                             box_wrap True
@@ -119,7 +119,7 @@ screen cue_video_vfx():
 
                 # --- Multi Speed tab ---
                 elif _mode == CueSpeedMode.MULTI:
-                    text "The video plays through each speed in order, then loops." style "cue_text"
+                    text "The video plays through each speed in order, then loops."
                     hbox:
                         spacing 5
                         box_wrap True
@@ -141,9 +141,9 @@ screen cue_video_vfx():
                         if len(_seq) >= 2:
                             add CueAutoSpeedChart() xsize 440 ysize 80
                         else:
-                            text "Click 1 more speed." style "cue_text"
+                            text "Click 1 more speed."
                     else:
-                        text "Click the speed buttons to create a sequence. Minimum 2 speeds." style "cue_text"
+                        text "Click the speed buttons to create a sequence. Minimum 2 speeds."
 
                 # --- Auto Speed tab ---
                 elif _mode == CueSpeedMode.AUTO:
@@ -157,11 +157,11 @@ screen cue_video_vfx():
                         "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is "
                         "[CUE_AUTO_SPEED_IDEAL_VARIANTS]. The more the better."
                     )
-                    text _auto_help style "cue_text"
+                    text _auto_help
 
                     if not _has_auto:
                         null height 3
-                        text "You don't have enough speeds, generate more in the Create tab." style "cue_text"
+                        text "You don't have enough speeds, generate more in the Create tab."
 
                     if _has_auto:
                         null height 3
@@ -206,7 +206,7 @@ screen cue_video_vfx():
                         if _seq and len(_seq) >= 2:
                             add CueAutoSpeedChart() xsize 440 ysize 80
             else:
-                text "No speed variants available. Generate them in the Create tab." style "cue_text"
+                text "No speed variants available. Generate them in the Create tab."
 
         # --- Create tab ---
         if _cue.video_editor.active:
@@ -219,7 +219,7 @@ screen cue_video_vfx():
                     spacing 5
                     box_wrap True
                     box_wrap_spacing 3
-                    text "Created Speeds:" style "cue_text"
+                    text "Created Speeds:"
                     if _has_speeds:
                         for _sp in _avail:
                             if _sp != CUE_DEFAULT_VIDEO_SPEED:
@@ -231,12 +231,12 @@ screen cue_video_vfx():
                                 Function(_cue_create_delete_speed),
                                 tt="Delete the " + _cue_speed_label(_del_sel) + " file.")
                     else:
-                        text "None" style "cue_text" color _cue_color_text_muted
+                        text "None" color _cue_color_text_muted
                 
                 null height 5
                 hbox:
                     spacing 5
-                    text "New Speed:" style "cue_text"
+                    text "New Speed:"
                     $ _commit = Function(_cue.video_editor.commit_text)
                     $ _display = _cue_speed_label(float(_ved.factor_text))
                     use cue_float_input("_cue.video_editor.factor_text", _commit, _display,
@@ -256,7 +256,7 @@ screen cue_video_vfx():
                 spacing 5
                 hbox:
                     spacing 5
-                    text "Quality:" style "cue_text"
+                    text "Quality:"
                     use cue_select_btn("Fast Preview", (_ved.encode_mode == _ved.MODE_FAST_PREVIEW),
                         Function(_cue.video_editor.set_encode_mode, _ved.MODE_FAST_PREVIEW),
                         tt="Fast low-quality encode to judge the edited speed.")
@@ -282,7 +282,7 @@ screen cue_video_vfx():
                 Function(_cue.video_editor.prepare_create),
                 sensitive=_ved._ready)
             if _ved.last_error:
-                text _ved.last_error style "cue_text" color _cue_color_error
+                text _ved.last_error color _cue_color_error
 
             # --- Edit queue ---
             if _cue.video_editor.job_queue.jobs:

@@ -28,16 +28,16 @@ screen cue_data_dir():
     use cue_section_frame("Data Folder"):
         vbox:
             spacing 8
-            text "Cue stores everything (markers, video, audio, backups, etc.) in this folder." style "cue_text"
+            text "Cue stores everything (markers, video, audio, backups, etc.) in this folder."
             text ("If you change the folder, you must move all files to the new "
-                "folder and restart the game.") style "cue_text"
+                "folder and restart the game.")
             use cue_text_input("_cue.setup_dir_text",
                 Function(_cue_confirm_shared_dir),
                 _cue.setup_dir_text)
             if _cue.shared_dir_error:
-                text _cue.shared_dir_error style "cue_text" color _cue_color_error
+                text _cue.shared_dir_error color _cue_color_error
             elif _cue.shared_dir_success:
-                text _cue.shared_dir_success style "cue_text" color _cue_color_green
+                text _cue.shared_dir_success color _cue_color_green
             use cue_txt_button("Save", Function(_cue_confirm_shared_dir))
 
 
@@ -57,7 +57,7 @@ screen cue_settings_keybinds():
                     $ _label = _cue.keybinds.keysym_label(_ks)
                     $ _is_default = (_ks == _kb["default"])
 
-                text _kb["label"] style "cue_text" xsize 170 yalign 0.5
+                text _kb["label"] xsize 170 yalign 0.5
 
                 hbox:
                     spacing 8
@@ -96,11 +96,11 @@ screen cue_keybind_capture():
         xmaximum 420
         vbox:
             spacing 8
-            text "Press a key(s) for " + _cue.keybinds.current_label() style "cue_text"
-            text "Ctrl / Alt / Shift can be combined." style "cue_text"
-            text "Press Esc to cancel." style "cue_text"
+            text "Press a key(s) for " + _cue.keybinds.current_label()
+            text "Ctrl / Alt / Shift can be combined."
+            text "Press Esc to cancel."
             if _cue.keybinds.collision_message:
-                text _cue.keybinds.collision_message style "cue_text" color _cue_color_error
+                text _cue.keybinds.collision_message color _cue_color_error
             hbox:
                 spacing 5
                 use cue_txt_button("Cancel", Function(_cue_keybind_cancel))
