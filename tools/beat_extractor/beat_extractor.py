@@ -622,7 +622,7 @@ def write_report(path, beats, window_start, include_window=False,
     in a leading "window" column -- used for --labels runs. With
     include_intensity, each row gains the intensity columns (centroid, rms,
     peak, plus each mode's score/tier) populated only on clean beats (blank
-    elsewhere) -- added by the --intensity pass. Every beat must carry
+    elsewhere) -- added by the intensity pass. Every beat must carry
     "window_start" (absolute source offset); window_start is the fallback for
     single-window runs where beats lack it.
     """
@@ -725,15 +725,12 @@ def build_parser():
     p.add_argument("--normalize", action="store_true",
                    help="apply loudnorm to each beat (off by default, so raw "
                         "source amplitude differences are preserved)")
-    p.add_argument("--intensity", action="store_true",
-                   help="classify clean beats by intensity and copy them into "
-                        "intensity_N/ subfolders (columns added to the report)")
     p.add_argument("--intensity-mode",
                    choices=["bright_loud", "loud_rms", "loud_peak", "all"],
-                   default="bright_loud",
-                   help="intensity score axis: bright_loud (brightness + RMS, "
-                        "default), loud_rms (RMS only), loud_peak (peak only), "
-                        "or all (all three, under <out>/intensity_groups/)")
+                   help="turn on the intensity pass and pick the score axis: "
+                        "bright_loud (brightness + RMS), loud_rms (RMS only), "
+                        "loud_peak (peak only), or all (all three, under "
+                        "<out>/intensity_groups/). Off when omitted")
     p.add_argument("--thresholds", choices=["fixed", "adaptive"],
                    default="adaptive",
                    help="intensity tier boundary mode, bright_loud only; "
@@ -754,6 +751,9 @@ def build_parser():
                         "(default: %s)" % _DEFAULT_RMS_REF)
     p.add_argument("--dry-run", action="store_true",
                    help="report only, no extraction")
+    p.add_argument("-v", "--verbose", action="store_true",
+                   help="print every window and every written/dropped beat "
+                        "file (default: condensed summary)")
     return p
 
 
@@ -775,7 +775,7 @@ def _analyze_window(x, sr, args):
 
 
 def _intensity_pass(beats, args):
-    """Score + tier the extracted clean beats (--intensity).
+    """Score + tier the extracted clean beats (--intensity-mode).
 
     Runs on the already-extracted beat WAVs (raw levels unless --normalize
     was set) and attaches each mode's score/tier to every clean beat dict so
@@ -834,6 +834,23 @@ def _intensity_pass(beats, args):
         _intensity_copy(work, out_dir)
         result[which] = (boundaries, ref)
     return result
+
+
+def _tier_counts(beats, which):
+    """{tier: count} over clean beats for one intensity mode.
+
+    The pass attaches one tier key per mode: 'intensity_tier' for
+    bright_loud, 'loud_<axis>_tier' otherwise. Only tiers with beats are
+    returned -- matching the intensity_N/ folders copy_tiers creates.
+    """
+    key = "intensity_tier" if which == "bright_loud" else which + "_tier"
+    counts = {}
+    for b in beats:
+        if classification(b) == "clean":
+            tier = b.get(key)
+            if tier is not None:
+                counts[tier] = counts.get(tier, 0) + 1
+    return counts
 
 
 def main(argv=None):
@@ -906,7 +923,39 @@ def main(argv=None):
             written.extend(w)
             dropped.extend(d)
 
-    if args.intensity:
+    write_report(os.path.join(args.out, "beat_report.csv"), all_beats, 0.0,
+                 include_window=args.labels,
+                 include_intensity=args.intensity_mode is not None)
+
+    counts = {}
+    for b in all_beats:
+        counts[classification(b)] = counts.get(classification(b), 0) + 1
+
+    if args.labels:
+        print("labels: %d window(s) from %s" % (len(windows), labels_path))
+        if args.verbose:
+            for w_index, start, end, wlen in window_info:
+                print("  win%03d: %s -> %s (%.3fs)" % (
+                    w_index, _fmt(start), _fmt(end), wlen))
+    else:
+        start, end = windows[0]
+        print("window: %s -> %s (%.3fs)" % (
+            _fmt(start) if start is not None else "0",
+            _fmt(end) if end is not None else "EOF",
+            window_info[0][3]))
+    print("detected %d beat(s):" % len(all_beats))
+    for name in ("clean", "dirty", "skipped_too_short",
+                 "dropped_duration_outlier", "dropped_loudness_outlier"):
+        if counts.get(name):
+            print("  %-26s %d" % (name, counts[name]))
+    if args.verbose and not args.dry_run:
+        for idx, dur, peak in written:
+            print("  wrote beats/beat_%03d.wav  %.3fs  %.3f dBFS"
+                  % (idx, dur, peak))
+        for idx, cat in dropped:
+            print("  dropped beats_dropped/%s/beat_%03d.wav" % (cat, idx))
+
+    if args.intensity_mode:
         if args.dry_run:
             print("intensity pass skipped (dry run -- nothing extracted)")
         else:
@@ -923,36 +972,10 @@ def main(argv=None):
                     if boundaries:
                         print("  boundaries: " +
                               ", ".join("%.3f" % b for b in boundaries))
+                    for tier, count in sorted(
+                            _tier_counts(all_beats, which).items()):
+                        print("  intensity_%d: %d beat(s)" % (tier, count))
 
-    write_report(os.path.join(args.out, "beat_report.csv"), all_beats, 0.0,
-                 include_window=args.labels, include_intensity=args.intensity)
-
-    counts = {}
-    for b in all_beats:
-        counts[classification(b)] = counts.get(classification(b), 0) + 1
-
-    if args.labels:
-        print("labels: %d window(s) from %s" % (len(windows), labels_path))
-        for w_index, start, end, wlen in window_info:
-            print("  win%03d: %s -> %s (%.3fs)" % (
-                w_index, _fmt(start), _fmt(end), wlen))
-    else:
-        start, end = windows[0]
-        print("window: %s -> %s (%.3fs)" % (
-            _fmt(start) if start is not None else "0",
-            _fmt(end) if end is not None else "EOF",
-            window_info[0][3]))
-    print("detected %d beat(s):" % len(all_beats))
-    for name in ("clean", "dirty", "skipped_too_short",
-                 "dropped_duration_outlier", "dropped_loudness_outlier"):
-        if counts.get(name):
-            print("  %-26s %d" % (name, counts[name]))
-    if not args.dry_run:
-        for idx, dur, peak in written:
-            print("  wrote beats/beat_%03d.wav  %.3fs  %.3f dBFS"
-                  % (idx, dur, peak))
-        for idx, cat in dropped:
-            print("  dropped beats_dropped/%s/beat_%03d.wav" % (cat, idx))
     print("report: %s" % os.path.join(args.out, "beat_report.csv"))
 
 

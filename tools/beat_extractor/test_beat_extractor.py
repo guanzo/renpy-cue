@@ -9,12 +9,14 @@ import numpy as np
 
 from beat_extractor import (
     _clear_dir,
+    build_parser,
     _find_subthreshold_beats,
     _intensity_pass,
     _merge_beats,
     _peak_envelope,
     _refine_clip_end,
     _refine_clip_start,
+    _tier_counts,
     _write_outputs,
     build_clips,
     classify_gaps,
@@ -610,3 +612,63 @@ class TestWriteOutputs(object):
                          "beat_003.wav"))
         # nothing clean leaked into a category dir, nothing dropped into beats/
         assert sorted(os.listdir(beats_dir)) == ["beat_000.wav"]
+
+
+# CLI: --intensity-mode alone gates the intensity pass
+
+
+class TestIntensityCli(object):
+    """--intensity is gone; --intensity-mode (default None) turns the pass on."""
+
+    def test_default_off(self):
+        args = build_parser().parse_args(["song.mp4"])
+        assert args.intensity_mode is None
+
+    def test_intensity_mode_enables_pass(self):
+        args = build_parser().parse_args(["song.mp4", "--intensity-mode",
+                                          "loud_rms"])
+        assert args.intensity_mode == "loud_rms"
+
+    def test_old_intensity_flag_rejected(self):
+        import pytest
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(["song.mp4", "--intensity"])
+
+
+class TestVerboseCli(object):
+    """-v/--verbose opts into per-window and per-beat detail lines."""
+
+    def test_default_off(self):
+        assert build_parser().parse_args(["song.mp4"]).verbose is False
+
+    def test_long_and_short_flags(self):
+        assert build_parser().parse_args(
+            ["song.mp4", "--verbose"]).verbose is True
+        assert build_parser().parse_args(
+            ["song.mp4", "-v"]).verbose is True
+
+
+class TestTierCounts(object):
+    """_tier_counts groups clean beats per mode's tier, matching intensity_N/."""
+
+    def test_counts_clean_by_tier(self):
+        beats = [
+            {"status": "clean", "intensity_tier": 1},
+            {"status": "clean", "intensity_tier": 1},
+            {"status": "clean", "intensity_tier": 3},
+            {"status": "dirty", "intensity_tier": 2},
+            {"status": "clean"},  # no tier attached -- pass never scored it
+        ]
+        assert _tier_counts(beats, "bright_loud") == {1: 2, 3: 1}
+
+    def test_loud_mode_uses_own_key(self):
+        beats = [
+            {"status": "clean", "loud_rms_tier": 2},
+            {"status": "clean", "loud_rms_tier": 2},
+            {"status": "clean", "loud_rms_tier": 1},
+        ]
+        assert _tier_counts(beats, "loud_rms") == {1: 1, 2: 2}
+        assert _tier_counts(beats, "bright_loud") == {}  # no intensity_tier
+
+    def test_empty_when_no_clean(self):
+        assert _tier_counts([{"status": "dirty"}], "loud_peak") == {}

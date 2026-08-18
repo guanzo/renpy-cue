@@ -92,7 +92,7 @@ none of the `cue_lib` compatibility constraints apply.
       amplitude differences (a soft hit and a hard hit both land near -16 LUFS). Off by
       default so a source's internal soft-to-hard dynamics survive into the intensity tiers.
 11. **Report** -> `beat_report.csv`, one row per detected beat, written even on a dry run.
-12. **Intensity pass** (only with `--intensity`) -> classify the surviving clean
+12. **Intensity pass** (enabled by `--intensity-mode`) -> classify the surviving clean
     beats by *intensity* -- brightness (spectral centroid) + loudness (RMS),
     the two things that actually read as "high vs low impact" -- and copy each
     into `intensity_1/ .. intensity_N/` subfolders, originals untouched. The
@@ -163,8 +163,8 @@ variants side by side:
   intensity_by_loud_peak/   intensity_1/..N/
 ```
 
-The report is the full audit: with `--intensity` it always carries every
-axis's columns (`centroid_hz`, `rms_db`, `intensity_peak_db`,
+The report is the full audit: when the intensity pass runs it always carries
+every axis's columns (`centroid_hz`, `rms_db`, `intensity_peak_db`,
 `intensity_score/tier`, `loud_rms_score/tier`, `loud_peak_score/tier`),
 whether or not that axis's folders were written.
 
@@ -191,8 +191,7 @@ python3 beat_extractor.py INPUT --labels LABELS.TXT --out DIR [options]
 | `--denoise` | off | Add `afftdn` broadband denoising |
 | `--denoise-strength` | 12 | afftdn noise reduction in dB; higher = quieter floor (12 safe, ~25 aggressive, 40 near-silent but artifact-prone) |
 | `--normalize` | off | Apply `loudnorm` to each beat (off by default, so raw source amplitude differences are preserved) |
-| `--intensity` | off | Classify clean beats by intensity, copy into `intensity_1/..N/`, add columns to the report |
-| `--intensity-mode` | `bright_loud` | Score axis: `bright_loud` (brightness + RMS), `loud_rms` (RMS only), `loud_peak` (peak only), or `all` (all three, under `intensity_groups/`) |
+| `--intensity-mode` | none (off) | Turns on the intensity pass and picks the score axis: `bright_loud` (brightness + RMS), `loud_rms` (RMS only), `loud_peak` (peak only), or `all` (all three, under `intensity_groups/`) |
 | `--thresholds` | `adaptive` | Intensity boundary mode: `fixed` or `adaptive` (bright_loud only; loud-only variants are always adaptive) |
 | `--tiers` | 3 | Number of intensity tiers (2 or 3 in fixed mode) |
 | `--intensity-centroid-low` | 3000 | Fixed-mode low/high centroid boundary (Hz) |
@@ -215,11 +214,10 @@ Single window (`--start`/`--end`):
     dropped_duration_outlier/  dropped_duration_outlier /
     dropped_loudness_outlier/   dropped_loudness_outlier /
   beat_report.csv       audit trail
-  intensity_1/beat_...  with --intensity: copies of the clean beats, tiered
-  intensity_2/beat_...    (intensity_1 = lowest). Originals untouched.
-  intensity_groups/     with --intensity --intensity-mode all: the three
-    intensity_by_.../     score axes, each under its own tiered tree (see
-                          "Intensity pass").
+  intensity_1/beat_...  with the intensity pass: copies of the clean beats,
+  intensity_2/beat_...    tiered (intensity_1 = lowest). Originals untouched.
+  intensity_groups/     with --intensity-mode all: the three score axes, each
+    intensity_by_.../     under its own tiered tree (see "Intensity pass").
 ```
 
 Batch (`--labels`): beats from every window share one flat `beats/*.wav` set,
@@ -250,8 +248,9 @@ duration_band, loudness_median, loudness_band`
 
 In batch (`--labels`) mode the report adds a leading **`window`** column carrying
 each beat's window start (absolute into the source), so rows from different windows
-are distinguishable. With `--intensity`, clean rows gain the intensity columns
-**`centroid_hz, rms_db, intensity_score, intensity_tier, intensity_peak_db,
+are distinguishable. When the intensity pass runs, clean rows gain the
+intensity columns **`centroid_hz, rms_db, intensity_score, intensity_tier,
+intensity_peak_db,
 loud_rms_score, loud_rms_tier, loud_peak_score, loud_peak_tier`** (blank on
 non-clean rows, and blank for any axis that wasn't run) -- the intensity
 decision for every axis, auditable like every other one.

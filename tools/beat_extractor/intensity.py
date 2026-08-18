@@ -5,8 +5,8 @@ Classifies a set of beat WAVs by perceived "intensity" -- brightness (spectral
 centroid) plus loudness (RMS) -- and copies them into tiered subfolders
 (intensity_1 < intensity_2 < ... < intensity_N), originals untouched.
 
-It is the scoring + tiering engine behind beat_extractor's --intensity flag,
-and also runs standalone over any folder of WAVs:
+It is the scoring + tiering engine behind beat_extractor's --intensity-mode
+flag, and also runs standalone over any folder of WAVs:
 
     python3 intensity.py FOLDER --out tiers/ --tiers 3
 
