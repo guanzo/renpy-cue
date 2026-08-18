@@ -44,7 +44,7 @@ screen cue_sfx_page():
             spacing 5
             box_wrap True
             box_wrap_spacing 3
-            text "Interval:" style "cue_txt"
+            text "Interval:" style "cue_text"
             use cue_select_btn(
                 "Slowest",
                 (_freq == CueLoopFrequency.SLOWEST),

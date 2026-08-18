@@ -6,7 +6,7 @@
 screen cue_video_sfx():
     use cue_section_frame("Video SFX"):
         $ _vid_name = _cue.current_file if _cue.current_file else "?"
-        text "Video: [_vid_name]" style "cue_txt"
+        text "Video: [_vid_name]" style "cue_text"
 
         # --- Speed gate: SFX editing is only meaningful on the 1.0x
         #     original.  Variants autoscale from the 1.0x markers, so
@@ -21,12 +21,12 @@ screen cue_video_sfx():
             spacing 5
             hbox:
                 spacing 0
-                text "Time: " style "cue_txt"
-                add CueSelfUpdatingLabel(_cue.vid_manager.time_label, style="cue_txt")
+                text "Time: " style "cue_text"
+                add CueSelfUpdatingLabel(_cue.vid_manager.time_label, style="cue_text")
             hbox:
                 spacing 0
-                text "Frames: " style "cue_txt"
-                add CueSelfUpdatingLabel(_cue.vid_manager.frame_label, style="cue_txt")
+                text "Frames: " style "cue_text"
+                add CueSelfUpdatingLabel(_cue.vid_manager.frame_label, style="cue_text")
         hbox:
             spacing 5
             yalign 0.5
@@ -127,7 +127,7 @@ screen cue_video_sfx():
                     spacing 5
                     box_wrap True
                     box_wrap_spacing 3
-                    text _active_label style "cue_txt"
+                    text _active_label style "cue_text"
                     if _multi_selected:
                         $ _n_selected = len(_cue.markers.video.get_selected())
                         text "(Edits apply to all {} selected markers)".format(_n_selected) style "cue_help"
@@ -138,7 +138,7 @@ screen cue_video_sfx():
                     box_wrap True
                     box_wrap_spacing 3
 
-                    text "Time:" style "cue_txt" size 11
+                    text "Time:" style "cue_text" size 11
                     $ _dec10 = Function(_cue.markers.video.nudge, -0.01)
                     $ _dec100 = Function(_cue.markers.video.nudge, -0.1)
                     $ _inc10 = Function(_cue.markers.video.nudge, 0.01)
@@ -188,13 +188,13 @@ screen cue_video_sfx():
                         trigger_key=_vid_key, pool_index=_vid_target,
                         folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
                 else:
-                    text "SFX plays when this video reaches the marked time(s)." style "cue_txt"
-                    text "Click the V button in the SFX Library to add files to this pool." style "cue_txt"
+                    text "SFX plays when this video reaches the marked time(s)." style "cue_text"
+                    text "Click the V button in the SFX Library to add files to this pool." style "cue_text"
             else:
-                text "SFX plays when this video reaches the marked time(s)." style "cue_txt"
+                text "SFX plays when this video reaches the marked time(s)." style "cue_text"
                 text ("Click the V button in the SFX Library to create a new pool "
-                    "or add to the active pool.") style "cue_txt"
+                    "or add to the active pool.") style "cue_text"
         else:
             null height 5
             text ("Only the original video (1.0x) can be edited. Speed variants inherit "
-                + "the 1.0x configuration. Switch back to 1.0x to edit markers.") style "cue_txt"
+                + "the 1.0x configuration. Switch back to 1.0x to edit markers.") style "cue_text"

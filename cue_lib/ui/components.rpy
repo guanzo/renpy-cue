@@ -72,7 +72,7 @@ screen cue_h_divider(color=None):
 screen cue_vol_row(label_text, entry_dict, key, multi_setter=None):
     hbox:
         spacing 3
-        text label_text style "cue_txt" size 11
+        text label_text style "cue_text" size 11
         bar:
             value _CueVolumeValue(entry_dict, "volume", key, multi_setter=multi_setter, range=_cue.volume.VOL_MAX)
             xsize 60
@@ -82,7 +82,7 @@ screen cue_vol_row(label_text, entry_dict, key, multi_setter=None):
             thumb Solid(_cue_color_text)
             hover_thumb Solid(_cue_color_text_white)
 
-# Icon button: tiny button with cue_btn_icon / cue_btn_icon_text styles.
+# Icon button: tiny button with cue_icon_button / cue_icon_button_text styles.
 # Most callers don't need xsize (style default is 14); pass an int to override.
 # Pass tt=None to skip the tooltip.
 # `label` is an icon name ("clipboard", "xmark") or plain text ("-", "V").
@@ -93,8 +93,7 @@ screen cue_icon_btn(label, action, tt=None, xsize=16, enabled=True, bg=None, ico
     $ _icon = _cue.icons.displayable_for(label, icon_color) if _cue.icons is not None else None
     if _icon is not None:
         button:
-            style "cue_btn_icon"
-            ysize 16
+            style "cue_icon_button"
             if xsize is not None:
                 xsize xsize
             if tt is not None:
@@ -109,9 +108,8 @@ screen cue_icon_btn(label, action, tt=None, xsize=16, enabled=True, bg=None, ico
                 add _icon xalign 0.5 yalign 0.5 alpha 0.35
     else:
         textbutton label:
-            style "cue_btn_icon"
-            text_style "cue_btn_icon_text"
-            ysize 16
+            style "cue_icon_button"
+            text_style "cue_icon_button_text"
             if xsize is not None:
                 xsize xsize
             if tt is not None:
@@ -144,9 +142,9 @@ screen cue_icon(label, tt=None, action=NullAction(), icon_color=None, size=12):
 # live in one place. Pass bg/tooltip/sensitive/xsize/ysize to override.
 screen cue_txt_button(label, action, bg=None, hover_bg=None, tt=None,
                     sensitive=True, xsize=0, ysize=0):
+    style_group "cue"
+
     textbutton label:
-        style "cue_btn"
-        text_style "cue_btn_text"
         action action
         sensitive sensitive
         if bg is not None:
@@ -291,6 +289,8 @@ screen cue_search_bar(field_path, manager, hint="Search..."):
 screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                      delete_tt, add_action, add_tt, tab_action_fn, tab_action_args,
                      tab_tt, exclusive_ctx=None, selected_tabs=()):
+    style_group "cue"
+
     hbox:
         spacing 5
         box_wrap True
@@ -315,8 +315,6 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                 tt=_excl_tt,
                 bg=_excl_bg)
         textbutton "+ SFX Pool":
-            style "cue_btn"
-            text_style "cue_btn_text"
             action add_action
             tooltip add_tt
         for pi in range(count):
@@ -326,8 +324,6 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
             $ _tab_bg = (_cue_color_active if _is_active
                          else (_cue_color_selected if (pi in selected_tabs) else _cue_color_bg_btn))
             textbutton str(pi + 1):
-                style "cue_btn"
-                text_style "cue_btn_text"
                 xsize 14
                 background _tab_bg
                 action _cue_make_tab_action(tab_action_fn, tab_action_args, pi)
@@ -356,13 +352,13 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 for _child in folder_children:
                     hbox:
                         spacing row_spacing
-                        text "    " style "cue_txt"  # indent
+                        text "    " style "cue_text"  # indent
                         if folder_child_remove_fn is not None:
                             use cue_icon_btn("xmark",
                                 Function(folder_child_remove_fn, trigger_key, pool_index, 0, _child),
                                 "Remove file from pool", None)
                         use cue_icon_btn("play", Function(_cue_preview_sfx, _child, preview_vol), None, None)
-                        text _child style "cue_txt" color _cue_color_text_accent size 11
+                        text _child style "cue_text" color _cue_color_text_accent size 11
 
         for fi, f in enumerate(files):
             if f.endswith("/"):
@@ -383,21 +379,21 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                     for _child in _cue_resolve_files([f]):
                         hbox:
                             spacing row_spacing
-                            text "    " style "cue_txt"  # indent
+                            text "    " style "cue_text"  # indent
                             if folder_child_remove_fn is not None:
                                 use cue_icon_btn("xmark",
                                     Function(folder_child_remove_fn, trigger_key, pool_index, fi, _child),
                                     "Remove file from the folder", None)
                             use cue_icon_btn("play", Function(_cue_preview_sfx, _child, preview_vol), None, None)
                             $ _display = _child[len(f):]  # strip folder prefix
-                            text _display style "cue_txt" color _cue_color_text_accent size 11
+                            text _display style "cue_text" color _cue_color_text_accent size 11
             else:
                 # --- Regular file ---
                 hbox:
                     spacing row_spacing
                     use cue_icon_btn("xmark", _cue_make_tab_action(remove_fn, remove_args, fi), None, None)
                     use cue_icon_btn("play", Function(_cue_preview_sfx, f, preview_vol), None, None)
-                    text f style "cue_txt" color _cue_color_text_accent size 11
+                    text f style "cue_text" color _cue_color_text_accent size 11
 
 # Scrollable file list: only wraps in a viewport when content exceeds ~6 rows (120 px).
 screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
@@ -497,7 +493,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
 
     use cue_section_frame(section_title):
         if subtitle is not None:
-            text subtitle style "cue_txt"
+            text subtitle style "cue_text"
         if _entry:
             $ _entry.setdefault("volume", _cue.volume.VOL_DEFAULT)
             $ _master_vol = _entry.get("volume", _cue.volume.VOL_DEFAULT)
@@ -526,7 +522,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 spacing 5
                 box_wrap True
                 box_wrap_spacing 3
-                text _active_label style "cue_txt"
+                text _active_label style "cue_text"
                 null width 5
                 use cue_icon_btn(
                     "floppy-disk",
@@ -565,25 +561,26 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                         folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
             else:
                 if key and description is not None:
-                    text description style "cue_txt"
+                    text description style "cue_text"
                 if key:
                     text ("Click the {} button in the SFX Library "
-                        "to add files to this pool.").format(btn_letter) style "cue_txt"
+                        "to add files to this pool.").format(btn_letter) style "cue_text"
         else:
             if key and description is not None:
-                text description style "cue_txt"
+                text description style "cue_text"
             if key:
                 text ("Click the {} button in the SFX Library to create a new pool "
-                    "or add files to the active pool.").format(btn_letter) style "cue_txt"
+                    "or add files to the active pool.").format(btn_letter) style "cue_text"
 
 # Toggle button: square-check icon when checked, square when unchecked.
 # on_bg/on_hover/off_bg/off_hover override backgrounds per state (None = style default).
 screen cue_checkbox(checked, label, action, tt_on=None, tt_off=None,
                     on_bg=None, on_hover=None, off_bg=None, off_hover=None,
                     enabled=True):
+    style_group "cue"
+
     $ _icon = _cue.icons.displayable_for("square-check" if checked else "square")
     button:
-        style "cue_btn"
         sensitive enabled
         action action
         if checked:
@@ -603,15 +600,15 @@ screen cue_checkbox(checked, label, action, tt_on=None, tt_off=None,
         hbox:
             spacing 5
             add _icon yalign 0.5
-            text label style "cue_btn_text" yalign 0.5
+            text label
 
 # Radio button: solid circle icon tinted with the active color when
 # selected, outline circle when not.
 # Exclusivity within a group is enforced by the shared action target.
 screen cue_radio_btn(checked, label, action, tt=None, enabled=True):
+    style_group "cue"
     $ _icon = _cue.icons.displayable_for("circle" if checked else "circle-outline")
     button:
-        style "cue_btn"
         sensitive enabled
         action action
         if tt is not None:
@@ -619,7 +616,7 @@ screen cue_radio_btn(checked, label, action, tt=None, enabled=True):
         hbox:
             spacing 5
             add _icon yalign 0.5
-            text label style "cue_btn_text" yalign 0.5
+            text label
 
 ## Colors matching the Bulma "is-link" notification style — tweak to taste
 screen notification(text, 
@@ -641,7 +638,7 @@ screen notification(text,
             add _icon yalign 0.0
 
             text text:
-                style "cue_txt"
+                style "cue_text"
                 color text_color
                 xfill True
 

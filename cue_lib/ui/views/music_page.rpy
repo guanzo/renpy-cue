@@ -44,23 +44,23 @@ screen cue_music_page():
                         spacing 8
                         box_wrap True
                         box_wrap_spacing 3
-                        text "Now Playing:" style "cue_txt"
-                        text (_cue.music.now_playing() or "(None)") style "cue_txt" color _cue_color_text_accent
+                        text "Now Playing:" style "cue_text"
+                        text (_cue.music.now_playing() or "(None)") style "cue_text" color _cue_color_text_accent
                     hbox:
                         spacing 8
                         box_wrap True
                         box_wrap_spacing 3
-                        text "Current Scene:" style "cue_txt"
-                        text (_cue.current_file or "(None)") style "cue_txt" color _cue_color_text_accent
+                        text "Current Scene:" style "cue_text"
+                        text (_cue.current_file or "(None)") style "cue_text" color _cue_color_text_accent
                     
                     null height 5
 
                     $ triggers = _cue.music.triggers()
                    
                     if not triggers:
-                        text "No music triggers for this replay yet." style "cue_txt"
+                        text "No music triggers for this replay yet." style "cue_text"
                     else:
-                        text "Music Triggers:" style "cue_txt"
+                        text "Music Triggers:" style "cue_text"
                         use trigger_list(triggers)
                     
                     if not renpy.store._in_replay:
@@ -70,7 +70,7 @@ screen cue_music_page():
                             spacing 6
                             add _warn_icon yalign 0.5
                             text ("Customizing Music is only fully supported in replays, "
-                                    "it may not work properly in game.") style "cue_txt" color _cue_color_warn
+                                    "it may not work properly in game.") style "cue_text" color _cue_color_warn
                     
                     null height 4
                     use cue_txt_button(
@@ -91,14 +91,14 @@ screen cue_music_page():
                     # while the other has files.
                     if not _cue.music.user_music.tree:
                         if _cue.music.user_music.scan_error:
-                            text "[_cue.music.user_music.scan_error]" style "cue_txt" color _cue_color_error
-                        text "No music found in: [_cue.paths.music_dir]" style "cue_txt"
+                            text "[_cue.music.user_music.scan_error]" style "cue_text" color _cue_color_error
+                        text "No music found in: [_cue.paths.music_dir]" style "cue_text"
                         text ("Add {} files there "
-                            "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_txt"
+                            "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_text"
                     if not _cue.music.game_music.tree:
                         if _cue.music.game_music.scan_error:
-                            text "[_cue.music.game_music.scan_error]" style "cue_txt" color _cue_color_error
-                        text "No music found in game directory." style "cue_txt"
+                            text "[_cue.music.game_music.scan_error]" style "cue_text" color _cue_color_error
+                        text "No music found in game directory." style "cue_text"
                     if _cue.music.user_music.tree or _cue.music.game_music.tree:
                         use cue_music_tree()
 
@@ -120,7 +120,7 @@ screen trigger_list(triggers):
                         Function(_cue.music.delete_trigger, trigger["key"]),
                         ("Reset to default" if trigger["is_default"] else "Delete trigger"),
                         None)
-                    text trigger["label"] style "cue_txt" color _cue_color_text_accent
+                    text trigger["label"] style "cue_text" color _cue_color_text_accent
                 if trigger["is_default"]:
                     $ _default_path = trigger["default_path"] or ""
                     hbox:
@@ -131,10 +131,10 @@ screen trigger_list(triggers):
                             "Toggle default song",
                             None)
                         if trigger["default_enabled"]:
-                            text "Default: [_default_path]" style "cue_txt"
+                            text "Default: [_default_path]" style "cue_text"
                         else:
                             text ("Default: [_default_path] "
-                                    "(Disabled)") style "cue_txt" color _cue_color_text_muted
+                                    "(Disabled)") style "cue_text" color _cue_color_text_muted
                 if trigger["songs"]:
                     for _idx, _song in enumerate(trigger["songs"]):
                         if _song.endswith("/"):
@@ -160,7 +160,7 @@ screen trigger_list(triggers):
                                 for _child in _folder_files:
                                     hbox:
                                         spacing 6
-                                        text "    " style "cue_txt"
+                                        text "    " style "cue_text"
                                         use cue_icon_btn(
                                             "xmark",
                                             Function(
@@ -171,7 +171,7 @@ screen trigger_list(triggers):
                                             "Remove file from the folder",
                                             None)
                                         $ _child_display = _child[len(_song_path):]
-                                        text _child_display style "cue_txt"
+                                        text _child_display style "cue_text"
                         else:
                             $ _song_name = _song.rsplit("/", 1)[-1]
                             hbox:
@@ -184,9 +184,9 @@ screen trigger_list(triggers):
                                         _song),
                                     "Remove song from trigger",
                                     None)
-                                text _song_name style "cue_txt"
+                                text _song_name style "cue_text"
                 elif not trigger["is_default"]:
-                    text "No music added." style "cue_txt"
+                    text "No music added." style "cue_text"
 
 # Combined Music Library file tree. Each row carries a play button plus an
 # add-to-trigger "+" button. The combined manager routes display paths back to
@@ -202,7 +202,7 @@ screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
             hbox:
                 spacing 2
                 if item["depth"] > 0:
-                    text " " * item["depth"] style "cue_txt"
+                    text " " * item["depth"] style "cue_text"
                 if item["type"] == "folder":
                     # can_add is False only on the synthetic "Game Music/" root,
                     # which groups several real folders and has no single data
@@ -225,13 +225,13 @@ screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
                         _tree_add_tt,
                         None,
                         enabled=_tree_add_enabled)
-                    text item["name"] style "cue_txt" color _cue_color_text_accent
+                    text item["name"] style "cue_text" color _cue_color_text_accent
 
 # Combined My/Game Music tree. One shared search bar filters both sources; the
 # combined manager's visible_tree holds the merged display rows.
 screen cue_music_tree():
     if _cue.music.library.search_query.strip() and not _cue.music.library.visible_tree:
-        text 'No files found for "{}".'.format(_cue.music.library.search_query) style "cue_txt"
+        text 'No files found for "{}".'.format(_cue.music.library.search_query) style "cue_text"
     else:
         use _cue_music_file_tree(
             _cue.music.library.visible_tree,

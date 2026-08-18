@@ -162,7 +162,7 @@ class CueVideoTimeline(Displayable):
                 frac = max(0.0, min(1.0, rx / float(max(1, width))))
                 t = frac * dur
                 tip_text = "Click to seek to: " + _cue_format_time(t)
-                tip_widget = Txt(tip_text, style="cue_txt", size=11,
+                tip_widget = Txt(tip_text, style="cue_text", size=11,
                                   color="#cccccc", italic=True, substitute=False)
                 tip_render = renpy.render(tip_widget, 300, 100, st, at)
                 tw, th = tip_render.get_size()
@@ -334,7 +334,7 @@ class CueVideoMarkerTimeline(Displayable):
             by_pos = self.TRACK_H - 2
             c.rect(bg, (bx_pos, by_pos, self.TAB_W, self.TAB_H))
 
-            txt = Txt(str(i + 1), style="cue_btn_text", size=12, color="#ffffff")
+            txt = Txt(str(i + 1), style="cue_button_text", size=12, color="#ffffff")
             tr = renpy.render(txt, self.TAB_W, self.TAB_H, st, at)
             tw, _ = tr.get_size()
             r.blit(tr, (bx_pos + (self.TAB_W - tw) // 2, by_pos))
@@ -350,7 +350,7 @@ class CueVideoMarkerTimeline(Displayable):
             pbx = ppx - self.TAB_W // 2
             pby = self.TRACK_H - 2
             c.rect("#4a606e", (pbx, pby, self.TAB_W, self.TAB_H))
-            ptxt = Txt("?", style="cue_btn_text", size=12, color="#ffffff")
+            ptxt = Txt("?", style="cue_button_text", size=12, color="#ffffff")
             ptr = renpy.render(ptxt, self.TAB_W, self.TAB_H, st, at)
             ptw, _ = ptr.get_size()
             r.blit(ptr, (pbx + (self.TAB_W - ptw) // 2, pby))
@@ -567,7 +567,7 @@ class CueTooltip(Displayable):
     def render(self, width, height, st, at):
         # type: (int, int, float, float) -> Any
         text_widget = Txt(
-            self._text, style="cue_txt", size=12, color="#cccccc",
+            self._text, style="cue_text", size=12, color="#cccccc",
             italic=False, substitute=False,
         )
         max_width = 350
@@ -617,7 +617,7 @@ class CueMarkerTooltipOverlay(Displayable):
         if not text:
             return renpy.Render(1, 1)
 
-        tip_widget = Txt(text, style="cue_txt", size=12,
+        tip_widget = Txt(text, style="cue_text", size=12,
                           color="#cccccc", italic=False, substitute=False)
         tip_render = renpy.render(tip_widget, 300, 100, st, at)
         tw, th = tip_render.get_size()
@@ -732,7 +732,7 @@ class CueAutoSpeedChart(Displayable):
         def _fmt(sp):
             return "{:.1f}x".format(sp)
 
-        y_style = dict(style="cue_txt", size=12, color="#888888",
+        y_style = dict(style="cue_text", size=12, color="#888888",
                        italic=False, substitute=False)
         max_w = Txt(_fmt(sp_max), **y_style)
         max_r = renpy.render(max_w, 60, 16, st, at)
@@ -746,7 +746,7 @@ class CueAutoSpeedChart(Displayable):
         # --- Current speed below the dot ---
         if 0 <= current_idx < len(speeds):
             cur_sp = speeds[current_idx]
-            cur_w = Txt(_fmt(cur_sp), style="cue_txt", size=12,
+            cur_w = Txt(_fmt(cur_sp), style="cue_text", size=12,
                         color="#ffaa00", italic=False, substitute=False)
             cur_r = renpy.render(cur_w, 60, 16, st, at)
             cw, _ch = cur_r.get_size()
@@ -772,7 +772,7 @@ class CueAutoSpeedChart(Displayable):
             if nearest_idx >= 0:
                 sp = speeds[nearest_idx]
                 tip_text = "{:.1f}x  step {}/{}".format(sp, nearest_idx + 1, len(speeds))
-                tip_widget = Txt(tip_text, style="cue_txt", size=10,
+                tip_widget = Txt(tip_text, style="cue_text", size=10,
                                   color="#cccccc", italic=False, substitute=False)
                 tip_render = renpy.render(tip_widget, 200, 50, st, at)
                 tw, th = tip_render.get_size()

@@ -28,12 +28,12 @@ screen cue_repeat_markers_dialog():
 
             hbox:
                 spacing 5
-                text "Selected:" style "cue_txt"
-                text "{} marker(s)".format(sel_count) style "cue_txt" color _cue_color_text_accent
+                text "Selected:" style "cue_text"
+                text "{} marker(s)".format(sel_count) style "cue_text" color _cue_color_text_accent
 
             hbox:
                 spacing 5
-                text "Anchor:" style "cue_txt"
+                text "Anchor:" style "cue_text"
                 $ _anchor_dec = Function(_cue.repeater.nudge_anchor, -0.01)
                 $ _anchor_inc = Function(_cue.repeater.nudge_anchor, 0.01)
                 $ _anchor_commit = Function(_cue.repeater.commit_anchor)
@@ -44,7 +44,7 @@ screen cue_repeat_markers_dialog():
             hbox:
                 spacing 3
                 xalign 0.0
-                text "Interval:" style "cue_txt"
+                text "Interval:" style "cue_text"
                 $ _commit = Function(_cue.repeater.commit_interval)
                 $ _display = _cue.repeater.interval_text
                 use cue_float_input("_cue.repeater.interval_text", _commit, _display,
@@ -54,7 +54,7 @@ screen cue_repeat_markers_dialog():
             hbox:
                 spacing 3
                 xalign 0.0
-                text "Repeat:" style "cue_txt"
+                text "Repeat:" style "cue_text"
                 $ _dec = Function(_cue.repeater.nudge_count, -1)
                 $ _inc = Function(_cue.repeater.nudge_count, 1)
                 $ _commit = Function(_cue.repeater.commit_count)
@@ -66,7 +66,7 @@ screen cue_repeat_markers_dialog():
                 Function(_cue.repeater.toggle_preview_sfx))
 
             $ _preview_label = _cue.repeater.preview_text()
-            text _preview_label style "cue_txt"
+            text _preview_label style "cue_text"
 
             null height 5
 
@@ -105,19 +105,19 @@ screen cue_save_preset_dialog():
 
             hbox:
                 spacing 5
-                text "Files:" style "cue_txt"
-                text "{} file(s)".format(_file_count) style "cue_txt" color _cue_color_text_accent
+                text "Files:" style "cue_text"
+                text "{} file(s)".format(_file_count) style "cue_text" color _cue_color_text_accent
 
             hbox:
                 spacing 5
-                text "Volume:" style "cue_txt"
-                text "{:.1f}".format(_r.volume) style "cue_txt" color _cue_color_text_accent
+                text "Volume:" style "cue_text"
+                text "{:.1f}".format(_r.volume) style "cue_text" color _cue_color_text_accent
 
             null height 5
 
             hbox:
                 spacing 5
-                text "Name:" style "cue_txt"
+                text "Name:" style "cue_text"
                 input:
                     style "cue_input"
                     value _CueFieldValue("_cue.preset_dialog.name")
@@ -167,24 +167,24 @@ screen cue_save_video_preset_dialog():
 
             hbox:
                 spacing 5
-                text "Markers:" style "cue_txt"
-                text "{} marker(s)".format(_marker_count) style "cue_txt" color _cue_color_text_accent
+                text "Markers:" style "cue_text"
+                text "{} marker(s)".format(_marker_count) style "cue_text" color _cue_color_text_accent
 
             hbox:
                 spacing 5
-                text "Span:" style "cue_txt"
-                text _span_text style "cue_txt" color _cue_color_text_accent
+                text "Span:" style "cue_text"
+                text _span_text style "cue_text" color _cue_color_text_accent
 
             hbox:
                 spacing 5
-                text "Files:" style "cue_txt"
-                text "{} file(s)".format(_total_files) style "cue_txt" color _cue_color_text_accent
+                text "Files:" style "cue_text"
+                text "{} file(s)".format(_total_files) style "cue_text" color _cue_color_text_accent
 
             null height 5
 
             hbox:
                 spacing 5
-                text "Name:" style "cue_txt"
+                text "Name:" style "cue_text"
                 input:
                     style "cue_input"
                     value _CueFieldValue("_cue.video_preset_dialog.name")
@@ -218,7 +218,7 @@ screen cue_confirm_dialog():
 
         vbox:
             spacing 8
-            text _d.message style "cue_txt"
+            text _d.message style "cue_text"
 
             null height 5
 

@@ -18,10 +18,10 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
     use cue_section_frame(CUE_SFX_LIBRARY_HEADER, tt=sfx_tt, icons=_icons):
         if not _cue.sfx_manager.tree:
             if _cue.sfx_manager.scan_error:
-                text "[_cue.sfx_manager.scan_error]" style "cue_txt" color _cue_color_error
-            text "No audio files found in: [_cue.paths.audio_dir]" style "cue_txt"
+                text "[_cue.sfx_manager.scan_error]" style "cue_text" color _cue_color_error
+            text "No audio files found in: [_cue.paths.audio_dir]" style "cue_text"
             text ("Add {} files there "
-                "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_txt"
+                "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_text"
         else:
             use cue_search_bar("_cue.sfx_manager.search_query", _cue.sfx_manager)
             null height 5
@@ -64,7 +64,7 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
                     use cue_video_presets_list(_is_video, _has_image, _is_dialogue, _video_preset_names)
 
             if _searching and not _preset_names and not _video_preset_names and not _cue.sfx_manager.visible_tree:
-                text 'No files found for "{}".'.format(_q) style "cue_txt"
+                text 'No files found for "{}".'.format(_q) style "cue_text"
             else:
                 use cue_file_tree(_is_video, _has_image, _is_dialogue)
 
@@ -93,7 +93,7 @@ screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue, name_filter=N
         $ _p_files = _cue_resolve_files(_pdata.get("files", [])) if _pdata else []
         hbox:
             spacing 2
-            text "  " style "cue_txt"  # indent under Presets/
+            text "  " style "cue_text"  # indent under Presets/
             use cue_icon_btn("xmark", Function(_cue_confirm_delete_preset, _pname), "Delete preset", None)
             use cue_icon_btn(
                 "play",
@@ -121,13 +121,13 @@ screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue, name_filter=N
             for _child in _p_files:
                 hbox:
                     spacing 2
-                    text "    " style "cue_txt"  # double indent
+                    text "    " style "cue_text"  # double indent
                     use cue_icon_btn(
                         "xmark",
                         Function(_cue.markers.preset_remove_file, _pname, _child),
                         "Remove file from preset", None)
                     use cue_icon_btn("play", Function(_cue_preview_sfx, _child), "Preview file", None)
-                    text _child style "cue_txt" color _cue_color_text_accent size 11
+                    text _child style "cue_text" color _cue_color_text_accent size 11
 
 
 # Video preset rows, shown when the Video Presets folder is expanded.
@@ -140,7 +140,7 @@ screen cue_video_presets_list(_is_video, _has_image, _is_dialogue, name_filter=N
         $ _vp_pools = _vpdata.get("pools", []) if _vpdata else []
         hbox:
             spacing 2
-            text "  " style "cue_txt"  # indent under Video Presets/
+            text "  " style "cue_text"  # indent under Video Presets/
             use cue_icon_btn(
                 "xmark",
                 Function(_cue_confirm_delete_video_preset, _vpname),
@@ -163,8 +163,8 @@ screen cue_video_presets_list(_is_video, _has_image, _is_dialogue, name_filter=N
                 $ _pool_label = "{} ({} files)".format(_cue_format_time(_pool_time), _pool_files)
                 hbox:
                     spacing 2
-                    text "    " style "cue_txt"  # double indent
-                    text _pool_label style "cue_txt" color _cue_color_text_accent size 11
+                    text "    " style "cue_text"  # double indent
+                    text _pool_label style "cue_text" color _cue_color_text_accent size 11
 
 
 # Folder/file rows for the current audio tree.
@@ -189,7 +189,7 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
             spacing 2
             # Indent
             if item["depth"] > 0:
-                text " " * item["depth"] style "cue_txt"
+                text " " * item["depth"] style "cue_text"
             if item["type"] == "folder":
                 if item["has_files"]:
                     use cue_icon_btn(
@@ -241,4 +241,4 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
                 #     Function(_cue.sfx_manager.toggle_file_enabled, item["full_path"]),
                 #     "Click to {} globally".format("disable" if item.get("enabled", True) else "enable"),
                 #     None)
-                text item["name"] style "cue_txt" color _cue_color_text_accent
+                text item["name"] style "cue_text" color _cue_color_text_accent
