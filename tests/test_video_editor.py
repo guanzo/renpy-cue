@@ -1226,3 +1226,403 @@ def test_editor_refresh_ui_when_idle(ve):
 def test_editor_refresh_ui_with_job(ve, tmp_path):
     ve.job_queue._jobs.append(make_job(ve, tmp_path))
     ve.job_queue.refresh_ui()  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# coverage push: editor + queue exception branches
+# ---------------------------------------------------------------------------
+
+def test_editor_check_prerequisites_not_found_disk(ve, monkeypatch):
+    # _get_video_fspath() misses and _is_in_rpa() sees no vpath on its own
+    # re-read -> "not found on disk" (also covers _is_in_rpa's no-vp False)
+    calls = [0]
+
+    def _stateful():
+        calls[0] += 1
+        return "movies/scene.webm" if calls[0] == 1 else None
+    monkeypatch.setattr(ve, "_get_video_vpath", _stateful)
+    status, msg = ve.check_prerequisites()
+    assert status == "error"
+    assert msg == "Video file not found on disk."
+
+
+def test_editor_check_prerequisites_dir_readonly(ve, tmp_path, monkeypatch):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    fs = os.path.normpath(os.path.join(str(tmp_path), "movies/scene.webm"))
+    real_access = os.access
+
+    def _access(path, mode):
+        if path == os.path.dirname(fs) and mode == os.W_OK:
+            return False
+        return real_access(path, mode)
+    monkeypatch.setattr(os, "access", _access)
+    status, msg = ve.check_prerequisites()
+    assert status == "error"
+    assert "read-only" in msg
+
+
+def test_editor_extract_makedirs_fails(ve, monkeypatch):
+    def _boom(path):
+        raise OSError("permission denied")
+    monkeypatch.setattr(os, "makedirs", _boom)
+    ok, msg = ve.extract_from_rpa()
+    assert ok == "error"
+    assert "Cannot create directory" in msg
+
+
+def test_editor_warm_cache(ve):
+    ve._warm_cache()
+    assert ve._ffmpeg._ffmpeg_cache == 1
+
+
+def test_editor_warm_tools(ve):
+    ve._warm_tools()
+    assert ve._ready is True
+    assert ve._warm_cache_error == ""
+
+
+def test_editor_warm_tools_error(ve, monkeypatch):
+    def _boom():
+        raise OSError("encoders unavailable")
+    monkeypatch.setattr(ve._ffmpeg, "load_encoders", _boom)
+    ve._warm_tools()
+    assert ve._ready is True
+    assert ve._warm_cache_error == "encoders unavailable"
+
+
+def test_editor_prepare_create_bad_factor(ve, tmp_path, fthread):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve._ready = True
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.factor_text = "abc"
+    ve.prepare_create()
+    assert len(ve.job_queue.jobs) == 1
+    assert ve.job_queue.jobs[0].factor == 1.0
+
+
+def test_editor_extract_then_create_prereq_error(ve, tmp_path, monkeypatch):
+    ve._ready = True
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.factor_text = "2.00"
+    monkeypatch.setattr(ve, "extract_from_rpa",
+                        lambda: ("ok", str(tmp_path / "movies" / "scene.webm")))
+    monkeypatch.setattr(ve, "check_prerequisites", lambda: ("error", "nope"))
+    ve._extract_then_create()
+    assert ve.last_error == "nope"
+
+
+def test_editor_extract_then_create_success(ve, tmp_path, fthread, monkeypatch):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve._ready = True
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.factor_text = "abc"
+    monkeypatch.setattr(ve, "extract_from_rpa",
+                        lambda: ("ok", str(tmp_path / "movies" / "scene.webm")))
+    ve._extract_then_create()
+    assert len(ve.job_queue.jobs) == 1
+    assert ve.job_queue.jobs[0].factor == 1.0
+
+
+def test_editor_create_no_vp(ve, tmp_path, monkeypatch):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve._current = ve._ensure_state("movies/scene.webm")
+    calls = [0]
+
+    def _stateful():
+        calls[0] += 1
+        return "movies/scene.webm" if calls[0] == 1 else None
+    monkeypatch.setattr(ve, "_get_video_vpath", _stateful)
+    ve.create(2.0)
+    assert len(ve.job_queue.jobs) == 0
+
+
+def test_editor_refresh_processing(ve, tmp_path):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve.refresh()
+    job = make_job(ve, tmp_path, status=CueJobStatus.ENCODING)
+    ve.job_queue._current = job
+    ve.refresh()
+    assert ve.last_error == ""
+
+
+def test_start_next_get_duration_raises(ve, tmp_path, fthread, monkeypatch):
+    def _boom(channel=None):
+        raise RuntimeError("no channel")
+    monkeypatch.setattr(_qeditor._music, "get_duration", _boom)
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._jobs.append(job)
+    q._start_next()
+    assert job.status == CueJobStatus.ANALYZING
+
+
+def test_launch_pass_popen_error_cancelled(ve, tmp_path, monkeypatch):
+    # Main-thread cancel() can't run mid-launch, so the cancelled branch of
+    # the launch except is defensive dead code; fake the Popen to set it.
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._log_path = str(tmp_path / "enc.log")
+    job._cmds = [["ffmpeg"]]
+
+    def _boom(*a, **k):
+        job.cancelled = True
+        raise OSError("spawn failed")
+    monkeypatch.setattr(_qeditor.subprocess, "Popen", _boom)
+    q._launch_pass(job)
+    assert job._done is True
+    assert job.proc is None
+
+
+def test_launch_pass_close_raises(ve, tmp_path, monkeypatch):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._log_path = str(tmp_path / "enc.log")
+    job._cmds = [["ffmpeg"]]
+    monkeypatch.setattr(_qeditor.subprocess, "Popen",
+                        lambda *a, **k: FakeProc())
+
+    class _FlakyLogFile(object):
+        def write(self, data):
+            pass
+
+        def flush(self):
+            pass
+
+        def close(self):
+            raise OSError("flush failed")
+    monkeypatch.setattr(_qeditor, "open", lambda path, mode: _FlakyLogFile(),
+                        raising=False)
+    q._launch_pass(job)
+    assert job.proc is not None
+
+
+def test_launch_pass_cancelled_kills_after_popen(ve, tmp_path, monkeypatch):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._log_path = str(tmp_path / "enc.log")
+    job._cmds = [["ffmpeg"]]
+    proc = FakeProc()
+
+    def _popen(*a, **k):
+        job.cancelled = True
+        return proc
+    monkeypatch.setattr(_qeditor.subprocess, "Popen", _popen)
+    q._launch_pass(job)
+    assert proc.killed is True
+    assert job._done is True
+
+
+def test_read_progress_open_fails(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    d = tmp_path / "progdir"
+    d.mkdir()
+    job._progress_path = str(d)
+    job.total_frames = 100
+    q._read_progress(job)
+    assert job.progress == 0.0
+
+
+def test_append_pass_footer_write_fails(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._pass_idx = 2
+    d = tmp_path / "logdir"
+    d.mkdir()
+    job._log_path = str(d)
+    q._append_pass_footer(job, 0)  # must not raise
+
+
+def test_error_tail_read_fails(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._pass_idx = 1
+    d = tmp_path / "logdir"
+    d.mkdir()
+    job._log_path = str(d)
+    assert q._error_tail(job, 1) == "ffmpeg pass 1 rc=1: "
+
+
+def test_finalize_encode_passlog_cleanup_fails(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job.passlog = str(tmp_path / "p.passlog")
+    (tmp_path / "p.passlog-0.log").mkdir()
+    q._finalize_encode(job)
+    assert job._done is True
+
+
+def test_finalize_encode_progress_cleanup_fails(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    job._progress_path = str(tmp_path / "progdir")
+    (tmp_path / "progdir").mkdir()
+    q._finalize_encode(job)
+    assert job._done is True
+
+
+def test_start_swap_getsize_raises(ve, tmp_path, monkeypatch):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    write_file(job.fspath_tmp)
+
+    def _boom(path):
+        raise OSError("io error")
+    monkeypatch.setattr(os.path, "getsize", _boom)
+    assert q._start_swap(job) is False
+    assert job.status == CueJobStatus.ERROR
+    assert job.error_msg == "Cannot read temp"
+
+
+def test_start_swap_stops_playing_channel(ve, tmp_path, fthread, monkeypatch):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    write_file(job.fspath_tmp)
+    monkeypatch.setattr(_qeditor._aaudio, "channels", {"movie": {}})
+    _qeditor._music._registry.setdefault("movie", {})["playing"] = "out.webm"
+    assert q._start_swap(job) is True
+    assert _qeditor._music._registry["movie"].get("playing") is None
+    assert job._swapping is True
+
+
+def test_start_swap_other_channel_playing(ve, tmp_path, fthread, monkeypatch):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    write_file(job.fspath_tmp)
+    monkeypatch.setattr(_qeditor._aaudio, "channels", {"movie": {}})
+    _qeditor._music._registry.setdefault("movie", {})["playing"] = "other.webm"
+    assert q._start_swap(job) is True
+    assert _qeditor._music._registry["movie"].get("playing") == "other.webm"
+
+
+def test_start_swap_channel_stop_error(ve, tmp_path, fthread, monkeypatch):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    write_file(job.fspath_tmp)
+    monkeypatch.setattr(_qeditor._aaudio, "channels", {"movie": {}})
+
+    def _boom(channel=None):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(_qeditor._music, "get_playing", _boom)
+    assert q._start_swap(job) is True
+    assert job.status == CueJobStatus.FINALIZING
+
+
+def test_kill_proc_wait_raises(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+
+    class _Proc(object):
+        pid = 777
+
+        def kill(self):
+            pass
+
+        def wait(self):
+            raise OSError("wait failed")
+    job.proc = _Proc()
+    q._kill_proc(job)
+    assert job.proc is None
+
+
+def test_kill_proc_kill_raises(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+
+    class _Proc(object):
+        pid = 777
+
+        def kill(self):
+            raise OSError("kill failed")
+
+        def wait(self):
+            return 0
+    job.proc = _Proc()
+    q._kill_proc(job)
+    assert job.proc is None
+
+
+def test_cleanup_temp_remove_fails(ve, tmp_path):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    (tmp_path / "tmpdir").mkdir()
+    job.fspath_tmp = str(tmp_path / "tmpdir")
+    job.passlog = str(tmp_path / "p.passlog")
+    (tmp_path / "p.passlog-0.log").mkdir()
+    (tmp_path / "p.passlog-1.log").mkdir()
+    job._progress_path = str(tmp_path / "progdir")
+    (tmp_path / "progdir").mkdir()
+    q._cleanup_temp(job)  # all three removes fail on directories
+
+
+def test_save_not_initialized_noop(ve, tmp_path, monkeypatch):
+    from cue_lib.state import _cue as _state_cue
+    monkeypatch.setattr(_state_cue, "initialized", False, raising=False)
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._jobs.append(job)
+    q.save_to_persistent()
+    assert persistent._cue_jobs is None
+
+
+def test_save_to_persistent_fails(ve, tmp_path, monkeypatch):
+    q = ve.job_queue
+    job = make_job(ve, tmp_path)
+    q._jobs.append(job)
+
+    class _FlakyPersistent(object):
+        def __init__(self):
+            self._stored = None
+
+        @property
+        def _cue_jobs(self):
+            return self._stored
+
+        @_cue_jobs.setter
+        def _cue_jobs(self, value):
+            if value is not None:
+                raise OSError("disk full")
+            self._stored = value
+    monkeypatch.setattr(_qeditor, "persistent", _FlakyPersistent())
+    q.save_to_persistent()  # must not raise
+
+
+def test_load_removes_stale_tmp_with_error(ve, tmp_path, monkeypatch):
+    (tmp_path / "tmpdir").mkdir()
+    monkeypatch.setattr(persistent, "_cue_jobs", [{
+        "job_id": 1,
+        "vpath": "movies/scene.webm",
+        "fspath_in": str(tmp_path / "gone.webm"),
+        "fspath_tmp": str(tmp_path / "tmpdir"),
+        "factor": 3.0,
+        "encode_mode": 0,
+        "fspath_out": str(tmp_path / "out.webm"),
+    }])
+    ve.job_queue.load_from_persistent()
+    assert ve.job_queue._jobs == []
+
+
+def test_load_removes_stale_passlog_with_error(ve, tmp_path, monkeypatch):
+    write_file(tmp_path / "tmp.webm")
+    (tmp_path / "tmp.webm.passlog-0.log").mkdir()
+    monkeypatch.setattr(persistent, "_cue_jobs", [{
+        "job_id": 1,
+        "vpath": "movies/scene.webm",
+        "fspath_in": str(tmp_path / "gone.webm"),
+        "fspath_tmp": str(tmp_path / "tmp.webm"),
+        "factor": 3.0,
+        "encode_mode": 0,
+        "fspath_out": str(tmp_path / "out.webm"),
+    }])
+    ve.job_queue.load_from_persistent()
+    assert ve.job_queue._jobs == []
+
+
+def test_load_persistent_unwrap_error(ve, tmp_path, monkeypatch):
+    monkeypatch.setattr(persistent, "_cue_jobs", [{"job_id": 1}])
+
+    def _boom(raw):
+        raise RuntimeError("unpack failed")
+    monkeypatch.setattr(_qeditor, "_cue_unwrap_persistent", _boom)
+    ve.job_queue.load_from_persistent()  # must not raise
+    assert ve.job_queue._jobs == []
