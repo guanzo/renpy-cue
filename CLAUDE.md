@@ -99,8 +99,9 @@ copy and forgot the other, would behavior silently break?"*
 ### python early limitation
 
 `cue_z.rpy` `python early` blocks run before `renpy.store` exists. Importing
-from `cue_lib` there cascades into `file_tree.py` which needs `persistent`.
-**Raw values in `python early` are acceptable** — there's no way around it.
+from `cue_lib` there cascades into `state.py` (module-level `_cue = Cue()`) and
+`util.py` (`from renpy.store import Function`) — neither is importable that
+early. **Raw values in `python early` are acceptable** — there's no way around it.
 
 ### Don't bother (trivial / self-documenting / inherently local)
 
@@ -207,7 +208,7 @@ Pylance can't resolve most `renpy.*` names (Ren'Py uses dynamic `import *` from 
 - **`cue_lib/_types.py`** — CANONICAL source for all TypedDict definitions (PoolDict, MarkerEntry, etc.). This is a real `.py` module that `.pyi` stubs import from. It is NEVER executed at runtime (only imported inside `if MYPY:` guards and by `.pyi` files), so it freely uses modern syntax (TypedDict, `from __future__ import annotations`). ONE definition per TypedDict — no duplication across `.pyi` files.
 - **AFTER editing any `cue_lib/*.py`** — check whether the corresponding `cue_lib/*.pyi` needs updating (new/renamed/deleted functions, classes, or method signatures). Keep them in sync.
 - **AFTER any changes to `cue_lib/` or `tests/`** — run `/lint` then `/test`. `/lint` must return `CLEAN` (see `.claude/skills/lint/SKILL.md` for the unfixable-error table); `/test` must pass (all tests green).
-- **AFTER adding a new manager to `bootstrap()` in `state.py`** — you MUST add it to `state.pyi` (both the import and the attribute on `class Cue`). Otherwise `_cue.new_manager` shows "unknown attribute" in every consumer.
+- **AFTER adding a new manager** — wire it in the `cue_z.rpy` `init -900` block AND add it to `state.pyi` (both the import and the attribute on `class Cue`). Otherwise `_cue.new_manager` shows "unknown attribute" in every consumer.
 - **AFTER adding/changing a TypedDict** — update `cue_lib/_types.py` (the single source of truth). All `.pyi` files import from there.
 
 ### Self-File Hover (type info when viewing a function's own source file)

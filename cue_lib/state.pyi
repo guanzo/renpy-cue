@@ -35,8 +35,6 @@ class CueContext:
 
 
 class Cue:
-    config_filename: str
-
     initialized: bool
     is_overlay_visible: bool
     overlay_active_page: int

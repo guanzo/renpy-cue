@@ -4,13 +4,6 @@
 
 import os
 
-# Key prefixes for marker trigger keys.  Single source of truth -- db.py keys
-# on the same strings, and util.py key helpers read them directly.
-CUE_IMG_KEY_PREFIX = "i_"
-CUE_LOOP_KEY_PREFIX = "l_"
-CUE_DLG_KEY_PREFIX = "d_"
-CUE_VID_KEY_PREFIX = "v_"
-
 # Debug mode, from the RENPY_CUE_DEBUG env var (1/true/yes/on, case-
 # insensitive).  Unset keeps debug on.  Read at import time, so the var must
 # be set before the game launches.
@@ -25,6 +18,35 @@ def _cue_env_flag(name, default=False):
         return default
     return val in ("1", "true", "yes", "on")
 
+class CueExclusiveStart(object):
+    """Exclusive 'start' behavior values (exclusive.start)."""
+    PLAY = 0   # start immediately, overlapping whatever is playing
+    FADE = 1   # cross-fade out non-group SFX, then play
+    WAIT = 2   # wait until no non-group SFX is playing (loops only)
+
+
+class CueLoopFrequency(object):
+    """Loop SFX interval presets. Values match CueLoopContext.get_delay()."""
+    SLOWEST = 4   # ~6.3s
+    SLOW = 0      # ~3.8s
+    NORMAL = 1    # ~2.1s
+    FAST = 2      # ~0.6s
+    FASTEST = 3   # ~0.2s
+
+
+class CuePage(object):
+    """Overlay sidebar page tabs."""
+    SFX = 0       # SFX editor (markers / library)
+    MUSIC = 1     # Music page
+    SETTINGS = 2  # Settings page
+
+
+# Key prefixes for marker trigger keys.  Single source of truth -- db.py keys
+# on the same strings, and util.py key helpers read them directly.
+CUE_IMG_KEY_PREFIX = "i_"
+CUE_LOOP_KEY_PREFIX = "l_"
+CUE_DLG_KEY_PREFIX = "d_"
+CUE_VID_KEY_PREFIX = "v_"
 
 CUE_DEBUG = _cue_env_flag("RENPY_CUE_DEBUG", False)
 
@@ -132,37 +154,3 @@ CUE_DIR_OVERRIDE_FILENAME = "dir.txt"
 # Shared-config JSON file inside the shared data/ tree (disabled_files,
 # keybinds).  Lives at {shared}/data/cue_config.json.
 CUE_SHARED_CONFIG_FILENAME = "cue_config.json"
-
-
-# =========================================================================
-# Flat enum classes -- plain-int members so screens can compare against
-# stored ints (Python 2.7-safe, no enum base class).  Moved here so the
-# marker data layer (cue_lib.marker_store) can use them without importing
-# back into the modules that define the coordinators.
-# =========================================================================
-
-class CueExclusiveStart(object):
-    """Exclusive 'start' behavior values (exclusive.start)."""
-    PLAY = 0   # start immediately, overlapping whatever is playing
-    FADE = 1   # cross-fade out non-group SFX, then play
-    WAIT = 2   # wait until no non-group SFX is playing (loops only)
-
-
-class CueLoopFrequency(object):
-    """Loop SFX interval presets. Values match CueLoopContext.get_delay()."""
-    SLOWEST = 4   # ~6.3s
-    SLOW = 0      # ~3.8s
-    NORMAL = 1    # ~2.1s
-    FAST = 2      # ~0.6s
-    FASTEST = 3   # ~0.2s
-
-
-class CuePage(object):
-    """Overlay sidebar page tabs.
-
-    Members are plain ints so screens can compare against _cue.overlay_active_page
-    (Python 2.7-safe -- no enum base class).
-    """
-    SFX = 0       # SFX editor (markers / library)
-    MUSIC = 1     # Music page
-    SETTINGS = 2  # Settings page

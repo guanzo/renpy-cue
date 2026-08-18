@@ -22,7 +22,7 @@ from cue_lib.backup import CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME, zip_shared_tr
 from cue_lib.constants import CUE_VOLUME_DEFAULT, CueExclusiveStart, CueLoopFrequency
 from cue_lib.util import (
     _cue_log,
-    is_img_key, is_vid_key, is_dlg_key, is_loop_key,
+    is_vid_key, is_loop_key,
 )
 
 MYPY = False
@@ -102,14 +102,11 @@ class CueMarkerStore(object):
 
     def get(self, key, default=None):
         # type: (str, Optional[MarkerEntry]) -> Optional[MarkerEntry]
-        entry = self._data.get(key)
-        if entry is None:
-            return default
-        return self._normalize_entry(entry)
+        return self._data.get(key, default)
 
     def setdefault(self, key, default):
         # type: (str, MarkerEntry) -> MarkerEntry
-        return self._data.setdefault(key, default)
+        return self._normalize_entry(self._data.setdefault(key, default))
 
     def pop(self, key, *args):
         # type: (str, *MarkerEntry) -> MarkerEntry
@@ -419,10 +416,9 @@ class CueMarkerStore(object):
         # type: () -> bool
         changed = False
         for key, entry in list(self._data.items()):
-            if is_img_key(key) or is_dlg_key(key) or is_loop_key(key):
-                if "pools" not in entry:
-                    self._normalize_entry(entry)
-                    changed = True
+            if "pools" not in entry:
+                self._normalize_entry(entry)
+                changed = True
             if is_loop_key(key) and "frequency" in entry:
                 freq = entry.pop("frequency")
                 for pool in entry.get("pools", []):
@@ -544,7 +540,7 @@ class CueMarkerStore(object):
                     db.save_marker(key, self._data[key])
                 else:
                     db.delete_marker(key)
-        self._post_save()
+        self._post_save(keys)
 
     def save_preset(self, name):
         # type: (str) -> None
@@ -568,7 +564,7 @@ class CueMarkerStore(object):
                 db.save_marker(key, self._data[key])
             else:
                 db.delete_marker(key)
-        self._post_save()
+        self._post_save([key])
 
     def _db_save_preset(self, name):
         # type: (str) -> None
@@ -590,15 +586,19 @@ class CueMarkerStore(object):
                 db.delete_preset("video", name)
         self._post_save()
 
-    def _post_save(self):
-        # type: () -> None
-        """Common side effects after any DB write."""
-        stripped_keys = self._sanitize_video_pools_tracked()
-        db = self._db
-        if db is not None and db.is_open():
-            for key in stripped_keys:
-                if key in self._data:
-                    db.save_marker(key, self._data[key])
+    def _post_save(self, keys=None):
+        # type: (Optional[List[str]]) -> None
+        """Common side effects after any DB write.  ``keys`` names the marker
+        entries just written (None for preset-only saves); the malformed
+        video-pool repair only runs when a video key is among them, so audio
+        and preset saves skip the all-markers scan."""
+        if keys and any(is_vid_key(key) for key in keys):
+            stripped_keys = self._sanitize_video_pools_tracked()
+            db = self._db
+            if db is not None and db.is_open():
+                for key in stripped_keys:
+                    if key in self._data:
+                        db.save_marker(key, self._data[key])
         if self._on_save is not None:
             self._on_save()
 
