@@ -9,12 +9,12 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
     $ _ov_tt = _ov_tt + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX) + " to toggle expansion."
 
     $ _icons = [{
-        "name": "square-plus" if _overlay_mode else "square-minus", 
+        "name": "window-maximize" if _overlay_mode else "window-restore", 
         "action": Function(_cue.sfx_manager.toggle_overlay_mode), 
         "tt": _ov_tt
     }]
 
-    $ sfx_tt = "Add SFX files to\n{}".format(_cue.paths.audio_dir)
+    $ sfx_tt = "Add {} files to\n{}".format(", ".join(CUE_AUDIO_EXTS), _cue.paths.audio_dir)
     use cue_section_frame(CUE_SFX_LIBRARY_HEADER, tt=sfx_tt, icons=_icons):
         if not _cue.sfx_manager.tree:
             if _cue.sfx_manager.scan_error:

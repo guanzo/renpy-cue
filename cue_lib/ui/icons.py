@@ -77,6 +77,8 @@ CUE_ICON_MAP = {
     "triangle-exclamation": ("triangle-exclamation-solid.png", False),
     "volume": ("volume-solid.png", False),
     "volume-xmark": ("volume-xmark-solid.png", False),
+    "window-maximize": ("window-maximize-solid.png", False),
+    "window-restore": ("window-restore-solid.png", False),
 }  # type: Dict[str, Tuple[str, bool]]
 
 

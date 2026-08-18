@@ -72,7 +72,7 @@ screen cue_music_page():
                         "+ Play music starting at current scene",
                         Function(_cue.music.add_custom_trigger))
 
-        $ my_music_tt = "Add music files to\n{}".format(_cue.paths.music_dir)
+        $ my_music_tt = "Add {} files to\n{}".format(", ".join(CUE_AUDIO_EXTS), _cue.paths.music_dir)
         use cue_section_frame("My Music", tt=my_music_tt):
             if _cue.music.user_music.tree:
                 use cue_search_bar("_cue.music.user_music.search_query", _cue.music.user_music)
