@@ -239,6 +239,7 @@ screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
                         _tree_add_tt,
                         None,
                         enabled=_tree_add_enabled)
+                    null width 2
                     text item["name"] color _cue_color_text_accent
 
 # Combined My/Game Music tree. One shared search bar filters both sources; the

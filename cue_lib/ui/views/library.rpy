@@ -132,6 +132,7 @@ screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue, name_filter=N
                         Function(_cue.markers.preset_remove_file, _pname, _child),
                         "Remove file from preset", None)
                     use cue_icon_btn("play", Function(_cue_preview_sfx, _child), "Preview file", None)
+                    null width 2
                     text _child color _cue_color_text_accent size 11
 
 
@@ -250,4 +251,5 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
                 #     Function(_cue.sfx_manager.toggle_file_enabled, item["full_path"]),
                 #     "Click to {} globally".format("disable" if item.get("enabled", True) else "enable"),
                 #     None)
+                null width 2
                 text item["name"] color _cue_color_text_accent
