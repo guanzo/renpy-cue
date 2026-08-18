@@ -63,7 +63,7 @@ class CueRpaExtractState(object):
         self.done = False
         self.ok = False
         self.msg = ""
-        self.vpath = None
+        self.vpath = None  # type: Optional[str]
 
 
 class CueVideoJob(object):
