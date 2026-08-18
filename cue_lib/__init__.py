@@ -34,7 +34,7 @@ from cue_lib import state
 from cue_lib import util
 from cue_lib import backup
 from cue_lib import db
-from cue_lib.video import auto_speed, ffmpeg, repeater, speed, video, video_editor
+from cue_lib.video import auto_speed, ffmpeg, repeater, speed, video, video_edit_queue, video_editor
 from cue_lib import undo
 from cue_lib import volume
 from cue_lib.audio import audio_tree, music, sfx_manager, user_music, game_music

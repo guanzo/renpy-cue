@@ -18,15 +18,19 @@ import renpy.config as _config
 from renpy.store import persistent
 
 from cue_lib.state import CueContext
+from cue_lib.video import video_edit_queue as _qeditor
 from cue_lib.video import video_editor as _veditor
-from cue_lib.video.video_editor import (
+from cue_lib.video.video_edit_queue import (
     CUE_VE_MODE_FAST_PREVIEW,
     CUE_VE_MODE_INTERPOLATE,
     CUE_VE_MODE_NORMAL,
+    CueJobStatus,
     CueVideoEditQueue,
+    CueVideoJob,
+)
+from cue_lib.video.video_editor import (
     CueVideoEditor,
     CueVideoEditorState,
-    CueVideoJob,
 )
 
 from tests.fakes import (
@@ -54,6 +58,7 @@ def _clean_persistent(monkeypatch):
 def fthread(monkeypatch):
     """Swap threading.Thread for a capture-only FakeThread (no worker runs)."""
     monkeypatch.setattr(_veditor.threading, "Thread", FakeThread)
+    monkeypatch.setattr(_qeditor.threading, "Thread", FakeThread)
 
 
 @pytest.fixture
@@ -69,7 +74,7 @@ def ve(tmp_path, monkeypatch):
     )
 
 
-def make_job(ve, tmp_path, factor=2.0, status="queued"):
+def make_job(ve, tmp_path, factor=2.0, status=CueJobStatus.QUEUED):
     # type: (CueVideoEditor, object, float, str) -> CueVideoJob
     job = CueVideoJob(
         ve.job_queue._next_job_id,
@@ -117,7 +122,7 @@ class FakeRenPyFile(object):
 
 def test_job_init_defaults(ve, tmp_path):
     job = make_job(ve, tmp_path)
-    assert job.status == "queued"
+    assert job.status == CueJobStatus.QUEUED
     assert job.progress == 0.0
     assert job.error_msg == ""
     assert job.passlog is None
@@ -136,7 +141,7 @@ def test_job_elapsed_no_start(ve, tmp_path):
 def test_job_elapsed_running(ve, tmp_path, monkeypatch):
     job = make_job(ve, tmp_path)
     job.start_time = 100.0
-    monkeypatch.setattr(_veditor._time, "time", lambda: 105.0)
+    monkeypatch.setattr(_qeditor._time, "time", lambda: 105.0)
     assert job.elapsed() == 5.0
 
 
@@ -144,23 +149,23 @@ def test_job_elapsed_done(ve, tmp_path):
     job = make_job(ve, tmp_path)
     job.start_time = 100.0
     job.end_time = 110.0
-    job.status = "done"
+    job.status = CueJobStatus.DONE
     assert job.elapsed() == 10.0
 
 
 def test_job_status_text(ve, tmp_path):
     job = make_job(ve, tmp_path)
     assert job.status_text() == "Queued"
-    job.status = "analyzing"
+    job.status = CueJobStatus.ANALYZING
     assert job.status_text() == "Analyzing"
-    job.status = "encoding"
+    job.status = CueJobStatus.ENCODING
     job.progress = 0.42
     assert job.status_text() == "Encoding 42%"
-    job.status = "finalizing"
+    job.status = CueJobStatus.FINALIZING
     assert job.status_text() == "Finalizing"
-    job.status = "done"
+    job.status = CueJobStatus.DONE
     assert job.status_text() == "Done"
-    job.status = "error"
+    job.status = CueJobStatus.ERROR
     assert job.status_text() == "Error"
     job.error_msg = "Cancelled"
     assert job.status_text() == "Cancelled"
@@ -197,7 +202,7 @@ def test_enqueue_appends_and_starts(ve, tmp_path, fthread):
     q.enqueue(job)
     assert job in q.jobs
     assert q.current_job is job
-    assert job.status == "analyzing"
+    assert job.status == CueJobStatus.ANALYZING
     assert job.start_time > 0
     # current job is persisted
     assert [d["job_id"] for d in persistent._cue_jobs] == [job.job_id]
@@ -205,12 +210,12 @@ def test_enqueue_appends_and_starts(ve, tmp_path, fthread):
 
 def test_enqueue_no_start_when_busy(ve, tmp_path):
     q = ve.job_queue
-    blocker = make_job(ve, tmp_path, status="encoding")
+    blocker = make_job(ve, tmp_path, status=CueJobStatus.ENCODING)
     q._current = blocker
     job2 = make_job(ve, tmp_path)
     q.enqueue(job2)
     assert q.current_job is blocker
-    assert job2.status == "queued"
+    assert job2.status == CueJobStatus.QUEUED
 
 
 def test_find(ve, tmp_path):
@@ -237,7 +242,7 @@ def test_start_next_needs_swap_skips_probe(ve, tmp_path, fthread):
     q._start_next()
     assert q.current_job is job
     assert job._needs_swap is False
-    assert job.status == "finalizing"
+    assert job.status == CueJobStatus.FINALIZING
     assert job._swapping is True
 
 
@@ -249,7 +254,7 @@ def test_start_next_needs_swap_empty_tmp(ve, tmp_path, fthread):
     job._ok = True
     q._jobs.append(job)
     q._start_next()
-    assert job.status == "error"
+    assert job.status == CueJobStatus.ERROR
     assert job.error_msg == "Empty output"
 
 
@@ -258,7 +263,7 @@ def test_start_next_probe_thread(ve, tmp_path, fthread):
     job = make_job(ve, tmp_path)
     q._jobs.append(job)
     q._start_next()
-    assert job.status == "analyzing"
+    assert job.status == CueJobStatus.ANALYZING
     assert job.start_time > 0
 
 
@@ -279,7 +284,7 @@ def test_poll_swap_done_finishes(ve, tmp_path):
     job._swap_done = True
     job._swap_ok = True
     q.poll()
-    assert job.status == "done"
+    assert job.status == CueJobStatus.DONE
     assert q.current_job is None
 
 
@@ -291,7 +296,7 @@ def test_poll_swap_done_cancelled(ve, tmp_path):
     job._swap_done = True
     job.cancelled = True
     q.poll()
-    assert job.status == "error"
+    assert job.status == CueJobStatus.ERROR
     assert job.error_msg == "Cancelled"
 
 
@@ -303,7 +308,7 @@ def test_poll_done_cancelled_cleans_tmp(ve, tmp_path):
     job._done = True
     job.cancelled = True
     q.poll()
-    assert job.status == "error"
+    assert job.status == CueJobStatus.ERROR
     assert job.error_msg == "Cancelled"
     assert not os.path.exists(job.fspath_tmp)
     assert q.current_job is None
@@ -316,7 +321,7 @@ def test_poll_done_not_ok_errors(ve, tmp_path):
     job._done = True
     job._ok = False
     q.poll()
-    assert job.status == "error"
+    assert job.status == CueJobStatus.ERROR
     assert q.current_job is None
 
 
@@ -328,7 +333,7 @@ def test_poll_done_ok_starts_swap(ve, tmp_path, fthread):
     job._done = True
     job._ok = True
     q.poll()
-    assert job.status == "finalizing"
+    assert job.status == CueJobStatus.FINALIZING
     assert job._swapping is True
     assert q.current_job is job  # not advanced yet
 
@@ -340,7 +345,7 @@ def test_poll_done_ok_missing_tmp_errors(ve, tmp_path):
     job._done = True
     job._ok = True
     q.poll()
-    assert job.status == "error"
+    assert job.status == CueJobStatus.ERROR
     assert job.error_msg == "Empty output"
     assert q.current_job is None
 
@@ -350,7 +355,7 @@ def test_poll_not_launched_waits(ve, tmp_path):
     job = make_job(ve, tmp_path)
     q._current = job
     q.poll()  # probe thread still staging: status untouched
-    assert job.status == "queued"
+    assert job.status == CueJobStatus.QUEUED
 
 
 def test_poll_not_launched_cancelled(ve, tmp_path):
@@ -359,7 +364,7 @@ def test_poll_not_launched_cancelled(ve, tmp_path):
     q._current = job
     job.cancelled = True
     q.poll()
-    assert job.status == "queued"  # restart_interaction is the only effect
+    assert job.status == CueJobStatus.QUEUED  # restart_interaction is the only effect
 
 
 def test_poll_cancelled_kills_proc(ve, tmp_path):
@@ -419,12 +424,12 @@ def test_poll_proc_ok_launches_next_pass(ve, tmp_path, monkeypatch):
     job._pass_idx = 1
     job._log_path = str(tmp_path / "enc.log")
     job._cmds = [["ffmpeg", "-y", "pass2"]]
-    monkeypatch.setattr(_veditor.subprocess, "Popen",
+    monkeypatch.setattr(_qeditor.subprocess, "Popen",
                         lambda *a, **k: FakeProc())
     job.proc = FakeProc(poll_result=0, returncode=0)
     q.poll()
     assert job._pass_idx == 2
-    assert job.status == "encoding"
+    assert job.status == CueJobStatus.ENCODING
     assert job.proc is not None
 
 
@@ -450,10 +455,10 @@ def test_poll_launches_first_pass(ve, tmp_path, monkeypatch):
     job._launched = True
     job._log_path = str(tmp_path / "enc.log")
     job._cmds = [["ffmpeg", "-y"]]
-    monkeypatch.setattr(_veditor.subprocess, "Popen",
+    monkeypatch.setattr(_qeditor.subprocess, "Popen",
                         lambda *a, **k: FakeProc())
     q.poll()
-    assert job.status == "encoding"
+    assert job.status == CueJobStatus.ENCODING
     assert job._pass_idx == 1
     assert job.proc is not None
 
@@ -468,7 +473,7 @@ def test_launch_pass_cancelled_noop(ve, tmp_path, monkeypatch):
     job.cancelled = True
     job._cmds = [["ffmpeg"]]
     calls = []
-    monkeypatch.setattr(_veditor.subprocess, "Popen",
+    monkeypatch.setattr(_qeditor.subprocess, "Popen",
                         lambda *a, **k: calls.append(1))
     q._launch_pass(job)
     assert calls == []
@@ -479,7 +484,7 @@ def test_launch_pass_writes_header(ve, tmp_path, monkeypatch):
     job = make_job(ve, tmp_path)
     job._log_path = str(tmp_path / "enc.log")
     job._cmds = [["ffmpeg", "-y", "-i", "in"]]
-    monkeypatch.setattr(_veditor.subprocess, "Popen",
+    monkeypatch.setattr(_qeditor.subprocess, "Popen",
                         lambda *a, **k: FakeProc())
     q._launch_pass(job)
     assert job._pass_idx == 1
@@ -498,7 +503,7 @@ def test_launch_pass_popen_error(ve, tmp_path, monkeypatch):
 
     def _boom(*a, **k):
         raise OSError("spawn failed")
-    monkeypatch.setattr(_veditor.subprocess, "Popen", _boom)
+    monkeypatch.setattr(_qeditor.subprocess, "Popen", _boom)
     q._launch_pass(job)
     assert job.error_msg == "ffmpeg error: spawn failed"
     assert job._done is True
@@ -589,7 +594,7 @@ def test_start_swap_missing_paths(ve, tmp_path):
     job = make_job(ve, tmp_path)
     job.fspath_tmp = None
     assert q._start_swap(job) is False
-    assert job.status == "error"
+    assert job.status == CueJobStatus.ERROR
     assert job.error_msg == "Missing paths"
 
 
@@ -598,7 +603,7 @@ def test_start_swap_empty_tmp(ve, tmp_path):
     job = make_job(ve, tmp_path)
     write_file(job.fspath_tmp, b"")  # zero bytes
     assert q._start_swap(job) is False
-    assert job.status == "error"
+    assert job.status == CueJobStatus.ERROR
     assert job.error_msg == "Empty output"
 
 
@@ -607,7 +612,7 @@ def test_start_swap_success(ve, tmp_path, fthread):
     job = make_job(ve, tmp_path)
     write_file(job.fspath_tmp)
     assert q._start_swap(job) is True
-    assert job.status == "finalizing"
+    assert job.status == CueJobStatus.FINALIZING
     assert job._swapping is True
     assert job._swap_done is False
 
@@ -617,7 +622,7 @@ def test_finish_swap_success(ve, tmp_path):
     job = make_job(ve, tmp_path)
     job._swap_ok = True
     q._finish_swap(job)
-    assert job.status == "done"
+    assert job.status == CueJobStatus.DONE
     assert ve._states["movies/scene.webm"].last_error == ""
 
 
@@ -627,7 +632,7 @@ def test_finish_swap_fail_locked(ve, tmp_path):
     job._swap_ok = False
     job._swap_error_msg = "File locked -- retry later"
     q._finish_swap(job)
-    assert job.status == "error"
+    assert job.status == CueJobStatus.ERROR
     assert job.error_msg == "File locked -- retry later"
     assert "still has this video file open" in ve._states[job.vpath].last_error
 
@@ -638,7 +643,7 @@ def test_finish_swap_missing_out(ve, tmp_path):
     job.fspath_out = None
     job._swap_ok = True
     q._finish_swap(job)
-    assert job.status == "error"
+    assert job.status == CueJobStatus.ERROR
     assert job.error_msg == "Missing paths"
 
 
@@ -656,17 +661,17 @@ def test_retry_only_errors(ve, tmp_path):
     q._jobs.append(job)
     q._current = job  # block _start_if_idle
     q.retry(job.job_id)  # status "queued" -> no-op
-    assert job.status == "queued"
+    assert job.status == CueJobStatus.QUEUED
 
 
 def test_retry_tmp_exists_needs_swap(ve, tmp_path):
     q = ve.job_queue
-    job = make_job(ve, tmp_path, status="error")
+    job = make_job(ve, tmp_path, status=CueJobStatus.ERROR)
     write_file(job.fspath_tmp)
     q._jobs.append(job)
-    q._current = make_job(ve, tmp_path, status="encoding")  # block start
+    q._current = make_job(ve, tmp_path, status=CueJobStatus.ENCODING)  # block start
     q.retry(job.job_id)
-    assert job.status == "queued"
+    assert job.status == CueJobStatus.QUEUED
     assert job._needs_swap is True
     assert job._done is True
     assert job._ok is True
@@ -674,11 +679,11 @@ def test_retry_tmp_exists_needs_swap(ve, tmp_path):
 
 def test_retry_tmp_missing_reencode(ve, tmp_path):
     q = ve.job_queue
-    job = make_job(ve, tmp_path, status="error")
+    job = make_job(ve, tmp_path, status=CueJobStatus.ERROR)
     q._jobs.append(job)
-    q._current = make_job(ve, tmp_path, status="encoding")  # block start
+    q._current = make_job(ve, tmp_path, status=CueJobStatus.ENCODING)  # block start
     q.retry(job.job_id)
-    assert job.status == "queued"
+    assert job.status == CueJobStatus.QUEUED
     assert job._needs_swap is False
     assert job._done is False
     assert job._ok is False
@@ -699,7 +704,7 @@ def test_cancel_queued_removes(ve, tmp_path):
 
 def test_cancel_current_kills(ve, tmp_path):
     q = ve.job_queue
-    job = make_job(ve, tmp_path, status="encoding")
+    job = make_job(ve, tmp_path, status=CueJobStatus.ENCODING)
     proc = FakeProc(poll_result=None)
     job.proc = proc
     q._jobs.append(job)
@@ -711,7 +716,7 @@ def test_cancel_current_kills(ve, tmp_path):
 
 def test_cancel_done_removes(ve, tmp_path):
     q = ve.job_queue
-    job = make_job(ve, tmp_path, status="done")
+    job = make_job(ve, tmp_path, status=CueJobStatus.DONE)
     q._jobs.append(job)
     q.cancel(job.job_id)
     assert job not in q._jobs
@@ -723,8 +728,8 @@ def test_cancel_not_found(ve):
 
 def test_remove_only_terminal(ve, tmp_path):
     q = ve.job_queue
-    done = make_job(ve, tmp_path, status="done")
-    queued = make_job(ve, tmp_path, status="queued")
+    done = make_job(ve, tmp_path, status=CueJobStatus.DONE)
+    queued = make_job(ve, tmp_path, status=CueJobStatus.QUEUED)
     q._jobs.extend([done, queued])
     q.remove(done.job_id)
     assert done not in q._jobs
@@ -768,7 +773,7 @@ def test_save_serializes_queued_and_current(ve, tmp_path):
     q._current = None
     queued = make_job(ve, tmp_path)
     q._jobs.append(queued)
-    cur = make_job(ve, tmp_path, status="encoding")
+    cur = make_job(ve, tmp_path, status=CueJobStatus.ENCODING)
     q._current = cur
     q.save_to_persistent()
     ids = [d["job_id"] for d in persistent._cue_jobs]
@@ -781,7 +786,7 @@ def test_save_serializes_queued_and_current(ve, tmp_path):
 
 def test_save_skips_done_jobs(ve, tmp_path):
     q = ve.job_queue
-    done = make_job(ve, tmp_path, status="done")
+    done = make_job(ve, tmp_path, status=CueJobStatus.DONE)
     q._jobs.append(done)
     q.save_to_persistent()
     assert persistent._cue_jobs is None
@@ -888,7 +893,7 @@ def test_get_elapsed(ve, tmp_path, monkeypatch):
     job = make_job(ve, tmp_path)
     job.start_time = 100.0
     q._current = job
-    monkeypatch.setattr(_veditor._time, "time", lambda: 102.0)
+    monkeypatch.setattr(_qeditor._time, "time", lambda: 102.0)
     assert q.get_elapsed() == 2.0
 
 
@@ -897,20 +902,20 @@ def test_get_elapsed(ve, tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_swap_job_missing_paths(ve, tmp_path, monkeypatch):
-    monkeypatch.setattr(_veditor._time, "sleep", lambda s: None)
+    monkeypatch.setattr(_qeditor._time, "sleep", lambda s: None)
     job = make_job(ve, tmp_path)
     job.fspath_tmp = None
-    _veditor._cue_swap_job(job)
+    _qeditor._cue_swap_job(job)
     assert job._swap_ok is False
     assert job._swap_error_msg == "Missing paths"
     assert job._swap_done is True
 
 
 def test_swap_job_success(ve, tmp_path, monkeypatch):
-    monkeypatch.setattr(_veditor._time, "sleep", lambda s: None)
+    monkeypatch.setattr(_qeditor._time, "sleep", lambda s: None)
     job = make_job(ve, tmp_path)
     write_file(job.fspath_tmp, b"encoded")
-    _veditor._cue_swap_job(job)
+    _qeditor._cue_swap_job(job)
     assert job._swap_ok is True
     assert job._swap_error_msg == ""
     assert os.path.exists(job.fspath_out)
@@ -919,14 +924,14 @@ def test_swap_job_success(ve, tmp_path, monkeypatch):
 
 
 def test_swap_job_failure_retries(ve, tmp_path, monkeypatch):
-    monkeypatch.setattr(_veditor._time, "sleep", lambda s: None)
+    monkeypatch.setattr(_qeditor._time, "sleep", lambda s: None)
 
     def _blocked(src, dst):
         raise OSError("file locked")
-    monkeypatch.setattr(_veditor, "_cue_replace_file", _blocked)
+    monkeypatch.setattr(_qeditor, "_cue_replace_file", _blocked)
     job = make_job(ve, tmp_path)
     write_file(job.fspath_tmp)
-    _veditor._cue_swap_job(job)
+    _qeditor._cue_swap_job(job)
     assert job._swap_ok is False
     assert job._swap_error_msg == "File locked -- retry later"
     assert job._swap_done is True

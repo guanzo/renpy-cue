@@ -121,7 +121,10 @@ init -999 python:
         CueKeybindsManager, _cue_keybind_start, _cue_keybind_cancel,
         _cue_keybind_reset, _cue_keybind_override,
     )
-    from cue_lib.video.video_editor import CUE_VE_MODE_NORMAL, CUE_VE_MODE_INTERPOLATE, CUE_VE_MODE_FAST_PREVIEW
+    from cue_lib.video.video_edit_queue import (
+        CUE_VE_MODE_NORMAL, CUE_VE_MODE_INTERPOLATE, CUE_VE_MODE_FAST_PREVIEW,
+        CueJobStatus,
+    )
 
 
 init -900 python:

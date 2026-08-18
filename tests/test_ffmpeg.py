@@ -13,7 +13,7 @@ import pytest
 
 from cue_lib.video import ffmpeg as _ffmpeg_mod
 from cue_lib.video.ffmpeg import CueFFmpeg, _cue_probe_job
-from cue_lib.video.video_editor import (
+from cue_lib.video.video_edit_queue import (
     CUE_VE_MODE_INTERPOLATE,
     CUE_VE_MODE_NORMAL,
     CUE_VE_MODE_FAST_PREVIEW,

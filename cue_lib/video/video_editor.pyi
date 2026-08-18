@@ -1,92 +1,20 @@
 # Type stub for cue_lib.video.video_editor
-from typing import Any, Optional
+from typing import Optional
 
 from cue_lib.video.ffmpeg import CueFFmpeg
 from cue_lib.video.speed import CueVidSpeedResolver
 from cue_lib.video.video import CueVideoManager
 from cue_lib.paths import CuePaths
 from cue_lib.state import CueContext
-
-CUE_VE_MODE_NORMAL: int
-CUE_VE_MODE_INTERPOLATE: int
-CUE_VE_MODE_FAST_PREVIEW: int
+from cue_lib.video.video_edit_queue import CueVideoEditQueue
 
 def _cue_esc(text: str) -> str: ...
-def _cue_swap_job(job: CueVideoJob) -> None: ...
 
 class CueVideoEditorState:
     vpath: str
     factor_text: str
     last_error: str
     def __init__(self, vpath: str) -> None: ...
-
-class CueVideoJob:
-    job_id: int
-    vpath: str
-    fspath_in: str
-    fspath_tmp: str
-    factor: float
-    encode_mode: int
-    remove_audio: bool
-    fspath_out: Optional[str]
-    status: str
-    progress: float
-    error_msg: str
-    start_time: float
-    end_time: float
-    total_frames: float
-    passlog: Optional[str]
-    cancelled: bool
-    proc: Optional[Any]
-    _done: bool
-    _ok: bool
-    _resume_pass2: bool
-    _needs_swap: bool
-    _launched: bool
-    _cmds: list
-    _pass_idx: int
-    _num_passes: int
-    _log_path: str
-    _progress_path: str
-    _progress_offset: int
-    _swapping: bool
-    _swap_done: bool
-    _swap_ok: bool
-    _swap_error_msg: str
-
-    def __init__(
-        self,
-        job_id: int,
-        vpath: str,
-        fspath_in: str,
-        fspath_tmp: str,
-        factor: float,
-        encode_mode: int,
-        fspath_out: Optional[str] = None,
-        remove_audio: bool = True) -> None: ...
-    def elapsed(self) -> float: ...
-    def status_text(self) -> str: ...
-    def filename(self) -> str: ...
-    @property
-    def speed_label(self) -> str: ...
-
-class CueVideoEditQueue:
-    def __init__(self, editor: "CueVideoEditor") -> None: ...
-    @property
-    def processing(self) -> bool: ...
-    @property
-    def current_job(self) -> Optional[CueVideoJob]: ...
-    @property
-    def jobs(self) -> list[CueVideoJob]: ...
-    def enqueue(self, job: CueVideoJob) -> None: ...
-    def poll(self) -> None: ...
-    def retry(self, job_id: int) -> None: ...
-    def cancel(self, job_id: int) -> None: ...
-    def remove(self, job_id: int) -> None: ...
-    def save_to_persistent(self) -> None: ...
-    def load_from_persistent(self) -> None: ...
-    def get_elapsed(self) -> float: ...
-    def refresh_ui(self) -> None: ...
 
 class CueVideoEditor:
     SPEED_MIN: float

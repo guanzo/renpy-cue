@@ -14,7 +14,8 @@ screen _cue_edit_queue_vbox():
         for job in _cue.video_editor.job_queue.jobs:
             hbox:
                 spacing 5
-                if job.status in ("queued", "analyzing", "encoding", "finalizing"):
+                if job.status in (CueJobStatus.QUEUED, CueJobStatus.ANALYZING,
+                                 CueJobStatus.ENCODING, CueJobStatus.FINALIZING):
                     use cue_icon_btn(
                         "xmark",
                         Function(_cue.video_editor.job_queue.cancel, job.job_id),
@@ -28,12 +29,12 @@ screen _cue_edit_queue_vbox():
                         "Remove from queue", None)
                 text job.filename() + " " + job.speed_label style "cue_txt" size 11
                 text "(" + job.status_text() + ")" style "cue_txt" size 11
-                if job.status != "queued":
+                if job.status != CueJobStatus.QUEUED:
                     $ _elapsed = int(job.elapsed())
                     $ _elapsed_text = "%d:%02d" % (_elapsed // 60, _elapsed % 60)
                     text _elapsed_text style "cue_txt" size 11 color _cue_color_text_muted
 
-            if job.status == "error" and job.error_msg and not job.cancelled:
+            if job.status == CueJobStatus.ERROR and job.error_msg and not job.cancelled:
                 hbox:
                     spacing 5
                     null width 20
