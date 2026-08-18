@@ -68,7 +68,9 @@ screen cue_music_page():
                                     "it may not work properly in game.") style "cue_txt" color _cue_color_warn
                     
                     null height 4
-                    use cue_txt_button("+ Play music starting at current scene", Function(_cue.music.add_custom_trigger))
+                    use cue_txt_button(
+                        "+ Play music starting at current scene",
+                        Function(_cue.music.add_custom_trigger))
 
         $ my_music_tt = "Add music files to\n{}".format(_cue.paths.music_dir)
         use cue_section_frame("My Music", tt=my_music_tt):
@@ -96,7 +98,8 @@ screen cue_music_page():
                     if not _cue.music.game_music.tree:
                         if _cue.music.game_music.scan_error:
                             text "[_cue.music.game_music.scan_error]" style "cue_txt" color _cue_color_error
-                        text ("No music found in game directory.").format(", ".join(CUE_GAME_MUSIC_DIRS)) style "cue_txt"
+                        text ("No music found in game directory.").format(
+                            ", ".join(CUE_GAME_MUSIC_DIRS)) style "cue_txt"
                     else:
                         use cue_game_music_tree()
 

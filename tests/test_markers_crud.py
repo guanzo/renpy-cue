@@ -793,7 +793,7 @@ def test_loop_add_pool_adds_frequency(mgr):
     _scene(mgr)
     mgr.loop.add_pool()
     pool = mgr.get("l_scene.ogv")["pools"][0]
-    assert pool["frequency"] == CueLoopFrequency.NORMAL
+    assert pool["frequency"] == CueLoopFrequency.MEDIUM
     assert mgr._loop_target == 0
 
 
@@ -823,7 +823,7 @@ def test_loop_set_frequency_out_of_range_noop(mgr):
     mgr.loop.add_pool()
     mgr._loop_target = 5
     mgr.loop.set_frequency(CueLoopFrequency.FAST)
-    assert mgr.get("l_scene.ogv")["pools"][0]["frequency"] == CueLoopFrequency.NORMAL
+    assert mgr.get("l_scene.ogv")["pools"][0]["frequency"] == CueLoopFrequency.MEDIUM
 
 
 def test_dialogue_context_keys_by_line(mgr):

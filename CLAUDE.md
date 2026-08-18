@@ -126,7 +126,7 @@ When a discrete set of values maps to behavior branches, use a flat enum class
 class CueLoopFrequency(object):
     SLOWEST = 4   # ~6.3s
     SLOW = 0      # ~3.8s
-    NORMAL = 1    # ~2.1s
+    MEDIUM = 1    # ~2.1s
     FAST = 2      # ~0.6s
     FASTEST = 3   # ~0.2s
 ```

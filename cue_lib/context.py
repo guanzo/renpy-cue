@@ -800,7 +800,7 @@ class CueLoopContext(CueMarkerContext):
         entry["pools"].append({
             "files": [],
             "volume": CUE_VOLUME_DEFAULT,
-            "frequency": CueLoopFrequency.NORMAL,
+            "frequency": CueLoopFrequency.MEDIUM,
         })
         self._set_target(len(entry["pools"]) - 1)
         self._mgr._db_save_marker(key)
@@ -824,7 +824,7 @@ class CueLoopContext(CueMarkerContext):
                 self._mgr._db_save_marker(key)
 
     @staticmethod
-    def get_delay(frequency=CueLoopFrequency.NORMAL):
+    def get_delay(frequency=CueLoopFrequency.MEDIUM):
         # type: (int) -> float
         if frequency == CueLoopFrequency.SLOWEST:
             return 5.0 + _random.uniform(0.0, 2.5)
@@ -832,7 +832,7 @@ class CueLoopContext(CueMarkerContext):
             return 0.15 + _random.uniform(0.0, 0.05)
         elif frequency == CueLoopFrequency.FAST:
             return 0.5 + _random.uniform(0.0, 0.15)
-        elif frequency == CueLoopFrequency.NORMAL:
+        elif frequency == CueLoopFrequency.MEDIUM:
             return 1.7 + _random.uniform(0.0, .75)
         else:
             return 3.0 + _random.uniform(0.0, 1.5)

@@ -205,7 +205,7 @@ class CueMarkerStore(object):
         defaults = self._presets.get(pool["preset"], {}) if "preset" in pool else {}
         files = pool.get("files", defaults.get("files", []))
         volume = pool.get("volume", defaults.get("volume", CUE_VOLUME_DEFAULT))
-        frequency = pool.get("frequency", defaults.get("frequency", CueLoopFrequency.NORMAL))
+        frequency = pool.get("frequency", defaults.get("frequency", CueLoopFrequency.MEDIUM))
         trigger_on_shake = pool.get("trigger_on_shake", defaults.get("trigger_on_shake", False))
         exclusive = self._resolve_exclusive(pool, defaults)
         return ResolvedPool(list(files), volume, frequency, trigger_on_shake, exclusive)

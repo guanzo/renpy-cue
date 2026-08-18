@@ -49,22 +49,22 @@ screen cue_sfx_page():
                 "Slowest",
                 (_freq == CueLoopFrequency.SLOWEST),
                 Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOWEST),
-                tt="~6.3s between plays")
+                tt="~6s between plays")
             use cue_select_btn(
                 "Slow",
                 (_freq == CueLoopFrequency.SLOW),
                 Function(_cue.markers.loop.set_frequency, CueLoopFrequency.SLOW),
-                tt="~3.8s between plays")
+                tt="~4s between plays")
             use cue_select_btn(
-                "Normal",
-                (_freq == CueLoopFrequency.NORMAL),
-                Function(_cue.markers.loop.set_frequency, CueLoopFrequency.NORMAL),
-                tt="~2.1s between plays")
+                "Medium",
+                (_freq == CueLoopFrequency.MEDIUM),
+                Function(_cue.markers.loop.set_frequency, CueLoopFrequency.MEDIUM),
+                tt="~2s between plays")
             use cue_select_btn(
                 "Fast",
                 (_freq == CueLoopFrequency.FAST),
                 Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FAST),
-                tt="~0.6s between plays")
+                tt="~0.5s between plays")
             use cue_select_btn(
                 "Fastest",
                 (_freq == CueLoopFrequency.FASTEST),

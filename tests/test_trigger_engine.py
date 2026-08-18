@@ -73,7 +73,7 @@ def keep_playing(monkeypatch):
 def loop_store():
     return FakeMarkerStore({
         "l_scene.ogg": {"pools": [
-            {"files": ["a.ogg"], "frequency": CueLoopFrequency.NORMAL}]}})
+            {"files": ["a.ogg"], "frequency": CueLoopFrequency.MEDIUM}]}})
 
 
 # ---------------------------------------------------------------------------
@@ -436,7 +436,7 @@ def test_tick_loop_wait_defers(monkeypatch, play_stub):
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
     keep_playing(monkeypatch)
     store = FakeMarkerStore({"l_scene.ogg": {"pools": [
-        {"files": ["a.ogg"], "frequency": CueLoopFrequency.NORMAL,
+        {"files": ["a.ogg"], "frequency": CueLoopFrequency.MEDIUM,
          "exclusive": {"start": CueExclusiveStart.WAIT}}]}})
     eng = make_engine(store=store, markers=FakeMarkers())
     eng.excl_channels = {

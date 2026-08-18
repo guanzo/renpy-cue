@@ -152,7 +152,7 @@ def test_resolve_pool_uses_defaults(store):
     assert r.files == ["a.ogg"]
     assert r.volume == 0.8
     assert r.trigger_on_shake is True
-    assert r.frequency == CueLoopFrequency.NORMAL
+    assert r.frequency == CueLoopFrequency.MEDIUM
     assert r.exclusive.group == 0
 
 

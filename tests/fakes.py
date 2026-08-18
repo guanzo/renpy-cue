@@ -134,7 +134,7 @@ class FakeResolvedPool(object):
     volume (volume.py), files/frequency/trigger_on_shake/exclusive (trigger.py).
 
     resolve_pool defaults mirror the real store: volume 1.0 (identity),
-    frequency CueLoopFrequency.NORMAL, exclusive a default FakeExclusive."""
+    frequency CueLoopFrequency.MEDIUM, exclusive a default FakeExclusive."""
 
     def __init__(self, files=None, volume=1.0, frequency=1, trigger_on_shake=False, exclusive=None):
         self.files = files if files is not None else []

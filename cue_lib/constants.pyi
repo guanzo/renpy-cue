@@ -50,7 +50,7 @@ class CueExclusiveStart:
 class CueLoopFrequency:
     SLOWEST: Final = 4
     SLOW: Final = 0
-    NORMAL: Final = 1
+    MEDIUM: Final = 1
     FAST: Final = 2
     FASTEST: Final = 3
 

@@ -930,7 +930,7 @@ def test_get_delay_bases_with_zero_jitter(monkeypatch):
     assert CueLoopContext.get_delay(CueLoopFrequency.SLOWEST) == 5.0
     assert CueLoopContext.get_delay(CueLoopFrequency.FASTEST) == 0.15
     assert CueLoopContext.get_delay(CueLoopFrequency.FAST) == 0.5
-    assert CueLoopContext.get_delay(CueLoopFrequency.NORMAL) == 1.7
+    assert CueLoopContext.get_delay(CueLoopFrequency.MEDIUM) == 1.7
     assert CueLoopContext.get_delay(999) == 3.0  # unknown -> slow default
 
 
