@@ -40,6 +40,7 @@ CUE_DIR_OVERRIDE_FILENAME: Final = "dir.txt"
 CUE_SHARED_CONFIG_FILENAME: Final = "cue_config.json"
 CUE_DEBUG: bool = True  # not Final -- tests flip this to silence debug.log
 CUE_DEBUG_LOG_FILENAME: Final = "debug.log"
+CUE_DEBUG_LOG_BUFFER_LINES: Final = 64
 
 class CueExclusiveStart:
     PLAY: Final = 0

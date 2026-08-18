@@ -27,6 +27,7 @@ from cue_lib.util import (
     _cue_clamp_time,
     _cue_clear_debug_log,
     _cue_format_time,
+    _cue_flush_debug_log,
     _cue_get_movie_or_image,
     _cue_get_movie_play,
     _cue_is_screenshake,
@@ -538,6 +539,7 @@ def test_log_writes_when_debug_enabled(tmp_path, monkeypatch):
     monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
     monkeypatch.setattr(_config, "gamedir", str(tmp_path))
     _cue_log("hello world")
+    _cue_flush_debug_log()  # buffered lines only hit disk on a flush
     log_file = tmp_path / "renpy_cue" / "debug.log"
     assert log_file.exists()
     assert "hello world" in log_file.read_text()
@@ -566,6 +568,8 @@ def test_clear_debug_log_truncates(tmp_path, monkeypatch):
     log_file.write_text("stale content")
     _cue_clear_debug_log()
     assert log_file.read_text() == ""
+
+
 
 
 # ---------------------------------------------------------------------------

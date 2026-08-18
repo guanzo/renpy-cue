@@ -31,6 +31,9 @@ CUE_DEBUG = _cue_env_flag("RENPY_CUE_DEBUG", False)
 # Debug log filename, written into the in-game base dir.
 CUE_DEBUG_LOG_FILENAME = "debug.log"
 
+# Debug lines buffer in memory before writing to disk (auto-flush threshold).
+CUE_DEBUG_LOG_BUFFER_LINES = 64
+
 # Number of dedicated SFX channels on the "sfx" mixer.
 # Channels are named _cue_1 through _cue_N.
 CUE_SFX_CHANNEL_COUNT = 8

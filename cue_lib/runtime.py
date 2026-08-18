@@ -16,8 +16,8 @@ from cue_lib.paths import CuePaths
 from cue_lib.constants import CuePage
 from cue_lib.state import _cue
 from cue_lib.util import (
-    _cue_log, _cue_ui_refresh, _cue_unwrap_displayable, _cue_get_movie_play,
-    _cue_resolve_files, _cue_pick_file,
+    _cue_log, _cue_flush_debug_log, _cue_ui_refresh, _cue_unwrap_displayable,
+    _cue_get_movie_play, _cue_resolve_files, _cue_pick_file,
     _cue_sfx_channel_name, _cue_sfx_channel_index,
     create_img_key, create_vid_key, create_dlg_key,
     is_vid_key, is_img_key, is_dlg_key,
@@ -424,6 +424,7 @@ def _cue_tick_trigger_impl():
         _cue_slow_tick_last = _time.time()
 
         _cue.volume.flush_pending_saves()
+        _cue_flush_debug_log()
 
         if _cue.video_editor.processing:
             _cue.video_editor.job_queue.poll()
