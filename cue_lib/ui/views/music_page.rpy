@@ -6,6 +6,7 @@ screen grow_and_scroll(ymin=None, ymax=None, id=None):
 
     frame:
         background None
+        padding (0, 0)
         xfill True  # Fixed or minimum width
         
         side "c r":
@@ -24,7 +25,7 @@ screen grow_and_scroll(ymin=None, ymax=None, id=None):
             # Vertical scrollbar that hides if content is short
             vbar value YScrollValue(viewport_id):
                 unscrollable "hide"
-                style "cue_vbar_scroll"
+                style "cue_vscrollbar"
                     
 
 screen cue_music_page():
