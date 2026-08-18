@@ -17,9 +17,10 @@ class FakeVideoContext(object):
     def __init__(self):
         self.target_pool = 0
         self.selected = set()
+        self.sync_text_calls = 0
 
     def sync_text(self):
-        pass
+        self.sync_text_calls += 1
 
 
 class FakeMarkers(object):
@@ -255,3 +256,99 @@ def test_undo_stack_is_capped_at_max_undo(undo, store, monkeypatch):
         undo.capture()
 
     assert len(undo._undo) == CueUndoManager.MAX_UNDO
+
+
+def test_reset_clears_stacks_and_reseeds(undo, store, monkeypatch):
+    class Clock(object):
+        def __init__(self):
+            self.now = 0.0
+
+        def time(self):
+            return self.now
+
+    clock = Clock()
+    monkeypatch.setattr(time, "time", clock.time)
+
+    undo.seed()
+    store._data["k"] = {"pools": []}
+    clock.now = 1.0
+    undo.capture()
+    store._data["k2"] = {"pools": []}
+    clock.now = 2.0
+    undo.capture()
+    assert undo.can_undo()
+
+    undo.reset()
+    assert not undo.can_undo()
+    assert not undo.can_redo()
+    assert undo._last_ts == 0.0
+    assert undo._previous is not None  # re-seeded to current state
+
+
+def test_capture_skips_when_not_recording(undo, store):
+    undo.seed()
+    store._data["k"] = {"pools": []}
+    undo._recording = False
+    undo.capture()
+    assert undo._recording is True
+    assert not undo.can_undo()  # restore's re-persist is not a new undo step
+
+
+def test_redo_trims_undo_overflow(undo, store, monkeypatch):
+    class Clock(object):
+        def __init__(self):
+            self.now = 0.0
+
+        def time(self):
+            return self.now
+
+    clock = Clock()
+    monkeypatch.setattr(time, "time", clock.time)
+
+    undo.seed()
+    for i in range(CueUndoManager.MAX_UNDO):
+        store._data["step"] = {"pools": [[float(i)]]}
+        clock.now += 1.0
+        undo.capture()
+    assert len(undo._undo) == CueUndoManager.MAX_UNDO
+    undo._redo.append(undo._snapshot())
+    undo.redo()
+    assert len(undo._undo) == CueUndoManager.MAX_UNDO
+
+
+# ---------------------------------------------------------------------------
+# _clamp_ui branches
+# ---------------------------------------------------------------------------
+
+def test_clamp_ui_clamps_all_targets(undo, store):
+    undo._ctx.current_file = "movies/x.webm"
+    undo._ctx.current_dialogue = "hi"
+    store._data["i_movies/x.webm"] = {"pools": [[1.0], [2.0]]}
+    store._data["d_movies/x.webm__hi"] = {"pools": [[1.0]]}
+    store._data["v_movies/x.webm"] = {"pools": [[1.0], [2.0], [3.0]]}
+    undo._markers._img_target = 5
+    undo._markers._dlg_target = 5
+    undo._markers.video.target_pool = 5
+    undo._clamp_ui()
+    assert undo._markers._img_target == 1     # min(5, 2 - 1)
+    assert undo._markers._dlg_target == 0     # min(5, 1 - 1)
+    assert undo._markers.video.target_pool == 2  # min(5, 3 - 1)
+    assert undo._markers.video.selected == set()
+    assert undo._markers.video.sync_text_calls == 1
+
+
+def test_clamp_ui_refreshes_editor_when_overlay_visible(undo, monkeypatch):
+    from cue_lib.state import _cue
+    monkeypatch.setattr(_cue, "is_overlay_visible", True, raising=False)
+    undo._clamp_ui()
+    assert undo._video_editor.refreshed == 1
+
+
+def test_clamp_ui_refresh_ui_error(undo, monkeypatch):
+    from cue_lib.state import _cue
+    monkeypatch.setattr(_cue, "is_overlay_visible", True, raising=False)
+
+    def _boom():
+        raise RuntimeError("no screen")
+    monkeypatch.setattr(undo._video_editor, "refresh_ui", _boom)
+    undo._clamp_ui()  # must not raise
