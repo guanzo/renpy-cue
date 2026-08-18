@@ -54,6 +54,18 @@ class CueVideoEditorState(object):
         self.last_error = ""
 
 
+class CueRpaExtractState(object):
+    """Background .rpa extraction state.  The worker thread writes the
+    ok/msg/done fields; poll_extract() (main thread) finalizes them into
+    check_prerequisites + create."""
+    def __init__(self):
+        self.in_progress = False
+        self.done = False
+        self.ok = False
+        self.msg = ""
+        self.vpath = None
+
+
 class CueVideoJob(object):
     """One ffmpeg encode job in the queue."""
     def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, encode_mode,
@@ -785,6 +797,9 @@ class CueVideoEditor(object):
         self.remove_audio = True
         self._current_has_audio = None  # type: Optional[bool]
         self.job_queue = CueVideoEditQueue(self)
+        # Background .rpa extraction state.  The worker thread only writes the
+        # ok/msg/done fields; poll_extract() finalizes them on the main thread.
+        self.rpa_extract = CueRpaExtractState()
 
     @property
     def processing(self):
@@ -847,9 +862,10 @@ class CueVideoEditor(object):
             return False
         return self._get_video_fspath() is None
 
-    def extract_from_rpa(self):
-        # type: () -> tuple[str, str]
-        vp = self._get_video_vpath()
+    def extract_from_rpa(self, vp=None):
+        # type: (Optional[str]) -> tuple[str, str]
+        if vp is None:
+            vp = self._get_video_vpath()
         if not vp:
             return ("error", "No video is currently playing.")
         vp = vp.replace("\\", "/")
@@ -1022,14 +1038,46 @@ class CueVideoEditor(object):
     @_cue_ui_refresh
     def _extract_then_create(self):
         # type: () -> None
-        self.last_error = ""
-        ok, msg = self.extract_from_rpa()
-        if ok == "error":
-            self.last_error = msg
+        if self.rpa_extract.in_progress:
+            return  # already extracting; poll_extract continues it
+        vp = self._get_video_vpath()
+        if not vp:
+            self.last_error = "No video is currently playing."
             return
-        status, msg2 = self.check_prerequisites()
+        self.last_error = ""
+        self.rpa_extract.vpath = vp
+        self.rpa_extract.done = False
+        self.rpa_extract.ok = False
+        self.rpa_extract.msg = ""
+        self.rpa_extract.in_progress = True
+        t = threading.Thread(target=_cue_extract_rpa, args=(self, vp))
+        t.daemon = True
+        t.start()
+
+    def poll_extract(self):
+        # type: () -> None
+        """Main-thread pickup for the background .rpa extraction.
+
+        Runs from the slow tick; once the thread sets rpa_extract.done,
+        completes the deferred extract by continuing to check_prerequisites +
+        create."""
+        if not self.rpa_extract.in_progress or not self.rpa_extract.done:
+            return
+        self.rpa_extract.in_progress = False
+        if not self.rpa_extract.ok:
+            self.last_error = self.rpa_extract.msg
+            renpy.restart_interaction()
+            return
+        # The video may have changed while extracting; only continue if the
+        # extracted file still matches the video that was being extracted.
+        if self._get_video_vpath() != self.rpa_extract.vpath:
+            self.last_error = "Video changed during extraction."
+            renpy.restart_interaction()
+            return
+        status, msg = self.check_prerequisites()
         if status == "error":
-            self.last_error = msg2
+            self.last_error = msg
+            renpy.restart_interaction()
             return
         try:
             factor = float(self.factor_text)
@@ -1096,6 +1144,27 @@ class CueVideoEditor(object):
         if self.processing:
             self.last_error = ""
         renpy.restart_interaction()
+
+
+# ==================================================================
+# Background .rpa extraction
+# ==================================================================
+# Module-level so threading.Thread can reference it by name.  Only writes
+# editor.rpa_extract fields; poll_extract() finalizes on the main thread.
+# The chunked copy of a potentially multi-hundred-MB archive read is why
+# this must not run on the main thread.
+
+def _cue_extract_rpa(editor, vp):
+    # type: (CueVideoEditor, str) -> None
+    """Copy `vp` out of the game archives onto the editor's result fields."""
+    try:
+        status, msg = editor.extract_from_rpa(vp)
+        editor.rpa_extract.ok = (status == "ok")
+        editor.rpa_extract.msg = msg
+    except Exception as e:
+        editor.rpa_extract.ok = False
+        editor.rpa_extract.msg = "Extraction failed: {}".format(e)
+    editor.rpa_extract.done = True
 
 
 # ==================================================================

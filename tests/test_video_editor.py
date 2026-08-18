@@ -1175,10 +1175,15 @@ def test_editor_prepare_create_rpa_extract_error(ve, monkeypatch):
     ve._ready = True
     ve._current = ve._ensure_state("movies/scene.webm")
 
-    def _raise(vp):
-        raise OSError("no archive")
-    monkeypatch.setattr(renpy, "file", _raise)
+    def _fake_extract(vp):
+        return ("error", "Cannot open '{}' in game archives: no archive".format(vp))
+    monkeypatch.setattr(ve, "extract_from_rpa", _fake_extract)
     ve.prepare_create()
+    # Extraction is deferred: prepare_create only arms it; poll_extract
+    # surfaces the error once the background thread reports done.
+    assert ve.rpa_extract.in_progress is True
+    ve.rpa_extract.done = True
+    ve.poll_extract()
     assert "Cannot open" in ve.last_error
 
 
@@ -1238,3 +1243,165 @@ def test_editor_refresh_ui_when_idle(ve):
 def test_editor_refresh_ui_with_job(ve, tmp_path):
     ve.job_queue._jobs.append(make_job(ve, tmp_path))
     ve.job_queue.refresh_ui()  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# .rpa extraction deferral (finding 11 Part B)
+# ---------------------------------------------------------------------------
+
+def test_extract_then_create_spawns_background_thread(ve, monkeypatch):
+    threads = []
+
+    class CaptureThread(object):
+        def __init__(self, target=None, args=(), kwargs=None, daemon=None):
+            self.target = target
+            self.args = args
+            self.daemon = daemon
+            threads.append(self)
+
+        def start(self):
+            self.started = True
+
+    monkeypatch.setattr(_veditor.threading, "Thread", CaptureThread)
+    ve._extract_then_create()
+    assert ve.rpa_extract.in_progress is True
+    assert ve.rpa_extract.done is False
+    assert len(threads) == 1
+    t = threads[0]
+    assert t.target is _veditor._cue_extract_rpa
+    assert t.args[0] is ve
+    assert t.args[1] == "movies/scene.webm"
+    assert t.daemon is True  # set after construction, like _warm_tools
+    assert t.started is True
+
+
+def test_extract_then_create_ignores_second_call_while_extracting(ve, monkeypatch):
+    calls = []
+
+    class DummyThread(object):
+        def start(self):
+            pass
+
+    monkeypatch.setattr(_veditor.threading, "Thread",
+                        lambda **kw: calls.append(1) or DummyThread())
+    ve.rpa_extract.in_progress = True  # simulate in-flight extraction
+    ve.rpa_extract.vpath = "movies/old.webm"
+    ve._extract_then_create()
+    assert calls == []      # no new thread
+    assert ve.rpa_extract.vpath == "movies/old.webm"  # state untouched
+
+
+def test_extract_then_create_no_video_sets_error(ve, monkeypatch):
+    monkeypatch.setattr(ve, "_get_video_vpath", lambda: None)
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve._extract_then_create()
+    assert ve.rpa_extract.in_progress is False
+    assert ve.last_error == "No video is currently playing."
+
+
+def test_poll_extract_noop_when_idle(ve, monkeypatch):
+    restarts = []
+    monkeypatch.setattr(_veditor.renpy, "restart_interaction",
+                        lambda: restarts.append(1))
+    ve.rpa_extract.in_progress = False
+    ve.rpa_extract.done = True  # even with done set, not extracting => noop
+    ve.poll_extract()
+    assert ve.rpa_extract.in_progress is False
+    assert restarts == []
+
+
+def test_poll_extract_error_sets_last_error(ve, monkeypatch):
+    restarts = []
+    monkeypatch.setattr(_veditor.renpy, "restart_interaction",
+                        lambda: restarts.append(1))
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.rpa_extract.in_progress = True
+    ve.rpa_extract.done = True
+    ve.rpa_extract.ok = False
+    ve.rpa_extract.msg = "boom"
+    ve.rpa_extract.vpath = "movies/scene.webm"
+    ve.poll_extract()
+    assert ve.rpa_extract.in_progress is False
+    assert ve.last_error == "boom"
+    assert restarts == [1]
+
+
+def test_poll_extract_vpath_changed_bails(ve, monkeypatch):
+    restarts = []
+    monkeypatch.setattr(_veditor.renpy, "restart_interaction",
+                        lambda: restarts.append(1))
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.rpa_extract.in_progress = True
+    ve.rpa_extract.done = True
+    ve.rpa_extract.ok = True
+    ve.rpa_extract.msg = "/tmp/scene.webm"
+    ve.rpa_extract.vpath = "movies/old.webm"  # no longer the current video
+    ve.poll_extract()
+    assert ve.rpa_extract.in_progress is False
+    assert "changed" in ve.last_error
+    assert restarts == [1]
+
+
+def test_poll_extract_happy_path_creates(ve, monkeypatch):
+    restarts = []
+    monkeypatch.setattr(_veditor.renpy, "restart_interaction",
+                        lambda: restarts.append(1))
+    monkeypatch.setattr(ve, "check_prerequisites", lambda: ("ok", ""))
+    created = []
+    monkeypatch.setattr(ve, "create", lambda factor: created.append(factor))
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve._current.factor_text = "2.00"
+    ve.rpa_extract.in_progress = True
+    ve.rpa_extract.done = True
+    ve.rpa_extract.ok = True
+    ve.rpa_extract.msg = "/tmp/scene.webm"
+    ve.rpa_extract.vpath = "movies/scene.webm"
+    ve.poll_extract()
+    assert ve.rpa_extract.in_progress is False
+    assert created == [2.0]
+    assert restarts == []
+
+
+def test_extract_from_rpa_copies_vp(ve, monkeypatch):
+    class FakeReader(object):
+        def __init__(self):
+            self._chunks = [b"abc", b"def"]
+
+        def read(self, size):
+            return self._chunks.pop(0) if self._chunks else b""
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(_veditor.renpy, "file", lambda vp: FakeReader())
+    ve._current = ve._ensure_state("movies/scene.webm")
+    status, msg = ve.extract_from_rpa("movies/scene.webm")
+    assert status == "ok"
+    fpath = os.path.join(_config.gamedir, "movies", "scene.webm")
+    assert os.path.isfile(fpath)
+    with open(fpath, "rb") as f:
+        assert f.read() == b"abcdef"
+
+
+def test_extract_from_rpa_write_error_cleans_partial(ve, monkeypatch):
+    real_open = open
+
+    class FakeReader(object):
+        def read(self, size):
+            return b"partial"
+
+        def close(self):
+            pass
+
+    def failing_open(path, mode):
+        f = real_open(path, mode)  # create/truncate like the real open
+        f.close()
+        raise IOError("disk full")
+
+    monkeypatch.setattr(_veditor.renpy, "file", lambda vp: FakeReader())
+    monkeypatch.setattr("builtins.open", failing_open)
+    ve._current = ve._ensure_state("movies/scene.webm")
+    status, msg = ve.extract_from_rpa("movies/scene.webm")
+    assert status == "error"
+    fpath = os.path.join(_config.gamedir, "movies", "scene.webm")
+    assert not os.path.exists(fpath)

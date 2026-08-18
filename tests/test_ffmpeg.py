@@ -53,6 +53,7 @@ def patch_popen(monkeypatch):
 
 def test_init_defaults(ff):
     assert ff._ffmpeg_cache == -1
+    assert ff._ffprobe_cache == -1
     assert ff._ffmpeg_path == "ffmpeg"
     assert ff._ffprobe_path == "ffprobe"
     assert ff._encoder_cache is None
@@ -107,6 +108,33 @@ def test_ffprobe_available_derives_from_ffmpeg_path(ff, monkeypatch):
 def test_ffprobe_available_fails(ff, monkeypatch):
     monkeypatch.setattr(ff, "_probe_exe", lambda exe: False)
     assert ff.ffprobe_available() is False
+
+
+def test_ffprobe_available_caches_true(ff, monkeypatch):
+    calls = []
+    monkeypatch.setattr(ff, "_probe_exe", lambda exe: calls.append(exe) or True)
+    assert ff.ffprobe_available() is True
+    assert ff._ffprobe_cache == 1
+    assert ff._ffprobe_path == "ffprobe"
+    # Second call hits the cache -- no re-probe.
+    assert ff.ffprobe_available() is True
+    assert calls == ["ffprobe"]
+
+
+def test_ffprobe_available_caches_false(ff, monkeypatch):
+    calls = []
+    monkeypatch.setattr(ff, "_probe_exe", lambda exe: calls.append(exe) or False)
+    assert ff.ffprobe_available() is False
+    assert ff._ffprobe_cache == 0
+    # Negative result is cached too -- no re-probe.
+    assert ff.ffprobe_available() is False
+    assert len(calls) == 1
+
+
+def test_ffprobe_available_uses_cache(ff, monkeypatch):
+    ff._ffprobe_cache = 0
+    monkeypatch.setattr(ff, "_probe_exe", lambda exe: True)
+    assert ff.ffprobe_available() is False  # cached "not found" wins
 
 
 # ---------------------------------------------------------------------------

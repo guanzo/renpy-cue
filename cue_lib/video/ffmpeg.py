@@ -170,6 +170,7 @@ class CueFFmpeg(object):
 
     def __init__(self):
         self._ffmpeg_cache = -1         # -1=unchecked, 0=not found, 1=found
+        self._ffprobe_cache = -1        # -1=unchecked, 0=not found, 1=found
         self._ffmpeg_path = "ffmpeg"
         self._ffprobe_path = "ffprobe"
         self._encoder_cache = None      # None=not loaded, set when populated
@@ -211,16 +212,21 @@ class CueFFmpeg(object):
 
     def ffprobe_available(self):
         # type: () -> bool
-        """Check ffprobe once."""
+        """Check ffprobe once and cache the result."""
+        if self._ffprobe_cache != -1:
+            return self._ffprobe_cache == 1
         exe = os.environ.get("RENPY_CUE_FFPROBE", "ffprobe")
         if self._probe_exe(exe):
             self._ffprobe_path = exe
+            self._ffprobe_cache = 1
             return True
         if self._ffmpeg_path != "ffmpeg":
             alt = self._ffmpeg_path.replace("ffmpeg", "ffprobe")
             if self._probe_exe(alt):
                 self._ffprobe_path = alt
+                self._ffprobe_cache = 1
                 return True
+        self._ffprobe_cache = 0
         return False
 
     # ==================================================================

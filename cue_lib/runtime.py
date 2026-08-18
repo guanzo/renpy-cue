@@ -428,6 +428,10 @@ def _cue_tick_trigger_impl():
         if _cue.video_editor.processing:
             _cue.video_editor.job_queue.poll()
 
+        # Background .rpa extraction completes here (not gated on processing:
+        # extraction happens before a job exists).
+        _cue.video_editor.poll_extract()
+
         for _m in (_cue.sfx_manager, _cue.music.user_music, _cue.music.game_music):
             _m.maybe_rebuild()
 

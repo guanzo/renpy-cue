@@ -820,3 +820,99 @@ def test_query_matches_pipe_or_with_and_alternative():
 def test_query_matches_escaped_pipe_literal():
     assert _util._cue_query_matches("Mix|Take.wav", "mix\\|take")
     assert not _util._cue_query_matches("MixTake.wav", "mix\\|take")
+
+
+# ---------------------------------------------------------------------------
+# Engine hook wrappers -- with_statement / config.show screenshake detection
+# ---------------------------------------------------------------------------
+
+def Move(bounce=False, repeat=False, delay=None):
+    """Fake renpy.transitions.Move so _cue_is_screenshake recognizes it."""
+    pass
+
+
+def _shake(bounce=True, repeat=True, delay=0.1):
+    return functools.partial(Move, bounce=bounce, repeat=repeat, delay=delay)
+
+
+class _RecordingShow(object):
+    """Fake original engine hook: records forwarded calls, returns a sentinel."""
+
+    def __init__(self, result="RESULT"):
+        self.result = result
+        self.calls = []   # type: list
+
+    def __call__(self, *args, **kwargs):
+        self.calls.append((args, kwargs))
+        return self.result
+
+
+def test_with_statement_wrapper_detects_shake():
+    hook = _RecordingShow()
+    wrapper = _util._cue_wrap_with_statement(hook)
+    _cue._shake_just_happened = False
+    wrapper(_shake())
+    assert _cue._shake_just_happened is True
+
+
+def test_with_statement_wrapper_non_shake_leaves_flag_clear():
+    hook = _RecordingShow()
+    wrapper = _util._cue_wrap_with_statement(hook)
+    _cue._shake_just_happened = False
+    wrapper(_shake(bounce=False))
+    assert _cue._shake_just_happened is False
+
+
+def test_with_statement_wrapper_forwards_args_verbatim():
+    hook = _RecordingShow()
+    wrapper = _util._cue_wrap_with_statement(hook)
+    result = wrapper(_shake(), always=True, paired="p", clear=False)
+    assert result == "RESULT"
+    args, kwargs = hook.calls[0]
+    assert kwargs == {"always": True, "paired": "p", "clear": False}
+
+
+def test_config_show_wrapper_detects_shake_in_at_list_kwarg():
+    show = _RecordingShow()
+    wrapper = _util._cue_wrap_config_show(show)
+    _cue._shake_just_happened = False
+    wrapper("bg", at_list=[_shake()])
+    assert _cue._shake_just_happened is True
+
+
+def test_config_show_wrapper_detects_shake_in_at_list_positional():
+    show = _RecordingShow()
+    wrapper = _util._cue_wrap_config_show(show)
+    _cue._shake_just_happened = False
+    wrapper("bg", [_shake()])
+    assert _cue._shake_just_happened is True
+
+
+def test_config_show_wrapper_non_shake_leaves_flag_clear():
+    show = _RecordingShow()
+    wrapper = _util._cue_wrap_config_show(show)
+    _cue._shake_just_happened = False
+    wrapper("bg", at_list=[_shake(delay=0.9)])
+    assert _cue._shake_just_happened is False
+
+
+def test_config_show_wrapper_forwards_args_verbatim():
+    show = _RecordingShow()
+    wrapper = _util._cue_wrap_config_show(show)
+    result = wrapper("bg", at_list=[], transient=True, munge_name="x")
+    assert result == "RESULT"
+    args, kwargs = show.calls[0]
+    assert args == ("bg",)
+    assert kwargs["at_list"] == []
+    assert kwargs["transient"] is True
+    assert kwargs["munge_name"] == "x"
+
+
+def test_config_show_wrapper_no_at_list_ok():
+    show = _RecordingShow()
+    wrapper = _util._cue_wrap_config_show(show)
+    _cue._shake_just_happened = False
+    result = wrapper("bg", layer="master")
+    assert result == "RESULT"
+    assert _cue._shake_just_happened is False
+    assert show.calls[0][1]["layer"] == "master"
