@@ -1226,6 +1226,25 @@ def test_editor_create_enqueues_job(ve, tmp_path, fthread):
     assert job.fspath_out.endswith("__cue_2.0x.webm")
 
 
+def test_editor_create_temp_name_unique_per_job(ve, tmp_path, fthread):
+    """The encode temp (and its derived passlog) must be job-scoped, not
+    keyed only by (base, speed) -- a stale temp/passlog from one job must
+    never be reused by another job for the same video+speed."""
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.create(2.0)
+    ve.create(2.0)  # same video, same speed -- a second job
+    jobs = ve.job_queue.jobs
+    assert len(jobs) == 2
+    t1, t2 = jobs[0].fspath_tmp, jobs[1].fspath_tmp
+    assert t1 != t2
+    # Each temp embeds its own job id.
+    assert str(jobs[0].job_id) in os.path.basename(t1)
+    assert str(jobs[1].job_id) in os.path.basename(t2)
+    # Passlogs derive from the temp path, so they are unique too.
+    assert t1 + ".passlog" != t2 + ".passlog"
+
+
 def test_editor_queue_properties(ve, tmp_path):
     assert ve.processing is False
     assert ve._get_state() is None

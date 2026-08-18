@@ -1101,13 +1101,15 @@ class CueVideoEditor(object):
         orig_fs = os.path.normpath(os.path.join(_config.gamedir, orig_vpath))
         out_fspath = self._speed_resolver.variant_path(orig_fs, factor)
         _base, _ext = self._speed_resolver._split_ext(os.path.basename(orig_fs))
-        temp_path = os.path.join(
-            self._paths.video_dir,
-            "{}__cue_tmp_{:.1f}x{}".format(_base, factor, _ext),
-        )
-        input_fs = orig_fs
         job_id = self.job_queue._next_job_id
         self.job_queue._next_job_id += 1
+        # The temp name is job-scoped so a stale temp/passlog from a prior
+        # job for the same video+speed can never be misread as this job's.
+        temp_path = os.path.join(
+            self._paths.video_dir,
+            "{}__cue_tmp_{:.1f}x_{}{}".format(_base, factor, job_id, _ext),
+        )
+        input_fs = orig_fs
         job = CueVideoJob(job_id, vp, input_fs, temp_path, factor,
                           self.encode_mode, fspath_out=out_fspath,
                           remove_audio=self.remove_audio)
