@@ -30,6 +30,9 @@ class CueGameMusic(CueAudioTreeManager):
 
     _scan_label = "game music"
     _log_tag = "GAME-MUSIC"
+    # Open the tree at its top-level folders so the game's music is visible
+    # without a click; the user's toggles win after this one-time default.
+    _auto_expand_roots = True
 
     # ------------------------------------------------------------------
     # Scanning

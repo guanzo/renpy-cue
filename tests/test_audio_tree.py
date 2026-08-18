@@ -8,6 +8,8 @@
 import copy
 
 from cue_lib.audio.audio_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
+from cue_lib.audio.game_music import CueGameMusic
+from cue_lib.audio.user_music import CueUserMusic
 from cue_lib.util import _cue_build_tree, _cue_filter_tree
 
 # Small tree spanning folder-name, file-name, and multi-term matches.
@@ -233,3 +235,85 @@ def test_clear_search_resets_debounce_state():
     mgr.clear_search()
     assert mgr._search_applied == ""
     assert mgr.search_truncated == 0
+
+
+# ---------------------------------------------------------------------------
+# One-time root expansion on scan (opt-in, _auto_expand_roots)
+# ---------------------------------------------------------------------------
+
+# A real scan needs a working _discover(); the concrete managers read _cue
+# paths, so test the base mechanism with a lightweight subclass instead.
+class _ScanTree(CueAudioTreeManager):
+    _auto_expand_roots = True
+
+    def _discover(self, results_set):
+        for path in self._files_in:
+            results_set.add(path)
+
+
+class _NoRootExpandTree(CueAudioTreeManager):
+    _auto_expand_roots = False
+
+    def _discover(self, results_set):
+        for path in self._files_in:
+            results_set.add(path)
+
+
+def test_scan_expands_roots_once_when_opted_in():
+    mgr = _ScanTree()
+    mgr._files_in = ["music/a.mp3", "music/sub/b.mp3", "audio/c.mp3"]
+    mgr.scan()
+    # Only depth-0 folders get the default; subfolders stay collapsed.
+    assert mgr.expanded_folders == {"music/": True, "audio/": True}
+    root_rows = [r for r in mgr.visible_tree if r["type"] == "folder" and r["depth"] == 0]
+    assert all(r["expanded"] for r in root_rows)
+    # The subfolder is rendered as a collapsed row, not force-expanded.
+    sub_rows = [r for r in mgr.visible_tree if r["type"] == "folder" and r["depth"] == 1]
+    assert sub_rows and all(not r["expanded"] for r in sub_rows)
+    # Files under the expanded roots are visible; the collapsed subfolder's
+    # file stays hidden.
+    file_paths = [r["full_path"] for r in mgr.visible_tree if r["type"] == "file"]
+    assert file_paths == ["audio/c.mp3", "music/a.mp3"]
+
+
+def test_scan_keeps_roots_collapsed_by_default():
+    mgr = _NoRootExpandTree()
+    mgr._files_in = ["v2/a.mp3", "v2/b.mp3"]
+    mgr.scan()
+    assert mgr.expanded_folders == {}
+    # Collapsed root renders as a single folder row; children stay hidden.
+    assert [r["type"] for r in mgr.visible_tree] == ["folder"]
+    assert len(mgr.visible_tree) == 1
+
+
+def test_scan_root_expansion_is_one_time():
+    mgr = _ScanTree()
+    mgr._files_in = ["music/a.mp3", "audio/c.mp3"]
+    mgr.scan()
+    assert mgr.expanded_folders == {"music/": True, "audio/": True}
+    # User collapses a root...
+    mgr.toggle_folder("music/")
+    assert mgr.expanded_folders["music/"] is False
+    # ...a re-scan must not re-expand it, and the untouched root stays open.
+    mgr.scan()
+    assert mgr.expanded_folders["music/"] is False
+    assert mgr.expanded_folders["audio/"] is True
+
+
+def test_scan_empty_first_scan_does_not_consume_root_expansion():
+    mgr = _ScanTree()
+    mgr._files_in = []
+    mgr.scan()
+    assert mgr.expanded_folders == {}
+    # Files added later: the one-time default still applies on the first
+    # non-empty scan.
+    mgr._files_in = ["music/a.mp3"]
+    mgr.scan()
+    assert mgr.expanded_folders == {"music/": True}
+
+
+def test_music_managers_opt_into_root_expansion():
+    assert CueUserMusic._auto_expand_roots is True
+    assert CueGameMusic._auto_expand_roots is True
+    # The base default (shared with the SFX library) is off.
+    assert CueAudioTreeManager._auto_expand_roots is False
