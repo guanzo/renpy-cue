@@ -3,6 +3,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 CREATIONFLAGS: int
 
+
+class CueSubprocessTimeout(Exception): ...
+
+
+def _cue_run_proc(p: Any, timeout: Optional[float] = ...) -> Tuple[bytes, bytes]: ...
+def _cue_wait_proc(p: Any, timeout: Optional[float] = ...) -> Optional[int]: ...
+
+
 def _cue_probe_job(
     ffmpeg: CueFFmpeg,
     job: Any,
@@ -14,6 +22,7 @@ class CueFFmpeg:
     VIDEO_ENCODERS: Dict[str, List[str]]
     AUDIO_ENCODERS: Dict[str, List[str]]
     _ffmpeg_cache: int
+    _ffprobe_cache: int
 
     def __init__(self) -> None: ...
     def ffmpeg_available(self) -> bool: ...

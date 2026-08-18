@@ -220,21 +220,6 @@ def test_load_scalars_shared_config_wins():
 
 
 # ==========================================================================
-# _cue_paste_context wrapper
-# ==========================================================================
-
-def test_cue_paste_context_wraps_manager_and_resets_loops():
-    cue = _markers._cue
-    pasted = []
-    cue.markers = types.SimpleNamespace()
-    cue.markers.paste_context = lambda: pasted.append("paste")
-    cue.trigger.loop_states = {"l_x": "playing"}
-    _markers._cue_paste_context()
-    assert pasted == ["paste"]
-    assert cue.trigger.loop_states == {}
-
-
-# ==========================================================================
 # paste_context -- replay + no-duration branches
 # ==========================================================================
 

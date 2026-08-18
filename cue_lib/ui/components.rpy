@@ -30,13 +30,27 @@ init -900 python:
         """A DictValue that persists the owning marker after the bar changes.
 
         DictValue writes ``dict[key]`` through its changed() hook; we save the
-        marker (passed in as marker_key) on top of that."""
-        def __init__(self, entry_dict, field, marker_key, **kwargs):
+        marker (passed in as marker_key) on top of that via the deferred save
+        queue (marker_queue_save) so a slider drag coalesces into one disk
+        write. When ``multi_setter`` is given, changed() also fans the write
+        out to every other selected pool (the video SFX multi-select volume
+        path); the active pool is handled by DictValue's own write."""
+        # FieldEquality over equality_fields gates Ren'Py's displayable-reuse
+        # cache: a bar whose new value equals the cached one reuses it. Without
+        # _multi_setter, a value built while multi_setter was None (rendered
+        # before entering multi-select) compares equal to a method-carrying one,
+        # so the None instance is reused and the fan-out is silently dropped.
+        equality_fields = tuple(DictValue.equality_fields) + ('_multi_setter',)
+
+        def __init__(self, entry_dict, field, marker_key, multi_setter=None, **kwargs):
             DictValue.__init__(self, entry_dict, field, **kwargs)
             self._marker_key = marker_key
+            self._multi_setter = multi_setter
 
         def changed(self, value):
             super(_CueVolumeValue, self).changed(value)
+            if self._multi_setter is not None:
+                self._multi_setter(value)
             _cue.volume.marker_queue_save(self._marker_key)
 
 
@@ -53,13 +67,14 @@ screen cue_h_divider(color=None):
     add Solid(color or _cue_color_divider) ysize 1
 
 
-# Volume row: label + slider bar
-screen cue_vol_row(label_text, entry_dict, key):
+# Volume row: label + slider bar. Pass multi_setter (a callable taking the
+# new volume) to write to every selected pool during a video multi-select.
+screen cue_vol_row(label_text, entry_dict, key, multi_setter=None):
     hbox:
         spacing 3
         text label_text style "cue_txt" size 11
         bar:
-            value _CueVolumeValue(entry_dict, "volume", key, range=_cue.volume.VOL_MAX)
+            value _CueVolumeValue(entry_dict, "volume", key, multi_setter=multi_setter, range=_cue.volume.VOL_MAX)
             xsize 60
             ysize 14
             left_bar Solid(_cue_color_bar_active)
@@ -203,7 +218,7 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
     default editing = False
     hbox:
         spacing 3
-        use cue_icon_btn("--", dec100_action, None, 22)
+        #use cue_icon_btn("--", dec100_action, None, 22)
         use cue_icon_btn("-", dec10_action)
 
         if editing:
@@ -219,7 +234,7 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
                 tt="Click to edit. Press Enter to confirm.")
 
         use cue_icon_btn("+", inc10_action)
-        use cue_icon_btn("++", inc100_action, None, 22)
+        #use cue_icon_btn("++", inc100_action, None, 22)
 
 # Text input: textbutton that becomes an input on click, Enter to confirm.
 # field_name: string for _CueFieldValue (e.g. "_cue.setup_dir_text")
@@ -275,7 +290,7 @@ screen cue_search_bar(field_path, manager, hint="Search..."):
 # delete_xsize/tab_xsize override the default button width (pass None for default).
 screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                      delete_tt, add_action, add_tt, tab_action_fn, tab_action_args,
-                     tab_tt, exclusive_ctx=None):
+                     tab_tt, exclusive_ctx=None, selected_tabs=()):
     hbox:
         spacing 5
         box_wrap True
@@ -306,11 +321,15 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
             tooltip add_tt
         for pi in range(count):
             $ _is_active = (pi == target)
+            # Selected-but-not-active tabs get a blue highlight so the
+            # multi-select group reads at a glance (active green wins).
+            $ _tab_bg = (_cue_color_active if _is_active
+                         else (_cue_color_selected if (pi in selected_tabs) else _cue_color_bg_btn))
             textbutton str(pi + 1):
                 style "cue_btn"
                 text_style "cue_btn_text"
                 xsize 14
-                background (_cue_color_active if _is_active else _cue_color_bg_btn)
+                background _tab_bg
                 action _cue_make_tab_action(tab_action_fn, tab_action_args, pi)
                 tooltip tab_tt
 
@@ -329,7 +348,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 use cue_icon_btn(
                     "play",
                     Function(_cue_preview_sfx, _cue_pick_file(folder_children or [""], False), preview_vol),
-                    "Preview random file from preset", None)
+                    "Play random file from preset", None)
                 use cue_txt_button(folder_label, Function(_cue.sfx_manager.toggle_file_ref_expand, folder_label))
                 text "({} files)".format(_count) style "cue_help"
 
@@ -356,7 +375,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                     use cue_icon_btn(
                         "play",
                         Function(_cue_preview_folder, f, preview_vol),
-                        "Preview random file from folder", None)
+                        "Play random file from folder", None)
                     use cue_txt_button(f, Function(_cue.sfx_manager.toggle_file_ref_expand, f))
                     text "({} files)".format(_count) style "cue_help"
 
@@ -448,7 +467,13 @@ screen cue_section_frame(header_text, tt=None, icons=[]):
                             use cue_icon("circle-question", tt=tt, size=14)
                         add _arrow yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
             if not _collapsed:
-                transclude
+                frame:
+                    background None 
+                    padding (4, 0) # match header xpadding added by cue_section_hdr_btn
+                    vbox:
+                        spacing 8
+                        xfill True
+                        transclude
 
 # Generic context section: shared by dialogue, image, and loop SFX.
 # ctx: marker context with add_pool, remove_pool, clear, set_active,
@@ -513,7 +538,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                     $ _exclusive_on = bool(_r.exclusive.group)
                     $ _exclusive_bg = _cue_color_active if _exclusive_on else None
                     $ _excl_tt = ("Disable exclusive playback" if _exclusive_on
-                        else ("Exclusive playback: waits for other Loop SFX to finish before playing,"
+                        else ("Exclusive playback: waits for other Loop SFX to finish before playing, "
                               "blocking other Loop SFX until finished."))
                     use cue_icon_btn(
                         "layer-group",

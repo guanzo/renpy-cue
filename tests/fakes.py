@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import time
 import types
 from typing import Optional
 
@@ -11,16 +12,34 @@ from typing import Optional
 # isolation, so context logic can be tested headlessly without the real
 # CueMarkerManager (which is wired to _cue and Ren'Py).
 
-class FakeManager(object):
-    """Dict-like stand-in for CueMarkerManager's data-facing surface."""
+class FakeCtx(object):
+    """Minimal _ctx stand-in carrying the seam the video context reads:
+    current_file (for the real _key / add_folder guard)."""
 
-    def __init__(self, data=None):
-        # type: (Optional[dict]) -> None
+    def __init__(self, current_file=None):
+        self.current_file = current_file
+
+
+class FakeManager(object):
+    """Dict-like stand-in for CueMarkerManager's data-facing surface.
+
+    Also exposes the narrow mutator surface the video context's per-pool edit
+    primitives call (_get_or_create_entry / _detach_pool /
+    _detach_folder_ref_in_files) plus the sfx/vid seams _add_file_to_pool and
+    add_file dereference, so context logic runs headlessly without the real
+    manager (which is wired to _cue and Ren'Py)."""
+
+    def __init__(self, data=None, current_file=None):
+        # type: (Optional[dict], Optional[str]) -> None
         self._data = data if data is not None else {}
         self.saved_keys = []
         self._img_target = 0
         self._dlg_target = 0
         self._loop_target = 0
+        self._ctx = FakeCtx(current_file)
+        self._sfx_manager = FakeSfxManager()
+        self._vid_manager = FakeVidManager()
+        self._presets = {}   # type: dict
 
     def get(self, key, default=None):
         return self._data.get(key, default)
@@ -33,6 +52,48 @@ class FakeManager(object):
 
     def _db_save_marker(self, key):
         self.saved_keys.append(key)
+
+    def _get_or_create_entry(self, trigger_key):
+        entry = self._data.get(trigger_key)
+        if entry is None:
+            entry = {"pools": []}
+            self._data[trigger_key] = entry
+        return entry
+
+    def _detach_pool(self, trigger_key, pool_index):
+        entry = self._data.get(trigger_key)
+        if entry is None:
+            return False
+        pools = entry.get("pools")
+        if not pools or pool_index >= len(pools):
+            return False
+        pool = pools[pool_index]
+        if "preset" not in pool:
+            return False
+        preset_name = pool.pop("preset")
+        preset = self._presets.get(preset_name, {})
+        pool["files"] = list(preset.get("files", []))
+        pool["volume"] = preset.get("volume", 1.0)
+        return True
+
+    def _detach_folder_ref_in_files(self, files, file_index, child_file):
+        folder_ref = files[file_index]
+        if not folder_ref.endswith("/"):
+            return
+        resolved = []
+        for f in self._sfx_manager.files:
+            if f.startswith(folder_ref) and f not in self._sfx_manager.disabled_files and f not in resolved:
+                resolved.append(f)
+        if child_file in resolved:
+            resolved.remove(child_file)
+        files[file_index:file_index + 1] = resolved
+
+    def resolve_pool(self, pool):
+        # type: (dict) -> FakeResolvedPool
+        defaults = self._presets.get(pool["preset"], {}) if "preset" in pool else {}
+        files = pool.get("files", defaults.get("files", []))
+        volume = pool.get("volume", defaults.get("volume", 1.0))
+        return FakeResolvedPool(files=list(files), volume=volume)
 
 
 class FakeDb(object):
@@ -357,6 +418,7 @@ def make_runtime_cue(root="", audio_dir=""):
         processing=False,
         job_queue=types.SimpleNamespace(poll=_rec("video_editor.job_queue", "poll")),
         refresh=_rec("video_editor", "refresh"),
+        poll_extract=_rec("video_editor", "poll_extract"),
     )
 
     cue.volume = types.SimpleNamespace(
@@ -386,19 +448,27 @@ class FakeProc(object):
     communicate() returns out_bytes (decoded downstream); returncode is
     settable; poll() returns poll_result (None = still running, an int =
     exited). kill()/wait() record their calls so _kill_proc paths can assert.
+    timeout_error simulates a hung process: communicate() blocks until
+    kill() is called -- mirrors a real process unblocking on SIGKILL, so the
+    _cue_run_proc hang guard can reap it.
     """
 
-    def __init__(self, out_bytes=b"", returncode=0, poll_result=None):
+    def __init__(self, out_bytes=b"", returncode=0, poll_result=None,
+                 timeout_error=False):
         self.out_bytes = out_bytes
         self.returncode = returncode
         self.poll_result = poll_result
         self.pid = 1234
         self.killed = False
         self.waited = False
+        self.timeout_error = timeout_error
         self.stdout = None
         self.stderr = None
 
     def communicate(self):
+        if self.timeout_error:
+            while not self.killed:
+                time.sleep(0.002)
         return self.out_bytes, None
 
     def poll(self):

@@ -403,7 +403,8 @@ def test_mtl_event_click_empty_clears_selection(monkeypatch):
     env.tl.render(200, 60, 0.0, 0.0)
     ev = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
     # x=40 -> inner_x=30 sits between the two marker tabs (no hit) -> clear.
-    assert env.tl.event(ev, 40, 15, 0.0) is None
+    with pytest.raises(IgnoreEvent):
+        env.tl.event(ev, 40, 15, 0.0)
     assert env.video.selected == set()
 
 
@@ -434,7 +435,8 @@ def test_mtl_event_alt_click_toggles_selection(monkeypatch):
         env.tl.event(ev, 100, 15, 0.0)
     # Alt-click on marker 1 with no selection pulls in active (0) + hit (1).
     assert env.video.selected == {0, 1}
-    assert env.calls["set_active"] == [0]  # min(sel)
+    # Active stays anchored (already in the group); no re-anchor needed.
+    assert env.calls["set_active"] == []
 
 
 def test_mtl_event_alt_click_removes_selected(monkeypatch):
@@ -461,7 +463,8 @@ def test_mtl_event_shift_click_selects_range(monkeypatch):
         env.tl.event(ev, 100, 15, 0.0)
     # Range from active (t=0) to hit (t=5) covers both markers.
     assert env.video.selected == {0, 1}
-    assert env.calls["set_active"] == [0]
+    # The anchor marker is already in the range; active is left untouched.
+    assert env.calls["set_active"] == []
 
 
 def test_mtl_event_shift_click_empty_range_select(monkeypatch):

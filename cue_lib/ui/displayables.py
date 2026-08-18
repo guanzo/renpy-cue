@@ -292,7 +292,6 @@ class CueVideoMarkerTimeline(Displayable):
         markers = self.get_markers()
         active = self.get_active()
         sel = self._get_selected()
-        multi_active = len(sel) > 1
         speed = _cue.speed_resolver.get_current_speed()
         is_scaled = speed != 1.0
 
@@ -311,8 +310,6 @@ class CueVideoMarkerTimeline(Displayable):
             else:
                 if i == self._drag_idx and self._drag_on:
                     lc = "#7777cc"
-                elif i == active and multi_active:
-                    lc = "#5599cc"
                 elif i == active:
                     lc = "#669966"
                 elif in_sel:
@@ -467,8 +464,19 @@ class CueVideoMarkerTimeline(Displayable):
                 if shift_held and markers:
                     pass
                 else:
+                    # Plain click on empty timeline: drop the multi-select group.
                     _cue.markers.video.selected = set()
-                    return None
+                    renpy.redraw(self, 0)
+                    renpy.restart_interaction()
+                    raise IgnoreEvent()
+
+            if alt_held and shift_held and hit_idx >= 0:
+                # Interval-add: every marker that continues the clicked-to-
+                # active spacing joins the selection group (active stays put).
+                _cue.markers.video.add_interval_selection(hit_idx)
+                renpy.redraw(self, 0)
+                renpy.restart_interaction()
+                raise IgnoreEvent()
 
             if alt_held and hit_idx >= 0:
                 if not sel:
@@ -479,8 +487,13 @@ class CueVideoMarkerTimeline(Displayable):
                     sel.discard(hit_idx)
                 else:
                     sel.add(hit_idx)
-                if sel:
-                    self.set_active(min(sel))
+                # The active stays anchored while the group grows.  If the
+                # active marker itself was just toggled out, re-anchor to the
+                # nearest remaining group member so the panel keeps showing a
+                # selected pool.
+                if hit_idx == self.get_active() and hit_idx not in sel and sel:
+                    nearest = min(sel, key=lambda i: abs(markers[i]["time"] - markers[hit_idx]["time"]))
+                    self.set_active(nearest)
                 _cue.markers.video.selected = sel
                 renpy.redraw(self, 0)
                 renpy.restart_interaction()
@@ -505,8 +518,8 @@ class CueVideoMarkerTimeline(Displayable):
                 for i, m in enumerate(markers):
                     if lo <= m["time"] <= hi:
                         sel.add(i)
-                if sel:
-                    self.set_active(min(sel))
+                # Active stays the anchor: the reference marker is already
+                # in the range, so it must not jump to the leftmost marker.
                 _cue.markers.video.selected = sel
                 renpy.redraw(self, 0)
                 renpy.restart_interaction()

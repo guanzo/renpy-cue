@@ -13,7 +13,7 @@ if MYPY:
 
 # Minimum non-zero seek target to avoid sending 0.0 to the audio backend
 # (which would be interpreted as "no target" and defeat auto-pause).
-CUE_SEEK_EPSILON = 0.001
+CUE_SEEK_MIN_TARGET = 0.001
 
 
 class CueVideoManager(object):
@@ -142,7 +142,7 @@ class CueVideoManager(object):
             if not self.paused:
                 _music.set_pause(True, channel=self.channel)
                 self.paused = True
-            self.step_target = max(CUE_SEEK_EPSILON, target)
+            self.step_target = max(CUE_SEEK_MIN_TARGET, target)
             _music.set_pause(False, channel=self.channel)
         else:
             # Backward seek: restart from 0 with pause_target.
@@ -150,7 +150,7 @@ class CueVideoManager(object):
             if not filepath:
                 return
             self.step_target = 0.0
-            self.pause_target = max(CUE_SEEK_EPSILON, target)
+            self.pause_target = max(CUE_SEEK_MIN_TARGET, target)
             _music.stop(channel=self.channel, fadeout=0)
             _music.play(filepath, channel=self.channel, loop=True)
 

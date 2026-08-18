@@ -105,6 +105,130 @@ testcase video_sfx_timeline_seeded:
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
+testcase video_multi_edit_fans_out:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.selected = {0, 1}
+    $ _cue.markers.video.set_selected_volume(0.3)
+    $ _vkey = _cue.markers.video._key()
+    $ _vpools = _cue.markers.get(_vkey)["pools"]
+    $ _ok = _vpools[0].get("volume") == 0.3
+    $ _ok = _ok and _vpools[1].get("volume") == 0.3
+    run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    $ _cue.markers.video.apply_preset_active("Test Preset")
+    $ _vpools = _cue.markers.get(_vkey)["pools"]
+    $ _ok = _ok and _vpools[0].get("preset") == "Test Preset"
+    $ _ok = _ok and _vpools[1].get("preset") == "Test Preset"
+    $ _cue.markers.detach_active_video_ts()
+    $ _vpools = _cue.markers.get(_vkey)["pools"]
+    $ _ok = _ok and ("preset" not in _vpools[0])
+    $ _ok = _ok and ("preset" not in _vpools[1])
+    $ _ok = _ok and _vpools[0].get("files") == ["sfx_001.ogg"]
+    $ _ok = _ok and _vpools[1].get("files") == ["sfx_001.ogg"]
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase video_multi_duplicate_fans_out:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    # The fixture video carries pre-loaded marker data, so start from a clean
+    # slate with three pools at times well inside the video duration (the
+    # ~2s fixture would clamp copies of later sources to the end).
+    $ _cue.markers.video.clear()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.add_pool()
+    $ _vpools = _cue.markers.get(_cue.markers.video._key())["pools"]
+    $ _vpools[0]["time"] = 0.2
+    $ _vpools[1]["time"] = 0.4
+    $ _vpools[2]["time"] = 0.6
+    $ _cue.markers.video.selected = {0, 2}
+    $ _gap = _cue.markers.video._duplicate_gap()
+    $ _cue.markers.video.duplicate_pool(0)
+    $ _vpools = _cue.markers.get(_cue.markers.video._key())["pools"]
+    $ _ok = len(_vpools) == 5
+    $ _times = [p["time"] for p in _vpools]
+    $ _copy1 = any(abs(t - (0.2 + _gap)) < 1e-6 for t in _times)
+    $ _copy2 = any(abs(t - (0.6 + _gap)) < 1e-6 for t in _times)
+    $ _ok = _ok and _copy1 and _copy2
+    $ _ok = _ok and len(_cue.markers.video.selected) == 2
+    $ _ok = _ok and (_cue.markers.video.target_pool in _cue.markers.video.selected)
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase video_multi_delete_pool_group:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.markers.video.clear()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.selected = {0, 2}
+    $ _cue.markers.video.delete_pool_ui()
+    $ _vpools = _cue.markers.get(_cue.markers.video._key())["pools"]
+    $ _ok = len(_vpools) == 1
+    $ _ok = _ok and (_cue.markers.video.selected == set())
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase volume_value_equality_distinguishes_multisetter:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _d = {"volume": 1.0}
+    $ _v_none = _CueVolumeValue(_d, "volume", "k", multi_setter=None, range=1.0)
+    $ _v_set = _CueVolumeValue(_d, "volume", "k", multi_setter=_cue.markers.video.set_selected_volume, range=1.0)
+    $ _v_set2 = _CueVolumeValue(_d, "volume", "k", multi_setter=_cue.markers.video.set_selected_volume, range=1.0)
+    $ _ok = _v_none != _v_set
+    $ _ok = _ok and _v_set == _v_set2
+    $ _ok = _ok and _v_none == _v_none
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase volume_value_changed_fans_out_and_queues_save:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.add_pool()
+    $ _cue.markers.video.selected = {0, 1}
+    $ _vid_key = _cue.markers.video._key()
+    $ _vpools = _cue.markers.get(_vid_key)["pools"]
+    $ _vol_val = _CueVolumeValue(_vpools[0], "volume", _vid_key, multi_setter=_cue.markers.video.set_selected_volume, range=_cue.volume.VOL_MAX)
+    $ _vol_val.changed(0.4)
+    $ _ok = _vpools[0]["volume"] == 0.4
+    $ _ok = _ok and _vpools[1]["volume"] == 0.4
+    $ _ok = _ok and (_vid_key in _cue.volume._pending_saves)
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase video_sfx_edit_locked_off_base_speed:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _ok = _cue.speed_resolver.get_current_speed() == CUE_DEFAULT_VIDEO_SPEED
+    $ _cue.speed_resolver.set_speed(1.5)
+    $ _ok = _ok and _cue.speed_resolver.get_current_speed() == 1.5
+    $ _cue.speed_resolver.set_speed(CUE_DEFAULT_VIDEO_SPEED)
+    $ _ok = _ok and _cue.speed_resolver.get_current_speed() == CUE_DEFAULT_VIDEO_SPEED
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
 testcase video_vfx_speed_sequence:
     $ _cue.is_overlay_visible = True
     run Jump("start")
@@ -154,6 +278,27 @@ testcase video_speed_variant_created:
         _ok = _ok and bool(_base)
         _ok = _ok and _os.path.exists(_variant)
         _ok = _ok and (1.5 in _cue.speed_resolver.get_available_speeds(_base))
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase click_create_tab_opens_editor:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _ok = not _cue.video_editor.active
+    # Real mouse click on the Video VFX "Create" tab. Regression: the marker
+    # timeline's MOUSEBUTTONUP handler once raised IgnoreEvent() on every
+    # release (even over sibling buttons), which swallowed the button's
+    # release globally and made the whole Video VFX tab unclickable.
+    $ import renpy.test.testfocus as _testfocus
+    $ import renpy.test.testmouse as _testmouse
+    $ _focus = _testfocus.find_focus("Create")
+    $ _pos = _testfocus.find_position(_focus, (None, None))
+    $ _testmouse.click_mouse(1, _pos[0], _pos[1])
+    pause 0.5
+    $ _ok = _ok and _cue.video_editor.active
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 

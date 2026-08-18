@@ -37,6 +37,10 @@ class CueAudioTreeManager(object):
 
     _scan_label = "audio"
     _log_tag = "AUDIO"
+    # Expand every depth-0 folder on the first non-empty scan (opt-in via
+    # _auto_expand_roots) so a tree's root level is open by default.  After
+    # that one-time default the user's toggle state is left untouched.
+    _auto_expand_roots = False
 
     def __init__(self):
         self.files = []             # flat sorted relative paths
@@ -49,6 +53,7 @@ class CueAudioTreeManager(object):
         self.search_truncated = 0   # rows dropped by the search cap (0 when idle)
         self.search_is_editing = False  # search bar input is in edit mode
         self._search_applied = ""   # query last rebuilt for (debounce marker)
+        self._has_expanded_roots = False  # one-time root expansion done
 
     # ------------------------------------------------------------------
     # Scanning
@@ -80,6 +85,13 @@ class CueAudioTreeManager(object):
 
         # Empty is fine -- nothing found yet
         self.scan_error = ""
+
+        # One-time default: open the tree at its root folders (opt-in), so
+        # the top level is visible without a click.  Only the first non-empty
+        # scan does this -- every later scan leaves the user's toggles alone.
+        if self._auto_expand_roots and not self._has_expanded_roots and self.tree:
+            self._expand_roots()
+            self._has_expanded_roots = True
 
         # Rebuild visible tree
         self.rebuild_tree()
@@ -145,6 +157,16 @@ class CueAudioTreeManager(object):
             self.search_truncated = 0
 
         self.visible_tree = result
+
+    def _expand_roots(self):
+        # type: () -> None
+        """Mark every depth-0 folder expanded (one-time default view).
+
+        Keys match _walk_tree's folder keys (item["name"] at depth 0, e.g.
+        "music/" for My Music).  Subfolders stay collapsed."""
+        for item in self.tree:
+            if item["type"] == "folder":
+                self.expanded_folders[item["name"]] = True
 
     def clear_search(self):
         # type: () -> None

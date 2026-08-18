@@ -54,7 +54,8 @@ KMOD_RMETA = 2048
 
 
 class _Key(object):
-    """Stub for pygame.key -- get_mods() is monkeypatched per test."""
+    """Stub of pygame.key -- the timeline reads modifier state via
+    get_mods(); tests that need a modifier raise the flags directly."""
 
     def get_mods(self):
         return 0

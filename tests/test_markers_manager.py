@@ -142,6 +142,23 @@ def test_detach_active_video_ts(mgr):
     assert pool["time"] == 1.0  # marker time survives the detach
 
 
+def test_detach_active_video_ts_multi_detaches_all_selected(mgr):
+    mgr._ctx.current_file = "scene.ogv"
+    mgr.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
+    mgr["v_scene.ogv"] = {"pools": [
+        {"preset": "basic", "time": 1.0},
+        {"preset": "basic", "time": 2.0},
+        {"time": 3.0, "files": ["c.ogg"]},
+    ]}
+    mgr.video.selected = {0, 1}
+    mgr.video.target_pool = 0
+    mgr.detach_active_video_ts()
+    pools = mgr.get("v_scene.ogv")["pools"]
+    assert pools[0] == {"time": 1.0, "files": ["a.ogg"], "volume": 0.8}
+    assert pools[1] == {"time": 2.0, "files": ["a.ogg"], "volume": 0.8}
+    assert pools[2] == {"time": 3.0, "files": ["c.ogg"]}  # untouched (not selected)
+
+
 def test_detach_active_video_ts_no_current_file(mgr):
     mgr.detach_active_video_ts()  # must not raise
 
@@ -238,6 +255,55 @@ def test_remove_file_from_folder_ref(mgr):
     mgr._remove_file_from_folder_ref("i_scene.ogg", 0, 0, "music/a.ogg")
     pool = mgr.get("i_scene.ogg")["pools"][0]
     assert pool["files"] == ["music/b.ogg"]
+
+
+def test_remove_file_from_preset_pool_multi_fans_out(mgr):
+    # A multi-select on the current video routes the preset-child delete
+    # through _remove_path_from_selected: every selected pool is detached and
+    # the child dropped from each.
+    mgr._ctx.current_file = "scene.ogv"
+    mgr._sfx_manager.files = ["music/a.ogg", "music/b.ogg"]
+    mgr.create_preset("fold", {"files": ["music/a.ogg", "music/b.ogg"]})
+    mgr._data["v_scene.ogv"] = {"pools": [
+        {"preset": "fold", "time": 1.0},
+        {"preset": "fold", "time": 2.0},
+    ]}
+    mgr.video.target_pool = 0
+    mgr.video.selected = {0, 1}
+    mgr._remove_file_from_preset_pool("v_scene.ogv", 0, 0, "music/a.ogg")
+    pools = mgr.get("v_scene.ogv")["pools"]
+    assert pools[0]["files"] == ["music/b.ogg"]
+    assert "preset" not in pools[0]  # detached
+    assert pools[1]["files"] == ["music/b.ogg"]
+    assert "preset" not in pools[1]
+
+
+def test_remove_file_from_folder_ref_multi_fans_out(mgr):
+    mgr._ctx.current_file = "scene.ogv"
+    mgr._sfx_manager.files = ["music/a.ogg", "music/b.ogg"]
+    mgr._data["v_scene.ogv"] = {"pools": [
+        {"time": 1.0, "files": ["music/"]},
+        {"time": 2.0, "files": ["music/"]},
+    ]}
+    mgr.video.target_pool = 0
+    mgr.video.selected = {0, 1}
+    mgr._remove_file_from_folder_ref("v_scene.ogv", 0, 0, "music/a.ogg")
+    pools = mgr.get("v_scene.ogv")["pools"]
+    assert pools[0]["files"] == ["music/b.ogg"]
+    assert pools[1]["files"] == ["music/b.ogg"]
+
+
+def test_video_multi_file_edit_matches_current_video(mgr):
+    mgr._ctx.current_file = "scene.ogv"
+    mgr.video.selected = {0, 1}
+    assert mgr._video_multi_file_edit("v_scene.ogv") is True
+    assert mgr._video_multi_file_edit("v_other.ogv") is False
+
+
+def test_video_multi_file_edit_requires_multi_selection(mgr):
+    mgr._ctx.current_file = "scene.ogv"
+    mgr.video.selected = {0}
+    assert mgr._video_multi_file_edit("v_scene.ogv") is False
 
 
 # ---------------------------------------------------------------------------
@@ -452,3 +518,100 @@ def test_backup_to_file(mgr):
 
 def test_reload_presets_merges_nothing(mgr):
     mgr.reload_presets()  # empty disk -> merge nothing, no raise
+
+
+def test_copy_context_whitelists_entry_keys(mgr):
+    # Speed keys reference variant files the target context may not have,
+    # music is per-trigger audio intent, _key is derived, replay is
+    # re-stamped -- none of them travel with a copied context.
+    mgr._ctx.current_file = "scene.ogv"
+    mgr["v_scene.ogv"] = {
+        "pools": [{"time": 1.0, "files": ["a.ogg"]}],
+        "volume": 0.8,
+        "video_file_muted": True,
+        "speed_pref": 2.0,
+        "speed_sequence": [2.0, 1.0],
+        "speed_mode": "manual",
+        "disabled_auto_speeds": [1.0],
+        "music": {"path": "bgm.ogg"},
+        "_key": "v_scene.ogv",
+        "replay": "some_replay",
+    }
+    mgr.copy_context()
+    copied = mgr.clipboard["markers"]["v_scene.ogv"]
+    assert set(copied.keys()) == {"pools", "volume", "video_file_muted"}
+    assert copied["pools"][0]["time"] == 1.0
+    assert copied["volume"] == 0.8
+    assert copied["video_file_muted"] is True
+
+
+def test_paste_context_drops_infra_keys(mgr):
+    # The original bug: a 2.0x context's speed keys leaked into a pasted
+    # context that never had those speeds, breaking its markers.
+    mgr._ctx.current_file = "scene.ogv"
+    mgr["v_scene.ogv"] = {
+        "pools": [{"time": 1.0, "files": ["a.ogg"]}],
+        "speed_pref": 2.0,
+        "speed_mode": "manual",
+        "music": {"path": "bgm.ogg"},
+        "replay": "old_replay",
+    }
+    mgr.copy_context()
+
+    mgr._ctx.current_file = "new.ogv"
+    mgr.paste_context()
+    pasted = mgr["v_new.ogv"]
+    assert set(pasted.keys()) == {"pools"}
+    assert "speed_pref" not in pasted
+    assert "speed_mode" not in pasted
+    assert "music" not in pasted
+    assert "replay" not in pasted  # not replaying, so no replay stamp
+
+
+def test_paste_context_re_stamps_replay_when_in_replay(monkeypatch, mgr):
+    import renpy.store
+
+    mgr._ctx.current_file = "scene.ogv"
+    mgr["i_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}
+    mgr.copy_context()
+
+    monkeypatch.setattr(renpy.store, "_in_replay", "replay_x")
+    mgr._ctx.current_file = "new.ogv"
+    mgr.paste_context()
+    assert mgr["i_new.ogv"]["pools"][0]["files"] == ["a.ogg"]
+    assert mgr["i_new.ogv"]["replay"] == "replay_x"
+
+
+class _Trigger(object):
+    """Trigger stand-in: only the loop_states seam paste_context pops."""
+
+    def __init__(self):
+        self.loop_states = {}
+
+
+def test_paste_context_clears_target_loop_state(mgr):
+    trig = _Trigger()
+    trig.loop_states = {"l_new.ogv": {"0": {"channels": ["old_ch"]}},
+                        "l_other.ogv": {"0": {"channels": ["ch2"]}}}
+    mgr._trigger = trig
+    mgr._ctx.current_file = "scene.ogv"
+    mgr["l_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}
+    mgr.copy_context()
+
+    mgr._ctx.current_file = "new.ogv"
+    mgr.paste_context()
+    assert "l_new.ogv" not in trig.loop_states  # stale state for the pasted key dropped
+    assert "l_other.ogv" in trig.loop_states  # unrelated keys untouched
+
+
+def test_paste_context_keeps_loop_state_when_no_loop_pasted(mgr):
+    trig = _Trigger()
+    trig.loop_states = {"l_scene.ogv": {"0": {"channels": ["ch"]}}}
+    mgr._trigger = trig
+    mgr._ctx.current_file = "scene.ogv"
+    mgr["i_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}  # image only
+    mgr.copy_context()
+
+    mgr._ctx.current_file = "new.ogv"
+    mgr.paste_context()
+    assert "l_scene.ogv" in trig.loop_states  # untouched

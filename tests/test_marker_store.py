@@ -50,16 +50,28 @@ def test_get_missing_returns_default(store):
     assert store.get("v_nope", "fallback") == "fallback"
 
 
+def test_get_does_not_mutate_store(store):
+    # A plain read must not rewrite the stored entry; legacy cleanup happens
+    # on the load/create path, never on read.
+    store._data["v_a"] = {"files": ["s.ogg"], "replay_id": "stale"}
+    store.get("v_a")
+    assert store._data["v_a"] == {"files": ["s.ogg"], "replay_id": "stale"}
+
+
 def test_get_returns_normalized_entry(store):
-    # Legacy entry with no "pools" gets wrapped in place.
+    # Write-path creation normalizes legacy flat "files" into pools; get then
+    # returns the live normalized entry without further mutation.
     store._data["v_a"] = {"files": ["s.ogg"]}
+    store._get_or_create_entry("v_a")
     entry = store.get("v_a")
     assert entry["pools"] == [{"files": ["s.ogg"]}]
     assert store._data["v_a"]["pools"] == [{"files": ["s.ogg"]}]
 
 
 def test_get_drops_replay_id_and_defaults_replay(store):
+    # Legacy cleanup runs on the write path, not on read.
     store._data["v_a"] = {"pools": [], "replay_id": "stale"}
+    store._get_or_create_entry("v_a")
     entry = store.get("v_a")
     assert "replay_id" not in entry
     assert entry["replay"] is False
@@ -67,9 +79,9 @@ def test_get_drops_replay_id_and_defaults_replay(store):
 
 def test_setdefault_and_pop(store):
     created = store.setdefault("v_a", {"pools": []})
-    assert created == {"pools": []}
-    assert store.setdefault("v_a", {"other": True}) == {"pools": []}
-    assert store.pop("v_a") == {"pools": []}
+    assert created == {"pools": [], "replay": False}
+    assert store.setdefault("v_a", {"other": True}) == {"pools": [], "replay": False}
+    assert store.pop("v_a") == {"pools": [], "replay": False}
     assert store.pop("v_a", "gone") == "gone"
 
 
@@ -386,6 +398,50 @@ def test_post_save_invokes_on_save_once_per_write(cue_env):
     s.save_marker("v_a")
     s._db_save_marker("v_a")
     assert len(calls) == 2
+
+
+def _spy_sanitize(calls):
+    def _fn():
+        calls.append(1)
+        return set()
+    return _fn
+
+
+def test_post_save_skips_sanitize_on_preset_save(cue_env, monkeypatch):
+    calls = []
+    s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    monkeypatch.setattr(s, "_sanitize_video_pools_tracked", _spy_sanitize(calls))
+    s._presets["p1"] = {"files": ["a.ogg"], "volume": 0.5}
+    s.save_preset("p1")
+    assert calls == []
+
+
+def test_post_save_skips_sanitize_on_audio_marker_save(cue_env, monkeypatch):
+    calls = []
+    s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    monkeypatch.setattr(s, "_sanitize_video_pools_tracked", _spy_sanitize(calls))
+    s._data["i_a"] = {"pools": []}
+    s.save_marker("i_a")
+    assert calls == []
+
+
+def test_post_save_runs_sanitize_on_video_marker_save(cue_env, monkeypatch):
+    calls = []
+    s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    monkeypatch.setattr(s, "_sanitize_video_pools_tracked", _spy_sanitize(calls))
+    s._data["v_a"] = {"pools": []}
+    s.save_marker("v_a")
+    assert calls == [1]
+
+
+def test_post_save_runs_sanitize_when_batch_has_video(cue_env, monkeypatch):
+    calls = []
+    s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    monkeypatch.setattr(s, "_sanitize_video_pools_tracked", _spy_sanitize(calls))
+    s._data["i_a"] = {"pools": []}
+    s._data["v_b"] = {"pools": []}
+    s.save_markers(["i_a", "v_b"])
+    assert calls == [1]
 
 
 def test_save_all_invokes_on_save_once(cue_env):

@@ -13,6 +13,7 @@
 
 import os
 import json as _json
+import tempfile as _tempfile
 
 from cue_lib.util import _cue_log, _cue_replace_file, _to_str
 from cue_lib.backup import CueBackupManager
@@ -82,16 +83,19 @@ def _is_marker_filename(name):
 
 def _atomic_json_write(fpath, data, indent=None):
     # type: (str, Any, Optional[int]) -> None
-    """Write `data` as JSON to fpath atomically.
-
-    Writes a temp file in the same directory, then renames it over fpath.
-    A mid-write kill never truncates the file at its real path -- the
-    destination always holds one complete version (worst case is a stray
-    .tmp).  indent=2 for the human-readable config / trigger logs."""
-    tmp = fpath + ".tmp"
-    with open(tmp, "w") as _f:
-        _json.dump(data, _f, sort_keys=True, indent=indent)
-    _cue_replace_file(tmp, fpath)
+    """Write `data` as JSON to fpath atomically."""
+    tmpfd, tmp = _tempfile.mkstemp(
+        dir=os.path.dirname(fpath), prefix=".", suffix=".tmp")
+    try:
+        with os.fdopen(tmpfd, "w") as _f:
+            _json.dump(data, _f, sort_keys=True, indent=indent)
+        _cue_replace_file(tmp, fpath)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except Exception:
+            pass
+        raise
 
 
 # =========================================================================

@@ -9,10 +9,16 @@
 
 import os
 import subprocess
+import threading
+import time as _time
 
 import renpy.config as _config
 
-from cue_lib.constants import CUE_MAX_INTERP_FPS
+from cue_lib.constants import (
+    CUE_MAX_INTERP_FPS,
+    CUE_SUBPROC_TIMEOUT,
+    CUE_KILL_WAIT_TIMEOUT,
+)
 from cue_lib.util import _cue_log
 
 MYPY = False
@@ -24,6 +30,74 @@ if os.name == "nt":
     CREATIONFLAGS = 0x08000000  # CREATE_NO_WINDOW
 else:
     CREATIONFLAGS = 0
+
+
+class CueSubprocessTimeout(Exception):
+    """Raised when an ffmpeg/ffprobe subprocess exceeds CUE_SUBPROC_TIMEOUT.
+
+    Distinguishes a hung binary from ordinary probe failure: the encode-path
+    probe methods re-raise it so _cue_probe_job errors the job, while
+    binary/encoder discovery treats it as "unavailable" and degrades."""
+
+
+# communicate(timeout=) only exists on Python 3.3+; Ren'Py 7.x runs Python 2.7,
+# which lacks it.  So the hang guard is a join-with-deadline on a daemon thread
+# (cross-engine, cross-platform -- select()-on-pipes fails on Windows Py2.7)
+# and a poll-loop for waits.  The thread lives only for one communicate() call,
+# not a persistent reader, so there's no GIL fight during rollback.
+def _cue_run_proc(p, timeout=None):
+    # type: (Any, Optional[float]) -> Tuple[bytes, bytes]
+    """Run p.communicate() with a hang guard; works on Py2.7 and Py3.
+
+    On timeout the process is killed and reaped, then CueSubprocessTimeout
+    raised so callers can tell "hung" from ordinary failure.  Returns
+    (out, err) on success.  Any exception from communicate() is re-raised
+    in the caller's thread."""
+    if timeout is None:
+        timeout = CUE_SUBPROC_TIMEOUT
+    result = {}
+
+    def _run():
+        try:
+            result["data"] = p.communicate()
+        except Exception as exc:
+            result["error"] = exc
+
+    t = threading.Thread(target=_run)
+    t.daemon = True
+    t.start()
+    t.join(timeout)
+    if "error" in result:
+        raise result["error"]
+    if not t.is_alive():
+        return result["data"]
+    # Timed out -- kill and reap so no process is left behind.
+    try:
+        p.kill()
+    except Exception:
+        pass
+    t.join(CUE_KILL_WAIT_TIMEOUT)
+    _cue_log("SUBPROC: timed out after {:.0f}s".format(timeout))
+    raise CueSubprocessTimeout(timeout)
+
+
+def _cue_wait_proc(p, timeout=None):
+    # type: (Any, Optional[float]) -> Optional[int]
+    """Wait for p to exit with a hang guard; poll-loop, works on both engines.
+
+    Returns the returncode, or None if the reap timed out (the process was
+    already killed, so a stuck wait is logged, not fatal)."""
+    if timeout is None:
+        timeout = CUE_KILL_WAIT_TIMEOUT
+    deadline = _time.time() + timeout
+    while True:
+        rc = p.poll()
+        if rc is not None:
+            return rc
+        if _time.time() >= deadline:
+            _cue_log("SUBPROC: wait timed out after {:.0f}s".format(timeout))
+            return None
+        _time.sleep(0.05)
 
 
 class CueFFmpeg(object):
@@ -96,6 +170,7 @@ class CueFFmpeg(object):
 
     def __init__(self):
         self._ffmpeg_cache = -1         # -1=unchecked, 0=not found, 1=found
+        self._ffprobe_cache = -1        # -1=unchecked, 0=not found, 1=found
         self._ffmpeg_path = "ffmpeg"
         self._ffprobe_path = "ffprobe"
         self._encoder_cache = None      # None=not loaded, set when populated
@@ -115,7 +190,7 @@ class CueFFmpeg(object):
                 stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
             )
-            p.communicate()
+            _cue_run_proc(p)
             return p.returncode == 0
         except Exception:
             _cue_log("FFMPEG-PROBE: exe check failed for {}".format(exe_name))
@@ -137,16 +212,21 @@ class CueFFmpeg(object):
 
     def ffprobe_available(self):
         # type: () -> bool
-        """Check ffprobe once."""
+        """Check ffprobe once and cache the result."""
+        if self._ffprobe_cache != -1:
+            return self._ffprobe_cache == 1
         exe = os.environ.get("RENPY_CUE_FFPROBE", "ffprobe")
         if self._probe_exe(exe):
             self._ffprobe_path = exe
+            self._ffprobe_cache = 1
             return True
         if self._ffmpeg_path != "ffmpeg":
             alt = self._ffmpeg_path.replace("ffmpeg", "ffprobe")
             if self._probe_exe(alt):
                 self._ffprobe_path = alt
+                self._ffprobe_cache = 1
                 return True
+        self._ffprobe_cache = 0
         return False
 
     # ==================================================================
@@ -169,7 +249,7 @@ class CueFFmpeg(object):
                 stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
             )
-            out, _ = p.communicate()
+            out, _ = _cue_run_proc(p)
             if isinstance(out, bytes):
                 out = out.decode("utf-8", errors="replace")
             for line in out.split("\n"):
@@ -189,7 +269,7 @@ class CueFFmpeg(object):
                 stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
             )
-            out, _ = p.communicate()
+            out, _ = _cue_run_proc(p)
             if isinstance(out, bytes):
                 out = out.decode("utf-8", errors="replace")
             for line in out.split("\n"):
@@ -232,10 +312,12 @@ class CueFFmpeg(object):
                 stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
             )
-            out, _ = p.communicate()
+            out, _ = _cue_run_proc(p)
             if isinstance(out, bytes):
                 out = out.decode("utf-8", errors="replace")
             vc = out.strip()
+        except CueSubprocessTimeout:
+            raise
         except Exception:
             _cue_log("FFMPEG-CODECS: video probe failed for {}".format(fspath))
         try:
@@ -249,10 +331,12 @@ class CueFFmpeg(object):
                 stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
             )
-            out, _ = p.communicate()
+            out, _ = _cue_run_proc(p)
             if isinstance(out, bytes):
                 out = out.decode("utf-8", errors="replace")
             ac = out.strip()
+        except CueSubprocessTimeout:
+            raise
         except Exception:
             _cue_log("FFMPEG-CODECS: audio probe failed for {}".format(fspath))
         return vc, ac
@@ -273,10 +357,12 @@ class CueFFmpeg(object):
                 stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
             )
-            out, _ = p.communicate()
+            out, _ = _cue_run_proc(p)
             if isinstance(out, bytes):
                 out = out.decode("utf-8", errors="replace")
             return bool(out.strip())
+        except CueSubprocessTimeout:
+            raise
         except Exception:
             _cue_log("FFMPEG-AUDIO: probe failed for {}, assuming has audio".format(fspath))
             return True
@@ -297,13 +383,15 @@ class CueFFmpeg(object):
                 stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
             )
-            out, _ = p.communicate()
+            out, _ = _cue_run_proc(p)
             if isinstance(out, bytes):
                 out = out.decode("utf-8", errors="replace")
             rate = out.strip()  # "30/1" or "30000/1001"
             if "/" in rate:
                 num, den = rate.split("/", 1)
                 return int(round(float(num) / float(den)))
+        except CueSubprocessTimeout:
+            raise
         except Exception:
             _cue_log("FFMPEG-FPS: probe failed for {}, defaulting to 30".format(fspath))
         return 30
@@ -327,12 +415,14 @@ class CueFFmpeg(object):
                 stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
             )
-            out, _ = p.communicate()
+            out, _ = _cue_run_proc(p)
             if isinstance(out, bytes):
                 out = out.decode("utf-8", errors="replace")
             val = out.strip()
             if val and val != "N/A":
                 bps = int(val)
+        except CueSubprocessTimeout:
+            raise
         except Exception:
             _cue_log("FFMPEG-BITRATE: stream probe failed for {}".format(fspath))
         # Fall back to format bitrate
@@ -347,12 +437,14 @@ class CueFFmpeg(object):
                     stderr=subprocess.STDOUT,
                     creationflags=CREATIONFLAGS,
                 )
-                out, _ = p.communicate()
+                out, _ = _cue_run_proc(p)
                 if isinstance(out, bytes):
                     out = out.decode("utf-8", errors="replace")
                 val = out.strip()
                 if val and val != "N/A":
                     bps = int(val)
+            except CueSubprocessTimeout:
+                raise
             except Exception:
                 _cue_log("FFMPEG-BITRATE: format probe failed for {}".format(fspath))
         if bps and bps > 0:
@@ -368,6 +460,8 @@ class CueFFmpeg(object):
         """Build the audio tempo filter string for the given speed factor.
         Uses librubberband (pitch-corrected) when available; falls back to
         atempo (pitch changes with speed)."""
+        if speed <= 0:
+            speed = 0.1  # the atempo chain divides by 0.5; 0.0 hangs forever
         self.load_encoders()  # ensures _has_rubberband is probed
         if self._has_rubberband:
             return "rubberband=tempo={:.4f}".format(speed)

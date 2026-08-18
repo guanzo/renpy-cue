@@ -11,7 +11,7 @@
 
 import pytest
 
-import cue_lib.markers as _markers
+import cue_lib.context as _context
 from cue_lib.constants import CueExclusiveStart, CueLoopFrequency, CUE_VOLUME_DEFAULT
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.markers import CueMarkerManager
@@ -34,12 +34,12 @@ def mgr(cue_env):
 @pytest.fixture(autouse=True)
 def _no_shift():
     """Default: shift not held. Tests flip it via _shift()."""
-    _markers._cue_shift_held = lambda: False
+    _context._cue_shift_held = lambda: False
 
 
 def _shift():
     """Make the next send_* call add a fresh pool first."""
-    _markers._cue_shift_held = lambda: True
+    _context._cue_shift_held = lambda: True
 
 
 def _scene(mgr, file="scene.ogv", dialogue="hello"):
@@ -554,7 +554,8 @@ def test_video_duplicate_pool(mgr):
     mgr.video.duplicate_pool(0)
     pools = mgr.get(key)["pools"]
     assert len(pools) == 2
-    assert pools[1] == {"time": 1.0, "files": ["a.ogg"]}
+    # The copy lands a fixed pixel gap after its source so it doesn't overlap.
+    assert pools[1] == {"time": 1.0 + mgr.video._duplicate_gap(), "files": ["a.ogg"]}
     assert mgr.video.target_pool == 1
 
 

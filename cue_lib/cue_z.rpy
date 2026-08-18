@@ -52,7 +52,8 @@ init -999 python:
         create_dlg_key as _cue_create_dlg_key,
         _cue_format_time, _cue_parse_time, _cue_clamp_time, _cue_speed_label,
         _cue_log, _cue_resolve_files, _cue_pick_file, _cue_query_matches,
-        _cue_unwrap_displayable, _cue_ui_refresh, _cue_is_screenshake,
+        _cue_unwrap_displayable, _cue_ui_refresh,
+        _cue_wrap_with_statement, _cue_wrap_config_show,
         _cue_strip_key_prefix,
         _cue_loop_still_playing, _cue_get_movie_or_image,
         _cue_sfx_channel_name,
@@ -80,7 +81,7 @@ init -999 python:
     )
 
     from cue_lib.markers import (
-        _cue_paste_context, _cue_load_scalars_from_persistent,
+        _cue_load_scalars_from_persistent,
     )
 
     from cue_lib.ui.dialogs import (
@@ -232,45 +233,21 @@ init -900 python:
 
 
 init 999 python:
-    # Enable dev tools for this mod (Shift+R reload, Shift+O console)
-    config.developer = True
-    config.console = True
-
     if CUE_DEBUG:
+        # Enable dev tools for this mod (Shift+R reload, Shift+O console)
+        config.developer = True
+        config.console = True
         config.keymap['console'].append('shift_K_t')
 
     def _cue_patch_runtime():
         """Reinstall the Ren'Py monkey patches.  Runs on every init (including
         Shift+R reload), because Ren'Py rebuilds config fresh on reload."""
-        # monkeypatch renpy.with_statement
-        _original_with_statement = renpy.with_statement
-
-        def _cue_with_hook(trans, always=False, paired=None, clear=True):
-            if _cue_is_screenshake(trans):
-                _cue._shake_just_happened = True
-            if _original_with_statement is not None:
-                return _original_with_statement(trans, always=always, paired=paired, clear=clear)
-
-        renpy.with_statement = _cue_with_hook
-
-        # Hook config.show to detect vpunch/hpunch applied as at-transforms
-        # (e.g. "scene foo at vpunch, cum1").  When shakes are applied via "at"
-        # instead of "with", they bypass with_statement entirely.
-        _original_config_show = renpy.config.show
-
-        def _cue_config_show(name, at_list=None, layer='master', what=None,
-                                zorder=None, tag=None, behind=None, atl=None):
-            if at_list:
-                for t in at_list:
-                    if _cue_is_screenshake(t):
-                        _cue._shake_just_happened = True
-                        break
-            if _original_config_show is not None:
-                return _original_config_show(name, at_list=at_list, layer=layer,
-                                            what=what, zorder=zorder, tag=tag,
-                                            behind=behind, atl=atl)
-
-        renpy.config.show = _cue_config_show
+        # Screenshake hooks: with_statement catches "with" shakes, config.show
+        # catches "at" shakes (which bypass with_statement).  The wrappers live
+        # in util so the detection is unit-testable; they forward every arg
+        # unchanged so a future engine adding kwargs can't break the hook.
+        renpy.with_statement = _cue_wrap_with_statement(renpy.with_statement)
+        renpy.config.show = _cue_wrap_config_show(renpy.config.show)
 
         # Patch renpy.loader.load/loadable so absolute paths into the shared
         # data dir (video variants, SFX, My Music) survive the POSIX lstrip.

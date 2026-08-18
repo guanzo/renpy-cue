@@ -53,6 +53,7 @@ def patch_popen(monkeypatch):
 
 def test_init_defaults(ff):
     assert ff._ffmpeg_cache == -1
+    assert ff._ffprobe_cache == -1
     assert ff._ffmpeg_path == "ffmpeg"
     assert ff._ffprobe_path == "ffprobe"
     assert ff._encoder_cache is None
@@ -107,6 +108,33 @@ def test_ffprobe_available_derives_from_ffmpeg_path(ff, monkeypatch):
 def test_ffprobe_available_fails(ff, monkeypatch):
     monkeypatch.setattr(ff, "_probe_exe", lambda exe: False)
     assert ff.ffprobe_available() is False
+
+
+def test_ffprobe_available_caches_true(ff, monkeypatch):
+    calls = []
+    monkeypatch.setattr(ff, "_probe_exe", lambda exe: calls.append(exe) or True)
+    assert ff.ffprobe_available() is True
+    assert ff._ffprobe_cache == 1
+    assert ff._ffprobe_path == "ffprobe"
+    # Second call hits the cache -- no re-probe.
+    assert ff.ffprobe_available() is True
+    assert calls == ["ffprobe"]
+
+
+def test_ffprobe_available_caches_false(ff, monkeypatch):
+    calls = []
+    monkeypatch.setattr(ff, "_probe_exe", lambda exe: calls.append(exe) or False)
+    assert ff.ffprobe_available() is False
+    assert ff._ffprobe_cache == 0
+    # Negative result is cached too -- no re-probe.
+    assert ff.ffprobe_available() is False
+    assert len(calls) == 1
+
+
+def test_ffprobe_available_uses_cache(ff, monkeypatch):
+    ff._ffprobe_cache = 0
+    monkeypatch.setattr(ff, "_probe_exe", lambda exe: True)
+    assert ff.ffprobe_available() is False  # cached "not found" wins
 
 
 # ---------------------------------------------------------------------------
@@ -289,6 +317,18 @@ def test_audio_filter_atempo_chained_high(ff_ready):
 def test_audio_filter_atempo_chained_low(ff_ready):
     assert ff_ready.build_audio_filter(0.25) == \
         "atempo=0.5000,atempo=0.5000"
+
+
+def test_audio_filter_zero_speed_terminates(ff_ready):
+    # A speed of 0.0 would divide forever in the atempo chain; the guard
+    # clamps to the UI floor so the filter chain terminates.
+    filt = ff_ready.build_audio_filter(0.0)
+    assert isinstance(filt, str) and filt
+
+
+def test_audio_filter_negative_speed_terminates(ff_ready):
+    filt = ff_ready.build_audio_filter(-1.0)
+    assert isinstance(filt, str) and filt
 
 
 # ---------------------------------------------------------------------------
@@ -556,3 +596,46 @@ def test_probe_job_fast_preview_mode(ff, job, monkeypatch):
     _cue_probe_job(ff, job, 1000, "renpy_cue")
     c = job._cmds[0]
     assert c[c.index("-preset") + 1] == "veryfast"  # quality fast map
+
+
+# ---------------------------------------------------------------------------
+# subprocess timeout guard
+# ---------------------------------------------------------------------------
+
+def test_run_proc_returns_communicate():
+    out, _ = _ffmpeg_mod._cue_run_proc(FakeProc(out_bytes=b"x"))
+    assert out == b"x"
+
+
+def test_run_proc_timeout_kills_and_raises():
+    p = FakeProc(timeout_error=True)
+    with pytest.raises(_ffmpeg_mod.CueSubprocessTimeout):
+        _ffmpeg_mod._cue_run_proc(p, timeout=0.05)
+    assert p.killed is True  # hung process is killed and reaped
+
+
+def test_probe_exe_timeout_degrades_to_false(monkeypatch):
+    # Binary detection: a hung ffmpeg -version is "unavailable", not an error.
+    monkeypatch.setattr(_ffmpeg_mod, "CUE_SUBPROC_TIMEOUT", 0.05)
+    monkeypatch.setattr(_ffmpeg_mod.subprocess, "Popen",
+                        lambda *a, **k: FakeProc(timeout_error=True))
+    assert CueFFmpeg()._probe_exe("ffmpeg") is False
+
+
+def test_probe_fps_timeout_raises(ff, patch_popen, monkeypatch):
+    # Media probes on the encode path surface the timeout so the job errors.
+    monkeypatch.setattr(_ffmpeg_mod, "CUE_SUBPROC_TIMEOUT", 0.05)
+    patch_popen(FakeProc(timeout_error=True))
+    with pytest.raises(_ffmpeg_mod.CueSubprocessTimeout):
+        ff.probe_fps("mov.mp4")
+
+
+def test_probe_job_probe_timeout_errors_job(ff, job, monkeypatch):
+    monkeypatch.setattr(ff, "ffprobe_available", lambda: True)
+    monkeypatch.setattr(
+        ff, "probe_codecs",
+        lambda fs: (_ for _ in ()).throw(_ffmpeg_mod.CueSubprocessTimeout(10)))
+    _cue_probe_job(ff, job, 1000, "renpy_cue")
+    assert job._done is True
+    assert "ffmpeg error" in job.error_msg
+    assert job._launched is True  # never left unset, so poll() advances

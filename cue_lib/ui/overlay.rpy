@@ -13,7 +13,7 @@ screen cue_key_listener():
 
     key CUE_KEYMAP_TOGGLE_OVERLAY action Function(_cue_toggle_overlay)
     key CUE_KEYMAP_COPY_CONTEXT action Function(_cue.markers.copy_context)
-    key CUE_KEYMAP_PASTE_CONTEXT action Function(_cue_paste_context)
+    key CUE_KEYMAP_PASTE_CONTEXT action Function(_cue.markers.paste_context)
     key CUE_KEYMAP_TOGGLE_ACTIVE action Function(_cue_toggle_active)
     key CUE_KEYMAP_PAUSE action Function(renpy.invoke_in_new_context, renpy.pause)
     key CUE_KEYMAP_UNDO action Function(_cue.undo.undo)
@@ -142,8 +142,7 @@ screen cue_header_toolbar():
             spacing 5
             use cue_checkbox(_cue.trigger.active, "SFX Active",
                 Function(_cue_toggle_active),
-                _toggle_on_tt, _toggle_off_tt,
-                _cue_color_active, _cue_color_green_hover, _cue_color_red, _cue_color_red_hover)        
+                _toggle_on_tt, _toggle_off_tt)        
                 
             null width 10
 
@@ -161,7 +160,7 @@ screen cue_header_toolbar():
             xalign 1.0
             spacing 2
             use cue_icon_btn("copy", Function(_cue.markers.copy_context), _copy_tt, None)
-            use cue_icon_btn("paste", Function(_cue_paste_context), _paste_tt, None)
+            use cue_icon_btn("paste", Function(_cue.markers.paste_context), _paste_tt, None)
             null width 5
 
             use cue_icon_btn("undo", Function(_cue.undo.undo), _undo_tt, None, enabled=_cue.undo.can_undo())

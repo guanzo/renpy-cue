@@ -27,17 +27,10 @@ class CueUserMusic(CueAudioTreeManager):
 
     _scan_label = "music folder"
     _log_tag = "MUSIC"
-
-    # ------------------------------------------------------------------
-    # Construction
-    # ------------------------------------------------------------------
-
-    def __init__(self):
-        # type: () -> None
-        super(CueUserMusic, self).__init__()
-        # The My Music tree is rooted at a synthesized "music/" folder (see
-        # _discover); start it expanded so dropped-in files are visible.
-        self.expanded_folders[CUE_MUSIC_PREFIX] = True
+    # The My Music tree is rooted at a synthesized "music/" folder (see
+    # _discover); open it by default so dropped-in files are visible.  The
+    # user's toggles win after this one-time default.
+    _auto_expand_roots = True
 
     # ------------------------------------------------------------------
     # Scanning

@@ -3,7 +3,7 @@ from typing import Final, Optional
 
 from cue_lib.state import CueContext
 
-CUE_SEEK_EPSILON: Final = 0.001
+CUE_SEEK_MIN_TARGET: Final = 0.001
 
 class CueVideoManager:
     channel: Optional[str]

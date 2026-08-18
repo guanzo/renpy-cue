@@ -4,13 +4,6 @@
 
 import os
 
-# Key prefixes for marker trigger keys.  Single source of truth -- db.py keys
-# on the same strings, and util.py key helpers read them directly.
-CUE_IMG_KEY_PREFIX = "i_"
-CUE_LOOP_KEY_PREFIX = "l_"
-CUE_DLG_KEY_PREFIX = "d_"
-CUE_VID_KEY_PREFIX = "v_"
-
 # Debug mode, from the RENPY_CUE_DEBUG env var (1/true/yes/on, case-
 # insensitive).  Unset keeps debug on.  Read at import time, so the var must
 # be set before the game launches.
@@ -25,11 +18,43 @@ def _cue_env_flag(name, default=False):
         return default
     return val in ("1", "true", "yes", "on")
 
+class CueExclusiveStart(object):
+    """Exclusive 'start' behavior values (exclusive.start)."""
+    PLAY = 0   # start immediately, overlapping whatever is playing
+    FADE = 1   # cross-fade out non-group SFX, then play
+    WAIT = 2   # wait until no non-group SFX is playing (loops only)
 
-CUE_DEBUG = _cue_env_flag("RENPY_CUE_DEBUG", True)
+
+class CueLoopFrequency(object):
+    """Loop SFX interval presets. Values match CueLoopContext.get_delay()."""
+    SLOWEST = 4   # ~6.3s
+    SLOW = 0      # ~3.8s
+    NORMAL = 1    # ~2.1s
+    FAST = 2      # ~0.6s
+    FASTEST = 3   # ~0.2s
+
+
+class CuePage(object):
+    """Overlay sidebar page tabs."""
+    SFX = 0       # SFX editor (markers / library)
+    MUSIC = 1     # Music page
+    SETTINGS = 2  # Settings page
+
+
+# Key prefixes for marker trigger keys.  Single source of truth -- db.py keys
+# on the same strings, and util.py key helpers read them directly.
+CUE_IMG_KEY_PREFIX = "i_"
+CUE_LOOP_KEY_PREFIX = "l_"
+CUE_DLG_KEY_PREFIX = "d_"
+CUE_VID_KEY_PREFIX = "v_"
+
+CUE_DEBUG = _cue_env_flag("RENPY_CUE_DEBUG", False)
 
 # Debug log filename, written into the in-game base dir.
 CUE_DEBUG_LOG_FILENAME = "debug.log"
+
+# Debug lines buffer in memory before writing to disk (auto-flush threshold).
+CUE_DEBUG_LOG_BUFFER_LINES = 64
 
 # Number of dedicated SFX channels on the "sfx" mixer.
 # Channels are named _cue_1 through _cue_N.
@@ -38,6 +63,14 @@ CUE_SFX_CHANNEL_COUNT = 8
 # Maximum FPS cap for frame interpolation (minterpolate filter).
 # Doubled source framerate is clamped to this ceiling.
 CUE_MAX_INTERP_FPS = 60
+
+# ffmpeg/ffprobe subprocess hang guards.  A hung binary can't block a thread
+# forever: _cue_run_proc joins a communicate() thread with CUE_SUBPROC_TIMEOUT
+# and _cue_wait_proc polls with CUE_KILL_WAIT_TIMEOUT.  The thread/poll
+# implementations work on both Python 2.7 (Ren'Py 7.x) and Python 3 (8.x) --
+# the native communicate(timeout=) kwarg only exists on Py3, so it isn't used.
+CUE_SUBPROC_TIMEOUT = 10.0   # probe / encoder discovery communicate()
+CUE_KILL_WAIT_TIMEOUT = 5.0  # post-kill reap in _kill_proc
 
 # Default video playback speed (1.0 = original speed).
 CUE_DEFAULT_VIDEO_SPEED = 1.0
@@ -82,6 +115,20 @@ CUE_VOLUME_DEFAULT = 1.0
 CUE_POPPER_DEFAULT_OFFSET = 5
 CUE_POPPER_DEFAULT_MARGIN = 8
 
+# Matching tolerance for interval selection in the video marker timeline
+# (Alt+Shift+Click): a marker counts as continuing the active-to-clicked
+# spacing when it lands within +/- this of the projected grid position.
+CUE_INTERVAL_SELECT_TOLERANCE = 0.010
+
+# Duplicated markers land a fixed pixel gap after their source on the
+# timeline, so the copy doesn't overlap it.  The gap is defined in pixels at a
+# reference width and converted to a frac of the timeline width, then to
+# seconds via frac * duration -- the same geometry the timeline's _time_to_x
+# uses (frac = (t/speed)/dur, at the base speed duplicates are gated to).
+CUE_DUPLICATE_GAP_PX = 28      # two 14px marker tabs of separation
+CUE_TIMELINE_REF_W = 480       # reference inner width the gap is defined at
+CUE_DUPLICATE_GAP_FRAC = CUE_DUPLICATE_GAP_PX / float(CUE_TIMELINE_REF_W)
+
 # Keymap names for rebindable cue hotkeys (registered in config.keymap).
 CUE_KEYMAP_TOGGLE_OVERLAY  = "cue_toggle_overlay"
 CUE_KEYMAP_QUIT_RELAUNCH   = "cue_quit_relaunch"
@@ -107,37 +154,3 @@ CUE_DIR_OVERRIDE_FILENAME = "dir.txt"
 # Shared-config JSON file inside the shared data/ tree (disabled_files,
 # keybinds).  Lives at {shared}/data/cue_config.json.
 CUE_SHARED_CONFIG_FILENAME = "cue_config.json"
-
-
-# =========================================================================
-# Flat enum classes -- plain-int members so screens can compare against
-# stored ints (Python 2.7-safe, no enum base class).  Moved here so the
-# marker data layer (cue_lib.marker_store) can use them without importing
-# back into the modules that define the coordinators.
-# =========================================================================
-
-class CueExclusiveStart(object):
-    """Exclusive 'start' behavior values (exclusive.start)."""
-    PLAY = 0   # start immediately, overlapping whatever is playing
-    FADE = 1   # cross-fade out non-group SFX, then play
-    WAIT = 2   # wait until no non-group SFX is playing (loops only)
-
-
-class CueLoopFrequency(object):
-    """Loop SFX interval presets. Values match CueLoopContext.get_delay()."""
-    SLOWEST = 4   # ~6.3s
-    SLOW = 0      # ~3.8s
-    NORMAL = 1    # ~2.1s
-    FAST = 2      # ~0.6s
-    FASTEST = 3   # ~0.2s
-
-
-class CuePage(object):
-    """Overlay sidebar page tabs.
-
-    Members are plain ints so screens can compare against _cue.overlay_active_page
-    (Python 2.7-safe -- no enum base class).
-    """
-    SFX = 0       # SFX editor (markers / library)
-    MUSIC = 1     # Music page
-    SETTINGS = 2  # Settings page

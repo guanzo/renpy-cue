@@ -16,8 +16,8 @@ from cue_lib.paths import CuePaths
 from cue_lib.constants import CuePage
 from cue_lib.state import _cue
 from cue_lib.util import (
-    _cue_log, _cue_ui_refresh, _cue_unwrap_displayable, _cue_get_movie_play,
-    _cue_resolve_files, _cue_pick_file,
+    _cue_log, _cue_flush_debug_log, _cue_ui_refresh, _cue_unwrap_displayable,
+    _cue_get_movie_play, _cue_resolve_files, _cue_pick_file,
     _cue_sfx_channel_name, _cue_sfx_channel_index,
     create_img_key, create_vid_key, create_dlg_key,
     is_vid_key, is_img_key, is_dlg_key,
@@ -161,6 +161,17 @@ def _cue_hide_overlay():
 # --------------------------------------------------------------------------
 
 def _cue_refresh_context():
+    # type: () -> None
+    # Runs on every interaction start.  Guard the whole body so one malformed
+    # marker or an unexpected None logs and continues instead of wedging the
+    # callback chain every frame (mirrors _cue_get_top_layer).
+    try:
+        _cue_refresh_context_impl()
+    except Exception as exc:
+        _cue_log("REFRESH-CTX-ERR {}".format(repr(exc)))
+
+
+def _cue_refresh_context_impl():
     # type: () -> None
     old_file = _cue.current_file
     old_channel = _cue.vid_manager.channel
@@ -382,6 +393,16 @@ _cue_slow_tick_last = 0.0
 
 def _cue_tick_trigger():
     # type: () -> None
+    # Runs at 50 Hz from a screen timer.  Guard the whole body so a bad edge
+    # in any collaborator logs and continues instead of wedging the mod every
+    # frame (mirrors _cue_get_top_layer).
+    try:
+        _cue_tick_trigger_impl()
+    except Exception as exc:
+        _cue_log("TICK-ERR {}".format(repr(exc)))
+
+def _cue_tick_trigger_impl():
+    # type: () -> None
     if _cue.current_file is not None:
         top_name, top_type, __ = _cue_get_top_layer()
         if top_name != _cue.current_file or top_type != _cue.top_layer_type:
@@ -403,9 +424,14 @@ def _cue_tick_trigger():
         _cue_slow_tick_last = _time.time()
 
         _cue.volume.flush_pending_saves()
+        _cue_flush_debug_log()
 
         if _cue.video_editor.processing:
             _cue.video_editor.job_queue.poll()
+
+        # Background .rpa extraction completes here (not gated on processing:
+        # extraction happens before a job exists).
+        _cue.video_editor.poll_extract()
 
         for _m in (_cue.sfx_manager, _cue.music.user_music, _cue.music.game_music):
             _m.maybe_rebuild()

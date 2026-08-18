@@ -1,5 +1,5 @@
 #!/bin/sh
-# Usage: bin/run_testcases.sh /path/to/game/Game.sh [testcase...] [test-options...]
+# Usage: bin/test_harness.sh /path/to/game/Game.sh [testcase...] [test-options...]
 #
 # Runs the harness game (test_game/) under the given Ren'Py runtime with the
 # mod's cue_lib symlinked in.  RENPY_CUE_DIR defaults to the committed

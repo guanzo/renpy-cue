@@ -12,6 +12,7 @@ from cue_lib.db import (
     CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME,
     CUE_HASH_TRUNC_LEN,
     CueDatabase,
+    _atomic_json_write,
     _key_to_filename,
 )
 from cue_lib.paths import CuePaths
@@ -217,6 +218,45 @@ def test_write_entry_does_not_mutate_caller_dict(db):
     db.save_marker("v_key", entry)
     # The caller's dict must not gain the _key stamp.
     assert "_key" not in entry
+
+
+def test_atomic_write_dump_failure_leaves_no_temp(db):
+    fpath = os.path.join(db.paths.marker_dir, "v_fail.json")
+    # A non-serializable value makes json.dump raise mid-write.
+    with pytest.raises(TypeError):
+        _atomic_json_write(fpath, {"pools": [object()]})
+    # The destination must be untouched and no partial temp may survive.
+    assert not os.path.exists(fpath)
+    assert not [n for n in os.listdir(db.paths.marker_dir) if n.endswith(".tmp")]
+
+
+def test_atomic_write_uses_unique_temp_name_per_call(db, monkeypatch):
+    import tempfile
+    fpath = os.path.join(db.paths.marker_dir, "v_u.json")
+    names = []
+    real_mkstemp = tempfile.mkstemp
+
+    def fake_mkstemp(**kwargs):
+        fd, name = real_mkstemp(**kwargs)
+        names.append(name)
+        return fd, name
+
+    monkeypatch.setattr("cue_lib.db._tempfile.mkstemp", fake_mkstemp)
+    _atomic_json_write(fpath, {"pools": []})
+    _atomic_json_write(fpath, {"pools": [1]})
+    # Each write must get its own temp, not a shared fixed .tmp name.
+    assert len(names) == 2
+    assert len(set(names)) == 2
+    assert all(n.endswith(".tmp") for n in names)
+
+
+def test_atomic_write_two_writes_same_path_last_wins(db):
+    import json
+    fpath = os.path.join(db.paths.marker_dir, "v_seq.json")
+    _atomic_json_write(fpath, {"seq": 1})
+    _atomic_json_write(fpath, {"seq": 2})
+    with open(fpath, "r") as f:
+        assert json.load(f) == {"seq": 2}
 
 
 # ---------------------------------------------------------------------------

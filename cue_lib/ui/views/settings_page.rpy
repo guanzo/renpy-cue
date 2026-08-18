@@ -21,12 +21,12 @@ screen cue_settings_page():
             use cue_settings_keybinds()
 
 screen cue_data_dir():
-    use cue_section_frame("Cue Data Directory"):
+    use cue_section_frame("Data Folder"):
         vbox:
             spacing 8
-            text "Cue stores everything (markers, video, audio, backups, etc.) in this directory." style "cue_txt"
-            text ("If you change the directory, you must move all files to the new "
-                "directory and restart the game.") style "cue_txt"
+            text "Cue stores everything (markers, video, audio, backups, etc.) in this folder." style "cue_txt"
+            text ("If you change the folder, you must move all files to the new "
+                "folder and restart the game.") style "cue_txt"
             use cue_text_input("_cue.setup_dir_text",
                 Function(_cue_confirm_shared_dir),
                 _cue.setup_dir_text)

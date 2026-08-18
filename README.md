@@ -91,7 +91,7 @@ Code must work on **Ren'Py 7.4.x and up**, which means both the 7.x (Python 2) a
 
 - `bin/lint.sh` — runs pyright on `cue_lib/` plus a 120-character line-length check. Prints `CLEAN` or exits nonzero.
 - `bin/test.sh` — `poetry run pytest tests/ -q` (headless unit tests against the mock runtime).
-- `bin/run_testcases.sh <sdk>/renpy.sh` — runs the in-engine testcases harness against a real Ren'Py SDK (screen/engine code that pytest's mock can't drive). Picks `testcases_modern.rpy` (8.x) or `testcases_legacy.rpy` (7.x) based on the SDK version.
+- `bin/test_harness.sh <sdk>/renpy.sh` — runs the in-engine testcases harness against a real Ren'Py SDK (screen/engine code that pytest's mock can't drive). Picks `testcases_modern.rpy` (8.x) or `testcases_legacy.rpy` (7.x) based on the SDK version.
 
 CI runs the harness against pinned Ren'Py **7.4.10** and **8.5.3** SDKs, plus lint and pytest on every push/PR.
 
