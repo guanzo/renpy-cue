@@ -4,6 +4,10 @@
 # Game directory -- tests point this at a tmp dir as needed.
 gamedir = ""
 
+# Save directory -- real Ren'Py always defines this (used by the shared-dir
+# probe in runtime._cue_confirm_shared_dir).
+save_directory = "save"
+
 keymap = {}
 screen = {}
 overlay_screens = []

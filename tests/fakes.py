@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import types
 from typing import Optional
 
 # Shared test doubles for cue_lib managers.
@@ -245,6 +246,134 @@ class FakeUndo(object):
 
     def reset(self):
         self.reset_calls += 1
+
+
+# ---------------------------------------------------------------------------
+# runtime / audio driver cue-graph
+# ---------------------------------------------------------------------------
+
+def make_runtime_cue(root="", audio_dir=""):
+    """Full _cue stand-in for runtime.py and audio-driver tests.
+
+    A real Cue() instance supplies ctx plus the current_file/current_dialogue/
+    prev_dialogue/top_layer_type read-through properties; every manager slot
+    is a recording stand-in.  Call side effects land in ``cue.calls`` as
+    {"manager.method": [(args, kwargs), ...]}.  Stateful managers carry the
+    attributes the drivers read (sfx files, trigger loop_states, vid channel)
+    so tests can drive branches directly.
+    """
+    from cue_lib.state import Cue
+
+    cue = Cue()
+    cue.paths = types.SimpleNamespace(root=root, audio_dir=audio_dir)
+    cue.calls = {}
+    cue.ensured_pools = []
+
+    def _rec(manager, name):
+        def _record(*args, **kwargs):
+            cue.calls.setdefault(manager + "." + name, []).append((args, kwargs))
+
+        return _record
+
+    def _ns(manager, methods):
+        ns = types.SimpleNamespace()
+        for m in methods:
+            setattr(ns, m, _rec(manager, m))
+        return ns
+
+    # markers -- get/ensure_pool/resolve_pool carry state and returns
+    def _ensure_pool(key, target):
+        pool = {"time": 0.0, "files": []}
+        cue.ensured_pools.append(pool)
+        cue.calls.setdefault("markers._ensure_pool", []).append(((key, target), {}))
+        return pool
+
+    cue.markers = types.SimpleNamespace(
+        _img_target=0,
+        get=_rec("markers", "get"),
+        save_marker=_rec("markers", "save_marker"),
+        get_preset=_rec("markers", "get_preset"),
+        get_video_preset=_rec("markers", "get_video_preset"),
+        reload_presets=_rec("markers", "reload_presets"),
+        _ensure_pool=_ensure_pool,
+        resolve_pool=lambda pool: types.SimpleNamespace(trigger_on_shake=False),
+    )
+
+    # trigger -- mutable state the context/tick drivers read and reset
+    cue.trigger = types.SimpleNamespace(
+        active=True,
+        loop_states={},
+        played_video_keys=set(),
+        last_played=[],
+        _prev_eff_elapsed=-1.0,
+        fire_context=_rec("trigger", "fire_context"),
+        tick=_rec("trigger", "tick"),
+    )
+
+    # vid_manager -- channel + flags + driver methods.  reset() mirrors the
+    # real CueVideoManager.reset: it records AND adopts the channel (runtime's
+    # _apply_channel relies on reset to update _cue.vid_manager.channel).
+    def _reset_vid(channel=None):
+        cue.calls.setdefault("vid_manager.reset", []).append(((channel,), {}))
+        cue.vid_manager.channel = channel
+
+    cue.vid_manager = types.SimpleNamespace(
+        channel=None,
+        refreshing=False,
+        get_video_path=lambda: None,
+        reset=_reset_vid,
+        set_fps=_rec("vid_manager", "set_fps"),
+        sync_paused=_rec("vid_manager", "sync_paused"),
+        poll_autopause=_rec("vid_manager", "poll_autopause"),
+    )
+
+    # sfx_manager -- files/disabled_files read by _cue_resolve_files
+    cue.sfx_manager = types.SimpleNamespace(
+        files=[],
+        disabled_files=set(),
+        scan=_rec("sfx_manager", "scan"),
+        rebuild_tree=_rec("sfx_manager", "rebuild_tree"),
+        maybe_rebuild=_rec("sfx_manager", "maybe_rebuild"),
+    )
+
+    # music -- user_music/game_music subtrees + driver methods
+    cue.music = types.SimpleNamespace(
+        user_music=types.SimpleNamespace(
+            files=[],
+            scan=_rec("music.user_music", "scan"),
+            maybe_rebuild=_rec("music.user_music", "maybe_rebuild"),
+        ),
+        game_music=types.SimpleNamespace(
+            maybe_rebuild=_rec("music.game_music", "maybe_rebuild"),
+        ),
+        capture_display=_rec("music", "capture_display"),
+        play_custom_music=_rec("music", "play_custom_music"),
+        play_untracked=_rec("music", "play_untracked"),
+        _resolve_music_path=lambda filename: filename,
+    )
+
+    # video_editor -- processing flag gates job_queue.poll
+    cue.video_editor = types.SimpleNamespace(
+        processing=False,
+        job_queue=types.SimpleNamespace(poll=_rec("video_editor.job_queue", "poll")),
+        refresh=_rec("video_editor", "refresh"),
+    )
+
+    cue.volume = types.SimpleNamespace(
+        get_effective=lambda entry, key, pool_index: 1.0,
+        flush_pending_saves=_rec("volume", "flush_pending_saves"),
+    )
+    cue.video_sequence = types.SimpleNamespace(
+        handle=_rec("video_sequence", "handle"),
+        tick=_rec("video_sequence", "tick"),
+    )
+    cue.speed_resolver = types.SimpleNamespace(
+        clear_pending=_rec("speed_resolver", "clear_pending"),
+        base_path_for=lambda current_file: None,
+        is_variant_of=lambda path, target: False,
+    )
+
+    return cue
 
 
 # ---------------------------------------------------------------------------
