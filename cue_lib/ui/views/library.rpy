@@ -49,7 +49,7 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
             if not _searching or _preset_names:
                 hbox:
                     spacing 2
-                    use cue_txt_button("Presets/", Function(_cue.sfx_manager.toggle_presets_expand))
+                    use cue_txt_button("Pool Presets/", Function(_cue.sfx_manager.toggle_presets_expand))
 
                 if _cue.sfx_manager.presets_expanded:
                     use cue_audio_presets_list(_is_video, _has_image, _is_dialogue, _preset_names)
