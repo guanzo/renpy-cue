@@ -320,3 +320,135 @@ def test_paste_context_clamps_video_times_to_duration(mgr):
     mgr._ctx.current_file = "new.ogv"
     mgr.paste_context()
     assert mgr["v_new.ogv"]["pools"][0]["time"] == 10.0
+
+
+# ---------------------------------------------------------------------------
+# property setters / __delitem__
+# ---------------------------------------------------------------------------
+
+def test_presets_setter_writes_through(mgr):
+    mgr._presets = {"p": {"files": ["a.ogg"]}}
+    assert mgr._store._presets["p"]["files"] == ["a.ogg"]
+
+
+def test_video_presets_setter_writes_through(mgr):
+    mgr._video_presets = {"vp": {"pools": [], "volume": 1.0}}
+    assert mgr._store._video_presets["vp"]["pools"] == []
+
+
+def test_session_created_getter_setter(mgr):
+    mgr._session_created = {("audio", "p")}
+    assert mgr._session_created == {("audio", "p")}
+    assert mgr._store._session_created == {("audio", "p")}
+
+
+def test_delitem_deletes_from_store(mgr):
+    mgr["i_scene.ogv"] = {"pools": []}
+    del mgr["i_scene.ogv"]
+    assert "i_scene.ogv" not in mgr._store._data
+
+
+# ---------------------------------------------------------------------------
+# apply_video_preset -- time-less pool drop (inject directly: create_video_preset
+# strips time-less pools at save, so the branch is only reachable on raw data)
+# ---------------------------------------------------------------------------
+
+def test_apply_video_preset_drops_time_less_pool(mgr):
+    mgr._ctx.current_file = "scene.ogv"
+    mgr._video_presets["vp"] = {"pools": [
+        {"time": 5.0, "files": ["a.ogg"]}, {"files": ["x.ogg"]}], "volume": 1.0}
+    mgr.apply_video_preset("vp")
+    entry = mgr.get("v_scene.ogv")
+    assert [p["time"] for p in entry["pools"]] == [5.0]
+
+
+# ---------------------------------------------------------------------------
+# _remove_file_from_preset_pool -- guard branches + direct-file else
+# ---------------------------------------------------------------------------
+
+def test_remove_file_from_preset_pool_missing_entry_noop(mgr):
+    mgr._remove_file_from_preset_pool("nope", 0, 0, "a.ogg")  # must not raise
+
+
+def test_remove_file_from_preset_pool_out_of_range_noop(mgr):
+    mgr._ctx.current_file = "scene.ogv"
+    mgr["i_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}
+    mgr._remove_file_from_preset_pool("i_scene.ogv", 3, 0, "a.ogg")  # must not raise
+    assert mgr.get("i_scene.ogv")["pools"][0]["files"] == ["a.ogg"]
+
+
+def test_remove_file_from_preset_pool_direct_file(mgr):
+    mgr._ctx.current_file = "scene.ogv"
+    mgr.create_preset("basic", {"files": ["a.ogg", "b.ogg"]})
+    mgr._stamp_preset("i_scene.ogv", "basic", 0)
+    mgr._remove_file_from_preset_pool("i_scene.ogv", 0, 0, "a.ogg")
+    pool = mgr.get("i_scene.ogv")["pools"][0]
+    assert pool["files"] == ["b.ogg"]
+
+
+# ---------------------------------------------------------------------------
+# _detach_folder_ref_in_files / _remove_file_from_folder_ref guards
+# ---------------------------------------------------------------------------
+
+def test_detach_folder_ref_plain_file_noop(mgr):
+    files = ["a.ogg"]
+    mgr._detach_folder_ref_in_files(files, 0, "a.ogg")
+    assert files == ["a.ogg"]
+
+
+def test_remove_file_from_folder_ref_missing_entry_noop(mgr):
+    mgr._remove_file_from_folder_ref("nope", 0, 0, "music/a.ogg")  # must not raise
+
+
+def test_remove_file_from_folder_ref_out_of_range_pool_noop(mgr):
+    mgr._ctx.current_file = "scene.ogv"
+    mgr["i_scene.ogv"] = {"pools": [{"files": ["music/"]}]}
+    mgr._remove_file_from_folder_ref("i_scene.ogv", 2, 0, "music/a.ogg")  # must not raise
+
+
+def test_remove_file_from_folder_ref_out_of_range_file_noop(mgr):
+    mgr._ctx.current_file = "scene.ogv"
+    mgr["i_scene.ogv"] = {"pools": [{"files": ["music/"]}]}
+    mgr._remove_file_from_folder_ref("i_scene.ogv", 0, 5, "music/a.ogg")  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# save / persistence API passthroughs
+# ---------------------------------------------------------------------------
+
+def test_save_preset_passthrough(mgr):
+    mgr.create_preset("basic", {"files": ["a.ogg"]})
+    mgr.save_preset("basic")
+    mgr._db_save_preset("basic")
+
+
+def test_save_video_preset_passthrough(mgr):
+    mgr._video_presets["vp"] = {"pools": [{"time": 1.0, "files": []}], "volume": 1.0}
+    mgr.save_video_preset("vp")
+    mgr._db_save_video_preset("vp")
+
+
+def test_save_all_passthrough(mgr):
+    mgr["i_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}
+    mgr.create_preset("basic", {"files": ["a.ogg"]})
+    mgr._video_presets["vp"] = {"pools": [{"time": 1.0}], "volume": 1.0}
+    mgr.save_all()
+
+
+def test_delete_removed_files_no_removals(mgr):
+    mgr["i_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}
+    mgr.delete_removed_files(
+        set(mgr._data.keys()), dict(mgr._presets), dict(mgr._video_presets),
+        set(mgr._session_created))
+
+
+def test_load_persistent(mgr):
+    mgr.load_persistent()
+
+
+def test_backup_to_file(mgr):
+    mgr.backup_to_file()
+
+
+def test_reload_presets_merges_nothing(mgr):
+    mgr.reload_presets()  # empty disk -> merge nothing, no raise

@@ -52,6 +52,10 @@ class FakeDb(object):
     def update_shared_config(self, data):
         self.saved.append(data)
 
+    def save_shared_config(self, data):
+        self.shared = data
+        self.saved.append(data)
+
 
 class FakeExclusive(object):
     """Resolved exclusive-config stand-in: the start/hold/group attributes
@@ -204,6 +208,43 @@ class FakeSfxManager(object):
     def __init__(self, files=None, disabled_files=None):
         self.files = files if files is not None else []
         self.disabled_files = disabled_files if disabled_files is not None else set()
+        self.scan_calls = 0
+
+    def scan(self):
+        self.scan_calls += 1
+
+
+class FakeTrigger(object):
+    """Trigger-engine stand-in for the loop_states dict loop clear() pops."""
+
+    def __init__(self, loop_states=None):
+        self.loop_states = loop_states if loop_states is not None else {}
+        self.active = True
+
+
+class FakeVideoEditor(object):
+    """Video-editor stand-in for the scalar fan-out: MODE_INTERPOLATE +
+    encode_mode/remove_audio attributes, refresh() no-op."""
+
+    MODE_INTERPOLATE = 0
+
+    def __init__(self, encode_mode=MODE_INTERPOLATE, remove_audio=True):
+        self.encode_mode = encode_mode
+        self.remove_audio = remove_audio
+        self.refresh_calls = 0
+
+    def refresh(self):
+        self.refresh_calls += 1
+
+
+class FakeUndo(object):
+    """Undo-manager stand-in for _apply_restore's reset() call."""
+
+    def __init__(self):
+        self.reset_calls = 0
+
+    def reset(self):
+        self.reset_calls += 1
 
 
 # ---------------------------------------------------------------------------
