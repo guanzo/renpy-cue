@@ -180,7 +180,7 @@ screen cue_header_toolbar():
             use cue_icon_btn(
                 "rotate-right",
                 Function(_cue_refresh_overlay),
-                "Refresh overlay", None)
+                "Refresh", None)
             null width 5
 
             

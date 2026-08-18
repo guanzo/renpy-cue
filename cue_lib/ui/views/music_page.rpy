@@ -72,28 +72,33 @@ screen cue_music_page():
 
         $ my_music_tt = "Add music files to\n{}".format(_cue.paths.music_dir)
         use cue_section_frame("My Music", tt=my_music_tt):
-            use cue_search_bar("_cue.music.user_music.search_query", _cue.music.user_music)
+            if _cue.music.user_music.tree:
+                use cue_search_bar("_cue.music.user_music.search_query", _cue.music.user_music)
             use grow_and_scroll(200, max(int(0.30 * renpy.config.screen_height), 400)):
-                if not _cue.music.user_music.tree:
-                    if _cue.music.user_music.scan_error:
-                        text "[_cue.music.user_music.scan_error]" style "cue_txt" color _cue_color_error
-                    text ("Add {} files to your music folder "
-                        "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_txt"
-                    text "[_cue.paths.music_dir]" style "cue_txt"
-                else:
-                    use cue_music_tree()
+                vbox:
+                    spacing 5
+                    if not _cue.music.user_music.tree:
+                        if _cue.music.user_music.scan_error:
+                            text "[_cue.music.user_music.scan_error]" style "cue_txt" color _cue_color_error
+                        text "No music found in: [_cue.paths.music_dir]" style "cue_txt"
+                        text ("Add {} files there "
+                            "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_txt"
+                    else:
+                        use cue_music_tree()
 
         $ game_music_tt = "Game music is found with heuristics, this list may not be accurate."
         use cue_section_frame("Game Music", tt=game_music_tt):
-            use cue_search_bar("_cue.music.game_music.search_query", _cue.music.game_music)
+            if _cue.music.game_music.tree:
+                use cue_search_bar("_cue.music.game_music.search_query", _cue.music.game_music)
             use grow_and_scroll(200, max(int(0.30 * renpy.config.screen_height), 400)):
-                if not _cue.music.game_music.tree:
-                    if _cue.music.game_music.scan_error:
-                        text "[_cue.music.game_music.scan_error]" style "cue_txt" color _cue_color_error
-                    text ("No music found in game dirs ({})."
-                        "Files are classified by folder name.").format(", ".join(CUE_GAME_MUSIC_DIRS)) style "cue_txt"
-                else:
-                    use cue_game_music_tree()
+                vbox:
+                    spacing 5
+                    if not _cue.music.game_music.tree:
+                        if _cue.music.game_music.scan_error:
+                            text "[_cue.music.game_music.scan_error]" style "cue_txt" color _cue_color_error
+                        text ("No music found in game directory.").format(", ".join(CUE_GAME_MUSIC_DIRS)) style "cue_txt"
+                    else:
+                        use cue_game_music_tree()
 
 screen trigger_list(triggers):
     for trigger in triggers:

@@ -19,7 +19,8 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
         if not _cue.sfx_manager.tree:
             if _cue.sfx_manager.scan_error:
                 text "[_cue.sfx_manager.scan_error]" style "cue_txt" color _cue_color_error
-            text ("Place {} files there "
+            text "No audio files found in: [_cue.paths.audio_dir]" style "cue_txt"
+            text ("Add {} files there "
                 "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS)) style "cue_txt"
         else:
             use cue_search_bar("_cue.sfx_manager.search_query", _cue.sfx_manager)
