@@ -68,7 +68,7 @@ screen cue_music_page():
                                     "it may not work properly in game.") style "cue_txt" color _cue_color_warn
                     
                     null height 4
-                    use cue_txt_button("+ Add music starting at current scene", Function(_cue.music.add_custom_trigger))
+                    use cue_txt_button("+ Play music starting at current scene", Function(_cue.music.add_custom_trigger))
 
         $ my_music_tt = "Add music files to\n{}".format(_cue.paths.music_dir)
         use cue_section_frame("My Music", tt=my_music_tt):
