@@ -47,7 +47,6 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
         yfill True
         mousewheel True
         scrollbars "vertical"
-        style_group "cue"
         vscrollbar_unscrollable "hide"
         vbox:
             spacing 2

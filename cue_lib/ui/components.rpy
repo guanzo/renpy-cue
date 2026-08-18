@@ -425,7 +425,6 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
             ymaximum 120
             mousewheel True
             scrollbars "vertical"
-            style_group "cue"
             vscrollbar_unscrollable "hide"
             use _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
                                     trigger_key, pool_index, folder_child_remove_fn,

@@ -301,7 +301,6 @@ screen cue_video_vfx():
                             ymaximum 200
                             mousewheel True
                             scrollbars "vertical"
-                            style_group "cue"
                             vscrollbar_unscrollable "hide"
                             use _cue_edit_queue_vbox()
                     else:

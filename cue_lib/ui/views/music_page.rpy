@@ -88,7 +88,12 @@ screen cue_music_page():
         use cue_section_frame("Music Library", tt=music_lib_tt):
             if _cue.music.user_music.tree or _cue.music.game_music.tree:
                 use cue_search_bar("_cue.music.library.search_query", _cue.music.library)
-            use grow_and_scroll(200, max(int(0.30 * renpy.config.screen_height), 400)):
+            viewport:
+                xfill True
+                yfill True
+                mousewheel True
+                scrollbars "vertical"
+                vscrollbar_unscrollable "hide"
                 vbox:
                     spacing 5
                     # Per-source empty/error states -- one source can be empty
