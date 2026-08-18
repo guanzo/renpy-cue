@@ -40,7 +40,7 @@ screen cue_music_page():
             "in My/Game Music to add a song to the trigger.\n"
             "If you add multiple songs, one will be picked at random.\n\n"
             "Default music triggers must be discovered by playing through the replay.")
-        use cue_section_frame("Music", tt=music_tt):
+        use cue_section_frame("Music Triggers", tt=music_tt):
             use grow_and_scroll(200, max(int(0.30 * renpy.config.screen_height), 400)):
                 vbox:
                     spacing 5
@@ -117,6 +117,7 @@ screen trigger_list(triggers):
     for trigger in triggers:
         null height 2
         button:
+            style "empty"
             background (_cue_color_bg_input if trigger["selected"] else _cue_color_bg_panel)
             hover_background _cue_color_bg_input
             action Function(_cue.music.select_trigger, trigger["key"])

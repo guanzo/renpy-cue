@@ -16,12 +16,7 @@ screen cue_repeat_markers_dialog():
     $ sel_count = _cue.repeater.sel_count
 
     button:
-        xpos 500
-        ypos 8
-        padding (16, 8)
-        background _cue_color_bg_dialog
-        hover_background _cue_color_bg_dialog
-        xmaximum 400
+        style "cue_dialog"
         action NullAction()
 
         vbox:
@@ -95,12 +90,7 @@ screen cue_save_preset_dialog():
     key "K_ESCAPE" action Function(_d.cancel)
 
     button:
-        xpos 500
-        ypos 8
-        padding (16, 8)
-        background _cue_color_bg_dialog
-        hover_background _cue_color_bg_dialog
-        xmaximum 400
+        style "cue_dialog"
         action NullAction()
 
         vbox:
@@ -159,12 +149,7 @@ screen cue_save_video_preset_dialog():
     key "K_ESCAPE" action Function(_d.cancel)
 
     button:
-        xpos 500
-        ypos 8
-        padding (16, 8)
-        background _cue_color_bg_dialog
-        hover_background _cue_color_bg_dialog
-        xmaximum 400
+        style "cue_dialog"
         action NullAction()
 
         vbox:
@@ -216,12 +201,7 @@ screen cue_confirm_dialog():
     key "K_ESCAPE" action Function(_d.hide)
 
     button:
-        xpos 500
-        ypos 8
-        padding (16, 8)
-        background _cue_color_bg_dialog
-        hover_background _cue_color_bg_dialog
-        xmaximum 400
+        style "cue_dialog"
         action NullAction()
 
         vbox:

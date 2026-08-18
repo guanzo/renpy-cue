@@ -87,10 +87,11 @@ screen cue_keybind_capture():
     modal True
     frame:
         background _cue_color_bg_dialog
-        xpos 500
+        xpos _cue_overlay_panel_width
         ypos 8
         padding (16, 8)
-        xmaximum 420
+        xmaximum 300
+        xfill False
         vbox:
             spacing 8
             text "Press a key(s) for " + _cue.keybinds.current_label()

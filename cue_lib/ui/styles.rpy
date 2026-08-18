@@ -40,12 +40,21 @@ define _cue_color_error = "#ff6666"
 # --- Controls ---
 define _cue_color_bar_active = "#007AFF"
 
+define _cue_overlay_panel_width = 500
 define _cue_btn_height = 16
 
 style cue_frame is empty:
     background _cue_color_bg_panel
     padding (4, 4)
     xfill True
+
+style cue_dialog is empty:
+    xpos _cue_overlay_panel_width
+    ypos 8
+    padding (16, 8)
+    background _cue_color_bg_dialog
+    hover_background _cue_color_bg_dialog
+    xmaximum 400
 
 style cue_popper_frame is empty:
     background "#000000ee"

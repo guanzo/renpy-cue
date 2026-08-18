@@ -47,10 +47,11 @@ screen cue_overlay():
     $ _z = _cue_overlay_zoom()
 
     button:
+        style "empty"
         at Transform(zoom=_z)
         xalign 0.0
         yalign 0.0
-        xsize int(500 / _z)
+        xsize int(_cue_overlay_panel_width / _z)
         ysize int(renpy.config.screen_height / _z)
         action NullAction()
         padding (4, 4)
@@ -111,7 +112,7 @@ screen cue_overlay_content():
             $ _sfx_full_h = int(renpy.config.screen_height / _sfx_z)
             $ _sfx_40pct = int(_sfx_full_h * 0.4)
             $ _sfx_90pct = int(_sfx_full_h * 0.8)
-            $ _sfx_800px = int(500 / _sfx_z)
+            $ _sfx_800px = int(_cue_overlay_panel_width / _sfx_z)
             $ _sfx_h = max(_sfx_40pct, min(_sfx_800px, _sfx_90pct))
             frame:
                 background None

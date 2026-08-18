@@ -368,7 +368,7 @@ class CueKeybindsManager(object):
         collisions = self._find_collisions(keysym, self._capturing_id)
         if collisions:
             self._pending_keysym = keysym
-            self.collision_message = "Key {} is already used by: {}".format(
+            self.collision_message = "Key {} is already used by:\n{}".format(
                 self.keysym_label(keysym), ", ".join(collisions[:3])
             )
             renpy.restart_interaction()
