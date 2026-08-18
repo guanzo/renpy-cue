@@ -467,7 +467,13 @@ screen cue_section_frame(header_text, tt=None, icons=[]):
                             use cue_icon("circle-question", tt=tt, size=14)
                         add _arrow yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
             if not _collapsed:
-                transclude
+                frame:
+                    background None 
+                    padding (4, 0) # match header xpadding added by cue_section_hdr_btn
+                    vbox:
+                        spacing 8
+                        xfill True
+                        transclude
 
 # Generic context section: shared by dialogue, image, and loop SFX.
 # ctx: marker context with add_pool, remove_pool, clear, set_active,
