@@ -431,3 +431,157 @@ def test_on_wrap_around_respects_disabled_speeds(env):
     entry = env.store.get(create_vid_key(env.tag))
     assert 1.5 not in entry["speed_sequence"]
     assert all(s in env.gen.enabled_speeds for s in entry["speed_sequence"])
+
+
+# ==========================================================================
+# Edge branches -- rare / defensive paths inside the per-preset generators
+# ==========================================================================
+
+
+def _bare_gen():
+    """A generator wired to nothing.  Enough for direct _gen_* calls (ctx is
+    only read by lifecycle methods, and is a harmless empty context here)."""
+    return CueAutoSpeedGenerator(
+        types.SimpleNamespace(current_file=""), None, None, None, None)
+
+
+def test_select_preset_shuffle_dispatch():
+    gen = _bare_gen()
+    _random.seed(21)
+    gen.select_preset("shuffle")
+    assert gen.is_shuffle_mode is True
+    assert gen.active_preset in gen.shuffle_pool
+
+
+def test_enabled_speeds_empty_when_no_base_path():
+    ctx = types.SimpleNamespace(current_file="scene")
+    resolver = types.SimpleNamespace(base_path_for=lambda tag: "")
+    gen = CueAutoSpeedGenerator(ctx, None, resolver, None, None)
+    assert gen.enabled_speeds == []
+
+
+def test_roller_coaster_narrow_budget_hits_edges():
+    # n=0 forces peak/valley clamping (v_hi < valley_lo) and rungs that miss
+    # their peak/valley entirely, hitting the defensive take_hold branches.
+    gen = _bare_gen()
+    seq = gen._gen_roller_coaster([0.5], 0, 20.0)
+    assert seq
+
+
+def test_build_up_appends_missing_peak(monkeypatch):
+    gen = _bare_gen()
+    calls = iter([3, 2])  # idx=3, stride=2 -> range(5,9,2) misses peak 8
+    monkeypatch.setattr(_random, "randint", lambda a, b: next(calls))
+    speeds = [0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.7, 1.9]
+    seq = gen._gen_build_up(speeds, 9, 20.0)
+    assert seq
+
+
+def test_cool_down_appends_missing_bottom(monkeypatch):
+    gen = _bare_gen()
+    calls = iter([7, 2])  # idx=7, stride=2 -> range(5,-1,-2) misses bottom 0
+    monkeypatch.setattr(_random, "randint", lambda a, b: next(calls))
+    speeds = [0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.7, 1.9]
+    seq = gen._gen_cool_down(speeds, 9, 20.0)
+    assert seq
+
+
+def test_cool_down_wiggle_steps_down(monkeypatch):
+    gen = _bare_gen()
+    calls = iter([4, 1])  # idx=4, stride=1 -> descent lands exactly on bottom
+    monkeypatch.setattr(_random, "randint", lambda a, b: next(calls))
+    monkeypatch.setattr(_random, "random", lambda: 0.5)  # wiggle: elif r < 0.70
+    speeds = [0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.7, 1.9]
+    seq = gen._gen_cool_down(speeds, 9, 20.0)
+    assert seq
+
+
+def test_slow_groove_steps_down(monkeypatch):
+    gen = _bare_gen()
+    calls = iter([0, 1])  # idx=0, max_rung=1
+    monkeypatch.setattr(_random, "randint", lambda a, b: next(calls))
+    monkeypatch.setattr(_random, "random", lambda: 0.6)  # not stay, not up
+    seq = gen._gen_slow_groove([0.3, 0.5, 0.7, 0.9], 4, 20.0)
+    assert seq
+
+
+def test_tease_spike_enforces_real_time_floor():
+    gen = _bare_gen()
+    gen._video_duration = 10.0  # min_spike_plays = ceil(3/10) = 1
+    # n=4 -> spike rungs [3]; speeds[3]=0.5 -> min spike TU = 1/0.5 = 2.0
+    seq = gen._gen_tease([0.3, 0.5, 0.7, 0.5], 4, 2.0)
+    assert seq
+
+
+def test_plateau_reverses_when_no_jump(monkeypatch):
+    gen = _bare_gen()
+    calls = iter([1])  # start at the top rung of n=2
+    monkeypatch.setattr(_random, "randint", lambda a, b: next(calls))
+    monkeypatch.setattr(_random, "uniform", lambda a, b: 2.0)  # short holds
+    monkeypatch.setattr(_random, "random", lambda: 0.5)
+    seq = gen._gen_plateau([0.3, 0.9], 2, 10.0)
+    assert seq
+
+
+def test_edge_early_stumble(monkeypatch):
+    gen = _bare_gen()
+    calls = iter([0])
+    monkeypatch.setattr(_random, "randint", lambda a, b: next(calls))
+    monkeypatch.setattr(_random, "uniform", lambda a, b: 0.1)  # early-drop 0.1
+    monkeypatch.setattr(_random, "random", lambda: 0.0)  # always stumble
+    speeds = [0.8, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1]
+    seq = gen._gen_edge(speeds, 7, 10.0)
+    assert seq
+
+
+def test_anchor_deep_dist_biases(monkeypatch):
+    gen = _bare_gen()
+    calls = iter([3, 2])  # anchor=3, max_drift=2
+    monkeypatch.setattr(_random, "randint", lambda a, b: next(calls))
+    monkeypatch.setattr(_random, "random", lambda: 0.9)  # always move down
+    monkeypatch.setattr(gen, "_should_stay", lambda *a, **k: False)
+    speeds = [0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5]
+    seq = gen._gen_anchor(speeds, 7, 10.0)
+    assert seq
+
+
+def test_pulse_tiny_rung_fallback():
+    # n=2 -> lo(1) > hi(0) -> centre falls back to n//2
+    gen = _bare_gen()
+    seq = gen._gen_pulse([0.5, 0.9], 2, 10.0)
+    assert seq
+
+
+def test_walk_big_jump(monkeypatch):
+    gen = _bare_gen()
+    monkeypatch.setattr(_random, "random", lambda: 0.08)  # roll in [0.04, 0.12)
+    monkeypatch.setattr(gen, "_pick_direction", lambda *a, **k: 1)
+    seq = gen._walk([0.3, 0.5, 0.7, 0.9, 1.1], 5, 0.0, 0.7, 0.4, 0.5, 8.0)
+    assert seq
+
+
+def test_walk_max_step_ceiling(monkeypatch):
+    gen = _bare_gen()
+    gen.max_step = 2  # clamps the 3-rung big jump down to 2
+    monkeypatch.setattr(_random, "random", lambda: 0.08)
+    monkeypatch.setattr(gen, "_pick_direction", lambda *a, **k: 1)
+    seq = gen._walk([0.3, 0.5, 0.7, 0.9, 1.1], 5, 0.0, 0.7, 0.4, 0.5, 8.0)
+    assert seq
+
+
+def test_regenerate_no_tag_is_noop():
+    gen = _bare_gen()  # ctx.current_file is ""
+    gen._regenerate()  # must not raise
+
+
+def test_regenerate_insufficient_variants_noop():
+    resolver = types.SimpleNamespace(base_path_for=lambda tag: "")
+    seq = types.SimpleNamespace(get_mode=lambda tag: CueSpeedMode.AUTO)
+    gen = CueAutoSpeedGenerator(
+        types.SimpleNamespace(current_file="scene"), None, resolver, None, seq)
+    gen._regenerate()  # enabled_speeds == [] -> below min -> no-op
+
+
+def test_on_wrap_around_no_tag_is_noop():
+    gen = _bare_gen()  # ctx.current_file is ""
+    gen.on_wrap_around()  # must not raise

@@ -8,7 +8,9 @@
 # layer lacked before the extraction: existing marker tests only exercised the
 # context sub-objects through FakeManager.
 
+import errno
 import os
+import shutil
 
 import pytest
 
@@ -393,3 +395,172 @@ def test_save_all_invokes_on_save_once(cue_env):
     s._data["i_b"] = {"pools": []}
     s.save_all()
     assert len(calls) == 1
+
+
+# ---------------------------------------------------------------------------
+# Branch tails -- all-time-less presets, legacy bools, missing/out-of-range
+# targets, legacy files-shaped entries, and db-closed guards
+# ---------------------------------------------------------------------------
+
+def test_create_video_preset_all_time_less_pools_returns(store):
+    entry = {"pools": [{"files": ["a.ogg"]}, {"files": ["b.ogg"]}]}
+    store.create_video_preset("VP", entry)
+    assert store.get_video_preset("VP") is None
+
+
+def test_resolve_exclusive_legacy_bool_excl(store):
+    pool = {"files": [], "exclusive": True}
+    r = store.resolve_pool(pool)
+    assert r.exclusive.group == 0
+
+
+def test_resolve_exclusive_legacy_bool_base(store):
+    store._presets["P"] = {"files": [], "exclusive": True}
+    r = store.resolve_pool({"preset": "P"})
+    assert r.exclusive.group == 0
+
+
+def test_remove_file_from_pool_missing_entry_noop(store):
+    store._remove_file_from_pool("ghost", 0)  # entry None -> return
+
+
+def test_remove_file_from_pool_bad_pool_index_noop(store):
+    store._data["v_a"] = {"pools": [{"files": ["a.ogg"]}]}
+    store._remove_file_from_pool("v_a", 0, 3)  # pool index out of range
+
+
+def test_remove_file_from_pool_legacy_files_branch(store):
+    # An unnormalized entry shaped as {key: {"files": [...]}} (no pools).
+    store._data["v_a"] = {"files": ["a.ogg"]}
+    store._remove_file_from_pool("v_a", 0)
+    assert "v_a" not in store._data
+
+
+def test_detach_pool_copies_preset_metadata(store):
+    store._presets["P"] = {
+        "files": ["a.ogg", "b.ogg"],
+        "frequency": CueLoopFrequency.FAST,
+        "trigger_on_shake": True,
+        "exclusive": {"group": 2, "start": 0, "hold": False},
+    }
+    store._data["l_x"] = {"pools": [{"preset": "P"}]}
+
+    ok = store._detach_pool("l_x", 0)
+
+    assert ok
+    pool = store._data["l_x"]["pools"][0]
+    assert "preset" not in pool
+    assert pool["files"] == ["a.ogg", "b.ogg"]
+    assert pool["frequency"] == CueLoopFrequency.FAST
+    assert pool["trigger_on_shake"] is True
+    assert pool["exclusive"]["group"] == 2
+
+
+def test_sanitize_video_presets_skips_preset_without_pools(store):
+    store._video_presets["VP"] = {}
+    store._video_presets["V2"] = {"pools": [{"time": 1.0}]}
+    assert store._sanitize_video_presets() == 0
+
+
+def test_sanitize_video_pools_tracked_strips_and_logs(store):
+    store._data["v_bad"] = {"pools": [{"files": ["a.ogg"]}, {"time": 2.0}]}
+    modified = store._sanitize_video_pools_tracked()
+    assert modified == {"v_bad"}
+    assert store._data["v_bad"]["pools"] == [{"time": 2.0}]
+
+
+def test_migrate_legacy_exclusive_preset(store):
+    store._presets["P"] = {"exclusive": True}
+    assert store._migrate_legacy_exclusive() == 1
+    assert store._presets["P"]["exclusive"]["group"] == 1
+
+
+def test_migrate_video_timestamps_keeps_pools(store):
+    store._data["v_a"] = {"pools": [{"time": 1.0}], "timestamps": [{"time": 9.0}]}
+    entries, presets = store._migrate_video_timestamps_to_pools()
+    assert entries == 1
+    assert store._data["v_a"]["pools"] == [{"time": 1.0}]
+    assert "timestamps" not in store._data["v_a"]
+
+
+def test_migrate_video_timestamps_preset_keeps_pools(store):
+    store._video_presets["VP"] = {"pools": [{"time": 1.0}], "timestamps": [{"time": 9.0}]}
+    entries, presets = store._migrate_video_timestamps_to_pools()
+    assert presets == 1
+    assert "timestamps" not in store._video_presets["VP"]
+
+
+def test_reload_presets_no_db_returns(cue_env):
+    s = CueMarkerStore(None, cue_env.paths)
+    s.reload_presets()  # must not raise
+
+
+def test_save_markers_deletes_missing_key(store, cue_env):
+    store.save_markers(["ghost"])  # not in _data -> delete path
+
+    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh.load_from_db()
+    assert "ghost" not in fresh._data
+
+
+def test_post_save_resaves_sanitized_video_pools(store, cue_env):
+    store._data["v_dirty"] = {"pools": [{"files": ["a.ogg"]}]}
+    store._db_save_marker("v_dirty")
+
+    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh.load_from_db()
+    # The malformed pool was stripped on save and re-persisted.
+    assert fresh._data["v_dirty"]["pools"] == []
+
+
+def test_delete_removed_files_no_db_returns(cue_env):
+    s = CueMarkerStore(None, cue_env.paths)
+    s.delete_removed_files(set(), {}, {}, set())  # must not raise
+
+
+def test_delete_removed_files_keeps_present_preset(store):
+    store._presets["P"] = {"files": ["a.ogg"]}
+    store.delete_removed_files(set(), {"P": {"files": ["a.ogg"]}}, {}, set())
+    assert "P" in store._presets
+
+
+def test_delete_removed_files_keeps_present_video_preset(store):
+    store._video_presets["VP"] = {"pools": [{"time": 1.0}]}
+    store.delete_removed_files(set(), {}, {"VP": {"pools": [{"time": 1.0}]}}, set())
+    assert "VP" in store._video_presets
+
+
+def test_delete_removed_files_deletes_session_video_preset(store, cue_env):
+    store.create_video_preset("VP", {"pools": [{"time": 1.0}]})
+    old_video_presets = {"VP": store._video_presets["VP"]}
+    store._video_presets = {}  # restore dropped it
+    store.delete_removed_files(set(), {}, old_video_presets, {("video", "VP")})
+
+    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh.load_from_db()
+    assert "VP" not in fresh._video_presets
+
+
+def test_load_from_db_no_db_resets(cue_env):
+    s = CueMarkerStore(None, cue_env.paths)
+    s.load_from_db()
+    assert s._data == {}
+    assert s._video_presets == {}
+
+
+def test_backup_to_file_no_db_returns(cue_env):
+    s = CueMarkerStore(None, cue_env.paths)
+    s.backup_to_file()  # must not raise
+
+
+def test_backup_to_file_no_data_dir_logs(store, cue_env):
+    shutil.rmtree(os.path.join(cue_env.paths.root, "data"))
+    store.backup_to_file()  # must not raise
+
+
+def test_backup_to_file_makedirs_error_logged(store, cue_env, monkeypatch):
+    def _boom(path):
+        raise OSError(errno.EACCES, "denied")
+    monkeypatch.setattr(os, "makedirs", _boom)
+
+    store.backup_to_file()  # must not raise; re-raised error is logged

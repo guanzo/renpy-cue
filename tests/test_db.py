@@ -258,3 +258,105 @@ def test_update_default_music_triggers_updates_in_place(db):
             {"key_before": "v_a", "filepath": "music/y.ogg"},
             {"key_before": "v_b", "filepath": "music/z.ogg"},
         ]}
+
+
+def test_update_default_music_triggers_sets_key_after_in_place(db):
+    db.update_default_music_triggers("r1", "v_a", "music/x.ogg")
+    db.update_default_music_triggers("r1", "v_a", "music/y.ogg", key_after="v_settled")
+    assert db.load_default_music_triggers() == {
+        "r1": [
+            {"key_before": "v_a", "filepath": "music/y.ogg", "key_after": "v_settled"}]}
+
+
+# ---------------------------------------------------------------------------
+# Error paths -- missing dirs, corrupt files, unwritable stores
+# ---------------------------------------------------------------------------
+
+def test_open_propagates_makedirs_error(tmp_path, monkeypatch):
+    database = _make_db(str(tmp_path))
+
+    def _boom(path):
+        raise OSError("no perms")
+    monkeypatch.setattr(os, "makedirs", _boom)
+
+    with pytest.raises(OSError):
+        database.open()
+
+
+def test_load_presets_empty_when_dir_missing(tmp_path):
+    # Never opened -- neither preset dir exists; load must not raise.
+    database = _make_db(str(tmp_path))
+    assert database.load_presets() == ({}, {})
+
+
+def test_load_presets_skips_non_json(tmp_path):
+    database = _make_db(str(tmp_path))
+    database.open()
+    stray = os.path.join(database.paths.audio_preset_dir, "notes.txt")
+    with open(stray, "w") as f:
+        f.write("x")
+
+    audio, video = database.load_presets()
+    assert audio == {}
+
+
+def test_load_presets_skips_corrupt_json(tmp_path):
+    database = _make_db(str(tmp_path))
+    database.open()
+    bad = os.path.join(database.paths.audio_preset_dir, "audio_bad.json")
+    with open(bad, "w") as f:
+        f.write("{not json")
+
+    audio, video = database.load_presets()
+    assert audio == {}
+
+
+def test_delete_preset_missing_file_does_not_raise(tmp_path):
+    database = _make_db(str(tmp_path))
+    database.open()
+    database.delete_preset("audio", "ghost")  # must not raise
+
+
+def test_preset_file_matches_missing_is_false(db):
+    assert not db.preset_file_matches("audio", "ghost", {"files": []})
+
+
+def test_load_shared_config_corrupt_returns_empty(db):
+    with open(db.paths.shared_config_path, "w") as f:
+        f.write("{not json")
+    assert db.load_shared_config() == {}
+
+
+def test_save_shared_config_creates_parent_dir(tmp_path):
+    database = _make_db(str(tmp_path))
+    database.save_shared_config({"flag": True})
+    assert database.load_shared_config() == {"flag": True}
+
+
+def test_save_shared_config_logs_write_error(db, monkeypatch):
+    def _boom(*args, **kwargs):
+        raise OSError("disk full")
+    monkeypatch.setattr("cue_lib.db._atomic_json_write", _boom)
+
+    db.save_shared_config({"flag": True})  # must not raise
+
+
+def test_load_default_music_triggers_corrupt_returns_empty(db):
+    fpath = os.path.join(db.paths.marker_dir, CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME)
+    with open(fpath, "w") as f:
+        f.write("{not json")
+    assert db.load_default_music_triggers() == {}
+
+
+def test_save_default_music_triggers_creates_parent(tmp_path):
+    database = _make_db(str(tmp_path))
+    database.save_default_music_triggers({"r1": []})
+    assert database.load_default_music_triggers() == {"r1": []}
+
+
+def test_save_default_music_triggers_logs_write_error(db, monkeypatch):
+    def _boom(*args, **kwargs):
+        raise OSError("disk full")
+    monkeypatch.setattr("cue_lib.db._atomic_json_write", _boom)
+
+    db.save_default_music_triggers({"r1": []})  # must not raise

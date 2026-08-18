@@ -820,3 +820,91 @@ def test_query_matches_pipe_or_with_and_alternative():
 def test_query_matches_escaped_pipe_literal():
     assert _util._cue_query_matches("Mix|Take.wav", "mix\\|take")
     assert not _util._cue_query_matches("MixTake.wav", "mix\\|take")
+
+
+# ---------------------------------------------------------------------------
+# Branch tails -- error paths, Py2 unicode paths, dead-code fallbacks
+# ---------------------------------------------------------------------------
+
+def test_unwrap_displayable_target_callable_raises():
+    # A displayable whose _target() raises resolves to None -> break keeps d.
+    def _boom():
+        raise RuntimeError("boom")
+
+    outer = SimpleNamespace(_target=_boom)
+    assert _cue_unwrap_displayable(outer) is outer
+
+
+def test_atl_child_displayables_compile_ok_still_no_block():
+    # compile() succeeds but never populates .block: the None guard returns.
+    d = _atl.ATLTransformBase()
+    d.compile = lambda: None
+    assert _cue_atl_child_displayables(d) is None
+
+
+def test_atl_child_displayables_statement_missing_child():
+    # A Child with no .child attribute is skipped, not fatal.
+    d = _atl.ATLTransformBase()
+    d.block = SimpleNamespace(statements=[_atl.Child()])
+    assert _cue_atl_child_displayables(d) is None
+
+
+def test_to_str_py2_unicode_paths(monkeypatch):
+    # Ren'Py 7.x runs Python 2 where unicode is a real builtin; force the
+    # Py2 branches on Python 3 by pointing the module's unicode at a type
+    # whose instances carry .encode() like the real builtin.
+    class _Unicode(object):
+        def __init__(self, value):
+            self.value = value
+
+        def encode(self, encoding="utf-8"):
+            return self.value.encode(encoding)
+
+    monkeypatch.setattr(_util, "unicode", _Unicode, raising=False)
+    assert _util._to_str(_Unicode("hi")) == b"hi"
+    assert _util._to_str("hi") == "hi"
+    assert _util._to_str({"a": "x"}) == {"a": "x"}
+    assert _util._to_str(["x"]) == ["x"]
+    assert _util._to_str(42) == 42
+
+
+def test_unwrap_persistent_unicode_branch(monkeypatch):
+    monkeypatch.setattr(_util, "unicode", int, raising=False)
+    assert _cue_unwrap_persistent(42) == 42
+
+
+def test_compile_query_skips_empty_alternative():
+    match = _util._cue_compile_query("a|")
+    assert match("axx") is True
+    assert match("zzz") is False
+
+
+def test_parse_time_non_string_returns_none():
+    assert _cue_parse_time(123) is None
+
+
+def test_clear_debug_log_creates_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    _cue_clear_debug_log()  # dir missing -> makedirs; must not raise
+    assert (tmp_path / "renpy_cue" / "debug.log").exists()
+
+
+def test_clear_debug_log_swallows_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+
+    def _boom(path):
+        raise OSError("no perms")
+    monkeypatch.setattr(os, "makedirs", _boom)
+
+    _cue_clear_debug_log()  # must not raise
+
+
+def test_screenshake_swallows_inner_error(monkeypatch):
+    # A partial-shaped object whose func access raises is swallowed.
+    class _BrokenPartial(object):
+        pass
+
+    monkeypatch.setattr(functools, "partial", _BrokenPartial)
+    assert _cue_is_screenshake(_BrokenPartial()) is False
