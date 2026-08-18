@@ -21,4 +21,3 @@ from . import text
 from . import game
 from . import curry
 from . import focus
-from . import render

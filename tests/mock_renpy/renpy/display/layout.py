@@ -6,7 +6,11 @@ class Container(object):
     """Stub base class for layout containers."""
 
     def __init__(self, *args, **kwargs):
-        pass
+        self.children = []
+        self.offsets = []
+
+    def add(self, child):
+        self.children.append(child)
 
 
 class DynamicDisplayable(Container):

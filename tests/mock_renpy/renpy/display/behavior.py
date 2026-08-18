@@ -6,7 +6,10 @@ class Button(object):
     """Stub for Button displayables."""
 
     def __init__(self, *args, **kwargs):
-        pass
+        self.children = []
+
+    def add(self, child):
+        self.children.append(child)
 
 
 def clear_keymap_cache():

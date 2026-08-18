@@ -8,6 +8,10 @@ gamedir = ""
 # probe in runtime._cue_confirm_shared_dir).
 save_directory = "save"
 
+# Viewport size -- CueTooltip / CuePopper clamp against these.
+screen_width = 1280
+screen_height = 720
+
 keymap = {}
 screen = {}
 overlay_screens = []

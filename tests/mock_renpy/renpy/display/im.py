@@ -24,3 +24,7 @@ class matrix(object):
 
     def identity(self):
         return self
+
+    @classmethod
+    def colorize(cls, black, white):
+        return cls()
