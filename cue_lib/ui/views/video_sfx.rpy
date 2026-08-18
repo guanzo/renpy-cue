@@ -52,11 +52,11 @@ screen cue_video_sfx():
                 use cue_txt_button("Repeat Markers", Function(_cue.repeater.open),
                     tt="Repeat selected markers at regular intervals across the video")
                 use cue_icon("circle-question",
-                    ("• Markers and marker groups are draggable.\n"
-                    + "• (Shift + Click) or (Alt + Click) to create a marker group.\n"
+                    tt=("• Markers and marker groups are draggable.\n\n"
+                    + "• (Shift + Click) or (Alt + Click) to create a marker group.\n\n"
                     + "• (Alt + Shift + Click) selects every marker that continues "
-                    + "the interval between the active marker and the clicked marker.\n"
-                    + "• Use \"Repeat Markers\" to copy selected markers at an interval.\n"
+                    + "the interval between the active marker and the clicked marker.\n\n"
+                    + "• Use \"Repeat Markers\" to copy selected markers at an interval.\n\n"
                     + "• Get your markers timed to the first \"beat\", then use "
                     + "\"Repeat Markers\" to find to right interval."),
                     size=14)

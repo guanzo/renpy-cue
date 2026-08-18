@@ -134,12 +134,14 @@ transform cue_icon_fade:
     on idle:
         linear 0.1 alpha 0.5
 
-screen cue_icon(label, tt=None, action=NullAction(), icon_color=None, size=12):
+screen cue_icon(label, action=NullAction(), tt=None, icon_color=None, size=12):
     style_group "cue"
 
     $ _icon = _cue.icons.displayable_for(label, icon_color, size)
     button:
         style "empty"
+        xalign 0.5
+        yalign 0.5
         padding (0, 0)
         background None
         hover_background None

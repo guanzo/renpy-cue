@@ -64,13 +64,12 @@ screen cue_settings_keybinds():
                         tt=_kb["desc"],
                         ysize=16,
                     )
-                    use cue_icon_btn(
-                        "rotate-left",
-                        Function(_cue_keybind_reset, _kb["id"]),
-                        "Reset to default",
-                        None,
-                        enabled=(not _is_default),
-                    )
+                    if not _is_default:
+                        use cue_icon(
+                            "rotate-left",
+                            action=Function(_cue_keybind_reset, _kb["id"]),
+                            tt="Reset to default",
+                        )
 
 
 # -----------------------------------------------------------------------------
