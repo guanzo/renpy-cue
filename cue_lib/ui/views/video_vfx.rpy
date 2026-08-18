@@ -7,6 +7,8 @@
 # Inner vbox for the edit queue — extracted so the parent can conditionally
 # wrap it in a viewport when there are more than 6 jobs.
 screen _cue_edit_queue_vbox():
+    style_group "cue"
+
     vbox:
         spacing 3
         text "Edit Queue" style "cue_text" size 14 bold True
@@ -43,6 +45,8 @@ screen _cue_edit_queue_vbox():
                         Function(_cue.video_editor.job_queue.retry, job.job_id))
 
 screen cue_video_vfx():
+    style_group "cue"
+
     $ _vfx_tt = ("Video SFX markers on the original video (1.0x) will autoscale "
             "to all created videos.")
     use cue_section_frame("Video VFX", tt=_vfx_tt):

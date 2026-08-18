@@ -39,6 +39,7 @@ init python:
         return 1.0
 
 screen cue_overlay():
+    style_group "cue"
 
     zorder 9999
     modal False
@@ -78,6 +79,8 @@ screen cue_overlay():
 # =============================================================================
 
 screen cue_overlay_content():
+    style_group "cue"
+
     # SFX context flags -- same derivation as cue_sfx_page. Needed by the
     # floating SFX library below (overlay mode), which doesn't run sfx_page.
     $ _is_video = _cue.top_layer_type == 'movie'
@@ -127,6 +130,8 @@ screen cue_overlay_content():
                     use cue_sfx_library(_is_video, _has_image, _is_dialogue)
 
 screen cue_header_toolbar():
+    style_group "cue"
+
     $ _toggle_on_tt = "SFX triggers are ON (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_ACTIVE) + " to toggle)"
     $ _toggle_off_tt = "SFX triggers are OFF (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_ACTIVE) + " to toggle)"
     $ _copy_tt = "Copy current config (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_COPY_CONTEXT) + ")"
@@ -196,6 +201,8 @@ transform cue_speed_toast_fade(duration=CUE_TOAST_DURATION):
     linear CUE_TOAST_FADE_DURATION alpha 0.0
 
 screen cue_speed_toast():
+    style_group "cue"
+
     zorder 10001
     hbox:
         at cue_speed_toast_fade(_cue.speed_toast.toast_duration)

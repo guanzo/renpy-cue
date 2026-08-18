@@ -138,6 +138,7 @@ Import into store via `cue_z.rpy` init -999 so `.rpy` screens can use them.
 - **Encapsulate features as classes.** When adding a new UI component, dialog, or feature, create a dedicated class that owns its state, logic, and screen hooks. Prefer `_cue.thing = ThingManager()` over scattered `_cue._thing_var1`, `_cue._thing_var2` and global `_cue_do_thing()` functions.
 - **One class, one file** in `cue_lib/` when the class is substantial enough to stand alone (e.g. `repeater.py` for `CueMarkerRepeater`, `volume.py` for `CueVolumeManager`).
 - **Screen code** lives in `cue_lib/ui/*.rpy` (screens + styles). The manager classes in `cue_lib/*.py` handle `renpy.show_screen`/`hide_screen` and provide callable methods for `Function()` screen actions.
+- **`style_group "cue"`** is the first line of every `screen` definition that renders displayables (frame, button, textbutton, hbox, text, etc.), followed by a blank line. Screens that only contain `use <screen>` statements (or only `key`/`timer`) omit it.
 - **Bootstrap** lives in `cue_lib/cue_z.rpy` (python early import-path setup + sl-displayable registration + init blocks for bridge + callbacks). All other `.rpy` files under `src/` have been deleted. See `cue_lib/*.pyi` for type stubs.
 - **Ren'Py constraint**: `Function()` in screen actions can only reference module-level Python objects (no lambdas/closures), so the class instance must be reachable at a stable path — typically as an attribute of `_cue` (the `NoRollback` singleton).
 

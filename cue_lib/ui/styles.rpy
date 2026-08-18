@@ -115,7 +115,14 @@ style cue_input is cue_text:
     yanchor 0.5
     adjust_spacing False
 
+style cue_hbox is empty:
+    spacing 5
+    box_wrap True
+    box_wrap_spacing 3
 
+style cue_vbox is empty:
+    spacing 5
+    
 style cue_vscrollbar is empty:
     xsize 6
     base_bar Solid(_cue_color_bg_scrollbar)

@@ -3,6 +3,8 @@
 ###############################################################################
 
 screen cue_sfx_page():
+    style_group "cue"
+
     # --- Mode detection ---
     $ _is_video = _cue.top_layer_type == 'movie'
 

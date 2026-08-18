@@ -3,6 +3,8 @@
 ###############################################################################
 
 screen cue_settings_page():
+    style_group "cue"
+
     frame:
         background _cue_color_bg_overlay
         padding (0, 0)
@@ -21,6 +23,8 @@ screen cue_settings_page():
             use cue_settings_keybinds()
 
 screen cue_data_dir():
+    style_group "cue"
+
     use cue_section_frame("Data Folder"):
         vbox:
             spacing 8
@@ -38,6 +42,8 @@ screen cue_data_dir():
 
 
 screen cue_settings_keybinds():
+    style_group "cue"
+
     use cue_section_frame("Keybinds"):
         grid 2 len(_cue.keybinds.visible_actions()):
             spacing 10
@@ -78,6 +84,8 @@ screen cue_settings_keybinds():
 # -----------------------------------------------------------------------------
 
 screen cue_keybind_capture():
+    style_group "cue"
+
     zorder 10002
     modal True
     frame:

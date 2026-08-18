@@ -2,6 +2,8 @@
 # Music Page
 ###############################################################################
 screen grow_and_scroll(ymin=None, ymax=None, id=None):
+    style_group "cue"
+
     $ viewport_id = "grow_scroll_" + (id or str(renpy.random.random()))
 
     frame:
@@ -29,6 +31,8 @@ screen grow_and_scroll(ymin=None, ymax=None, id=None):
                     
 
 screen cue_music_page():
+    style_group "cue"
+
     vbox:
         spacing 5
         $ music_tt = (
@@ -103,6 +107,8 @@ screen cue_music_page():
                         use cue_music_tree()
 
 screen trigger_list(triggers):
+    style_group "cue"
+
     for trigger in triggers:
         null height 2
         button:
@@ -193,6 +199,8 @@ screen trigger_list(triggers):
 # the correct (user- vs game-music) data model, and clears can_add on the
 # synthetic "Game Music/" root.
 screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
+    style_group "cue"
+
     $ _tree_add_tt = "Add song to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
     $ _tree_add_folder_tt = "Add folder to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
     $ _tree_add_enabled = _cue.music.selected_key is not None
@@ -230,6 +238,8 @@ screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
 # Combined My/Game Music tree. One shared search bar filters both sources; the
 # combined manager's visible_tree holds the merged display rows.
 screen cue_music_tree():
+    style_group "cue"
+
     if _cue.music.library.search_query.strip() and not _cue.music.library.visible_tree:
         text 'No files found for "{}".'.format(_cue.music.library.search_query) style "cue_text"
     else:

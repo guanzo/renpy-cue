@@ -4,6 +4,8 @@
 ###############################################################################
 
 screen cue_video_sfx():
+    style_group "cue"
+
     use cue_section_frame("Video SFX"):
         $ _vid_name = _cue.current_file if _cue.current_file else "?"
         text "Video: [_vid_name]" style "cue_text"

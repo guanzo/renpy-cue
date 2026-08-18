@@ -4,6 +4,8 @@
 ###############################################################################
 
 screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
+    style_group "cue"
+
     $ _overlay_mode = _cue.sfx_manager.overlay_mode
     $ _ov_tt = "Overlay Mode\nWhen enabled, this section will float on top when expanded.\n"
     $ _ov_tt = _ov_tt + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX) + " to toggle expansion."
@@ -28,6 +30,8 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
             use cue_sfx_library_content(_is_video, _has_image, _is_dialogue)
 
 screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
+    style_group "cue"
+
     $ _q = _cue.sfx_manager.search_query
     $ _searching = bool(_q.strip())
     # Preset names, filtered by the search query so the preset sections join
@@ -72,6 +76,8 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
 # Audio preset rows, shown when the Presets folder is expanded.
 # name_filter: preset names to show (None = all); set by the search flow.
 screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue, name_filter=None):
+    style_group "cue"
+
     $ _names = name_filter if name_filter is not None else _cue.markers.list_presets()
     # Tooltip strings per marker type (screen-local).  The _*_tt_has variant
     # is shown once a pool exists; _*_tt_create until the first pool.
@@ -133,6 +139,8 @@ screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue, name_filter=N
 # Video preset rows, shown when the Video Presets folder is expanded.
 # name_filter: preset names to show (None = all); set by the search flow.
 screen cue_video_presets_list(_is_video, _has_image, _is_dialogue, name_filter=None):
+    style_group "cue"
+
     $ _names = name_filter if name_filter is not None else _cue.markers.list_video_presets()
     for _vpname in _names:
         $ _vpdata = _cue.markers.get_video_preset(_vpname)
@@ -169,6 +177,8 @@ screen cue_video_presets_list(_is_video, _has_image, _is_dialogue, name_filter=N
 
 # Folder/file rows for the current audio tree.
 screen cue_file_tree(_is_video, _has_image, _is_dialogue):
+    style_group "cue"
+
     # Tooltip strings per marker type (screen-local).  The _*_tt_has variant
     # is shown once a pool exists; _*_tt_create until the first pool.
     $ _vid_tt_create = "Create Video SFX pool at current timestamp and add files"

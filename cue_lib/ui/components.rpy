@@ -57,6 +57,8 @@ init -900 python:
 
 # Vertical divider: thin line for visual separation between controls.
 screen cue_v_divider(height=14, width=2, color=None):
+    style_group "cue"
+
     fixed:
         ysize height
         xsize width
@@ -64,15 +66,19 @@ screen cue_v_divider(height=14, width=2, color=None):
 
 # Horizontal divider: thin full-width line.
 screen cue_h_divider(color=None):
+    style_group "cue"
+
     add Solid(color or _cue_color_divider) ysize 1
 
 
 # Volume row: label + slider bar. Pass multi_setter (a callable taking the
 # new volume) to write to every selected pool during a video multi-select.
 screen cue_vol_row(label_text, entry_dict, key, multi_setter=None):
+    style_group "cue"
+
     hbox:
         spacing 3
-        text label_text style "cue_text" size 11
+        text label_text size 11
         bar:
             value _CueVolumeValue(entry_dict, "volume", key, multi_setter=multi_setter, range=_cue.volume.VOL_MAX)
             xsize 60
@@ -90,6 +96,8 @@ screen cue_vol_row(label_text, entry_dict, key, multi_setter=None):
 # 12px from a 32px source, dimmed via alpha when disabled); everything
 # else falls back to text.
 screen cue_icon_btn(label, action, tt=None, xsize=16, enabled=True, bg=None, icon_color=None):
+    style_group "cue"
+
     $ _icon = _cue.icons.displayable_for(label, icon_color) if _cue.icons is not None else None
     if _icon is not None:
         button:
@@ -127,6 +135,8 @@ transform cue_icon_fade:
         linear 0.1 alpha 0.5
 
 screen cue_icon(label, tt=None, action=NullAction(), icon_color=None, size=12):
+    style_group "cue"
+
     $ _icon = _cue.icons.displayable_for(label, icon_color, size)
     button:
         style "empty"
@@ -184,6 +194,8 @@ screen cue_tab_btn(label, selected, switch_action, tt=None):
 # display_text: the label shown on the textbutton
 screen cue_float_input(field_name, commit_action, display_text,
                        dec_action=None, inc_action=None):
+    style_group "cue"
+
     default editing = False
     hbox:
         spacing 3
@@ -213,6 +225,8 @@ screen cue_float_input(field_name, commit_action, display_text,
 # dec100/dec10/inc10/inc100_action: Function() called by nudge buttons
 screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
                       inc10_action, inc100_action, display_text):
+    style_group "cue"
+
     default editing = False
     hbox:
         spacing 3
@@ -242,6 +256,8 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
 #   mirrors its local editing flag there so a parent screen can show/hide
 #   sibling controls (e.g. the search bar's clear button while typing).
 screen cue_text_input(field_name, commit_action, display_text, xsize=None, editing_ref=None):
+    style_group "cue"
+
     default editing = False
     $ height = 16
     if editing_ref is not None:
@@ -270,6 +286,8 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=None, editi
             xsize=xsize, ysize=height, tt="Click to type. Enter to confirm.")
 
 screen cue_search_bar(field_path, manager, hint="Search..."):
+    style_group "cue"
+
     $ _q = manager.search_query
     $ _label = _q if _q.strip() else hint
     vbox:
@@ -332,6 +350,8 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
 screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
                             trigger_key, pool_index, folder_child_remove_fn,
                             folder_label, folder_children):
+    style_group "cue"
+
     vbox:
         spacing 2
         if folder_label is not None:
@@ -352,13 +372,13 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 for _child in folder_children:
                     hbox:
                         spacing row_spacing
-                        text "    " style "cue_text"  # indent
+                        text "    "
                         if folder_child_remove_fn is not None:
                             use cue_icon_btn("xmark",
                                 Function(folder_child_remove_fn, trigger_key, pool_index, 0, _child),
                                 "Remove file from pool", None)
                         use cue_icon_btn("play", Function(_cue_preview_sfx, _child, preview_vol), None, None)
-                        text _child style "cue_text" color _cue_color_text_accent size 11
+                        text _child color _cue_color_text_accent size 11
 
         for fi, f in enumerate(files):
             if f.endswith("/"):
@@ -379,26 +399,28 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                     for _child in _cue_resolve_files([f]):
                         hbox:
                             spacing row_spacing
-                            text "    " style "cue_text"  # indent
+                            text "    "  # indent
                             if folder_child_remove_fn is not None:
                                 use cue_icon_btn("xmark",
                                     Function(folder_child_remove_fn, trigger_key, pool_index, fi, _child),
                                     "Remove file from the folder", None)
                             use cue_icon_btn("play", Function(_cue_preview_sfx, _child, preview_vol), None, None)
                             $ _display = _child[len(f):]  # strip folder prefix
-                            text _display style "cue_text" color _cue_color_text_accent size 11
+                            text _display color _cue_color_text_accent size 11
             else:
                 # --- Regular file ---
                 hbox:
                     spacing row_spacing
                     use cue_icon_btn("xmark", _cue_make_tab_action(remove_fn, remove_args, fi), None, None)
                     use cue_icon_btn("play", Function(_cue_preview_sfx, f, preview_vol), None, None)
-                    text f style "cue_text" color _cue_color_text_accent size 11
+                    text f color _cue_color_text_accent size 11
 
 # Scrollable file list: only wraps in a viewport when content exceeds ~6 rows (120 px).
 screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
                      trigger_key=None, pool_index=None, folder_child_remove_fn=None,
                      folder_label=None, folder_children=None):
+    style_group "cue"
+
     $ _rows = _cue.sfx_manager.count_file_list_rows(folder_label, folder_children, files)
     if _rows > 6:
         viewport:
@@ -429,6 +451,8 @@ style cue_section_hdr_btn is empty:
 # Click the header to collapse/expand the section content.
 # tt: optional string shown on a "?" icon left of the arrow (None to skip).
 screen cue_section_frame(header_text, tt=None, icons=[]):
+    style_group "cue"
+
     $ _collapsed = _cue.collapsed_sections.get(header_text, False)
     $ _arrow_icon = "chevron-right" if _collapsed else "chevron-down"
     $ _arrow = _cue.icons.displayable_for(_arrow_icon)
@@ -483,6 +507,8 @@ screen cue_section_frame(header_text, tt=None, icons=[]):
 #             frequency selector, exclusive controls). Each transcluded
 #             section resolves its own active pool via ctx.get_active_pool().
 screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_letter, description=None):
+    style_group "cue"
+
     $ _entry = _cue.markers.get(key, {})
     $ _pools = _entry.get("pools", [])
     $ _target = ctx.get_active()
@@ -625,6 +651,8 @@ screen notification(text,
                     text_color=_cue_color_text,
                     icon=None,
                     icon_color=None):
+    style_group "cue"
+
     $ _icon = _cue.icons.displayable_for(icon, icon_color)
     $ _icon_close = _cue.icons.displayable_for("circle-xmark")
 
@@ -682,6 +710,8 @@ screen notification(text,
 #             bg=_bg, hover_bg=_hover_bg):
 #         use cue_txt_button(_label, NullAction(), bg="#00000000", sensitive=False)
 screen cue_popper_anchor(name, hover_fn, action=NullAction(), bg=None, hover_bg=None):
+    style_group "cue"
+
     button:
         style "empty"
         padding (0, 0)

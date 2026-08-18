@@ -4,6 +4,8 @@
 ###############################################################################
 
 screen cue_repeat_markers_dialog():
+    style_group "cue"
+
     # _sync_tracked() runs from render/tick contexts and only flips
     # dialog_visible when the preview session must end (anchor deleted,
     # markers cleared). Hide the screen itself on the next interaction.
@@ -80,6 +82,8 @@ screen cue_repeat_markers_dialog():
 
 
 screen cue_save_preset_dialog():
+    style_group "cue"
+
     $ _d = _cue.preset_dialog
     $ _entry = _cue.markers.get(_d.trigger_key) if _d.trigger_key else None
     $ _pools = _entry.get("pools", []) if _entry else []
@@ -135,6 +139,8 @@ screen cue_save_preset_dialog():
 
 
 screen cue_save_video_preset_dialog():
+    style_group "cue"
+
     $ _d = _cue.video_preset_dialog
     $ _vid_key = _cue_create_vid_key(_cue.current_file) if _cue.current_file else ""
     $ _entry = _cue.markers.get(_vid_key, {}) if _vid_key else {}
@@ -202,6 +208,8 @@ screen cue_save_video_preset_dialog():
 
 
 screen cue_confirm_dialog():
+    style_group "cue"
+
     $ _d = _cue.confirm_dialog
     key "K_RETURN" action [Function(_d.hide)] + ([_d.on_confirm] if _d.on_confirm else [])
     key "K_KP_ENTER" action [Function(_d.hide)] + ([_d.on_confirm] if _d.on_confirm else [])
