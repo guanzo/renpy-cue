@@ -112,6 +112,29 @@ testcase audio_presets_list:
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
+testcase sfx_recently_used:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _ok = _cue.sfx_manager._recent.entries() == []
+    $ _ok = _ok and not _cue.sfx_manager._recent.expanded
+    run Function(_cue.markers.image.send_file, 0)
+    $ _ok = _ok and _cue.sfx_manager._recent.entries() == [{"type": "file", "ref": _cue.sfx_manager.files[0]}]
+    $ _ok = _ok and _cue.sfx_manager._recent.expanded
+    run Function(_cue.markers.image.send_folder, "Sub/")
+    $ _ok = _ok and _cue.sfx_manager._recent.entries()[0] == {"type": "folder", "ref": "Sub/"}
+    $ _ok = _ok and len(_cue.sfx_manager._recent.entries()) == 2
+    run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    run Function(_cue.markers.image.send_preset, "Test Preset")
+    $ _ok = _ok and len(_cue.sfx_manager._recent.entries()) == 3
+    run Function(_cue.markers.image.send_preset, "Test Preset")
+    $ _ok = _ok and len(_cue.sfx_manager._recent.entries()) == 3
+    $ _ok = _ok and _cue.sfx_manager._recent.entries()[0] == {"type": "preset", "ref": "Test Preset"}
+    run Function(_cue_set_page, CuePage.SFX)
+    pause 0.5
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
 testcase video_movie_detected:
     $ _cue.is_overlay_visible = True
     run Jump("start")

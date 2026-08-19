@@ -63,6 +63,14 @@ export RENPY_CUE_DIR="${RENPY_CUE_DIR:-$ROOT/tests/fixtures/data}"
 rm -rf "$RENPY_CUE_DIR/data" "$RENPY_CUE_DIR/backups" "$RENPY_CUE_DIR/video"
 rm -rf "$GAME/game/saves"
 
+# Point saves + persistent at the wiped game/saves dir.  Without --savedir,
+# save_directory sends persistent to the user-data dir (~/.renpy/...), which
+# survives the wipe above and accumulates residue across local runs.  --savedir
+# is applied before savelocation.init() -- options.rpy init code runs after it,
+# so a game-side config override can't redirect persistent.  It must precede the
+# basedir positional: 7.x argparse drops it otherwise ("unrecognized arguments").
+SAVEDIR="$GAME/game/saves"
+
 echo "[cue] runtime: $DSL testcases DSL ($LAUNCHER)"
 
 # Headless by default: a local run shouldn't pop a window that steals focus.
@@ -96,7 +104,7 @@ if [ "$DSL" = "legacy" ]; then
     for name in $NAMES; do
         echo "[cue] running testcase: $name"
         rm -f "$MOD/debug.log"
-        if ! $RUN_PREFIX "$LAUNCHER" "$GAME" test "$name"; then
+        if ! $RUN_PREFIX "$LAUNCHER" --savedir "$SAVEDIR" "$GAME" test "$name"; then
             echo "[cue] testcase FAILED: $name" >&2
             if [ -f "$MOD/debug.log" ]; then
                 echo "[cue] renpy_cue/debug.log:" >&2
@@ -111,7 +119,7 @@ fi
 # 8.x: one suite run. The test `exit` statement raises QuitException so the
 # process exits 0 regardless of pass/fail -- parse the reporter summary.
 LOG="$(mktemp -t cue_testcases.XXXXXX.log)"
-$RUN_PREFIX "$LAUNCHER" "$GAME" test "$@" > "$LOG" 2>&1 || true
+$RUN_PREFIX "$LAUNCHER" --savedir "$SAVEDIR" "$GAME" test "$@" > "$LOG" 2>&1 || true
 cat "$LOG"
 
 if grep -q "Status: PASSED" "$LOG"; then

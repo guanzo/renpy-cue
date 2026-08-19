@@ -72,6 +72,7 @@ class CueMarkerManager(object):
         self.video = CueVideoContext(self)  # pyright: ignore[reportArgumentType]
         self.loop = CueLoopContext(self)  # pyright: ignore[reportArgumentType]
         self.clipboard = None
+        self._recent = None  # CueRecentManager, wired after construction
 
     # -- read-through to the store (legacy consumers read AND write these) --
     # Setters keep undo._restore() (which swaps the whole dicts) and

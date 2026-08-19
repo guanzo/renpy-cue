@@ -43,6 +43,7 @@ class CueAudioTreeManager(object):
     _auto_expand_roots = False
 
     def __init__(self):
+        self._recent = None         # CueRecentManager, wired after construction
         self.files = []             # flat sorted relative paths
         self._file_index = {}       # path -> position in files (rebuilt in scan)
         self.tree = []              # nested folder/file nodes from _cue_build_tree
@@ -175,6 +176,10 @@ class CueAudioTreeManager(object):
             self.search_query = ""
             self._search_applied = ""
             self.rebuild_tree()
+            # Clearing a search restores the Recently Used list's own
+            # expand state (it force-expands while searching).
+            if self._recent is not None:
+                self._recent.on_search_clear()
 
     def maybe_rebuild(self):
         # type: () -> None

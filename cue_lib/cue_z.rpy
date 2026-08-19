@@ -146,6 +146,8 @@ init -900 python:
     from cue_lib.video.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
     from cue_lib.video.auto_speed import CueAutoSpeedGenerator
     from cue_lib.audio.sfx_manager import CueSfxManager
+    from cue_lib.audio.recent import CueRecentManager, _cue_keep_sfx
+    from cue_lib.constants import CUE_RECENT_SFX_KEY
     from cue_lib.ui.icons import CueIconManager
     from cue_lib.ui.dialogs import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
     from cue_lib.db import CueDatabase
@@ -206,6 +208,17 @@ init -900 python:
             sfx_manager, trigger, video_editor,
             confirm_dialog)
 
+        # The "Recently Used" list records SFX send_* attempts (the context
+        # hooks into markers._recent) and re-expands on search-clear (the tree
+        # hooks into sfx_manager._recent).  Built after markers because its
+        # prune existence check reads both sfx_manager.files and
+        # markers.list_presets() at call time.
+        recent = CueRecentManager(
+            CUE_RECENT_SFX_KEY,
+            lambda kind, ref: _cue_keep_sfx(kind, ref, sfx_manager.files, markers.list_presets()))
+        markers._recent = recent
+        sfx_manager._recent = recent
+
         _cue.paths = paths
         _cue.db = db
         _cue.marker_store = marker_store
@@ -228,6 +241,7 @@ init -900 python:
         _cue.icons = icons
         _cue.music = music
         _cue.markers = markers
+        _cue.recent = recent
 
     _cue_wire_managers()
 
@@ -367,6 +381,11 @@ init 999 python:
         _cue.undo.seed()  # seed undo baseline after initial load
         _cue.speed_resolver.wrap_all_movies()
         _cue.sfx_manager.scan()
+        # Hydrate the "Recently Used" list once the SFX scan populated
+        # sfx_manager.files and marker presets are loaded (both are checked by
+        # prune), then drop refs that no longer exist.
+        _cue.recent.load()
+        _cue.recent.prune()
         _cue.music.user_music.scan()
         _cue.music.game_music.scan()
         _cue.music.install()

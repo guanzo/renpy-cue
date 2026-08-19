@@ -1,5 +1,7 @@
 # Type stub for cue_lib.audio.audio_tree
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
+
+from cue_lib.audio.recent import CueRecentManager
 
 CUE_SEARCH_MAX_ROWS: int
 
@@ -15,6 +17,7 @@ class CueAudioTreeManager:
     search_is_editing: bool
     _search_applied: str
     _has_expanded_roots: bool
+    _recent: Optional[CueRecentManager]
 
     def __init__(self) -> None: ...
     def scan(self) -> None: ...

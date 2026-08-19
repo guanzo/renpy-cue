@@ -94,6 +94,13 @@ CUE_SFX_LIBRARY_HEADER = "SFX Library"
 # Ren'Py officially supported formats.
 CUE_AUDIO_EXTS = (".ogg", ".mp3", ".wav", ".opus")
 
+# Maximum entries in a "Recently Used" list (SFX library; later, music).
+CUE_RECENT_MAX_ENTRIES = 8
+
+# persistent._cue key for the SFX "Recently Used" list.  Music gets its own
+# key (recent_music_entries) so the two type-spaces never collide.
+CUE_RECENT_SFX_KEY = "recent_entries"
+
 # Directory-name heuristic for Game Music discovery: a game file whose path
 # contains one of these segments (case-insensitive) is classified as music.
 # Shared with the Music page's empty-state text.

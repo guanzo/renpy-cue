@@ -65,18 +65,31 @@ class CueMarkerContext(object):
         if _cue_shift_held():
             self.add_pool()
         self.add_file(file_index)
+        # Record on attempt (send_* is the "user asked for this" seam); a
+        # disabled or out-of-range file still counts as an attempt, but one
+        # we cannot resolve to a path does not.
+        if 0 <= file_index < len(self._mgr._sfx_manager.files):
+            self._record_use("file", self._mgr._sfx_manager.files[file_index])
 
     def send_folder(self, folder_path):
         # type: (str) -> None
         if _cue_shift_held():
             self.add_pool()
         self.add_folder(folder_path)
+        self._record_use("folder", folder_path.rstrip("/") + "/")
 
     def send_preset(self, preset_name):
         # type: (str) -> None
         if _cue_shift_held():
             self.add_pool()
         self.apply_preset(preset_name)
+        self._record_use("preset", preset_name)
+
+    def _record_use(self, kind, ref):
+        # type: (str, str) -> None
+        recent = self._mgr._recent
+        if recent is not None:
+            recent.record(kind, ref)
 
     def remove_file(self, pool_index, file_index):
         # type: (int, int) -> None
@@ -497,6 +510,7 @@ class CueVideoContext(CueMarkerContext):
             self.apply_preset(preset_name)
         else:
             self.apply_preset_active(preset_name)
+        self._record_use("preset", preset_name)
 
     def remove_pool(self, pool_index):
         # type: (int) -> None

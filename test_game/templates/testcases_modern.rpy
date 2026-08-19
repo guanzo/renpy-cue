@@ -77,6 +77,30 @@ testcase audio_presets_list:
     assert eval ("Test Preset" in _cue.markers.list_presets())
     assert eval (_cue.markers.get_preset("Test Preset")["files"] == ["sfx_001.ogg"])
 
+testcase sfx_recently_used:
+    run Jump("start")
+    # Wired and empty on a fresh game (harness wipes saves/persistent).
+    assert eval (_cue.sfx_manager._recent is not None)
+    assert eval (_cue.sfx_manager._recent.entries() == [])
+    assert eval (not _cue.sfx_manager._recent.expanded)
+    # A file send records the resolved path and expands the list.
+    run Function(_cue.markers.image.send_file, 0)
+    assert eval (_cue.sfx_manager._recent.entries() == [{"type": "file", "ref": _cue.sfx_manager.files[0]}])
+    assert eval (_cue.sfx_manager._recent.expanded)
+    # A folder send normalizes its ref and bumps to front.
+    run Function(_cue.markers.image.send_folder, "Sub/")
+    assert eval (_cue.sfx_manager._recent.entries()[0] == {"type": "folder", "ref": "Sub/"})
+    assert eval (len(_cue.sfx_manager._recent.entries()) == 2)
+    # A preset send records; repeating it bumps without duplicating.
+    run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    run Function(_cue.markers.image.send_preset, "Test Preset")
+    assert eval (len(_cue.sfx_manager._recent.entries()) == 3)
+    run Function(_cue.markers.image.send_preset, "Test Preset")
+    assert eval (len(_cue.sfx_manager._recent.entries()) == 3)
+    assert eval (_cue.sfx_manager._recent.entries()[0] == {"type": "preset", "ref": "Test Preset"})
+    # Render the SFX page so the Recently Used row compiles and displays.
+    run Function(_cue_set_page, CuePage.SFX)
+
 testcase video_movie_detected:
     run Jump("start")
     $ renpy.show("cuevid")

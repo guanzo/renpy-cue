@@ -40,6 +40,9 @@ class FakeManager(object):
         self._sfx_manager = FakeSfxManager()
         self._vid_manager = FakeVidManager()
         self._presets = {}   # type: dict
+        self._recent = None  # type: Optional[FakeRecent]  # set by recording tests
+        self.added_files = []    # type: list
+        self.stamped_presets = []  # type: list
 
     def get(self, key, default=None):
         return self._data.get(key, default)
@@ -59,6 +62,18 @@ class FakeManager(object):
             entry = {"pools": []}
             self._data[trigger_key] = entry
         return entry
+
+    def _add_file_to_pool(self, key, filename, pool_index):
+        self.added_files.append((key, filename, pool_index))
+
+    def _ensure_pool(self, key, pool_index):
+        entry = self._get_or_create_entry(key)
+        while len(entry["pools"]) <= pool_index:
+            entry["pools"].append({"files": []})
+        return entry["pools"][pool_index]
+
+    def _stamp_preset(self, key, preset_name, pool_index):
+        self.stamped_presets.append((key, preset_name, pool_index))
 
     def _detach_pool(self, trigger_key, pool_index):
         entry = self._data.get(trigger_key)
@@ -117,6 +132,16 @@ class FakeDb(object):
     def save_shared_config(self, data):
         self.shared = data
         self.saved.append(data)
+
+
+class FakeRecent(object):
+    """Recent-manager stand-in: records record() calls as (kind, ref) tuples."""
+
+    def __init__(self):
+        self.calls = []
+
+    def record(self, kind, ref):
+        self.calls.append((kind, ref))
 
 
 class FakeExclusive(object):

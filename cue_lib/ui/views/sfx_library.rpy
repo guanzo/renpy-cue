@@ -50,6 +50,19 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
         vscrollbar_unscrollable "hide"
         vbox:
             spacing 2
+            $ _recent = _cue.sfx_manager._recent
+            if _recent is not None:
+                $ _recent_entries = _recent.entries()
+                if _searching:
+                    $ _recent_entries = [e for e in _recent_entries if _cue_query_matches(e["ref"], _q)]
+                if not _searching or _recent_entries:
+                    hbox:
+                        spacing 2
+                        use cue_txt_button("Recently Used/", Function(_recent.toggle))
+
+                    if _recent.expanded or _searching:
+                        use cue_recent_list(_is_video, _has_image, _is_dialogue, _recent_entries)
+
             if not _searching or _preset_names:
                 hbox:
                     spacing 2
@@ -70,6 +83,98 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
                 text 'No files found for "{}".'.format(_q)
             else:
                 use cue_file_tree(_is_video, _has_image, _is_dialogue)
+
+
+# Recently Used rows, shown when the Recently Used folder is expanded.
+# entries: filtered recent-entry dicts {type, ref}, most-recent-first.
+# File/folder rows reuse the tree's add-file tooltips; preset rows reuse the
+# preset list's apply-preset tooltips.
+screen cue_recent_list(_is_video, _has_image, _is_dialogue, entries):
+    style_group "cue"
+
+    # Tooltip strings per marker type (screen-local).  _f*_tt is the add-file
+    # semantics (same text as the file tree rows); _p*_tt the apply-preset
+    # semantics (same text as the preset list rows).
+    $ _fvid_create = "Create Video SFX pool at current timestamp and add files"
+    $ _fvid_tt = "Click: Add files to active Video SFX pool\nShift+Click: " + _fvid_create
+    $ _fimg_create = "Create Image SFX pool and add files"
+    $ _fimg_tt = "Click: Add files to active Image SFX pool\nShift+Click: " + _fimg_create
+    $ _fdlg_create = "Create Dialogue SFX pool and add files"
+    $ _fdlg_tt = "Click: Add files to active Dialogue SFX pool\nShift+Click: " + _fdlg_create
+    $ _floop_create = "Create Loop SFX pool and add files"
+    $ _floop_tt = "Click: Add files to active Loop SFX pool\nShift+Click: " + _floop_create
+    $ _pvid_create = "Create pool at current timestamp and apply preset"
+    $ _pvid_tt = "Click: Apply preset to active Video SFX pool\nShift+Click: " + _pvid_create
+    $ _pimg_create = "Create Image SFX pool and apply preset"
+    $ _pimg_tt = "Click: Apply preset to active Image SFX pool\nShift+Click: " + _pimg_create
+    $ _pdlg_create = "Create Dialogue SFX pool and apply preset"
+    $ _pdlg_tt = "Click: Apply preset to active Dialogue SFX pool\nShift+Click: " + _pdlg_create
+    $ _ploop_create = "Create Loop SFX pool and apply preset"
+    $ _ploop_tt = "Click: Apply preset to active Loop SFX pool\nShift+Click: " + _ploop_create
+
+    for _re in entries:
+        hbox:
+            spacing 2
+            text "  "  # indent under Recently Used/
+            if _re["type"] == "file":
+                $ _re_idx = _cue.sfx_manager._file_index.get(_re["ref"], -1)
+                $ _re_ok = _re_idx >= 0
+                use cue_icon_btn("play", Function(_cue_preview_sfx, _re["ref"]), "Preview audio", None)
+                use cue_icon_btn(
+                    "V",
+                    Function(_cue.markers.video.send_file, _re_idx),
+                    _fvid_tt, None, enabled=(_is_video and _re_ok))
+                use cue_icon_btn(
+                    "I",
+                    Function(_cue.markers.image.send_file, _re_idx),
+                    _fimg_tt, None, enabled=(_has_image and _re_ok))
+                use cue_icon_btn(
+                    "D",
+                    Function(_cue.markers.dialogue.send_file, _re_idx),
+                    _fdlg_tt, None, enabled=(_is_dialogue and _re_ok))
+                use cue_icon_btn("L", Function(_cue.markers.loop.send_file, _re_idx), _floop_tt, None, enabled=_re_ok)
+                null width 2
+                text _re["ref"] color _cue_color_text_accent
+            elif _re["type"] == "folder":
+                use cue_icon_btn(
+                    "play",
+                    Function(_cue_preview_folder, _re["ref"]),
+                    "Play random file from folder", None)
+                use cue_icon_btn(
+                    "V",
+                    Function(_cue.markers.video.send_folder, _re["ref"]),
+                    _fvid_tt, None, enabled=_is_video)
+                use cue_icon_btn(
+                    "I",
+                    Function(_cue.markers.image.send_folder, _re["ref"]),
+                    _fimg_tt, None, enabled=_has_image)
+                use cue_icon_btn(
+                    "D",
+                    Function(_cue.markers.dialogue.send_folder, _re["ref"]),
+                    _fdlg_tt, None, enabled=_is_dialogue)
+                use cue_icon_btn("L", Function(_cue.markers.loop.send_folder, _re["ref"]), _floop_tt, None)
+                null width 2
+                text _re["ref"] color _cue_color_text_accent
+            else:  # preset
+                use cue_icon_btn(
+                    "play",
+                    Function(_cue_preview_preset, _re["ref"]),
+                    "Play random file from preset", None)
+                use cue_icon_btn(
+                    "V",
+                    Function(_cue.markers.video.send_preset, _re["ref"]),
+                    _pvid_tt, None, enabled=_is_video)
+                use cue_icon_btn(
+                    "I",
+                    Function(_cue.markers.image.send_preset, _re["ref"]),
+                    _pimg_tt, None, enabled=_has_image)
+                use cue_icon_btn(
+                    "D",
+                    Function(_cue.markers.dialogue.send_preset, _re["ref"]),
+                    _pdlg_tt, None, enabled=_is_dialogue)
+                use cue_icon_btn("L", Function(_cue.markers.loop.send_preset, _re["ref"]), _ploop_tt, None)
+                null width 2
+                text _re["ref"] color _cue_color_text_accent
 
 
 # Audio preset rows, shown when the Presets folder is expanded.
