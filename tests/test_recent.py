@@ -10,7 +10,10 @@ import pytest
 
 from renpy.store import persistent
 
-from cue_lib.audio.recent import CueRecentManager, _cue_keep_sfx
+from cue_lib.audio.music import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
+from cue_lib.audio.recent import (
+    CueRecentManager, _cue_keep_music, _cue_keep_sfx,
+)
 from cue_lib.constants import CUE_RECENT_MAX_ENTRIES
 
 
@@ -159,3 +162,53 @@ def test_keep_sfx_file_folder_preset():
     assert _cue_keep_sfx("preset", "Hurt", files, presets)
     assert not _cue_keep_sfx("preset", "Nope", files, presets)
     assert not _cue_keep_sfx("bogus", "x", files, presets)
+
+
+# ---------------------------------------------------------------------------
+# Music existence check (_cue_keep_music)
+# ---------------------------------------------------------------------------
+
+def _music_files(files):
+    return type("FakeMusicFiles", (object,), {"files": list(files)})()
+
+
+def test_keep_music_file_user():
+    user = _music_files(["music/song.ogg"])
+    game = _music_files([])
+    assert _cue_keep_music("file", CUE_MUSIC_USER_TAG + "music/song.ogg", user, game)
+    assert not _cue_keep_music("file", CUE_MUSIC_USER_TAG + "music/miss.ogg", user, game)
+
+
+def test_keep_music_file_game():
+    user = _music_files([])
+    game = _music_files(["bgm/x.ogg"])
+    assert _cue_keep_music("file", CUE_MUSIC_GAME_TAG + "bgm/x.ogg", user, game)
+    assert not _cue_keep_music("file", CUE_MUSIC_GAME_TAG + "bgm/nope.ogg", user, game)
+
+
+def test_keep_music_folder_user():
+    user = _music_files(["music/sub/a.ogg"])
+    game = _music_files([])
+    assert _cue_keep_music("folder", CUE_MUSIC_USER_TAG + "music/sub/", user, game)
+    assert not _cue_keep_music("folder", CUE_MUSIC_USER_TAG + "music/other/", user, game)
+
+
+def test_keep_music_folder_game():
+    user = _music_files([])
+    game = _music_files(["bgm/loop/a.ogg"])
+    assert _cue_keep_music("folder", CUE_MUSIC_GAME_TAG + "bgm/", user, game)
+    assert not _cue_keep_music("folder", CUE_MUSIC_GAME_TAG + "ost/", user, game)
+
+
+def test_keep_music_untagged_checks_both():
+    user = _music_files(["music/a.ogg"])
+    game = _music_files(["music/b.ogg"])
+    assert _cue_keep_music("file", "music/a.ogg", user, game)
+    assert _cue_keep_music("file", "music/b.ogg", user, game)
+    assert not _cue_keep_music("file", "music/c.ogg", user, game)
+
+
+def test_keep_music_unknown_kind_never_kept():
+    user = _music_files(["music/a.ogg"])
+    game = _music_files([])
+    assert not _cue_keep_music("preset", CUE_MUSIC_USER_TAG + "music/a.ogg", user, game)

@@ -90,6 +90,25 @@ screen cue_music_page():
                 vscrollbar_unscrollable "hide"
                 vbox:
                     spacing 5
+                    # "Recently Used/" at the top of the music content.  Rows
+                    # preview/add the same display paths as the tree; search
+                    # filters them on that display path too, and clearing a
+                    # search re-expands the list (library.clear_search).
+                    $ _mrecent = _cue.music_recent
+                    if _mrecent is not None:
+                        $ _mq = _cue.music.library.search_query
+                        $ _msearching = bool(_mq.strip())
+                        $ _mrecent_entries = _mrecent.entries()
+                        if _msearching:
+                            $ _mrecent_entries = [e for e in _mrecent_entries
+                                if _cue_query_matches(_cue.music.library.ref_display_path(e["ref"]), _mq)]
+                        if not _msearching or _mrecent_entries:
+                            hbox:
+                                spacing 2
+                                use cue_txt_button("Recently Used/", Function(_mrecent.toggle))
+                            if _mrecent.expanded or _msearching:
+                                use cue_music_recent_list(_mrecent_entries)
+
                     # Per-source empty/error states -- one source can be empty
                     # while the other has files.
                     if not _cue.music.user_music.tree:
@@ -250,3 +269,42 @@ screen cue_music_tree():
             _cue.music.library.toggle_folder,
             _cue.music.library.preview,
             _cue.music.library.add_song_to_trigger)
+
+# Recently Used rows, shown when the Recently Used folder is expanded.
+# entries: filtered recent-entry dicts {type, ref}, most-recent-first, refs
+# still tagged u:/g:.  Display paths come from ref_display_path, the inverse
+# of the tree's add dispatch, so each row previews/adds the same path the
+# tree would.  Folders carry only the add button, mirroring the file tree.
+screen cue_music_recent_list(entries):
+    style_group "cue"
+
+    $ _m_add_tt = "Add song to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
+    $ _m_add_folder_tt = "Add folder to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
+    $ _m_add_enabled = _cue.music.selected_key is not None
+    for _re in entries:
+        $ _re_path = _cue.music.library.ref_display_path(_re["ref"])
+        hbox:
+            spacing 2
+            text "  "  # indent under Recently Used/
+            if _re["type"] == "folder":
+                use cue_icon_btn(
+                    "plus",
+                    Function(_cue.music.library.add_folder_to_trigger, _re_path),
+                    _m_add_folder_tt,
+                    None,
+                    enabled=_m_add_enabled)
+                text _re_path color _cue_color_text_accent
+            else:
+                use cue_icon_btn(
+                    "play",
+                    Function(_cue.music.library.preview, _re_path),
+                    "Play song",
+                    None)
+                use cue_icon_btn(
+                    "plus",
+                    Function(_cue.music.library.add_song_to_trigger, _re_path),
+                    _m_add_tt,
+                    None,
+                    enabled=_m_add_enabled)
+                null width 2
+                text _re_path color _cue_color_text_accent

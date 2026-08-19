@@ -135,6 +135,27 @@ testcase sfx_recently_used:
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
+testcase music_recently_used:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _ok = _cue.music_recent is not None
+    $ _ok = _ok and _cue.music_recent.entries() == []
+    $ _ok = _ok and not _cue.music_recent.expanded
+    run Function(_cue.music.add_user_song_to_trigger, "music/song_001.ogg")
+    $ _ok = _ok and _cue.music_recent.entries() == [{"type": "file", "ref": "u:music/song_001.ogg"}]
+    $ _ok = _ok and _cue.music_recent.expanded
+    run Function(_cue.music.add_user_folder_to_trigger, "music/")
+    $ _ok = _ok and _cue.music_recent.entries()[0] == {"type": "folder", "ref": "u:music/"}
+    $ _ok = _ok and len(_cue.music_recent.entries()) == 2
+    run Function(_cue.music.add_user_folder_to_trigger, "music/")
+    $ _ok = _ok and len(_cue.music_recent.entries()) == 2
+    $ _ok = _ok and _cue.music_recent.entries()[0] == {"type": "folder", "ref": "u:music/"}
+    run Function(_cue_set_page, CuePage.MUSIC)
+    pause 0.5
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
 testcase video_movie_detected:
     $ _cue.is_overlay_visible = True
     run Jump("start")

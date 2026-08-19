@@ -10,6 +10,7 @@
 
 import types
 
+from cue_lib.audio.music import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
 from cue_lib.audio.music_tree import CueCombinedMusicTree
 from cue_lib.constants import (
     CUE_GAME_MUSIC_FOLDER, CUE_MY_MUSIC_FOLDER, CUE_MUSIC_PREFIX,
@@ -18,6 +19,15 @@ from cue_lib.util import _cue_build_tree
 
 USER = CUE_MY_MUSIC_FOLDER
 GAME = CUE_GAME_MUSIC_FOLDER
+
+
+def _fake_split_tag(ref):
+    # type: (str) -> tuple
+    """Mirror of CueMusicManager._split_ref_tag for the fake manager."""
+    for tag in (CUE_MUSIC_USER_TAG, CUE_MUSIC_GAME_TAG):
+        if ref.startswith(tag):
+            return tag, ref[len(tag):]
+    return None, ref
 
 
 def _fake_tree(paths):
@@ -53,6 +63,7 @@ def _make_lib(user_paths=(), game_paths=()):
         add_game_folder_to_trigger=_rec("add_game_folder"),
         play_untracked=_rec("play_untracked"),
         _resolve_music_path=lambda p: "ABS:" + p,
+        _split_ref_tag=_fake_split_tag,
     )
     lib = CueCombinedMusicTree(music, user, game)
     return lib, calls, user, game
@@ -311,3 +322,33 @@ def test_preview_game_passes_path():
     lib, calls, _user, _game = _make_lib(game_paths=("bgm/x.ogg",))
     lib.preview(GAME + "bgm/x.ogg")
     assert calls == [("play_untracked", ("bgm/x.ogg",), {"volume": 1.0})]
+
+
+# ==========================================================================
+# stored-ref -> display-path conversion (ref_display_path)
+# ==========================================================================
+
+def test_ref_display_path_user():
+    lib, _calls, _user, _game = _make_lib()
+    assert lib.ref_display_path(CUE_MUSIC_USER_TAG + "music/song.ogg") == \
+        USER + "song.ogg"
+
+
+def test_ref_display_path_user_folder():
+    lib, _calls, _user, _game = _make_lib()
+    assert lib.ref_display_path(CUE_MUSIC_USER_TAG + "music/sub/") == USER + "sub/"
+
+
+def test_ref_display_path_game():
+    lib, _calls, _user, _game = _make_lib()
+    assert lib.ref_display_path(CUE_MUSIC_GAME_TAG + "bgm/x.ogg") == GAME + "bgm/x.ogg"
+
+
+def test_ref_display_path_game_folder():
+    lib, _calls, _user, _game = _make_lib()
+    assert lib.ref_display_path(CUE_MUSIC_GAME_TAG + "bgm/") == GAME + "bgm/"
+
+
+def test_ref_display_path_untagged_treated_as_user():
+    lib, _calls, _user, _game = _make_lib()
+    assert lib.ref_display_path("music/song.ogg") == USER + "song.ogg"

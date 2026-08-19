@@ -1,6 +1,9 @@
 # Type stub for cue_lib.audio.recent
 from typing import Callable, List
 
+from cue_lib.audio.user_music import CueUserMusic
+from cue_lib.audio.game_music import CueGameMusic
+
 
 class CueRecentManager:
     key: str
@@ -20,3 +23,5 @@ class CueRecentManager:
 
 
 def _cue_keep_sfx(kind: str, ref: str, sfx_files: list, preset_names: list) -> bool: ...
+def _cue_music_ref_tag(ref: str) -> tuple: ...
+def _cue_keep_music(kind: str, ref: str, user_music: CueUserMusic, game_music: CueGameMusic) -> bool: ...

@@ -12,7 +12,8 @@ from cue_lib.audio.user_music import CueUserMusic
 from cue_lib.audio.game_music import CueGameMusic
 from cue_lib.audio.music_tree import CueCombinedMusicTree
 from cue_lib.constants import (
-    CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_PREFIX, CUE_MY_MUSIC_FOLDER,
+    CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_GAME_TAG, CUE_MUSIC_PREFIX,
+    CUE_MUSIC_USER_TAG, CUE_MY_MUSIC_FOLDER,
 )
 from cue_lib.util import _cue_log, _cue_strip_key_prefix, _cue_ui_refresh, create_img_key, create_vid_key
 
@@ -30,14 +31,6 @@ CUE_DEFAULT_MUSIC_CHANNEL = "music"
 # Sentinel from _pick_for_override: play nothing (default disabled with no
 # replacement songs).  Distinct from None (no override) and from a filepath.
 _SUPPRESS_MUSIC = object()
-
-# Source tags for refs stored in a trigger's music list.  My Music and Game
-# Music can both contain a "music/" folder, so a bare path is ambiguous.
-# The tag records which cache the ref was added from, so resolution never
-# has to probe the disk to tell them apart.  Tags are stripped before
-# display and before playing.
-CUE_MUSIC_USER_TAG = "u:"
-CUE_MUSIC_GAME_TAG = "g:"
 
 # True originals, cached once at module level so a Shift+R load_triggers (which
 # re-instantiates the manager but does NOT re-import this module) never
@@ -80,6 +73,9 @@ class CueMusicManager(object):
         self.game_music = CueGameMusic()
         # Combined "Music Library" display tree (UI-only merge of the two).
         self.library = CueCombinedMusicTree(self, self.user_music, self.game_music)  # pyright: ignore[reportArgumentType]
+        # CueRecentManager, wired after construction (records add-to-trigger
+        # attempts; None before wiring so add_* stays safe).
+        self._recent = None
 
     def install(self):
         # type: () -> None
@@ -527,6 +523,12 @@ class CueMusicManager(object):
         # type: (str) -> None
         """Append a music ref (a file path or a folder ref) to the selected
         trigger's music list."""
+        # Record the add-to-trigger attempt (even for a ref already in the
+        # list or a missing selection -- the user asked for it).  ref is the
+        # exact stored form: source-tagged and folder-normalized.
+        recent = self._recent
+        if recent is not None:
+            recent.record("folder" if ref.endswith("/") else "file", ref)
         self._resolve_selection()
         key = self.selected_key
         if not key:

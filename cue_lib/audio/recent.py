@@ -10,12 +10,16 @@
 
 from renpy.store import persistent
 
-from cue_lib.constants import CUE_RECENT_MAX_ENTRIES
+from cue_lib.constants import (
+    CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG, CUE_RECENT_MAX_ENTRIES,
+)
 from cue_lib.util import _cue_unwrap_persistent
 
 MYPY = False
 if MYPY:
     from typing import Callable
+    from cue_lib.audio.user_music import CueUserMusic
+    from cue_lib.audio.game_music import CueGameMusic
 
 
 class CueRecentManager(object):
@@ -93,4 +97,35 @@ def _cue_keep_sfx(kind, ref, sfx_files, preset_names):
         return any(f.startswith(ref) for f in sfx_files)
     if kind == "preset":
         return ref in preset_names
+    return False
+
+
+def _cue_music_ref_tag(ref):
+    # type: (str) -> tuple
+    """Split a stored music ref into (tag, path); tag is None if untagged.
+
+    Mirrors CueMusicManager._split_ref_tag so recent.py can stay independent
+    of the music manager."""
+    for tag in (CUE_MUSIC_USER_TAG, CUE_MUSIC_GAME_TAG):
+        if ref.startswith(tag):
+            return tag, ref[len(tag):]
+    return None, ref
+
+
+def _cue_keep_music(kind, ref, user_music, game_music):
+    # type: (str, str, CueUserMusic, CueGameMusic) -> bool
+    """Existence check for music refs: files are exact members of the tagged
+    source's files, folders are prefixes of at least one file there.  An
+    untagged legacy ref matches either source.  Unknown kinds are never kept."""
+    tag, path = _cue_music_ref_tag(ref)
+    if tag == CUE_MUSIC_USER_TAG:
+        files = user_music.files
+    elif tag == CUE_MUSIC_GAME_TAG:
+        files = game_music.files
+    else:
+        files = user_music.files + game_music.files
+    if kind == "file":
+        return path in files
+    if kind == "folder":
+        return any(f.startswith(path) for f in files)
     return False

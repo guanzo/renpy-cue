@@ -146,8 +146,8 @@ init -900 python:
     from cue_lib.video.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
     from cue_lib.video.auto_speed import CueAutoSpeedGenerator
     from cue_lib.audio.sfx_manager import CueSfxManager
-    from cue_lib.audio.recent import CueRecentManager, _cue_keep_sfx
-    from cue_lib.constants import CUE_RECENT_SFX_KEY
+    from cue_lib.audio.recent import CueRecentManager, _cue_keep_sfx, _cue_keep_music
+    from cue_lib.constants import CUE_RECENT_SFX_KEY, CUE_RECENT_MUSIC_KEY
     from cue_lib.ui.icons import CueIconManager
     from cue_lib.ui.dialogs import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
     from cue_lib.db import CueDatabase
@@ -219,6 +219,17 @@ init -900 python:
         markers._recent = recent
         sfx_manager._recent = recent
 
+        # Music's "Recently Used" list records add-to-trigger attempts (music
+        # records through its own _add_ref_to_trigger funnel) and re-expands on
+        # search-clear (the combined tree hooks into music.library._recent).
+        # Its prune existence check reads the two sub-managers' .files at call
+        # time, so it is built after music and only loaded once both scans ran.
+        music_recent = CueRecentManager(
+            CUE_RECENT_MUSIC_KEY,
+            lambda kind, ref: _cue_keep_music(kind, ref, music.user_music, music.game_music))
+        music._recent = music_recent
+        music.library._recent = music_recent
+
         _cue.paths = paths
         _cue.db = db
         _cue.marker_store = marker_store
@@ -242,6 +253,7 @@ init -900 python:
         _cue.music = music
         _cue.markers = markers
         _cue.recent = recent
+        _cue.music_recent = music_recent
 
     _cue_wire_managers()
 
@@ -388,6 +400,11 @@ init 999 python:
         _cue.recent.prune()
         _cue.music.user_music.scan()
         _cue.music.game_music.scan()
+        # Hydrate the music "Recently Used" list once both scans populated
+        # user_music.files / game_music.files (checked by prune), then drop refs
+        # whose files no longer exist.
+        _cue.music_recent.load()
+        _cue.music_recent.prune()
         _cue.music.install()
 
         _cue.initialized = True

@@ -97,9 +97,10 @@ CUE_AUDIO_EXTS = (".ogg", ".mp3", ".wav", ".opus")
 # Maximum entries in a "Recently Used" list (SFX library; later, music).
 CUE_RECENT_MAX_ENTRIES = 8
 
-# persistent._cue key for the SFX "Recently Used" list.  Music gets its own
-# key (recent_music_entries) so the two type-spaces never collide.
+# persistent._cue keys for the "Recently Used" lists.  Music gets its own key
+# so the two type-spaces (u:/g: refs vs sfx paths/preset names) never collide.
 CUE_RECENT_SFX_KEY = "recent_entries"
+CUE_RECENT_MUSIC_KEY = "recent_music_entries"
 
 # Directory-name heuristic for Game Music discovery: a game file whose path
 # contains one of these segments (case-insensitive) is classified as music.
@@ -118,6 +119,14 @@ CUE_MUSIC_PREFIX = "music/"
 # folders no matter how many top-level dirs the Game Music heuristic finds.
 CUE_MY_MUSIC_FOLDER = "My Music/"
 CUE_GAME_MUSIC_FOLDER = "Game Music/"
+
+# Source tags for stored music refs.  My Music and Game Music can both contain
+# a "music/" folder, so a bare path is ambiguous; the tag records which cache
+# the ref came from so resolution never probes the disk to tell them apart.
+# Shared by music.py (split/display), music_tree.py (display paths), and
+# recent.py (_cue_keep_music prune check).
+CUE_MUSIC_USER_TAG = "u:"
+CUE_MUSIC_GAME_TAG = "g:"
 
 # Default pool / preset volume (1.0 = identity).  Shared by the marker store,
 # volume manager, trigger, and repeater -- was CueVolumeManager.VOL_DEFAULT

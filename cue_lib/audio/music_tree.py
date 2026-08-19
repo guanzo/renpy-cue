@@ -8,7 +8,8 @@
 
 from cue_lib.audio.audio_tree import CueAudioTreeManager
 from cue_lib.constants import (
-    CUE_GAME_MUSIC_FOLDER, CUE_MY_MUSIC_FOLDER, CUE_MUSIC_PREFIX,
+    CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_GAME_TAG, CUE_MY_MUSIC_FOLDER,
+    CUE_MUSIC_PREFIX,
 )
 
 MYPY = False
@@ -171,6 +172,21 @@ class CueCombinedMusicTree(CueAudioTreeManager):
         else:
             self._music.add_user_folder_to_trigger(
                 CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER):])
+
+    def ref_display_path(self, ref):
+        # type: (str) -> str
+        """Display path for a stored (tagged) music ref.
+
+        Inverts the dispatch in add_song_to_trigger/add_folder_to_trigger: a
+        user ref sheds its "music/" data prefix under "My Music/", a game ref
+        keeps its path under "Game Music/".  An untagged legacy ref is treated
+        as user, which is the round-trip of the user-default dispatch."""
+        tag, path = self._music._split_ref_tag(ref)
+        if tag == CUE_MUSIC_GAME_TAG:
+            return CUE_GAME_MUSIC_FOLDER + path
+        if path.startswith(CUE_MUSIC_PREFIX):
+            path = path[len(CUE_MUSIC_PREFIX):]
+        return CUE_MY_MUSIC_FOLDER + path
 
     def preview(self, display_path, volume=1.0):
         # type: (str, float) -> None

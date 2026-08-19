@@ -22,10 +22,13 @@ CUE_SFX_LIBRARY_HEADER: Final = "SFX Library"
 CUE_AUDIO_EXTS: Final = (".ogg", ".mp3", ".wav", ".opus")
 CUE_RECENT_MAX_ENTRIES: Final = 8
 CUE_RECENT_SFX_KEY: Final = "recent_entries"
+CUE_RECENT_MUSIC_KEY: Final = "recent_music_entries"
 CUE_GAME_MUSIC_DIRS: Final = ("music", "bgm", "ost", "soundtrack")
 CUE_MUSIC_PREFIX: Final = "music/"
 CUE_MY_MUSIC_FOLDER: Final = "My Music/"
 CUE_GAME_MUSIC_FOLDER: Final = "Game Music/"
+CUE_MUSIC_USER_TAG: Final = "u:"
+CUE_MUSIC_GAME_TAG: Final = "g:"
 CUE_VOLUME_DEFAULT: Final = 1.0
 
 CUE_KEYMAP_TOGGLE_OVERLAY: Final = "cue_toggle_overlay"

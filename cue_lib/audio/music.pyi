@@ -2,6 +2,7 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 from cue_lib._types import DefaultMusicTrigger
+from cue_lib.audio.recent import CueRecentManager
 from cue_lib.audio.user_music import CueUserMusic
 from cue_lib.audio.game_music import CueGameMusic
 from cue_lib.audio.music_tree import CueCombinedMusicTree
@@ -24,6 +25,7 @@ class CueMusicManager:
     user_music: CueUserMusic
     game_music: CueGameMusic
     library: CueCombinedMusicTree
+    _recent: CueRecentManager
     _store: CueMarkerStore
     _ctx: CueContext
     _db: CueDatabase

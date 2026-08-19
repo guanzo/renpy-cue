@@ -26,6 +26,7 @@ from cue_lib.audio.music import (
 )
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.state import CueContext
+from tests.fakes import FakeRecent
 
 # The mock module's un-wrapped functions, captured at import time (before any
 # install() has replaced them).  Each test fixture restores these so no
@@ -638,6 +639,62 @@ def test_add_ref_to_trigger_no_duplicate(mgr, monkeypatch):
     _set_scene(mgr, "scene.ogv", "image")
     mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
     mgr.add_user_song_to_trigger("music/song.ogg")
+    mgr.add_user_song_to_trigger("music/song.ogg")
+    assert mgr._store.get("i_scene.ogv")["music"] == \
+        [CUE_MUSIC_USER_TAG + "music/song.ogg"]
+
+
+# ==========================================================================
+# recently used recording (add-to-trigger attempts only)
+# ==========================================================================
+
+def _wire_recent(mgr):
+    # type: (CueMusicManager) -> FakeRecent
+    """Attach a recording stand-in and return it."""
+    recent = FakeRecent()
+    mgr._recent = recent
+    return recent
+
+
+def test_add_user_song_records_recent(mgr, monkeypatch):
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    recent = _wire_recent(mgr)
+    mgr.add_user_song_to_trigger("music/song.ogg")
+    assert recent.calls == [("file", CUE_MUSIC_USER_TAG + "music/song.ogg")]
+
+
+def test_add_game_song_records_recent(mgr, monkeypatch):
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    recent = _wire_recent(mgr)
+    mgr.add_game_song_to_trigger("bgm/x.ogg")
+    assert recent.calls == [("file", CUE_MUSIC_GAME_TAG + "bgm/x.ogg")]
+
+
+def test_add_folder_records_normalized_ref(mgr, monkeypatch):
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    recent = _wire_recent(mgr)
+    mgr.add_user_folder_to_trigger("music/sub")
+    assert recent.calls == [("folder", CUE_MUSIC_USER_TAG + "music/sub/")]
+
+
+def test_add_ref_no_selection_still_records(mgr):
+    recent = _wire_recent(mgr)
+    mgr._add_ref_to_trigger(CUE_MUSIC_GAME_TAG + "x.ogg")
+    assert recent.calls == [("file", CUE_MUSIC_GAME_TAG + "x.ogg")]
+    assert dict(mgr._store.items()) == {}
+
+
+def test_add_without_recent_is_noop(mgr, monkeypatch):
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    # _recent stays None (the default) -- the add still lands.
     mgr.add_user_song_to_trigger("music/song.ogg")
     assert mgr._store.get("i_scene.ogv")["music"] == \
         [CUE_MUSIC_USER_TAG + "music/song.ogg"]

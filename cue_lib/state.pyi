@@ -74,6 +74,7 @@ class Cue:
     icons: CueIconManager
     music: CueMusicManager
     recent: CueRecentManager
+    music_recent: CueRecentManager
 
     _cue_next_sfx_channel: int
     _shake_just_happened: bool

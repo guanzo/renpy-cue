@@ -61,6 +61,7 @@ class Cue(_renpy_python.NoRollback):
         self.icons = None
         self.music = None
         self.recent = None
+        self.music_recent = None
         self.paths = None
 
         # --- Internal ---
