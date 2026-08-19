@@ -92,9 +92,9 @@ screen cue_music_page():
                     spacing 5
                     # "Recently Used/" at the top of the music content.  Rows
                     # preview/add the same display paths as the tree; search
-                    # filters them on that display path too, and clearing a
-                    # search re-expands the list (library.clear_search).
-                    $ _mrecent = _cue.music_recent
+                    # filters them on that display path too, and force-expands
+                    # the list read-time (it shows whenever `_searching`).
+                    $ _mrecent = _cue.music._recent
                     if _mrecent is not None:
                         $ _mq = _cue.music.library.search_query
                         $ _msearching = bool(_mq.strip())

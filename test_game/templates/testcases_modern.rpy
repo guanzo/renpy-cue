@@ -104,21 +104,21 @@ testcase sfx_recently_used:
 testcase music_recently_used:
     run Jump("start")
     # Wired and empty on a fresh game (harness wipes saves/persistent).
-    assert eval (_cue.music_recent is not None)
-    assert eval (_cue.music_recent.entries() == [])
-    assert eval (not _cue.music_recent.expanded)
+    assert eval (_cue.music._recent is not None)
+    assert eval (_cue.music._recent.entries() == [])
+    assert eval (not _cue.music._recent.expanded)
     # Adding a My Music song records its u:-tagged ref and expands the list.
     run Function(_cue.music.add_user_song_to_trigger, "music/song_001.ogg")
-    assert eval (_cue.music_recent.entries() == [{"type": "file", "ref": "u:music/song_001.ogg"}])
-    assert eval (_cue.music_recent.expanded)
+    assert eval (_cue.music._recent.entries() == [{"type": "file", "ref": "u:music/song_001.ogg"}])
+    assert eval (_cue.music._recent.expanded)
     # A folder add normalizes its ref and bumps to front.
     run Function(_cue.music.add_user_folder_to_trigger, "music/")
-    assert eval (_cue.music_recent.entries()[0] == {"type": "folder", "ref": "u:music/"})
-    assert eval (len(_cue.music_recent.entries()) == 2)
+    assert eval (_cue.music._recent.entries()[0] == {"type": "folder", "ref": "u:music/"})
+    assert eval (len(_cue.music._recent.entries()) == 2)
     # Repeating an add bumps without duplicating.
     run Function(_cue.music.add_user_folder_to_trigger, "music/")
-    assert eval (len(_cue.music_recent.entries()) == 2)
-    assert eval (_cue.music_recent.entries()[0] == {"type": "folder", "ref": "u:music/"})
+    assert eval (len(_cue.music._recent.entries()) == 2)
+    assert eval (_cue.music._recent.entries()[0] == {"type": "folder", "ref": "u:music/"})
     # Render the Music page so the Recently Used row compiles and displays.
     run Function(_cue_set_page, CuePage.MUSIC)
 

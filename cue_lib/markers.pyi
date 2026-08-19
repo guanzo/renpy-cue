@@ -27,7 +27,6 @@ from cue_lib._types import (
 )
 
 # Constructor-injected collaborators (wired in cue_z.rpy init -900, markers last).
-from cue_lib.audio.recent import CueRecentManager
 from cue_lib.state import CueContext
 from cue_lib.video.video import CueVideoManager
 from cue_lib.audio.sfx_manager import CueSfxManager
@@ -61,7 +60,6 @@ class CueMarkerManager:
     video: CueVideoContext
     loop: CueLoopContext
     clipboard: Optional[ClipboardData]
-    _recent: Optional[CueRecentManager]
 
     def __init__(
         self,

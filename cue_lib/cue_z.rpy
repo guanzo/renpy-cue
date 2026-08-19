@@ -208,27 +208,22 @@ init -900 python:
             sfx_manager, trigger, video_editor,
             confirm_dialog)
 
-        # The "Recently Used" list records SFX send_* attempts (the context
-        # hooks into markers._recent) and re-expands on search-clear (the tree
-        # hooks into sfx_manager._recent).  Built after markers because its
-        # prune existence check reads both sfx_manager.files and
-        # markers.list_presets() at call time.
-        recent = CueRecentManager(
+        # The "Recently Used" list lives on the SFX library manager: it records
+        # SFX send_* attempts (the marker contexts funnel through
+        # sfx_manager._recent).  Its prune existence check reads both
+        # sfx_manager.files and markers.list_presets() at call time, so it is
+        # built here where both are in scope.
+        sfx_manager._recent = CueRecentManager(
             CUE_RECENT_SFX_KEY,
             lambda kind, ref: _cue_keep_sfx(kind, ref, sfx_manager.files, markers.list_presets()))
-        markers._recent = recent
-        sfx_manager._recent = recent
 
-        # Music's "Recently Used" list records add-to-trigger attempts (music
-        # records through its own _add_ref_to_trigger funnel) and re-expands on
-        # search-clear (the combined tree hooks into music.library._recent).
+        # Music's "Recently Used" list lives on the music manager: it records
+        # add-to-trigger attempts through music's own _add_ref_to_trigger funnel.
         # Its prune existence check reads the two sub-managers' .files at call
-        # time, so it is built after music and only loaded once both scans ran.
-        music_recent = CueRecentManager(
+        # time, so it is built here and only loaded once both scans ran.
+        music._recent = CueRecentManager(
             CUE_RECENT_MUSIC_KEY,
             lambda kind, ref: _cue_keep_music(kind, ref, music.user_music, music.game_music))
-        music._recent = music_recent
-        music.library._recent = music_recent
 
         _cue.paths = paths
         _cue.db = db
@@ -252,8 +247,6 @@ init -900 python:
         _cue.icons = icons
         _cue.music = music
         _cue.markers = markers
-        _cue.recent = recent
-        _cue.music_recent = music_recent
 
     _cue_wire_managers()
 
@@ -392,19 +385,13 @@ init 999 python:
         _cue.video_editor.job_queue.load_from_persistent()
         _cue.undo.seed()  # seed undo baseline after initial load
         _cue.speed_resolver.wrap_all_movies()
+        
         _cue.sfx_manager.scan()
-        # Hydrate the "Recently Used" list once the SFX scan populated
-        # sfx_manager.files and marker presets are loaded (both are checked by
-        # prune), then drop refs that no longer exist.
-        _cue.recent.load()
-        _cue.recent.prune()
+        _cue.sfx_manager._recent.load()
+
         _cue.music.user_music.scan()
         _cue.music.game_music.scan()
-        # Hydrate the music "Recently Used" list once both scans populated
-        # user_music.files / game_music.files (checked by prune), then drop refs
-        # whose files no longer exist.
-        _cue.music_recent.load()
-        _cue.music_recent.prune()
+        _cue.music._recent.load()
         _cue.music.install()
 
         _cue.initialized = True

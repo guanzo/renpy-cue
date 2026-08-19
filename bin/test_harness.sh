@@ -38,7 +38,13 @@ fi
 # --- Materialize the active testcases file from the matching template. ---
 mkdir -p "$GAME/game"
 cp "$TEMPLATES/testcases_$DSL.rpy" "$GAME/game/testcases.rpy"
-rm -f "$GAME/game/testcases.rpyc"
+
+# Clear stale .rpyc so the engine recompiles from source every run.
+# testcases.rpy is rematerialized per DSL, and an orphaned rpyc (a .rpy
+# deleted after a manual repro leaves its compiled twin) breaks the 7.4.10
+# loader, which refuses a rpyc with no matching .rpy source.  Recompiling a
+# handful of small files is negligible next to an engine boot.
+rm -f "$GAME/game"/*.rpyc
 
 # Clear stale engine artifacts so a prior run's errors can't be mistaken
 # for this run's (the engine overwrites, but a crash may leave them behind).

@@ -75,13 +75,6 @@ def test_toggle_flips_expanded():
     assert m.expanded is True
 
 
-def test_on_search_clear_reexpands():
-    m = CueRecentManager("recent_entries", _all_keep)
-    m.expanded = False
-    m.on_search_clear()
-    assert m.expanded is True
-
-
 # ---------------------------------------------------------------------------
 # persistence
 # ---------------------------------------------------------------------------
@@ -113,6 +106,27 @@ def test_load_handles_none_persistent(monkeypatch):
     m = CueRecentManager("recent_entries", _all_keep)
     m.load()
     assert m.entries() == []
+
+
+def test_load_prunes_stale_entries():
+    m = CueRecentManager("recent_entries",
+                         lambda kind, ref: ref == "keep.ogg")
+    m.record("file", "gone.ogg")
+    m.record("file", "keep.ogg")
+    m2 = CueRecentManager("recent_entries",
+                          lambda kind, ref: ref == "keep.ogg")
+    m2.load()
+    assert [e["ref"] for e in m2.entries()] == ["keep.ogg"]
+    assert m2.expanded is True
+
+
+def test_load_collapses_when_all_stale():
+    m = CueRecentManager("recent_entries", lambda kind, ref: False)
+    m.record("file", "a.ogg")
+    m2 = CueRecentManager("recent_entries", lambda kind, ref: False)
+    m2.load()
+    assert m2.entries() == []
+    assert m2.expanded is False
 
 
 # ---------------------------------------------------------------------------

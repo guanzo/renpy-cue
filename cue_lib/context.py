@@ -87,7 +87,7 @@ class CueMarkerContext(object):
 
     def _record_use(self, kind, ref):
         # type: (str, str) -> None
-        recent = self._mgr._recent
+        recent = self._mgr._sfx_manager._recent
         if recent is not None:
             recent.record(kind, ref)
 

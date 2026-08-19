@@ -40,7 +40,6 @@ class FakeManager(object):
         self._sfx_manager = FakeSfxManager()
         self._vid_manager = FakeVidManager()
         self._presets = {}   # type: dict
-        self._recent = None  # type: Optional[FakeRecent]  # set by recording tests
         self.added_files = []    # type: list
         self.stamped_presets = []  # type: list
 
@@ -296,6 +295,7 @@ class FakeSfxManager(object):
         self.files = files if files is not None else []
         self.disabled_files = disabled_files if disabled_files is not None else set()
         self.scan_calls = 0
+        self._recent = None  # type: Optional[FakeRecent]  # set by recording tests
 
     def scan(self):
         self.scan_calls += 1

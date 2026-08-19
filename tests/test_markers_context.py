@@ -953,50 +953,50 @@ def test_resolved_pool_default_exclusive():
 
 
 # ---------------------------------------------------------------------------
-# Recently Used recording (send_* -> manager._recent)
+# Recently Used recording (send_* -> manager._sfx_manager._recent)
 # ---------------------------------------------------------------------------
 
 def _recent_mgr(files=None):
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}]}})
     mgr._sfx_manager.files = files if files is not None else []
-    mgr._recent = FakeRecent()
+    mgr._sfx_manager._recent = FakeRecent()
     return mgr
 
 
 def test_send_file_records_resolved_filename():
     mgr = _recent_mgr(["sfx/a.ogg", "sfx/b.ogg"])
     VideoCtx(mgr).send_file(1)
-    assert mgr._recent.calls == [("file", "sfx/b.ogg")]
+    assert mgr._sfx_manager._recent.calls == [("file", "sfx/b.ogg")]
 
 
 def test_send_file_records_on_non_video_context():
     mgr = _recent_mgr(["sfx/a.ogg"])
     ImageCtx(mgr).send_file(0)
-    assert mgr._recent.calls == [("file", "sfx/a.ogg")]
+    assert mgr._sfx_manager._recent.calls == [("file", "sfx/a.ogg")]
 
 
 def test_send_file_out_of_range_does_not_record():
     mgr = _recent_mgr(["sfx/a.ogg"])
     VideoCtx(mgr).send_file(5)
-    assert mgr._recent.calls == []
+    assert mgr._sfx_manager._recent.calls == []
 
 
 def test_send_folder_records_normalized_ref():
     mgr = _recent_mgr()
     VideoCtx(mgr).send_folder("sfx/amb")
-    assert mgr._recent.calls == [("folder", "sfx/amb/")]
+    assert mgr._sfx_manager._recent.calls == [("folder", "sfx/amb/")]
 
 
 def test_send_preset_records_preset_name():
     mgr = _recent_mgr()
     ImageCtx(mgr).send_preset("Hurt")
-    assert mgr._recent.calls == [("preset", "Hurt")]
+    assert mgr._sfx_manager._recent.calls == [("preset", "Hurt")]
 
 
 def test_video_send_preset_records_preset_name():
     mgr = _recent_mgr()
     VideoCtx(mgr).send_preset("Hurt")
-    assert mgr._recent.calls == [("preset", "Hurt")]
+    assert mgr._sfx_manager._recent.calls == [("preset", "Hurt")]
 
 
 def test_send_file_no_recent_is_noop():

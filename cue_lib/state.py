@@ -60,8 +60,6 @@ class Cue(_renpy_python.NoRollback):
         self.keybinds = None
         self.icons = None
         self.music = None
-        self.recent = None
-        self.music_recent = None
         self.paths = None
 
         # --- Internal ---

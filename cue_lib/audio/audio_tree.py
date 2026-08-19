@@ -171,15 +171,16 @@ class CueAudioTreeManager(object):
 
     def clear_search(self):
         # type: () -> None
-        """Clear the search query and rebuild the full, unexpanded tree."""
+        """Clear the search query and rebuild the full, unexpanded tree.
+
+        The Recently Used list is not owned here and is never touched by a
+        search or clear: it force-expands read-time during a search (the UI
+        shows it whenever `_searching`), so clearing restores the user's own
+        expand state just like every tree folder."""
         if self.search_query:
             self.search_query = ""
             self._search_applied = ""
             self.rebuild_tree()
-            # Clearing a search restores the Recently Used list's own
-            # expand state (it force-expands while searching).
-            if self._recent is not None:
-                self._recent.on_search_clear()
 
     def maybe_rebuild(self):
         # type: () -> None

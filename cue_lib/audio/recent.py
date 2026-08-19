@@ -25,9 +25,9 @@ if MYPY:
 class CueRecentManager(object):
     """Most-recent-first persistent list of heterogeneous used entries.
 
-    expand-state (toggle / on_search_clear) is session-local -- only the
-    entries are persisted.  expanded defaults to True whenever the list has
-    entries, so a non-empty list shows open until the user collapses it.
+    expand-state (toggle) is session-local -- only the entries are persisted.
+    expanded defaults to True whenever the list has entries, so a non-empty
+    list shows open until the user collapses it.
     """
 
     def __init__(self, key, keep):
@@ -38,13 +38,18 @@ class CueRecentManager(object):
         self.expanded = False
 
     def load(self):
-        """Read persisted entries; expanded defaults to having entries."""
+        """Read persisted entries, then drop refs that no longer exist.
+
+        The keep callable checks existence against current scan state, so load
+        must run after the relevant files are populated.  Loading is always a
+        hydrate-then-prune; stale refs are removed and an emptied list
+        collapses (see prune)."""
         raw = persistent._cue or {}
         value = raw.get(self.key)
         self._entries = _cue_unwrap_persistent(value) if value is not None else []
         self._entries = [e for e in self._entries
                          if isinstance(e, dict) and "type" in e and "ref" in e]
-        self.expanded = bool(self._entries)
+        self.prune()
 
     def save(self):
         """Write entries back to persistent (used after record and prune)."""
@@ -73,9 +78,6 @@ class CueRecentManager(object):
 
     def toggle(self):
         self.expanded = not self.expanded
-
-    def on_search_clear(self):
-        self.expanded = True
 
     def prune(self):
         """Drop entries whose ref no longer exists; collapse when empty."""

@@ -2,7 +2,6 @@ from typing import Any, Dict, Optional, Set, Tuple
 
 from cue_lib.video.repeater import CueMarkerRepeater
 from cue_lib.video.ffmpeg import CueFFmpeg
-from cue_lib.audio.recent import CueRecentManager
 from cue_lib.audio.sfx_manager import CueSfxManager
 from cue_lib.markers import CueMarkerManager
 from cue_lib.marker_store import CueMarkerStore
@@ -73,8 +72,6 @@ class Cue:
     keybinds: CueKeybindsManager
     icons: CueIconManager
     music: CueMusicManager
-    recent: CueRecentManager
-    music_recent: CueRecentManager
 
     _cue_next_sfx_channel: int
     _shake_just_happened: bool

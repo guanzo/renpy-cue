@@ -133,7 +133,7 @@ screen cue_recent_list(_is_video, _has_image, _is_dialogue, entries):
                     Function(_cue.markers.dialogue.send_file, _re_idx),
                     _fdlg_tt, None, enabled=(_is_dialogue and _re_ok))
                 use cue_icon_btn("L", Function(_cue.markers.loop.send_file, _re_idx), _floop_tt, None, enabled=_re_ok)
-                null width 2
+                null width 1
                 text _re["ref"] color _cue_color_text_accent
             elif _re["type"] == "folder":
                 use cue_icon_btn(
@@ -153,7 +153,7 @@ screen cue_recent_list(_is_video, _has_image, _is_dialogue, entries):
                     Function(_cue.markers.dialogue.send_folder, _re["ref"]),
                     _fdlg_tt, None, enabled=_is_dialogue)
                 use cue_icon_btn("L", Function(_cue.markers.loop.send_folder, _re["ref"]), _floop_tt, None)
-                null width 2
+                null width 1
                 text _re["ref"] color _cue_color_text_accent
             else:  # preset
                 use cue_icon_btn(
@@ -173,7 +173,7 @@ screen cue_recent_list(_is_video, _has_image, _is_dialogue, entries):
                     Function(_cue.markers.dialogue.send_preset, _re["ref"]),
                     _pdlg_tt, None, enabled=_is_dialogue)
                 use cue_icon_btn("L", Function(_cue.markers.loop.send_preset, _re["ref"]), _ploop_tt, None)
-                null width 2
+                null width 1
                 text _re["ref"] color _cue_color_text_accent
 
 
@@ -237,7 +237,7 @@ screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue, name_filter=N
                         Function(_cue.markers.preset_remove_file, _pname, _child),
                         "Remove file from preset", None)
                     use cue_icon_btn("play", Function(_cue_preview_sfx, _child), "Preview file", None)
-                    null width 2
+                    null width 1
                     text _child color _cue_color_text_accent size 11
 
 
@@ -356,5 +356,5 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
                 #     Function(_cue.sfx_manager.toggle_file_enabled, item["full_path"]),
                 #     "Click to {} globally".format("disable" if item.get("enabled", True) else "enable"),
                 #     None)
-                null width 2
+                null width 1
                 text item["name"] color _cue_color_text_accent
