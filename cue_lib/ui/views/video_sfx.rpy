@@ -43,12 +43,11 @@ screen cue_video_sfx():
                     "floppy-disk",
                     Function(_cue.video_preset_dialog.open),
                     "Save all video markers as a preset",
-                    None,
                     enabled=(not _multi_selected),
                 )
                 use cue_icon_btn("xmark",
                     (Function(_cue.markers.video.remove_selected) if _has_markers else NullAction()),
-                    "Delete selected markers" if _has_markers else "No markers to delete", None)
+                    "Delete selected markers" if _has_markers else "No markers to delete")
                 use cue_txt_button("Repeat Markers", Function(_cue.repeater.open),
                     tt="Repeat selected markers at regular intervals across the video")
                 use cue_icon("circle-question",
@@ -155,19 +154,16 @@ screen cue_video_sfx():
                         "clone",
                         Function(_cue.markers.video.duplicate_pool, _vid_target),
                         ("Duplicate selected pools" if _multi_selected else "Duplicate pool"),
-                        None,
                     )
                     use cue_icon_btn(
                         "xmark",
                         Function(_cue.markers.video.delete_pool_ui),
                         ("Delete selected pools" if _multi_selected else "Delete pool"),
-                        None,
                     )
                     use cue_icon_btn(
                         "file-circle-minus",
                         Function(_cue.markers.video.clear_selected_files),
                         ("Delete all files from selected pools" if _multi_selected else "Delete all files from pool"),
-                        None,
                     )
 
                     null width 3

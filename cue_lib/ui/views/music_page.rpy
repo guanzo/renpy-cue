@@ -206,8 +206,7 @@ screen trigger_list(triggers):
                                         _cue.music.remove_song_from_trigger,
                                         trigger["key"],
                                         _song),
-                                    "Remove folder from trigger",
-                                    None)
+                                    "Remove folder from trigger")
                                 use cue_txt_button(
                                     _song_path,
                                     Function(_cue.music.toggle_file_ref_expand, _song))
@@ -224,8 +223,7 @@ screen trigger_list(triggers):
                                                 trigger["key"],
                                                 _idx,
                                                 _child),
-                                            "Remove file from the folder",
-                                            None)
+                                            "Remove file from the folder")
                                         $ _child_display = _child[len(_song_path):]
                                         text _child_display
                         else:
@@ -238,8 +236,7 @@ screen trigger_list(triggers):
                                         _cue.music.remove_song_from_trigger,
                                         trigger["key"],
                                         _song),
-                                    "Remove song from trigger",
-                                    None)
+                                    "Remove song from trigger")
                                 text _song_name
                 elif not trigger["is_default"]:
                     text "No music added."
@@ -270,7 +267,6 @@ screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
                             "plus",
                             Function(add_folder, item["full_path"]),
                             _tree_add_folder_tt,
-                            None,
                             enabled=_tree_add_enabled)
                     use cue_txt_button(
                         item["name"],
@@ -281,9 +277,8 @@ screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
                         "plus",
                         Function(add_song, item["full_path"]),
                         _tree_add_tt,
-                        None,
                         enabled=_tree_add_enabled)
-                    use cue_icon_btn("play", Function(preview, item["full_path"]), "Play song", None)
+                    use cue_icon_btn("play", Function(preview, item["full_path"]), "Play song")
                     null width 2
                     text item["name"] color _cue_color_text_accent
 
@@ -328,7 +323,6 @@ screen cue_music_recent_list(entries):
                     Function(_cue.music.library.add_folder_to_trigger,
                              _re_path, record=False),
                     _m_add_folder_tt,
-                    None,
                     enabled=_m_add_enabled)
                 text _re_path color _cue_color_text_accent
             else:
@@ -337,13 +331,11 @@ screen cue_music_recent_list(entries):
                     Function(_cue.music.library.add_song_to_trigger,
                              _re_path, record=False),
                     _m_add_tt,
-                    None,
                     enabled=_m_add_enabled)
                 use cue_icon_btn(
                     "play",
                     Function(_cue.music.library.preview, _re_path),
-                    "Play song",
-                    None)
+                    "Play song")
                 null width 2
                 text _re_path color _cue_color_text_accent
 
@@ -370,17 +362,16 @@ screen cue_music_presets_list(name_filter=None):
             use cue_icon_btn(
                 "xmark",
                 Function(_cue_confirm_delete_music_preset, _pname),
-                "Delete preset", None)
+                "Delete preset")
             use cue_icon_btn(
                 "plus",
                 Function(_cue.music.apply_preset, _pname),
                 _apply_tt,
-                None,
                 enabled=_apply_enabled)
             use cue_icon_btn(
                 "play",
                 Function(_cue_preview_music_preset, _pname),
-                "Play random song from preset", None)
+                "Play random song from preset")
             use cue_txt_button(_pname, Function(_cue.music.toggle_preset_expand, _pname))
 
         if _p_expanded:
@@ -391,10 +382,10 @@ screen cue_music_presets_list(name_filter=None):
                     use cue_icon_btn(
                         "xmark",
                         Function(_cue.music.preset_remove_file, _pname, _child),
-                        "Remove file from preset", None)
+                        "Remove file from preset")
                     use cue_icon_btn(
                         "play",
                         Function(_cue.music.library.preview, _child),
-                        "Preview song", None)
+                        "Preview song")
                     null width 1
                     text _child color _cue_color_text_accent size 11

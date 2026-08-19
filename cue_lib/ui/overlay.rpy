@@ -165,43 +165,43 @@ screen cue_header_toolbar():
             null width 10
 
             $ _sfx_bg = _cue_color_active if _cue.overlay_active_page == CuePage.SFX else None
-            use cue_icon_btn("sliders", Function(_cue_set_page, CuePage.SFX), "Editor", None,
+            use cue_icon_btn("sliders", Function(_cue_set_page, CuePage.SFX), "Editor",
                 bg=_sfx_bg)
             $ _music_bg = _cue_color_active if _cue.overlay_active_page == CuePage.MUSIC else None
-            use cue_icon_btn("music", Function(_cue_set_page, CuePage.MUSIC), "Music", None,
+            use cue_icon_btn("music", Function(_cue_set_page, CuePage.MUSIC), "Music",
                 bg=_music_bg)
             $ _settings_bg = _cue_color_active if _cue.overlay_active_page == CuePage.SETTINGS else None
-            use cue_icon_btn("gear", Function(_cue_set_page, CuePage.SETTINGS), "Settings", None,
+            use cue_icon_btn("gear", Function(_cue_set_page, CuePage.SETTINGS), "Settings",
                 bg=_settings_bg)
         hbox:
             xalign 1.0
             spacing 2
-            use cue_icon_btn("copy", Function(_cue.markers.copy_context), _copy_tt, None)
-            use cue_icon_btn("paste", Function(_cue.markers.paste_context), _paste_tt, None)
+            use cue_icon_btn("copy", Function(_cue.markers.copy_context), _copy_tt)
+            use cue_icon_btn("paste", Function(_cue.markers.paste_context), _paste_tt)
             null width 5
 
-            use cue_icon_btn("undo", Function(_cue.undo.undo), _undo_tt, None, enabled=_cue.undo.can_undo())
-            use cue_icon_btn("redo", Function(_cue.undo.redo), _redo_tt, None, enabled=_cue.undo.can_redo())
+            use cue_icon_btn("undo", Function(_cue.undo.undo), _undo_tt, enabled=_cue.undo.can_undo())
+            use cue_icon_btn("redo", Function(_cue.undo.redo), _redo_tt, enabled=_cue.undo.can_redo())
             null width 5
 
             $ _backup_tooltip = "Back up data to backups/backup.zip"
-            use cue_icon_btn("floppy-disk", Function(_cue.markers.backup_to_file), _backup_tooltip, None)
+            use cue_icon_btn("floppy-disk", Function(_cue.markers.backup_to_file), _backup_tooltip)
             $ _restore_tooltip = "Restore data from backups/backup.zip"
-            use cue_icon_btn("folder-open", Function(_cue.markers.restore_from_file), _restore_tooltip, None)
+            use cue_icon_btn("folder-open", Function(_cue.markers.restore_from_file), _restore_tooltip)
             null width 5
 
             use cue_icon_btn(
                 "pause",
                 Function(renpy.invoke_in_new_context, renpy.pause),
-                _pause_tt, None)
+                _pause_tt)
             use cue_icon_btn(
                 "rotate-right",
                 Function(_cue_refresh_overlay),
-                "Refresh", None)
+                "Refresh")
             null width 5
 
             
-            use cue_icon_btn("xmark", Function(_cue_hide_overlay), "Close overlay", None)
+            use cue_icon_btn("xmark", Function(_cue_hide_overlay), "Close overlay")
 
 ###############################################################################
 # Speed-change toast — subtle indicator in the top-left corner

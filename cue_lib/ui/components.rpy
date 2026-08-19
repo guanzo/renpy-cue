@@ -89,11 +89,8 @@ screen cue_vol_row(label_text, entry_dict, key, multi_setter=None):
             hover_thumb Solid(_cue_color_text_white)
 
 # Icon button: tiny button with cue_icon_button / cue_icon_button_text styles.
-# Most callers don't need xsize (style default is 14); pass an int to override.
-# Pass tt=None to skip the tooltip.
 # `label` is an icon name ("clipboard", "xmark") or plain text ("-", "V").
-# Names mapped in CueIconManager render as PNG images (white, shown at
-# 12px from a 32px source, dimmed via alpha when disabled); everything
+# Names mapped in CueIconManager render as PNG images, everything
 # else falls back to text.
 screen cue_icon_btn(label, action=NullAction(), tt=None, xsize=16, enabled=True, bg=None, icon_color=None):
     style_group "cue"
@@ -328,7 +325,6 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                 "xmark",
                 Function(_cue.confirm_dialog.show, delete_confirm, delete_action),
                 delete_tt,
-                None,
             )
         if show_delete and exclusive_ctx is not None:
             # Only one-shots pass an exclusive_ctx -- the toggle lives in the
@@ -371,11 +367,11 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
             $ _count = len(folder_children) if folder_children else 0
             hbox:
                 spacing row_spacing
-                use cue_icon_btn("xmark", Function(remove_fn, *remove_args), "Remove preset", None)
+                use cue_icon_btn("xmark", Function(remove_fn, *remove_args), "Remove preset")
                 use cue_icon_btn(
                     "play",
                     Function(_cue_preview_sfx, _cue_pick_file(folder_children or [""], False), preview_vol),
-                    "Play random file from preset", None)
+                    "Play random file from preset")
                 use cue_txt_button(folder_label, Function(_cue.sfx_manager.toggle_file_ref_expand, folder_label))
                 text "({} files)".format(_count) style "cue_help"
 
@@ -387,8 +383,8 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                         if folder_child_remove_fn is not None:
                             use cue_icon_btn("xmark",
                                 Function(folder_child_remove_fn, trigger_key, pool_index, 0, _child),
-                                "Remove file from pool", None)
-                        use cue_icon_btn("play", Function(_cue_preview_sfx, _child, preview_vol), None, None)
+                                "Remove file from pool")
+                        use cue_icon_btn("play", Function(_cue_preview_sfx, _child, preview_vol))
                         text _child color _cue_color_text_accent size 11
 
         for fi, f in enumerate(files):
@@ -398,11 +394,11 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 $ _count = len(_cue_resolve_files([f]))
                 hbox:
                     spacing row_spacing
-                    use cue_icon_btn("xmark", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder", None)
+                    use cue_icon_btn("xmark", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder")
                     use cue_icon_btn(
                         "play",
                         Function(_cue_preview_folder, f, preview_vol),
-                        "Play random file from folder", None)
+                        "Play random file from folder")
                     use cue_txt_button(f, Function(_cue.sfx_manager.toggle_file_ref_expand, f))
                     text "({} files)".format(_count) style "cue_help"
 
@@ -414,16 +410,16 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                             if folder_child_remove_fn is not None:
                                 use cue_icon_btn("xmark",
                                     Function(folder_child_remove_fn, trigger_key, pool_index, fi, _child),
-                                    "Remove file from the folder", None)
-                            use cue_icon_btn("play", Function(_cue_preview_sfx, _child, preview_vol), None, None)
+                                    "Remove file from the folder")
+                            use cue_icon_btn("play", Function(_cue_preview_sfx, _child, preview_vol))
                             $ _display = _child[len(f):]  # strip folder prefix
                             text _display color _cue_color_text_accent size 11
             else:
                 # --- Regular file ---
                 hbox:
                     spacing row_spacing
-                    use cue_icon_btn("xmark", _cue_make_tab_action(remove_fn, remove_args, fi), None, None)
-                    use cue_icon_btn("play", Function(_cue_preview_sfx, f, preview_vol), None, None)
+                    use cue_icon_btn("xmark", _cue_make_tab_action(remove_fn, remove_args, fi))
+                    use cue_icon_btn("play", Function(_cue_preview_sfx, f, preview_vol))
                     text f color _cue_color_text_accent size 11
 
 # Scrollable file list: only wraps in a viewport when content exceeds ~6 rows (120 px).
@@ -563,7 +559,6 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                     "floppy-disk",
                     Function(_cue.preset_dialog.open, key, _target),
                     "Save pool as a preset",
-                    None,
                 )
                 if not ctx.ONE_SHOT:
                     $ _exclusive_on = bool(_r.exclusive.group)
@@ -576,7 +571,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                         Function(ctx.toggle_exclusive),
                         tt=_excl_tt,
                         bg=_exclusive_bg)
-                use cue_icon_btn("xmark", Function(ctx.remove_pool, _target), "Delete pool", None)
+                use cue_icon_btn("xmark", Function(ctx.remove_pool, _target), "Delete pool")
                 null width 5
                 $ _vol_label = "Volume: {:.1f}".format(_active_vol)
                 use cue_vol_row(_vol_label, _active_pool, key)

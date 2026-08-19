@@ -152,33 +152,33 @@ screen cue_recent_list(entries):
             if _re["type"] == "file":
                 $ _re_idx = _cue.sfx_manager._file_index.get(_re["ref"], -1)
                 $ _re_ok = _re_idx >= 0
-                use cue_icon_btn("play", Function(_cue_preview_sfx, _re["ref"]), "Preview audio", None)
+                use cue_icon_btn("play", Function(_cue_preview_sfx, _re["ref"]), "Preview audio")
                 use cue_icon_btn(
                     "plus",
                     Function(_cue_markers_send, "file", _re_idx, False),
-                    _tgt_tt, None, enabled=(_tgt_ok and _re_ok))
+                    _tgt_tt, enabled=(_tgt_ok and _re_ok))
                 null width 1
                 text _re["ref"] color _cue_color_text_accent
             elif _re["type"] == "folder":
                 use cue_icon_btn(
                     "play",
                     Function(_cue_preview_folder, _re["ref"]),
-                    "Play random file from folder", None)
+                    "Play random file from folder")
                 use cue_icon_btn(
                     "plus",
                     Function(_cue_markers_send, "folder", _re["ref"], False),
-                    _tgt_tt, None, enabled=_tgt_ok)
+                    _tgt_tt, enabled=_tgt_ok)
                 null width 1
                 text _re["ref"] color _cue_color_text_accent
             else:  # preset
                 use cue_icon_btn(
                     "play",
                     Function(_cue_preview_preset, _re["ref"]),
-                    "Play random file from preset", None)
+                    "Play random file from preset")
                 use cue_icon_btn(
                     "plus",
                     Function(_cue_markers_send, "preset", _re["ref"], False),
-                    _tgt_tt, None, enabled=_tgt_ok)
+                    _tgt_tt, enabled=_tgt_ok)
                 null width 1
                 text _re["ref"] color _cue_color_text_accent
 
@@ -199,15 +199,15 @@ screen cue_audio_presets_list(name_filter=None):
         hbox:
             spacing 2
             text " "  # indent under Presets/
-            use cue_icon_btn("xmark", Function(_cue_confirm_delete_preset, _pname), "Delete preset", None)
+            use cue_icon_btn("xmark", Function(_cue_confirm_delete_preset, _pname), "Delete preset")
             use cue_icon_btn(
                 "play",
                 Function(_cue_preview_preset, _pname),
-                "Play random file from preset", None)
+                "Play random file from preset")
             use cue_icon_btn(
                 "plus",
                 Function(_cue_markers_send, "preset", _pname),
-                _tgt_tt, None, enabled=_tgt_ok)
+                _tgt_tt, enabled=_tgt_ok)
             use cue_txt_button(_pname, Function(_cue.sfx_manager.toggle_preset_expand, _pname))
 
         if _p_expanded:
@@ -218,8 +218,8 @@ screen cue_audio_presets_list(name_filter=None):
                     use cue_icon_btn(
                         "xmark",
                         Function(_cue.markers.preset_remove_file, _pname, _child),
-                        "Remove file from preset", None)
-                    use cue_icon_btn("play", Function(_cue_preview_sfx, _child), "Preview file", None)
+                        "Remove file from preset")
+                    use cue_icon_btn("play", Function(_cue_preview_sfx, _child), "Preview file")
                     null width 1
                     text _child color _cue_color_text_accent size 11
 
@@ -241,16 +241,16 @@ screen cue_video_presets_list(_is_video, name_filter=None):
             use cue_icon_btn(
                 "xmark",
                 Function(_cue_confirm_delete_video_preset, _vpname),
-                "Delete video preset", None)
+                "Delete video preset")
             use cue_icon_btn(
                 "play",
                 Function(_cue_preview_video_preset, _vpname),
-                "Play random file from video preset", None)
+                "Play random file from video preset")
             use cue_icon_btn(
                 "V",
                 Function(_cue_maybe_apply_video_preset, _vpname),
                 "Apply video markers to the current video.\nOverwrites existing markers.",
-                None, enabled=_is_video)
+                enabled=_is_video)
             use cue_txt_button(_vpname, Function(_cue.sfx_manager.toggle_video_preset_expand, _vpname))
 
         if _vp_expanded:
@@ -284,18 +284,18 @@ screen cue_file_tree():
                     use cue_icon_btn(
                         "play",
                         Function(_cue_preview_folder, item["full_path"]),
-                        "Play random file from folder", None)
+                        "Play random file from folder")
                     use cue_icon_btn(
                         "plus",
                         Function(_cue_markers_send, "folder", item["full_path"]),
-                        _tgt_tt, None, enabled=_tgt_ok)
+                        _tgt_tt, enabled=_tgt_ok)
                 use cue_txt_button(item["name"], Function(_cue.sfx_manager.toggle_folder, item["full_path"]))
             else:
                 # Play preview
-                use cue_icon_btn("play", Function(_cue_preview_sfx, item["full_path"]), "Preview audio", None)
+                use cue_icon_btn("play", Function(_cue_preview_sfx, item["full_path"]), "Preview audio")
                 use cue_icon_btn(
                     "plus",
                     Function(_cue_markers_send, "file", item["index"]),
-                    _tgt_tt, None, enabled=_tgt_ok)
+                    _tgt_tt, enabled=_tgt_ok)
                 null width 1
                 text item["name"] color _cue_color_text_accent

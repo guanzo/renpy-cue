@@ -22,13 +22,12 @@ screen _cue_edit_queue_vbox():
                         "xmark",
                         Function(_cue.video_editor.job_queue.cancel, job.job_id),
                         "Cancel job",
-                        None,
                     )
                 else:
                     use cue_icon_btn(
                         "xmark",
                         Function(_cue.video_editor.job_queue.remove, job.job_id),
-                        "Remove from queue", None)
+                        "Remove from queue")
                 text job.filename() + " " + job.speed_label size 11
                 text "(" + job.status_text() + ")" size 11
                 if job.status != CueJobStatus.QUEUED:
