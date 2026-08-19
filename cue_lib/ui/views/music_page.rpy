@@ -57,32 +57,26 @@ screen cue_music_page():
                         text "Current Scene:"
                         text (_cue.current_file or "(None)") color _cue_color_text_accent
                     
-                    null height 5
-
                     $ triggers = _cue.music.triggers()
-                   
-                    if not triggers:
-                        text "No music triggers for this replay yet."
-                    else:
-                        text "Music Triggers:"
+                    if triggers:
                         use trigger_list(triggers)
                     
                     if not renpy.store._in_replay:
-                        null height 4
+                        null height 5
                         $ _warn_icon = _cue.icons.displayable_for("triangle-exclamation", _cue_color_warn)
                         hbox:
-                            spacing 6
+                            spacing 5
                             add _warn_icon yalign 0.5
                             text ("Customizing Music is only fully supported in replays, "
                                     "it may not work properly in game.") color _cue_color_warn
                     
-                    null height 4
+                    null height 5
                     use cue_txt_button(
                         "+ Play music starting at current scene",
                         Function(_cue.music.add_custom_trigger))
 
         $ music_lib_tt = (
-            "My Music: add {} files to \n{}.\n\n"
+            "My Music: add {} files to \n{}\n\n"
             "Game Music is found with heuristics, it may not find all music.").format(
                 ", ".join(CUE_AUDIO_EXTS), _cue.paths.music_dir)
         use cue_section_frame("Music Library", tt=music_lib_tt):
