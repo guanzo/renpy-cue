@@ -216,11 +216,11 @@ class CueVideoMarkerTimeline(Displayable):
     SEL_BG = "#446688"
     SEL_LINE = "#5588cc"
 
-    def __init__(self, get_markers, get_active, set_active, set_time, get_dur, **kw):
+    def __init__(self, get_markers, get_active_index, set_active_index, set_time, get_dur, **kw):
         super(CueVideoMarkerTimeline, self).__init__(**kw)
         self.get_markers = get_markers
-        self.get_active = get_active
-        self.set_active = set_active
+        self.get_active_index = get_active_index
+        self.set_active_index = set_active_index
         self.set_time = set_time
         self.get_dur = get_dur
         self._drag_idx = -1
@@ -290,7 +290,7 @@ class CueVideoMarkerTimeline(Displayable):
         c = r.canvas()
         dur = self.get_dur()
         markers = self.get_markers()
-        active = self.get_active()
+        active = self.get_active_index()
         sel = self._get_selected()
         speed = _cue.speed_resolver.get_current_speed()
         is_scaled = speed != 1.0
@@ -427,7 +427,7 @@ class CueVideoMarkerTimeline(Displayable):
                 else:
                     self._tip_text = "Pool {} ({})".format(
                         hit_idx + 1, _cue_format_time(t))
-                    refs = sel if sel else {self.get_active()}
+                    refs = sel if sel else {self.get_active_index()}
                     valid_refs = [s for s in refs if 0 <= s < len(markers)]
                     if hit_idx not in valid_refs and valid_refs:
                         ref_idx = min(valid_refs, key=lambda s: abs(markers[s]["time"] - t))
@@ -480,7 +480,7 @@ class CueVideoMarkerTimeline(Displayable):
 
             if alt_held and hit_idx >= 0:
                 if not sel:
-                    active = self.get_active()
+                    active = self.get_active_index()
                     if active != hit_idx and 0 <= active < len(markers):
                         sel.add(active)
                 if hit_idx in sel:
@@ -491,9 +491,9 @@ class CueVideoMarkerTimeline(Displayable):
                 # active marker itself was just toggled out, re-anchor to the
                 # nearest remaining group member so the panel keeps showing a
                 # selected pool.
-                if hit_idx == self.get_active() and hit_idx not in sel and sel:
+                if hit_idx == self.get_active_index() and hit_idx not in sel and sel:
                     nearest = min(sel, key=lambda i: abs(markers[i]["time"] - markers[hit_idx]["time"]))
-                    self.set_active(nearest)
+                    self.set_active_index(nearest)
                 _cue.markers.video.selected = sel
                 renpy.redraw(self, 0)
                 renpy.restart_interaction()
@@ -505,7 +505,7 @@ class CueVideoMarkerTimeline(Displayable):
                     nearest_idx = min(valid_sel, key=lambda si: abs(markers[si]["time"] - click_time))
                     ref_time = markers[nearest_idx]["time"]
                 else:
-                    active = self.get_active()
+                    active = self.get_active_index()
                     if not (0 <= active < len(markers)):
                         return None
                     ref_time = markers[active]["time"]
@@ -532,7 +532,7 @@ class CueVideoMarkerTimeline(Displayable):
                 self._drag_start_x = inner_x
                 self._drag_on = False
                 self._reset_drag_state()
-                self.set_active(hit_idx)
+                self.set_active_index(hit_idx)
                 renpy.redraw(self, 0)
                 raise IgnoreEvent()
 

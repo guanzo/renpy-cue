@@ -187,19 +187,21 @@ class CueUndoManager(object):
 
         if img_key:
             n = _count(img_key)
-            m._img_target = min(m._img_target, n - 1) if n else 0
+            m.image.active_pool = min(m.image.active_pool, n - 1) if n else 0
         if dlg_key:
             n = _count(dlg_key)
-            m._dlg_target = min(m._dlg_target, n - 1) if n else 0
+            m.dialogue.active_pool = min(m.dialogue.active_pool, n - 1) if n else 0
         if loop_key:
             n = _count(loop_key)
-            m._loop_target = min(m._loop_target, n - 1) if n else 0
+            m.loop.active_pool = min(m.loop.active_pool, n - 1) if n else 0
         if vid_key:
             n = _count(vid_key)
-            m.video.target_pool = min(m.video.target_pool, n - 1) if n else 0
+            m.video.active_pool = min(m.video.active_pool, n - 1) if n else 0
             m.video.selected = set()
             m.video.sync_text()
+
         # Update the video editor UI if visible
+        # TODO: This is ugly. doesn't belong here.
         if _cue.is_overlay_visible:
             try:
                 self._video_editor.refresh_ui()

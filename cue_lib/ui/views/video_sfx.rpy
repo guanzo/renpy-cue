@@ -75,14 +75,14 @@ screen cue_video_sfx():
         $ _vid_entry = _cue.markers.get(_vid_key, {})
         $ _vid_entries = _cue.markers._resolve_video_pools(_vid_entry) if _vid_entry else []
         $ _vid_count = len(_vid_entries)
-        $ _vid_target = _cue.markers.video.target_pool
+        $ _vid_target = _cue.markers.video.active_pool
         $ _vid_target = max(0, min(_vid_target, _vid_count - 1)) if _vid_entries else 0
         # --- Draggable video marker timeline ---
         if _vid_entries:
             add CueVideoMarkerTimeline(
                 get_markers=_cue.markers.video.get_markers,
-                get_active=_cue.markers.video.get_active,
-                set_active=_cue.markers.video.set_active,
+                get_active_index=_cue.markers.video.get_active_index,
+                set_active_index=_cue.markers.video.set_active_index,
                 set_time=_cue.markers.video.set_time,
                 get_dur=_cue.markers.video.get_duration,
             ) yoffset -8

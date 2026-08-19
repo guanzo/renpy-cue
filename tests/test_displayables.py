@@ -208,14 +208,14 @@ def _make_mtl(monkeypatch, markers_list, dur=10.0, speed=1.0, selected=None):
     cue._marker_tip_y = 0
     monkeypatch.setattr(_displ, "_cue", cue)
 
-    calls = {"set_time": [], "set_active": [], "finalize": 0}
+    calls = {"set_time": [], "set_active_index": [], "finalize": 0}
 
     def _set_time(idx, t):
         calls["set_time"].append((idx, t))
         markers_list[idx]["time"] = t
 
     def _set_active(idx):
-        calls["set_active"].append(idx)
+        calls["set_active_index"].append(idx)
 
     def _finalize():
         calls["finalize"] += 1
@@ -223,8 +223,8 @@ def _make_mtl(monkeypatch, markers_list, dur=10.0, speed=1.0, selected=None):
     video.finalize_drag = _finalize
     tl = CueVideoMarkerTimeline(
         get_markers=lambda: markers_list,
-        get_active=lambda: 0,
-        set_active=_set_active,
+        get_active_index=lambda: 0,
+        set_active_index=_set_active,
         set_time=_set_time,
         get_dur=lambda: dur,
     )
@@ -391,7 +391,7 @@ def test_mtl_event_click_selects_single(monkeypatch):
     ev = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
     with pytest.raises(IgnoreEvent):
         env.tl.event(ev, 100, 15, 0.0)
-    assert env.calls["set_active"] == [1]
+    assert env.calls["set_active_index"] == [1]
     assert env.tl._drag_idx == 1
     assert env.tl._drag_start_x == 90
     assert env.calls["set_time"] == []
@@ -422,7 +422,7 @@ def test_mtl_event_click_scaled_noop(monkeypatch):
     env.tl.render(200, 60, 0.0, 0.0)
     ev = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
     assert env.tl.event(ev, 100, 15, 0.0) is None
-    assert env.calls["set_active"] == []
+    assert env.calls["set_active_index"] == []
 
 
 def test_mtl_event_alt_click_toggles_selection(monkeypatch):
@@ -436,7 +436,7 @@ def test_mtl_event_alt_click_toggles_selection(monkeypatch):
     # Alt-click on marker 1 with no selection pulls in active (0) + hit (1).
     assert env.video.selected == {0, 1}
     # Active stays anchored (already in the group); no re-anchor needed.
-    assert env.calls["set_active"] == []
+    assert env.calls["set_active_index"] == []
 
 
 def test_mtl_event_alt_click_removes_selected(monkeypatch):
@@ -450,7 +450,7 @@ def test_mtl_event_alt_click_removes_selected(monkeypatch):
         env.tl.event(ev, 100, 15, 0.0)
     # marker 1 was selected; alt-click discards it and nothing stays active.
     assert env.video.selected == set()
-    assert env.calls["set_active"] == []
+    assert env.calls["set_active_index"] == []
 
 
 def test_mtl_event_shift_click_selects_range(monkeypatch):
@@ -464,7 +464,7 @@ def test_mtl_event_shift_click_selects_range(monkeypatch):
     # Range from active (t=0) to hit (t=5) covers both markers.
     assert env.video.selected == {0, 1}
     # The anchor marker is already in the range; active is left untouched.
-    assert env.calls["set_active"] == []
+    assert env.calls["set_active_index"] == []
 
 
 def test_mtl_event_shift_click_empty_range_select(monkeypatch):
@@ -492,7 +492,7 @@ def test_mtl_event_shift_click_uses_existing_selection(monkeypatch):
 def test_mtl_event_shift_click_active_out_of_range(monkeypatch):
     env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}])
     env.tl.render(200, 60, 0.0, 0.0)
-    env.tl.get_active = lambda: 5  # invalid index -> early return
+    env.tl.get_active_index = lambda: 5  # invalid index -> early return
     monkeypatch.setattr(_pygame.key, "get_mods", lambda: _pygame.KMOD_LSHIFT)
     ev = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
     assert env.tl.event(ev, 100, 15, 0.0) is None

@@ -137,7 +137,7 @@ testcase video_sfx_timeline_seeded:
     $ _cue.markers.video.add_pool()
     assert eval (_cue.markers.video.has_markers())
     assert eval (len(_cue.markers.video.get_markers()) >= 1)
-    assert eval (0 <= _cue.markers.video.target_pool < len(_cue.markers.video.get_markers()))
+    assert eval (0 <= _cue.markers.video.active_pool < len(_cue.markers.video.get_markers()))
 
 testcase video_multi_edit_fans_out:
     run Jump("start")
@@ -189,7 +189,7 @@ testcase video_multi_duplicate_fans_out:
     assert eval (_copy1 and _copy2)
     $ _sel = _cue.markers.video.selected
     assert eval (len(_sel) == 2)
-    assert eval (_cue.markers.video.target_pool in _sel)
+    assert eval (_cue.markers.video.active_pool in _sel)
 
 testcase video_multi_delete_pool_group:
     run Jump("start")

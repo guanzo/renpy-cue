@@ -500,8 +500,8 @@ screen cue_section_frame(header_text, tt=None, icons=[]):
                         transclude
 
 # Generic context section: shared by dialogue, image, and loop SFX.
-# ctx: marker context with add_pool, remove_pool, clear, set_active,
-#      get_active, remove_file (e.g. _cue.markers.dialogue)
+# ctx: marker context with add_pool, remove_pool, clear, set_active_index,
+#      get_active_index, remove_file (e.g. _cue.markers.dialogue)
 # key: trigger key for volume/marker lookups
 # subtitle: optional "Label: value" text below header (None to skip)
 # subject: noun for confirm messages ("dialogue", "image", "file")
@@ -515,11 +515,11 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
 
     $ _entry = _cue.markers.get(key, {})
     $ _pools = _entry.get("pools", [])
-    $ _target = ctx.get_active()
+    $ _target = ctx.get_active_index()
     $ _target = max(0, min(_target, len(_pools) - 1)) if _pools else 0
 
     # sync back: clamps stale target after file switch so set_frequency/set_exclusive_* don't no-op
-    $ ctx.set_active(_target)
+    $ ctx.set_active_index(_target)
 
     use cue_section_frame(section_title):
         if subtitle is not None:
@@ -534,7 +534,8 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 "Delete all {} for the current {}?".format(section_title.lower(), subject),
                 Function(ctx.clear), "Delete all {} for the current {}".format(section_title.lower(), subject),
                 Function(ctx.add_pool), "Create a SFX pool",
-                ctx.set_active, (), "Select {} target pool -- targets {} button".format(section_title, btn_letter),
+                ctx.set_active_index, (),
+                "Select {} target pool -- targets {} button".format(section_title, btn_letter),
                 _excl_ctx)
 
         if _pools and 0 <= _target < len(_pools):

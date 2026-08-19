@@ -118,9 +118,6 @@ class CueMarkerManager:
     _trigger: CueTriggerEngine
     _video_editor: CueVideoEditor
     _confirm_dialog: CueConfirmDialog
-    _img_target: int
-    _dlg_target: int
-    _loop_target: int
 
     @property
     def _data(self) -> Dict[str, MarkerEntry]: ...

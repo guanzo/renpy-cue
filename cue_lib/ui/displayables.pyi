@@ -32,8 +32,8 @@ class CueVideoMarkerTimeline(Displayable):
     def __init__(
         self,
         get_markers: Callable[[], List[VideoPoolDict]],
-        get_active: Callable[[], int],
-        set_active: Callable[[int], None],
+        get_active_index: Callable[[], int],
+        set_active_index: Callable[[int], None],
         set_time: Callable[[int, float], None],
         get_dur: Callable[[], float],
         **properties: Any) -> None: ...

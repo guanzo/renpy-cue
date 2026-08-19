@@ -35,18 +35,11 @@ class CueMarkerContext(object):
 
     def __init__(self, manager):
         self._mgr = manager
+        self.active_pool = 0
 
     def _key(self):
         # type: () -> str
         raise NotImplementedError("_key must be overridden")
-
-    def _get_target(self):
-        # type: () -> int
-        raise NotImplementedError("_get_target must be overridden")
-
-    def _set_target(self, value):
-        # type: (int) -> None
-        raise NotImplementedError("_set_target must be overridden")
 
     def add_file(self, file_index):
         # type: (int) -> None
@@ -58,7 +51,7 @@ class CueMarkerContext(object):
         filename = self._mgr._sfx_manager.files[file_index]
         if filename in self._mgr._sfx_manager.disabled_files:
             return
-        self._mgr._add_file_to_pool(key, filename, self.get_active())
+        self._mgr._add_file_to_pool(key, filename, self.get_active_index())
 
     def send_file(self, file_index, record=True):
         # type: (int, bool) -> None
@@ -113,7 +106,7 @@ class CueMarkerContext(object):
             "files": [],
             "volume": CUE_VOLUME_DEFAULT,
         })
-        self._set_target(len(entry["pools"]) - 1)
+        self.active_pool = len(entry["pools"]) - 1
         self._mgr._db_save_marker(key)
 
     def remove_pool(self, pool_index):
@@ -130,18 +123,18 @@ class CueMarkerContext(object):
             del self._mgr[key]
         remaining = len(pools)
         if remaining:
-            self._set_target(min(self._get_target(), remaining - 1))
+            self.active_pool = min(self.active_pool, remaining - 1)
         else:
-            self._set_target(0)
+            self.active_pool = 0
         self._mgr._db_save_marker(key)
 
-    def get_active(self):
+    def get_active_index(self):
         # type: () -> int
-        return self._get_target()
+        return self.active_pool
 
-    def set_active(self, pool_index):
+    def set_active_index(self, pool_index):
         # type: (int) -> None
-        self._set_target(pool_index)
+        self.active_pool = int(pool_index)
 
     def get_active_pool(self):
         # type: () -> PoolDict
@@ -155,7 +148,7 @@ class CueMarkerContext(object):
         pools = entry.get("pools", [])
         if not pools:
             return {}
-        target = max(0, min(self.get_active(), len(pools) - 1))
+        target = max(0, min(self.get_active_index(), len(pools) - 1))
         return pools[target]
 
     def has_pools(self):
@@ -191,7 +184,7 @@ class CueMarkerContext(object):
                 else:
                     pool["exclusive"] = dict(payload)
         else:
-            target = self.get_active()
+            target = self.get_active_index()
             if 0 <= target < len(pools):
                 if payload is None:
                     pools[target].pop("exclusive", None)
@@ -227,14 +220,14 @@ class CueMarkerContext(object):
     def apply_preset(self, preset_name):
         # type: (str) -> None
         key = self._key()
-        self._mgr._stamp_preset(key, preset_name, self.get_active())
+        self._mgr._stamp_preset(key, preset_name, self.get_active_index())
 
     def add_folder(self, folder_path):
         # type: (str) -> None
         key = self._key()
         folder_ref = folder_path.rstrip("/") + "/"
-        self._mgr._detach_pool(key, self.get_active())
-        pool = self._mgr._ensure_pool(key, self.get_active())
+        self._mgr._detach_pool(key, self.get_active_index())
+        pool = self._mgr._ensure_pool(key, self.get_active_index())
         files = pool.setdefault("files", [])
         if folder_ref not in files:
             files.append(folder_ref)
@@ -258,14 +251,6 @@ class CueImageContext(CueMarkerContext):
         # type: () -> str
         return create_img_key(self._mgr._ctx.current_file)
 
-    def _get_target(self):
-        # type: () -> int
-        return self._mgr._img_target
-
-    def _set_target(self, value):
-        # type: (int) -> None
-        self._mgr._img_target = int(value)
-
 
 # =========================================================================
 # CueDialogueContext
@@ -278,14 +263,6 @@ class CueDialogueContext(CueMarkerContext):
         # type: () -> str
         return create_dlg_key((self._mgr._ctx.current_file, self._mgr._ctx.current_dialogue or ""))
 
-    def _get_target(self):
-        # type: () -> int
-        return self._mgr._dlg_target
-
-    def _set_target(self, value):
-        # type: (int) -> None
-        self._mgr._dlg_target = int(value)
-
 
 # =========================================================================
 # CueVideoContext
@@ -294,21 +271,12 @@ class CueDialogueContext(CueMarkerContext):
 class CueVideoContext(CueMarkerContext):
     def __init__(self, manager):
         super(CueVideoContext, self).__init__(manager)
-        self.target_pool = 0
         self.selected = set()
         self.edit_text = ""
 
     def _key(self):
         # type: () -> str
         return create_vid_key(self._mgr._ctx.current_file) if self._mgr._ctx.current_file else ""
-
-    def _get_target(self):
-        # type: () -> int
-        return self.target_pool
-
-    def _set_target(self, value):
-        # type: (int) -> None
-        self.target_pool = int(value)
 
     def _entry_and_pools(self):
         # type: () -> Tuple[Optional[MarkerEntry], List[Dict[str, Any]]]
@@ -325,10 +293,10 @@ class CueVideoContext(CueMarkerContext):
         pools.sort(key=lambda e: e["time"])
         try:
             new_idx = pools.index(tracked_entry)
-            self.target_pool = new_idx
+            self.active_pool = new_idx
             return new_idx
         except ValueError:
-            self.target_pool = min(self.target_pool, len(pools) - 1)
+            self.active_pool = min(self.active_pool, len(pools) - 1)
             return -1
 
     def _append_pool(self, entry, pools, pool_dict):
@@ -401,8 +369,8 @@ class CueVideoContext(CueMarkerContext):
         if len(self.selected) > 1:
             for idx in sorted(self.selected):
                 self._add_file(vid_key, filename, idx)
-        elif pools and 0 <= self.target_pool < len(pools):
-            self._add_file(vid_key, filename, self.target_pool)
+        elif pools and 0 <= self.active_pool < len(pools):
+            self._add_file(vid_key, filename, self.active_pool)
         else:
             elapsed = self._mgr._vid_manager.get_elapsed()
             self._append_pool(entry, pools,
@@ -439,8 +407,8 @@ class CueVideoContext(CueMarkerContext):
         if len(self.selected) > 1:
             for idx in sorted(self.selected):
                 self._add_file(vid_key, folder_ref, idx)
-        elif pools and 0 <= self.target_pool < len(pools):
-            self._add_file(vid_key, folder_ref, self.target_pool)
+        elif pools and 0 <= self.active_pool < len(pools):
+            self._add_file(vid_key, folder_ref, self.active_pool)
         else:
             elapsed = self._mgr._vid_manager.get_elapsed()
             self._append_pool(entry, pools,
@@ -450,7 +418,7 @@ class CueVideoContext(CueMarkerContext):
     def clear(self):
         # type: () -> None
         super(CueVideoContext, self).clear()
-        self.target_pool = 0
+        self.active_pool = 0
         self.selected = set()
 
     def add_pool(self):
@@ -496,14 +464,14 @@ class CueVideoContext(CueMarkerContext):
                 if 0 <= idx < len(pools):
                     time = pools[idx].get("time", self._mgr._vid_manager.get_elapsed())
                     pools[idx] = {"time": time, "preset": preset_name}
-        elif not pools or not (0 <= self.target_pool < len(pools)):
+        elif not pools or not (0 <= self.active_pool < len(pools)):
             elapsed = self._mgr._vid_manager.get_elapsed()
             self._append_pool(entry, pools,
                 {"time": elapsed, "preset": preset_name})
         else:
-            pool = pools[self.target_pool]
+            pool = pools[self.active_pool]
             time = pool.get("time", self._mgr._vid_manager.get_elapsed())
-            pools[self.target_pool] = {"time": time, "preset": preset_name}
+            pools[self.active_pool] = {"time": time, "preset": preset_name}
         self.sync_text()
         self._mgr._db_save_marker(vid_key)
 
@@ -528,7 +496,7 @@ class CueVideoContext(CueMarkerContext):
         if len(self.selected) > 1:
             self.remove_selected()
         else:
-            self.remove_pool(self.target_pool)
+            self.remove_pool(self.active_pool)
 
     def _duplicate_gap(self):
         # type: () -> float
@@ -571,7 +539,7 @@ class CueVideoContext(CueMarkerContext):
             new_sel.add(next(i for i, pool in enumerate(pools) if pool is clone))
         self.selected = new_sel
         if new_sel:
-            self.target_pool = min(new_sel)
+            self.active_pool = min(new_sel)
         self._mgr._db_save_marker(vid_key)
 
     def remove_selected(self):
@@ -586,13 +554,13 @@ class CueVideoContext(CueMarkerContext):
                         pools.pop(idx)
                 if not pools:
                     del self._mgr[self._key()]
-                    self.target_pool = 0
+                    self.active_pool = 0
                 else:
-                    self.target_pool = min(self.target_pool, len(pools) - 1)
+                    self.active_pool = min(self.active_pool, len(pools) - 1)
             self.selected = set()
             self._mgr._db_save_marker(self._key())
         else:
-            self.remove_pool(self.target_pool)
+            self.remove_pool(self.active_pool)
 
     def has_markers(self):
         # type: () -> bool
@@ -609,17 +577,17 @@ class CueVideoContext(CueMarkerContext):
         else:
             if not self.has_markers():
                 return ""
-            return "Delete marker {}?".format(self.target_pool + 1)
+            return "Delete marker {}?".format(self.active_pool + 1)
 
-    def set_active(self, pool_index):
+    def set_active_index(self, pool_index):
         # type: (int) -> None
-        super(CueVideoContext, self).set_active(pool_index)
+        super(CueVideoContext, self).set_active_index(pool_index)
         self.sync_text()
 
     def select_tab(self, pool_index):
         # type: (int) -> None
         self.selected = set()
-        self.set_active(pool_index)
+        self.set_active_index(pool_index)
 
     def clear_selection(self):
         # type: () -> None
@@ -653,8 +621,8 @@ class CueVideoContext(CueMarkerContext):
         pools = entry.get("pools", [])
         if len(self.selected) > 1:
             targets = sorted(self.selected)
-        elif 0 <= self.target_pool < len(pools):
-            targets = [self.target_pool]
+        elif 0 <= self.active_pool < len(pools):
+            targets = [self.active_pool]
         else:
             return
         for idx in targets:
@@ -673,7 +641,7 @@ class CueVideoContext(CueMarkerContext):
     def nudge(self, delta):
         # type: (float) -> None
         _, pools = self._entry_and_pools()
-        if not (0 <= self.target_pool < len(pools)):
+        if not (0 <= self.active_pool < len(pools)):
             return
         if len(self.selected) > 1:
             for idx in sorted(self.selected):
@@ -681,9 +649,9 @@ class CueVideoContext(CueMarkerContext):
             self.finalize_drag()
             self.sync_text()
             return
-        self._shift_pool_time(pools, self.target_pool, delta)
-        self._sort_and_track(pools, pools[self.target_pool])
-        self.edit_text = _cue_format_time(pools[self.target_pool]["time"])
+        self._shift_pool_time(pools, self.active_pool, delta)
+        self._sort_and_track(pools, pools[self.active_pool])
+        self.edit_text = _cue_format_time(pools[self.active_pool]["time"])
         self.selected = set()
         self._mgr._db_save_marker(self._key())
 
@@ -704,7 +672,7 @@ class CueVideoContext(CueMarkerContext):
         for idx in self.selected:
             if 0 <= idx < len(pools):
                 sel_objects.add(id(pools[idx]))
-        pi = self.target_pool
+        pi = self.active_pool
         if 0 <= pi < len(pools):
             self._sort_and_track(pools, pools[pi])
         if sel_objects:
@@ -714,35 +682,35 @@ class CueVideoContext(CueMarkerContext):
                     new_sel.add(i)
             self.selected = new_sel
             if new_sel:
-                self.target_pool = min(new_sel)
+                self.active_pool = min(new_sel)
         self._mgr._db_save_marker(self._key())
 
     def sync_text(self):
         # type: () -> None
         _, pools = self._entry_and_pools()
-        if 0 <= self.target_pool < len(pools):
-            self.edit_text = _cue_format_time(pools[self.target_pool]["time"])
+        if 0 <= self.active_pool < len(pools):
+            self.edit_text = _cue_format_time(pools[self.active_pool]["time"])
 
     def commit_text(self):
         # type: () -> None
         _, pools = self._entry_and_pools()
-        if not (0 <= self.target_pool < len(pools)):
+        if not (0 <= self.active_pool < len(pools)):
             return
         new_time = _cue_parse_time(self.edit_text)
         if new_time is not None and new_time >= 0:
             if len(self.selected) > 1:
-                anchor_time = pools[self.target_pool]["time"]
+                anchor_time = pools[self.active_pool]["time"]
                 for idx in sorted(self.selected):
                     self._shift_pool_time(pools, idx, new_time - anchor_time)
                 self.finalize_drag()
                 self.sync_text()
             else:
                 self._shift_pool_time(
-                    pools, self.target_pool, new_time - pools[self.target_pool]["time"])
-                self._sort_and_track(pools, pools[self.target_pool])
+                    pools, self.active_pool, new_time - pools[self.active_pool]["time"])
+                self._sort_and_track(pools, pools[self.active_pool])
                 self.selected = set()
                 self._mgr._db_save_marker(self._key())
-        self.edit_text = _cue_format_time(pools[self.target_pool]["time"])
+        self.edit_text = _cue_format_time(pools[self.active_pool]["time"])
 
     def get_markers(self):
         # type: () -> List[VideoPoolDict]
@@ -769,7 +737,7 @@ class CueVideoContext(CueMarkerContext):
         _, pools = self._entry_and_pools()
         if not (0 <= pool_index < len(pools)):
             return
-        active = self.get_active()
+        active = self.get_active_index()
         if not (0 <= active < len(pools)):
             return
         t_click = pools[pool_index]["time"]
@@ -803,14 +771,6 @@ class CueLoopContext(CueMarkerContext):
         # type: () -> str
         return create_loop_key(self._mgr._ctx.current_file or "")
 
-    def _get_target(self):
-        # type: () -> int
-        return self._mgr._loop_target
-
-    def _set_target(self, value):
-        # type: (int) -> None
-        self._mgr._loop_target = int(value)
-
     def add_pool(self):
         # type: () -> None
         key = self._key()
@@ -820,7 +780,7 @@ class CueLoopContext(CueMarkerContext):
             "volume": CUE_VOLUME_DEFAULT,
             "frequency": CueLoopFrequency.MEDIUM,
         })
-        self._set_target(len(entry["pools"]) - 1)
+        self.active_pool = len(entry["pools"]) - 1
         self._mgr._db_save_marker(key)
 
     def clear(self):
@@ -833,7 +793,7 @@ class CueLoopContext(CueMarkerContext):
     def set_frequency(self, freq):
         # type: (int) -> None
         key = self._key()
-        target = self.get_active()
+        target = self.get_active_index()
         entry = self._mgr.get(key)
         if entry:
             pools = entry.get("pools", [])

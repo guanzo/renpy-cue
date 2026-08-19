@@ -26,7 +26,6 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
                 "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS))
         else:
             use cue_search_bar("_cue.sfx_manager.search_query", _cue.sfx_manager)
-            null height 2
             use cue_sfx_library_content(_is_video, _has_image, _is_dialogue)
 
 screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):

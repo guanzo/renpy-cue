@@ -84,8 +84,6 @@ screen cue_music_page():
             if _cue.music.user_music.tree or _cue.music.game_music.tree:
                 use cue_search_bar("_cue.music.library.search_query", _cue.music.library)
     
-            null height 2
-            
             viewport:
                 xfill True
                 yfill True

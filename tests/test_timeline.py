@@ -40,10 +40,10 @@ class _FakeVideoContext(object):
     def get_selected(self):
         return set(self.selected)
 
-    def get_active(self):
+    def get_active_index(self):
         return self.active
 
-    def set_active(self, pool_index):
+    def set_active_index(self, pool_index):
         self.active = pool_index
         self.set_active_calls.append(pool_index)
 
@@ -59,8 +59,8 @@ def _make_timeline(selected, active=0, times=None):
         times = [0.2, 0.4]
     timeline = CueVideoMarkerTimeline(
         get_markers=lambda: [{"time": t} for t in times],
-        get_active=video.get_active,
-        set_active=video.set_active,
+        get_active_index=video.get_active_index,
+        set_active_index=video.set_active_index,
         set_time=lambda i, t: None,
         get_dur=lambda: 2.0,
     )

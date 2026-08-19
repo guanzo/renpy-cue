@@ -68,21 +68,21 @@ class LoopCtx(CueLoopContext):
 def test_get_active_pool_returns_active_pool():
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 2.0}]}})
     ctx = VideoCtx(mgr)
-    ctx.target_pool = 1
+    ctx.active_pool = 1
     assert ctx.get_active_pool() == {"time": 2.0}
 
 
 def test_get_active_pool_clamps_stale_target_high():
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 2.0}]}})
     ctx = VideoCtx(mgr)
-    ctx.target_pool = 99
+    ctx.active_pool = 99
     assert ctx.get_active_pool() == {"time": 2.0}
 
 
 def test_get_active_pool_clamps_stale_target_low():
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 2.0}]}})
     ctx = VideoCtx(mgr)
-    ctx.target_pool = -5
+    ctx.active_pool = -5
     assert ctx.get_active_pool() == {"time": 1.0}
 
 
@@ -126,17 +126,17 @@ def test_sort_and_track_sorts_by_time_and_reindexes():
     idx = ctx._sort_and_track(pools, tracked)
     assert pools == [{"time": 1.0}, {"time": 2.0}, {"time": 3.0}]
     assert idx == 1
-    assert ctx.target_pool == 1
+    assert ctx.active_pool == 1
 
 
 def test_sort_and_track_unfound_tracked_clamps_target():
     mgr = FakeManager()
     ctx = VideoCtx(mgr)
-    ctx.target_pool = 5
+    ctx.active_pool = 5
     pools = [{"time": 1.0}, {"time": 2.0}]
     idx = ctx._sort_and_track(pools, {"time": 9.0})  # not in the list
     assert idx == -1
-    assert ctx.target_pool == 1
+    assert ctx.active_pool == 1
 
 
 def test_append_pool_adds_sorts_and_clears_selection():
@@ -147,7 +147,7 @@ def test_append_pool_adds_sorts_and_clears_selection():
     ctx.selected = {0}
     ctx._append_pool(entry, pools, {"time": 2.0})
     assert pools == [{"time": 2.0}, {"time": 3.0}]
-    assert ctx.target_pool == 0
+    assert ctx.active_pool == 0
     assert ctx.selected == set()
 
 
@@ -173,7 +173,7 @@ def test_add_interval_selection_selects_spacing_chain():
         {"time": 0.0}, {"time": 0.5}, {"time": 1.0},
         {"time": 1.5}, {"time": 2.0}, {"time": 2.5}, {"time": 2.99}]}})
     ctx = VideoCtx(mgr)
-    ctx.target_pool = 0  # active marker 1
+    ctx.active_pool = 0  # active marker 1
     ctx.add_interval_selection(2)  # click marker 3
     assert ctx.selected == {0, 2, 4, 6}  # markers 1, 3, 5, 7
 
@@ -184,7 +184,7 @@ def test_add_interval_selection_backward_extension():
     mgr = FakeManager({"v_key": {"pools": [
         {"time": 0.0}, {"time": 1.0}, {"time": 2.0}, {"time": 3.0}]}})
     ctx = VideoCtx(mgr)
-    ctx.target_pool = 1
+    ctx.active_pool = 1
     ctx.add_interval_selection(2)
     assert ctx.selected == {0, 1, 2, 3}
 
@@ -195,7 +195,7 @@ def test_add_interval_selection_reversed_anchor():
     mgr = FakeManager({"v_key": {"pools": [
         {"time": 0.0}, {"time": 1.0}, {"time": 2.0}, {"time": 3.0}]}})
     ctx = VideoCtx(mgr)
-    ctx.target_pool = 2
+    ctx.active_pool = 2
     ctx.add_interval_selection(0)
     assert ctx.selected == {0, 2}
 
@@ -205,7 +205,7 @@ def test_add_interval_selection_merges_into_existing_selection():
         {"time": 0.0}, {"time": 0.5}, {"time": 1.0},
         {"time": 1.5}, {"time": 2.0}]}})
     ctx = VideoCtx(mgr)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {1}  # off-grid half-beat stays selected
     ctx.add_interval_selection(2)
     assert ctx.selected == {0, 1, 2, 4}
@@ -216,9 +216,9 @@ def test_add_interval_selection_keeps_active_marker():
         {"time": 0.0}, {"time": 0.5}, {"time": 1.0},
         {"time": 1.5}, {"time": 2.0}]}})
     ctx = VideoCtx(mgr)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.add_interval_selection(2)
-    assert ctx.target_pool == 0
+    assert ctx.active_pool == 0
 
 
 def test_add_interval_selection_tolerance_boundaries():
@@ -228,7 +228,7 @@ def test_add_interval_selection_tolerance_boundaries():
         {"time": 0.0}, {"time": 1.0},
         {"time": 2.0}, {"time": 2.99}, {"time": 2.97}]}})
     ctx = VideoCtx(mgr)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.add_interval_selection(1)
     assert ctx.selected == {0, 1, 2, 3}
 
@@ -241,7 +241,7 @@ def test_add_interval_selection_uses_imported_tolerance():
         {"time": 2.0 + CUE_INTERVAL_SELECT_TOLERANCE / 2},  # 5ms inside next edge
     ]}})
     ctx = VideoCtx(mgr)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.add_interval_selection(1)
     assert ctx.selected == {0, 1, 2, 3}
 
@@ -250,7 +250,7 @@ def test_add_interval_selection_clicking_active_selects_it():
     mgr = FakeManager({"v_key": {"pools": [
         {"time": 0.0}, {"time": 0.5}, {"time": 1.0}]}})
     ctx = VideoCtx(mgr)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.add_interval_selection(0)  # zero spacing
     assert ctx.selected == {0}
 
@@ -309,10 +309,10 @@ def test_set_time_updates_pool_and_clamps_to_duration():
 def test_nudge_moves_pool_time_and_resorts():
     mgr = FakeManager({"v_key": {"pools": [{"time": 3.0}, {"time": 1.0}]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0  # the 3.0 pool
+    ctx.active_pool = 0  # the 3.0 pool
     ctx.nudge(-1.5)
     assert mgr._data["v_key"]["pools"] == [{"time": 1.0}, {"time": 1.5}]
-    assert ctx.target_pool == 1  # target follows the nudged pool
+    assert ctx.active_pool == 1  # target follows the nudged pool
     assert ctx.edit_text == "00:01.50"
     assert ctx.selected == set()
 
@@ -320,12 +320,12 @@ def test_nudge_moves_pool_time_and_resorts():
 def test_commit_text_parses_and_writes_time():
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 2.0}]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.edit_text = "00:05.00"
     ctx.commit_text()
     # commit_text re-sorts on write, so the edited pool (now 5.0) moves to index 1.
     assert mgr._data["v_key"]["pools"] == [{"time": 2.0}, {"time": 5.0}]
-    assert ctx.target_pool == 1
+    assert ctx.active_pool == 1
     assert ctx.edit_text == "00:05.00"
 
 
@@ -340,7 +340,7 @@ def test_sync_text_out_of_range_target_leaves_text():
     mgr = FakeManager({"v_key": {"pools": [{"time": 83.45}]}})
     ctx = VideoCtx(mgr)
     ctx.edit_text = "keep"
-    ctx.target_pool = 5
+    ctx.active_pool = 5
     ctx.sync_text()
     assert ctx.edit_text == "keep"
 
@@ -352,13 +352,13 @@ def test_sync_text_out_of_range_target_leaves_text():
 def test_nudge_multi_selection_shifts_all_selected_and_preserves_selection():
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 3.0}, {"time": 5.0}]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0  # active = earliest selected
+    ctx.active_pool = 0  # active = earliest selected
     ctx.selected = {0, 2}
     ctx.nudge(0.5)
     pools = mgr._data["v_key"]["pools"]
     assert pools == [{"time": 1.5}, {"time": 3.0}, {"time": 5.5}]
     assert ctx.selected == {0, 2}  # preserved for chained edits
-    assert ctx.target_pool == 0  # earliest selected stays active
+    assert ctx.active_pool == 0  # earliest selected stays active
     assert ctx.edit_text == "00:01.50"
     assert mgr.saved_keys == ["v_key"]  # one save = one undo step
 
@@ -368,20 +368,20 @@ def test_nudge_multi_selection_remaps_selection_by_identity_after_sort():
     # to wherever the identity-shifted pools land after re-sort.
     mgr = FakeManager({"v_key": {"pools": [{"time": 4.0}, {"time": 1.0}, {"time": 2.0}]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0  # the 4.0 pool
+    ctx.active_pool = 0  # the 4.0 pool
     ctx.selected = {0, 2}  # the 4.0 and 2.0 pools
     ctx.nudge(-2.0)
     pools = mgr._data["v_key"]["pools"]
     assert pools == [{"time": 0.0}, {"time": 1.0}, {"time": 2.0}]
     assert ctx.selected == {0, 2}
-    assert ctx.target_pool == 0
+    assert ctx.active_pool == 0
     assert ctx.edit_text == "00:00.00"
 
 
 def test_nudge_multi_selection_clamps_to_zero():
     mgr = FakeManager({"v_key": {"pools": [{"time": 0.5}, {"time": 3.0}]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 1}
     ctx.nudge(-1.0)
     pools = mgr._data["v_key"]["pools"]
@@ -395,14 +395,14 @@ def test_commit_text_multi_selection_shifts_all_by_delta():
     # them, so selection indices remap to {1, 2}.
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 3.0}, {"time": 5.0}]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 2}
     ctx.edit_text = "00:04.00"
     ctx.commit_text()
     pools = mgr._data["v_key"]["pools"]
     assert pools == [{"time": 3.0}, {"time": 4.0}, {"time": 8.0}]
     assert ctx.selected == {1, 2}
-    assert ctx.target_pool == 1
+    assert ctx.active_pool == 1
     assert ctx.edit_text == "00:04.00"
     assert mgr.saved_keys == ["v_key"]
 
@@ -410,7 +410,7 @@ def test_commit_text_multi_selection_shifts_all_by_delta():
 def test_commit_text_multi_selection_clamps_at_duration():
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 9.0}]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 1}
     ctx.edit_text = "00:08.00"
     ctx.commit_text()
@@ -424,7 +424,7 @@ def test_nudge_single_selection_still_clears_selection():
     # branch -- a lone selected marker still clears the selection.
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 2.0}]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0}
     ctx.nudge(0.5)
     pools = mgr._data["v_key"]["pools"]
@@ -437,7 +437,7 @@ def test_nudge_multi_selection_no_duration_keeps_floor():
     # upper bound. Single and multi now share one _shift_pool_time code path.
     mgr = FakeManager({"v_key": {"pools": [{"time": 8.0}, {"time": 9.0}]}})
     ctx = VideoCtx(mgr)  # default duration = 0.0
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 1}
     ctx.nudge(5.0)
     pools = mgr._data["v_key"]["pools"]
@@ -454,7 +454,7 @@ def test_set_selected_volume_writes_all_selected_no_save():
     # queues the write via marker_queue_save so slider drags coalesce.
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 3.0}, {"time": 5.0}]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 2}
     ctx.set_selected_volume(0.3)
     pools = mgr._data["v_key"]["pools"]
@@ -475,7 +475,7 @@ def test_set_selected_volume_preset_pool_gets_override_no_detach():
     ]}})
     mgr._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 1}
     ctx.set_selected_volume(0.5)
     pools = mgr._data["v_key"]["pools"]
@@ -489,7 +489,7 @@ def test_set_selected_volume_preset_pool_gets_override_no_detach():
 def test_set_selected_volume_single_selection_noop():
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 3.0}]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0}
     ctx.set_selected_volume(0.5)
     pools = mgr._data["v_key"]["pools"]
@@ -504,7 +504,7 @@ def test_clear_selected_files_multi():
         {"time": 3.0, "files": ["d.mp3"]},
     ]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 2}
     ctx.clear_selected_files()
     pools = mgr._data["v_key"]["pools"]
@@ -523,7 +523,7 @@ def test_clear_selected_files_preset_detaches_first():
     ]}})
     mgr._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 1}
     ctx.clear_selected_files()
     pools = mgr._data["v_key"]["pools"]
@@ -537,7 +537,7 @@ def test_clear_selected_files_single_uses_active():
         {"time": 2.0, "files": ["c.mp3"]},
     ]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0}
     ctx.clear_selected_files()
     pools = mgr._data["v_key"]["pools"]
@@ -554,7 +554,7 @@ def test_add_file_multi_fans_out_deduped():
     ]}})
     mgr._sfx_manager = FakeSfxManager(files=["a.mp3", "b.mp3"])
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 1}
     ctx.add_file(1)  # "b.mp3" -- already in pool 0, so dedupe no-op there
     pools = mgr._data["v_key"]["pools"]
@@ -571,7 +571,7 @@ def test_add_file_multi_detaches_preset_pool():
     mgr._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
     mgr._sfx_manager = FakeSfxManager(files=["a.mp3", "b.mp3"])
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 1}
     ctx.add_file(1)  # "b.mp3"
     pools = mgr._data["v_key"]["pools"]
@@ -583,7 +583,7 @@ def test_add_file_multi_disabled_file_noop():
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0, "files": []}]}})
     mgr._sfx_manager = FakeSfxManager(files=["a.mp3"], disabled_files={"a.mp3"})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0}
     ctx.add_file(0)
     assert mgr._data["v_key"]["pools"][0]["files"] == []
@@ -596,7 +596,7 @@ def test_add_folder_multi_fans_out_folder_ref():
         {"time": 2.0, "files": []},
     ]}}, current_file="video.mp4")
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 1}
     ctx.add_folder("sfx")
     pools = mgr._data["v_key"]["pools"]
@@ -612,7 +612,7 @@ def test_remove_file_multi_removes_path_from_all_noop_where_absent():
         {"time": 3.0, "files": ["d.mp3"]},
     ]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 2}
     ctx.remove_file(0, 0)  # reference pool 0 file 0 = "a.mp3"
     pools = mgr._data["v_key"]["pools"]
@@ -629,7 +629,7 @@ def test_remove_path_from_selected_expands_folder_ref():
     ]}})
     mgr._sfx_manager = FakeSfxManager(files=["sfx/one.mp3", "sfx/two.mp3", "other/three.mp3"])
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 1}
     ctx._remove_path_from_selected("sfx/one.mp3")
     pools = mgr._data["v_key"]["pools"]
@@ -644,7 +644,7 @@ def test_remove_file_removes_folder_ref_entry_single():
     ]}})
     mgr._sfx_manager = FakeSfxManager(files=["sfx/one.mp3", "sfx/two.mp3"])
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0}
     ctx.remove_file(0, 0)
     assert mgr._data["v_key"]["pools"][0]["files"] == []
@@ -658,7 +658,7 @@ def test_remove_file_removes_folder_ref_entry_multi():
     ]}})
     mgr._sfx_manager = FakeSfxManager(files=["sfx/one.mp3", "sfx/two.mp3"])
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 1}
     ctx.remove_file(0, 0)
     pools = mgr._data["v_key"]["pools"]
@@ -675,7 +675,7 @@ def test_apply_preset_active_multi_stamps_all_selected():
     ]}}, current_file="video.mp4")
     mgr._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0, 2}
     ctx.apply_preset_active("gun")
     pools = mgr._data["v_key"]["pools"]
@@ -692,7 +692,7 @@ def test_apply_preset_active_single_stamps_active_only():
     ]}}, current_file="video.mp4")
     mgr._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 1
+    ctx.active_pool = 1
     ctx.selected = set()
     ctx.apply_preset_active("gun")
     pools = mgr._data["v_key"]["pools"]
@@ -707,7 +707,7 @@ def test_remove_file_single_selection_does_not_fan_out():
         {"time": 1.0, "files": ["a.mp3", "b.mp3"]},
     ]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx.target_pool = 0
+    ctx.active_pool = 0
     ctx.selected = {0}
     ctx.remove_file(0, 0)
     assert mgr._data["v_key"]["pools"][0]["files"] == ["b.mp3"]
@@ -749,10 +749,10 @@ def test_remove_file_removes_if_present_no_save():
 def test_remove_pool_pops_and_clamps_target():
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 2.0}, {"time": 3.0}]}})
     ctx = VideoCtx(mgr)
-    ctx.target_pool = 2
+    ctx.active_pool = 2
     ctx.remove_pool(2)
     assert mgr._data["v_key"]["pools"] == [{"time": 1.0}, {"time": 2.0}]
-    assert ctx.target_pool == 1
+    assert ctx.active_pool == 1
 
 
 def test_remove_pool_out_of_range_noop():
@@ -768,7 +768,7 @@ def test_remove_pool_last_pool_deletes_entry():
     ctx = VideoCtx(mgr)
     ctx.remove_pool(0)
     assert "v_key" not in mgr._data
-    assert ctx.target_pool == 0
+    assert ctx.active_pool == 0
 
 
 def test_remove_selected_removes_pools_and_saves():
@@ -787,7 +787,7 @@ def test_remove_selected_last_pool_deletes_entry():
     ctx.selected = {0}
     ctx.remove_selected()
     assert "v_key" not in mgr._data
-    assert ctx.target_pool == 0
+    assert ctx.active_pool == 0
 
 
 def test_duplicate_pool_clones_and_targets_clone():
@@ -798,7 +798,7 @@ def test_duplicate_pool_clones_and_targets_clone():
     ctx.duplicate_pool(0)
     pools = mgr._data["v_key"]["pools"]
     assert pools == [{"time": 1.0}, {"time": 1.0}, {"time": 3.0}]
-    assert ctx.target_pool == 1
+    assert ctx.active_pool == 1
     assert pools[0] is not pools[1]  # deep-copied, not shared
     assert ctx.selected == {1}
 
@@ -811,7 +811,7 @@ def test_duplicate_pool_single_lands_gap_after_source_and_selects_copy():
     gap = CUE_DUPLICATE_GAP_FRAC * 120.0
     assert len(pools) == 3
     assert pools[2]["time"] == pytest.approx(1.0 + gap)
-    assert ctx.target_pool == 2
+    assert ctx.active_pool == 2
     assert ctx.selected == {2}
     assert pools[2] is not pools[0]
     assert mgr.saved_keys == ["v_key"]
@@ -828,19 +828,19 @@ def test_duplicate_pool_multi_fans_out_and_selects_copies():
     assert len(pools) == 5
     assert [p["time"] for p in pools] == pytest.approx([1.0, 3.0, 5.0, 1.0 + gap, 5.0 + gap])
     assert ctx.selected == {3, 4}
-    assert ctx.target_pool == 3
+    assert ctx.active_pool == 3
     assert mgr.saved_keys == ["v_key"]
 
 
 def test_delete_pool_ui_multi_routes_to_remove_selected():
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 2.0}, {"time": 3.0}]}})
     ctx = VideoCtx(mgr)
-    ctx.target_pool = 1
+    ctx.active_pool = 1
     ctx.selected = {0, 2}
     ctx.delete_pool_ui()
     assert mgr._data["v_key"]["pools"] == [{"time": 2.0}]
     assert ctx.selected == set()
-    assert ctx.target_pool == 0
+    assert ctx.active_pool == 0
     assert mgr.saved_keys == ["v_key"]
 
 
@@ -849,12 +849,12 @@ def test_delete_pool_ui_single_uses_active_pool():
     # active pool, mirroring the non-multi button behavior.
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0}, {"time": 2.0}, {"time": 3.0}]}})
     ctx = VideoCtx(mgr)
-    ctx.target_pool = 1
+    ctx.active_pool = 1
     ctx.selected = {0}
     ctx.delete_pool_ui()
     assert mgr._data["v_key"]["pools"] == [{"time": 1.0}, {"time": 3.0}]
     assert ctx.selected == set()
-    assert ctx.target_pool == 1
+    assert ctx.active_pool == 1
     assert mgr.saved_keys == ["v_key"]
 
 
@@ -881,27 +881,27 @@ def test_duplicate_pool_multi_skips_invalid_selected_index():
     gap = CUE_DUPLICATE_GAP_FRAC * 120.0
     assert len(pools) == 4
     assert ctx.selected == {3}
-    assert ctx.target_pool == 3
+    assert ctx.active_pool == 3
     assert pools[3]["time"] == pytest.approx(1.0 + gap)
 
 
 # ---------------------------------------------------------------------------
-# Image context target semantics (_img_target on the manager)
+# Image context target semantics (active_pool on the context)
 # ---------------------------------------------------------------------------
 
-def test_image_context_target_stored_on_manager():
+def test_image_context_active_pool_stored_on_context():
     mgr = FakeManager({"i_file": {"pools": [{"files": ["a"]}, {"files": ["b"]}]}})
     ctx = ImageCtx(mgr)
-    ctx._set_target(1)
-    assert mgr._img_target == 1
-    assert ctx.get_active() == 1
+    ctx.set_active_index(1)
+    assert ctx.active_pool == 1
+    assert ctx.get_active_index() == 1
     assert ctx.get_active_pool() == {"files": ["b"]}
 
 
 def test_image_context_get_active_pool_clamps_stale_target():
     mgr = FakeManager({"i_file": {"pools": [{"files": ["a"]}, {"files": ["b"]}]}})
     ctx = ImageCtx(mgr)
-    ctx._set_target(99)
+    ctx.set_active_index(99)
     assert ctx.get_active_pool() == {"files": ["b"]}
 
 
@@ -912,7 +912,7 @@ def test_image_context_get_active_pool_clamps_stale_target():
 def test_loop_set_frequency_writes_pool_and_saves():
     mgr = FakeManager({"l_file": {"pools": [{"frequency": 1}, {"frequency": 2}]}})
     ctx = LoopCtx(mgr)
-    ctx._set_target(0)
+    ctx.set_active_index(0)
     ctx.set_frequency(CueLoopFrequency.FASTEST)
     assert mgr._data["l_file"]["pools"][0]["frequency"] == CueLoopFrequency.FASTEST
     assert mgr.saved_keys == ["l_file"]

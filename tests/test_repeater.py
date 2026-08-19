@@ -5,7 +5,7 @@
 # The repeater is wired to the REAL store / video manager (like test_speed.py)
 # so open()/apply()/compute_preview_* exercise the exact production paths.  The
 # markers coordinator is a FakeMarkers whose .video is a FakeVideoContext --
-# get_markers()/get_selected()/target_pool feed the selection, and
+# get_markers()/get_selected()/active_pool feed the selection, and
 # finalize_drag() records the drag seam.  Raw pool dicts are seeded directly
 # into the store so identity tracking (`is`) has stable objects to match.
 
@@ -57,7 +57,7 @@ def _pool(time, files=None, volume=1.0):
     return {"time": time, "files": files if files is not None else ["a.ogg"], "volume": volume}
 
 
-def _open(env, times, selected, dur=10.0, target_pool=0):
+def _open(env, times, selected, dur=10.0, active_pool=0):
     """Seed pools, wire the movie context/duration, and open the dialog.
     Returns the raw pools list (the live objects apply/shift mutate)."""
     pools = [_pool(t) for t in times]
@@ -65,7 +65,7 @@ def _open(env, times, selected, dur=10.0, target_pool=0):
     env.ctx.current_file = env.tag
     env.coord.video.markers = pools
     env.coord.video.selected = set(selected)
-    env.coord.video.target_pool = target_pool
+    env.coord.video.active_pool = active_pool
     env.music._registry["movie"] = {"duration": dur}
     env.vid.channel = "movie"
     env.rep.open()
@@ -99,8 +99,8 @@ def test_open_tracks_selection_by_identity(env):
     assert rep.offsets[1]["volume"] == 1.0
 
 
-def test_open_falls_back_to_target_pool(env):
-    _open(env, [1.0, 2.0, 3.0], selected=[], target_pool=1)
+def test_open_falls_back_to_active_pool(env):
+    _open(env, [1.0, 2.0, 3.0], selected=[], active_pool=1)
     assert env.rep._anchor_pool is not None
     assert env.rep.anchor == 2.0
     assert env.rep.sel_count == 1

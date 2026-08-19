@@ -13,9 +13,14 @@ from cue_lib.state import CueContext
 from cue_lib.undo import CueUndoManager
 
 
+class FakePoolContext(object):
+    def __init__(self):
+        self.active_pool = 0
+
+
 class FakeVideoContext(object):
     def __init__(self):
-        self.target_pool = 0
+        self.active_pool = 0
         self.selected = set()
         self.sync_text_calls = 0
 
@@ -27,9 +32,9 @@ class FakeMarkers(object):
     """Coordinator stand-in -- the UI attributes _clamp_ui() touches."""
 
     def __init__(self):
-        self._img_target = 0
-        self._dlg_target = 0
-        self._loop_target = 0
+        self.image = FakePoolContext()
+        self.dialogue = FakePoolContext()
+        self.loop = FakePoolContext()
         self.video = FakeVideoContext()
 
 
@@ -326,13 +331,13 @@ def test_clamp_ui_clamps_all_targets(undo, store):
     store._data["i_movies/x.webm"] = {"pools": [[1.0], [2.0]]}
     store._data["d_movies/x.webm__hi"] = {"pools": [[1.0]]}
     store._data["v_movies/x.webm"] = {"pools": [[1.0], [2.0], [3.0]]}
-    undo._markers._img_target = 5
-    undo._markers._dlg_target = 5
-    undo._markers.video.target_pool = 5
+    undo._markers.image.active_pool = 5
+    undo._markers.dialogue.active_pool = 5
+    undo._markers.video.active_pool = 5
     undo._clamp_ui()
-    assert undo._markers._img_target == 1     # min(5, 2 - 1)
-    assert undo._markers._dlg_target == 0     # min(5, 1 - 1)
-    assert undo._markers.video.target_pool == 2  # min(5, 3 - 1)
+    assert undo._markers.image.active_pool == 1     # min(5, 2 - 1)
+    assert undo._markers.dialogue.active_pool == 0  # min(5, 1 - 1)
+    assert undo._markers.video.active_pool == 2     # min(5, 3 - 1)
     assert undo._markers.video.selected == set()
     assert undo._markers.video.sync_text_calls == 1
 

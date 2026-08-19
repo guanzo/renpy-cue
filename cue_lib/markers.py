@@ -62,9 +62,6 @@ class CueMarkerManager(object):
         self._trigger = trigger
         self._video_editor = video_editor
         self._confirm_dialog = confirm_dialog
-        self._img_target = 0
-        self._dlg_target = 0
-        self._loop_target = 0
         # pyright can't unify the source `self` with the stub-declared manager
         # type that context.pyi imports back in -- suppress per line.
         self.image = CueImageContext(self)  # pyright: ignore[reportArgumentType]
@@ -254,7 +251,7 @@ class CueMarkerManager(object):
         entry = self._get_or_create_entry(vid_key)
         entry["pools"] = new_pools
         entry["volume"] = preset.get("volume", CUE_VOLUME_DEFAULT)
-        self.video.target_pool = 0
+        self.video.active_pool = 0
         self.video.selected = set()
         self.video.sync_text()
         self._db_save_marker(vid_key)
@@ -323,7 +320,7 @@ class CueMarkerManager(object):
             for idx in sorted(sel):
                 self._detach_pool(vid_key, idx)
         else:
-            self._detach_pool(vid_key, self.video.target_pool)
+            self._detach_pool(vid_key, self.video.active_pool)
         self.save_marker(vid_key)
 
     def detach_pool_at(self, trigger_key, pool_index):

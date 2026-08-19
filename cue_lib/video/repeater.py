@@ -185,7 +185,7 @@ class CueMarkerRepeater(object):
 
         sel = self._video_ctx().get_selected()
         if not sel:
-            active = self._video_ctx().target_pool
+            active = self._video_ctx().active_pool
             if 0 <= active < len(markers):
                 sel = {active}
             else:

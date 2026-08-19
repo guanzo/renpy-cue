@@ -134,7 +134,7 @@ def test_detach_active_video_ts(mgr):
     # Video pools carry "time" (the sanitizer strips time-less video pools on
     # save), so build the stamped marker the way production does.
     mgr["v_scene.ogv"] = {"pools": [{"preset": "basic", "time": 1.0}]}
-    mgr.video.target_pool = 0
+    mgr.video.active_pool = 0
     mgr.detach_active_video_ts()
     pool = mgr.get("v_scene.ogv")["pools"][0]
     assert "preset" not in pool
@@ -151,7 +151,7 @@ def test_detach_active_video_ts_multi_detaches_all_selected(mgr):
         {"time": 3.0, "files": ["c.ogg"]},
     ]}
     mgr.video.selected = {0, 1}
-    mgr.video.target_pool = 0
+    mgr.video.active_pool = 0
     mgr.detach_active_video_ts()
     pools = mgr.get("v_scene.ogv")["pools"]
     assert pools[0] == {"time": 1.0, "files": ["a.ogg"], "volume": 0.8}
@@ -268,7 +268,7 @@ def test_remove_file_from_preset_pool_multi_fans_out(mgr):
         {"preset": "fold", "time": 1.0},
         {"preset": "fold", "time": 2.0},
     ]}
-    mgr.video.target_pool = 0
+    mgr.video.active_pool = 0
     mgr.video.selected = {0, 1}
     mgr._remove_file_from_preset_pool("v_scene.ogv", 0, 0, "music/a.ogg")
     pools = mgr.get("v_scene.ogv")["pools"]
@@ -285,7 +285,7 @@ def test_remove_file_from_folder_ref_multi_fans_out(mgr):
         {"time": 1.0, "files": ["music/"]},
         {"time": 2.0, "files": ["music/"]},
     ]}
-    mgr.video.target_pool = 0
+    mgr.video.active_pool = 0
     mgr.video.selected = {0, 1}
     mgr._remove_file_from_folder_ref("v_scene.ogv", 0, 0, "music/a.ogg")
     pools = mgr.get("v_scene.ogv")["pools"]

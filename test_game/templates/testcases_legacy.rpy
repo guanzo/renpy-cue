@@ -177,7 +177,7 @@ testcase video_sfx_timeline_seeded:
     $ _cue.markers.video.add_pool()
     $ _ok = _cue.markers.video.has_markers()
     $ _ok = _ok and len(_cue.markers.video.get_markers()) >= 1
-    $ _ok = _ok and 0 <= _cue.markers.video.target_pool < len(_cue.markers.video.get_markers())
+    $ _ok = _ok and 0 <= _cue.markers.video.active_pool < len(_cue.markers.video.get_markers())
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
@@ -236,7 +236,7 @@ testcase video_multi_duplicate_fans_out:
     $ _copy2 = any(abs(t - (0.6 + _gap)) < 1e-6 for t in _times)
     $ _ok = _ok and _copy1 and _copy2
     $ _ok = _ok and len(_cue.markers.video.selected) == 2
-    $ _ok = _ok and (_cue.markers.video.target_pool in _cue.markers.video.selected)
+    $ _ok = _ok and (_cue.markers.video.active_pool in _cue.markers.video.selected)
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 

@@ -123,7 +123,7 @@ def test_send_file_shift_creates_new_pool(mgr):
     assert len(entry["pools"]) == 2
     assert entry["pools"][0]["files"] == ["a.ogg"]
     assert entry["pools"][1]["files"] == ["b.ogg"]
-    assert mgr._img_target == 1
+    assert mgr.image.active_pool == 1
 
 
 def test_send_folder_normal(mgr):
@@ -166,7 +166,7 @@ def test_send_preset_shift_creates_new_pool(mgr):
 
 
 # ==========================================================================
-# remove_file / clear / add_pool / remove_pool / set_active
+# remove_file / clear / add_pool / remove_pool / set_active_index
 # ==========================================================================
 
 def test_remove_file(mgr):
@@ -202,7 +202,7 @@ def test_add_pool_creates_and_selects(mgr):
     entry = mgr.get(create_img_key("scene.ogv"))
     assert len(entry["pools"]) == 2
     assert entry["pools"][0]["volume"] == CUE_VOLUME_DEFAULT
-    assert mgr._img_target == 1
+    assert mgr.image.active_pool == 1
 
 
 def test_remove_pool_no_entry_noop(mgr):
@@ -224,7 +224,7 @@ def test_remove_pool_middle_shifts_target(mgr):
     mgr.image.remove_pool(1)
     entry = mgr.get(create_img_key("scene.ogv"))
     assert len(entry["pools"]) == 2
-    assert mgr._img_target == 1  # clamped from 2 to remaining-1
+    assert mgr.image.active_pool == 1  # clamped from 2 to remaining-1
 
 
 def test_remove_pool_last_deletes_entry(mgr):
@@ -232,15 +232,15 @@ def test_remove_pool_last_deletes_entry(mgr):
     mgr.image.add_pool()
     mgr.image.remove_pool(0)
     assert create_img_key("scene.ogv") not in mgr._data
-    assert mgr._img_target == 0
+    assert mgr.image.active_pool == 0
 
 
-def test_set_active(mgr):
+def test_set_active_index(mgr):
     _scene(mgr)
     mgr.image.add_pool()
     mgr.image.add_pool()
-    mgr.image.set_active(0)
-    assert mgr._img_target == 0
+    mgr.image.set_active_index(0)
+    assert mgr.image.active_pool == 0
 
 
 def test_get_active_pool_missing_entry_empty(mgr):
@@ -258,7 +258,7 @@ def test_get_active_pool_clamps_stale_target(mgr):
     _scene(mgr)
     mgr.image.add_pool()
     mgr.image.add_pool()
-    mgr._img_target = 5
+    mgr.image.active_pool = 5
     assert mgr.image.get_active_pool() is mgr.get("i_scene.ogv")["pools"][1]
 
 
@@ -290,7 +290,7 @@ def test_set_exclusive_loop_active_pool_only(mgr):
     _scene(mgr)
     mgr.loop.add_pool()
     mgr.loop.add_pool()
-    mgr.loop.set_active(1)
+    mgr.loop.set_active_index(1)
     mgr.loop.set_exclusive(CueExclusiveStart.WAIT, True)
     pools = mgr.get("l_scene.ogv")["pools"]
     assert "exclusive" not in pools[0]
@@ -346,9 +346,9 @@ def test_loop_clear_exclusive_active_pool_only(mgr):
     _scene(mgr)
     mgr.loop.add_pool()
     mgr.loop.add_pool()
-    mgr.loop.set_active(0)
+    mgr.loop.set_active_index(0)
     mgr.loop.set_exclusive(CueExclusiveStart.WAIT, True)
-    mgr.loop.set_active(1)
+    mgr.loop.set_active_index(1)
     mgr.loop._set_exclusive_payload(None)
     pools = mgr.get("l_scene.ogv")["pools"]
     assert pools[0]["exclusive"]["start"] == CueExclusiveStart.WAIT  # untouched
@@ -380,7 +380,7 @@ def test_video_add_file_attaches_to_active_pool(mgr):
     key = _video_key(mgr)
     _sfx(mgr, "a.ogg")
     _pool(mgr, key, [{"time": 1.0, "files": []}])
-    mgr.video.target_pool = 0
+    mgr.video.active_pool = 0
     mgr.video.add_file(0)
     pools = mgr.get(key)["pools"]
     assert pools[0]["files"] == ["a.ogg"]
@@ -394,7 +394,7 @@ def test_video_add_file_appends_at_playhead(mgr):
     mgr.video.add_file(0)
     pools = mgr.get(key)["pools"]
     assert pools[0] == {"time": 2.5, "files": ["a.ogg"]}
-    assert mgr.video.target_pool == 0
+    assert mgr.video.active_pool == 0
 
 
 def test_video_add_file_no_files_noop(mgr):
@@ -452,10 +452,10 @@ def test_video_clear_resets_state(mgr):
     key = _video_key(mgr)
     _pool(mgr, key, [{"time": 1.0, "files": ["a.ogg"]}])
     mgr.video.selected = {0}
-    mgr.video.target_pool = 0
+    mgr.video.active_pool = 0
     mgr.video.clear()
     assert key not in mgr._data
-    assert mgr.video.target_pool == 0
+    assert mgr.video.active_pool == 0
     assert mgr.video.selected == set()
 
 
@@ -467,7 +467,7 @@ def test_video_add_pool(mgr):
     mgr.video.add_pool()
     pools = mgr.get(key)["pools"]
     assert [p["time"] for p in pools] == [3.5, 4.5]
-    assert mgr.video.target_pool == 1
+    assert mgr.video.active_pool == 1
 
 
 # ==========================================================================
@@ -556,7 +556,7 @@ def test_video_duplicate_pool(mgr):
     assert len(pools) == 2
     # The copy lands a fixed pixel gap after its source so it doesn't overlap.
     assert pools[1] == {"time": 1.0 + mgr.video._duplicate_gap(), "files": ["a.ogg"]}
-    assert mgr.video.target_pool == 1
+    assert mgr.video.active_pool == 1
 
 
 def test_video_duplicate_pool_out_of_range_noop(mgr):
@@ -576,36 +576,36 @@ def test_video_remove_selected_deletes_all_and_entry(mgr):
     key = _video_key(mgr)
     _pool(mgr, key, [{"time": 1.0}, {"time": 2.0}, {"time": 3.0}])
     mgr.video.selected = {0, 1, 2}
-    mgr.video.target_pool = 2
+    mgr.video.active_pool = 2
     mgr.video.remove_selected()
     assert key not in mgr._data
-    assert mgr.video.target_pool == 0
+    assert mgr.video.active_pool == 0
 
 
 def test_video_remove_selected_clamps_target(mgr):
     key = _video_key(mgr)
     _pool(mgr, key, [{"time": 1.0}, {"time": 2.0}, {"time": 3.0}])
     mgr.video.selected = {0}
-    mgr.video.target_pool = 2
+    mgr.video.active_pool = 2
     mgr.video.remove_selected()
     pools = mgr.get(key)["pools"]
     assert len(pools) == 2
-    assert mgr.video.target_pool == 1
+    assert mgr.video.active_pool == 1
     assert mgr.video.selected == set()
 
 
 def test_video_remove_selected_empty_selection_removes_target(mgr):
     key = _video_key(mgr)
     _pool(mgr, key, [{"time": 1.0}, {"time": 2.0}])
-    mgr.video.target_pool = 1
+    mgr.video.active_pool = 1
     mgr.video.remove_selected()
     pools = mgr.get(key)["pools"]
     assert len(pools) == 1
-    assert mgr.video.target_pool == 0
+    assert mgr.video.active_pool == 0
 
 
 # ==========================================================================
-# CueVideoContext -- get_delete_message / set_active / select_tab
+# CueVideoContext -- get_delete_message / set_active_index / select_tab
 # ==========================================================================
 
 def test_delete_message_multiple_selected(mgr):
@@ -631,15 +631,15 @@ def test_delete_message_no_markers(mgr):
 def test_delete_message_target(mgr):
     key = _video_key(mgr)
     _pool(mgr, key, [{"time": 1.0}, {"time": 2.0}])
-    mgr.video.target_pool = 1
+    mgr.video.active_pool = 1
     assert mgr.video.get_delete_message() == "Delete marker 2?"
 
 
-def test_video_set_active_syncs_text(mgr):
+def test_video_set_active_index_syncs_text(mgr):
     key = _video_key(mgr)
     _pool(mgr, key, [{"time": 1.0, "files": []}, {"time": 2.5, "files": []}])
-    mgr.video.set_active(1)
-    assert mgr.video.target_pool == 1
+    mgr.video.set_active_index(1)
+    assert mgr.video.active_pool == 1
     assert mgr.video.edit_text == "00:02.50"
 
 
@@ -649,7 +649,7 @@ def test_video_select_tab(mgr):
     mgr.video.selected = {0}
     mgr.video.select_tab(1)
     assert mgr.video.selected == set()
-    assert mgr.video.target_pool == 1
+    assert mgr.video.active_pool == 1
 
 
 # ==========================================================================
@@ -701,22 +701,22 @@ def test_video_finalize_drag_reindexes_selection(mgr):
     key = _video_key(mgr)
     _pool(mgr, key, [{"time": 3.0}, {"time": 1.0}, {"time": 2.0}])
     mgr.video.selected = {0, 1}
-    mgr.video.target_pool = 0
+    mgr.video.active_pool = 0
     mgr.video.finalize_drag()
     pools = mgr.get(key)["pools"]
     assert [p["time"] for p in pools] == [1.0, 2.0, 3.0]
     assert mgr.video.selected == {0, 2}  # reindexed by identity
-    assert mgr.video.target_pool == 0
+    assert mgr.video.active_pool == 0
 
 
 def test_video_finalize_drag_unselected_target_reindexes_only(mgr):
     key = _video_key(mgr)
     _pool(mgr, key, [{"time": 2.0}, {"time": 1.0}])
     mgr.video.selected = set()
-    mgr.video.target_pool = 0
+    mgr.video.active_pool = 0
     mgr.video.finalize_drag()
     assert [p["time"] for p in mgr.get(key)["pools"]] == [1.0, 2.0]
-    assert mgr.video.target_pool == 1  # sorted pool now at index 1
+    assert mgr.video.active_pool == 1  # sorted pool now at index 1
 
 
 def test_video_commit_text_parses_and_commits(mgr):
@@ -748,7 +748,7 @@ def test_video_commit_text_invalid_resets_label(mgr):
 def test_video_commit_text_out_of_range_target_noop(mgr):
     key = _video_key(mgr)
     _pool(mgr, key, [{"time": 1.0}])
-    mgr.video.target_pool = 5
+    mgr.video.active_pool = 5
     mgr.video.edit_text = "00:05.00"
     mgr.video.commit_text()  # must not raise
 
@@ -794,7 +794,7 @@ def test_loop_add_pool_adds_frequency(mgr):
     mgr.loop.add_pool()
     pool = mgr.get("l_scene.ogv")["pools"][0]
     assert pool["frequency"] == CueLoopFrequency.MEDIUM
-    assert mgr._loop_target == 0
+    assert mgr.loop.active_pool == 0
 
 
 def test_loop_clear_pops_trigger_state(mgr):
@@ -821,7 +821,7 @@ def test_loop_set_frequency_no_entry_noop(mgr):
 def test_loop_set_frequency_out_of_range_noop(mgr):
     _scene(mgr)
     mgr.loop.add_pool()
-    mgr._loop_target = 5
+    mgr.loop.active_pool = 5
     mgr.loop.set_frequency(CueLoopFrequency.FAST)
     assert mgr.get("l_scene.ogv")["pools"][0]["frequency"] == CueLoopFrequency.MEDIUM
 
@@ -832,7 +832,7 @@ def test_dialogue_context_keys_by_line(mgr):
     mgr.dialogue.add_file(0)
     assert "d_scene.ogv__line one" in mgr._data
     mgr.dialogue.add_pool()
-    assert mgr._dlg_target == 1
+    assert mgr.dialogue.active_pool == 1
     mgr.dialogue.clear()
     assert "d_scene.ogv__line one" not in mgr._data
 

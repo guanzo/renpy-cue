@@ -33,9 +33,6 @@ class FakeManager(object):
         # type: (Optional[dict], Optional[str]) -> None
         self._data = data if data is not None else {}
         self.saved_keys = []
-        self._img_target = 0
-        self._dlg_target = 0
-        self._loop_target = 0
         self._ctx = FakeCtx(current_file)
         self._sfx_manager = FakeSfxManager()
         self._vid_manager = FakeVidManager()
@@ -205,11 +202,11 @@ class FakeMarkerStore(object):
 
 
 class FakeVideoContext(object):
-    """Stand-in for CueVideoContext: carries target_pool, the get_markers()
+    """Stand-in for CueVideoContext: carries active_pool, the get_markers()
     list (_tick_video), and the repeater's selection / drag seams."""
 
-    def __init__(self, target_pool=0, markers=None, selected=None):
-        self.target_pool = target_pool
+    def __init__(self, active_pool=0, markers=None, selected=None):
+        self.active_pool = active_pool
         self.markers = markers if markers is not None else []
         self.selected = selected if selected is not None else set()
         self.drag_calls = 0
@@ -236,12 +233,12 @@ class FakeLoopContext(object):
 
 class FakeMarkers(object):
     """Coordinator stand-in exposing the `video` and `loop` seams the trigger
-    engine and volume manager dereference (markers.video.target_pool /
+    engine and volume manager dereference (markers.video.active_pool /
     markers.video.get_markers / markers.loop.get_delay).  All attributes are
     mutable so tests drive the seams directly."""
 
-    def __init__(self, target_pool=0, markers=None, loop_delay=2.1):
-        self.video = FakeVideoContext(target_pool, markers)
+    def __init__(self, active_pool=0, markers=None, loop_delay=2.1):
+        self.video = FakeVideoContext(active_pool, markers)
         self.loop = FakeLoopContext(loop_delay)
 
 
@@ -375,7 +372,7 @@ def make_runtime_cue(root="", audio_dir=""):
         return pool
 
     cue.markers = types.SimpleNamespace(
-        _img_target=0,
+        image=types.SimpleNamespace(active_pool=0),
         get=_rec("markers", "get"),
         save_marker=_rec("markers", "save_marker"),
         get_preset=_rec("markers", "get_preset"),

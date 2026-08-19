@@ -103,7 +103,7 @@ def _cue_toggle_shake_trigger():
     if not _cue.current_file:
         return
     shake_key = create_img_key(_cue.current_file)
-    pool = _cue.markers._ensure_pool(shake_key, _cue.markers._img_target)
+    pool = _cue.markers._ensure_pool(shake_key, _cue.markers.image.active_pool)
     resolved = _cue.markers.resolve_pool(pool)
     pool["trigger_on_shake"] = not resolved.trigger_on_shake
     _cue.markers.save_marker(shake_key)
