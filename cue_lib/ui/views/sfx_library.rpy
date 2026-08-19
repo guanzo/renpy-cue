@@ -7,7 +7,7 @@ screen cue_sfx_library(_is_video):
     style_group "cue"
 
     $ _overlay_mode = _cue.sfx_manager.overlay_mode
-    $ _ov_tt = "Overlay Mode\nWhen enabled, this section will float on top when expanded.\n"
+    $ _ov_tt = "Overlay Mode\n\nWhen enabled, this section will float on top when expanded.\n\n"
     $ _ov_tt = _ov_tt + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_LIBRARY) + " to toggle expansion."
 
     $ _icons = [{
@@ -37,13 +37,13 @@ screen cue_target_context():
 
     $ _target = _cue.markers.resolve_target_context()
     # Tooltips name the rebindable hotkey for each target (Settings > Keybinds).
-    $ _tgt_video_tt = "Click the + button to send files to the Video SFX pool\n"
+    $ _tgt_video_tt = "Click the + button to send files to the Video SFX pool.\n"
     $ _tgt_video_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_VIDEO) + " to select."
-    $ _tgt_image_tt = "Click the + button to send files to the Image SFX pool\n"
+    $ _tgt_image_tt = "Click the + button to send files to the Image SFX pool.\n"
     $ _tgt_image_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_IMAGE) + " to select."
-    $ _tgt_dialogue_tt = "Click the + button to send files to the Dialogue SFX pool\n"
+    $ _tgt_dialogue_tt = "Click the + button to send files to the Dialogue SFX pool.\n"
     $ _tgt_dialogue_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_DIALOGUE) + " to select."
-    $ _tgt_loop_tt = "Click the + button to send files to the Loop SFX pool\n"
+    $ _tgt_loop_tt = "Click the + button to send files to the Loop SFX pool.\n"
     $ _tgt_loop_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_LOOP) + " to select."
     hbox:
         spacing 2
