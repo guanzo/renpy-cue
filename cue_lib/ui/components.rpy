@@ -383,7 +383,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 for _child in folder_children:
                     hbox:
                         spacing row_spacing
-                        text "    "
+                        text "  "
                         if folder_child_remove_fn is not None:
                             use cue_icon_btn("xmark",
                                 Function(folder_child_remove_fn, trigger_key, pool_index, 0, _child),
@@ -410,7 +410,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                     for _child in _cue_resolve_files([f]):
                         hbox:
                             spacing row_spacing
-                            text "    "  # indent
+                            text "  "  # indent
                             if folder_child_remove_fn is not None:
                                 use cue_icon_btn("xmark",
                                     Function(folder_child_remove_fn, trigger_key, pool_index, fi, _child),

@@ -92,17 +92,16 @@ screen cue_sfx_library_content(_is_video):
         vbox:
             spacing 2
             $ _recent = _cue.sfx_manager._recent
-            if _recent is not None:
-                $ _recent_entries = _recent.entries()
-                if _searching:
-                    $ _recent_entries = [e for e in _recent_entries if _cue_query_matches(e["ref"], _q)]
-                if not _searching or _recent_entries:
-                    hbox:
-                        spacing 2
-                        use cue_txt_button("Recently Used/", Function(_recent.toggle))
+            $ _recent_entries = _recent.entries() if _recent is not None else []
+            if _searching:
+                $ _recent_entries = [e for e in _recent_entries if _cue_query_matches(e["ref"], _q)]
+            if _recent is not None and (not _searching or _recent_entries):
+                hbox:
+                    spacing 2
+                    use cue_txt_button("Recently Used/", Function(_recent.toggle))
 
-                    if _recent.expanded or _searching:
-                        use cue_recent_list(_recent_entries)
+                if _recent.expanded or _searching:
+                    use cue_recent_list(_recent_entries)
 
             if not _searching or _preset_names:
                 hbox:
@@ -110,6 +109,8 @@ screen cue_sfx_library_content(_is_video):
                     use cue_txt_button("Pool Presets/", Function(_cue.sfx_manager.toggle_presets_expand))
 
                 if _cue.sfx_manager.presets_expanded:
+                    if not _preset_names:
+                        text "No pool presets yet. Save a pool as a preset to fill this." style "cue_help"
                     use cue_audio_presets_list(_preset_names)
 
             if not _searching or _video_preset_names:
@@ -118,9 +119,15 @@ screen cue_sfx_library_content(_is_video):
                     use cue_txt_button("Video Presets/", Function(_cue.sfx_manager.toggle_video_presets_expand))
 
                 if _cue.sfx_manager.video_presets_expanded:
+                    if not _video_preset_names:
+                        text "No video presets yet. Save video markers as a preset to fill this." style "cue_help"
                     use cue_video_presets_list(_is_video, _video_preset_names)
 
-            if _searching and not _preset_names and not _video_preset_names and not _cue.sfx_manager.visible_tree:
+            $ _no_results = (_searching and not _recent_entries
+                and not _preset_names
+                and not _video_preset_names
+                and not _cue.sfx_manager.visible_tree)
+            if _no_results:
                 text 'No files found for "{}".'.format(_q)
             else:
                 use cue_file_tree()
@@ -207,7 +214,7 @@ screen cue_audio_presets_list(name_filter=None):
             for _child in _p_files:
                 hbox:
                     spacing 2
-                    text "    "  # double indent
+                    text "  "
                     use cue_icon_btn(
                         "xmark",
                         Function(_cue.markers.preset_remove_file, _pname, _child),
@@ -253,7 +260,7 @@ screen cue_video_presets_list(_is_video, name_filter=None):
                 $ _pool_label = "{} ({} files)".format(_cue_format_time(_pool_time), _pool_files)
                 hbox:
                     spacing 2
-                    text "    "  # double indent
+                    text "  "
                     text _pool_label color _cue_color_text_accent size 11
 
 

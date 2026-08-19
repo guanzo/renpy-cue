@@ -97,20 +97,20 @@ screen cue_music_page():
                     # preview/add the same display paths as the tree; search
                     # filters them on that display path too, and force-expands
                     # the list read-time (it shows whenever `_searching`).
+                    $ _mq = _cue.music.library.search_query
+                    $ _msearching = bool(_mq.strip())
+
                     $ _mrecent = _cue.music._recent
-                    if _mrecent is not None:
-                        $ _mq = _cue.music.library.search_query
-                        $ _msearching = bool(_mq.strip())
-                        $ _mrecent_entries = _mrecent.entries()
-                        if _msearching:
-                            $ _mrecent_entries = [e for e in _mrecent_entries
-                                if _cue_query_matches(_cue.music.library.ref_display_path(e["ref"]), _mq)]
-                        if not _msearching or _mrecent_entries:
-                            hbox:
-                                spacing 2
-                                use cue_txt_button("Recently Used/", Function(_mrecent.toggle))
-                            if _mrecent.expanded or _msearching:
-                                use cue_music_recent_list(_mrecent_entries)
+                    $ _mrecent_entries = _mrecent.entries() if _mrecent is not None else []
+                    if _msearching:
+                        $ _mrecent_entries = [e for e in _mrecent_entries
+                            if _cue_query_matches(_cue.music.library.ref_display_path(e["ref"]), _mq)]
+                    if _mrecent is not None and (not _msearching or _mrecent_entries):
+                        hbox:
+                            spacing 2
+                            use cue_txt_button("Recently Used/", Function(_mrecent.toggle))
+                        if _mrecent.expanded or _msearching:
+                            use cue_music_recent_list(_mrecent_entries)
 
                     # "Music Presets/" -- saved trigger song lists.  Names join
                     # the search flow (filtered like the SFX preset sections).
@@ -124,6 +124,8 @@ screen cue_music_page():
                             use cue_txt_button("Music Presets/",
                                 Function(_cue.music.toggle_presets_expand))
                         if _cue.music.presets_expanded:
+                            if not _mpreset_names:
+                                text "No music presets yet. Save a trigger's song list to fill this." style "cue_help"
                             use cue_music_presets_list(_mpreset_names)
 
                     # Per-source empty/error states -- one source can be empty
@@ -138,8 +140,14 @@ screen cue_music_page():
                         if _cue.music.game_music.scan_error:
                             text "[_cue.music.game_music.scan_error]" color _cue_color_error
                         text "No music found in game directory."
+                    $ _m_no_results = (_msearching and not _mrecent_entries
+                        and not _mpreset_names
+                        and not _cue.music.library.visible_tree)
                     if _cue.music.user_music.tree or _cue.music.game_music.tree:
-                        use cue_music_tree()
+                        if _m_no_results:
+                            text 'No files found for "{}".'.format(_mq)
+                        else:
+                            use cue_music_tree()
 
 screen trigger_list(triggers):
     style_group "cue"
@@ -161,17 +169,15 @@ screen trigger_list(triggers):
                         use cue_icon_btn(
                             ("rotate-right" if trigger["is_default"] else "trash-can"),
                             Function(_cue.music.delete_trigger, trigger["key"]),
-                            ("Reset to default" if trigger["is_default"] else "Delete trigger"),
-                            None)
+                            ("Reset to default" if trigger["is_default"] else "Delete trigger"))
                         text trigger["label"] color _cue_color_text_accent
                     if trigger["songs"]:
                         hbox:
                             xalign 1.0
-                            use cue_icon_btn(
+                            use cue_icon(
                                 "floppy-disk",
                                 Function(_cue.preset_dialog.open_music, trigger["key"]),
-                                "Save songs as a preset",
-                                None)
+                                "Save songs as a preset")
                 if trigger["is_default"]:
                     $ _default_path = trigger["default_path"] or ""
                     hbox:
@@ -179,8 +185,7 @@ screen trigger_list(triggers):
                         use cue_icon_btn(
                             ("volume" if trigger["default_enabled"] else "volume-xmark"),
                             Function(_cue.music.toggle_default, trigger["key"]),
-                            "Toggle default song",
-                            None)
+                            "Toggle default song")
                         if trigger["default_enabled"]:
                             text "Default: [_default_path]"
                         else:
@@ -211,7 +216,7 @@ screen trigger_list(triggers):
                                 for _child in _folder_files:
                                     hbox:
                                         spacing 6
-                                        text "    "
+                                        text "  "
                                         use cue_icon_btn(
                                             "xmark",
                                             Function(
@@ -283,19 +288,18 @@ screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
                     text item["name"] color _cue_color_text_accent
 
 # Combined My/Game Music tree. One shared search bar filters both sources; the
-# combined manager's visible_tree holds the merged display rows.
+# combined manager's visible_tree holds the merged display rows.  The search
+# "no files found" message lives in cue_music_page, which also accounts for
+# preset + recently-used matches.
 screen cue_music_tree():
     style_group "cue"
 
-    if _cue.music.library.search_query.strip() and not _cue.music.library.visible_tree:
-        text 'No files found for "{}".'.format(_cue.music.library.search_query)
-    else:
-        use _cue_music_file_tree(
-            _cue.music.library.visible_tree,
-            _cue.music.library.add_folder_to_trigger,
-            _cue.music.library.toggle_folder,
-            _cue.music.library.preview,
-            _cue.music.library.add_song_to_trigger)
+    use _cue_music_file_tree(
+        _cue.music.library.visible_tree,
+        _cue.music.library.add_folder_to_trigger,
+        _cue.music.library.toggle_folder,
+        _cue.music.library.preview,
+        _cue.music.library.add_song_to_trigger)
 
 # Recently Used rows, shown when the Recently Used folder is expanded.
 # entries: filtered recent-entry dicts {type, ref}, most-recent-first, refs
@@ -368,22 +372,22 @@ screen cue_music_presets_list(name_filter=None):
                 Function(_cue_confirm_delete_music_preset, _pname),
                 "Delete preset", None)
             use cue_icon_btn(
-                "play",
-                Function(_cue_preview_music_preset, _pname),
-                "Play random song from preset", None)
-            use cue_icon_btn(
                 "plus",
                 Function(_cue.music.apply_preset, _pname),
                 _apply_tt,
                 None,
                 enabled=_apply_enabled)
+            use cue_icon_btn(
+                "play",
+                Function(_cue_preview_music_preset, _pname),
+                "Play random song from preset", None)
             use cue_txt_button(_pname, Function(_cue.music.toggle_preset_expand, _pname))
 
         if _p_expanded:
             for _child in _p_files:
                 hbox:
                     spacing 2
-                    text "    "  # double indent
+                    text "  "
                     use cue_icon_btn(
                         "xmark",
                         Function(_cue.music.preset_remove_file, _pname, _child),
