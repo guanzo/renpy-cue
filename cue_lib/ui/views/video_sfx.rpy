@@ -102,7 +102,7 @@ screen cue_video_sfx():
             use cue_pool_tabs(_vid_count, _vid_target, bool(_vid_entries),
                 "Delete all video markers for the current video?",
                 Function(_cue.markers.video.clear), "Delete all video SFX for the current video",
-                Function(_cue.markers.video.add_pool), "Create a new empty marker at current time",
+                Function(_cue.markers.video.add_pool), "",
                 _cue.markers.video.select_tab,
                 selected_tabs=_cue.markers.video.get_selected())
 

@@ -86,8 +86,8 @@ class RenderCanvas(object):
     def __init__(self):
         self.ops = []  # type: list
 
-    def rect(self, color, rect):
-        self.ops.append(("rect", color, rect))
+    def rect(self, color, rect, width=0):
+        self.ops.append(("rect", color, rect, width))
 
     def line(self, color, a, b, width):
         self.ops.append(("line", color, a, b, width))

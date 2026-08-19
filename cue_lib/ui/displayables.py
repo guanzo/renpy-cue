@@ -578,6 +578,13 @@ class CueTooltip(Displayable):
         fw = tw + pad_x * 2
         fh = th + pad_y * 2
 
+        # Outer footprint: 1px border on every side plus a 2px drop shadow on
+        # the right/bottom. Positioned as a whole so the border never clips.
+        BORDER = 1
+        SHADOW = 2
+        ow = fw + BORDER * 2 + SHADOW
+        oh = fh + BORDER * 2 + SHADOW
+
         sw = renpy.config.screen_width
         sh = renpy.config.screen_height
 
@@ -586,16 +593,16 @@ class CueTooltip(Displayable):
             # Anchor to the hovered element (not the cursor) so the tooltip
             # never covers it: centered above, flipping below when there's
             # no room above.
-            tx = fx + (fw_elem - fw) // 2
-            ty = fy - fh - 4
+            tx = fx + (fw_elem - ow) // 2
+            ty = fy - oh - 4
             if ty < 0:
                 ty = fy + fh_elem + 4
 
             # Clamp to keep the tooltip fully on screen
-            if tx + fw > sw:
-                tx = sw - fw
-            if ty + fh > sh:
-                ty = sh - fh
+            if tx + ow > sw:
+                tx = sw - ow
+            if ty + oh > sh:
+                ty = sh - oh
             if tx < 0:
                 tx = 0
             if ty < 0:
@@ -606,19 +613,29 @@ class CueTooltip(Displayable):
             tx = mx + 12
             ty = my - 8
 
-            if tx + fw > sw:
-                tx = mx - fw - 12  # flip to left of cursor
-            if ty + fh > sh:
-                ty = sh - fh
+            if tx + ow > sw:
+                tx = mx - ow - 12  # flip to left of cursor
+            if ty + oh > sh:
+                ty = sh - oh
             if tx < 0:
                 tx = 0
             if ty < 0:
                 ty = 0
 
         r = renpy.Render(1, 1)
-        tip = renpy.Render(fw, fh)
-        tip.canvas().rect("#2e2e2e", (0, 0, fw, fh))
-        tip.blit(text_render, (pad_x, pad_y))
+        tip = renpy.Render(ow, oh)
+
+        # Drop shadow: translucent black offset 2px past the bottom-right border.
+        shadow = renpy.Render(ow - SHADOW, oh - SHADOW)
+        shadow.canvas().rect("#000000", (0, 0, ow - SHADOW, oh - SHADOW))
+        shadow.alpha = 0.45
+        tip.blit(shadow, (SHADOW, SHADOW))
+
+        # 1px border (palette _cue_color_divider) around the interior fill.
+        tip.canvas().rect("#555555", (0, 0, ow - SHADOW, oh - SHADOW), 1)
+        tip.canvas().rect("#2e2e2e", (BORDER, BORDER, fw, fh))
+
+        tip.blit(text_render, (BORDER + pad_x, BORDER + pad_y))
         r.blit(tip, (tx, ty))
         return r
 

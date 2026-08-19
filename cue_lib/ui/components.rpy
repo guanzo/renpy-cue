@@ -538,7 +538,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
             use cue_pool_tabs(len(_pools), _target, bool(_pools),
                 "Delete all {} for the current {}?".format(section_title.lower(), subject),
                 Function(ctx.clear), "Delete all {} for the current {}".format(section_title.lower(), subject),
-                Function(ctx.add_pool), "Create a SFX pool",
+                Function(ctx.add_pool), "",
                 ctx.set_active_index,
                 exclusive_ctx=_excl_ctx)
 

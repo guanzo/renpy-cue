@@ -164,9 +164,8 @@ screen cue_header_toolbar():
                 
             null width 10
 
-            # --- Page nav: SFX editor / Music / Settings ---
             $ _sfx_bg = _cue_color_active if _cue.overlay_active_page == CuePage.SFX else None
-            use cue_icon_btn("sliders", Function(_cue_set_page, CuePage.SFX), "SFX editor", None,
+            use cue_icon_btn("sliders", Function(_cue_set_page, CuePage.SFX), "Editor", None,
                 bg=_sfx_bg)
             $ _music_bg = _cue_color_active if _cue.overlay_active_page == CuePage.MUSIC else None
             use cue_icon_btn("music", Function(_cue_set_page, CuePage.MUSIC), "Music", None,

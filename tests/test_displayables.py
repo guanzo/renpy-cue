@@ -120,8 +120,8 @@ def test_vtl_render_default(vtl):
     assert vtl.timeline._bar_y == 22
     ops = r.canvas().ops
     # Background + playhead rects.
-    assert ("rect", "#333333", (0, 22, 400, 16)) in ops
-    assert ("rect", "#ffffff", (100, 22, 2, 16)) in ops
+    assert ("rect", "#333333", (0, 22, 400, 16), 0) in ops
+    assert ("rect", "#ffffff", (100, 22, 2, 16), 0) in ops
     # Mouse at (200,400) is not over the bar -- no seek tooltip.
     assert len(r.blits) == 0
 
@@ -129,13 +129,13 @@ def test_vtl_render_default(vtl):
 def test_vtl_render_hovered_changes_bg(vtl, monkeypatch):
     monkeypatch.setattr(_renpy, "get_hovered", lambda: [vtl.timeline])
     r = vtl.timeline.render(400, 60, 0.0, 0.0)
-    assert ("rect", "#3a3a3a", (0, 22, 400, 16)) in r.canvas().ops
+    assert ("rect", "#3a3a3a", (0, 22, 400, 16), 0) in r.canvas().ops
 
 
 def test_vtl_render_paused_playhead_color(vtl):
     vtl.vid.paused = True
     r = vtl.timeline.render(400, 60, 0.0, 0.0)
-    assert ("rect", "#ffaa00", (100, 22, 2, 16)) in r.canvas().ops
+    assert ("rect", "#ffaa00", (100, 22, 2, 16), 0) in r.canvas().ops
 
 
 def test_vtl_render_mouse_over_bar_shows_tooltip(vtl, monkeypatch):
@@ -634,7 +634,8 @@ def test_tooltip_render_flips_left_on_right_edge(monkeypatch):
     tip = CueTooltip("hello")
     r = tip.render(800, 600, 0.0, 0.0)
     tx, _ = r.blits[0][1]
-    assert tx == 1000 - 358 - 12
+    # Outer box is 362 wide (content + 1px border + 2px shadow).
+    assert tx == 1000 - 362 - 12
 
 
 def test_tooltip_render_clamps_bottom_and_negative(monkeypatch):
@@ -642,7 +643,7 @@ def test_tooltip_render_clamps_bottom_and_negative(monkeypatch):
     tip = CueTooltip("hello")
     r = tip.render(800, 600, 0.0, 0.0)
     _, ty = r.blits[0][1]
-    assert ty == 720 - 104
+    assert ty == 720 - 108
 
 
 def test_tooltip_render_clamps_negative_top(monkeypatch):
@@ -654,14 +655,34 @@ def test_tooltip_render_clamps_negative_top(monkeypatch):
     assert ty == 0
 
 
+def test_tooltip_draws_border_and_shadow(monkeypatch):
+    monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (500, 400))
+    tip = CueTooltip("hello")
+    r = tip.render(800, 600, 0.0, 0.0)
+    tip_render = r.blits[0][0]
+    # Outer box = content 358x104 + 1px border all around + 2px shadow.
+    assert tip_render.width == 362
+    assert tip_render.height == 108
+    # Shadow blit: translucent black child render, offset 2px.
+    shadow, pos = tip_render.blits[0]
+    assert pos == (2, 2)
+    assert shadow.width == 360
+    assert shadow.height == 106
+    assert shadow.alpha == 0.45
+    assert shadow.canvas().ops[0] == ("rect", "#000000", (0, 0, 360, 106), 0)
+    ops = tip_render.canvas().ops
+    assert ops[0] == ("rect", "#555555", (0, 0, 360, 106), 1)  # border outline
+    assert ops[1] == ("rect", "#2e2e2e", (1, 1, 358, 104), 0)  # interior fill
+
+
 def test_tooltip_focus_anchors_above_element(monkeypatch):
     monkeypatch.setattr(_renpy, "focus_coordinates", lambda: (200, 300, 100, 40))
     tip = CueTooltip("hello")
     r = tip.render(800, 600, 0.0, 0.0)
     tx, ty = r.blits[0][1]
     # Centered over the element, sitting above it with a 4px gap.
-    assert tx == 200 + (100 - 358) // 2
-    assert ty == 300 - 104 - 4
+    assert tx == 200 + (100 - 362) // 2
+    assert ty == 300 - 108 - 4
 
 
 def test_tooltip_focus_flips_below_when_no_room_above(monkeypatch):
@@ -679,8 +700,8 @@ def test_tooltip_focus_clamps_to_right_edge(monkeypatch):
     r = tip.render(800, 600, 0.0, 0.0)
     tx, ty = r.blits[0][1]
     # Centering would push past the right edge (1280); clamp to the edge.
-    assert tx == 1280 - 358
-    assert ty == 300 - 104 - 4
+    assert tx == 1280 - 362
+    assert ty == 300 - 108 - 4
 
 
 # ==========================================================================
