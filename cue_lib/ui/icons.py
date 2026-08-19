@@ -65,6 +65,7 @@ CUE_ICON_MAP = {
     "rotate-right": ("rotate-right-solid.png", False),
     "gear": ("gear-solid.png", False),
     "layer-group": ("layer-group-solid.png", False),
+    "magnifying-glass": ("magnifying-glass-solid.png", False),
     "music": ("music-solid.png", False),
     "rotate-left": ("rotate-left-solid.png", False),
     "sliders": ("sliders-solid.png", False),

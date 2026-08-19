@@ -1004,3 +1004,27 @@ def test_send_file_no_recent_is_noop():
     mgr._sfx_manager.files = ["sfx/a.ogg"]
     ImageCtx(mgr).send_file(0)  # _recent stays None -- must not raise
     assert mgr.added_files == [("i_file", "sfx/a.ogg", 0)]
+
+
+def test_send_file_record_false_skips_record():
+    mgr = _recent_mgr(["sfx/a.ogg"])
+    VideoCtx(mgr).send_file(0, record=False)
+    assert mgr._sfx_manager._recent.calls == []
+
+
+def test_send_folder_record_false_skips_record():
+    mgr = _recent_mgr()
+    VideoCtx(mgr).send_folder("sfx/amb", record=False)
+    assert mgr._sfx_manager._recent.calls == []
+
+
+def test_send_preset_record_false_skips_record():
+    mgr = _recent_mgr()
+    ImageCtx(mgr).send_preset("Hurt", record=False)
+    assert mgr._sfx_manager._recent.calls == []
+
+
+def test_video_send_preset_record_false_skips_record():
+    mgr = _recent_mgr()
+    VideoCtx(mgr).send_preset("Hurt", record=False)
+    assert mgr._sfx_manager._recent.calls == []

@@ -700,6 +700,39 @@ def test_add_without_recent_is_noop(mgr, monkeypatch):
         [CUE_MUSIC_USER_TAG + "music/song.ogg"]
 
 
+def test_add_user_song_record_false_skips_recent(mgr, monkeypatch):
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    recent = _wire_recent(mgr)
+    mgr.add_user_song_to_trigger("music/song.ogg", record=False)
+    assert recent.calls == []
+
+
+def test_add_game_song_record_false_skips_recent(mgr, monkeypatch):
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    recent = _wire_recent(mgr)
+    mgr.add_game_song_to_trigger("bgm/x.ogg", record=False)
+    assert recent.calls == []
+
+
+def test_add_folder_record_false_skips_recent(mgr, monkeypatch):
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    recent = _wire_recent(mgr)
+    mgr.add_user_folder_to_trigger("music/sub", record=False)
+    assert recent.calls == []
+
+
+def test_add_ref_record_false_skips_recent(mgr):
+    recent = _wire_recent(mgr)
+    mgr._add_ref_to_trigger(CUE_MUSIC_GAME_TAG + "x.ogg", record=False)
+    assert recent.calls == []
+
+
 def test_remove_song_from_trigger(mgr):
     mgr._store["i_a.ogv"] = {"music": ["u:x.ogg", "u:y.ogg"]}
     mgr.remove_song_from_trigger("i_a.ogv", "u:x.ogg")

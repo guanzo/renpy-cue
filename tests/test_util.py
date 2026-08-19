@@ -184,10 +184,28 @@ def test_format_time_over_an_hour():
     assert _cue_format_time(3723.5) == "01:02:03.50"
 
 
-def test_format_time_centiseconds_truncate_like_int_cast():
-    # 0.99 is not exactly representable in binary floats; the centisecond
-    # fraction uses int() truncation, matching the game's formatting.
-    assert _cue_format_time(3599.99) == "59:59.98"
+def test_format_time_centiseconds_round():
+    # 0.99 is not exactly representable in binary floats; format rounds to
+    # the nearest centisecond so a display -> parse -> display round trip is
+    # stable. (The old int() truncation dropped the display one centisecond
+    # on click + Enter: 1.2000000000000002 showed 1.20, but float("1.20")
+    # re-formatted to 1.19.)
+    assert _cue_format_time(3599.99) == "59:59.99"
+
+
+def test_format_time_rounds_to_nearest_centisecond():
+    # float("1.20") is 1.1999999999999999556, a hair below 1.20; rounding
+    # keeps it displaying as 1.20 instead of truncating to 1.19.
+    assert _cue_format_time(1.2) == "00:01.20"
+    assert _cue_format_time(1.2000000000000002) == "00:01.20"
+
+
+def test_format_parse_round_trip_is_display_stable():
+    # Clicking the time field then pressing Enter commits parse(format(t)).
+    # For every t the display must not move: format(parse(format(t))) == format(t).
+    for t in (0.0, 1.1, 1.2, 1.23, 1.295, 1.5, 1.6, 3599.99):
+        reparsed = _cue_parse_time(_cue_format_time(t))
+        assert _cue_format_time(reparsed) == _cue_format_time(t)
 
 
 def test_format_time_exactly_one_hour():

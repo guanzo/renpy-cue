@@ -207,7 +207,7 @@ class CueVideoMarkerTimeline(Displayable):
     """Timeline with draggable marker tabs."""
 
     TRACK_H = 10
-    TAB_H = 16
+    TAB_H = 14
     LINE_H = 8
     TAB_W = 14
     DRAG_THRESH = 4
@@ -334,7 +334,7 @@ class CueVideoMarkerTimeline(Displayable):
             by_pos = self.TRACK_H - 2
             c.rect(bg, (bx_pos, by_pos, self.TAB_W, self.TAB_H))
 
-            txt = Txt(str(i + 1), style="cue_button_text", size=12, color="#ffffff")
+            txt = Txt(str(i + 1), style="cue_button_text", color="#ffffff")
             tr = renpy.render(txt, self.TAB_W, self.TAB_H, st, at)
             tw, _ = tr.get_size()
             r.blit(tr, (bx_pos + (self.TAB_W - tw) // 2, by_pos))

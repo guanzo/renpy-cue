@@ -60,30 +60,33 @@ class CueMarkerContext(object):
             return
         self._mgr._add_file_to_pool(key, filename, self.get_active())
 
-    def send_file(self, file_index):
-        # type: (int) -> None
+    def send_file(self, file_index, record=True):
+        # type: (int, bool) -> None
         if _cue_shift_held():
             self.add_pool()
         self.add_file(file_index)
         # Record on attempt (send_* is the "user asked for this" seam); a
         # disabled or out-of-range file still counts as an attempt, but one
-        # we cannot resolve to a path does not.
-        if 0 <= file_index < len(self._mgr._sfx_manager.files):
+        # we cannot resolve to a path does not.  record=False is passed by
+        # recently-used rows so acting from the list doesn't re-feed it.
+        if record and 0 <= file_index < len(self._mgr._sfx_manager.files):
             self._record_use("file", self._mgr._sfx_manager.files[file_index])
 
-    def send_folder(self, folder_path):
-        # type: (str) -> None
+    def send_folder(self, folder_path, record=True):
+        # type: (str, bool) -> None
         if _cue_shift_held():
             self.add_pool()
         self.add_folder(folder_path)
-        self._record_use("folder", folder_path.rstrip("/") + "/")
+        if record:
+            self._record_use("folder", folder_path.rstrip("/") + "/")
 
-    def send_preset(self, preset_name):
-        # type: (str) -> None
+    def send_preset(self, preset_name, record=True):
+        # type: (str, bool) -> None
         if _cue_shift_held():
             self.add_pool()
         self.apply_preset(preset_name)
-        self._record_use("preset", preset_name)
+        if record:
+            self._record_use("preset", preset_name)
 
     def _record_use(self, kind, ref):
         # type: (str, str) -> None
@@ -504,13 +507,14 @@ class CueVideoContext(CueMarkerContext):
         self.sync_text()
         self._mgr._db_save_marker(vid_key)
 
-    def send_preset(self, preset_name):
-        # type: (str) -> None
+    def send_preset(self, preset_name, record=True):
+        # type: (str, bool) -> None
         if _cue_shift_held():
             self.apply_preset(preset_name)
         else:
             self.apply_preset_active(preset_name)
-        self._record_use("preset", preset_name)
+        if record:
+            self._record_use("preset", preset_name)
 
     def remove_pool(self, pool_index):
         # type: (int) -> None

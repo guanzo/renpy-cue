@@ -79,9 +79,13 @@ screen cue_music_page():
             "My Music: add {} files to \n{}\n\n"
             "Game Music is found with heuristics, it may not find all music.").format(
                 ", ".join(CUE_AUDIO_EXTS), _cue.paths.music_dir)
+        
         use cue_section_frame("Music Library", tt=music_lib_tt):
             if _cue.music.user_music.tree or _cue.music.game_music.tree:
                 use cue_search_bar("_cue.music.library.search_query", _cue.music.library)
+            
+            null height 5
+            
             viewport:
                 xfill True
                 yfill True
@@ -215,8 +219,8 @@ screen trigger_list(triggers):
 
 # Combined Music Library file tree. Each row carries a play button plus an
 # add-to-trigger "+" button. The combined manager routes display paths back to
-# the correct (user- vs game-music) data model, and clears can_add on the
-# synthetic "Game Music/" root.
+# the correct (user- vs game-music) data model. Folder rows show "+" only when
+# the folder directly contains files (has_files).
 screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
     style_group "cue"
 
@@ -231,27 +235,28 @@ screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
                 if item["depth"] > 0:
                     text " " * item["depth"]
                 if item["type"] == "folder":
-                    # can_add is False only on the synthetic "Game Music/" root,
-                    # which groups several real folders and has no single data
-                    # path to add.
-                    use cue_icon_btn(
-                        "plus",
-                        Function(add_folder, item["full_path"]),
-                        _tree_add_folder_tt,
-                        None,
-                        enabled=(_tree_add_enabled and item.get("can_add", True)))
+                    # "+" only for folders that directly contain files; a
+                    # folder that only nests subfolders has nothing to add at
+                    # its own level (also drops the synthetic Game Music root).
+                    if item.get("has_files", False):
+                        use cue_icon_btn(
+                            "plus",
+                            Function(add_folder, item["full_path"]),
+                            _tree_add_folder_tt,
+                            None,
+                            enabled=_tree_add_enabled)
                     use cue_txt_button(
                         item["name"],
                         Function(toggle_folder, item["full_path"]),
                     )
                 else:
-                    use cue_icon_btn("play", Function(preview, item["full_path"]), "Play song", None)
                     use cue_icon_btn(
                         "plus",
                         Function(add_song, item["full_path"]),
                         _tree_add_tt,
                         None,
                         enabled=_tree_add_enabled)
+                    use cue_icon_btn("play", Function(preview, item["full_path"]), "Play song", None)
                     null width 2
                     text item["name"] color _cue_color_text_accent
 
@@ -281,6 +286,8 @@ screen cue_music_recent_list(entries):
     $ _m_add_tt = "Add song to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
     $ _m_add_folder_tt = "Add folder to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
     $ _m_add_enabled = _cue.music.selected_key is not None
+    if not entries:
+        text "Songs you add to a trigger show up here." color _cue_color_text_dim
     for _re in entries:
         $ _re_path = _cue.music.library.ref_display_path(_re["ref"])
         hbox:
@@ -289,7 +296,8 @@ screen cue_music_recent_list(entries):
             if _re["type"] == "folder":
                 use cue_icon_btn(
                     "plus",
-                    Function(_cue.music.library.add_folder_to_trigger, _re_path),
+                    Function(_cue.music.library.add_folder_to_trigger,
+                             _re_path, record=False),
                     _m_add_folder_tt,
                     None,
                     enabled=_m_add_enabled)
@@ -302,7 +310,8 @@ screen cue_music_recent_list(entries):
                     None)
                 use cue_icon_btn(
                     "plus",
-                    Function(_cue.music.library.add_song_to_trigger, _re_path),
+                    Function(_cue.music.library.add_song_to_trigger,
+                             _re_path, record=False),
                     _m_add_tt,
                     None,
                     enabled=_m_add_enabled)

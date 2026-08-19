@@ -124,7 +124,7 @@ screen cue_video_sfx():
                 if _is_preset_ts:
                     $ _active_label = "Pool " + str(_vid_target + 1) + " (Preset: " + _preset_name + ")"
                 else:
-                    $ _active_label = "Pool " + str(_vid_target + 1) + " (" + str(len(_active_files)) + " files)"
+                    $ _active_label = "Pool " + str(_vid_target + 1)
                 hbox:
                     spacing 5
                     box_wrap True
@@ -134,13 +134,12 @@ screen cue_video_sfx():
                         $ _n_selected = len(_cue.markers.video.get_selected())
                         text "(Edits apply to all {} selected markers)".format(_n_selected) style "cue_help"
 
-
                 hbox:
                     spacing 5
                     box_wrap True
                     box_wrap_spacing 3
 
-                    text "Time:" size 11
+                    text "Time:"
                     $ _dec10 = Function(_cue.markers.video.nudge, -0.01)
                     $ _dec100 = Function(_cue.markers.video.nudge, -0.1)
                     $ _inc10 = Function(_cue.markers.video.nudge, 0.01)
@@ -150,7 +149,7 @@ screen cue_video_sfx():
                     use cue_time_input("_cue.markers.video.edit_text", _commit, _dec100, _dec10,
                                         _inc10, _inc100, _display)
                                      
-                    null width 5
+                    null width 3
                        
                     use cue_icon_btn(
                         "clone",
@@ -171,16 +170,14 @@ screen cue_video_sfx():
                         None,
                     )
 
-                    null width 5
-                    # Volume controls
+                    null width 3
+
                     $ _vol_target.setdefault("volume", _cue.volume.VOL_DEFAULT)
                     $ _vol_label = "Volume: {:.1f}".format(_active_vol)
                     $ _vol_multi_setter = _cue.markers.video.set_selected_volume if _multi_selected else None
                     use cue_vol_row(_vol_label, _vol_target, _vid_key, multi_setter=_vol_multi_setter)
                 
-                # File list
                 if _is_preset_ts:
-                    # Preset-backed: render as expandable folder via cue_file_list
                     use cue_file_list([], _cue.markers.detach_active_video_ts, (), _active_eff, 5,
                         folder_label=_preset_name, folder_children=_active_files,
                         trigger_key=_vid_key, pool_index=_vid_target,

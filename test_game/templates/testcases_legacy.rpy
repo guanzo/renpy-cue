@@ -284,10 +284,11 @@ testcase volume_value_changed_fans_out_and_queues_save:
     $ _vid_key = _cue.markers.video._key()
     $ _vpools = _cue.markers.get(_vid_key)["pools"]
     $ _vol_val = _CueVolumeValue(_vpools[0], "volume", _vid_key, multi_setter=_cue.markers.video.set_selected_volume, range=_cue.volume.VOL_MAX)
-    $ _vol_val.changed(0.4)
-    $ _ok = _vpools[0]["volume"] == 0.4
-    $ _ok = _ok and _vpools[1]["volume"] == 0.4
-    $ _ok = _ok and (_vid_key in _cue.volume._pending_saves)
+    # changed() triggers a restart_interaction (via DictValue.changed), whose
+    # redraw can run the slow-tick save flush -- so the queued-save check must
+    # happen in the same $ statement, before the event loop drains the set.
+    $ _vol_val.changed(0.4); _queued = _vid_key in _cue.volume._pending_saves
+    $ _ok = _vpools[0]["volume"] == 0.4 and _vpools[1]["volume"] == 0.4 and _queued
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 

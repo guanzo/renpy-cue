@@ -229,13 +229,16 @@ testcase volume_value_changed_fans_out_and_queues_save:
     $ _vid_key = _cue.markers.video._key()
     $ _vpools = _cue.markers.get(_vid_key)["pools"]
     $ _vol_val = _CueVolumeValue(_vpools[0], "volume", _vid_key, multi_setter=_cue.markers.video.set_selected_volume, range=_cue.volume.VOL_MAX)
-    $ _vol_val.changed(0.4)
     # The slider path end-to-end: DictValue writes the active dict, the
     # multi_setter fans out to the other selected pool, and the marker save
-    # is queued (deferred), not written immediately.
+    # is queued (deferred), not written immediately. changed() triggers a
+    # restart_interaction (via DictValue.changed), whose redraw can run the
+    # slow-tick save flush -- so the queued-save check must happen in the same
+    # $ statement, before the event loop drains the set.
+    $ _vol_val.changed(0.4); _queued = _vid_key in _cue.volume._pending_saves
     assert eval (_vpools[0]["volume"] == 0.4)
     assert eval (_vpools[1]["volume"] == 0.4)
-    assert eval (_vid_key in _cue.volume._pending_saves)
+    assert eval (_queued)
 
 testcase video_sfx_edit_locked_off_base_speed:
     run Jump("start")

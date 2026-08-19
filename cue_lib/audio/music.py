@@ -496,39 +496,50 @@ class CueMusicManager(object):
         return pool
 
     @_cue_ui_refresh
-    def add_user_song_to_trigger(self, path):
-        # type: (str) -> None
-        """Add a My Music song to the selected trigger's music list."""
-        self._add_ref_to_trigger(CUE_MUSIC_USER_TAG + path)
+    def add_user_song_to_trigger(self, path, record=True):
+        # type: (str, bool) -> None
+        """Add a My Music song to the selected trigger's music list.
+
+        record=False (recently-used rows) suppresses the use feed."""
+        self._add_ref_to_trigger(CUE_MUSIC_USER_TAG + path, record)
 
     @_cue_ui_refresh
-    def add_game_song_to_trigger(self, path):
-        # type: (str) -> None
-        """Add a Game Music song to the selected trigger's music list."""
-        self._add_ref_to_trigger(CUE_MUSIC_GAME_TAG + path)
+    def add_game_song_to_trigger(self, path, record=True):
+        # type: (str, bool) -> None
+        """Add a Game Music song to the selected trigger's music list.
+
+        record=False (recently-used rows) suppresses the use feed."""
+        self._add_ref_to_trigger(CUE_MUSIC_GAME_TAG + path, record)
 
     @_cue_ui_refresh
-    def add_user_folder_to_trigger(self, folder_path):
-        # type: (str) -> None
-        """Add a whole My Music folder (a trailing-'/' ref) to the trigger."""
-        self._add_ref_to_trigger(CUE_MUSIC_USER_TAG + folder_path.rstrip("/") + "/")
+    def add_user_folder_to_trigger(self, folder_path, record=True):
+        # type: (str, bool) -> None
+        """Add a whole My Music folder (a trailing-'/' ref) to the trigger.
+
+        record=False (recently-used rows) suppresses the use feed."""
+        self._add_ref_to_trigger(CUE_MUSIC_USER_TAG + folder_path.rstrip("/") + "/", record)
 
     @_cue_ui_refresh
-    def add_game_folder_to_trigger(self, folder_path):
-        # type: (str) -> None
-        """Add a whole Game Music folder (a trailing-'/' ref) to the trigger."""
-        self._add_ref_to_trigger(CUE_MUSIC_GAME_TAG + folder_path.rstrip("/") + "/")
+    def add_game_folder_to_trigger(self, folder_path, record=True):
+        # type: (str, bool) -> None
+        """Add a whole Game Music folder (a trailing-'/' ref) to the trigger.
 
-    def _add_ref_to_trigger(self, ref):
-        # type: (str) -> None
+        record=False (recently-used rows) suppresses the use feed."""
+        self._add_ref_to_trigger(CUE_MUSIC_GAME_TAG + folder_path.rstrip("/") + "/", record)
+
+    def _add_ref_to_trigger(self, ref, record=True):
+        # type: (str, bool) -> None
         """Append a music ref (a file path or a folder ref) to the selected
         trigger's music list."""
         # Record the add-to-trigger attempt (even for a ref already in the
         # list or a missing selection -- the user asked for it).  ref is the
         # exact stored form: source-tagged and folder-normalized.
-        recent = self._recent
-        if recent is not None:
-            recent.record("folder" if ref.endswith("/") else "file", ref)
+        # record=False is passed by recently-used rows so acting from the
+        # list doesn't re-feed it.
+        if record:
+            recent = self._recent
+            if recent is not None:
+                recent.record("folder" if ref.endswith("/") else "file", ref)
         self._resolve_selection()
         key = self.selected_key
         if not key:

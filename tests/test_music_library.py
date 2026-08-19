@@ -252,17 +252,23 @@ def test_maybe_rebuild_after_rescan():
 
 
 # ==========================================================================
-# can_add flag (suppress "+" on the synthetic Game Music root)
+# has_files on combined rows (UI shows "+" on folders that directly contain
+# files; the synthetic Game Music root and nested-only folders get none)
 # ==========================================================================
 
-def test_game_synthetic_root_not_addable():
+def test_folder_rows_has_files():
     lib, _calls, _user, _game = _make_lib(
-        user_paths=("music/a.ogg",), game_paths=("bgm/x.ogg",))
+        user_paths=("music/a.ogg", "music/sub/deep.ogg"),
+        game_paths=("bgm/ost/y.ogg",))
     lib.rebuild_tree()
     rows = _rows(lib)
-    assert rows[USER]["can_add"] is True
-    assert rows[GAME]["can_add"] is False
-    assert rows[GAME + "bgm/"]["can_add"] is True
+    # Direct file under the folder -> shows "+".
+    assert rows[USER]["has_files"] is True        # My Music/ hoists music/a.ogg
+    assert rows[USER + "sub/"]["has_files"] is True
+    # Nested-only folder (no direct files) -> no "+".
+    assert rows[GAME + "bgm/"]["has_files"] is False
+    # Synthetic Game Music root -> no "+".
+    assert rows[GAME]["has_files"] is False
 
 
 # ==========================================================================
@@ -272,44 +278,59 @@ def test_game_synthetic_root_not_addable():
 def test_add_song_user_routes_flattened_path():
     lib, calls, _user, _game = _make_lib(user_paths=("music/a.ogg",))
     lib.add_song_to_trigger(USER + "a.ogg")
-    assert calls == [("add_user_song", (CUE_MUSIC_PREFIX + "a.ogg",), {})]
+    assert calls == [("add_user_song", (CUE_MUSIC_PREFIX + "a.ogg",),
+                      {"record": True})]
 
 
 def test_add_song_user_nested_folder():
     lib, calls, _user, _game = _make_lib(
         user_paths=("music/folder/song.ogg",))
     lib.add_song_to_trigger(USER + "folder/song.ogg")
-    assert calls == [("add_user_song", ("music/folder/song.ogg",), {})]
+    assert calls == [("add_user_song", ("music/folder/song.ogg",),
+                      {"record": True})]
 
 
 def test_add_song_game_routes():
     lib, calls, _user, _game = _make_lib(game_paths=("bgm/x.ogg",))
     lib.add_song_to_trigger(GAME + "bgm/x.ogg")
-    assert calls == [("add_game_song", ("bgm/x.ogg",), {})]
+    assert calls == [("add_game_song", ("bgm/x.ogg",), {"record": True})]
 
 
 def test_add_folder_user_routes():
     lib, calls, _user, _game = _make_lib(user_paths=("music/sub/b.ogg",))
     lib.add_folder_to_trigger(USER + "sub/")
-    assert calls == [("add_user_folder", ("music/sub/",), {})]
+    assert calls == [("add_user_folder", ("music/sub/",),
+                      {"record": True})]
 
 
 def test_add_folder_user_root_adds_all():
     lib, calls, _user, _game = _make_lib(user_paths=("music/a.ogg",))
     lib.add_folder_to_trigger(USER)
-    assert calls == [("add_user_folder", ("music/",), {})]
+    assert calls == [("add_user_folder", ("music/",), {"record": True})]
 
 
 def test_add_folder_game_routes():
     lib, calls, _user, _game = _make_lib(game_paths=("bgm/x.ogg",))
     lib.add_folder_to_trigger(GAME + "bgm/")
-    assert calls == [("add_game_folder", ("bgm/",), {})]
+    assert calls == [("add_game_folder", ("bgm/",), {"record": True})]
 
 
 def test_add_folder_game_synthetic_root_noop():
     lib, calls, _user, _game = _make_lib(game_paths=("bgm/x.ogg",))
     lib.add_folder_to_trigger(GAME)
     assert calls == []
+
+
+def test_add_song_record_false_passes_through():
+    lib, calls, _user, _game = _make_lib(user_paths=("music/a.ogg",))
+    lib.add_song_to_trigger(USER + "a.ogg", record=False)
+    assert calls == [("add_user_song", (CUE_MUSIC_PREFIX + "a.ogg",), {"record": False})]
+
+
+def test_add_folder_record_false_passes_through():
+    lib, calls, _user, _game = _make_lib(user_paths=("music/sub/b.ogg",))
+    lib.add_folder_to_trigger(USER + "sub/", record=False)
+    assert calls == [("add_user_folder", ("music/sub/",), {"record": False})]
 
 
 def test_preview_user_resolves_music_path():

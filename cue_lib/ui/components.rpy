@@ -95,7 +95,7 @@ screen cue_vol_row(label_text, entry_dict, key, multi_setter=None):
 # Names mapped in CueIconManager render as PNG images (white, shown at
 # 12px from a 32px source, dimmed via alpha when disabled); everything
 # else falls back to text.
-screen cue_icon_btn(label, action, tt=None, xsize=16, enabled=True, bg=None, icon_color=None):
+screen cue_icon_btn(label, action=NullAction(), tt=None, xsize=16, enabled=True, bg=None, icon_color=None):
     style_group "cue"
 
     $ _icon = _cue.icons.displayable_for(label, icon_color) if _cue.icons is not None else None
@@ -252,22 +252,27 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
 # field_name: string for _CueFieldValue (e.g. "_cue.setup_dir_text")
 # commit_action: Function() called on Enter to confirm
 # display_text: the label shown on the textbutton
-# editing_ref: optional object with a search_is_editing attribute; the screen
-#   mirrors its local editing flag there so a parent screen can show/hide
-#   sibling controls (e.g. the search bar's clear button while typing).
+# editing_ref: optional object with a search_is_editing attribute; when given
+#   it is the source of truth for edit mode, so a sibling (e.g. the search
+#   bar's clear button) can exit editing by setting it to False.
 screen cue_text_input(field_name, commit_action, display_text, xsize=None, editing_ref=None):
     style_group "cue"
 
     default editing = False
     $ height = 16
     if editing_ref is not None:
-        $ editing_ref.search_is_editing = editing
+        $ editing = editing_ref.search_is_editing
+        $ _start_edit = SetField(editing_ref, "search_is_editing", True)
+        $ _commit = [commit_action, SetField(editing_ref, "search_is_editing", False)]
+    else:
+        $ _start_edit = SetLocalVariable("editing", True)
+        $ _commit = [commit_action, SetLocalVariable("editing", False)]
     if editing:
         frame:
             # key must be inside frame, otherwise a parent vbox will add spacing
             # because it considers "key" to be a UI element.
-            key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
-            key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
+            key "K_RETURN" action _commit
+            key "K_KP_ENTER" action _commit
             background _cue_color_bg_input
             padding (2, 0)
             ysize height
@@ -281,10 +286,10 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=None, editi
                 ysize height
     else:
         use cue_txt_button(display_text,
-            SetLocalVariable("editing", True),
+            _start_edit,
             xsize=xsize, ysize=height, tt="Click to type. Enter to confirm.")
 
-screen cue_search_bar(field_path, manager, hint="Search..."):
+screen cue_search_bar(field_path, manager, hint="Search"):
     style_group "cue"
 
     $ _q = manager.search_query
@@ -292,9 +297,13 @@ screen cue_search_bar(field_path, manager, hint="Search..."):
     vbox:
         spacing 4
         hbox:
-            spacing 6
+            spacing 0
             if _q.strip() or manager.search_is_editing:
-                use cue_icon_btn("xmark", Function(manager.clear_search), "Clear search", None)
+                use cue_icon_btn("xmark",
+                    [Function(manager.clear_search), SetField(manager, "search_is_editing", False)],
+                    "Clear search")
+            else:
+                use cue_icon_btn("magnifying-glass")
             use cue_text_input(field_path, Function(manager.rebuild_tree), _label, editing_ref=manager)
 
         if manager.search_truncated:
@@ -325,7 +334,7 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
             $ _excl_on = bool(exclusive_ctx.get_active_pool().get("exclusive", {}).get("group"))
             $ _excl_bg = _cue_color_active if _excl_on else None
             $ _excl_tt = ("Disable exclusive playback" if _excl_on
-                else "Exclusive playback: fade out SFX from previous scene then plays.")
+                else "Exclusive playback: fade out SFX from previous scene then play.")
             use cue_icon_btn(
                 "layer-group",
                 Function(exclusive_ctx.toggle_exclusive),
@@ -538,7 +547,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
             if _is_preset_pool:
                 $ _active_label = "Pool " + str(_target + 1) + " (Preset: " + _active_pool["preset"] + ")"
             else:
-                $ _active_label = "Pool " + str(_target + 1) + " (" + str(len(_cue_resolve_files(_r.files))) + " files)"
+                $ _active_label = "Pool " + str(_target + 1)
             hbox:
                 spacing 5
                 box_wrap True
@@ -620,8 +629,8 @@ screen cue_checkbox(checked, label, action, tt_on=None, tt_off=None,
                 tooltip (tt_on if tt_off is None else tt_off)
         hbox:
             spacing 5
-            add _icon yalign 0.5
-            text label
+            add _icon yalign 0.5 yoffset 1
+            text label color _cue_color_text_white
 
 # Radio button: solid circle icon tinted with the active color when
 # selected, outline circle when not.

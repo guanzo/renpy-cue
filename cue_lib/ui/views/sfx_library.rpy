@@ -112,6 +112,8 @@ screen cue_recent_list(_is_video, _has_image, _is_dialogue, entries):
     $ _ploop_create = "Create Loop SFX pool and apply preset"
     $ _ploop_tt = "Click: Apply preset to active Loop SFX pool\nShift+Click: " + _ploop_create
 
+    if not entries:
+        text "Files you send to pools show up here." color _cue_color_text_dim
     for _re in entries:
         hbox:
             spacing 2
@@ -122,17 +124,20 @@ screen cue_recent_list(_is_video, _has_image, _is_dialogue, entries):
                 use cue_icon_btn("play", Function(_cue_preview_sfx, _re["ref"]), "Preview audio", None)
                 use cue_icon_btn(
                     "V",
-                    Function(_cue.markers.video.send_file, _re_idx),
+                    Function(_cue.markers.video.send_file, _re_idx, record=False),
                     _fvid_tt, None, enabled=(_is_video and _re_ok))
                 use cue_icon_btn(
                     "I",
-                    Function(_cue.markers.image.send_file, _re_idx),
+                    Function(_cue.markers.image.send_file, _re_idx, record=False),
                     _fimg_tt, None, enabled=(_has_image and _re_ok))
                 use cue_icon_btn(
                     "D",
-                    Function(_cue.markers.dialogue.send_file, _re_idx),
+                    Function(_cue.markers.dialogue.send_file, _re_idx, record=False),
                     _fdlg_tt, None, enabled=(_is_dialogue and _re_ok))
-                use cue_icon_btn("L", Function(_cue.markers.loop.send_file, _re_idx), _floop_tt, None, enabled=_re_ok)
+                use cue_icon_btn(
+                    "L",
+                    Function(_cue.markers.loop.send_file, _re_idx, record=False),
+                    _floop_tt, None, enabled=_re_ok)
                 null width 1
                 text _re["ref"] color _cue_color_text_accent
             elif _re["type"] == "folder":
@@ -142,17 +147,20 @@ screen cue_recent_list(_is_video, _has_image, _is_dialogue, entries):
                     "Play random file from folder", None)
                 use cue_icon_btn(
                     "V",
-                    Function(_cue.markers.video.send_folder, _re["ref"]),
+                    Function(_cue.markers.video.send_folder, _re["ref"], record=False),
                     _fvid_tt, None, enabled=_is_video)
                 use cue_icon_btn(
                     "I",
-                    Function(_cue.markers.image.send_folder, _re["ref"]),
+                    Function(_cue.markers.image.send_folder, _re["ref"], record=False),
                     _fimg_tt, None, enabled=_has_image)
                 use cue_icon_btn(
                     "D",
-                    Function(_cue.markers.dialogue.send_folder, _re["ref"]),
+                    Function(_cue.markers.dialogue.send_folder, _re["ref"], record=False),
                     _fdlg_tt, None, enabled=_is_dialogue)
-                use cue_icon_btn("L", Function(_cue.markers.loop.send_folder, _re["ref"]), _floop_tt, None)
+                use cue_icon_btn(
+                    "L",
+                    Function(_cue.markers.loop.send_folder, _re["ref"], record=False),
+                    _floop_tt, None)
                 null width 1
                 text _re["ref"] color _cue_color_text_accent
             else:  # preset
@@ -162,17 +170,20 @@ screen cue_recent_list(_is_video, _has_image, _is_dialogue, entries):
                     "Play random file from preset", None)
                 use cue_icon_btn(
                     "V",
-                    Function(_cue.markers.video.send_preset, _re["ref"]),
+                    Function(_cue.markers.video.send_preset, _re["ref"], record=False),
                     _pvid_tt, None, enabled=_is_video)
                 use cue_icon_btn(
                     "I",
-                    Function(_cue.markers.image.send_preset, _re["ref"]),
+                    Function(_cue.markers.image.send_preset, _re["ref"], record=False),
                     _pimg_tt, None, enabled=_has_image)
                 use cue_icon_btn(
                     "D",
-                    Function(_cue.markers.dialogue.send_preset, _re["ref"]),
+                    Function(_cue.markers.dialogue.send_preset, _re["ref"], record=False),
                     _pdlg_tt, None, enabled=_is_dialogue)
-                use cue_icon_btn("L", Function(_cue.markers.loop.send_preset, _re["ref"]), _ploop_tt, None)
+                use cue_icon_btn(
+                    "L",
+                    Function(_cue.markers.loop.send_preset, _re["ref"], record=False),
+                    _ploop_tt, None)
                 null width 1
                 text _re["ref"] color _cue_color_text_accent
 

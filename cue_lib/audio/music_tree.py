@@ -59,9 +59,7 @@ class CueCombinedMusicTree(CueAudioTreeManager):
 
         The merged self.tree wraps each non-empty source under a synthetic
         top folder.  The one-time root expansion (gated by _has_expanded_roots)
-        opens both synthetic folders on the first non-empty rebuild.  Folder
-        rows carry can_add -- False on the synthetic Game Music root, which
-        groups several real folders and has no single data path to add."""
+        opens both synthetic folders on the first non-empty rebuild."""
         self.tree = self._merged_tree()
 
         if self._auto_expand_roots and not self._has_expanded_roots and self.tree:
@@ -69,10 +67,6 @@ class CueCombinedMusicTree(CueAudioTreeManager):
             self._has_expanded_roots = True
 
         CueAudioTreeManager.rebuild_tree(self)
-
-        for row in self.visible_tree:
-            if row["type"] == "folder":
-                row["can_add"] = row["full_path"] != CUE_GAME_MUSIC_FOLDER
 
         # Stamp the source-tree ids so the tick loop's maybe_rebuild skips until
         # a source re-scans or the query changes (mirrors _search_applied).
@@ -148,30 +142,36 @@ class CueCombinedMusicTree(CueAudioTreeManager):
     # prefix, a game path is the game-relative path unchanged.  Ref tags
     # (u:/g:) and stored refs are therefore untouched by the UI merge.
 
-    def add_song_to_trigger(self, display_path):
-        # type: (str) -> None
-        """Add the song under display_path to the selected trigger."""
+    def add_song_to_trigger(self, display_path, record=True):
+        # type: (str, bool) -> None
+        """Add the song under display_path to the selected trigger.
+
+        record=False is passed by recently-used rows so acting from the list
+        doesn't re-feed it."""
         if display_path.startswith(CUE_GAME_MUSIC_FOLDER):
             self._music.add_game_song_to_trigger(
-                display_path[len(CUE_GAME_MUSIC_FOLDER):])
+                display_path[len(CUE_GAME_MUSIC_FOLDER):], record=record)
         else:
             self._music.add_user_song_to_trigger(
-                CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER):])
+                CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER):],
+                record=record)
 
-    def add_folder_to_trigger(self, display_path):
-        # type: (str) -> None
+    def add_folder_to_trigger(self, display_path, record=True):
+        # type: (str, bool) -> None
         """Add the folder under display_path to the selected trigger.
 
         The synthetic "Game Music/" root is skipped -- it groups several real
-        folders and has no single data path."""
+        folders and has no single data path.  record=False is passed by
+        recently-used rows so acting from the list doesn't re-feed it."""
         if display_path.startswith(CUE_GAME_MUSIC_FOLDER):
             if display_path == CUE_GAME_MUSIC_FOLDER:
                 return
             self._music.add_game_folder_to_trigger(
-                display_path[len(CUE_GAME_MUSIC_FOLDER):])
+                display_path[len(CUE_GAME_MUSIC_FOLDER):], record=record)
         else:
             self._music.add_user_folder_to_trigger(
-                CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER):])
+                CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER):],
+                record=record)
 
     def ref_display_path(self, ref):
         # type: (str) -> str
