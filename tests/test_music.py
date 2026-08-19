@@ -463,18 +463,18 @@ def test_resolve_selection_stable_within_scene(mgr):
 
 
 # ==========================================================================
-# add_custom_trigger / default_path_for / default helpers
+# create_scene_trigger / default_path_for / default helpers
 # ==========================================================================
 
-def test_add_custom_trigger_no_scene(mgr):
-    mgr.add_custom_trigger()
+def test_create_scene_trigger_no_scene(mgr):
+    mgr.create_scene_trigger()
     assert mgr.selected_key is None
     assert dict(mgr._store.items()) == {}
 
 
-def test_add_custom_trigger_creates_entry(mgr):
+def test_create_scene_trigger_creates_entry(mgr):
     _set_scene(mgr, "scene.ogv", "image")
-    mgr.add_custom_trigger()
+    mgr.create_scene_trigger()
     assert mgr.selected_key == "i_scene.ogv"
     assert mgr._store.get("i_scene.ogv")["music"] == []
 
@@ -629,9 +629,18 @@ def test_add_user_folder_to_trigger(mgr, monkeypatch):
     assert mgr._store.get("i_scene.ogv")["music"] == [CUE_MUSIC_USER_TAG + "music/sub/"]
 
 
-def test_add_ref_to_trigger_no_selection(mgr):
+def test_add_ref_to_trigger_no_scene(mgr):
     mgr._add_ref_to_trigger(CUE_MUSIC_USER_TAG + "x.ogg")
     assert dict(mgr._store.items()) == {}
+
+
+def test_add_ref_to_trigger_no_selection_creates_scene_trigger(mgr, monkeypatch):
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._add_ref_to_trigger(CUE_MUSIC_USER_TAG + "x.ogg")
+    entry = mgr._store.get("i_scene.ogv")
+    assert entry["music"] == [CUE_MUSIC_USER_TAG + "x.ogg"]
+    assert mgr.selected_key == "i_scene.ogv"
 
 
 def test_add_ref_to_trigger_no_duplicate(mgr, monkeypatch):

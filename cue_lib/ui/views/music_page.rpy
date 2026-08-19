@@ -37,7 +37,8 @@ screen cue_music_page():
         spacing 5
         $ music_tt = (
             "Click a trigger to select it, then click the + button "
-            "in My/Game Music to add a song to the trigger.\n\n"
+            "in My/Game Music to add a song to the trigger. "
+            "With no trigger selected, + creates a new one for the current scene.\n\n"
             "If you add multiple songs, one will be picked at random.\n\n"
             "Default music triggers must be discovered by playing through the replay.")
         use cue_section_frame("Music Triggers", tt=music_tt):
@@ -72,8 +73,8 @@ screen cue_music_page():
                     
                     null height 5
                     use cue_txt_button(
-                        "+ Play music starting at current scene",
-                        Function(_cue.music.add_custom_trigger))
+                        "+ Create music trigger for the current scene",
+                        Function(_cue.music.create_scene_trigger))
 
         $ music_lib_tt = (
             "My Music: add {} files to \n{}\n\n"
@@ -155,23 +156,22 @@ screen trigger_list(triggers):
             vbox:
                 spacing 3
                 hbox:
-                    spacing 6
                     xfill True
-                    use cue_icon_btn(
-                        ("rotate-right" if trigger["is_default"] else "trash-can"),
-                        Function(_cue.music.delete_trigger, trigger["key"]),
-                        ("Reset to default" if trigger["is_default"] else "Delete trigger"),
-                        None)
-                    text trigger["label"] color _cue_color_text_accent
-                    null width 6
                     hbox:
-                        xalign 1.0
                         use cue_icon_btn(
-                            "floppy-disk",
-                            Function(_cue.preset_dialog.open_music, trigger["key"]),
-                            "Save songs as a preset",
-                            None,
-                            enabled=bool(trigger["songs"]))
+                            ("rotate-right" if trigger["is_default"] else "trash-can"),
+                            Function(_cue.music.delete_trigger, trigger["key"]),
+                            ("Reset to default" if trigger["is_default"] else "Delete trigger"),
+                            None)
+                        text trigger["label"] color _cue_color_text_accent
+                    if trigger["songs"]:
+                        hbox:
+                            xalign 1.0
+                            use cue_icon_btn(
+                                "floppy-disk",
+                                Function(_cue.preset_dialog.open_music, trigger["key"]),
+                                "Save songs as a preset",
+                                None)
                 if trigger["is_default"]:
                     $ _default_path = trigger["default_path"] or ""
                     hbox:
@@ -246,9 +246,12 @@ screen trigger_list(triggers):
 screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
     style_group "cue"
 
-    $ _tree_add_tt = "Add song to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
-    $ _tree_add_folder_tt = "Add folder to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
-    $ _tree_add_enabled = _cue.music.selected_key is not None
+    $ _sel_label = _cue.music.selected_trigger_label()
+    $ _add_target = _sel_label if _sel_label else "a new trigger for the current scene"
+    $ _tree_add_tt = "Add song to " + _add_target
+    $ _tree_add_folder_tt = "Add folder to " + _add_target
+    $ _tree_add_enabled = (_cue.music.selected_key is not None
+                           or bool(_cue.current_file))
     vbox:
         spacing 2
         for item in tree:
@@ -302,16 +305,19 @@ screen cue_music_tree():
 screen cue_music_recent_list(entries):
     style_group "cue"
 
-    $ _m_add_tt = "Add song to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
-    $ _m_add_folder_tt = "Add folder to " + (_cue.music.selected_trigger_label() or "(no trigger selected)")
-    $ _m_add_enabled = _cue.music.selected_key is not None
+    $ _m_sel_label = _cue.music.selected_trigger_label()
+    $ _m_add_target = _m_sel_label if _m_sel_label else "a new trigger for the current scene"
+    $ _m_add_tt = "Add song to " + _m_add_target
+    $ _m_add_folder_tt = "Add folder to " + _m_add_target
+    $ _m_add_enabled = (_cue.music.selected_key is not None
+                        or bool(_cue.current_file))
     if not entries:
-        text "Songs you add to a trigger show up here." color _cue_color_text_dim
+        text "Songs you add to a trigger show up here." style "cue_help"
     for _re in entries:
         $ _re_path = _cue.music.library.ref_display_path(_re["ref"])
         hbox:
             spacing 2
-            text "  "  # indent under Recently Used/
+            text " "  # indent under Recently Used/
             if _re["type"] == "folder":
                 use cue_icon_btn(
                     "plus",
@@ -323,17 +329,17 @@ screen cue_music_recent_list(entries):
                 text _re_path color _cue_color_text_accent
             else:
                 use cue_icon_btn(
-                    "play",
-                    Function(_cue.music.library.preview, _re_path),
-                    "Play song",
-                    None)
-                use cue_icon_btn(
                     "plus",
                     Function(_cue.music.library.add_song_to_trigger,
                              _re_path, record=False),
                     _m_add_tt,
                     None,
                     enabled=_m_add_enabled)
+                use cue_icon_btn(
+                    "play",
+                    Function(_cue.music.library.preview, _re_path),
+                    "Play song",
+                    None)
                 null width 2
                 text _re_path color _cue_color_text_accent
 
@@ -356,7 +362,7 @@ screen cue_music_presets_list(name_filter=None):
         $ _p_files = _cue.music.preset_display_files(_pdata) if _pdata else []
         hbox:
             spacing 2
-            text "  "  # indent under Music Presets/
+            text " "  # indent under Music Presets/
             use cue_icon_btn(
                 "xmark",
                 Function(_cue_confirm_delete_music_preset, _pname),

@@ -137,11 +137,11 @@ screen cue_recent_list(entries):
     $ _tgt_tt = _cue_target_assign_tt()
 
     if not entries:
-        text "Files you send to pools show up here." color _cue_color_text_dim
+        text "Files you add to pools show up here."  style "cue_help"
     for _re in entries:
         hbox:
             spacing 2
-            text "  "  # indent under Recently Used/
+            text " "  # indent under Recently Used/
             if _re["type"] == "file":
                 $ _re_idx = _cue.sfx_manager._file_index.get(_re["ref"], -1)
                 $ _re_ok = _re_idx >= 0
@@ -191,7 +191,7 @@ screen cue_audio_presets_list(name_filter=None):
         $ _p_files = _cue_resolve_files(_pdata.get("files", [])) if _pdata else []
         hbox:
             spacing 2
-            text "  "  # indent under Presets/
+            text " "  # indent under Presets/
             use cue_icon_btn("xmark", Function(_cue_confirm_delete_preset, _pname), "Delete preset", None)
             use cue_icon_btn(
                 "play",
@@ -230,7 +230,7 @@ screen cue_video_presets_list(_is_video, name_filter=None):
         $ _vp_pools = _vpdata.get("pools", []) if _vpdata else []
         hbox:
             spacing 2
-            text "  "  # indent under Video Presets/
+            text " "  # indent under Video Presets/
             use cue_icon_btn(
                 "xmark",
                 Function(_cue_confirm_delete_video_preset, _vpname),

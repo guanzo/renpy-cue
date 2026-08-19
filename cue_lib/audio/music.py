@@ -372,20 +372,22 @@ class CueMusicManager(object):
         return self.selected_key
 
     @_cue_ui_refresh
-    def add_custom_trigger(self):
-        # type: () -> None
+    def create_scene_trigger(self):
+        # type: () -> Optional[str]
         """Create a trigger for the current scene and select it.
 
         The trigger is real and persists even while empty -- it appears
         immediately with an empty song list, and the tree "+" buttons add
-        to it.  Deleting it entirely is delete_trigger()'s job."""
+        to it.  Returns the new key, or None when there's no scene to
+        anchor one to.  Deleting it entirely is delete_trigger()'s job."""
         if not self._ctx.current_file:
-            return
+            return None
         key = self._current_scene_key()
         entry = self._store._get_or_create_entry(key)
         entry.setdefault("music", [])
         self._store.save_marker(key)
         self.selected_key = key
+        return key
 
     def default_path_for(self, key):
         # type: (str) -> Optional[str]
@@ -554,7 +556,11 @@ class CueMusicManager(object):
         self._resolve_selection()
         key = self.selected_key
         if not key:
-            return
+            # No trigger selected: anchor a new one to the current scene so
+            # the add still has a target.
+            key = self.create_scene_trigger()
+            if not key:
+                return
         entry = self._store._get_or_create_entry(key)
         music = entry.setdefault("music", [])
         is_first_song = not music
@@ -819,7 +825,7 @@ class CueMusicManager(object):
         if _cue_shift_held():
             key = self._current_scene_key()
             if key and not self._current_scene_has_trigger(key):
-                self.add_custom_trigger()
+                self.create_scene_trigger()
             self._set_trigger_songs(key, files)
         else:
             key = self._resolve_selection()
