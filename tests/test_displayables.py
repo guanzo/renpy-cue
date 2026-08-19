@@ -654,6 +654,35 @@ def test_tooltip_render_clamps_negative_top(monkeypatch):
     assert ty == 0
 
 
+def test_tooltip_focus_anchors_above_element(monkeypatch):
+    monkeypatch.setattr(_renpy, "focus_coordinates", lambda: (200, 300, 100, 40))
+    tip = CueTooltip("hello")
+    r = tip.render(800, 600, 0.0, 0.0)
+    tx, ty = r.blits[0][1]
+    # Centered over the element, sitting above it with a 4px gap.
+    assert tx == 200 + (100 - 358) // 2
+    assert ty == 300 - 104 - 4
+
+
+def test_tooltip_focus_flips_below_when_no_room_above(monkeypatch):
+    monkeypatch.setattr(_renpy, "focus_coordinates", lambda: (300, 20, 120, 30))
+    tip = CueTooltip("hello")
+    r = tip.render(800, 600, 0.0, 0.0)
+    _, ty = r.blits[0][1]
+    # Above would go negative, so it lands below the element instead.
+    assert ty == 20 + 30 + 4
+
+
+def test_tooltip_focus_clamps_to_right_edge(monkeypatch):
+    monkeypatch.setattr(_renpy, "focus_coordinates", lambda: (1200, 300, 100, 40))
+    tip = CueTooltip("hello")
+    r = tip.render(800, 600, 0.0, 0.0)
+    tx, ty = r.blits[0][1]
+    # Centering would push past the right edge (1280); clamp to the edge.
+    assert tx == 1280 - 358
+    assert ty == 300 - 104 - 4
+
+
 # ==========================================================================
 # CueMarkerTooltipOverlay
 # ==========================================================================

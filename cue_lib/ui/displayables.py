@@ -578,23 +578,42 @@ class CueTooltip(Displayable):
         fw = tw + pad_x * 2
         fh = th + pad_y * 2
 
-        mx, my = renpy.get_mouse_pos()
         sw = renpy.config.screen_width
         sh = renpy.config.screen_height
 
-        # Default offset: right and slightly above the cursor
-        tx = mx + 12
-        ty = my - 8
+        fx, fy, fw_elem, fh_elem = renpy.focus_coordinates()
+        if fx is not None and fy is not None and fw_elem is not None and fh_elem is not None:
+            # Anchor to the hovered element (not the cursor) so the tooltip
+            # never covers it: centered above, flipping below when there's
+            # no room above.
+            tx = fx + (fw_elem - fw) // 2
+            ty = fy - fh - 4
+            if ty < 0:
+                ty = fy + fh_elem + 4
 
-        # Clamp to keep the tooltip fully on screen
-        if tx + fw > sw:
-            tx = mx - fw - 12  # flip to left of cursor
-        if ty + fh > sh:
-            ty = sh - fh
-        if tx < 0:
-            tx = 0
-        if ty < 0:
-            ty = 0
+            # Clamp to keep the tooltip fully on screen
+            if tx + fw > sw:
+                tx = sw - fw
+            if ty + fh > sh:
+                ty = sh - fh
+            if tx < 0:
+                tx = 0
+            if ty < 0:
+                ty = 0
+        else:
+            # Fallback (nothing focused): right and slightly above the cursor.
+            mx, my = renpy.get_mouse_pos()
+            tx = mx + 12
+            ty = my - 8
+
+            if tx + fw > sw:
+                tx = mx - fw - 12  # flip to left of cursor
+            if ty + fh > sh:
+                ty = sh - fh
+            if tx < 0:
+                tx = 0
+            if ty < 0:
+                ty = 0
 
         r = renpy.Render(1, 1)
         tip = renpy.Render(fw, fh)

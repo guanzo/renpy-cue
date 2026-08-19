@@ -7,7 +7,7 @@ screen cue_sfx_library(_is_video):
     style_group "cue"
 
     $ _overlay_mode = _cue.sfx_manager.overlay_mode
-    $ _ov_tt = "Overlay Mode\n\nWhen enabled, this section will float on top when expanded.\n\n"
+    $ _ov_tt = "Overlay Mode: When enabled, this section will float on top when expanded.\n\n"
     $ _ov_tt = _ov_tt + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_LIBRARY) + " to toggle expansion."
 
     $ _icons = [{

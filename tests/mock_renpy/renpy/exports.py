@@ -47,7 +47,7 @@ def get_focus_rect(*args, **kwargs):
 
 
 def focus_coordinates(*args, **kwargs):
-    return (0, 0)
+    return (None, None, None, None)
 
 
 def capture_focus(*args, **kwargs):
