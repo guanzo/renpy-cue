@@ -449,9 +449,6 @@ def _cue_format_time(seconds):
         return "00:00.00"
 
     total_sec = int(seconds)
-    # Round to nearest centisecond (+0.5 is round-half-up, identical in Py2/Py3).
-    # int() truncation here made a click-then-Enter commit drop the display one
-    # centisecond: float("1.20") is 1.1999999999999999556, below the 1.20 bucket.
     centiseconds = int((seconds - total_sec) * 100 + 0.5)
     minutes = total_sec // 60
     sec_remainder = total_sec % 60
