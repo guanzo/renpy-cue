@@ -75,4 +75,4 @@ screen cue_sfx_page():
 
     # Audio file browser (in-flow, only when overlay mode is OFF)
     if not _cue.sfx_manager.overlay_mode:
-        use cue_sfx_library(_is_video, _has_image, _is_dialogue)
+        use cue_sfx_library(_is_video)

@@ -63,6 +63,7 @@ screen cue_settings_keybinds():
                         Function(_cue_keybind_start, _kb["id"]),
                         tt=_kb["desc"],
                         ysize=16,
+                        xminimum=12
                     )
                     if not _is_default:
                         use cue_icon(

@@ -153,7 +153,7 @@ screen cue_icon(label, action=NullAction(), tt=None, icon_color=None, size=12):
 # Base text button: all textbuttons should use this so style/typography
 # live in one place. Pass bg/tooltip/sensitive/xsize/ysize to override.
 screen cue_txt_button(label, action, bg=None, hover_bg=None, tt=None,
-                    sensitive=True, xsize=0, ysize=0):
+                    sensitive=True, xsize=0, ysize=0, xminimum=0):
     style_group "cue"
 
     textbutton label:
@@ -167,6 +167,8 @@ screen cue_txt_button(label, action, bg=None, hover_bg=None, tt=None,
             tooltip tt
         if xsize is not None and xsize > 0:
             xsize xsize
+        if xminimum is not None and xminimum > 0:
+            xminimum xminimum
         if ysize is not None and ysize > 0:
             ysize ysize
 
@@ -313,8 +315,8 @@ screen cue_search_bar(field_path, manager, hint="Search"):
 # tab_action_fn(tab_action_args..., pi) is called when tab pi is clicked.
 # delete_xsize/tab_xsize override the default button width (pass None for default).
 screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
-                     delete_tt, add_action, add_tt, tab_action_fn, tab_action_args,
-                     tab_tt, exclusive_ctx=None, selected_tabs=()):
+                     delete_tt, add_action, add_tt, tab_action_fn, tab_action_args=(),
+                     tab_tt=None, exclusive_ctx=None, selected_tabs=()):
     style_group "cue"
 
     hbox:
@@ -353,7 +355,8 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                 xsize 14
                 background _tab_bg
                 action _cue_make_tab_action(tab_action_fn, tab_action_args, pi)
-                tooltip tab_tt
+                if tab_tt is not None:
+                    tooltip tab_tt
 
 screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
                             trigger_key, pool_index, folder_child_remove_fn,
@@ -517,6 +520,8 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
     $ _pools = _entry.get("pools", [])
     $ _target = ctx.get_active_index()
     $ _target = max(0, min(_target, len(_pools) - 1)) if _pools else 0
+    # Human name of this context for the [+] hint text (I/D/L -> Image/Dialogue/Loop).
+    $ _ctx_label = {"I": "Image", "D": "Dialogue", "L": "Loop"}.get(btn_letter, "SFX")
 
     # sync back: clamps stale target after file switch so set_frequency/set_exclusive_* don't no-op
     $ ctx.set_active_index(_target)
@@ -534,9 +539,8 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 "Delete all {} for the current {}?".format(section_title.lower(), subject),
                 Function(ctx.clear), "Delete all {} for the current {}".format(section_title.lower(), subject),
                 Function(ctx.add_pool), "Create a SFX pool",
-                ctx.set_active_index, (),
-                "Select {} target pool -- targets {} button".format(section_title, btn_letter),
-                _excl_ctx)
+                ctx.set_active_index,
+                exclusive_ctx=_excl_ctx)
 
         if _pools and 0 <= _target < len(_pools):
             $ _active_pool = _pools[_target]
@@ -594,14 +598,14 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 if key and description is not None:
                     text description
                 if key:
-                    text ("Click the {} button in the SFX Library "
-                        "to add files to this pool.").format(btn_letter)
+                    text ("Click + in the SFX Library with {} selected "
+                        "to add files to this pool.").format(_ctx_label)
         else:
             if key and description is not None:
                 text description
             if key:
-                text ("Click the {} button in the SFX Library to create a new pool "
-                    "or add files to the active pool.").format(btn_letter)
+                text ("Click + in the SFX Library with {} selected to create a new pool "
+                    "or add files to the active pool.").format(_ctx_label)
 
 # Toggle button: square-check icon when checked, square when unchecked.
 # on_bg/on_hover/off_bg/off_hover override backgrounds per state (None = style default).

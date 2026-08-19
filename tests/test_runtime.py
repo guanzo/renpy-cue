@@ -32,7 +32,7 @@ def cue(monkeypatch, tmp_path):
     c = make_runtime_cue(root=root, audio_dir=root + "/audio/")
     monkeypatch.setattr(_runtime, "_cue", c)
     monkeypatch.setattr(_util, "_cue", c)  # _cue_resolve_files/_cue_pick_file
-    _store.persistent._cue = {}  # _cue_toggle_active writes triggers_active
+    _store.persistent._cue = {}  # _cue_toggle_sfx_active writes triggers_active
     _music_mock._reset_all()
     _aaudio.channels.clear()
     _runtime._cue_slow_tick_last = 0.0
@@ -98,14 +98,14 @@ def test_refresh_overlay_scans_and_reloads(cue):
 
 def test_toggle_active_flips_trigger_and_persists(cue):
     cue.trigger.active = True
-    _runtime._cue_toggle_active()
+    _runtime._cue_toggle_sfx_active()
     assert cue.trigger.active is False
     assert _store.persistent._cue["triggers_active"] is False
 
 
 def test_toggle_active_reverse(cue):
     cue.trigger.active = False
-    _runtime._cue_toggle_active()
+    _runtime._cue_toggle_sfx_active()
     assert cue.trigger.active is True
     assert _store.persistent._cue["triggers_active"] is True
 

@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from cue_lib.constants import (
     CueExclusiveStart as CueExclusiveStart,
     CueLoopFrequency as CueLoopFrequency,
+    CueContextType as CueContextType,
 )
 from cue_lib.marker_store import (
     CueMarkerStore as CueMarkerStore,
@@ -38,6 +39,8 @@ from cue_lib.ui.dialogs import CueConfirmDialog
 # Bootstrap / coordinator functions.  They write to managers wired after
 # CueMarkerManager (trigger, etc.), so they live at module level and read _cue.
 def _cue_load_scalars_from_persistent() -> None: ...
+def _cue_markers_send(kind: str, ref: object, record: bool = True) -> None: ...
+def _cue_target_assign_tt() -> str: ...
 
 
 # Context classes were split into cue_lib/context.py; re-exported here so
@@ -60,6 +63,8 @@ class CueMarkerManager:
     video: CueVideoContext
     loop: CueLoopContext
     clipboard: Optional[ClipboardData]
+    # SFX library [+] assign target; session-only, mutated by the fallback.
+    target_context: str
 
     def __init__(
         self,
@@ -70,6 +75,13 @@ class CueMarkerManager:
         trigger: CueTriggerEngine,
         video_editor: CueVideoEditor,
         confirm_dialog: CueConfirmDialog) -> None: ...
+
+    # SFX library target context ([+] assign target)
+    def set_target_context(self, ctx_id: str) -> None: ...
+    def target_is_available(self, ctx_id: str) -> bool: ...
+    def resolve_target_context(self) -> str: ...
+    def send_target(self, kind: str, ref: object, record: bool = True) -> None: ...
+    def target_active_label(self) -> str: ...
     def get(self, key: str, default: Optional[MarkerEntry] = None) -> Optional[MarkerEntry]: ...
     def setdefault(self, key: str, default: MarkerEntry) -> MarkerEntry: ...
     def pop(self, key: str, *args: MarkerEntry) -> MarkerEntry: ...

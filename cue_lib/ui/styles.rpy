@@ -65,6 +65,7 @@ style cue_button is empty:
     ysize _cue_btn_height
     background _cue_color_bg_btn
     hover_background _cue_color_bg_btn_hover
+    insensitive_background _cue_color_bg_dialog
     padding (2, 0)
     hover_sound None
     activate_sound None
@@ -86,6 +87,7 @@ style cue_text is empty:
 style cue_button_text is cue_text:
     color _cue_color_text_white
     hover_color _cue_color_text_white
+    insensitive_color _cue_color_text_dim
     xalign 0.5
     yalign 0.5
     xanchor 0.5

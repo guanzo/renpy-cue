@@ -103,7 +103,7 @@ screen cue_video_sfx():
                 "Delete all video markers for the current video?",
                 Function(_cue.markers.video.clear), "Delete all video SFX for the current video",
                 Function(_cue.markers.video.add_pool), "Create a new empty marker at current time",
-                _cue.markers.video.select_tab, (), "Select pool — V button adds files here",
+                _cue.markers.video.select_tab,
                 selected_tabs=_cue.markers.video.get_selected())
 
             # Active pool display
@@ -188,10 +188,10 @@ screen cue_video_sfx():
                         folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
                 else:
                     text "SFX plays when this video reaches the marked time(s)."
-                    text "Click the V button in the SFX Library to add files to this pool."
+                    text "Click + in the SFX Library with Video selected to add files to this pool."
             else:
                 text "SFX plays when this video reaches the marked time(s)."
-                text ("Click the V button in the SFX Library to create a new pool "
+                text ("Click + in the SFX Library with Video selected to create a new pool "
                     "or add to the active pool.")
         else:
             null height 5

@@ -39,7 +39,7 @@ init -999 python:
     # _cue lives in cue_lib.state — bound to store at init -900 below
 
     from cue_lib.constants import (
-        CuePage, CueLoopFrequency,
+        CuePage, CueLoopFrequency, CueContextType,
         CUE_DEBUG, CUE_SFX_CHANNEL_COUNT,
         CUE_DEFAULT_VIDEO_SPEED, CUE_POPPER_DEFAULT_OFFSET,
         CUE_POPPER_DEFAULT_MARGIN, CUE_SFX_LIBRARY_HEADER, CUE_AUDIO_EXTS,
@@ -71,7 +71,7 @@ init -999 python:
         _cue_preview_sfx,
         _cue_preview_preset, _cue_preview_folder, _cue_preview_video_preset,
         _cue_play_pool, _cue_fade_out_sfx,
-        _cue_toggle_active, _cue_set_page,
+        _cue_toggle_sfx_active, _cue_set_page,
         _cue_toggle_shake_trigger, _cue_toggle_video_mute,
         _cue_confirm_shared_dir,
     )
@@ -82,6 +82,7 @@ init -999 python:
 
     from cue_lib.markers import (
         _cue_load_scalars_from_persistent,
+        _cue_markers_send, _cue_target_assign_tt,
     )
 
     from cue_lib.ui.dialogs import (
@@ -112,10 +113,12 @@ init -999 python:
         CUE_AUTO_SPEED_MIN_VARIANTS, CUE_AUTO_SPEED_IDEAL_VARIANTS, CUE_MULTI_SPEED_MIN_VARIANTS,
         CUE_KEYMAP_TOGGLE_OVERLAY, CUE_KEYMAP_QUIT_RELAUNCH,
         CUE_KEYMAP_COPY_CONTEXT, CUE_KEYMAP_PASTE_CONTEXT,
-        CUE_KEYMAP_TOGGLE_ACTIVE, CUE_KEYMAP_PAUSE,
+        CUE_KEYMAP_TOGGLE_SFX_ACTIVE, CUE_KEYMAP_PAUSE,
         CUE_KEYMAP_UNDO, CUE_KEYMAP_REDO,
         CUE_KEYMAP_SPEED_UP, CUE_KEYMAP_SPEED_DOWN,
-        CUE_KEYMAP_TOGGLE_SFX,
+        CUE_KEYMAP_TOGGLE_SFX_LIBRARY,
+        CUE_KEYMAP_TARGET_VIDEO, CUE_KEYMAP_TARGET_IMAGE,
+        CUE_KEYMAP_TARGET_DIALOGUE, CUE_KEYMAP_TARGET_LOOP,
         CUE_SHARED_KEY_KEYBINDS,
     )
     from cue_lib.keybinds import (

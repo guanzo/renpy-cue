@@ -16,8 +16,12 @@ import cue_lib.keybinds as _keybinds
 from cue_lib.keybinds import CueKeybindsManager
 from cue_lib.constants import (
     CUE_KEYMAP_TOGGLE_OVERLAY,
-    CUE_KEYMAP_TOGGLE_ACTIVE,
+    CUE_KEYMAP_TOGGLE_SFX_ACTIVE,
     CUE_KEYMAP_QUIT_RELAUNCH,
+    CUE_KEYMAP_TARGET_VIDEO,
+    CUE_KEYMAP_TARGET_IMAGE,
+    CUE_KEYMAP_TARGET_DIALOGUE,
+    CUE_KEYMAP_TARGET_LOOP,
     CUE_SHARED_KEY_KEYBINDS,
 )
 
@@ -121,8 +125,8 @@ def test_get_keysym_explicitly_unbound(mgr):
 
 
 def test_shortcut_label(mgr):
-    renpy.config.keymap[CUE_KEYMAP_TOGGLE_ACTIVE] = ["shift_K_3"]
-    assert mgr.shortcut_label(CUE_KEYMAP_TOGGLE_ACTIVE) == "Shift+3"
+    renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] = ["shift_K_3"]
+    assert mgr.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_ACTIVE) == "Shift+3"
 
 
 def test_current_label_empty_when_not_capturing(mgr):
@@ -142,7 +146,7 @@ def test_setup_registers_defaults(mgr):
     mgr.setup()
     assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_OVERLAY] == ["K_BACKQUOTE"]
     assert renpy.config.keymap[CUE_KEYMAP_QUIT_RELAUNCH] == ["K_F5"]
-    assert len(renpy.config.keymap) == 11  # one entry per action
+    assert len(renpy.config.keymap) == 15  # one entry per action
 
 
 def test_setup_does_not_overwrite_existing(mgr):
@@ -183,7 +187,7 @@ def test_setup_clears_keymap_cache(mgr, monkeypatch):
 def test_visible_actions_excludes_quit_relaunch(mgr):
     ids = [a["id"] for a in mgr.visible_actions()]
     assert CUE_KEYMAP_QUIT_RELAUNCH not in ids
-    assert len(ids) == 10  # 11 actions minus quit_relaunch
+    assert len(ids) == 14  # 15 actions minus quit_relaunch
 
 
 def test_visible_actions_filters_debug_only(mgr, monkeypatch):
@@ -262,7 +266,7 @@ def test_on_captured_clean_applies_and_saves(db, mgr):
 
 
 def test_on_captured_collision_sets_pending(db, mgr):
-    renpy.config.keymap[CUE_KEYMAP_TOGGLE_ACTIVE] = ["K_F7"]
+    renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] = ["K_F7"]
     mgr.start_capture(CUE_KEYMAP_TOGGLE_OVERLAY)
     mgr.on_captured("K_F7")
     assert mgr._capturing_id == CUE_KEYMAP_TOGGLE_OVERLAY  # still capturing
@@ -277,7 +281,7 @@ def test_on_captured_collision_sets_pending(db, mgr):
 
 def test_confirm_override_applies_and_resets_others(db, mgr):
     # Toggle Active currently owns K_F7; rebind Toggle Overlay onto it.
-    renpy.config.keymap[CUE_KEYMAP_TOGGLE_ACTIVE] = ["K_F7"]
+    renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] = ["K_F7"]
     mgr.start_capture(CUE_KEYMAP_TOGGLE_OVERLAY)
     mgr.on_captured("K_F7")
     assert mgr._pending_keysym == "K_F7"  # collision pending
@@ -285,7 +289,7 @@ def test_confirm_override_applies_and_resets_others(db, mgr):
     mgr.confirm_override()
     assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_OVERLAY] == ["K_F7"]
     # Overridden action resets to its default (shift_K_3, no collision).
-    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_ACTIVE] == ["shift_K_3"]
+    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] == ["shift_K_3"]
     assert mgr._capturing_id == ""
     assert db.saved  # save() ran
 
@@ -339,11 +343,53 @@ def test_find_collisions_ignores_cue_prefixed_builtin(mgr):
 
 
 def test_find_collisions_excludes_self(mgr):
-    renpy.config.keymap[CUE_KEYMAP_TOGGLE_ACTIVE] = ["K_F7"]
-    assert mgr._find_collisions("K_F7", CUE_KEYMAP_TOGGLE_ACTIVE) == []
+    renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] = ["K_F7"]
+    assert mgr._find_collisions("K_F7", CUE_KEYMAP_TOGGLE_SFX_ACTIVE) == []
 
 
 def test_find_collisions_cue_owner(mgr):
-    renpy.config.keymap[CUE_KEYMAP_TOGGLE_ACTIVE] = ["K_F7"]
+    renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] = ["K_F7"]
     owners = mgr._find_collisions("K_F7", CUE_KEYMAP_TOGGLE_OVERLAY)
     assert owners == ["Cue: Toggle SFX Active"]
+
+
+# ---------------------------------------------------------------------------
+# Target-context hotkeys (SFX Library [+] target selector: K_1..K_4)
+# ---------------------------------------------------------------------------
+
+def test_target_context_actions_visible(mgr):
+    ids = [a["id"] for a in mgr.visible_actions()]
+    assert CUE_KEYMAP_TARGET_VIDEO in ids
+    assert CUE_KEYMAP_TARGET_IMAGE in ids
+    assert CUE_KEYMAP_TARGET_DIALOGUE in ids
+    assert CUE_KEYMAP_TARGET_LOOP in ids
+
+
+def test_setup_registers_target_context_defaults(mgr):
+    mgr.setup()
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_VIDEO] == ["K_1"]
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_IMAGE] == ["K_2"]
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_DIALOGUE] == ["K_3"]
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_LOOP] == ["K_4"]
+
+
+def test_get_keysym_target_context_defaults(mgr):
+    assert mgr.get_keysym(CUE_KEYMAP_TARGET_VIDEO) == "K_1"
+    assert mgr.get_keysym(CUE_KEYMAP_TARGET_IMAGE) == "K_2"
+    assert mgr.get_keysym(CUE_KEYMAP_TARGET_DIALOGUE) == "K_3"
+    assert mgr.get_keysym(CUE_KEYMAP_TARGET_LOOP) == "K_4"
+
+
+def test_target_context_key_rebind_and_reset(db, mgr):
+    mgr.setup()
+    mgr.start_capture(CUE_KEYMAP_TARGET_VIDEO)
+    mgr.on_captured("K_F7")
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_VIDEO] == ["K_F7"]
+    mgr.reset_binding(CUE_KEYMAP_TARGET_VIDEO)
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_VIDEO] == ["K_1"]
+
+
+def test_target_context_collision_detects_cue_owner(mgr):
+    renpy.config.keymap[CUE_KEYMAP_TARGET_LOOP] = ["K_F7"]
+    owners = mgr._find_collisions("K_F7", CUE_KEYMAP_TARGET_VIDEO)
+    assert owners == ["Cue: Target Loop"]

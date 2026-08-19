@@ -3,16 +3,16 @@
 # Audio file browser with presets, video presets, and folder tree.
 ###############################################################################
 
-screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
+screen cue_sfx_library(_is_video):
     style_group "cue"
 
     $ _overlay_mode = _cue.sfx_manager.overlay_mode
     $ _ov_tt = "Overlay Mode\nWhen enabled, this section will float on top when expanded.\n"
-    $ _ov_tt = _ov_tt + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX) + " to toggle expansion."
+    $ _ov_tt = _ov_tt + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_LIBRARY) + " to toggle expansion."
 
     $ _icons = [{
-        "name": "window-maximize" if _overlay_mode else "window-restore", 
-        "action": Function(_cue.sfx_manager.toggle_overlay_mode), 
+        "name": "window-maximize" if _overlay_mode else "window-restore",
+        "action": Function(_cue.sfx_manager.toggle_overlay_mode),
         "tt": _ov_tt
     }]
 
@@ -25,10 +25,52 @@ screen cue_sfx_library(_is_video, _has_image, _is_dialogue):
             text ("Add {} files there "
                 "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS))
         else:
+            use cue_target_context()
             use cue_search_bar("_cue.sfx_manager.search_query", _cue.sfx_manager)
-            use cue_sfx_library_content(_is_video, _has_image, _is_dialogue)
+            use cue_sfx_library_content(_is_video)
 
-screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
+# Target-context bar: the [1]..[4] chips select where [+] rows dispatch.
+# Current target highlighted; unavailable targets grayed (loop never grays).
+# Second line shows the resolved target's active pool.
+screen cue_target_context():
+    style_group "cue"
+
+    $ _target = _cue.markers.resolve_target_context()
+    # Tooltips name the rebindable hotkey for each target (Settings > Keybinds).
+    $ _tgt_video_tt = "Click the + button to send files to the Video SFX pool\n"
+    $ _tgt_video_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_VIDEO) + " to select."
+    $ _tgt_image_tt = "Click the + button to send files to the Image SFX pool\n"
+    $ _tgt_image_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_IMAGE) + " to select."
+    $ _tgt_dialogue_tt = "Click the + button to send files to the Dialogue SFX pool\n"
+    $ _tgt_dialogue_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_DIALOGUE) + " to select."
+    $ _tgt_loop_tt = "Click the + button to send files to the Loop SFX pool\n"
+    $ _tgt_loop_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_LOOP) + " to select."
+    hbox:
+        spacing 2
+        text "Target Context:"
+        use cue_select_btn("Video", (_target == CueContextType.VIDEO),
+            Function(_cue.markers.set_target_context, CueContextType.VIDEO),
+            tt=_tgt_video_tt,
+            sensitive=_cue.markers.target_is_available(CueContextType.VIDEO))
+        use cue_select_btn("Image", (_target == CueContextType.IMAGE),
+            Function(_cue.markers.set_target_context, CueContextType.IMAGE),
+            tt=_tgt_image_tt,
+            sensitive=_cue.markers.target_is_available(CueContextType.IMAGE))
+        use cue_select_btn("Dialogue", (_target == CueContextType.DIALOGUE),
+            Function(_cue.markers.set_target_context, CueContextType.DIALOGUE),
+            tt=_tgt_dialogue_tt,
+            sensitive=_cue.markers.target_is_available(CueContextType.DIALOGUE))
+        use cue_select_btn("Loop", (_target == CueContextType.LOOP),
+            Function(_cue.markers.set_target_context, CueContextType.LOOP),
+            tt=_tgt_loop_tt,
+            sensitive=_cue.markers.target_is_available(CueContextType.LOOP))
+    hbox:
+        spacing 2
+        text "Target Pool:"
+        text _cue.markers.target_active_label()
+
+
+screen cue_sfx_library_content(_is_video):
     style_group "cue"
 
     $ _q = _cue.sfx_manager.search_query
@@ -60,7 +102,7 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
                         use cue_txt_button("Recently Used/", Function(_recent.toggle))
 
                     if _recent.expanded or _searching:
-                        use cue_recent_list(_is_video, _has_image, _is_dialogue, _recent_entries)
+                        use cue_recent_list(_recent_entries)
 
             if not _searching or _preset_names:
                 hbox:
@@ -68,7 +110,7 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
                     use cue_txt_button("Pool Presets/", Function(_cue.sfx_manager.toggle_presets_expand))
 
                 if _cue.sfx_manager.presets_expanded:
-                    use cue_audio_presets_list(_is_video, _has_image, _is_dialogue, _preset_names)
+                    use cue_audio_presets_list(_preset_names)
 
             if not _searching or _video_preset_names:
                 hbox:
@@ -76,40 +118,23 @@ screen cue_sfx_library_content(_is_video, _has_image, _is_dialogue):
                     use cue_txt_button("Video Presets/", Function(_cue.sfx_manager.toggle_video_presets_expand))
 
                 if _cue.sfx_manager.video_presets_expanded:
-                    use cue_video_presets_list(_is_video, _has_image, _is_dialogue, _video_preset_names)
+                    use cue_video_presets_list(_is_video, _video_preset_names)
 
             if _searching and not _preset_names and not _video_preset_names and not _cue.sfx_manager.visible_tree:
                 text 'No files found for "{}".'.format(_q)
             else:
-                use cue_file_tree(_is_video, _has_image, _is_dialogue)
+                use cue_file_tree()
 
 
 # Recently Used rows, shown when the Recently Used folder is expanded.
 # entries: filtered recent-entry dicts {type, ref}, most-recent-first.
-# File/folder rows reuse the tree's add-file tooltips; preset rows reuse the
-# preset list's apply-preset tooltips.
-screen cue_recent_list(_is_video, _has_image, _is_dialogue, entries):
+# Rows act on the resolved target context (see cue_target_context); [+] sends
+# the row there.  record=False so acting from this list doesn't re-feed it.
+screen cue_recent_list(entries):
     style_group "cue"
 
-    # Tooltip strings per marker type (screen-local).  _f*_tt is the add-file
-    # semantics (same text as the file tree rows); _p*_tt the apply-preset
-    # semantics (same text as the preset list rows).
-    $ _fvid_create = "Create Video SFX pool at current timestamp and add files"
-    $ _fvid_tt = "Click: Add files to active Video SFX pool\nShift+Click: " + _fvid_create
-    $ _fimg_create = "Create Image SFX pool and add files"
-    $ _fimg_tt = "Click: Add files to active Image SFX pool\nShift+Click: " + _fimg_create
-    $ _fdlg_create = "Create Dialogue SFX pool and add files"
-    $ _fdlg_tt = "Click: Add files to active Dialogue SFX pool\nShift+Click: " + _fdlg_create
-    $ _floop_create = "Create Loop SFX pool and add files"
-    $ _floop_tt = "Click: Add files to active Loop SFX pool\nShift+Click: " + _floop_create
-    $ _pvid_create = "Create pool at current timestamp and apply preset"
-    $ _pvid_tt = "Click: Apply preset to active Video SFX pool\nShift+Click: " + _pvid_create
-    $ _pimg_create = "Create Image SFX pool and apply preset"
-    $ _pimg_tt = "Click: Apply preset to active Image SFX pool\nShift+Click: " + _pimg_create
-    $ _pdlg_create = "Create Dialogue SFX pool and apply preset"
-    $ _pdlg_tt = "Click: Apply preset to active Dialogue SFX pool\nShift+Click: " + _pdlg_create
-    $ _ploop_create = "Create Loop SFX pool and apply preset"
-    $ _ploop_tt = "Click: Apply preset to active Loop SFX pool\nShift+Click: " + _ploop_create
+    $ _tgt_ok = _cue.markers.target_is_available(_cue.markers.resolve_target_context())
+    $ _tgt_tt = _cue_target_assign_tt()
 
     if not entries:
         text "Files you send to pools show up here." color _cue_color_text_dim
@@ -122,21 +147,9 @@ screen cue_recent_list(_is_video, _has_image, _is_dialogue, entries):
                 $ _re_ok = _re_idx >= 0
                 use cue_icon_btn("play", Function(_cue_preview_sfx, _re["ref"]), "Preview audio", None)
                 use cue_icon_btn(
-                    "V",
-                    Function(_cue.markers.video.send_file, _re_idx, record=False),
-                    _fvid_tt, None, enabled=(_is_video and _re_ok))
-                use cue_icon_btn(
-                    "I",
-                    Function(_cue.markers.image.send_file, _re_idx, record=False),
-                    _fimg_tt, None, enabled=(_has_image and _re_ok))
-                use cue_icon_btn(
-                    "D",
-                    Function(_cue.markers.dialogue.send_file, _re_idx, record=False),
-                    _fdlg_tt, None, enabled=(_is_dialogue and _re_ok))
-                use cue_icon_btn(
-                    "L",
-                    Function(_cue.markers.loop.send_file, _re_idx, record=False),
-                    _floop_tt, None, enabled=_re_ok)
+                    "plus",
+                    Function(_cue_markers_send, "file", _re_idx, False),
+                    _tgt_tt, None, enabled=(_tgt_ok and _re_ok))
                 null width 1
                 text _re["ref"] color _cue_color_text_accent
             elif _re["type"] == "folder":
@@ -145,21 +158,9 @@ screen cue_recent_list(_is_video, _has_image, _is_dialogue, entries):
                     Function(_cue_preview_folder, _re["ref"]),
                     "Play random file from folder", None)
                 use cue_icon_btn(
-                    "V",
-                    Function(_cue.markers.video.send_folder, _re["ref"], record=False),
-                    _fvid_tt, None, enabled=_is_video)
-                use cue_icon_btn(
-                    "I",
-                    Function(_cue.markers.image.send_folder, _re["ref"], record=False),
-                    _fimg_tt, None, enabled=_has_image)
-                use cue_icon_btn(
-                    "D",
-                    Function(_cue.markers.dialogue.send_folder, _re["ref"], record=False),
-                    _fdlg_tt, None, enabled=_is_dialogue)
-                use cue_icon_btn(
-                    "L",
-                    Function(_cue.markers.loop.send_folder, _re["ref"], record=False),
-                    _floop_tt, None)
+                    "plus",
+                    Function(_cue_markers_send, "folder", _re["ref"], False),
+                    _tgt_tt, None, enabled=_tgt_ok)
                 null width 1
                 text _re["ref"] color _cue_color_text_accent
             else:  # preset
@@ -168,45 +169,22 @@ screen cue_recent_list(_is_video, _has_image, _is_dialogue, entries):
                     Function(_cue_preview_preset, _re["ref"]),
                     "Play random file from preset", None)
                 use cue_icon_btn(
-                    "V",
-                    Function(_cue.markers.video.send_preset, _re["ref"], record=False),
-                    _pvid_tt, None, enabled=_is_video)
-                use cue_icon_btn(
-                    "I",
-                    Function(_cue.markers.image.send_preset, _re["ref"], record=False),
-                    _pimg_tt, None, enabled=_has_image)
-                use cue_icon_btn(
-                    "D",
-                    Function(_cue.markers.dialogue.send_preset, _re["ref"], record=False),
-                    _pdlg_tt, None, enabled=_is_dialogue)
-                use cue_icon_btn(
-                    "L",
-                    Function(_cue.markers.loop.send_preset, _re["ref"], record=False),
-                    _ploop_tt, None)
+                    "plus",
+                    Function(_cue_markers_send, "preset", _re["ref"], False),
+                    _tgt_tt, None, enabled=_tgt_ok)
                 null width 1
                 text _re["ref"] color _cue_color_text_accent
 
 
 # Audio preset rows, shown when the Presets folder is expanded.
 # name_filter: preset names to show (None = all); set by the search flow.
-screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue, name_filter=None):
+# [+] applies the preset to the resolved target context's active pool.
+screen cue_audio_presets_list(name_filter=None):
     style_group "cue"
 
     $ _names = name_filter if name_filter is not None else _cue.markers.list_presets()
-    # Tooltip strings per marker type (screen-local).  The _*_tt_has variant
-    # is shown once a pool exists; _*_tt_create until the first pool.
-    $ _vid_tt_create = "Create pool at current timestamp and apply preset"
-    $ _vid_tt_has = "Click: Apply preset to active Video SFX pool\nShift+Click: " + _vid_tt_create
-    $ _img_tt_create = "Create Image SFX pool and apply preset"
-    $ _img_tt_has = "Click: Apply preset to active Image SFX pool\nShift+Click: " + _img_tt_create
-    $ _dlg_tt_create = "Create Dialogue SFX pool and apply preset"
-    $ _dlg_tt_has = "Click: Apply preset to active Dialogue SFX pool\nShift+Click: " + _dlg_tt_create
-    $ _loop_tt_create = "Create Loop SFX pool and apply preset"
-    $ _loop_tt_has = "Click: Apply preset to active Loop SFX pool\nShift+Click: " + _loop_tt_create
-    $ _vid_tt = _vid_tt_has if _cue.markers.video.has_pools() else _vid_tt_create
-    $ _img_tt = _img_tt_has if _cue.markers.image.has_pools() else _img_tt_create
-    $ _dlg_tt = _dlg_tt_has if _cue.markers.dialogue.has_pools() else _dlg_tt_create
-    $ _loop_tt = _loop_tt_has if _cue.markers.loop.has_pools() else _loop_tt_create
+    $ _tgt_ok = _cue.markers.target_is_available(_cue.markers.resolve_target_context())
+    $ _tgt_tt = _cue_target_assign_tt()
     for _pname in _names:
         $ _pdata = _cue.markers.get_preset(_pname)
         $ _p_expanded = _cue.sfx_manager.expanded_presets.get(_pname, False)
@@ -220,21 +198,9 @@ screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue, name_filter=N
                 Function(_cue_preview_preset, _pname),
                 "Play random file from preset", None)
             use cue_icon_btn(
-                "V",
-                Function(_cue.markers.video.send_preset, _pname),
-                _vid_tt, None, enabled=_is_video)
-            use cue_icon_btn(
-                "I",
-                Function(_cue.markers.image.send_preset, _pname),
-                _img_tt, None, enabled=_has_image)
-            use cue_icon_btn(
-                "D",
-                Function(_cue.markers.dialogue.send_preset, _pname),
-                _dlg_tt, None, enabled=_is_dialogue)
-            use cue_icon_btn(
-                "L",
-                Function(_cue.markers.loop.send_preset, _pname),
-                _loop_tt, None)
+                "plus",
+                Function(_cue_markers_send, "preset", _pname),
+                _tgt_tt, None, enabled=_tgt_ok)
             use cue_txt_button(_pname, Function(_cue.sfx_manager.toggle_preset_expand, _pname))
 
         if _p_expanded:
@@ -253,7 +219,8 @@ screen cue_audio_presets_list(_is_video, _has_image, _is_dialogue, name_filter=N
 
 # Video preset rows, shown when the Video Presets folder is expanded.
 # name_filter: preset names to show (None = all); set by the search flow.
-screen cue_video_presets_list(_is_video, _has_image, _is_dialogue, name_filter=None):
+# Rows keep the dedicated apply-video-markers button -- no [+] here.
+screen cue_video_presets_list(_is_video, name_filter=None):
     style_group "cue"
 
     $ _names = name_filter if name_filter is not None else _cue.markers.list_video_presets()
@@ -291,23 +258,13 @@ screen cue_video_presets_list(_is_video, _has_image, _is_dialogue, name_filter=N
 
 
 # Folder/file rows for the current audio tree.
-screen cue_file_tree(_is_video, _has_image, _is_dialogue):
+# [+] sends the row to the resolved target context's active pool (see
+# cue_target_context).  Shift+Click on [+] creates a new pool first.
+screen cue_file_tree():
     style_group "cue"
 
-    # Tooltip strings per marker type (screen-local).  The _*_tt_has variant
-    # is shown once a pool exists; _*_tt_create until the first pool.
-    $ _vid_tt_create = "Create Video SFX pool at current timestamp and add files"
-    $ _vid_tt_has = "Click: Add files to active Video SFX pool\nShift+Click: " + _vid_tt_create
-    $ _img_tt_create = "Create Image SFX pool and add files"
-    $ _img_tt_has = "Click: Add files to active Image SFX pool\nShift+Click: " + _img_tt_create
-    $ _dlg_tt_create = "Create Dialogue SFX pool and add files"
-    $ _dlg_tt_has = "Click: Add files to active Dialogue SFX pool\nShift+Click: " + _dlg_tt_create
-    $ _loop_tt_create = "Create Loop SFX pool and add files"
-    $ _loop_tt_has = "Click: Add files to active Loop SFX pool\nShift+Click: " + _loop_tt_create
-    $ _vid_tt = _vid_tt_has if _cue.markers.video.has_pools() else _vid_tt_create
-    $ _img_tt = _img_tt_has if _cue.markers.image.has_pools() else _img_tt_create
-    $ _dlg_tt = _dlg_tt_has if _cue.markers.dialogue.has_pools() else _dlg_tt_create
-    $ _loop_tt = _loop_tt_has if _cue.markers.loop.has_pools() else _loop_tt_create
+    $ _tgt_ok = _cue.markers.target_is_available(_cue.markers.resolve_target_context())
+    $ _tgt_tt = _cue_target_assign_tt()
 
     for item in _cue.sfx_manager.visible_tree:
         hbox:
@@ -322,49 +279,16 @@ screen cue_file_tree(_is_video, _has_image, _is_dialogue):
                         Function(_cue_preview_folder, item["full_path"]),
                         "Play random file from folder", None)
                     use cue_icon_btn(
-                        "V",
-                        Function(_cue.markers.video.send_folder, item["full_path"]),
-                        _vid_tt, None, enabled=_is_video)
-                    use cue_icon_btn(
-                        "I",
-                        Function(_cue.markers.image.send_folder, item["full_path"]),
-                        _img_tt, None, enabled=_has_image)
-                    use cue_icon_btn(
-                        "D",
-                        Function(_cue.markers.dialogue.send_folder, item["full_path"]),
-                        _dlg_tt, None, enabled=_is_dialogue)
-                    use cue_icon_btn(
-                        "L",
-                        Function(_cue.markers.loop.send_folder, item["full_path"]),
-                        _loop_tt, None)
+                        "plus",
+                        Function(_cue_markers_send, "folder", item["full_path"]),
+                        _tgt_tt, None, enabled=_tgt_ok)
                 use cue_txt_button(item["name"], Function(_cue.sfx_manager.toggle_folder, item["full_path"]))
             else:
                 # Play preview
                 use cue_icon_btn("play", Function(_cue_preview_sfx, item["full_path"]), "Preview audio", None)
-                # Video marker (adds to active pool)
                 use cue_icon_btn(
-                    "V",
-                    Function(_cue.markers.video.send_file, item["index"]),
-                    _vid_tt, None, enabled=_is_video)
-                # Image SFX
-                use cue_icon_btn(
-                    "I",
-                    Function(_cue.markers.image.send_file, item["index"]),
-                    _img_tt, None, enabled=_has_image)
-                # Dialogue SFX
-                use cue_icon_btn(
-                    "D",
-                    Function(_cue.markers.dialogue.send_file, item["index"]),
-                    _dlg_tt, None, enabled=_is_dialogue)
-                # Loop SFX
-                use cue_icon_btn(
-                    "L",
-                    Function(_cue.markers.loop.send_file, item["index"]),
-                    _loop_tt, None)
-                # use cue_icon_btn(
-                #     ("square-check" if item.get("enabled", True) else "square"),
-                #     Function(_cue.sfx_manager.toggle_file_enabled, item["full_path"]),
-                #     "Click to {} globally".format("disable" if item.get("enabled", True) else "enable"),
-                #     None)
+                    "plus",
+                    Function(_cue_markers_send, "file", item["index"]),
+                    _tgt_tt, None, enabled=_tgt_ok)
                 null width 1
                 text item["name"] color _cue_color_text_accent

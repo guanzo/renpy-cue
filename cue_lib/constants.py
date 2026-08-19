@@ -41,6 +41,15 @@ class CuePage(object):
     SETTINGS = 2  # Settings page
 
 
+class CueContextType(object):
+    """SFX library target contexts for the [+] assign button. Values are the
+    CueMarkerManager attribute names, so dispatch is getattr(manager, ctx_id)."""
+    VIDEO = "video"
+    IMAGE = "image"
+    DIALOGUE = "dialogue"
+    LOOP = "loop"
+
+
 # Key prefixes for marker trigger keys.  Single source of truth -- db.py keys
 # on the same strings, and util.py key helpers read them directly.
 CUE_IMG_KEY_PREFIX = "i_"
@@ -153,17 +162,21 @@ CUE_TIMELINE_REF_W = 480       # reference inner width the gap is defined at
 CUE_DUPLICATE_GAP_FRAC = CUE_DUPLICATE_GAP_PX / float(CUE_TIMELINE_REF_W)
 
 # Keymap names for rebindable cue hotkeys (registered in config.keymap).
-CUE_KEYMAP_TOGGLE_OVERLAY  = "cue_toggle_overlay"
-CUE_KEYMAP_QUIT_RELAUNCH   = "cue_quit_relaunch"
-CUE_KEYMAP_COPY_CONTEXT    = "cue_copy_context"
-CUE_KEYMAP_PASTE_CONTEXT   = "cue_paste_context"
-CUE_KEYMAP_TOGGLE_ACTIVE   = "cue_toggle_active"
-CUE_KEYMAP_PAUSE           = "cue_pause"
-CUE_KEYMAP_UNDO            = "cue_undo"
-CUE_KEYMAP_REDO            = "cue_redo"
-CUE_KEYMAP_SPEED_UP        = "cue_speed_up"
-CUE_KEYMAP_SPEED_DOWN      = "cue_speed_down"
-CUE_KEYMAP_TOGGLE_SFX      = "cue_toggle_sfx"
+CUE_KEYMAP_TOGGLE_OVERLAY     = "cue_toggle_overlay"
+CUE_KEYMAP_QUIT_RELAUNCH      = "cue_quit_relaunch"
+CUE_KEYMAP_COPY_CONTEXT       = "cue_copy_context"
+CUE_KEYMAP_PASTE_CONTEXT      = "cue_paste_context"
+CUE_KEYMAP_TOGGLE_SFX_ACTIVE  = "cue_toggle_sfx_active"
+CUE_KEYMAP_PAUSE              = "cue_pause"
+CUE_KEYMAP_UNDO               = "cue_undo"
+CUE_KEYMAP_REDO               = "cue_redo"
+CUE_KEYMAP_SPEED_UP           = "cue_speed_up"
+CUE_KEYMAP_SPEED_DOWN         = "cue_speed_down"
+CUE_KEYMAP_TOGGLE_SFX_LIBRARY = "cue_toggle_sfx_library"
+CUE_KEYMAP_TARGET_VIDEO       = "cue_target_video"
+CUE_KEYMAP_TARGET_IMAGE       = "cue_target_image"
+CUE_KEYMAP_TARGET_DIALOGUE    = "cue_target_dialogue"
+CUE_KEYMAP_TARGET_LOOP        = "cue_target_loop"
 
 # Shared-config key for persisting custom keybinds across games.
 CUE_SHARED_KEY_KEYBINDS = "keybinds"

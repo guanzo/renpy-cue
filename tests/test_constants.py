@@ -39,13 +39,17 @@ def test_keymap_names_are_distinct():
         constants.CUE_KEYMAP_QUIT_RELAUNCH,
         constants.CUE_KEYMAP_COPY_CONTEXT,
         constants.CUE_KEYMAP_PASTE_CONTEXT,
-        constants.CUE_KEYMAP_TOGGLE_ACTIVE,
+        constants.CUE_KEYMAP_TOGGLE_SFX_ACTIVE,
         constants.CUE_KEYMAP_PAUSE,
         constants.CUE_KEYMAP_UNDO,
         constants.CUE_KEYMAP_REDO,
         constants.CUE_KEYMAP_SPEED_UP,
         constants.CUE_KEYMAP_SPEED_DOWN,
-        constants.CUE_KEYMAP_TOGGLE_SFX,
+        constants.CUE_KEYMAP_TOGGLE_SFX_LIBRARY,
+        constants.CUE_KEYMAP_TARGET_VIDEO,
+        constants.CUE_KEYMAP_TARGET_IMAGE,
+        constants.CUE_KEYMAP_TARGET_DIALOGUE,
+        constants.CUE_KEYMAP_TARGET_LOOP,
     ]
     assert len(set(names)) == len(names)
 

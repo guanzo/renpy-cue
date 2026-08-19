@@ -21,6 +21,7 @@ from cue_lib.backup import (
 )
 from cue_lib.constants import (
     CUE_VOLUME_DEFAULT, CueExclusiveStart as CueExclusiveStart, CueLoopFrequency as CueLoopFrequency,
+    CueContextType,
 )
 from cue_lib.context import CueImageContext, CueDialogueContext, CueVideoContext, CueLoopContext
 from cue_lib.copy_paste import copy_context as _copy_context, paste_context as _paste_context
@@ -29,7 +30,7 @@ from cue_lib.copy_paste import copy_context as _copy_context, paste_context as _
 from cue_lib.marker_store import CueMarkerStore, ResolvedPool, ResolvedExclusive as ResolvedExclusive
 from cue_lib.state import _cue
 from cue_lib.util import (
-    _cue_log, create_vid_key,
+    _cue_format_time, _cue_log, create_vid_key,
 )
 
 MYPY = False
@@ -51,6 +52,15 @@ if MYPY:
 # CueMarkerManager
 # =========================================================================
 
+# Valid CueContextType ids (set_target_context validation + screen bars).
+_CUE_TARGET_CONTEXT_IDS = (
+    CueContextType.VIDEO,
+    CueContextType.IMAGE,
+    CueContextType.DIALOGUE,
+    CueContextType.LOOP,
+)
+
+
 class CueMarkerManager(object):
 
     def __init__(self, ctx, store, vid_manager, sfx_manager, trigger, video_editor, confirm_dialog):
@@ -69,6 +79,10 @@ class CueMarkerManager(object):
         self.video = CueVideoContext(self)  # pyright: ignore[reportArgumentType]
         self.loop = CueLoopContext(self)  # pyright: ignore[reportArgumentType]
         self.clipboard = None
+        # SFX library [+] assign target.  Session-only; never persisted.  May
+        # be mutated by resolve_target_context() when the selection can't
+        # receive assigns right now (video/image fallback).
+        self.target_context = CueContextType.VIDEO
 
     # -- read-through to the store (legacy consumers read AND write these) --
     # Setters keep undo._restore() (which swaps the whole dicts) and
@@ -582,6 +596,68 @@ class CueMarkerManager(object):
         # type: () -> None
         _paste_context(self)  # pyright: ignore[reportArgumentType]  # source `self` vs stub-typed param
 
+    # -- SFX library target context ([+] assign target) --
+
+    def set_target_context(self, ctx_id):
+        # type: (str) -> None
+        """Set the [+] assign target.  Unknown ids are ignored so a stale
+        screen can't strand the manager on a bogus value."""
+        if ctx_id in _CUE_TARGET_CONTEXT_IDS:
+            self.target_context = ctx_id
+
+    def target_is_available(self, ctx_id):
+        # type: (str) -> bool
+        """True when *ctx_id* can receive [+] assigns right now."""
+        if ctx_id == CueContextType.VIDEO:
+            return self._ctx.top_layer_type == "movie"
+        if ctx_id == CueContextType.IMAGE:
+            return bool(self._ctx.current_file) and self._ctx.top_layer_type != "movie"
+        if ctx_id == CueContextType.DIALOGUE:
+            return bool(self._ctx.current_dialogue)
+        # LOOP (and any unknown id) is always available.
+        return True
+
+    def resolve_target_context(self):
+        # type: () -> str
+        """The effective [+] target, mutating self.target_context when the
+        selection is unavailable: fall back to whatever video/image is on
+        screen (movie beats image).  In the menu -- neither video nor image --
+        the selection is left untouched and the caller disables [+].
+        The default selection is the on-screen context, so a fresh page
+        resolves without a prior set."""
+        if self.target_is_available(self.target_context):
+            return self.target_context
+        if self._ctx.top_layer_type == "movie":
+            self.target_context = CueContextType.VIDEO
+        elif self._ctx.current_file:
+            self.target_context = CueContextType.IMAGE
+        return self.target_context
+
+    def send_target(self, kind, ref, record=True):
+        # type: (str, object, bool) -> None
+        """Send a library row to the resolved target context's active pool.
+        *kind* is the send_* suffix: "file" (ref = file index), "folder"
+        (ref = path), "preset" (ref = preset name).  Shift+Click new-pool
+        behavior is handled inside the context's send_* methods."""
+        ctx_id = self.resolve_target_context()
+        ctx = getattr(self, ctx_id)
+        getattr(ctx, "send_" + kind)(ref, record=record)
+
+    def target_active_label(self):
+        # type: () -> str
+        """Context bar second line: the resolved target's active pool label
+        ("Pool 1", video "Pool 1 @ MM:SS.cs"), or a hint when no pool exists
+        yet.  1-indexed to match the pool tabs."""
+        ctx_id = self.resolve_target_context()
+        ctx = getattr(self, ctx_id)
+        if not ctx.has_pools():
+            return "No pool yet -- click + to create one."
+        if ctx_id == CueContextType.VIDEO:
+            pool = ctx.get_active_pool()
+            return "Pool {} @ {}".format(
+                ctx.get_active_index() + 1, _cue_format_time(pool.get("time", 0)))
+        return "Pool {}".format(ctx.get_active_index() + 1)
+
 # ---------------------------------------------------------------------------
 # Bootstrap / coordinator functions -- module-level because they write to
 # managers wired after CueMarkerManager (trigger, etc.).  They read _cue
@@ -621,3 +697,26 @@ def _cue_load_scalars_from_persistent():
     _cue.video_editor.encode_mode = _cue_dict.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
     _cue.video_editor.remove_audio = _cue_dict.get("remove_audio", True)
     _cue.speed_resolver.seamless_transition = _cue_dict.get("seamless_transition", False)
+
+
+def _cue_markers_send(kind, ref, record=True):
+    # type: (str, object, bool) -> None
+    """Store bridge for the SFX library [+] button: dispatch *ref* (file
+    index / folder path / preset name) to the resolved target context's
+    active pool.  Reads _cue at call time so screens can Function()-call it."""
+    _cue.markers.send_target(kind, ref, record=record)
+
+
+def _cue_target_assign_tt():
+    # type: () -> str
+    """Tooltip for the [+] assign button, reflecting the resolved target
+    context and whether that context already has an active pool."""
+    mgr = _cue.markers
+    ctx_id = mgr.resolve_target_context()
+    if not mgr.target_is_available(ctx_id):
+        return "No video or image on screen right now"
+    label = ctx_id.title()
+    if getattr(mgr, ctx_id).has_pools():
+        return ("Click: Add to {} active pool\nShift+Click: Create new {} pool and add"
+                .format(label, label))
+    return "Create {} pool and add".format(label)

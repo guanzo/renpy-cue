@@ -122,6 +122,46 @@ testcase music_recently_used:
     # Render the Music page so the Recently Used row compiles and displays.
     run Function(_cue_set_page, CuePage.MUSIC)
 
+testcase sfx_target_context:
+    run Jump("start")
+    $ _cue_test_reset()
+    # Hotkeys select the target context on the SFX page (bar + [+] rows compile).
+    run Function(_cue_set_page, CuePage.SFX)
+    keysym "K_3"
+    assert eval (_cue.markers.target_context == CueContextType.DIALOGUE)
+    keysym "K_4"
+    assert eval (_cue.markers.target_context == CueContextType.LOOP)
+    keysym "K_1"
+    assert eval (_cue.markers.target_context == CueContextType.VIDEO)
+    # Compile the preset + video preset + recently-used list rows ([+] rows).
+    run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    run Function(_cue.sfx_manager.toggle_presets_expand)
+    run Function(_cue.sfx_manager.toggle_video_presets_expand)
+    # Image on screen: video target falls back to image; [+] routes there.
+    $ _cue_test_reset()
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    assert eval (_cue.current_file == "cueimg_a")
+    assert eval (_cue.markers.target_is_available(CueContextType.IMAGE))
+    keysym "K_1"
+    run Function(_cue_markers_send, "file", 0)
+    assert eval (_cue.markers.image.has_pools())
+    $ _cue.markers.image.clear()
+    # Movie on screen: image target falls back to video; [+] routes there.
+    $ _cue_test_reset()
+    $ renpy.show("cuevid")
+    pause 1.0
+    assert eval (_cue.top_layer_type == "movie")
+    keysym "K_2"
+    run Function(_cue_markers_send, "folder", "Sub/")
+    assert eval (_cue.markers.video.has_pools())
+    $ _cue.markers.video.clear()
+    $ _cue_test_reset()
+    # Note: search-field typing not exercised here -- driving an input's
+    # focus needs a click primitive the test DSL lacks. Ren'Py's Input
+    # consumes text keys (K_1..K_4) while focused, so screen hotkeys don't
+    # fire mid-typing; verified manually.
+
 testcase video_movie_detected:
     run Jump("start")
     $ renpy.show("cuevid")

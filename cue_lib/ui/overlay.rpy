@@ -14,13 +14,13 @@ screen cue_key_listener():
     key CUE_KEYMAP_TOGGLE_OVERLAY action Function(_cue_toggle_overlay)
     key CUE_KEYMAP_COPY_CONTEXT action Function(_cue.markers.copy_context)
     key CUE_KEYMAP_PASTE_CONTEXT action Function(_cue.markers.paste_context)
-    key CUE_KEYMAP_TOGGLE_ACTIVE action Function(_cue_toggle_active)
+    key CUE_KEYMAP_TOGGLE_SFX_ACTIVE action Function(_cue_toggle_sfx_active)
     key CUE_KEYMAP_PAUSE action Function(renpy.invoke_in_new_context, renpy.pause)
     key CUE_KEYMAP_UNDO action Function(_cue.undo.undo)
     key CUE_KEYMAP_REDO action Function(_cue.undo.redo)
     key CUE_KEYMAP_SPEED_UP action Function(_cue.speed_resolver.cycle_speed, 1)
     key CUE_KEYMAP_SPEED_DOWN action Function(_cue.speed_resolver.cycle_speed, -1)
-    key CUE_KEYMAP_TOGGLE_SFX action Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
+    key CUE_KEYMAP_TOGGLE_SFX_LIBRARY action Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
     if CUE_DEBUG:
         key CUE_KEYMAP_QUIT_RELAUNCH action Function(renpy.quit, relaunch=True)
     timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
@@ -44,16 +44,28 @@ screen cue_overlay():
     zorder 9999
     modal False
 
+    # SFX library target-context hotkeys.  Top-level (not inside the button
+    # wrapper below) so they fire reliably; gated to the SFX page, which is
+    # where the cue_target_context chips live.  Rebindable in Settings > Keybinds
+    # (keymap names route through config.keymap, so a rebind applies
+    # immediately).  While the search field is focused, Ren'Py's input
+    # consumes these keys.
+    if _cue.overlay_active_page == CuePage.SFX:
+        key CUE_KEYMAP_TARGET_VIDEO action Function(_cue.markers.set_target_context, CueContextType.VIDEO)
+        key CUE_KEYMAP_TARGET_IMAGE action Function(_cue.markers.set_target_context, CueContextType.IMAGE)
+        key CUE_KEYMAP_TARGET_DIALOGUE action Function(_cue.markers.set_target_context, CueContextType.DIALOGUE)
+        key CUE_KEYMAP_TARGET_LOOP action Function(_cue.markers.set_target_context, CueContextType.LOOP)
+
     $ _z = _cue_overlay_zoom()
 
     button:
         style "empty"
         at Transform(zoom=_z)
+        action NullAction()
         xalign 0.0
         yalign 0.0
         xsize int(_cue_overlay_panel_width / _z)
         ysize int(renpy.config.screen_height / _z)
-        action NullAction()
         padding (4, 4)
         background None
         hover_background None
@@ -85,8 +97,6 @@ screen cue_overlay_content():
     # SFX context flags -- same derivation as cue_sfx_page. Needed by the
     # floating SFX library below (overlay mode), which doesn't run sfx_page.
     $ _is_video = _cue.top_layer_type == 'movie'
-    $ _has_image = bool(_cue.current_file) and not _is_video
-    $ _is_dialogue = bool(_cue.current_dialogue)
 
     fixed:
         xfill True
@@ -128,13 +138,15 @@ screen cue_overlay_content():
                         xfill True
                         ysize 4
                         add Solid(_cue_color_bg_overlay)
-                    use cue_sfx_library(_is_video, _has_image, _is_dialogue)
+                    use cue_sfx_library(_is_video)
 
 screen cue_header_toolbar():
     style_group "cue"
 
-    $ _toggle_on_tt = "SFX triggers are ON (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_ACTIVE) + " to toggle)"
-    $ _toggle_off_tt = "SFX triggers are OFF (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_ACTIVE) + " to toggle)"
+    $ _toggle_on_tt = "SFX triggers are ON ("
+    $ _toggle_on_tt += _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_ACTIVE) + " to toggle)"
+    $ _toggle_off_tt = "SFX triggers are OFF ("
+    $ _toggle_off_tt += _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_ACTIVE) + " to toggle)"
     $ _copy_tt = "Copy current config (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_COPY_CONTEXT) + ")"
     $ _paste_tt = "Paste config (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_PASTE_CONTEXT) + ")"
     $ _undo_tt = "Undo (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_UNDO) + ")"
@@ -147,7 +159,7 @@ screen cue_header_toolbar():
         hbox:
             spacing 5
             use cue_checkbox(_cue.trigger.active, "SFX Active",
-                Function(_cue_toggle_active),
+                Function(_cue_toggle_sfx_active),
                 _toggle_on_tt, _toggle_off_tt)        
                 
             null width 10

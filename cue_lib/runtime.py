@@ -41,7 +41,7 @@ def _cue_toggle_overlay():
     else:
         _cue_show_overlay()
 
-def _cue_toggle_active():
+def _cue_toggle_sfx_active():
     # type: () -> None
     _cue.trigger.active = not _cue.trigger.active
     persistent._cue["triggers_active"] = _cue.trigger.active

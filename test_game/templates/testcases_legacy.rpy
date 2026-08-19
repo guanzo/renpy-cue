@@ -156,6 +156,60 @@ testcase music_recently_used:
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
+testcase sfx_target_context:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _cue_test_reset()
+    run Function(_cue_set_page, CuePage.SFX)
+    $ import pygame_sdl2
+    $ import renpy.test.testkey as _testkey
+    # Hotkeys select the target context on the SFX page.  No image/movie on
+    # screen (reset), so a video/dialogue selection is kept as-is by the
+    # fallback (nothing to fall back to).
+    $ _testkey.down(None, "3")
+    $ _testkey.up(None, "3")
+    pause 0.5
+    $ if not (_cue.markers.target_context == CueContextType.DIALOGUE): renpy.quit(status=1)
+    $ _testkey.down(None, "4")
+    $ _testkey.up(None, "4")
+    pause 0.5
+    $ if not (_cue.markers.target_context == CueContextType.LOOP): renpy.quit(status=1)
+    $ _testkey.down(None, "1")
+    $ _testkey.up(None, "1")
+    pause 0.5
+    $ if not (_cue.markers.target_context == CueContextType.VIDEO): renpy.quit(status=1)
+    # Compile the preset + video preset + recently-used list rows.
+    run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    run Function(_cue.sfx_manager.toggle_presets_expand)
+    run Function(_cue.sfx_manager.toggle_video_presets_expand)
+    # Image on screen: video target falls back to image; [+] routes there.
+    $ _cue_test_reset()
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    $ if not (_cue.current_file == "cueimg_a"): renpy.quit(status=1)
+    $ _testkey.down(None, "1")
+    $ _testkey.up(None, "1")
+    pause 0.5
+    run Function(_cue_markers_send, "file", 0)
+    $ if not _cue.markers.image.has_pools(): renpy.quit(status=1)
+    $ if not _cue.markers.image.get_active_pool().get("files", []): renpy.quit(status=1)
+    $ _cue.markers.image.clear()
+    # Movie on screen: image target falls back to video; [+] routes there.
+    $ _cue_test_reset()
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ if not (_cue.top_layer_type == "movie"): renpy.quit(status=1)
+    $ _testkey.down(None, "2")
+    $ _testkey.up(None, "2")
+    pause 0.5
+    run Function(_cue_markers_send, "folder", "Sub/")
+    $ if not _cue.markers.video.has_pools(): renpy.quit(status=1)
+    $ if "Sub/" not in _cue.markers.video.get_active_pool().get("files", []): renpy.quit(status=1)
+    $ _cue.markers.video.clear()
+    $ _cue_test_reset()
+    $ renpy.quit()
+
 testcase video_movie_detected:
     $ _cue.is_overlay_visible = True
     run Jump("start")
