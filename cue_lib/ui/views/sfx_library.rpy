@@ -16,7 +16,11 @@ screen cue_sfx_library(_is_video):
         "tt": _ov_tt
     }]
 
-    $ sfx_tt = "Add {} files to\n{}".format(", ".join(CUE_AUDIO_EXTS), _cue.paths.audio_dir)
+    $ sfx_tt = (
+        "Add {} files to\n{}\n\n"
+        "Click the + button to send files to the selected \"Target\""
+    ).format(", ".join(CUE_AUDIO_EXTS), _cue.paths.audio_dir)
+
     use cue_section_frame(CUE_SFX_LIBRARY_HEADER, tt=sfx_tt, icons=_icons):
         if not _cue.sfx_manager.tree:
             if _cue.sfx_manager.scan_error:
@@ -26,6 +30,7 @@ screen cue_sfx_library(_is_video):
                 "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS))
         else:
             use cue_target_context()
+            null height 2
             use cue_search_bar("_cue.sfx_manager.search_query", _cue.sfx_manager)
             use cue_sfx_library_content(_is_video)
 
@@ -47,7 +52,7 @@ screen cue_target_context():
     $ _tgt_loop_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_LOOP) + " to select."
     hbox:
         spacing 2
-        text "Target Context:"
+        text "Target:"
         use cue_select_btn("Video", (_target == CueContextType.VIDEO),
             Function(_cue.markers.set_target_context, CueContextType.VIDEO),
             tt=_tgt_video_tt,
@@ -66,7 +71,7 @@ screen cue_target_context():
             sensitive=_cue.markers.target_is_available(CueContextType.LOOP))
     hbox:
         spacing 2
-        text "Target Pool:"
+        text "Pool:"
         text _cue.markers.target_active_label()
 
 

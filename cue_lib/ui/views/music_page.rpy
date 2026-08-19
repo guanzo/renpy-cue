@@ -152,6 +152,7 @@ screen cue_music_page():
 screen trigger_list(triggers):
     style_group "cue"
 
+    default _hovered_key = None
     for trigger in triggers:
         null height 2
         button:
@@ -159,6 +160,8 @@ screen trigger_list(triggers):
             background (_cue_color_bg_input if trigger["selected"] else _cue_color_bg_panel)
             hover_background _cue_color_bg_input
             action Function(_cue.music.select_trigger, trigger["key"])
+            hovered SetLocalVariable("_hovered_key", trigger["key"])
+            unhovered SetLocalVariable("_hovered_key", None)
             padding (4, 4)
             xfill True
             vbox:
@@ -171,13 +174,15 @@ screen trigger_list(triggers):
                             Function(_cue.music.delete_trigger, trigger["key"]),
                             ("Reset to default" if trigger["is_default"] else "Delete trigger"))
                         text trigger["label"] color _cue_color_text_accent
-                    if trigger["songs"]:
+                    if trigger["songs"] and (_hovered_key == trigger["key"] or trigger["selected"]):
                         hbox:
                             xalign 1.0
                             use cue_icon(
                                 "floppy-disk",
                                 Function(_cue.preset_dialog.open_music, trigger["key"]),
-                                "Save songs as a preset")
+                                "Save songs as a preset",
+                                on_hover=SetLocalVariable("_hovered_key", trigger["key"]),
+                                on_unhover=SetLocalVariable("_hovered_key", None))
                 if trigger["is_default"]:
                     $ _default_path = trigger["default_path"] or ""
                     $ _default_display = (_cue.music.default_display_path(_default_path)

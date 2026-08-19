@@ -131,7 +131,8 @@ transform cue_icon_fade:
     on idle:
         linear 0.1 alpha 0.5
 
-screen cue_icon(label, action=NullAction(), tt=None, icon_color=None, size=12):
+screen cue_icon(label, action=NullAction(), tt=None, icon_color=None, size=12,
+                on_hover=None, on_unhover=None):
     style_group "cue"
 
     $ _icon = _cue.icons.displayable_for(label, icon_color, size)
@@ -143,6 +144,10 @@ screen cue_icon(label, action=NullAction(), tt=None, icon_color=None, size=12):
         background None
         hover_background None
         action action
+        if on_hover is not None:
+            hovered on_hover
+        if on_unhover is not None:
+            unhovered on_unhover
         if tt is not None:
             tooltip tt
         add _icon at cue_icon_fade

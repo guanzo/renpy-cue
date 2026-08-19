@@ -147,8 +147,8 @@ screen cue_header_toolbar():
     $ _toggle_on_tt += _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_ACTIVE) + " to toggle)"
     $ _toggle_off_tt = "SFX triggers are OFF ("
     $ _toggle_off_tt += _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_ACTIVE) + " to toggle)"
-    $ _copy_tt = "Copy current config (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_COPY_CONTEXT) + ")"
-    $ _paste_tt = "Paste config (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_PASTE_CONTEXT) + ")"
+    $ _copy_tt = "Copy current scene markers (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_COPY_CONTEXT) + ")"
+    $ _paste_tt = "Paste markers (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_PASTE_CONTEXT) + ")"
     $ _undo_tt = "Undo (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_UNDO) + ")"
     $ _redo_tt = "Redo (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_REDO) + ")"
     $ _pause_tt = "Pause game (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_PAUSE)
