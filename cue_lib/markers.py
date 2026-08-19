@@ -276,22 +276,22 @@ class CueMarkerManager(object):
         # type: (Any) -> List[VideoPoolDict]
         return self._store._resolve_video_pools(entry)
 
-    def _video_multi_file_edit(self, trigger_key):
+    def _video_multi_file_edit(self, marker_key):
         # type: (str) -> bool
         """True when a file-list edit should fan out to every selected pool:
         the target is the current video and a multi-select is active."""
         if len(self.video.get_selected()) <= 1:
             return False
         vid_key = create_vid_key(self._ctx.current_file) if self._ctx.current_file else ""
-        return bool(vid_key) and vid_key == trigger_key
+        return bool(vid_key) and vid_key == marker_key
 
-    def _remove_file_from_preset_pool(self, trigger_key, pool_index, _dummy_fi, child_file):
+    def _remove_file_from_preset_pool(self, marker_key, pool_index, _dummy_fi, child_file):
         # type: (str, int, int, str) -> None
-        if self._video_multi_file_edit(trigger_key):
+        if self._video_multi_file_edit(marker_key):
             self.video._remove_path_from_selected(child_file)
             return
-        self._detach_pool(trigger_key, pool_index)
-        entry = self._data.get(trigger_key)
+        self._detach_pool(marker_key, pool_index)
+        entry = self._data.get(marker_key)
         if entry is None:
             return
 
@@ -311,15 +311,15 @@ class CueMarkerManager(object):
         else:
             if child_file in files:
                 files.remove(child_file)
-        self._db_save_marker(trigger_key)
+        self._db_save_marker(marker_key)
 
     def resolve_pool(self, pool):
         # type: (PoolDict) -> ResolvedPool
         return self._store.resolve_pool(pool)
 
-    def _detach_pool(self, trigger_key, pool_index):
+    def _detach_pool(self, marker_key, pool_index):
         # type: (str, int) -> bool
-        return self._store._detach_pool(trigger_key, pool_index)
+        return self._store._detach_pool(marker_key, pool_index)
 
     def detach_active_video_ts(self, *args):
         # type: (*Any) -> None
@@ -337,14 +337,14 @@ class CueMarkerManager(object):
             self._detach_pool(vid_key, self.video.active_pool)
         self.save_marker(vid_key)
 
-    def detach_pool_at(self, trigger_key, pool_index):
+    def detach_pool_at(self, marker_key, pool_index):
         # type: (str, int) -> None
-        self._detach_pool(trigger_key, pool_index)
-        self.save_marker(trigger_key)
+        self._detach_pool(marker_key, pool_index)
+        self.save_marker(marker_key)
 
-    def _stamp_preset(self, trigger_key, preset_name, pool_index=0):
+    def _stamp_preset(self, marker_key, preset_name, pool_index=0):
         # type: (str, str, int) -> None
-        self._store._stamp_preset(trigger_key, preset_name, pool_index)
+        self._store._stamp_preset(marker_key, preset_name, pool_index)
 
     def _detach_folder_ref_in_files(self, files, file_index, child_file):
         # type: (List[str], int, str) -> None
@@ -359,13 +359,13 @@ class CueMarkerManager(object):
             resolved.remove(child_file)
         files[file_index:file_index + 1] = resolved
 
-    def _remove_file_from_folder_ref(self, trigger_key, pool_index, file_index, child_file):
+    def _remove_file_from_folder_ref(self, marker_key, pool_index, file_index, child_file):
         # type: (str, int, int, str) -> None
-        if self._video_multi_file_edit(trigger_key):
+        if self._video_multi_file_edit(marker_key):
             self.video._remove_path_from_selected(child_file)
             return
-        self._detach_pool(trigger_key, pool_index)
-        entry = self._data.get(trigger_key)
+        self._detach_pool(marker_key, pool_index)
+        entry = self._data.get(marker_key)
         if entry is None:
             return
         pools = entry.get("pools")
@@ -375,7 +375,7 @@ class CueMarkerManager(object):
         if file_index >= len(files):
             return
         self._detach_folder_ref_in_files(files, file_index, child_file)
-        self._db_save_marker(trigger_key)
+        self._db_save_marker(marker_key)
 
     # -- entry / pool mutators (delegated to the store) --
 
@@ -383,21 +383,21 @@ class CueMarkerManager(object):
         # type: (Any) -> MarkerEntry
         return self._store._normalize_entry(entry)
 
-    def _get_or_create_entry(self, trigger_key):
+    def _get_or_create_entry(self, marker_key):
         # type: (str) -> Any
-        return self._store._get_or_create_entry(trigger_key)
+        return self._store._get_or_create_entry(marker_key)
 
-    def _ensure_pool(self, trigger_key, pool_index):
+    def _ensure_pool(self, marker_key, pool_index):
         # type: (str, int) -> PoolDict
-        return self._store._ensure_pool(trigger_key, pool_index)
+        return self._store._ensure_pool(marker_key, pool_index)
 
-    def _add_file_to_pool(self, trigger_key, filename, pool_index=0):
+    def _add_file_to_pool(self, marker_key, filename, pool_index=0):
         # type: (str, str, int) -> None
-        self._store._add_file_to_pool(trigger_key, filename, pool_index)
+        self._store._add_file_to_pool(marker_key, filename, pool_index)
 
-    def _remove_file_from_pool(self, trigger_key, file_index, pool_index=0):
+    def _remove_file_from_pool(self, marker_key, file_index, pool_index=0):
         # type: (str, int, int) -> None
-        self._store._remove_file_from_pool(trigger_key, file_index, pool_index)
+        self._store._remove_file_from_pool(marker_key, file_index, pool_index)
 
     # -- sanitize / migration passes (delegated to the store) --
 

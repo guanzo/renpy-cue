@@ -78,7 +78,7 @@ def screens(monkeypatch):
 def test_preset_open_missing_entry_noop(ui_cue, screens):
     d = CuePresetDialog()
     d.open("v_scene.ogv", 0)
-    assert d.trigger_key is None
+    assert d.marker_key is None
     assert screens[0] == []
 
 
@@ -86,7 +86,7 @@ def test_preset_open_pool_out_of_range_noop(ui_cue, screens):
     ui_cue.markers.get = lambda key: {"pools": [{"files": []}]}
     d = CuePresetDialog()
     d.open("v_scene.ogv", 1)
-    assert d.trigger_key is None
+    assert d.marker_key is None
     assert screens[0] == []
 
 
@@ -94,7 +94,7 @@ def test_preset_open_happy(ui_cue, screens):
     ui_cue.markers.get = lambda key: {"pools": [{"files": ["a.ogg"]}]}
     d = CuePresetDialog()
     d.open("v_scene.ogv", 0)
-    assert d.trigger_key == "v_scene.ogv"
+    assert d.marker_key == "v_scene.ogv"
     assert d.pool_idx == 0
     assert d.name == ""
     assert ui_cue.calls["detach_pool"] == [(("v_scene.ogv", 0), {})]
@@ -103,12 +103,12 @@ def test_preset_open_happy(ui_cue, screens):
 
 def test_preset_commit_empty_name_no_create(ui_cue, screens):
     d = CuePresetDialog()
-    d.trigger_key = "v_scene.ogv"
+    d.marker_key = "v_scene.ogv"
     d.pool_idx = 0
     d.name = "   "
     d.commit()
     assert "create_preset" not in ui_cue.calls
-    assert d.trigger_key is None
+    assert d.marker_key is None
     assert screens[1] == ["cue_save_preset_dialog"]
 
 
@@ -123,20 +123,20 @@ def test_preset_commit_no_trigger_no_create(ui_cue, screens):
 def test_preset_commit_happy(ui_cue, screens):
     ui_cue.markers.get = lambda key: {"pools": [{"files": ["a.ogg"]}]}
     d = CuePresetDialog()
-    d.trigger_key = "v_scene.ogv"
+    d.marker_key = "v_scene.ogv"
     d.pool_idx = 0
     d.name = "Tense"
     d.commit()
     assert ui_cue.calls["create_preset"] == [(("Tense", {"files": ["a.ogg"]}), {})]
-    assert d.trigger_key is None
+    assert d.marker_key is None
     assert screens[1] == ["cue_save_preset_dialog"]
 
 
 def test_preset_cancel(ui_cue, screens):
     d = CuePresetDialog()
-    d.trigger_key = "v_scene.ogv"
+    d.marker_key = "v_scene.ogv"
     d.cancel()
-    assert d.trigger_key is None
+    assert d.marker_key is None
     assert screens[1] == ["cue_save_preset_dialog"]
 
 
@@ -154,7 +154,7 @@ def test_preset_open_music_happy(ui_cue, screens):
     d = CuePresetDialog()
     d.open_music("i_scene.ogv")
     assert d.music_key == "i_scene.ogv"
-    assert d.trigger_key is None
+    assert d.marker_key is None
     assert d.songs == ["u:music/a.ogg", "u:music/b.ogg"]
     assert d.name == ""
     assert screens[0] == ["cue_save_preset_dialog"]
@@ -163,11 +163,11 @@ def test_preset_open_music_happy(ui_cue, screens):
 def test_preset_open_music_clears_sfx_state(ui_cue, screens):
     # Reusing the dialog after an SFX save must not leak the old target.
     d = CuePresetDialog()
-    d.trigger_key = "v_scene.ogv"
+    d.marker_key = "v_scene.ogv"
     ui_cue.music.songs_for_trigger = lambda key: ["u:music/a.ogg"]
     d.open_music("i_scene.ogv")
     assert d.music_key == "i_scene.ogv"
-    assert d.trigger_key is None
+    assert d.marker_key is None
 
 
 def test_preset_commit_music_happy(ui_cue, screens):
@@ -207,12 +207,12 @@ def test_preset_commit_sfx_survives_generalization(ui_cue, screens):
     # The SFX path must keep working after the music branch is added.
     ui_cue.markers.get = lambda key: {"pools": [{"files": ["a.ogg"]}]}
     d = CuePresetDialog()
-    d.trigger_key = "v_scene.ogv"
+    d.marker_key = "v_scene.ogv"
     d.pool_idx = 0
     d.name = "Tense"
     d.commit()
     assert ui_cue.calls["create_preset"] == [(("Tense", {"files": ["a.ogg"]}), {})]
-    assert d.trigger_key is None
+    assert d.marker_key is None
     assert d.music_key is None
     assert screens[1] == ["cue_save_preset_dialog"]
 

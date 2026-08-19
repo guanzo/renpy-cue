@@ -42,7 +42,7 @@ class CueVolumeManager(object):
             self._pending_saves.discard(key)
             self._store.save_marker(key)
 
-    def get(self, entry, trigger_key=None, pool_index=None):
+    def get(self, entry, marker_key=None, pool_index=None):
         # type: (Optional[MarkerEntry], Optional[str], Optional[int]) -> float
         """Raw stored volume for the target (pool or entry).
         Pool volumes default to VOL_DEFAULT (1.0 identity) so
@@ -62,11 +62,11 @@ class CueVolumeManager(object):
                     return resolved.volume
         return entry.get("volume", self.VOL_DEFAULT)
 
-    def write(self, trigger_key, new_vol, pool_index=None):
+    def write(self, marker_key, new_vol, pool_index=None):
         # type: (str, float, Optional[int]) -> None
         """Clamp and persist a volume, then save + refresh.
         With pool_index writes that specific pool; otherwise entry-level."""
-        entry = self._store.get(trigger_key)
+        entry = self._store.get(marker_key)
         if entry is None:
             return
         new_vol = max(self.VOL_MIN, min(self.VOL_MAX, round(new_vol, 1)))
@@ -76,50 +76,50 @@ class CueVolumeManager(object):
                 pools[pool_index]["volume"] = new_vol
         else:
             entry["volume"] = new_vol
-        self._store.save_marker(trigger_key)
+        self._store.save_marker(marker_key)
         renpy.restart_interaction()
 
-    def adjust(self, trigger_key, delta, pool_index=None):
+    def adjust(self, marker_key, delta, pool_index=None):
         # type: (str, float, Optional[int]) -> None
         """Adjust volume up/down by delta, clamped to [MIN, MAX].
         pool_index targets one pool; None = entry-level."""
-        entry = self._store.get(trigger_key)
+        entry = self._store.get(marker_key)
         if entry is None:
             return
-        current = self.get(entry, trigger_key, pool_index)
-        self.write(trigger_key, current + delta, pool_index)
+        current = self.get(entry, marker_key, pool_index)
+        self.write(marker_key, current + delta, pool_index)
 
     # --- Master volume (entry-level multiplier) ---
 
-    def get_master(self, trigger_key):
+    def get_master(self, marker_key):
         # type: (str) -> float
         """Entry-level master volume for a key. Returns VOL_DEFAULT if unset."""
-        entry = self._store.get(trigger_key)
+        entry = self._store.get(marker_key)
         if entry is None:
             return self.VOL_DEFAULT
         return entry.get("volume", self.VOL_DEFAULT)
 
-    def set_master(self, trigger_key, value):
+    def set_master(self, marker_key, value):
         # type: (str, float) -> None
         """Set entry-level master volume (clamped, persisted).
         Writes entry["volume"] directly so it works for all key types."""
-        entry = self._store.get(trigger_key)
+        entry = self._store.get(marker_key)
         if entry is None:
             return
         new_vol = max(self.VOL_MIN, min(self.VOL_MAX, round(value, 1)))
         entry["volume"] = new_vol
-        self._store.save_marker(trigger_key)
+        self._store.save_marker(marker_key)
         renpy.restart_interaction()
 
-    def adjust_master(self, trigger_key, delta):
+    def adjust_master(self, marker_key, delta):
         # type: (str, float) -> None
         """Adjust master volume by delta (reads raw master, not effective)."""
-        self.set_master(trigger_key,
-            self.get_master(trigger_key) + delta)
+        self.set_master(marker_key,
+            self.get_master(marker_key) + delta)
 
     # --- Effective volume (master x target) ---
 
-    def get_effective(self, entry, trigger_key=None, pool_index=None):
+    def get_effective(self, entry, marker_key=None, pool_index=None):
         # type: (Optional[MarkerEntry], Optional[str], Optional[int]) -> float
         """Effective playback volume = master (entry-level) x target volume, clamped.
         Pool volumes default to VOL_DEFAULT (1.0 identity) so master

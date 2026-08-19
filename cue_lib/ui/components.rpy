@@ -355,7 +355,7 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
                     tooltip tab_tt
 
 screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
-                            trigger_key, pool_index, folder_child_remove_fn,
+                            marker_key, pool_index, folder_child_remove_fn,
                             folder_label, folder_children):
     style_group "cue"
 
@@ -382,7 +382,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                         text "  "
                         if folder_child_remove_fn is not None:
                             use cue_icon_btn("xmark",
-                                Function(folder_child_remove_fn, trigger_key, pool_index, 0, _child),
+                                Function(folder_child_remove_fn, marker_key, pool_index, 0, _child),
                                 "Remove file from pool")
                         use cue_icon_btn("play", Function(_cue_preview_sfx, _child, preview_vol))
                         text _child color _cue_color_text_accent size 11
@@ -409,7 +409,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                             text "  "  # indent
                             if folder_child_remove_fn is not None:
                                 use cue_icon_btn("xmark",
-                                    Function(folder_child_remove_fn, trigger_key, pool_index, fi, _child),
+                                    Function(folder_child_remove_fn, marker_key, pool_index, fi, _child),
                                     "Remove file from the folder")
                             use cue_icon_btn("play", Function(_cue_preview_sfx, _child, preview_vol))
                             $ _display = _child[len(f):]  # strip folder prefix
@@ -424,7 +424,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
 
 # Scrollable file list: only wraps in a viewport when content exceeds ~6 rows (120 px).
 screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
-                     trigger_key=None, pool_index=None, folder_child_remove_fn=None,
+                     marker_key=None, pool_index=None, folder_child_remove_fn=None,
                      folder_label=None, folder_children=None):
     style_group "cue"
 
@@ -437,11 +437,11 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
             scrollbars "vertical"
             vscrollbar_unscrollable "hide"
             use _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
-                                    trigger_key, pool_index, folder_child_remove_fn,
+                                    marker_key, pool_index, folder_child_remove_fn,
                                     folder_label, folder_children)
     else:
         use _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
-                                trigger_key, pool_index, folder_child_remove_fn,
+                                marker_key, pool_index, folder_child_remove_fn,
                                 folder_label, folder_children)
 
 # Section frame: styled frame + header, with transclude for child content.
@@ -581,13 +581,13 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 if _is_preset_pool:
                     # Preset-backed: render as expandable folder
                     use cue_file_list([], _cue.markers.detach_pool_at, (key, _target), _active_eff, 5,
-                        trigger_key=key, pool_index=_target,
+                        marker_key=key, pool_index=_target,
                         folder_label=_active_pool["preset"],
                         folder_children=_cue_resolve_files(_r.files),
                         folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
                 else:
                     use cue_file_list(_r.files, ctx.remove_file, (_target,), _active_eff, 5,
-                        trigger_key=key, pool_index=_target,
+                        marker_key=key, pool_index=_target,
                         folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
             else:
                 if key and description is not None:

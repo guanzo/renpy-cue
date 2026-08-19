@@ -86,7 +86,7 @@ screen cue_save_preset_dialog():
     if _is_music:
         $ _song_count = len(_cue.music.resolve_music_files(_d.songs))
     else:
-        $ _entry = _cue.markers.get(_d.trigger_key) if _d.trigger_key else None
+        $ _entry = _cue.markers.get(_d.marker_key) if _d.marker_key else None
         $ _pools = _entry.get("pools", []) if _entry else []
         $ _pool = _pools[_d.pool_idx] if _pools and _d.pool_idx < len(_pools) else {}
         $ _r = _cue.markers.resolve_pool(_pool)

@@ -234,18 +234,18 @@ class CueMarkerStore(object):
         entry.setdefault("replay", renpy.store._in_replay)
         return entry
 
-    def _get_or_create_entry(self, trigger_key):
+    def _get_or_create_entry(self, marker_key):
         # type: (str) -> Any
-        entry = self._data.get(trigger_key)
+        entry = self._data.get(marker_key)
         if entry is None:
             entry = {"pools": []}
-            self._data[trigger_key] = entry
+            self._data[marker_key] = entry
         entry = self._normalize_entry(entry)
         return entry
 
-    def _ensure_pool(self, trigger_key, pool_index):
+    def _ensure_pool(self, marker_key, pool_index):
         # type: (str, int) -> PoolDict
-        entry = self._get_or_create_entry(trigger_key)
+        entry = self._get_or_create_entry(marker_key)
         pools = entry["pools"]
         if not pools:
             pools.append({
@@ -258,19 +258,19 @@ class CueMarkerStore(object):
             pool_index = len(pools) - 1
         return pools[pool_index]
 
-    def _add_file_to_pool(self, trigger_key, filename, pool_index=0):
+    def _add_file_to_pool(self, marker_key, filename, pool_index=0):
         # type: (str, str, int) -> None
-        self._detach_pool(trigger_key, pool_index)
-        pool = self._ensure_pool(trigger_key, pool_index)
+        self._detach_pool(marker_key, pool_index)
+        pool = self._ensure_pool(marker_key, pool_index)
         files = pool.setdefault("files", [])
         if filename not in files:
             files.append(filename)
-        self._db_save_marker(trigger_key)
+        self._db_save_marker(marker_key)
 
-    def _remove_file_from_pool(self, trigger_key, file_index, pool_index=0):
+    def _remove_file_from_pool(self, marker_key, file_index, pool_index=0):
         # type: (str, int, int) -> None
-        self._detach_pool(trigger_key, pool_index)
-        entry = self._data.get(trigger_key)
+        self._detach_pool(marker_key, pool_index)
+        entry = self._data.get(marker_key)
         if entry is None:
             return
         pools = entry.get("pools")
@@ -284,30 +284,30 @@ class CueMarkerStore(object):
             if not files:
                 pools.pop(pool_index)
             if not pools:
-                del self._data[trigger_key]
-            self._db_save_marker(trigger_key)
+                del self._data[marker_key]
+            self._db_save_marker(marker_key)
         elif "files" in entry:
             files = entry["files"]
             if 0 <= file_index < len(files):
                 files.pop(file_index)
                 if not files:
-                    del self._data[trigger_key]
-                self._db_save_marker(trigger_key)
+                    del self._data[marker_key]
+                self._db_save_marker(marker_key)
 
-    def _stamp_preset(self, trigger_key, preset_name, pool_index=0):
+    def _stamp_preset(self, marker_key, preset_name, pool_index=0):
         # type: (str, str, int) -> None
-        entry = self._get_or_create_entry(trigger_key)
+        entry = self._get_or_create_entry(marker_key)
         pools = entry["pools"]
         while len(pools) <= pool_index:
             pools.append({"files": [], "volume": CUE_VOLUME_DEFAULT})
         pools[pool_index] = {"preset": preset_name}
-        self._db_save_marker(trigger_key)
+        self._db_save_marker(marker_key)
         _cue_log("STAMP-PRESET key={} pi={} preset={}".format(
-            trigger_key, pool_index, preset_name))
+            marker_key, pool_index, preset_name))
 
-    def _detach_pool(self, trigger_key, pool_index):
+    def _detach_pool(self, marker_key, pool_index):
         # type: (str, int) -> bool
-        entry = self._data.get(trigger_key)
+        entry = self._data.get(marker_key)
         if entry is None:
             return False
         pools = entry.get("pools")
@@ -330,9 +330,9 @@ class CueMarkerStore(object):
         # (toggled before detach) defines it, so overrides survive detach.
         if "exclusive" in preset or "exclusive" in pool:
             pool["exclusive"] = r.exclusive.to_dict()
-        self._db_save_marker(trigger_key)
+        self._db_save_marker(marker_key)
         _cue_log("DETACH-POOL key={} pi={} preset={} files={}".format(
-            trigger_key, pool_index, preset_name, len(r.files)))
+            marker_key, pool_index, preset_name, len(r.files)))
         return True
 
     def _resolve_video_pools(self, entry):

@@ -16,27 +16,27 @@ if MYPY:
 class CuePresetDialog(object):
     """Self-contained state for the Save Preset popup (SFX + music).
 
-    The target discriminates the save: `trigger_key`/`pool_idx` names an SFX
+    The target discriminates the save: `marker_key`/`pool_idx` names an SFX
     pool, `music_key`/`songs` names a music trigger.  Exactly one is set while
     the popup is open; commit() dispatches on whichever is."""
     def __init__(self):
-        self.trigger_key = None
+        self.marker_key = None
         self.pool_idx = 0
         self.name = ""
         self.music_key = None
         self.songs = []
 
-    def open(self, trigger_key, pool_idx):
+    def open(self, marker_key, pool_idx):
         # type: (str, int) -> None
         """Open the popup for an SFX pool (detached so the save is atomic)."""
-        entry = _cue.markers.get(trigger_key)
+        entry = _cue.markers.get(marker_key)
         if entry is None:
             return
         pools = entry.get("pools", [])
         if pool_idx >= len(pools):
             return
-        _cue.markers._detach_pool(trigger_key, pool_idx)
-        self.trigger_key = trigger_key
+        _cue.markers._detach_pool(marker_key, pool_idx)
+        self.marker_key = marker_key
         self.pool_idx = pool_idx
         self.music_key = None
         self.songs = []
@@ -53,7 +53,7 @@ class CuePresetDialog(object):
             return
         self.music_key = music_key
         self.songs = list(songs)
-        self.trigger_key = None
+        self.marker_key = None
         self.name = ""
         renpy.show_screen("cue_save_preset_dialog", _layer="cue_layer")
 
@@ -63,8 +63,8 @@ class CuePresetDialog(object):
         if name:
             if self.music_key is not None:
                 _cue.music.create_preset(name, self.songs)
-            elif self.trigger_key is not None:
-                entry = _cue.markers.get(self.trigger_key)
+            elif self.marker_key is not None:
+                entry = _cue.markers.get(self.marker_key)
                 if entry:
                     pools = entry.get("pools", [])
                     if self.pool_idx < len(pools):
@@ -79,7 +79,7 @@ class CuePresetDialog(object):
 
     def _reset(self):
         # type: () -> None
-        self.trigger_key = None
+        self.marker_key = None
         self.music_key = None
         self.songs = []
 

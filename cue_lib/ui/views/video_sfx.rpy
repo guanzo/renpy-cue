@@ -176,11 +176,11 @@ screen cue_video_sfx():
                 if _is_preset_ts:
                     use cue_file_list([], _cue.markers.detach_active_video_ts, (), _active_eff, 5,
                         folder_label=_preset_name, folder_children=_active_files,
-                        trigger_key=_vid_key, pool_index=_vid_target,
+                        marker_key=_vid_key, pool_index=_vid_target,
                         folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
                 elif _raw_files:
                     use cue_file_list(_raw_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 5,
-                        trigger_key=_vid_key, pool_index=_vid_target,
+                        marker_key=_vid_key, pool_index=_vid_target,
                         folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
                 else:
                     text "SFX plays when this video reaches the marked time(s)."

@@ -52,11 +52,11 @@ class FakeManager(object):
     def _db_save_marker(self, key):
         self.saved_keys.append(key)
 
-    def _get_or_create_entry(self, trigger_key):
-        entry = self._data.get(trigger_key)
+    def _get_or_create_entry(self, marker_key):
+        entry = self._data.get(marker_key)
         if entry is None:
             entry = {"pools": []}
-            self._data[trigger_key] = entry
+            self._data[marker_key] = entry
         return entry
 
     def _add_file_to_pool(self, key, filename, pool_index):
@@ -71,8 +71,8 @@ class FakeManager(object):
     def _stamp_preset(self, key, preset_name, pool_index):
         self.stamped_presets.append((key, preset_name, pool_index))
 
-    def _detach_pool(self, trigger_key, pool_index):
-        entry = self._data.get(trigger_key)
+    def _detach_pool(self, marker_key, pool_index):
+        entry = self._data.get(marker_key)
         if entry is None:
             return False
         pools = entry.get("pools")
