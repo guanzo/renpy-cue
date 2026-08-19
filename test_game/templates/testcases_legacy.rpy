@@ -120,7 +120,7 @@ testcase sfx_recently_used:
     $ _ok = _ok and not _cue.sfx_manager._recent.expanded
     run Function(_cue.markers.image.send_file, 0)
     $ _ok = _ok and _cue.sfx_manager._recent.entries() == [{"type": "file", "ref": _cue.sfx_manager.files[0]}]
-    $ _ok = _ok and _cue.sfx_manager._recent.expanded
+    $ _ok = _ok and not _cue.sfx_manager._recent.expanded
     run Function(_cue.markers.image.send_folder, "Sub/")
     $ _ok = _ok and _cue.sfx_manager._recent.entries()[0] == {"type": "folder", "ref": "Sub/"}
     $ _ok = _ok and len(_cue.sfx_manager._recent.entries()) == 2
@@ -144,7 +144,7 @@ testcase music_recently_used:
     $ _ok = _ok and not _cue.music._recent.expanded
     run Function(_cue.music.add_user_song_to_trigger, "music/song_001.ogg")
     $ _ok = _ok and _cue.music._recent.entries() == [{"type": "file", "ref": "u:music/song_001.ogg"}]
-    $ _ok = _ok and _cue.music._recent.expanded
+    $ _ok = _ok and not _cue.music._recent.expanded
     run Function(_cue.music.add_user_folder_to_trigger, "music/")
     $ _ok = _ok and _cue.music._recent.entries()[0] == {"type": "folder", "ref": "u:music/"}
     $ _ok = _ok and len(_cue.music._recent.entries()) == 2

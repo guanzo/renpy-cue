@@ -28,7 +28,7 @@ def _all_keep(kind, ref):
 
 
 # ---------------------------------------------------------------------------
-# record: dedup, MRU order, cap, expand-on-first
+# record: dedup, MRU order, cap (no auto-expand)
 # ---------------------------------------------------------------------------
 
 def test_record_moves_existing_entry_to_front():
@@ -55,11 +55,10 @@ def test_record_caps_at_max_entries():
     assert m.entries()[0]["ref"] == "f{}.ogg".format(CUE_RECENT_MAX_ENTRIES + 2)
 
 
-def test_first_record_expands_list():
+def test_record_does_not_expand_list():
     m = CueRecentManager("recent_entries", _all_keep)
-    assert m.expanded is False
     m.record("file", "a.ogg")
-    assert m.expanded is True
+    assert m.expanded is False
 
 
 # ---------------------------------------------------------------------------
@@ -85,13 +84,13 @@ def test_record_writes_to_persistent():
     assert persistent._cue["recent_entries"] == [{"type": "file", "ref": "a.ogg"}]
 
 
-def test_load_roundtrips_entries_and_expands():
+def test_load_roundtrips_entries_without_expanding():
     m = CueRecentManager("recent_entries", _all_keep)
     m.record("preset", "Hurt")
     m2 = CueRecentManager("recent_entries", _all_keep)
     m2.load()
     assert [e["ref"] for e in m2.entries()] == ["Hurt"]
-    assert m2.expanded is True
+    assert m2.expanded is False
 
 
 def test_load_no_entries_when_key_absent():
@@ -117,7 +116,7 @@ def test_load_prunes_stale_entries():
                           lambda kind, ref: ref == "keep.ogg")
     m2.load()
     assert [e["ref"] for e in m2.entries()] == ["keep.ogg"]
-    assert m2.expanded is True
+    assert m2.expanded is False
 
 
 def test_load_collapses_when_all_stale():
@@ -139,6 +138,7 @@ def test_prune_drops_stale_entries():
     m.record("file", "gone.ogg")
     m.record("file", "keep.ogg")
     m.record("folder", "sfx/keep/")
+    m.expanded = True
     m.prune()
     assert [e["ref"] for e in m.entries()] == ["sfx/keep/", "keep.ogg"]
     assert m.expanded is True
@@ -146,6 +146,7 @@ def test_prune_drops_stale_entries():
 
 def test_prune_empty_when_all_stale_collapses():
     m = CueRecentManager("recent_entries", lambda kind, ref: False)
+    m.expanded = True
     m.record("file", "a.ogg")
     m.prune()
     assert m.entries() == []

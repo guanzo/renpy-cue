@@ -26,8 +26,9 @@ class CueRecentManager(object):
     """Most-recent-first persistent list of heterogeneous used entries.
 
     expand-state (toggle) is session-local -- only the entries are persisted.
-    expanded defaults to True whenever the list has entries, so a non-empty
-    list shows open until the user collapses it.
+    The list opens only when the user toggles it; recording a use or loading
+    persisted entries never auto-expands.  prune only collapses a list that
+    has been emptied of valid refs.
     """
 
     def __init__(self, key, keep):
@@ -59,14 +60,13 @@ class CueRecentManager(object):
 
     def record(self, kind, ref):
         # type: (str, str) -> None
-        """Mark an attempt to use (kind, ref): move to front, cap, expand."""
+        """Mark an attempt to use (kind, ref): move to front, cap."""
         for i, e in enumerate(self._entries):
             if e["type"] == kind and e["ref"] == ref:
                 del self._entries[i]
                 break
         self._entries.insert(0, {"type": kind, "ref": ref})
         del self._entries[CUE_RECENT_MAX_ENTRIES:]
-        self.expanded = True
         self.save()
 
     def entries(self):
@@ -84,7 +84,8 @@ class CueRecentManager(object):
         self._entries = [e for e in self._entries
                          if self._keep(e["type"], e["ref"])]
         del self._entries[CUE_RECENT_MAX_ENTRIES:]
-        self.expanded = bool(self._entries)
+        if not self._entries:
+            self.expanded = False
         self.save()
 
 

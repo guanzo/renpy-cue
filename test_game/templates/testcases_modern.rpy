@@ -83,10 +83,10 @@ testcase sfx_recently_used:
     assert eval (_cue.sfx_manager._recent is not None)
     assert eval (_cue.sfx_manager._recent.entries() == [])
     assert eval (not _cue.sfx_manager._recent.expanded)
-    # A file send records the resolved path and expands the list.
+    # A file send records the resolved path; it does not expand the list.
     run Function(_cue.markers.image.send_file, 0)
     assert eval (_cue.sfx_manager._recent.entries() == [{"type": "file", "ref": _cue.sfx_manager.files[0]}])
-    assert eval (_cue.sfx_manager._recent.expanded)
+    assert eval (not _cue.sfx_manager._recent.expanded)
     # A folder send normalizes its ref and bumps to front.
     run Function(_cue.markers.image.send_folder, "Sub/")
     assert eval (_cue.sfx_manager._recent.entries()[0] == {"type": "folder", "ref": "Sub/"})
@@ -107,10 +107,10 @@ testcase music_recently_used:
     assert eval (_cue.music._recent is not None)
     assert eval (_cue.music._recent.entries() == [])
     assert eval (not _cue.music._recent.expanded)
-    # Adding a My Music song records its u:-tagged ref and expands the list.
+    # Adding a My Music song records its u:-tagged ref; it does not expand.
     run Function(_cue.music.add_user_song_to_trigger, "music/song_001.ogg")
     assert eval (_cue.music._recent.entries() == [{"type": "file", "ref": "u:music/song_001.ogg"}])
-    assert eval (_cue.music._recent.expanded)
+    assert eval (not _cue.music._recent.expanded)
     # A folder add normalizes its ref and bumps to front.
     run Function(_cue.music.add_user_folder_to_trigger, "music/")
     assert eval (_cue.music._recent.entries()[0] == {"type": "folder", "ref": "u:music/"})
