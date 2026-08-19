@@ -110,6 +110,7 @@ class CueDatabase(object):
         {root}/data/markers/{game_id}/              -- default_music_triggers.json (non-marker log)
         {root}/data/presets/audio/                  -- one .json file per audio preset
         {root}/data/presets/video/                  -- one .json file per video preset
+        {root}/data/presets/music/                  -- one .json file per music preset
         {root}/video/{game_id}/                     -- speed-variant video files
 
     Markers and videos are namespaced by game_id.  Presets are game-agnostic.
@@ -132,6 +133,7 @@ class CueDatabase(object):
             self.paths.marker_dir,
             self.paths.audio_preset_dir,
             self.paths.video_preset_dir,
+            self.paths.music_preset_dir,
             self.paths.video_dir,
             self.paths.music_dir,
             self.paths.audio_dir,
@@ -155,6 +157,8 @@ class CueDatabase(object):
         # type: (str) -> str
         if preset_type == "audio":
             return self.paths.audio_preset_dir
+        if preset_type == "music":
+            return self.paths.music_preset_dir
         return self.paths.video_preset_dir
 
     def _marker_path(self, key):
@@ -221,6 +225,11 @@ class CueDatabase(object):
         audio = self._load_preset_dir("audio")
         video = self._load_preset_dir("video")
         return audio, video
+
+    def load_music_presets(self):
+        # type: () -> Dict[str, Any]
+        """Return {name: music preset data} for the music library."""
+        return self._load_preset_dir("music")
 
     def _load_preset_dir(self, preset_type):
         # type: (str) -> Dict[str, Any]

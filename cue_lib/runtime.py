@@ -145,6 +145,7 @@ def _cue_refresh_overlay():
     """Refresh overlay data: presets, context, and SFX/music file scans."""
     _cue_refresh_context()
     _cue.markers.reload_presets()
+    _cue.music.reload_presets()
 
     _cue.sfx_manager.scan()
     _cue.music.user_music.scan()
@@ -456,6 +457,18 @@ def _cue_preview_folder(folder_path, volume=1.0):
     if files:
         f = _random.choice(files)
         _cue_preview_sfx(f, volume=volume)
+
+
+def _cue_preview_music_preset(preset_name):
+    # type: (str) -> None
+    """Preview a random song from a music preset."""
+    preset = _cue.music.get_preset(preset_name)
+    if preset is None:
+        return
+    files = _cue.music.preset_display_files(preset)
+    if files:
+        f = _random.choice(files)
+        _cue.music.library.preview(f)
 
 
 def _cue_preview_video_preset(preset_name):

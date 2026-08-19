@@ -70,6 +70,7 @@ init -999 python:
         _cue_refresh_channel, _cue_tick_trigger, _cue_play_sfx,
         _cue_preview_sfx,
         _cue_preview_preset, _cue_preview_folder, _cue_preview_video_preset,
+        _cue_preview_music_preset,
         _cue_play_pool, _cue_fade_out_sfx,
         _cue_toggle_sfx_active, _cue_set_page,
         _cue_toggle_shake_trigger, _cue_toggle_video_mute,
@@ -88,6 +89,7 @@ init -999 python:
     from cue_lib.ui.dialogs import (
         CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog,
         _cue_confirm_delete_preset, _cue_confirm_delete_video_preset,
+        _cue_confirm_delete_music_preset,
         _cue_maybe_apply_video_preset,
     )
 

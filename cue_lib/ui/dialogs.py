@@ -14,14 +14,21 @@ if MYPY:
 
 
 class CuePresetDialog(object):
-    """Self-contained state for the Save Preset popup."""
+    """Self-contained state for the Save Preset popup (SFX + music).
+
+    The target discriminates the save: `trigger_key`/`pool_idx` names an SFX
+    pool, `music_key`/`songs` names a music trigger.  Exactly one is set while
+    the popup is open; commit() dispatches on whichever is."""
     def __init__(self):
         self.trigger_key = None
         self.pool_idx = 0
         self.name = ""
+        self.music_key = None
+        self.songs = []
 
     def open(self, trigger_key, pool_idx):
         # type: (str, int) -> None
+        """Open the popup for an SFX pool (detached so the save is atomic)."""
         entry = _cue.markers.get(trigger_key)
         if entry is None:
             return
@@ -31,25 +38,50 @@ class CuePresetDialog(object):
         _cue.markers._detach_pool(trigger_key, pool_idx)
         self.trigger_key = trigger_key
         self.pool_idx = pool_idx
+        self.music_key = None
+        self.songs = []
+        self.name = ""
+        renpy.show_screen("cue_save_preset_dialog", _layer="cue_layer")
+
+    def open_music(self, music_key):
+        # type: (str) -> None
+        """Open the popup for a music trigger's song list.
+
+        The song list is captured at open time; empty triggers don't open."""
+        songs = _cue.music.songs_for_trigger(music_key)
+        if not songs:
+            return
+        self.music_key = music_key
+        self.songs = list(songs)
+        self.trigger_key = None
         self.name = ""
         renpy.show_screen("cue_save_preset_dialog", _layer="cue_layer")
 
     def commit(self):
         # type: () -> None
         name = self.name.strip()
-        if name and self.trigger_key is not None:
-            entry = _cue.markers.get(self.trigger_key)
-            if entry:
-                pools = entry.get("pools", [])
-                if self.pool_idx < len(pools):
-                    _cue.markers.create_preset(name, pools[self.pool_idx])
-        self.trigger_key = None
+        if name:
+            if self.music_key is not None:
+                _cue.music.create_preset(name, self.songs)
+            elif self.trigger_key is not None:
+                entry = _cue.markers.get(self.trigger_key)
+                if entry:
+                    pools = entry.get("pools", [])
+                    if self.pool_idx < len(pools):
+                        _cue.markers.create_preset(name, pools[self.pool_idx])
+        self._reset()
         renpy.hide_screen("cue_save_preset_dialog", layer="cue_layer")
 
     def cancel(self):
         # type: () -> None
-        self.trigger_key = None
+        self._reset()
         renpy.hide_screen("cue_save_preset_dialog", layer="cue_layer")
+
+    def _reset(self):
+        # type: () -> None
+        self.trigger_key = None
+        self.music_key = None
+        self.songs = []
 
 
 class CueVideoPresetDialog(object):
@@ -118,6 +150,13 @@ def _cue_confirm_delete_video_preset(preset_name):
     _cue.confirm_dialog.show(
         "Delete video preset '{}'?".format(preset_name),
         Function(_cue.markers.delete_video_preset, preset_name),
+    )
+
+def _cue_confirm_delete_music_preset(preset_name):
+    # type: (str) -> None
+    _cue.confirm_dialog.show(
+        "Delete music preset '{}'?".format(preset_name),
+        Function(_cue.music.delete_preset, preset_name),
     )
 
 def _cue_maybe_apply_video_preset(preset_name):

@@ -79,12 +79,18 @@ screen cue_repeat_markers_dialog():
 screen cue_save_preset_dialog():
     style_group "cue"
 
+    # Shared by the SFX-pool and music-trigger save flows; the summary rows
+    # branch on which target the dialog holds.
     $ _d = _cue.preset_dialog
-    $ _entry = _cue.markers.get(_d.trigger_key) if _d.trigger_key else None
-    $ _pools = _entry.get("pools", []) if _entry else []
-    $ _pool = _pools[_d.pool_idx] if _pools and _d.pool_idx < len(_pools) else {}
-    $ _r = _cue.markers.resolve_pool(_pool)
-    $ _file_count = len(_cue_resolve_files(_r.files))
+    $ _is_music = _d.music_key is not None
+    if _is_music:
+        $ _song_count = len(_cue.music.resolve_music_files(_d.songs))
+    else:
+        $ _entry = _cue.markers.get(_d.trigger_key) if _d.trigger_key else None
+        $ _pools = _entry.get("pools", []) if _entry else []
+        $ _pool = _pools[_d.pool_idx] if _pools and _d.pool_idx < len(_pools) else {}
+        $ _r = _cue.markers.resolve_pool(_pool)
+        $ _file_count = len(_cue_resolve_files(_r.files))
     key "K_RETURN" action Function(_d.commit)
     key "K_KP_ENTER" action Function(_d.commit)
     key "K_ESCAPE" action Function(_d.cancel)
@@ -97,15 +103,21 @@ screen cue_save_preset_dialog():
             spacing 8
             text "Save Preset" style "cue_hdr"
 
-            hbox:
-                spacing 5
-                text "Files:"
-                text "{} file(s)".format(_file_count) color _cue_color_text_accent
+            if _is_music:
+                hbox:
+                    spacing 5
+                    text "Songs:"
+                    text "{} file(s)".format(_song_count) color _cue_color_text_accent
+            else:
+                hbox:
+                    spacing 5
+                    text "Files:"
+                    text "{} file(s)".format(_file_count) color _cue_color_text_accent
 
-            hbox:
-                spacing 5
-                text "Volume:"
-                text "{:.1f}".format(_r.volume) color _cue_color_text_accent
+                hbox:
+                    spacing 5
+                    text "Volume:"
+                    text "{:.1f}".format(_r.volume) color _cue_color_text_accent
 
             null height 5
 

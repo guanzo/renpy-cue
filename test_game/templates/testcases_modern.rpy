@@ -162,6 +162,24 @@ testcase sfx_target_context:
     # consumes text keys (K_1..K_4) while focused, so screen hotkeys don't
     # fire mid-typing; verified manually.
 
+testcase music_presets:
+    run Jump("start")
+    # Create a preset from stored u:/g: refs and read it back.
+    run Function(_cue.music.create_preset, "Test Music Preset", ["u:music/song_001.ogg", "g:bgm/song_002.ogg"])
+    assert eval ("Test Music Preset" in _cue.music.list_presets())
+    assert eval (_cue.music.get_preset("Test Music Preset")["files"] == ["u:music/song_001.ogg", "g:bgm/song_002.ogg"])
+    # Display rows resolve each stored ref to a My/Game Music path.
+    assert eval (_cue.music.preset_display_files(_cue.music.get_preset("Test Music Preset")) == ["My Music/song_001.ogg", "Game Music/bgm/song_002.ogg"])
+    # Expand + render the Music page so the preset rows compile and display.
+    run Function(_cue.music.toggle_presets_expand)
+    assert eval (_cue.music.presets_expanded)
+    run Function(_cue.music.toggle_preset_expand, "Test Music Preset")
+    assert eval (_cue.music.expanded_presets.get("Test Music Preset", False))
+    run Function(_cue_set_page, CuePage.MUSIC)
+    # Deleting removes it from memory and disk.
+    run Function(_cue.music.delete_preset, "Test Music Preset")
+    assert eval ("Test Music Preset" not in _cue.music.list_presets())
+
 testcase video_movie_detected:
     run Jump("start")
     $ renpy.show("cuevid")

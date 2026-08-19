@@ -182,6 +182,11 @@ class CuePaths(object):
         return os.path.join(self.presets_dir, "video") + "/"
 
     @property
+    def music_preset_dir(self):
+        # type: () -> str
+        return os.path.join(self.presets_dir, "music") + "/"
+
+    @property
     def video_dir(self):
         # type: () -> str
         return os.path.join(self._root, "video", self._game_id).replace("\\", "/") + "/"

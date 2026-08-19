@@ -210,6 +210,30 @@ testcase sfx_target_context:
     $ _cue_test_reset()
     $ renpy.quit()
 
+testcase music_presets:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _ok = True
+    # Create a preset from stored u:/g: refs and read it back.
+    run Function(_cue.music.create_preset, "Test Music Preset", ["u:music/song_001.ogg", "g:bgm/song_002.ogg"])
+    $ _ok = _ok and "Test Music Preset" in _cue.music.list_presets()
+    $ _ok = _ok and _cue.music.get_preset("Test Music Preset")["files"] == ["u:music/song_001.ogg", "g:bgm/song_002.ogg"]
+    # Display rows resolve each stored ref to a My/Game Music path.
+    $ _ok = _ok and _cue.music.preset_display_files(_cue.music.get_preset("Test Music Preset")) == ["My Music/song_001.ogg", "Game Music/bgm/song_002.ogg"]
+    # Expand + render the Music page so the preset rows compile and display.
+    run Function(_cue.music.toggle_presets_expand)
+    $ _ok = _ok and _cue.music.presets_expanded
+    run Function(_cue.music.toggle_preset_expand, "Test Music Preset")
+    $ _ok = _ok and _cue.music.expanded_presets.get("Test Music Preset", False)
+    run Function(_cue_set_page, CuePage.MUSIC)
+    pause 0.5
+    # Deleting removes it from memory and disk.
+    run Function(_cue.music.delete_preset, "Test Music Preset")
+    $ _ok = _ok and "Test Music Preset" not in _cue.music.list_presets()
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
 testcase video_movie_detected:
     $ _cue.is_overlay_visible = True
     run Jump("start")

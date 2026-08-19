@@ -88,6 +88,7 @@ def test_hide_overlay(cue):
 def test_refresh_overlay_scans_and_reloads(cue):
     _runtime._cue_refresh_overlay()
     assert cue.calls["markers.reload_presets"] == [((), {})]
+    assert cue.calls["music.reload_presets"] == [((), {})]
     assert cue.calls["sfx_manager.scan"] == [((), {})]
     assert cue.calls["music.user_music.scan"] == [((), {})]
 

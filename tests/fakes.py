@@ -432,6 +432,7 @@ def make_runtime_cue(root="", audio_dir=""):
         capture_display=_rec("music", "capture_display"),
         play_custom_music=_rec("music", "play_custom_music"),
         play_untracked=_rec("music", "play_untracked"),
+        reload_presets=_rec("music", "reload_presets"),
         _resolve_music_path=lambda filename: filename,
         library=types.SimpleNamespace(
             rebuild_tree=_rec("music.library", "rebuild_tree"),

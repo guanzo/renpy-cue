@@ -111,6 +111,20 @@ screen cue_music_page():
                             if _mrecent.expanded or _msearching:
                                 use cue_music_recent_list(_mrecent_entries)
 
+                    # "Music Presets/" -- saved trigger song lists.  Names join
+                    # the search flow (filtered like the SFX preset sections).
+                    $ _mpreset_names = _cue.music.list_presets()
+                    if _msearching:
+                        $ _mpreset_names = [n for n in _mpreset_names
+                            if _cue_query_matches(n, _mq)]
+                    if not _msearching or _mpreset_names:
+                        hbox:
+                            spacing 2
+                            use cue_txt_button("Music Presets/",
+                                Function(_cue.music.toggle_presets_expand))
+                        if _cue.music.presets_expanded:
+                            use cue_music_presets_list(_mpreset_names)
+
                     # Per-source empty/error states -- one source can be empty
                     # while the other has files.
                     if not _cue.music.user_music.tree:
@@ -142,12 +156,22 @@ screen trigger_list(triggers):
                 spacing 3
                 hbox:
                     spacing 6
+                    xfill True
                     use cue_icon_btn(
                         ("rotate-right" if trigger["is_default"] else "trash-can"),
                         Function(_cue.music.delete_trigger, trigger["key"]),
                         ("Reset to default" if trigger["is_default"] else "Delete trigger"),
                         None)
                     text trigger["label"] color _cue_color_text_accent
+                    null width 6
+                    hbox:
+                        xalign 1.0
+                        use cue_icon_btn(
+                            "floppy-disk",
+                            Function(_cue.preset_dialog.open_music, trigger["key"]),
+                            "Save songs as a preset",
+                            None,
+                            enabled=bool(trigger["songs"]))
                 if trigger["is_default"]:
                     $ _default_path = trigger["default_path"] or ""
                     hbox:
@@ -312,3 +336,55 @@ screen cue_music_recent_list(entries):
                     enabled=_m_add_enabled)
                 null width 2
                 text _re_path color _cue_color_text_accent
+
+
+# Music preset rows, shown when the Music Presets/ folder is expanded.
+# name_filter: preset names to show (None = all); set by the search flow.
+# Apply: click replaces the selected trigger's songs; shift+click applies to
+# the current scene (new trigger if the scene has none).  Disabled without a
+# selected trigger, same as the music tree "+" buttons.
+screen cue_music_presets_list(name_filter=None):
+    style_group "cue"
+
+    $ _names = name_filter if name_filter is not None else _cue.music.list_presets()
+    $ _apply_tt = ("Click: Replace selected trigger's songs\n"
+                   "Shift+Click: Apply to current scene (new trigger if none)")
+    $ _apply_enabled = _cue.music.selected_key is not None
+    for _pname in _names:
+        $ _pdata = _cue.music.get_preset(_pname)
+        $ _p_expanded = _cue.music.expanded_presets.get(_pname, False)
+        $ _p_files = _cue.music.preset_display_files(_pdata) if _pdata else []
+        hbox:
+            spacing 2
+            text "  "  # indent under Music Presets/
+            use cue_icon_btn(
+                "xmark",
+                Function(_cue_confirm_delete_music_preset, _pname),
+                "Delete preset", None)
+            use cue_icon_btn(
+                "play",
+                Function(_cue_preview_music_preset, _pname),
+                "Play random song from preset", None)
+            use cue_icon_btn(
+                "plus",
+                Function(_cue.music.apply_preset, _pname),
+                _apply_tt,
+                None,
+                enabled=_apply_enabled)
+            use cue_txt_button(_pname, Function(_cue.music.toggle_preset_expand, _pname))
+
+        if _p_expanded:
+            for _child in _p_files:
+                hbox:
+                    spacing 2
+                    text "    "  # double indent
+                    use cue_icon_btn(
+                        "xmark",
+                        Function(_cue.music.preset_remove_file, _pname, _child),
+                        "Remove file from preset", None)
+                    use cue_icon_btn(
+                        "play",
+                        Function(_cue.music.library.preview, _child),
+                        "Preview song", None)
+                    null width 1
+                    text _child color _cue_color_text_accent size 11

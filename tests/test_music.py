@@ -775,6 +775,175 @@ def test_remove_song_from_folder_ref_index_oob(mgr):
     assert mgr._store.get("i_a.ogv")["music"] == [CUE_MUSIC_USER_TAG + "music/"]
 
 
+# ==========================================================================
+# music presets (CRUD / apply / per-file remove)
+# ==========================================================================
+
+def test_create_preset_stores_and_persists(mgr):
+    mgr.create_preset("Tense", [CUE_MUSIC_USER_TAG + "a.ogg", CUE_MUSIC_GAME_TAG + "b.ogg"])
+    assert mgr.get_preset("Tense") == {"files": [CUE_MUSIC_USER_TAG + "a.ogg", CUE_MUSIC_GAME_TAG + "b.ogg"]}
+    assert mgr.list_presets() == ["Tense"]
+    # On-disk round trip: a fresh manager reloads the preset.  Disk-loaded
+    # entries carry the internal _key field (same as SFX presets).
+    store = CueMarkerStore(mgr._db, mgr._paths, lambda: None)
+    m2 = CueMusicManager(CueContext(), store, mgr._db, mgr._paths)
+    m2.load_presets()
+    assert m2.get_preset("Tense")["files"] == \
+        [CUE_MUSIC_USER_TAG + "a.ogg", CUE_MUSIC_GAME_TAG + "b.ogg"]
+
+
+def test_create_preset_copies_songs(mgr):
+    songs = [CUE_MUSIC_USER_TAG + "a.ogg"]
+    mgr.create_preset("T", songs)
+    songs.append(CUE_MUSIC_GAME_TAG + "b.ogg")
+    assert mgr.get_preset("T") == {"files": [CUE_MUSIC_USER_TAG + "a.ogg"]}
+
+
+def test_delete_preset(mgr):
+    mgr.create_preset("T", [CUE_MUSIC_USER_TAG + "a.ogg"])
+    mgr.delete_preset("T")
+    assert mgr.get_preset("T") is None
+    assert mgr.list_presets() == []
+
+
+def test_reload_presets_picks_up_disk(mgr):
+    mgr.create_preset("T", [CUE_MUSIC_USER_TAG + "a.ogg"])
+    mgr._music_presets = {}
+    mgr.reload_presets()
+    assert mgr.get_preset("T")["files"] == [CUE_MUSIC_USER_TAG + "a.ogg"]
+
+
+def test_songs_for_trigger(mgr):
+    mgr._store["i_a.ogv"] = {"music": [CUE_MUSIC_USER_TAG + "x.ogg", "u:y.ogg"]}
+    assert mgr.songs_for_trigger("i_a.ogv") == [CUE_MUSIC_USER_TAG + "x.ogg", "u:y.ogg"]
+    # Returns a copy -- caller mutation can't corrupt the store.
+    songs = mgr.songs_for_trigger("i_a.ogv")
+    songs.append("z.ogg")
+    assert mgr._store.get("i_a.ogv")["music"] == [CUE_MUSIC_USER_TAG + "x.ogg", "u:y.ogg"]
+
+
+def test_songs_for_trigger_missing(mgr):
+    assert mgr.songs_for_trigger("i_nope.ogv") == []
+
+
+def _default_trigger_scene(mgr, monkeypatch, scene="scene.ogv", filepath="music/default.ogg"):
+    """Scene on screen with a recorded default trigger (auto-selected)."""
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    _set_scene(mgr, scene, "image")
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": filepath}]
+    mgr._resolve_selection()
+    assert mgr.selected_key == "i_scene.ogv"
+
+
+def test_apply_preset_click_replaces_selected(mgr, monkeypatch):
+    monkeypatch.setattr(_music_mod, "_cue_shift_held", lambda: False)
+    _default_trigger_scene(mgr, monkeypatch)
+    mgr.add_user_song_to_trigger("music/old.ogg")
+    mgr.create_preset("Tense", [CUE_MUSIC_USER_TAG + "music/new1.ogg",
+                                CUE_MUSIC_GAME_TAG + "bgm/new2.ogg"])
+    mgr.apply_preset("Tense")
+    entry = mgr._store.get("i_scene.ogv")
+    assert entry["music"] == [CUE_MUSIC_USER_TAG + "music/new1.ogg",
+                              CUE_MUSIC_GAME_TAG + "bgm/new2.ogg"]
+    # First replacement song on a default trigger disables the default.
+    assert entry.get("music_default_disabled") is True
+
+
+def test_apply_preset_click_no_selection_noop(mgr, monkeypatch):
+    monkeypatch.setattr(_music_mod, "_cue_shift_held", lambda: False)
+    mgr.create_preset("T", [CUE_MUSIC_USER_TAG + "music/a.ogg"])
+    mgr.apply_preset("T")
+    assert dict(mgr._store.items()) == {}
+
+
+def test_apply_preset_shift_click_creates_trigger(mgr, monkeypatch):
+    monkeypatch.setattr(_music_mod, "_cue_shift_held", lambda: True)
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    _set_scene(mgr, "scene.ogv", "image")
+    # No trigger exists for the scene yet.
+    mgr.create_preset("Tense", [CUE_MUSIC_USER_TAG + "music/a.ogg"])
+    mgr.apply_preset("Tense")
+    entry = mgr._store.get("i_scene.ogv")
+    assert entry["music"] == [CUE_MUSIC_USER_TAG + "music/a.ogg"]
+    assert mgr.selected_key == "i_scene.ogv"
+
+
+def test_apply_preset_shift_click_replaces_existing_scene_trigger(mgr, monkeypatch):
+    monkeypatch.setattr(_music_mod, "_cue_shift_held", lambda: True)
+    _default_trigger_scene(mgr, monkeypatch)
+    mgr.add_user_song_to_trigger("music/old.ogg")
+    mgr.create_preset("Tense", [CUE_MUSIC_USER_TAG + "music/a.ogg"])
+    mgr.apply_preset("Tense")
+    entry = mgr._store.get("i_scene.ogv")
+    assert entry["music"] == [CUE_MUSIC_USER_TAG + "music/a.ogg"]
+    assert mgr.selected_key == "i_scene.ogv"
+
+
+def test_apply_preset_shift_click_no_scene_noop(mgr, monkeypatch):
+    monkeypatch.setattr(_music_mod, "_cue_shift_held", lambda: True)
+    mgr.create_preset("T", [CUE_MUSIC_USER_TAG + "music/a.ogg"])
+    mgr.apply_preset("T")
+    assert dict(mgr._store.items()) == {}
+
+
+def test_apply_preset_unknown_preset_noop(mgr, monkeypatch):
+    monkeypatch.setattr(_music_mod, "_cue_shift_held", lambda: False)
+    mgr.apply_preset("Ghost")
+    assert dict(mgr._store.items()) == {}
+
+
+def test_preset_remove_file_direct(mgr):
+    mgr.create_preset("T", [CUE_MUSIC_USER_TAG + "music/a.ogg",
+                            CUE_MUSIC_GAME_TAG + "bgm/b.ogg"])
+    mgr.preset_remove_file("T", CUE_MY_MUSIC_FOLDER + "a.ogg")
+    assert mgr.get_preset("T") == {"files": [CUE_MUSIC_GAME_TAG + "bgm/b.ogg"]}
+
+
+def test_preset_remove_file_folder_ref(mgr):
+    mgr.user_music.files = ["music/a.ogg", "music/b.ogg", "music/c.ogg"]
+    mgr.create_preset("T", [CUE_MUSIC_USER_TAG + "music/"])
+    mgr.preset_remove_file("T", CUE_MY_MUSIC_FOLDER + "a.ogg")
+    assert mgr.get_preset("T") == {
+        "files": [CUE_MUSIC_USER_TAG + "music/b.ogg",
+                  CUE_MUSIC_USER_TAG + "music/c.ogg"]}
+
+
+def test_preset_remove_file_noop(mgr):
+    mgr.create_preset("T", [CUE_MUSIC_USER_TAG + "music/a.ogg"])
+    mgr.preset_remove_file("T", CUE_MY_MUSIC_FOLDER + "zzz.ogg")
+    assert mgr.get_preset("T") == {"files": [CUE_MUSIC_USER_TAG + "music/a.ogg"]}
+    mgr.preset_remove_file("Ghost", CUE_MY_MUSIC_FOLDER + "a.ogg")
+    assert mgr.list_presets() == ["T"]
+
+
+def test_preset_display_files(mgr):
+    mgr.user_music.files = ["music/a.ogg"]
+    mgr.game_music.files = ["bgm/b.ogg"]
+    mgr.create_preset("T", [CUE_MUSIC_USER_TAG + "music/a.ogg",
+                            CUE_MUSIC_GAME_TAG + "bgm/b.ogg",
+                            CUE_MUSIC_USER_TAG + "music/"])
+    assert mgr.preset_display_files(mgr.get_preset("T")) == [
+        CUE_MY_MUSIC_FOLDER + "a.ogg",
+        CUE_GAME_MUSIC_FOLDER + "bgm/b.ogg",
+        CUE_MY_MUSIC_FOLDER + "a.ogg",
+    ]
+
+
+def test_toggle_presets_expand(mgr):
+    assert mgr.presets_expanded is False
+    mgr.toggle_presets_expand()
+    assert mgr.presets_expanded is True
+    mgr.toggle_presets_expand()
+    assert mgr.presets_expanded is False
+
+
+def test_toggle_preset_expand(mgr):
+    mgr.toggle_preset_expand("T")
+    assert mgr.expanded_presets["T"] is True
+    mgr.toggle_preset_expand("T")
+    assert mgr.expanded_presets["T"] is False
+
+
 def test_remove_song_from_folder_ref_not_folder(mgr):
     mgr._store["i_a.ogv"] = {"music": ["u:music/x.ogg"]}
     mgr.remove_song_from_folder_ref("i_a.ogv", 0, "u:music/x.ogg")
