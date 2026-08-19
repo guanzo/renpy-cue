@@ -146,6 +146,15 @@ class CueMusicManager(object):
             return CUE_MY_MUSIC_FOLDER + path
         return CUE_GAME_MUSIC_FOLDER + path
 
+    def default_display_path(self, path):
+        # type: (str) -> str
+        """Display path for a recorded default music filepath.
+
+        Defaults are captured from the game's own `play music` calls, so the
+        raw filepath is game-relative -- always shown under the synthetic
+        Game Music/ root, never the user "music/" prefix."""
+        return CUE_GAME_MUSIC_FOLDER + path
+
     def _on_play(self, *args, **kwargs):
         # type: (Any, Any) -> Any
         if "channel" in kwargs:

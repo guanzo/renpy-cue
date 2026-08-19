@@ -373,3 +373,19 @@ def test_ref_display_path_game_folder():
 def test_ref_display_path_untagged_treated_as_user():
     lib, _calls, _user, _game = _make_lib()
     assert lib.ref_display_path("music/song.ogg") == USER + "song.ogg"
+
+
+def test_ref_display_path_never_leaks_data_prefix():
+    # Every stored ref renders under a synthetic My Music/ or Game Music/
+    # root -- the data-model "music/" prefix never appears in the UI.
+    lib, _calls, _user, _game = _make_lib()
+    refs = (
+        CUE_MUSIC_USER_TAG + "music/a.ogg",
+        CUE_MUSIC_USER_TAG + "music/sub/",
+        CUE_MUSIC_GAME_TAG + "bgm/x.ogg",
+        CUE_MUSIC_GAME_TAG + "bgm/",
+    )
+    for ref in refs:
+        disp = lib.ref_display_path(ref)
+        assert not disp.startswith(CUE_MUSIC_PREFIX)
+        assert disp.startswith(USER) or disp.startswith(GAME)

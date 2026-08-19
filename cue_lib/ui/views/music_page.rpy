@@ -73,7 +73,7 @@ screen cue_music_page():
                     
                     null height 5
                     use cue_txt_button(
-                        "+ Create music trigger for the current scene",
+                        "+ Play music at current scene",
                         Function(_cue.music.create_scene_trigger))
 
         $ music_lib_tt = (
@@ -180,6 +180,8 @@ screen trigger_list(triggers):
                                 "Save songs as a preset")
                 if trigger["is_default"]:
                     $ _default_path = trigger["default_path"] or ""
+                    $ _default_display = (_cue.music.default_display_path(_default_path)
+                                          if _default_path else "")
                     hbox:
                         spacing 6
                         use cue_icon_btn(
@@ -187,15 +189,17 @@ screen trigger_list(triggers):
                             Function(_cue.music.toggle_default, trigger["key"]),
                             "Toggle default song")
                         if trigger["default_enabled"]:
-                            text "Default: [_default_path]"
+                            text "Default: [_default_display]"
                         else:
-                            text ("Default: [_default_path] "
+                            text ("Default: [_default_display] "
                                     "(Disabled)") color _cue_color_text_muted
                 if trigger["songs"]:
                     for _idx, _song in enumerate(trigger["songs"]):
                         if _song.endswith("/"):
                             # Folder ref: expandable, count + detachable children.
-                            $ _song_path = _cue.music.ref_path(_song)
+                            # Display under the synthetic My/Game Music root, not
+                            # the raw data path ("My Music/x/" not "music/x/").
+                            $ _song_path = _cue.music.library.ref_display_path(_song)
                             $ _folder_expanded = _cue.music.expanded_file_refs.get(_song, False)
                             $ _folder_files = _cue.music.resolve_music_files([_song])
                             hbox:
@@ -224,10 +228,12 @@ screen trigger_list(triggers):
                                                 _idx,
                                                 _child),
                                             "Remove file from the folder")
-                                        $ _child_display = _child[len(_song_path):]
+                                        $ _child_display = _cue.music.library.ref_display_path(_child)[len(_song_path):]
                                         text _child_display
                         else:
-                            $ _song_name = _song.rsplit("/", 1)[-1]
+                            # Show the full path under the synthetic My/Game
+                            # Music root, matching the folder rows above.
+                            $ _song_path = _cue.music.library.ref_display_path(_song)
                             hbox:
                                 spacing 6
                                 use cue_icon_btn(
@@ -237,7 +243,7 @@ screen trigger_list(triggers):
                                         trigger["key"],
                                         _song),
                                     "Remove song from trigger")
-                                text _song_name
+                                text _song_path
                 elif not trigger["is_default"]:
                     text "No music added."
 

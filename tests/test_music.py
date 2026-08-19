@@ -134,6 +134,20 @@ def test_now_playing_game_relative_unchanged(mgr):
     assert mgr.now_playing() == CUE_GAME_MUSIC_FOLDER + "music/bgm.ogg"
 
 
+def test_default_display_path_game_root(mgr):
+    # Defaults are the game's own `play music` files -- shown under the
+    # synthetic Game Music/ root, never the user "music/" prefix.
+    assert mgr.default_display_path("bgm/theme.ogg") == \
+        CUE_GAME_MUSIC_FOLDER + "bgm/theme.ogg"
+
+
+def test_default_display_path_game_music_folder(mgr):
+    # A game's own "music/" top-level folder must not be misclassified as
+    # user My Music -- the game-relative path stays intact under Game Music.
+    assert mgr.default_display_path(CUE_MUSIC_PREFIX + "theme.ogg") == \
+        CUE_GAME_MUSIC_FOLDER + CUE_MUSIC_PREFIX + "theme.ogg"
+
+
 # ==========================================================================
 # _on_play / _on_queue / _on_stop interception
 # ==========================================================================
