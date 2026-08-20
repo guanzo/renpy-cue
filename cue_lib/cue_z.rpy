@@ -77,7 +77,6 @@ init -999 python:
         _cue_play_pool, _cue_fade_out_sfx,
         _cue_toggle_sfx_active, _cue_set_page,
         _cue_toggle_shake_trigger, _cue_toggle_video_mute,
-        _cue_confirm_shared_dir, _cue_set_auto_backups,
     )
 
     from cue_lib.video.speed import (
@@ -165,6 +164,7 @@ init -900 python:
     )
     from cue_lib.importer import CueImportManager
     from cue_lib.exporter import CueExportManager
+    from cue_lib.settings import CueSettings
     from cue_lib.db import CueDatabase
     from cue_lib.paths import CuePaths
     from cue_lib.state import _cue
@@ -209,6 +209,7 @@ init -900 python:
         trigger = CueTriggerEngine(
             marker_store, repeater, speed_resolver, vid_manager)
         sfx_manager = CueSfxManager(paths, db)
+        settings = CueSettings()
         preset_dialog = CuePresetDialog()
         video_preset_dialog = CueVideoPresetDialog()
         confirm_dialog = CueConfirmDialog()
@@ -263,22 +264,25 @@ init -900 python:
         _cue.undo = undo
         _cue.trigger = trigger
         _cue.sfx_manager = sfx_manager
+        _cue.settings = settings
         _cue.dialogs.preset = preset_dialog
         _cue.dialogs.video_preset = video_preset_dialog
         _cue.dialogs.confirm = confirm_dialog
+        _cue.dialogs.merge = merge_dialog
         _cue.keybinds = keybinds
         _cue.icons = icons
         _cue.music = music
         _cue.markers = markers
         # Manual backup/restore collaborators only exist after full init: the
         # open db (guard), the marker reload callback (main-thread), and the
-        # confirm dialog.  Auto backup needs no wiring -- db owns it.
+        # confirm dialog.  Auto backup runs on its own -- the db drives maybe()
+        # -- but the composite keeps a db ref so the settings toggle persists.
         _cue.backups = db._backup
+        _cue.backups._db = db
         _cue.backups.manual.wire(
             db, markers._reload_after_restore, confirm_dialog)
         _cue.importer = importer
         _cue.exporter = exporter
-        _cue.dialogs.merge = merge_dialog
 
     _cue_wire_managers()
 

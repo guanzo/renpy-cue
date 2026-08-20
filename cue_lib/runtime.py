@@ -2,7 +2,6 @@
 # Runtime drivers -- overlay show/hide, context detection, tick engine, SFX playback.
 # Extracted from cue_z.rpy Section 3 (init python: free functions).
 
-import os as _os
 import random as _random
 import renpy
 import renpy.audio.music as _music
@@ -11,12 +10,10 @@ import time as _time
 
 from renpy.store import persistent
 from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
-from cue_lib.db import CueDatabase
-from cue_lib.paths import CuePaths
 from cue_lib.constants import CuePage
 from cue_lib.state import _cue
 from cue_lib.util import (
-    _cue_log, _cue_flush_debug_log, _cue_ui_refresh, _cue_unwrap_displayable,
+    _cue_log, _cue_flush_debug_log, _cue_unwrap_displayable,
     _cue_get_movie_play, _cue_resolve_files, _cue_pick_file,
     _cue_sfx_channel_name, _cue_sfx_channel_index,
     create_img_key, create_vid_key, create_dlg_key,
@@ -55,62 +52,12 @@ def _cue_set_page(page):
     if _cue.overlay_active_page == page:
         return
     if page == CuePage.SETTINGS:
-        # The Shared Dir field names the real data root -- never an import
-        # path the active overlay happens to serve.
-        _cue.setup_dir_text = _cue.paths.original_root
-        _cue.shared_dir_error = ""
-        _cue.shared_dir_success = ""
+        _cue.settings.prepare_for_page()
     elif page == CuePage.IMPORT:
         _cue.importer.scan()
         _cue.exporter.refresh()
         
     _cue.overlay_active_page = page
-
-@_cue_ui_refresh
-def _cue_confirm_shared_dir():
-    # type: () -> None
-    """Validate and persist the Shared Dir input from the Settings page.
-
-    The dir is created up front (throwaway CueDatabase) so uncreatable paths
-    fail here instead of at next launch; the live db is untouched -- the new
-    dir takes effect after restart.  The choice is written as a pointer file
-    in the platform-default dir, so all games on this machine pick it up.
-    """
-    _cue.shared_dir_success = ""
-
-    text = (_cue.setup_dir_text or "").strip()
-    if not text:
-        _cue.shared_dir_error = "Path cannot be empty."
-        return
-    path = _os.path.abspath(_os.path.normpath(_os.path.expanduser(text))).replace("\\", "/")
-
-    try:
-        probe_db = CueDatabase(CuePaths(path, getattr(renpy.config, "save_directory")))
-        probe_db.open()
-    except Exception as exc:
-        _cue.shared_dir_error = "Could not create that directory."
-        _cue_log("SHARED-DIR: open failed for {}: {}".format(path, exc))
-        return
-
-    try:
-        CuePaths.save_root(path)
-    except Exception as exc:
-        _cue.shared_dir_error = "Could not save the directory setting."
-        _cue_log("SHARED-DIR: pointer write failed for {}: {}".format(path, exc))
-        return
-
-    _cue.shared_dir_error = ""
-    _cue.setup_dir_text = path
-    _cue.shared_dir_success = ("Success. If you have any data in the old dir, "
-                               "move it to the new dir and relaunch.")
-
-def _cue_set_auto_backups(enabled):
-    # type: (bool) -> None
-    """Settings-page toggle for automatic backups; persisted to the shared
-    config so the choice carries across every game."""
-    db = _cue.db
-    if db is not None:
-        db.set_auto_backups(enabled)
 
 def _cue_toggle_shake_trigger():
     # type: () -> None
@@ -213,7 +160,7 @@ def _cue_refresh_context_impl():
 
     _cue.ctx.current_file = top_name
     _cue.ctx.top_layer_type = top_type
-    _cue.top_displayable = top_d
+    _cue.ctx.top_displayable = top_d
     # The scene batch has now landed, so current_file is the settled scene --
     # the right moment to stamp key_after for any music that just played.
     _cue.music.capture_display()
@@ -255,8 +202,8 @@ def _cue_refresh_context_impl():
         _cue.trigger.fire_context(img_key, dlg_key)
         renpy.restart_interaction()
 
-    if _cue._shake_just_happened:
-        _cue._shake_just_happened = False
+    if _cue.ctx._shake_just_happened:
+        _cue.ctx._shake_just_happened = False
         if _cue.current_file:
             shake_key = create_img_key(_cue.current_file)
             if shake_key != img_key:
@@ -301,6 +248,11 @@ def _cue_play_pool(entry, key, pool, pool_index, file=None, avoid_repeats=True):
 # Image / Movie Detection (master layer scene list)
 # --------------------------------------------------------------------------
 
+# Dedup set for the TOP-LAYER-UNKNOWN debug log (which displayables have
+# already been reported). Module-level so a duplicate sighting stays silent.
+_cue_logged_unknown_displayables = set()
+
+
 def _cue_get_top_layer():
     # type: () -> Tuple[Optional[str], Optional[str], Any]
     try:
@@ -324,8 +276,8 @@ def _cue_get_top_layer():
             return name, "image", d
         if d is not None:
             dedup_key = (name, d.__class__.__name__)
-            if dedup_key not in _cue._logged_unknown_displayables:
-                _cue._logged_unknown_displayables.add(dedup_key)
+            if dedup_key not in _cue_logged_unknown_displayables:
+                _cue_logged_unknown_displayables.add(dedup_key)
                 _cue_log("TOP-LAYER-UNKNOWN name={} d_class={}".format(
                     name, d.__class__.__name__))
         return name, "image", d
@@ -434,7 +386,7 @@ def _cue_tick_trigger_impl():
             _cue_refresh_context()
 
     if _cue.top_layer_type == 'movie':
-        _cue_refresh_channel(displayable=_cue.top_displayable)
+        _cue_refresh_channel(displayable=_cue.ctx.top_displayable)
 
     _cue.vid_manager.sync_paused()
     _cue.vid_manager.poll_autopause()
@@ -515,10 +467,10 @@ def _cue_preview_video_preset(preset_name):
 
 def _cue_preview_sfx(filename, volume=1.0):
     # type: (str, float) -> None
-    prev_ch = _cue._preview_channel
+    prev_ch = _cue.sfx_manager._preview_channel
     if prev_ch is not None and _music.is_playing(channel=prev_ch):
         _music.stop(channel=prev_ch, fadeout=0)
-    _cue._preview_channel = _cue_play_sfx(filename, "preview", volume=volume)
+    _cue.sfx_manager._preview_channel = _cue_play_sfx(filename, "preview", volume=volume)
 
 
 def _cue_play_sfx(filename, source="", volume=1.0):
@@ -539,12 +491,12 @@ def _cue_play_sfx(filename, source="", volume=1.0):
             break
 
     if target_ch is None:
-        idx = _cue._cue_next_sfx_channel
+        idx = _cue.sfx_manager._next_sfx_channel
         target_ch = _cue_sfx_channel_name(idx + 1)
-        _cue._cue_next_sfx_channel = (idx + 1) % CUE_SFX_CHANNEL_COUNT
+        _cue.sfx_manager._next_sfx_channel = (idx + 1) % CUE_SFX_CHANNEL_COUNT
     else:
         ch_num = _cue_sfx_channel_index(target_ch)
-        _cue._cue_next_sfx_channel = ch_num % CUE_SFX_CHANNEL_COUNT
+        _cue.sfx_manager._next_sfx_channel = ch_num % CUE_SFX_CHANNEL_COUNT
 
     try:
         curr_file = _cue.current_file

@@ -54,6 +54,10 @@ class CueSfxManager(CueAudioTreeManager):
         # Overlay mode: SFX Library section floats at 50% height
         self.overlay_mode = False
 
+        # SFX playback state
+        self._next_sfx_channel = 0     # round-robin fallback when all channels are busy
+        self._preview_channel = None   # channel currently playing a preview
+
     # ------------------------------------------------------------------
     # Scanning
     # ------------------------------------------------------------------

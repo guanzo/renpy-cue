@@ -29,14 +29,14 @@ screen cue_data_dir():
             text "Cue stores everything (markers, video, audio, backups, etc.) in this folder."
             text ("If you change the folder, you must move all files to the new "
                 "folder and restart the game.")
-            use cue_text_input("_cue.setup_dir_text",
-                Function(_cue_confirm_shared_dir),
-                _cue.setup_dir_text)
-            if _cue.shared_dir_error:
-                text _cue.shared_dir_error color _cue_color_error
-            elif _cue.shared_dir_success:
-                text _cue.shared_dir_success color _cue_color_green
-            use cue_txt_button("Save", Function(_cue_confirm_shared_dir))
+            use cue_text_input("_cue.settings.setup_dir_text",
+                Function(_cue.settings.confirm_shared_dir),
+                _cue.settings.setup_dir_text)
+            if _cue.settings.shared_dir_error:
+                text _cue.settings.shared_dir_error color _cue_color_error
+            elif _cue.settings.shared_dir_success:
+                text _cue.settings.shared_dir_success color _cue_color_green
+            use cue_txt_button("Save", Function(_cue.settings.confirm_shared_dir))
 
 
 screen cue_settings_keybinds():
@@ -96,7 +96,7 @@ screen cue_settings_backup():
                 use cue_checkbox(
                     _cue.backups.auto.enabled,
                     "Auto Backups",
-                    Function(_cue_set_auto_backups, (not _cue.backups.auto.enabled)),
+                    Function(_cue.backups.set_auto_backups, (not _cue.backups.auto.enabled)),
                     tt_on=_auto_bk_tt)
             hbox:
                 spacing 8

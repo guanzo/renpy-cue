@@ -346,10 +346,12 @@ def make_runtime_cue(root="", audio_dir=""):
     so tests can drive branches directly.
     """
     from cue_lib.state import Cue
+    from cue_lib.settings import CueSettings
 
     cue = Cue()
     cue.paths = types.SimpleNamespace(
         root=root, original_root=root, audio_dir=audio_dir)
+    cue.settings = CueSettings()
     cue.calls = {}
     cue.ensured_pools = []
 
@@ -416,6 +418,8 @@ def make_runtime_cue(root="", audio_dir=""):
     cue.sfx_manager = types.SimpleNamespace(
         files=[],
         disabled_files=set(),
+        _next_sfx_channel=0,
+        _preview_channel=None,
         scan=_rec("sfx_manager", "scan"),
         rebuild_tree=_rec("sfx_manager", "rebuild_tree"),
         maybe_rebuild=_rec("sfx_manager", "maybe_rebuild"),

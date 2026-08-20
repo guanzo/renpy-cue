@@ -960,17 +960,17 @@ class _RecordingShow(object):
 def test_with_statement_wrapper_detects_shake():
     hook = _RecordingShow()
     wrapper = _util._cue_wrap_with_statement(hook)
-    _cue._shake_just_happened = False
+    _cue.ctx._shake_just_happened = False
     wrapper(_shake())
-    assert _cue._shake_just_happened is True
+    assert _cue.ctx._shake_just_happened is True
 
 
 def test_with_statement_wrapper_non_shake_leaves_flag_clear():
     hook = _RecordingShow()
     wrapper = _util._cue_wrap_with_statement(hook)
-    _cue._shake_just_happened = False
+    _cue.ctx._shake_just_happened = False
     wrapper(_shake(bounce=False))
-    assert _cue._shake_just_happened is False
+    assert _cue.ctx._shake_just_happened is False
 
 
 def test_with_statement_wrapper_forwards_args_verbatim():
@@ -985,25 +985,25 @@ def test_with_statement_wrapper_forwards_args_verbatim():
 def test_config_show_wrapper_detects_shake_in_at_list_kwarg():
     show = _RecordingShow()
     wrapper = _util._cue_wrap_config_show(show)
-    _cue._shake_just_happened = False
+    _cue.ctx._shake_just_happened = False
     wrapper("bg", at_list=[_shake()])
-    assert _cue._shake_just_happened is True
+    assert _cue.ctx._shake_just_happened is True
 
 
 def test_config_show_wrapper_detects_shake_in_at_list_positional():
     show = _RecordingShow()
     wrapper = _util._cue_wrap_config_show(show)
-    _cue._shake_just_happened = False
+    _cue.ctx._shake_just_happened = False
     wrapper("bg", [_shake()])
-    assert _cue._shake_just_happened is True
+    assert _cue.ctx._shake_just_happened is True
 
 
 def test_config_show_wrapper_non_shake_leaves_flag_clear():
     show = _RecordingShow()
     wrapper = _util._cue_wrap_config_show(show)
-    _cue._shake_just_happened = False
+    _cue.ctx._shake_just_happened = False
     wrapper("bg", at_list=[_shake(delay=0.9)])
-    assert _cue._shake_just_happened is False
+    assert _cue.ctx._shake_just_happened is False
 
 
 def test_config_show_wrapper_forwards_args_verbatim():
@@ -1021,8 +1021,8 @@ def test_config_show_wrapper_forwards_args_verbatim():
 def test_config_show_wrapper_no_at_list_ok():
     show = _RecordingShow()
     wrapper = _util._cue_wrap_config_show(show)
-    _cue._shake_just_happened = False
+    _cue.ctx._shake_just_happened = False
     result = wrapper("bg", layer="master")
     assert result == "RESULT"
-    assert _cue._shake_just_happened is False
+    assert _cue.ctx._shake_just_happened is False
     assert show.calls[0][1]["layer"] == "master"

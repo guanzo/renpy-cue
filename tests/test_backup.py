@@ -503,6 +503,29 @@ def test_set_auto_backups_persists_to_config(cue_env):
     assert db.load_shared_config().get("auto_backups") is True
 
 
+def test_backup_manager_set_auto_backups_delegates_to_db(cue_env):
+    # The settings checkbox calls Function(_cue.backups.set_auto_backups, ...);
+    # the composite forwards to the db, which flips the switch and persists.
+    db = cue_env.db
+    bm = db._backup
+    bm._db = db  # init -900 wires _cue.backups._db
+
+    bm.set_auto_backups(False)
+    assert bm.auto.enabled is False
+    assert db.load_shared_config().get("auto_backups") is False
+
+    bm.set_auto_backups(True)
+    assert bm.auto.enabled is True
+    assert db.load_shared_config().get("auto_backups") is True
+
+
+def test_backup_manager_set_auto_backups_unwired_noop(tmp_path):
+    # Before init -900 wires _db the toggle must be a safe no-op.
+    bm = CueBackupManager(CuePaths(str(tmp_path / "shared"), GAME_ID))
+    bm.set_auto_backups(False)
+    assert bm.auto.enabled is True
+
+
 def test_open_seeds_auto_enabled_from_config(tmp_path):
     root = str(tmp_path / "shared")
     _write(root, os.path.join("data", CUE_SHARED_CONFIG_FILENAME),

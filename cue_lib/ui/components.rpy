@@ -253,7 +253,7 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
         #use cue_icon_btn("++", inc100_action, None, 22)
 
 # Text input: textbutton that becomes an input on click, Enter to confirm.
-# field_name: string for _CueFieldValue (e.g. "_cue.setup_dir_text")
+# field_name: string for _CueFieldValue (e.g. "_cue.settings.setup_dir_text")
 # commit_action: Function() called on Enter to confirm
 # display_text: the label shown on the textbutton
 # editing_ref: optional object with a search_is_editing attribute; when given

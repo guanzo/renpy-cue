@@ -18,6 +18,7 @@ import renpy.audio.music as _music_mock
 import renpy.store as _store
 
 import cue_lib.runtime as _runtime
+import cue_lib.settings as _settings
 import cue_lib.util as _util
 from cue_lib.constants import CuePage
 from cue_lib.state import _cue
@@ -32,6 +33,7 @@ def cue(monkeypatch, tmp_path):
     c = make_runtime_cue(root=root, audio_dir=root + "/audio/")
     monkeypatch.setattr(_runtime, "_cue", c)
     monkeypatch.setattr(_util, "_cue", c)  # _cue_resolve_files/_cue_pick_file
+    monkeypatch.setattr(_settings, "_cue", c)  # CueSettings methods read _cue
     _store.persistent._cue = {}  # _cue_toggle_sfx_active writes triggers_active
     _music_mock._reset_all()
     _aaudio.channels.clear()
@@ -169,21 +171,21 @@ def test_set_page_same_page_noop(cue):
 
 def test_set_page_settings_preps_shared_dir_input(cue):
     cue.overlay_active_page = CuePage.SFX
-    cue.shared_dir_error = "stale error"
-    cue.shared_dir_success = "stale success"
+    cue.settings.shared_dir_error = "stale error"
+    cue.settings.shared_dir_success = "stale success"
     _runtime._cue_set_page(CuePage.SETTINGS)
     assert cue.overlay_active_page == CuePage.SETTINGS
-    assert cue.setup_dir_text == cue.paths.root
-    assert cue.shared_dir_error == ""
-    assert cue.shared_dir_success == ""
+    assert cue.settings.setup_dir_text == cue.paths.root
+    assert cue.settings.shared_dir_error == ""
+    assert cue.settings.shared_dir_success == ""
 
 
 def test_set_page_plain_page_switch(cue):
     cue.overlay_active_page = CuePage.SFX
-    cue.setup_dir_text = "SHOULD-NOT-LEAK"
+    cue.settings.setup_dir_text = "SHOULD-NOT-LEAK"
     _runtime._cue_set_page(CuePage.MUSIC)
     assert cue.overlay_active_page == CuePage.MUSIC
-    assert cue.setup_dir_text == "SHOULD-NOT-LEAK"  # no settings prep
+    assert cue.settings.setup_dir_text == "SHOULD-NOT-LEAK"  # no settings prep
 
 
 def test_set_page_import_refreshes_importer_and_exporter(cue):
@@ -199,34 +201,34 @@ def test_set_page_import_refreshes_importer_and_exporter(cue):
 # ==========================================================================
 
 def test_confirm_shared_dir_empty_path(cue):
-    cue.setup_dir_text = "   "
-    _runtime._cue_confirm_shared_dir()
-    assert cue.shared_dir_error == "Path cannot be empty."
-    assert cue.shared_dir_success == ""
+    cue.settings.setup_dir_text = "   "
+    cue.settings.confirm_shared_dir()
+    assert cue.settings.shared_dir_error == "Path cannot be empty."
+    assert cue.settings.shared_dir_success == ""
 
 
 def test_confirm_shared_dir_success(cue, monkeypatch, tmp_path):
     new_root = str(tmp_path / "new_root")
     saved = []
-    monkeypatch.setattr(_runtime.CuePaths, "save_root",
+    monkeypatch.setattr(_settings.CuePaths, "save_root",
                         lambda path: saved.append(path))
-    cue.setup_dir_text = new_root
-    _runtime._cue_confirm_shared_dir()
+    cue.settings.setup_dir_text = new_root
+    cue.settings.confirm_shared_dir()
     assert saved == [new_root]
-    assert cue.shared_dir_error == ""
-    assert cue.setup_dir_text == new_root
-    assert cue.shared_dir_success.startswith("Success")
+    assert cue.settings.shared_dir_error == ""
+    assert cue.settings.setup_dir_text == new_root
+    assert cue.settings.shared_dir_success.startswith("Success")
 
 
 def test_confirm_shared_dir_db_open_failure(cue, monkeypatch):
     def _boom(*args, **kwargs):
         raise OSError("boom")
 
-    monkeypatch.setattr(_runtime.CueDatabase, "open", _boom)
-    cue.setup_dir_text = "/does/not/matter"
-    _runtime._cue_confirm_shared_dir()
-    assert cue.shared_dir_error == "Could not create that directory."
-    assert cue.shared_dir_success == ""
+    monkeypatch.setattr(_settings.CueDatabase, "open", _boom)
+    cue.settings.setup_dir_text = "/does/not/matter"
+    cue.settings.confirm_shared_dir()
+    assert cue.settings.shared_dir_error == "Could not create that directory."
+    assert cue.settings.shared_dir_success == ""
 
 
 def test_confirm_shared_dir_save_failure(cue, monkeypatch, tmp_path):
@@ -235,11 +237,11 @@ def test_confirm_shared_dir_save_failure(cue, monkeypatch, tmp_path):
     def _boom(path):
         raise OSError("boom")
 
-    monkeypatch.setattr(_runtime.CuePaths, "save_root", _boom)
-    cue.setup_dir_text = new_root
-    _runtime._cue_confirm_shared_dir()
-    assert cue.shared_dir_error == "Could not save the directory setting."
-    assert cue.shared_dir_success == ""
+    monkeypatch.setattr(_settings.CuePaths, "save_root", _boom)
+    cue.settings.setup_dir_text = new_root
+    cue.settings.confirm_shared_dir()
+    assert cue.settings.shared_dir_error == "Could not save the directory setting."
+    assert cue.settings.shared_dir_success == ""
 
 
 # ==========================================================================
@@ -357,15 +359,6 @@ def test_get_top_layer_image(cue, monkeypatch):
     assert disp is d
 
 
-def test_get_top_layer_unknown_logs_once(cue, monkeypatch):
-    d = object()
-    _set_top_layer(monkeypatch, tag="scene", name=None, displayable=d)
-    _runtime._cue_get_top_layer()
-    assert cue._logged_unknown_displayables == {("scene", "object")}
-    _runtime._cue_get_top_layer()  # dedup: second sighting is not re-logged
-    assert cue._logged_unknown_displayables == {("scene", "object")}
-
-
 def test_get_top_layer_exception_returns_none(cue, monkeypatch):
     def _boom(*args, **kwargs):
         raise RuntimeError("boom")
@@ -465,7 +458,7 @@ def test_refresh_context_type_change(cue, monkeypatch):
                         lambda: ("scene.ogv", "movie", d))
     _runtime._cue_refresh_context()
     assert cue.ctx.top_layer_type == "movie"
-    assert cue.top_displayable is d
+    assert cue.ctx.top_displayable is d
     assert cue.calls["trigger.fire_context"] == [((None, None), {})]
 
 
@@ -473,11 +466,11 @@ def test_refresh_context_shake_fires_only_shake(cue, monkeypatch):
     cue.current_file = "scene.ogv"
     cue.top_layer_type = "image"
     cue.vid_manager.channel = None
-    cue._shake_just_happened = True
+    cue.ctx._shake_just_happened = True
     monkeypatch.setattr(_runtime, "_cue_get_top_layer",
                         lambda: ("scene.ogv", "image", None))
     _runtime._cue_refresh_context()
-    assert cue._shake_just_happened is False
+    assert cue.ctx._shake_just_happened is False
     # img_key is None (no file change); shake_key differs -> only-shake fire
     assert cue.calls["trigger.fire_context"] == [
         (("i_scene.ogv",), {"only_shake_pools": True})]
@@ -485,7 +478,7 @@ def test_refresh_context_shake_fires_only_shake(cue, monkeypatch):
 
 def test_refresh_context_shake_skips_duplicate_after_file_change(cue, monkeypatch):
     cue.current_file = ""
-    cue._shake_just_happened = True
+    cue.ctx._shake_just_happened = True
     monkeypatch.setattr(_runtime, "_cue_get_top_layer",
                         lambda: ("scene.ogv", "image", None))
     _runtime._cue_refresh_context()
@@ -788,7 +781,7 @@ def test_tick_movie_refreshes_channel(cue, monkeypatch):
     d = Movie()
     cue.current_file = "scene.ogv"
     cue.top_layer_type = "movie"
-    cue.top_displayable = d
+    cue.ctx.top_displayable = d
     seen = []
     monkeypatch.setattr(_runtime, "_cue_refresh_channel",
                         lambda displayable=None: seen.append(displayable))
@@ -916,20 +909,20 @@ def test_preview_video_preset_missing(cue, monkeypatch):
 
 def test_preview_sfx_stops_previous(cue, monkeypatch):
     _music_mock.play("old.ogg", channel="_cue_1")
-    cue._preview_channel = "_cue_1"
+    cue.sfx_manager._preview_channel = "_cue_1"
     monkeypatch.setattr(_runtime, "_cue_play_sfx",
                         lambda f, source, volume=1.0: "cue_2")
     _runtime._cue_preview_sfx("new.ogg")
     assert _music_mock._registry["_cue_1"]["playing"] is None  # stopped
-    assert cue._preview_channel == "cue_2"
+    assert cue.sfx_manager._preview_channel == "cue_2"
 
 
 def test_preview_sfx_no_previous(cue, monkeypatch):
-    cue._preview_channel = None
+    cue.sfx_manager._preview_channel = None
     monkeypatch.setattr(_runtime, "_cue_play_sfx",
                         lambda f, source, volume=1.0: "cue_1")
     _runtime._cue_preview_sfx("new.ogg")
-    assert cue._preview_channel == "cue_1"
+    assert cue.sfx_manager._preview_channel == "cue_1"
 
 
 
@@ -939,24 +932,24 @@ def test_preview_sfx_no_previous(cue, monkeypatch):
 
 def test_play_sfx_free_channel(cue, monkeypatch):
     monkeypatch.setattr(_runtime._random, "uniform", lambda a, b: 1.0)
-    cue._cue_next_sfx_channel = 0
+    cue.sfx_manager._next_sfx_channel = 0
     ch = _runtime._cue_play_sfx("a.ogg", "preview", volume=0.5)
     assert ch == "_cue_1"
     assert _music_mock._registry["_cue_1"]["playing"] == \
         cue.paths.audio_dir + "a.ogg"
     assert _music_mock._registry["_cue_1"]["volume"] == 0.5  # set_volume path
-    assert cue._cue_next_sfx_channel == 1
+    assert cue.sfx_manager._next_sfx_channel == 1
 
 
 def test_play_sfx_round_robin_when_all_busy(cue, monkeypatch):
     monkeypatch.setattr(_runtime._random, "uniform", lambda a, b: 1.0)
     for i in range(1, 9):
         _music_mock.play("busy.ogg", channel="_cue_{}".format(i))
-    cue._cue_next_sfx_channel = 3
+    cue.sfx_manager._next_sfx_channel = 3
     _runtime._cue_play_sfx("a.ogg")
     assert _music_mock._registry["_cue_4"]["playing"] == \
         cue.paths.audio_dir + "a.ogg"
-    assert cue._cue_next_sfx_channel == 4
+    assert cue.sfx_manager._next_sfx_channel == 4
 
 
 def test_play_sfx_relative_volume(cue, monkeypatch):

@@ -18,7 +18,7 @@ init 1000 python:
         _cue.current_file = ""
         _cue.current_dialogue = ""
         _cue.prev_dialogue = ""
-        _cue._shake_just_happened = False
+        _cue.ctx._shake_just_happened = False
         _cue.vid_manager.last_elapsed = 0.0
         # The test game's start label never clears the scene, so a prior
         # testcase's displayable stays on the master layer.  Re-showing a

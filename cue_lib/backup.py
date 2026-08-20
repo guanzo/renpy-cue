@@ -638,6 +638,7 @@ class CueBackupManager(object):
         self._paths = paths
         self.auto = CueAutoBackupManager(self)
         self.manual = CueManualBackupManager(self)
+        self._db = None          # CueDatabase, wired by init -900 (settings toggle)
 
     @property
     def path(self):
@@ -667,6 +668,14 @@ class CueBackupManager(object):
     def wait_until_idle(self, timeout=10.0):
         # type: (float) -> bool
         return self.auto.wait_until_idle(timeout)
+
+    def set_auto_backups(self, enabled):
+        # type: (bool) -> None
+        """Settings-page toggle for automatic backups; persisted to the shared
+        config so the choice carries across every game."""
+        db = self._db
+        if db is not None:
+            db.set_auto_backups(enabled)
 
     # -- Manual (UI buttons + screen timer) --
 

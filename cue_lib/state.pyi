@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from cue_lib.video.repeater import CueMarkerRepeater
 from cue_lib.video.ffmpeg import CueFFmpeg
@@ -26,6 +26,7 @@ from cue_lib.db import CueDatabase
 from cue_lib.backup import CueBackupManager
 from cue_lib.volume import CueVolumeManager
 from cue_lib.audio.music import CueMusicManager
+from cue_lib.settings import CueSettings
 from cue_lib.keybinds import CueKeybindsManager
 from cue_lib.ui.icons import CueIconManager
 from cue_lib.paths import CuePaths
@@ -37,7 +38,8 @@ class CueContext:
     current_dialogue: str
     prev_dialogue: str
     top_layer_type: Optional[str]
-    initialized: bool
+    top_displayable: Any
+    _shake_just_happened: bool
 
     def __init__(self) -> None: ...
 
@@ -59,10 +61,6 @@ class Cue:
     current_dialogue: str
     prev_dialogue: str
     top_layer_type: Optional[str]
-    top_displayable: Any
-    setup_dir_text: str
-    shared_dir_error: str
-    shared_dir_success: str
     _has_relative_volume: bool
 
     db: CueDatabase
@@ -82,6 +80,7 @@ class Cue:
     speed_toast: CueSpeedToast
     auto_speed: CueAutoSpeedGenerator
     sfx_manager: CueSfxManager
+    settings: CueSettings
     dialogs: CueDialogs
     keybinds: CueKeybindsManager
     icons: CueIconManager
@@ -89,10 +88,6 @@ class Cue:
     importer: CueImportManager
     exporter: CueExportManager
 
-    _cue_next_sfx_channel: int
-    _shake_just_happened: bool
-    _preview_channel: Optional[str]
-    _logged_unknown_displayables: Set[Tuple[str, str]]
     _create_delete_speed: Optional[Tuple[str, float]]
 
     def toggle_section(self, section_name: str) -> None: ...

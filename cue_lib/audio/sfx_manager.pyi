@@ -13,6 +13,8 @@ class CueSfxManager(CueAudioTreeManager):
     expanded_video_presets: Dict[str, bool]
     disabled_files: Set[str]
     overlay_mode: bool
+    _next_sfx_channel: int
+    _preview_channel: Optional[str]
 
     def __init__(self, paths: CuePaths, db: CueDatabase) -> None: ...
     def toggle_file_enabled(self, full_path: str) -> None: ...

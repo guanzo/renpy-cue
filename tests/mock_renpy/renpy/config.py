@@ -5,7 +5,7 @@
 gamedir = ""
 
 # Save directory -- real Ren'Py always defines this (used by the shared-dir
-# probe in runtime._cue_confirm_shared_dir).
+# probe in cue_lib.settings.CueSettings.confirm_shared_dir).
 save_directory = "save"
 
 # Viewport size -- CueTooltip / CuePopper clamp against these.

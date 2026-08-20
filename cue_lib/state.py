@@ -20,7 +20,8 @@ class CueContext(object):
         self.current_dialogue = ""
         self.prev_dialogue = ""
         self.top_layer_type = ""
-        self.initialized = False
+        self.top_displayable = None
+        self._shake_just_happened = False
 
 
 class CueDialogs(object):
@@ -40,12 +41,8 @@ class Cue(_renpy_python.NoRollback):
         self.is_overlay_visible = False
         self.overlay_active_page = CuePage.SFX
         self.collapsed_sections = {}       # section_name -> bool (cue_section_frame)
-        self.ctx = CueContext()          # per-frame scene state (current_file, dialogue, top layer)
-        self.top_displayable = None
-        self.setup_dir_text = ""      # text bound to the Shared Dir input
-        self.shared_dir_error = ""    # error line under the Shared Dir input
-        self.shared_dir_success = ""  # success line under the Shared Dir input
         self._has_relative_volume = False
+        self.ctx = CueContext()          # per-frame scene state (current_file, dialogue, top layer)
 
         # --- Manager slots (wired by cue_z.rpy init -900) ---
         self.db = None
@@ -63,6 +60,7 @@ class Cue(_renpy_python.NoRollback):
         self.speed_toast = None
         self.auto_speed = None
         self.sfx_manager = None
+        self.settings = None          # CueSettings
         self.dialogs = CueDialogs()  # dialog managers (wired by cue_z.rpy init -900)
         self.keybinds = None
         self.icons = None
@@ -70,12 +68,6 @@ class Cue(_renpy_python.NoRollback):
         self.paths = None
         self.importer = None
         self.exporter = None
-
-        # --- Internal ---
-        self._cue_next_sfx_channel = 0
-        self._shake_just_happened = False
-        self._preview_channel = None
-        self._logged_unknown_displayables = set()
 
     # ------------------------------------------------------------------
     # Scene state (read-through to ctx)
