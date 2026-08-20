@@ -17,6 +17,11 @@ from cue_lib.keybinds import CueKeybindsManager
 from cue_lib.constants import (
     CUE_KEYMAP_TOGGLE_OVERLAY,
     CUE_KEYMAP_TOGGLE_SFX_ACTIVE,
+    CUE_KEYMAP_TOGGLE_SFX_OVERLAY,
+    CUE_KEYMAP_PAGE_SFX,
+    CUE_KEYMAP_PAGE_MUSIC,
+    CUE_KEYMAP_PAGE_IMPORT,
+    CUE_KEYMAP_PAGE_SETTINGS,
     CUE_KEYMAP_QUIT_RELAUNCH,
     CUE_KEYMAP_TARGET_VIDEO,
     CUE_KEYMAP_TARGET_IMAGE,
@@ -146,7 +151,12 @@ def test_setup_registers_defaults(mgr):
     mgr.setup()
     assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_OVERLAY] == ["K_BACKQUOTE"]
     assert renpy.config.keymap[CUE_KEYMAP_QUIT_RELAUNCH] == ["K_F5"]
-    assert len(renpy.config.keymap) == 15  # one entry per action
+    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_OVERLAY] == ["alt_K_a"]
+    assert renpy.config.keymap[CUE_KEYMAP_PAGE_SFX] == ["alt_K_1"]
+    assert renpy.config.keymap[CUE_KEYMAP_PAGE_MUSIC] == ["alt_K_2"]
+    assert renpy.config.keymap[CUE_KEYMAP_PAGE_IMPORT] == ["alt_K_3"]
+    assert renpy.config.keymap[CUE_KEYMAP_PAGE_SETTINGS] == ["alt_K_4"]
+    assert len(renpy.config.keymap) == 20  # one entry per action
 
 
 def test_setup_does_not_overwrite_existing(mgr):
@@ -187,7 +197,7 @@ def test_setup_clears_keymap_cache(mgr, monkeypatch):
 def test_visible_actions_excludes_quit_relaunch(mgr):
     ids = [a["id"] for a in mgr.visible_actions()]
     assert CUE_KEYMAP_QUIT_RELAUNCH not in ids
-    assert len(ids) == 14  # 15 actions minus quit_relaunch
+    assert len(ids) == 19  # 20 actions minus quit_relaunch
 
 
 def test_visible_actions_filters_debug_only(mgr, monkeypatch):

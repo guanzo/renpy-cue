@@ -21,8 +21,25 @@ screen cue_key_listener():
     key CUE_KEYMAP_SPEED_UP action Function(_cue.speed_resolver.cycle_speed, 1)
     key CUE_KEYMAP_SPEED_DOWN action Function(_cue.speed_resolver.cycle_speed, -1)
     key CUE_KEYMAP_TOGGLE_SFX_LIBRARY action Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
+    
+    if _cue.is_overlay_visible:
+        key CUE_KEYMAP_TOGGLE_SFX_OVERLAY action Function(_cue.sfx_manager.toggle_overlay_mode)
+        key CUE_KEYMAP_PAGE_SFX action Function(_cue_set_page, CuePage.SFX)
+        key CUE_KEYMAP_PAGE_MUSIC action Function(_cue_set_page, CuePage.MUSIC)
+        key CUE_KEYMAP_PAGE_IMPORT action Function(_cue_set_page, CuePage.IMPORT)
+        key CUE_KEYMAP_PAGE_SETTINGS action Function(_cue_set_page, CuePage.SETTINGS)
+        
+        if _cue.overlay_active_page == CuePage.SFX:
+            key CUE_KEYMAP_TARGET_VIDEO action Function(_cue.markers.set_target_context, CueContextType.VIDEO)
+            key CUE_KEYMAP_TARGET_IMAGE action Function(_cue.markers.set_target_context, CueContextType.IMAGE)
+            key CUE_KEYMAP_TARGET_DIALOGUE action Function(_cue.markers.set_target_context, CueContextType.DIALOGUE)
+            key CUE_KEYMAP_TARGET_LOOP action Function(_cue.markers.set_target_context, CueContextType.LOOP)
+        elif _cue.overlay_active_page == CuePage.IMPORT:
+            timer 2.0 repeat True action Function(_cue.importer.scan)
+
     if CUE_DEBUG:
         key CUE_KEYMAP_QUIT_RELAUNCH action Function(renpy.quit, relaunch=True)
+        
     timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
 
 ###############################################################################
@@ -44,19 +61,6 @@ screen cue_overlay():
     zorder 9999
     modal False
 
-    # SFX library target-context hotkeys.  Top-level (not inside the button
-    # wrapper below) so they fire reliably; gated to the SFX page, which is
-    # where the cue_target_context chips live.  Rebindable in Settings > Keybinds
-    # (keymap names route through config.keymap, so a rebind applies
-    # immediately).  While the search field is focused, Ren'Py's input
-    # consumes these keys.
-    if _cue.overlay_active_page == CuePage.SFX:
-        key CUE_KEYMAP_TARGET_VIDEO action Function(_cue.markers.set_target_context, CueContextType.VIDEO)
-        key CUE_KEYMAP_TARGET_IMAGE action Function(_cue.markers.set_target_context, CueContextType.IMAGE)
-        key CUE_KEYMAP_TARGET_DIALOGUE action Function(_cue.markers.set_target_context, CueContextType.DIALOGUE)
-        key CUE_KEYMAP_TARGET_LOOP action Function(_cue.markers.set_target_context, CueContextType.LOOP)
-    elif _cue.overlay_active_page == CuePage.IMPORT:
-        timer 2.0 repeat True action Function(_cue.importer.scan)
 
     $ _z = _cue_overlay_zoom()
 
