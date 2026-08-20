@@ -273,7 +273,7 @@ class CueKeybindsManager(object):
                 if ks == "":
                     renpy.config.keymap[action["id"]] = []  # explicitly unbound
                 elif self._is_valid_keysym(ks):
-                    renpy.config.keymap[action["id"]] = [ks]
+                    renpy.config.keymap[action["id"]] = [self._normalize_keysym(ks)]
 
         # 3. Clear the compiled event cache so the new entries / overrides
         #    take effect immediately.
@@ -416,12 +416,18 @@ class CueKeybindsManager(object):
             self.cancel_capture()
             return
 
+        # Bare keys must not match shifted presses -- normalize before the
+        # no-op/collision checks so every stored binding is noshift-clean.
+        keysym = self._normalize_keysym(keysym)
+
         action = self._get_action(self._capturing_id)
         if action is None:
             self.cancel_capture()
             return
 
-        current = self.get_keysym(self._capturing_id)
+        # Compare against the normalized form too, so a bare default like
+        # "K_BACKQUOTE" still reads as the same key as a "noshift_K_..." capture.
+        current = self._normalize_keysym(self.get_keysym(self._capturing_id))
 
         # No-op: same key.
         if keysym == current:
@@ -569,6 +575,25 @@ class CueKeybindsManager(object):
             if a["id"] == action_id:
                 return a
         return None
+
+    @staticmethod
+    def _normalize_keysym(keysym):
+        # type: (str) -> str
+        """Add ``noshift`` to a modifier-less keysym.
+
+        A bare ``K_3`` in Ren'Py also matches ``Shift+3`` (plain keys only
+        exclude alt/ctrl/meta), so without this a user-rebound plain key
+        would clobber its Shift+ variant.  Applied on capture and on load so
+        the invariant holds for every stored binding, not just the defaults.
+        """
+        if not keysym:
+            return keysym
+        idx = keysym.rfind("K_")
+        if idx < 0:
+            return keysym
+        if not keysym[:idx].rstrip("_"):
+            return "noshift_" + keysym[idx:]
+        return keysym
 
     @staticmethod
     def _is_valid_keysym(keysym):

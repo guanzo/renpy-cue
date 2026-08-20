@@ -85,6 +85,12 @@ def test_keysym_label_modifiers(mgr):
     assert mgr.keysym_label("meta_shift_K_z") == "Win+Shift+Z"
 
 
+def test_keysym_label_noshift_shows_bare_key(mgr):
+    # noshift is a negative modifier -- display just the key, not "Shift+3".
+    assert mgr.keysym_label("noshift_K_3") == "3"
+    assert mgr.keysym_label("noshift_K_1") == "1"
+
+
 def test_keysym_label_no_k_returns_verbatim(mgr):
     assert mgr.keysym_label("garbage") == "garbage"
 
@@ -97,6 +103,7 @@ def test_is_valid_keysym_accepts_valid():
     assert CueKeybindsManager._is_valid_keysym("K_F5")
     assert CueKeybindsManager._is_valid_keysym("shift_K_1")
     assert CueKeybindsManager._is_valid_keysym("ctrl_alt_K_F9")
+    assert CueKeybindsManager._is_valid_keysym("noshift_K_3")
 
 
 def test_is_valid_keysym_rejects_bad_input():
@@ -105,6 +112,21 @@ def test_is_valid_keysym_rejects_bad_input():
     assert not CueKeybindsManager._is_valid_keysym(123)          # non-str
     assert not CueKeybindsManager._is_valid_keysym("foo_K_")     # empty key
     assert not CueKeybindsManager._is_valid_keysym("super_K_a")  # bad modifier
+
+
+def test_normalize_keysym_adds_noshift_to_bare():
+    # A bare keysym matches shifted presses in Ren'Py; force noshift so a
+    # user-rebound plain key can't clobber its Shift+ variant.
+    assert CueKeybindsManager._normalize_keysym("K_3") == "noshift_K_3"
+    assert CueKeybindsManager._normalize_keysym("K_1") == "noshift_K_1"
+
+
+def test_normalize_keysym_preserves_modded():
+    assert CueKeybindsManager._normalize_keysym("shift_K_3") == "shift_K_3"
+    assert CueKeybindsManager._normalize_keysym("ctrl_alt_K_f") == "ctrl_alt_K_f"
+    assert CueKeybindsManager._normalize_keysym("noshift_K_3") == "noshift_K_3"
+    assert CueKeybindsManager._normalize_keysym("") == ""
+    assert CueKeybindsManager._normalize_keysym("garbage") == "garbage"
 
 
 # ---------------------------------------------------------------------------
@@ -166,9 +188,11 @@ def test_setup_does_not_overwrite_existing(mgr):
 
 
 def test_setup_applies_saved_override(db, mgr):
+    # A saved bare keysym loads normalized (noshift) so it can't clobber its
+    # Shift+ variant.
     db.shared[CUE_SHARED_KEY_KEYBINDS] = {CUE_KEYMAP_TOGGLE_OVERLAY: "K_F2"}
     mgr.setup()
-    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_OVERLAY] == ["K_F2"]
+    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_OVERLAY] == ["noshift_K_F2"]
 
 
 def test_setup_ignores_invalid_saved_override(db, mgr):
@@ -308,17 +332,17 @@ def test_on_captured_same_key_cancels(mgr):
 def test_on_captured_clean_applies_and_saves(db, mgr):
     mgr.start_capture(CUE_KEYMAP_TOGGLE_OVERLAY)
     mgr.on_captured("K_F7")
-    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_OVERLAY] == ["K_F7"]
+    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_OVERLAY] == ["noshift_K_F7"]
     assert mgr._capturing_id == ""
-    assert db.saved[-1] == {CUE_SHARED_KEY_KEYBINDS: {CUE_KEYMAP_TOGGLE_OVERLAY: "K_F7"}}
+    assert db.saved[-1] == {CUE_SHARED_KEY_KEYBINDS: {CUE_KEYMAP_TOGGLE_OVERLAY: "noshift_K_F7"}}
 
 
 def test_on_captured_collision_sets_pending(db, mgr):
-    renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] = ["K_F7"]
+    renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] = ["noshift_K_F7"]
     mgr.start_capture(CUE_KEYMAP_TOGGLE_OVERLAY)
     mgr.on_captured("K_F7")
     assert mgr._capturing_id == CUE_KEYMAP_TOGGLE_OVERLAY  # still capturing
-    assert mgr._pending_keysym == "K_F7"
+    assert mgr._pending_keysym == "noshift_K_F7"
     assert "Toggle SFX Triggers" in mgr.collision_message
     assert CUE_KEYMAP_TOGGLE_OVERLAY not in renpy.config.keymap  # not applied
 
@@ -328,14 +352,14 @@ def test_on_captured_collision_sets_pending(db, mgr):
 # ---------------------------------------------------------------------------
 
 def test_confirm_override_applies_and_resets_others(db, mgr):
-    # Toggle Active currently owns K_F7; rebind Toggle Overlay onto it.
-    renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] = ["K_F7"]
+    # Toggle Active currently owns F7; rebind Toggle Overlay onto it.
+    renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] = ["noshift_K_F7"]
     mgr.start_capture(CUE_KEYMAP_TOGGLE_OVERLAY)
     mgr.on_captured("K_F7")
-    assert mgr._pending_keysym == "K_F7"  # collision pending
+    assert mgr._pending_keysym == "noshift_K_F7"  # collision pending
 
     mgr.confirm_override()
-    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_OVERLAY] == ["K_F7"]
+    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_OVERLAY] == ["noshift_K_F7"]
     # Overridden action resets to its default (shift_K_3, no collision).
     assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] == ["shift_K_3"]
     assert mgr._capturing_id == ""
@@ -453,27 +477,52 @@ def test_target_context_actions_visible(mgr):
 
 
 def test_setup_registers_target_context_defaults(mgr):
+    # Plain target keys must carry noshift so Shift+1/2/3/4 (copy/paste/sfx/
+    # pause) aren't clobbered when the SFX page registers them.
     mgr.setup()
-    assert renpy.config.keymap[CUE_KEYMAP_TARGET_VIDEO] == ["K_1"]
-    assert renpy.config.keymap[CUE_KEYMAP_TARGET_IMAGE] == ["K_2"]
-    assert renpy.config.keymap[CUE_KEYMAP_TARGET_DIALOGUE] == ["K_3"]
-    assert renpy.config.keymap[CUE_KEYMAP_TARGET_LOOP] == ["K_4"]
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_VIDEO] == ["noshift_K_1"]
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_IMAGE] == ["noshift_K_2"]
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_DIALOGUE] == ["noshift_K_3"]
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_LOOP] == ["noshift_K_4"]
 
 
 def test_get_keysym_target_context_defaults(mgr):
-    assert mgr.get_keysym(CUE_KEYMAP_TARGET_VIDEO) == "K_1"
-    assert mgr.get_keysym(CUE_KEYMAP_TARGET_IMAGE) == "K_2"
-    assert mgr.get_keysym(CUE_KEYMAP_TARGET_DIALOGUE) == "K_3"
-    assert mgr.get_keysym(CUE_KEYMAP_TARGET_LOOP) == "K_4"
+    assert mgr.get_keysym(CUE_KEYMAP_TARGET_VIDEO) == "noshift_K_1"
+    assert mgr.get_keysym(CUE_KEYMAP_TARGET_IMAGE) == "noshift_K_2"
+    assert mgr.get_keysym(CUE_KEYMAP_TARGET_DIALOGUE) == "noshift_K_3"
+    assert mgr.get_keysym(CUE_KEYMAP_TARGET_LOOP) == "noshift_K_4"
 
 
 def test_target_context_key_rebind_and_reset(db, mgr):
     mgr.setup()
     mgr.start_capture(CUE_KEYMAP_TARGET_VIDEO)
     mgr.on_captured("K_F7")
-    assert renpy.config.keymap[CUE_KEYMAP_TARGET_VIDEO] == ["K_F7"]
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_VIDEO] == ["noshift_K_F7"]
     mgr.reset_binding(CUE_KEYMAP_TARGET_VIDEO)
-    assert renpy.config.keymap[CUE_KEYMAP_TARGET_VIDEO] == ["K_1"]
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_VIDEO] == ["noshift_K_1"]
+
+
+def test_capture_plain_keysym_gets_noshift(db, mgr):
+    """Rebinding to a bare key must store noshift_K_* so the new binding
+    doesn't re-introduce the Shift+clobber the defaults were fixed for."""
+    mgr.setup()
+    mgr.start_capture(CUE_KEYMAP_TARGET_DIALOGUE)
+    mgr.on_captured("K_7")
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_DIALOGUE] == ["noshift_K_7"]
+
+
+def test_capture_modded_keysym_not_normalized(db, mgr):
+    mgr.setup()
+    mgr.start_capture(CUE_KEYMAP_TARGET_DIALOGUE)
+    mgr.on_captured("ctrl_K_7")
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_DIALOGUE] == ["ctrl_K_7"]
+
+
+def test_setup_normalizes_saved_bare_keysym(db, mgr):
+    """A plain keysym saved before the noshift fix must load normalized."""
+    db.shared[CUE_SHARED_KEY_KEYBINDS] = {CUE_KEYMAP_TARGET_DIALOGUE: "K_3"}
+    mgr.setup()
+    assert renpy.config.keymap[CUE_KEYMAP_TARGET_DIALOGUE] == ["noshift_K_3"]
 
 
 def test_target_context_collision_detects_cue_owner(mgr):
