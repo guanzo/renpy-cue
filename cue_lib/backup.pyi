@@ -3,8 +3,8 @@ from typing import Any, Callable, Final, List, Optional, Tuple
 
 from cue_lib.paths import CuePaths
 
-CUE_BACKUP_INTERVAL: Final = 86400
-CUE_BACKUP_MAX: Final = 30
+CUE_BACKUP_INTERVAL: Final = 3600
+CUE_BACKUP_MAX: Final = 720
 CUE_BACKUP_DIR: Final = "backups"
 CUE_BACKUP_AUTO_DIR: Final = "auto"
 CUE_BACKUP_PREFIX: Final = "auto_backup_"

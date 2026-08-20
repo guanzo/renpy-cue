@@ -17,7 +17,7 @@
 # Media (audio/, music/, video/) is deliberately excluded from the auto
 # backup.  It is already-compressed, so DEFLATED zips it at ~1.0 ratio --
 # a full-core pass plus double I/O for no size gain -- and with
-# CUE_BACKUP_MAX (60) a month of auto-backups would eat tens of GB of
+# CUE_BACKUP_MAX (720) a month of auto-backups would eat tens of GB of
 # drive for media.  The manual backup button covers media on demand, where
 # the user has chosen to pay that cost.
 #
@@ -46,8 +46,8 @@ from cue_lib.util import _cue_log, _cue_replace_file, _to_str
 # CUE_BACKUP_INTERVAL seconds have passed since the last backup, zip the
 # data/ tree into {shared}/backups/auto/auto_backup_<unix_ts>.zip and keep
 # the CUE_BACKUP_MAX most recent files.
-CUE_BACKUP_INTERVAL = 86400  # once a day (every 24h)
-CUE_BACKUP_MAX = 30  # ~a month at one backup/day
+CUE_BACKUP_INTERVAL = 3600  # once an hour (every 60 min)
+CUE_BACKUP_MAX = 720  # ~a month at one backup/hour
 CUE_BACKUP_PREFIX = "auto_backup_"
 
 # Manual backup/restore: a single named zip in {shared}/backups/ that the

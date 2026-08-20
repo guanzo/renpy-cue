@@ -87,7 +87,7 @@ screen cue_settings_backup():
             spacing 8
             text ("Backup data folder to backups/{}, or restore that "
                 "backup's data over the current game.".format(CUE_MANUAL_BACKUP_NAME))
-            $ _auto_bk_tt = ("Auto back up your marker data once a day for 30 days. "
+            $ _auto_bk_tt = ("Auto back up your marker data once an hour for 30 days. "
                 "Media files (audio, music, video) are excluded.\n"
                 "Stored in: {}".format(
                     _cue.paths.auto_backups_dir.replace("\\", "/")))
