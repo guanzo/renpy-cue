@@ -8,11 +8,15 @@ from renpy.store import NullAction
 from renpy.display.layout import Container
 
 from cue_lib.constants import CUE_POPPER_DEFAULT_OFFSET, CUE_POPPER_DEFAULT_MARGIN
-from cue_lib.state import _cue
 
 MYPY = False
 if MYPY:
     from typing import Any, Optional, Tuple
+
+
+# Ren'Py 7.x fallback: focus anchors keyed by capture name.  Module-level so
+# the popper machinery stays self-contained (not state on _cue).
+_cue_popper_anchors = {}
 
 
 # --- Focus rect helpers (version-adaptive) ---
@@ -24,14 +28,10 @@ def _cue_store_focus_rect(name):
         renpy.capture_focus(name)
     else:
         rect = renpy.focus_coordinates()
-        anchors = getattr(_cue, '_popper_anchors', None)
-        if anchors is None:
-            _cue._popper_anchors = {}
-            anchors = _cue._popper_anchors
         if rect[0] is not None:
-            anchors[name] = rect
+            _cue_popper_anchors[name] = rect
         else:
-            anchors.pop(name, None)
+            _cue_popper_anchors.pop(name, None)
 
 def _cue_clear_focus_rect(name):
     # type: (str) -> None
@@ -39,9 +39,7 @@ def _cue_clear_focus_rect(name):
     if _v >= (8, 0, 0):
         renpy.clear_capture_focus(name)
     else:
-        anchors = getattr(_cue, '_popper_anchors', None)
-        if anchors is not None:
-            anchors.pop(name, None)
+        _cue_popper_anchors.pop(name, None)
 
 def _cue_get_focus_rect(name):
     # type: (str) -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]
@@ -52,10 +50,7 @@ def _cue_get_focus_rect(name):
             return rect
         return (None, None, None, None)
     else:
-        anchors = getattr(_cue, '_popper_anchors', None)
-        if anchors is None:
-            return (None, None, None, None)
-        return anchors.get(name, (None, None, None, None))
+        return _cue_popper_anchors.get(name, (None, None, None, None))
 
 
 # --- Placement algorithm ---

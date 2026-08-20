@@ -2,8 +2,6 @@
 # Tests for cue_lib.ui.popper -- focus-rect helpers, the placement algorithm,
 # arrow drawing, and the CuePopper displayable's render/add lifecycle.
 
-import types
-
 import pytest
 
 import renpy as _renpy
@@ -122,10 +120,10 @@ def test_draw_arrow_directions():
 # ==========================================================================
 
 @pytest.fixture
-def anchors(monkeypatch):
-    cue = types.SimpleNamespace(_popper_anchors={"btn": (0, 0, 40, 20)})
-    monkeypatch.setattr(_pop, "_cue", cue)
-    return cue
+def anchors():
+    _pop._cue_popper_anchors = {"btn": (0, 0, 40, 20)}
+    yield _pop._cue_popper_anchors
+    _pop._cue_popper_anchors = {}
 
 
 def test_store_focus_rect_v8_captures(monkeypatch):
@@ -140,14 +138,14 @@ def test_store_focus_rect_v7_stores(anchors, monkeypatch):
     monkeypatch.setattr(_renpy, "version_tuple", (7, 4, 10))
     monkeypatch.setattr(_renpy, "focus_coordinates", lambda: (1, 2, 3, 4))
     _cue_store_focus_rect("btn")
-    assert anchors._popper_anchors["btn"] == (1, 2, 3, 4)
+    assert _pop._cue_popper_anchors["btn"] == (1, 2, 3, 4)
 
 
 def test_store_focus_rect_v7_none_removes(anchors, monkeypatch):
     monkeypatch.setattr(_renpy, "version_tuple", (7, 4, 10))
     monkeypatch.setattr(_renpy, "focus_coordinates", lambda: (None, None, None, None))
     _cue_store_focus_rect("btn")
-    assert "btn" not in anchors._popper_anchors
+    assert "btn" not in _pop._cue_popper_anchors
 
 
 def test_clear_focus_rect_v8(monkeypatch):
@@ -161,7 +159,7 @@ def test_clear_focus_rect_v8(monkeypatch):
 def test_clear_focus_rect_v7_pops(anchors, monkeypatch):
     monkeypatch.setattr(_renpy, "version_tuple", (7, 4, 10))
     _cue_clear_focus_rect("btn")
-    assert "btn" not in anchors._popper_anchors
+    assert "btn" not in _pop._cue_popper_anchors
 
 
 def test_get_focus_rect_v8_returns_rect(monkeypatch):
@@ -182,10 +180,10 @@ def test_get_focus_rect_v7_from_anchors(anchors, monkeypatch):
     assert _cue_get_focus_rect("missing") == (None, None, None, None)
 
 
-def test_get_focus_rect_v7_no_anchors_attr(monkeypatch):
-    # _cue without a _popper_anchors attribute at all -> None tuple.
+def test_get_focus_rect_v7_empty_anchors(monkeypatch):
+    # No stored anchor -> None tuple.
     monkeypatch.setattr(_renpy, "version_tuple", (7, 4, 10))
-    monkeypatch.setattr(_pop, "_cue", types.SimpleNamespace())
+    _pop._cue_popper_anchors = {}
     assert _cue_get_focus_rect("btn") == (None, None, None, None)
 
 
@@ -195,11 +193,11 @@ def test_get_focus_rect_v7_no_anchors_attr(monkeypatch):
 
 @pytest.fixture
 def popper(monkeypatch):
-    cue = types.SimpleNamespace(_popper_anchors={"target": (100, 100, 50, 30)})
-    monkeypatch.setattr(_pop, "_cue", cue)
+    _pop._cue_popper_anchors = {"target": (100, 100, 50, 30)}
     monkeypatch.setattr(_renpy, "version_tuple", (7, 4, 10))
     p = CuePopper(target="target", placement="top")
-    return p, cue
+    yield p, _pop._cue_popper_anchors
+    _pop._cue_popper_anchors = {}
 
 
 def test_popper_empty_children_renders_blank(popper):
@@ -222,7 +220,7 @@ def test_popper_render_with_stored_rect(popper):
 
 def test_popper_render_no_focus_rect(popper):
     p, _cue = popper
-    _cue._popper_anchors = {}
+    _cue.clear()
     p.add("child")
     r = p.render(400, 300, 0.0, 0.0)
     assert p._stored_rect is None
@@ -237,7 +235,7 @@ def test_popper_render_hide_after_delay(popper, monkeypatch):
     first = p.render(400, 300, 0.0, 0.0)  # mouse outside -> arm hide timer
     assert p._hide_st is not None
     second = p.render(400, 300, 0.2, 0.0)  # past the delay -> clear + early return
-    assert "target" not in _cue._popper_anchors
+    assert "target" not in _cue
     assert p._stored_rect is None
     assert second.blits == []
 

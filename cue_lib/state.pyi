@@ -93,15 +93,7 @@ class Cue:
     _shake_just_happened: bool
     _preview_channel: Optional[str]
     _logged_unknown_displayables: Set[Tuple[str, str]]
-    _marker_tip_text: str
-    _marker_tip_x: int
-    _marker_tip_y: int
-    _popper_anchors: Dict[str, Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]]
     _create_delete_speed: Optional[Tuple[str, float]]
-    _vtl_screen_x: int
-    _vtl_screen_y: int
-    _chart_screen_x: int
-    _chart_screen_y: int
 
     def toggle_section(self, section_name: str) -> None: ...
 

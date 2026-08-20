@@ -111,7 +111,7 @@ def _seed_marker_file(cue_env, name, content):
 
 
 def _backup_zip(cue_env):
-    """Write backups/backup.zip from the current live tree."""
+    """Write backups/renpy_cue_backup.zip from the current live tree."""
     zip_path = os.path.join(cue_env.paths.root, CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME)
     os.makedirs(os.path.dirname(zip_path), exist_ok=True)
     zip_shared_tree(cue_env.paths.root, zip_path)
@@ -241,7 +241,7 @@ def test_restore_db_closed_noop(cue_env, backups):
 
 
 def test_restore_no_zip_noop(cue_env, backups):
-    backups.restore()  # no backup.zip on disk -> must not raise
+    backups.restore()  # no renpy_cue_backup.zip on disk -> must not raise
 
 
 def test_restore_invalid_zip_noop(cue_env, backups):
@@ -261,7 +261,7 @@ def test_restore_valid_zip_confirms(cue_env, backups):
     backups._confirm_dialog = confirm
     backups.restore()
     assert len(confirm.show_calls) == 1
-    assert "Restore from backups/backup.zip?" in confirm.show_calls[0][0]
+    assert "Restore from backups/renpy_cue_backup.zip?" in confirm.show_calls[0][0]
 
 
 # ==========================================================================

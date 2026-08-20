@@ -24,6 +24,14 @@ from cue_lib.ui.displayables import (
 from renpy.display.core import IgnoreEvent
 
 
+@pytest.fixture(autouse=True)
+def _reset_marker_tip_mailbox():
+    # Class-level tip state persists across tests -- clear it each time.
+    CueVideoMarkerTimeline._marker_tip_text = ""
+    CueVideoMarkerTimeline._marker_tip_x = 0
+    CueVideoMarkerTimeline._marker_tip_y = 0
+
+
 # ==========================================================================
 # Key-capture helpers
 # ==========================================================================
@@ -106,8 +114,6 @@ def vtl(monkeypatch):
         seek_to=lambda t: seeks.append(t),
     )
     cue = types.SimpleNamespace(vid_manager=vid)
-    cue._vtl_screen_x = 0
-    cue._vtl_screen_y = 0
     monkeypatch.setattr(_displ, "_cue", cue)
     monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (200, 400))
     return types.SimpleNamespace(cue=cue, vid=vid, seeks=seeks,
@@ -156,8 +162,8 @@ def test_vtl_event_mousemotion_updates_screen_offsets(vtl, monkeypatch):
     monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (250, 410))
     ev = types.SimpleNamespace(type=_pygame.MOUSEMOTION)
     assert vtl.timeline.event(ev, 50, 10, 0.0) is None
-    assert vtl.cue._vtl_screen_x == 200
-    assert vtl.cue._vtl_screen_y == 400
+    assert vtl.timeline._screen_x == 200
+    assert vtl.timeline._screen_y == 400
 
 
 def test_vtl_event_click_on_bar_seeks(vtl):
@@ -203,9 +209,6 @@ def _make_mtl(monkeypatch, markers_list, dur=10.0, speed=1.0, selected=None):
     repeater = types.SimpleNamespace(compute_preview_times=lambda: [])
     cue = types.SimpleNamespace(markers=markers, speed_resolver=speed_resolver,
                                 repeater=repeater)
-    cue._marker_tip_text = ""
-    cue._marker_tip_x = 0
-    cue._marker_tip_y = 0
     monkeypatch.setattr(_displ, "_cue", cue)
 
     calls = {"set_time": [], "set_active_index": [], "finalize": 0}
@@ -241,7 +244,7 @@ def test_mtl_render_basic(monkeypatch):
     ops = r.canvas().ops
     # 2 marker line-rects + 2 tab-rects.
     assert len([op for op in ops if op[0] == "rect"]) == 4
-    assert env.cue._marker_tip_text == ""
+    assert CueVideoMarkerTimeline._marker_tip_text == ""
 
 
 def test_mtl_render_scaled_and_preview(monkeypatch):
@@ -325,7 +328,7 @@ def test_mtl_render_uses_px_cache_when_dur_zero(monkeypatch):
     assert r is not None
 
 
-def test_mtl_render_stores_tip_into_cue(monkeypatch):
+def test_mtl_render_publishes_tip(monkeypatch):
     env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}])
     env.tl._tip_text = "Tip!"
     env.tl._screen_x = 10
@@ -333,9 +336,9 @@ def test_mtl_render_stores_tip_into_cue(monkeypatch):
     env.tl._tip_x = 30
     env.tl._tip_y = 40
     env.tl.render(200, 60, 0.0, 0.0)
-    assert env.cue._marker_tip_text == "Tip!"
-    assert env.cue._marker_tip_x == 10 + 30 + 10
-    assert env.cue._marker_tip_y == 20 + 40
+    assert CueVideoMarkerTimeline._marker_tip_text == "Tip!"
+    assert CueVideoMarkerTimeline._marker_tip_x == 10 + 30 + 10
+    assert CueVideoMarkerTimeline._marker_tip_y == 20 + 40
 
 
 def test_mtl_event_mousemotion_hover_sets_tip(monkeypatch):
@@ -708,16 +711,15 @@ def test_tooltip_focus_clamps_to_right_edge(monkeypatch):
 # CueMarkerTooltipOverlay
 # ==========================================================================
 
-def test_tooltip_overlay_empty(monkeypatch):
-    monkeypatch.setattr(_displ, "_cue", types.SimpleNamespace())
+def test_tooltip_overlay_empty():
     r = CueMarkerTooltipOverlay().render(800, 600, 0.0, 0.0)
     assert r.width == 1
 
 
-def test_tooltip_overlay_with_text(monkeypatch):
-    cue = types.SimpleNamespace(_marker_tip_text="Tip", _marker_tip_x=50,
-                                _marker_tip_y=60)
-    monkeypatch.setattr(_displ, "_cue", cue)
+def test_tooltip_overlay_with_text():
+    CueVideoMarkerTimeline._marker_tip_text = "Tip"
+    CueVideoMarkerTimeline._marker_tip_x = 50
+    CueVideoMarkerTimeline._marker_tip_y = 60
     r = CueMarkerTooltipOverlay().render(800, 600, 0.0, 0.0)
     assert r.blits[0][1] == (50, 60)
 
@@ -752,8 +754,6 @@ def chart(monkeypatch):
         current_step_index=lambda: 1,
     )
     cue = types.SimpleNamespace(current_file="v.ogv", video_sequence=seq)
-    cue._chart_screen_x = 0
-    cue._chart_screen_y = 0
     monkeypatch.setattr(_displ, "_cue", cue)
     monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (500, 500))
     return types.SimpleNamespace(cue=cue, seq=seq, chart=CueAutoSpeedChart())
@@ -819,8 +819,8 @@ def test_chart_event_mousemotion(monkeypatch, chart):
     monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (300, 250))
     ev = types.SimpleNamespace(type=_pygame.MOUSEMOTION)
     assert chart.chart.event(ev, 40, 30, 0.0) is None
-    assert chart.cue._chart_screen_x == 260
-    assert chart.cue._chart_screen_y == 220
+    assert chart.chart._screen_x == 260
+    assert chart.chart._screen_y == 220
 
 
 # ==========================================================================

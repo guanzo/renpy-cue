@@ -76,14 +76,6 @@ class Cue(_renpy_python.NoRollback):
         self._shake_just_happened = False
         self._preview_channel = None
         self._logged_unknown_displayables = set()
-        self._marker_tip_text = ""
-        self._marker_tip_x = 0
-        self._marker_tip_y = 0
-        self._popper_anchors = {}
-        self._vtl_screen_x = 0
-        self._vtl_screen_y = 0
-        self._chart_screen_x = 0
-        self._chart_screen_y = 0
 
     # ------------------------------------------------------------------
     # Scene state (read-through to ctx)

@@ -122,6 +122,8 @@ class CueVideoTimeline(Displayable):
         self.interval = interval
         self._w = 1
         self._bar_y = 0
+        self._screen_x = 0
+        self._screen_y = 0
 
     def render(self, width, height, st, at):
         # type: (int, int, float, float) -> Any
@@ -155,8 +157,8 @@ class CueVideoTimeline(Displayable):
 
         if dur > 0 and _cue.vid_manager.channel:
             mx, my = renpy.get_mouse_pos()
-            bx = getattr(_cue, '_vtl_screen_x', -999)
-            by = getattr(_cue, '_vtl_screen_y', -999)
+            bx = self._screen_x
+            by = self._screen_y
             rx, ry = mx - bx, my - by
             if 0 <= rx <= width and bar_y <= ry <= bar_y + self.BAR_H:
                 frac = max(0.0, min(1.0, rx / float(max(1, width))))
@@ -183,8 +185,8 @@ class CueVideoTimeline(Displayable):
         # type: (Any, int, int, float) -> Optional[Any]
         if ev.type == pygame.MOUSEMOTION:
             mx, my = renpy.get_mouse_pos()
-            _cue._vtl_screen_x = mx - x
-            _cue._vtl_screen_y = my - y
+            self._screen_x = mx - x
+            self._screen_y = my - y
             renpy.redraw(self, 0)
             return None
         if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
@@ -205,6 +207,12 @@ class CueVideoTimeline(Displayable):
 
 class CueVideoMarkerTimeline(Displayable):
     """Timeline with draggable marker tabs."""
+
+    # Published for CueMarkerTooltipOverlay -- one timeline is visible at a
+    # time, so class-level state is the shared mailbox.
+    _marker_tip_text = ""
+    _marker_tip_x = 0
+    _marker_tip_y = 0
 
     TRACK_H = 10
     TAB_H = 14
@@ -356,11 +364,11 @@ class CueVideoMarkerTimeline(Displayable):
             r.blit(ptr, (pbx + (self.TAB_W - ptw) // 2, pby))
 
         if self._tip_text:
-            _cue._marker_tip_text = self._tip_text
-            _cue._marker_tip_x = self._screen_x + self._tip_x + 10
-            _cue._marker_tip_y = self._screen_y + self._tip_y
+            CueVideoMarkerTimeline._marker_tip_text = self._tip_text
+            CueVideoMarkerTimeline._marker_tip_x = self._screen_x + self._tip_x + 10
+            CueVideoMarkerTimeline._marker_tip_y = self._screen_y + self._tip_y
         else:
-            _cue._marker_tip_text = ""
+            CueVideoMarkerTimeline._marker_tip_text = ""
 
         renpy.redraw(self, 0.05)
         return r
@@ -649,7 +657,7 @@ class CueMarkerTooltipOverlay(Displayable):
     def render(self, width, height, st, at):
         # type: (int, int, float, float) -> Any
         renpy.redraw(self, 0.05)
-        text = getattr(_cue, '_marker_tip_text', None) or ""
+        text = CueVideoMarkerTimeline._marker_tip_text or ""
         if not text:
             return renpy.Render(1, 1)
 
@@ -664,8 +672,8 @@ class CueMarkerTooltipOverlay(Displayable):
         tip.canvas().rect("#2e2e2e", (0, 0, fw, fh))
         tip.blit(tip_render, (4, 2))
 
-        tx = getattr(_cue, '_marker_tip_x', 0)
-        ty = getattr(_cue, '_marker_tip_y', 0)
+        tx = CueVideoMarkerTimeline._marker_tip_x
+        ty = CueVideoMarkerTimeline._marker_tip_y
 
         r = renpy.Render(1, 1)
         r.blit(tip, (tx, ty))
@@ -697,6 +705,8 @@ class CueAutoSpeedChart(Displayable):
         # type: (float, **Any) -> None
         super(CueAutoSpeedChart, self).__init__(**properties)
         self.interval = interval
+        self._screen_x = 0
+        self._screen_y = 0
 
     @staticmethod
     def _compute_points(speeds, width, height):
@@ -791,8 +801,8 @@ class CueAutoSpeedChart(Displayable):
         # --- Hover tooltip ---
         try:
             mx, my = renpy.get_mouse_pos()
-            bx = getattr(_cue, '_chart_screen_x', -9999)
-            by_ = getattr(_cue, '_chart_screen_y', -9999)
+            bx = self._screen_x
+            by_ = self._screen_y
             rx, ry = mx - bx, my - by_
             # Only show tooltip when the mouse is inside the chart.
             if 0 <= rx <= width and 0 <= ry <= height:
@@ -833,8 +843,8 @@ class CueAutoSpeedChart(Displayable):
         # type: (Any, int, int, float) -> Optional[Any]
         if ev.type == pygame.MOUSEMOTION:
             mx, my = renpy.get_mouse_pos()
-            _cue._chart_screen_x = mx - x
-            _cue._chart_screen_y = my - y
+            self._screen_x = mx - x
+            self._screen_y = my - y
             renpy.redraw(self, 0)
         return None
 
