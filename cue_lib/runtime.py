@@ -10,6 +10,7 @@ import time as _time
 
 from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
 from cue_lib.constants import CuePage
+from cue_lib.markers import _cue_load_scalars_from_persistent
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_flush_debug_log, _cue_unwrap_displayable,
@@ -98,25 +99,34 @@ def _cue_show_overlay():
     renpy.show_screen("cue_overlay", _layer="cue_layer")
     renpy.restart_interaction()
 
-def _cue_refresh_overlay():
+def _cue_full_reload():
     # type: () -> None
-    """Reload overlay data: markers+presets, SFX/music scans, then re-derive
-    the current context against the freshly loaded data.
+    """Reload every in-memory layer from the current effective root.
 
-    Markers are reloaded from the effective root (load_persistent reads
+    Markers reload from the effective root (load_persistent reads
     paths.marker_dir, which follows an active import), so activating an
-    import actually serves the package's markers instead of the live tree's.
-    Context refresh runs last so the trigger/context drivers resolve pools
-    against the new data, not the pre-swap markers.
-    """
+    import serves the package's markers instead of the live tree's.
+
+    Idempotent: safe to call at boot, on import activate/deactivate, and after
+    a restore.  Every step re-derives state from disk or the effective paths --
+    none accumulates -- so any number of calls converges to the same state.
+    Ends with a context refresh so the trigger drivers resolve pools against
+    the freshly loaded data."""
     _cue.markers.load_persistent()
+    _cue_load_scalars_from_persistent()
+    _cue.markers.reload_presets()
     _cue.music.reload_presets()
 
     _cue.sfx_manager.scan()
     _cue.music.user_music.scan()
+    _cue.music.game_music.scan()
+    _cue.sfx_manager._recent.load()  # pyright: ignore[reportOptionalMemberAccess]
+    _cue.music._recent.load()
 
     _cue.sfx_manager.maybe_rebuild()
     _cue.music.library.maybe_rebuild()
+    _cue.undo.reset()
+    _cue.video_editor.refresh()
 
     _cue_refresh_context()
 

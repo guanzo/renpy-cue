@@ -68,7 +68,7 @@ init -999 python:
 
     from cue_lib.runtime import (
         _cue_toggle_overlay, _cue_show_overlay, _cue_hide_overlay,
-        _cue_refresh_overlay,
+        _cue_full_reload,
         _cue_refresh_context, _cue_log_context, _cue_get_top_layer,
         _cue_refresh_channel, _cue_tick_trigger, _cue_play_sfx,
         _cue_preview_sfx,
@@ -219,10 +219,10 @@ init -900 python:
         icons = CueIconManager(paths)
         music = CueMusicManager(_cue.ctx, marker_store, db, paths)
         
-        # importer swaps the effective root while active and needs the overlay
-        # refresh to repaint; _cue_refresh_overlay is a store global bound at
-        # init -999.  exporter and merge_dialog complete the import/export set.
-        importer = CueImportManager(paths, db, _cue_refresh_overlay)
+        # importer swaps the effective root while active and reloads via the
+        # store-global full reload; exporter and merge_dialog complete the
+        # import/export set.
+        importer = CueImportManager(paths, db, _cue_full_reload)
         exporter = CueExportManager(paths)
         merge_dialog = CueMergeDialog(importer)
 
@@ -419,19 +419,12 @@ init 999 python:
     def _cue_load_initial_data():
         """Hydrate the freshly-wired managers from persistent/shared config and
         prime the SFX/music libraries.  Runs once, right after callbacks."""
-        # Load markers from persistent so SFX work immediately (before overlay is ever opened)
-        _cue.markers.load_persistent()
-        _cue_load_scalars_from_persistent()
+        # Everything reloadable goes through the one idempotent entry point;
+        # what remains is one-time boot wiring (restore queue, movie wrap,
+        # renpy music patch) that must not re-run on later full reloads.
+        _cue_full_reload()
         _cue.video_editor.job_queue.load_from_persistent()
-        _cue.undo.seed()  # seed undo baseline after initial load
         _cue.speed_resolver.wrap_all_movies()
-        
-        _cue.sfx_manager.scan()
-        _cue.sfx_manager._recent.load()
-
-        _cue.music.user_music.scan()
-        _cue.music.game_music.scan()
-        _cue.music._recent.load()
         _cue.music.install()
 
         _cue.initialized = True

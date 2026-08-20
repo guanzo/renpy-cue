@@ -24,6 +24,7 @@ import renpy.store as _store
 
 import cue_lib.backup as _backup
 import cue_lib.markers as _markers
+import cue_lib.runtime as _runtime
 from cue_lib.backup import zip_shared_tree
 from cue_lib.constants import CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME
 from cue_lib.marker_store import CueMarkerStore
@@ -38,46 +39,76 @@ GAME_ID = "test_game"
 
 
 class FakeMusicRestore(object):
-    """Music-manager stand-in for _reload_after_restore's re-scan + re-merge.
+    """Music-manager stand-in for _cue_full_reload's re-scan + re-merge.
     The real manager is always wired by the time a restore runs (overlay button
-    after init), so user_music/library must exist here too."""
+    after init), so user_music/library/game_music/_recent must exist here too."""
 
     def __init__(self):
         self.user_music = types.SimpleNamespace(scan_calls=0)
         self.library = types.SimpleNamespace(maybe_rebuild_calls=0)
+        self.game_music = types.SimpleNamespace(scan_calls=0)
+        self.reload_presets_calls = 0
+        self._recent = types.SimpleNamespace(load_calls=0)
 
         def _scan():
             self.user_music.scan_calls += 1
         self.user_music.scan = _scan
 
+        def _game_music_scan():
+            self.game_music.scan_calls += 1
+        self.game_music.scan = _game_music_scan
+
         def _maybe_rebuild():
             self.library.maybe_rebuild_calls += 1
         self.library.maybe_rebuild = _maybe_rebuild
 
+        def _reload_presets():
+            self.reload_presets_calls += 1
+        self.reload_presets = _reload_presets
+
+        def _recent_load():
+            self._recent.load_calls += 1
+        self._recent.load = _recent_load
+
 
 def _make_fake_cue():
     """Module-singleton stand-in carrying every attribute the persistence
-    glue dereferences: undo (reset), music, db (shared config), and the
-    scalar-fan-out siblings."""
+    glue dereferences: undo (reset), music, db (shared config), the
+    scalar-fan-out siblings, and the markers manager (wired by the `mgr`
+    fixture -- full reload routes through _cue.markers)."""
+    sfx = FakeSfxManager()
+    sfx._recent = types.SimpleNamespace(load_calls=0)
+
+    def _sfx_recent_load():
+        sfx._recent.load_calls += 1
+    sfx._recent.load = _sfx_recent_load
+
     return types.SimpleNamespace(
         undo=FakeUndo(),
         music=FakeMusicRestore(),
         db=FakeDb(),
-        sfx_manager=FakeSfxManager(),
+        sfx_manager=sfx,
         trigger=FakeTrigger(),
         video_editor=FakeVideoEditor(),
         speed_resolver=types.SimpleNamespace(seamless_transition=False),
+        markers=None,
     )
 
 
 @pytest.fixture
-def mgr(cue_env):
+def mgr(cue_env, _fake_singletons):
+    fake = _fake_singletons
     store = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
     ctx = CueContext()
     vid = FakeVidManager(duration=10.0)
-    sfx = FakeSfxManager()
-    editor = FakeVideoEditor()
-    return CueMarkerManager(ctx, store, vid, sfx, FakeTrigger(), editor)
+    # Full reload drives _cue.sfx_manager/_cue.video_editor, so the manager
+    # must be built on the same instances the fake singleton exposes -- the
+    # assertions read those call counters back through mgr.
+    sfx = fake.sfx_manager
+    editor = fake.video_editor
+    mgr = CueMarkerManager(ctx, store, vid, sfx, FakeTrigger(), editor)
+    fake.markers = mgr
+    return mgr
 
 
 @pytest.fixture
@@ -97,6 +128,11 @@ def _fake_singletons(monkeypatch):
     fake = _make_fake_cue()
     monkeypatch.setattr(_markers, "_cue", fake)
     monkeypatch.setattr(_markers, "persistent", _store.persistent)
+    monkeypatch.setattr(_runtime, "_cue", fake)  # _cue_full_reload lives in runtime.py
+    # Full reload's tail re-derives the current context; that is runtime's
+    # concern (exercised in test_runtime.py), so no-op it here to keep the
+    # restore tests focused on the reload plumbing.
+    monkeypatch.setattr(_runtime, "_cue_refresh_context", lambda: None)
     return fake
 
 
@@ -215,7 +251,9 @@ def test_finish_reload_error(cue_env, backups, monkeypatch):
 
     def _boom(*args, **kwargs):
         raise RuntimeError("boom")
-    monkeypatch.setattr(_markers, "_cue_load_scalars_from_persistent", _boom)
+    # full_reload now lives in runtime.py, so its module-global scalars call is
+    # runtime's binding, not markers'.
+    monkeypatch.setattr(_runtime, "_cue_load_scalars_from_persistent", _boom)
 
     backups._restore_worker(zip_path)
     backups._finish_reload()

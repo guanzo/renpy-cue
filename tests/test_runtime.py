@@ -15,7 +15,9 @@ import pytest
 import renpy as _renpy
 import renpy.audio.audio as _aaudio
 import renpy.audio.music as _music_mock
+import renpy.store as _store
 
+import cue_lib.markers as _markers
 import cue_lib.runtime as _runtime
 import cue_lib.settings as _settings
 import cue_lib.util as _util
@@ -31,8 +33,10 @@ def cue(monkeypatch, tmp_path):
     root = str(tmp_path / "cue_root")
     c = make_runtime_cue(root=root, audio_dir=root + "/audio/")
     monkeypatch.setattr(_runtime, "_cue", c)
+    monkeypatch.setattr(_markers, "_cue", c)  # _cue_full_reload reads markers._cue
     monkeypatch.setattr(_util, "_cue", c)  # _cue_resolve_files/_cue_pick_file
     monkeypatch.setattr(_settings, "_cue", c)  # CueSettings methods read _cue
+    _store.persistent._cue = None  # fresh scalar-migration state per test
     _music_mock._reset_all()
     _aaudio.channels.clear()
     _runtime._cue_slow_tick_last = 0.0
@@ -85,17 +89,17 @@ def test_hide_overlay(cue):
     assert cue.is_overlay_visible is False
 
 
-def test_refresh_overlay_scans_and_reloads(cue):
-    _runtime._cue_refresh_overlay()
+def test_full_reload_scans_and_reloads(cue):
+    _runtime._cue_full_reload()
     assert cue.calls["markers.load_persistent"] == [((), {})]
     assert cue.calls["music.reload_presets"] == [((), {})]
     assert cue.calls["sfx_manager.scan"] == [((), {})]
     assert cue.calls["music.user_music.scan"] == [((), {})]
 
 
-def test_refresh_overlay_reloads_markers_from_effective_root(cue, tmp_path):
+def test_full_reload_serves_markers_from_effective_root(cue, tmp_path):
     """Import isolation contract: activating an import swaps the in-memory
-    markers, not just the path pointer.  _cue_refresh_overlay reloads markers
+    markers, not just the path pointer.  _cue_full_reload reloads markers
     from paths.marker_dir, which follows _active_root, so a refresh after the
     swap serves the package's markers instead of the live tree's.
 
@@ -131,14 +135,14 @@ def test_refresh_overlay_reloads_markers_from_effective_root(cue, tmp_path):
         f.write('{"_key": "v_import", "pools": []}')
 
     # Live root: the editor serves the live tree's markers.
-    _runtime._cue_refresh_overlay()
+    _runtime._cue_full_reload()
     assert "v_live" in cue.markers
     assert "v_import" not in cue.markers
 
-    # Activate an import: swap the effective root, then the same refresh the
+    # Activate an import: swap the effective root, then the same reload the
     # imports manager runs must serve the package's markers instead.
     paths._active_root = imp_root
-    _runtime._cue_refresh_overlay()
+    _runtime._cue_full_reload()
     assert "v_import" in cue.markers
     assert "v_live" not in cue.markers
 

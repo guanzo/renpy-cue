@@ -527,19 +527,13 @@ class CueMarkerManager(object):
         if db is None or not db.is_open():
             return
         db.open()
-        # Reload the stores from the restored files.  load_persistent
-        # treats an empty marker dir as fresh and skips presets, so
-        # re-read presets to cover a markerless-but-preset restore.
-        self.load_persistent()
-        _cue_load_scalars_from_persistent()
-        self.reload_presets()
+        # The session-created bookkeeping no longer matches the restored data
+        # (merge-only restore can surface files this session never created).
         self._session_created = set()
-        _cue.undo.reset()
-        # Re-scan the media folders so restored audio/music/video shows up.
-        self._sfx_manager.scan()
-        _cue.music.user_music.scan()
-        _cue.music.library.maybe_rebuild()
-        self._video_editor.refresh()
+        # Lazy import breaks the markers <-> runtime cycle: runtime.py imports
+        # _cue_load_scalars_from_persistent at module load.
+        from cue_lib.runtime import _cue_full_reload
+        _cue_full_reload()
         # Capture the restored tree in a fresh auto-backup.
         db._backup.force_backup()
         renpy.restart_interaction()

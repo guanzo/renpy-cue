@@ -293,10 +293,14 @@ class FakeSfxManager(object):
         self.files = files if files is not None else []
         self.disabled_files = disabled_files if disabled_files is not None else set()
         self.scan_calls = 0
+        self.rebuild_calls = 0
         self._recent = None  # type: Optional[FakeRecent]  # set by recording tests
 
     def scan(self):
         self.scan_calls += 1
+
+    def maybe_rebuild(self):
+        self.rebuild_calls += 1
 
 
 class FakeTrigger(object):
@@ -415,12 +419,14 @@ def make_runtime_cue(root="", audio_dir=""):
         poll_autopause=_rec("vid_manager", "poll_autopause"),
     )
 
-    # sfx_manager -- files/disabled_files read by _cue_resolve_files
+    # sfx_manager -- files/disabled_files read by _cue_resolve_files, plus the
+    # _recent/scan/maybe_rebuild surface _cue_full_reload drives
     cue.sfx_manager = types.SimpleNamespace(
         files=[],
         disabled_files=set(),
         _next_sfx_channel=0,
         _preview_channel=None,
+        _recent=types.SimpleNamespace(load=_rec("sfx_manager._recent", "load")),
         scan=_rec("sfx_manager", "scan"),
         rebuild_tree=_rec("sfx_manager", "rebuild_tree"),
         maybe_rebuild=_rec("sfx_manager", "maybe_rebuild"),
@@ -434,8 +440,10 @@ def make_runtime_cue(root="", audio_dir=""):
             maybe_rebuild=_rec("music.user_music", "maybe_rebuild"),
         ),
         game_music=types.SimpleNamespace(
+            scan=_rec("music.game_music", "scan"),
             maybe_rebuild=_rec("music.game_music", "maybe_rebuild"),
         ),
+        _recent=types.SimpleNamespace(load=_rec("music._recent", "load")),
         capture_display=_rec("music", "capture_display"),
         play_custom_music=_rec("music", "play_custom_music"),
         play_untracked=_rec("music", "play_untracked"),
@@ -449,10 +457,20 @@ def make_runtime_cue(root="", audio_dir=""):
 
     # video_editor -- processing flag gates job_queue.poll
     cue.video_editor = types.SimpleNamespace(
+        MODE_INTERPOLATE=0,
         processing=False,
         job_queue=types.SimpleNamespace(poll=_rec("video_editor.job_queue", "poll")),
         refresh=_rec("video_editor", "refresh"),
         poll_extract=_rec("video_editor", "poll_extract"),
+    )
+
+    # undo -- _cue_full_reload re-seeds the undo baseline on every reload
+    cue.undo = types.SimpleNamespace(reset=_rec("undo", "reset"))
+
+    # db -- shared-config surface read/written by _cue_load_scalars_from_persistent
+    cue.db = types.SimpleNamespace(
+        load_shared_config=lambda: {},
+        save_shared_config=_rec("db", "save_shared_config"),
     )
 
     cue.volume = types.SimpleNamespace(

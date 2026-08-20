@@ -212,7 +212,7 @@ screen cue_header_toolbar():
                 _pause_tt)
             use cue_icon_btn(
                 "rotate-right",
-                Function(_cue_refresh_overlay),
+                Function(_cue_full_reload),
                 "Refresh")
             null width 5
 
