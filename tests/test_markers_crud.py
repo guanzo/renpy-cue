@@ -28,7 +28,7 @@ def mgr(cue_env):
     vid = FakeVidManager(duration=10.0)
     sfx = FakeSfxManager()
     trigger = FakeTrigger()
-    return CueMarkerManager(ctx, store, vid, sfx, trigger, None, None)
+    return CueMarkerManager(ctx, store, vid, sfx, trigger, None)
 
 
 @pytest.fixture(autouse=True)

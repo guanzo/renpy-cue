@@ -221,6 +221,21 @@ def test_missing_files_lists_absent_paths():
     assert _imp._cue_missing_files(None, set()) == []
 
 
+def test_missing_files_coerces_unicode_and_bytes(monkeypatch):
+    """Py2: manifest rels decode from json as unicode, zip names come back
+    from zipfile as raw str bytes.  Without _to_str bridging both sides, a
+    non-ASCII filename present in the zip is falsely reported missing."""
+    # Simulate Py2's _to_str (a no-op on Py3): decode the bytes side to
+    # unicode so the membership compare sees two equal values.
+    monkeypatch.setattr(
+        _imp, "_to_str",
+        lambda obj: obj.decode("utf-8") if isinstance(obj, bytes) else obj,
+    )
+    m = _imp._cue_build_manifest("g1", "", "", "", ["music/café.ogg"])
+    zip_names = [b"music/caf\xc3\xa9.ogg"]  # Py2 str bytes, not Py3 .encode()
+    assert _imp._cue_missing_files(m, zip_names) == []
+
+
 # ---------------------------------------------------------------------------
 # filename sanitization
 # ---------------------------------------------------------------------------

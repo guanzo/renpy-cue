@@ -209,6 +209,25 @@ def test_update_shared_config_merges(db):
     assert config["keybinds"] == {"cue_undo": ["K_q"]}
 
 
+def test_load_shared_config_coerces_to_str(db, monkeypatch):
+    """Loaded values must be native `str`, like load_markers does.
+
+    Python 2 (Ren'Py 7.x) json decodes to `unicode`; leaving it uncoerced
+    breaks consumers that guard with isinstance(x, str) -- e.g. keybind
+    overrides are all rejected as "invalid" and never applied on restart.
+    """
+    db.save_shared_config({"keybinds": {"cue_toggle_sfx_active": "alt_K_3"}})
+
+    import cue_lib.db as _db_module
+
+    calls = []
+    monkeypatch.setattr(
+        _db_module, "_to_str", lambda obj: calls.append(obj) or obj
+    )
+    db.load_shared_config()
+    assert calls, "load_shared_config must run loaded values through _to_str"
+
+
 # ---------------------------------------------------------------------------
 # Low-level file helpers
 # ---------------------------------------------------------------------------

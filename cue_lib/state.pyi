@@ -23,6 +23,7 @@ from cue_lib.undo import CueUndoManager
 from cue_lib.video.video import CueVideoManager
 from cue_lib.video.video_editor import CueVideoEditor
 from cue_lib.db import CueDatabase
+from cue_lib.backup import CueBackupManager
 from cue_lib.volume import CueVolumeManager
 from cue_lib.audio.music import CueMusicManager
 from cue_lib.keybinds import CueKeybindsManager
@@ -65,6 +66,7 @@ class Cue:
     _has_relative_volume: bool
 
     db: CueDatabase
+    backups: CueBackupManager
     paths: CuePaths
     marker_store: CueMarkerStore
     markers: CueMarkerManager

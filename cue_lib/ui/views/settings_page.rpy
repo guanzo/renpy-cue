@@ -16,8 +16,9 @@ screen cue_settings_page():
                 text "Settings" style "cue_hdr" xoffset 4
                 yminimum 0
 
-            use cue_data_dir()
             use cue_settings_keybinds()
+            use cue_data_dir()
+            use cue_settings_backup()
 
 screen cue_data_dir():
     style_group "cue"
@@ -71,6 +72,49 @@ screen cue_settings_keybinds():
                             action=Function(_cue_keybind_reset, _kb["id"]),
                             tt="Reset to default",
                         )
+
+
+screen cue_settings_backup():
+    style_group "cue"
+
+    $ _backup_busy = _cue.backups.is_backing_up or _cue.backups.is_restoring
+
+    if _backup_busy:
+        timer 0.1 repeat True action Function(renpy.restart_interaction, _update_screens=False)
+
+    use cue_section_frame("Backup & Restore"):
+        vbox:
+            spacing 8
+            text ("Backup data folder to backups/backup.zip, or restore that "
+                "backup's data over the current game.")
+            hbox:
+                spacing 8
+                use cue_txt_button(
+                    "Back Up", Function(_cue.backups.backup),
+                    sensitive=(not _backup_busy))
+
+                if _cue.backups.is_backing_up:
+                    $ _backup_pct = int(_cue.backups.backup_fraction * 100)
+                    text ("Backing up... ({}%)".format(_backup_pct)) color _cue_color_text_muted
+                if _cue.backups.backup_error:
+                    text _cue.backups.backup_error color _cue_color_error
+                elif _cue.backups.backup_status:
+                    text _cue.backups.backup_status color _cue_color_green
+
+            text ("Restore merges the backup over current data. Anything "
+                "in the data folder that's not in the backup is untouched.")
+            hbox:
+                spacing 8
+                use cue_txt_button(
+                    "Restore", Function(_cue.backups.restore),
+                    sensitive=(not _backup_busy))
+
+                if _cue.backups.is_restoring:
+                    text "Restoring..." color _cue_color_text_muted
+                if _cue.backups.restore_error:
+                    text _cue.backups.restore_error color _cue_color_error
+                elif _cue.backups.restore_status:
+                    text _cue.backups.restore_status color _cue_color_green
 
 
 # -----------------------------------------------------------------------------

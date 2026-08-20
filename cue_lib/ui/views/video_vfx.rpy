@@ -322,7 +322,7 @@ screen cue_auto_preset_btn(preset_name, auto):
     elif _is_active and auto.is_shuffle_mode:
         # Shuffle delegate -- this preset is playing, but shuffle is the mode (yellow)
         textbutton _label:
-            background "#887722"
+            background _cue_color_dark_yellow
             action NullAction()
             tooltip _desc
     elif _is_active:

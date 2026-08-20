@@ -204,7 +204,7 @@ class CueMergeDialog(object):
         text = "Merge {} file(s) into your data.".format(len(filtered))
         if self.overwrites:
             plural = "s" if len(self.overwrites) != 1 else ""
-            text += "\n\n{} file{} will be overwritten (files are backed up to data_bak).".format(
+            text += "\n\n{} file{} will be overwritten\n(files are backed up to data_bak).".format(
                 len(self.overwrites), plural)
         entry = self._imports.import_for(self.imp)
         missing = (entry.get("missing") or []) if entry else []

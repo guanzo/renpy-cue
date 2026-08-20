@@ -13,12 +13,9 @@
 # (db, paths) plus an on_save callback for post-write side effects (undo
 # capture), so the whole layer is testable against a real CueDatabase.
 
-import errno
-import os
 import copy as _copy
 import renpy
 
-from cue_lib.backup import CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME, zip_shared_tree
 from cue_lib.constants import CUE_VOLUME_DEFAULT, CueExclusiveStart, CueLoopFrequency
 from cue_lib.util import (
     _cue_log,
@@ -668,34 +665,3 @@ class CueMarkerStore(object):
         self._migrate_speed_mode_rename()
         self._migrate_legacy_exclusive()
 
-    # -- backup --
-
-    def backup_to_file(self):
-        # type: () -> None
-        """Zip the shared data/ tree plus audio/ and music/ to
-        {shared}/backups/backup.zip."""
-        try:
-            db = self._db
-            if db is None or not db.is_open():
-                return
-            if not os.path.isdir(os.path.join(self._paths.root, "data")):
-                _cue_log("DUMP-MARKERS-NO-DATA")
-                return
-            backups_dir = os.path.join(self._paths.root, CUE_BACKUP_DIR)
-            if not os.path.isdir(backups_dir):
-                try:
-                    os.makedirs(backups_dir)
-                except OSError as e:
-                    # The auto-backup thread (db._backup) can create
-                    # {root}/backups/ between the isdir check and here -- its
-                    # makedirs of backups/auto/ creates the parent first.
-                    # EEXIST is benign; anything else is a real failure.
-                    if e.errno != errno.EEXIST:
-                        raise
-            zip_path = os.path.join(backups_dir, CUE_MANUAL_BACKUP_NAME)
-            tmp_path = os.path.join(
-                backups_dir, "{}.{}.tmp".format(CUE_MANUAL_BACKUP_NAME, self._paths.game_id))
-            count = zip_shared_tree(self._paths.root, zip_path, tmp_path)
-            _cue_log("DUMP-MARKERS files={} path={}".format(count, zip_path))
-        except Exception as e:
-            _cue_log("DUMP-MARKERS-ERROR {}".format(str(e)))

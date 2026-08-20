@@ -364,14 +364,12 @@ class CueImportManager(object):
         self._paths._active_root = imp_dir
         self.is_active = True
         self.active_import = imp
-        self._db._backup.set_paused(True)
         self._refresh_overlay()
 
     def deactivate(self):
         # type: () -> None
         """Drop the overlay back to the live data tree."""
         self._paths._active_root = None
-        self._db._backup.set_paused(False)
         self.is_active = False
         self.active_import = None
         self._refresh_overlay()

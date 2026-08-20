@@ -19,7 +19,7 @@ def mgr(cue_env):
     ctx = CueContext()
     vid = FakeVidManager(duration=10.0)
     sfx = FakeSfxManager(files=["a.ogg", "b.ogg"])
-    return CueMarkerManager(ctx, store, vid, sfx, None, None, None)
+    return CueMarkerManager(ctx, store, vid, sfx, None, None)
 
 
 # --- scene-state helpers: the same flags the SFX page derives ---

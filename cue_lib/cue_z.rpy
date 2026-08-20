@@ -224,13 +224,12 @@ init -900 python:
         merge_dialog = CueMergeDialog(importer)
 
         # markers is the coordinator, wired LAST so every injected collaborator
-        # (vid_manager, sfx_manager, trigger, video_editor, confirm_dialog) is
-        # already constructed.  The store is its data layer; ctx carries the
-        # per-scene context state.
+        # (vid_manager, sfx_manager, trigger, video_editor) is already
+        # constructed.  The store is its data layer; ctx carries the per-scene
+        # context state.
         markers = CueMarkerManager(
             _cue.ctx, marker_store, vid_manager,
-            sfx_manager, trigger, video_editor,
-            confirm_dialog)
+            sfx_manager, trigger, video_editor)
 
         # The "Recently Used" list lives on the SFX library manager: it records
         # SFX send_* attempts (the marker contexts funnel through
@@ -271,6 +270,12 @@ init -900 python:
         _cue.icons = icons
         _cue.music = music
         _cue.markers = markers
+        # Manual backup/restore collaborators only exist after full init: the
+        # open db (guard), the marker reload callback (main-thread), and the
+        # confirm dialog.  Auto backup needs no wiring -- db owns it.
+        _cue.backups = db._backup
+        _cue.backups.manual.wire(
+            db, markers._reload_after_restore, confirm_dialog)
         _cue.importer = importer
         _cue.exporter = exporter
         _cue.dialogs.merge = merge_dialog

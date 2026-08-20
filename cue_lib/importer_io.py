@@ -233,7 +233,10 @@ def _cue_missing_files(manifest, zip_names):
     contents = manifest.get("contents")
     if not isinstance(contents, list):
         return []
-    return [rel for rel in contents if rel not in zip_names]
+    # Py2: manifest rels are unicode (json), zip names are str bytes.  Coerce
+    # both so a non-ASCII filename present in the zip isn't falsely missing.
+    zip_set = set(_to_str(n) for n in zip_names)
+    return [rel for rel in contents if _to_str(rel) not in zip_set]
 
 
 def _cue_load_manifest(imp_dir):

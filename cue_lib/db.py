@@ -118,7 +118,7 @@ class CueDatabase(object):
         # type: (CuePaths) -> None
         self.paths = paths         # the one CuePaths (shared with _cue for the live db)
         self._open = False
-        self._backup = CueBackupManager(paths.root, paths.game_id)
+        self._backup = CueBackupManager(paths)
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -319,7 +319,7 @@ class CueDatabase(object):
             return {}
         try:
             with open(fpath, "r") as f:
-                return _json.load(f)
+                return _to_str(_json.load(f))
         except Exception:
             _cue_log("SHARED-CONFIG: load failed for {}".format(fpath))
             return {}

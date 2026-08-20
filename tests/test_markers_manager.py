@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # Tests for cue_lib.markers.CueMarkerManager -- the coordinator that wraps a
 # real CueMarkerStore and delegates to it.  The store runs on a real
-# CueDatabase + CuePaths (cue_env, tmp dirs); the five collaborators are
-# fakes (FakeVidManager / FakeSfxManager) or plain None since the tested
-# methods never touch trigger/video_editor/confirm_dialog.
+# CueDatabase + CuePaths (cue_env, tmp dirs); the collaborators are fakes
+# (FakeVidManager / FakeSfxManager) or plain None since the tested methods
+# never touch trigger/video_editor.
 
 import pytest
 
@@ -21,7 +21,7 @@ def mgr(cue_env):
     ctx = CueContext()
     vid = FakeVidManager(duration=10.0)
     sfx = FakeSfxManager()
-    return CueMarkerManager(ctx, store, vid, sfx, None, None, None)
+    return CueMarkerManager(ctx, store, vid, sfx, None, None)
 
 
 # ---------------------------------------------------------------------------
@@ -510,10 +510,6 @@ def test_delete_removed_files_no_removals(mgr):
 
 def test_load_persistent(mgr):
     mgr.load_persistent()
-
-
-def test_backup_to_file(mgr):
-    mgr.backup_to_file()
 
 
 def test_reload_presets_merges_nothing(mgr):

@@ -3,22 +3,17 @@
 # Instantiated once at _cue.markers, lives on the NoRollback _cue object.
 #
 # The coordinator for the marker system: owns the context sub-objects,
-# sfx/video-dependent preset operations, scalar-load fan-out, backup/restore
-# glue, and the clipboard.  All marker data (entries, presets, migrations,
-# persistence) lives in self._store (CueMarkerStore), wired in before this
-# manager in cue_z.rpy.  Data methods are delegated to the store so contexts
-# and external consumers keep a single stable surface on _cue.markers.
+# sfx/video-dependent preset operations, scalar-load fan-out, the post-restore
+# reload callback, and the clipboard.  All marker data (entries, presets,
+# migrations, persistence) lives in self._store (CueMarkerStore), wired in
+# before this manager in cue_z.rpy.  Data methods are delegated to the store so
+# contexts and external consumers keep a single stable surface on _cue.markers.
 
-import os
 import copy as _copy
 import renpy
 
-from renpy.store import Function, persistent
+from renpy.store import persistent
 
-from cue_lib.backup import (
-    CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME,
-    validate_backup_zip, restore_pieces,
-)
 from cue_lib.constants import (
     CUE_VOLUME_DEFAULT, CueExclusiveStart as CueExclusiveStart, CueLoopFrequency as CueLoopFrequency,
     CueContextType,
@@ -45,7 +40,6 @@ if MYPY:
     from cue_lib.audio.sfx_manager import CueSfxManager  # pyright: ignore[reportUnusedImport]
     from cue_lib.trigger import CueTriggerEngine  # pyright: ignore[reportUnusedImport]
     from cue_lib.video.video_editor import CueVideoEditor  # pyright: ignore[reportUnusedImport]
-    from cue_lib.ui.dialogs import CueConfirmDialog  # pyright: ignore[reportUnusedImport]
 
 
 # =========================================================================
@@ -63,15 +57,14 @@ _CUE_TARGET_CONTEXT_IDS = (
 
 class CueMarkerManager(object):
 
-    def __init__(self, ctx, store, vid_manager, sfx_manager, trigger, video_editor, confirm_dialog):
-        # type: (CueContext, CueMarkerStore, CueVideoManager, CueSfxManager, CueTriggerEngine, CueVideoEditor, CueConfirmDialog) -> None
+    def __init__(self, ctx, store, vid_manager, sfx_manager, trigger, video_editor):
+        # type: (CueContext, CueMarkerStore, CueVideoManager, CueSfxManager, CueTriggerEngine, CueVideoEditor) -> None
         self._store = store
         self._ctx = ctx
         self._vid_manager = vid_manager
         self._sfx_manager = sfx_manager
         self._trigger = trigger
         self._video_editor = video_editor
-        self._confirm_dialog = confirm_dialog
         # pyright can't unify the source `self` with the stub-declared manager
         # type that context.pyi imports back in -- suppress per line.
         self.image = CueImageContext(self)  # pyright: ignore[reportArgumentType]
@@ -522,69 +515,35 @@ class CueMarkerManager(object):
 
 
     # ------------------------------------------------------------------
-    # Backup / restore
+    # Post-restore reload (callback for CueManualBackupManager)
     # ------------------------------------------------------------------
 
-    def backup_to_file(self):
-        # type: () -> None
-        """Zip the shared data/ tree to {shared}/backups/backup.zip."""
-        self._store.backup_to_file()
-
-    def restore_from_file(self):
-        # type: () -> None
-        """Validate backup.zip, then ask the user to confirm a restore."""
+    def _reload_after_restore(self, count):
+        # type: (int) -> None
+        """Reload in-memory state from restored files.  Main thread only --
+        touches persistent and the Ren'Py store.  Called by the manual backup
+        manager (cue_lib/backup.py) once the background restore merge is done."""
         db = self._store._db
         if db is None or not db.is_open():
             return
-        zip_path = os.path.join(self._store._paths.root, CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME)
-        if not os.path.isfile(zip_path):
-            _cue_log("RESTORE-MARKERS-NO-FILE path={}".format(zip_path))
-            return
-        ok, reason = validate_backup_zip(zip_path)
-        if not ok:
-            _cue_log("RESTORE-MARKERS-INVALID {}".format(reason))
-            return
-        self._confirm_dialog.show(
-            "Restore from backups/backup.zip? This will overwrite this "
-            "game's markers, presets, shared config, and the audio/ and "
-            "music/ folders with the backup's version. Data not included in "
-            "the backup (including anything added after, and other games' "
-            "markers) is left untouched. Previous data is saved to data_bak.",
-            Function(self._apply_restore, zip_path),
-        )
-
-    def _apply_restore(self, zip_path):
-        # type: (str) -> None
-        """Merge backup.zip over the live tree, then reload in-memory state."""
-        try:
-            db = self._store._db
-            if db is None or not db.is_open():
-                return
-            # Don't mutate the live tree while the auto-backup is zipping it.
-            if not db._backup.wait_until_idle():
-                _cue_log("RESTORE-MARKERS: timed out waiting for auto backup")
-                return
-            count = restore_pieces(zip_path, self._store._paths.root, self._store._paths.game_id)
-            db.open()
-            # Reload the stores from the restored files.  load_persistent
-            # treats an empty marker dir as fresh and skips presets, so
-            # re-read presets to cover a markerless-but-preset restore.
-            self.load_persistent()
-            _cue_load_scalars_from_persistent()
-            self.reload_presets()
-            self._session_created = set()
-            _cue.undo.reset()
-            # Re-scan the media folders so restored audio/music shows up.
-            self._sfx_manager.scan()
-            _cue.music.user_music.scan()
-            _cue.music.library.maybe_rebuild()
-            self._video_editor.refresh()
-            # Capture the restored tree in a fresh auto-backup.
-            db._backup.force_backup()
-            renpy.restart_interaction()
-            _cue_log("RESTORE-MARKERS ok files={}".format(count))
-        except Exception as e:
-            _cue_log("RESTORE-MARKERS-ERROR {}".format(str(e)))
+        db.open()
+        # Reload the stores from the restored files.  load_persistent
+        # treats an empty marker dir as fresh and skips presets, so
+        # re-read presets to cover a markerless-but-preset restore.
+        self.load_persistent()
+        _cue_load_scalars_from_persistent()
+        self.reload_presets()
+        self._session_created = set()
+        _cue.undo.reset()
+        # Re-scan the media folders so restored audio/music/video shows up.
+        self._sfx_manager.scan()
+        _cue.music.user_music.scan()
+        _cue.music.library.maybe_rebuild()
+        self._video_editor.refresh()
+        # Capture the restored tree in a fresh auto-backup.
+        db._backup.force_backup()
+        renpy.restart_interaction()
+        _cue_log("RESTORE-MARKERS ok files={}".format(count))
 
     # -- clipboard --
 

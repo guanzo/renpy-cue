@@ -39,8 +39,9 @@ screen cue_key_listener():
 
     if CUE_DEBUG:
         key CUE_KEYMAP_QUIT_RELAUNCH action Function(renpy.quit, relaunch=True)
-        
+
     timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
+    timer 1 repeat True action Function(_cue.backups.poll, _update_screens=False)
 
 ###############################################################################
 # Main Overlay — the sidebar frame.
@@ -60,7 +61,6 @@ screen cue_overlay():
 
     zorder 9999
     modal False
-
 
     $ _z = _cue_overlay_zoom()
 
@@ -110,7 +110,7 @@ screen cue_overlay_content():
         vbox:
             spacing 5
 
-            # --- Top bar: active checkbox + copy + paste + dump + restore + refresh + close ---
+            # --- Top bar: active checkbox + copy + paste + undo/redo + refresh + close ---
             use cue_header_toolbar()
 
             # While an import is active the editor edits the import, not live
@@ -157,8 +157,9 @@ screen cue_overlay_content():
 screen cue_header_toolbar():
     style_group "cue"
 
-    $ _sfx_toggle_on_tt = "SFX triggers are ON ({} to toggle)".format(_cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_ACTIVE))
-    $ _sfx_toggle_off_tt = "SFX triggers are OFF ({} to toggle)".format(_cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_ACTIVE))
+    $ _sfx_toggle_keys = _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_ACTIVE)
+    $ _sfx_toggle_on_tt = "SFX triggers are ON ({} to toggle)".format(_sfx_toggle_keys)
+    $ _sfx_toggle_off_tt = "SFX triggers are OFF ({} to toggle)".format(_sfx_toggle_keys)
     $ _copy_tt = "Copy current scene markers (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_COPY_CONTEXT) + ")"
     $ _paste_tt = "Paste markers (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_PASTE_CONTEXT) + ")"
     $ _undo_tt = "Undo (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_UNDO) + ")"
@@ -203,12 +204,6 @@ screen cue_header_toolbar():
 
             use cue_icon_btn("undo", Function(_cue.undo.undo), _undo_tt, enabled=_cue.undo.can_undo())
             use cue_icon_btn("redo", Function(_cue.undo.redo), _redo_tt, enabled=_cue.undo.can_redo())
-            null width 5
-
-            $ _backup_tooltip = "Back up data to backups/backup.zip"
-            use cue_icon_btn("floppy-disk", Function(_cue.markers.backup_to_file), _backup_tooltip)
-            $ _restore_tooltip = "Restore data from backups/backup.zip"
-            use cue_icon_btn("folder-open", Function(_cue.markers.restore_from_file), _restore_tooltip)
             null width 5
 
             use cue_icon_btn(

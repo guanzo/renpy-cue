@@ -11,7 +11,13 @@
 import os
 import sys
 
-from cue_lib.constants import CUE_DIR_OVERRIDE_FILENAME, CUE_SHARED_CONFIG_FILENAME
+from cue_lib.constants import (
+    CUE_BACKUP_AUTO_DIR,
+    CUE_BACKUP_DIR,
+    CUE_DIR_OVERRIDE_FILENAME,
+    CUE_MANUAL_BACKUP_NAME,
+    CUE_SHARED_CONFIG_FILENAME,
+)
 
 MYPY = False
 if MYPY:
@@ -43,7 +49,7 @@ class CuePaths(object):
 
     def __init__(self, root, game_id):
         # type: (str, str) -> None
-        self._root = root
+        self._original_root = root
         self._game_id = game_id
         # Set while an import is active; every serving dir then resolves
         # against the import instead of the live data tree.
@@ -54,7 +60,7 @@ class CuePaths(object):
         # type: () -> str
         """Effective root: the active import if one is active, else
         the original data root."""
-        return self._active_root if self._active_root is not None else self._root
+        return self._active_root if self._active_root is not None else self._original_root
 
     @property
     def original_root(self):
@@ -62,7 +68,7 @@ class CuePaths(object):
         """The original data root, never the active import.  Used for
         imports/exports dirs, the Settings shared-dir field, and anywhere a
         path must stay on the user's real data."""
-        return self._root
+        return self._original_root
 
     @property
     def game_id(self):
@@ -207,4 +213,26 @@ class CuePaths(object):
     @property
     def shared_config_path(self):
         # type: () -> str
-        return os.path.join(self._root, "data", CUE_SHARED_CONFIG_FILENAME)
+        return os.path.join(self._original_root, "data", CUE_SHARED_CONFIG_FILENAME)
+
+    # ------------------------------------------------------------------
+    # Backup tree -- {root}/backups/.  Automatic backups live under
+    # auto/; the manual backup is a single named zip at the root.  These
+    # use _original_root (never the active import) -- backups are real user data
+    # and must stay on the live shared tree, like shared_config_path.
+    # ------------------------------------------------------------------
+
+    @property
+    def backups_dir(self):
+        # type: () -> str
+        return os.path.join(self._original_root, CUE_BACKUP_DIR)
+
+    @property
+    def auto_backups_dir(self):
+        # type: () -> str
+        return os.path.join(self.backups_dir, CUE_BACKUP_AUTO_DIR)
+
+    @property
+    def manual_backup_path(self):
+        # type: () -> str
+        return os.path.join(self.backups_dir, CUE_MANUAL_BACKUP_NAME)

@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
-# Tests for cue_lib.markers persistence glue: restore_from_file / _apply_restore,
-# _cue_load_scalars_from_persistent, _cue_paste_context, and the paste_context
-# replay / no-duration branches.
+# Tests for cue_lib.markers persistence glue: _cue_load_scalars_from_persistent,
+# _cue_paste_context, and the paste_context replay / no-duration branches.
+#
+# The restore flow now lives in cue_lib.backup.CueManualBackupManager: the
+# background disk merge (_restore_worker) and the main-thread reload poll
+# (_finish_reload) drive the marker manager's injected _reload_after_restore
+# callback.  These tests wire that callback and drive the manual manager
+# directly.
 #
 # These touch the module-level _cue singleton and renpy persistent, so every
 # test monkeypatches cue_lib.markers._cue to a fake and resets the mock
-# persistent -- nothing here mutates real Ren'Py state.  The _apply_restore
+# persistent -- nothing here mutates real Ren'Py state.  The _reload_after_restore
 # happy path drives a real backup zip (zip_shared_tree) through the real store
 # graph on cue_env, asserting the store reloads from the restored files.
 
@@ -17,10 +22,10 @@ import pytest
 
 import renpy.store as _store
 
+import cue_lib.backup as _backup
 import cue_lib.markers as _markers
-from cue_lib.backup import (
-    CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME, zip_shared_tree,
-)
+from cue_lib.backup import zip_shared_tree
+from cue_lib.constants import CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.markers import CueMarkerManager
 from cue_lib.state import CueContext
@@ -33,8 +38,8 @@ GAME_ID = "test_game"
 
 
 class FakeMusicRestore(object):
-    """Music-manager stand-in for _apply_restore's re-scan + re-merge.  The
-    real manager is always wired by the time a restore runs (overlay button
+    """Music-manager stand-in for _reload_after_restore's re-scan + re-merge.
+    The real manager is always wired by the time a restore runs (overlay button
     after init), so user_music/library must exist here too."""
 
     def __init__(self):
@@ -72,7 +77,16 @@ def mgr(cue_env):
     vid = FakeVidManager(duration=10.0)
     sfx = FakeSfxManager()
     editor = FakeVideoEditor()
-    return CueMarkerManager(ctx, store, vid, sfx, FakeTrigger(), editor, None)
+    return CueMarkerManager(ctx, store, vid, sfx, FakeTrigger(), editor)
+
+
+@pytest.fixture
+def backups(cue_env, mgr):
+    """The manual backup manager, wired to the live db and the marker reload
+    callback (the same wiring cue_z.rpy init -900 performs)."""
+    bm = cue_env.db._backup
+    bm.manual.wire(cue_env.db, mgr._reload_after_restore, None)
+    return bm.manual
 
 
 @pytest.fixture(autouse=True)
@@ -96,21 +110,29 @@ def _seed_marker_file(cue_env, name, content):
     return path
 
 
+def _backup_zip(cue_env):
+    """Write backups/backup.zip from the current live tree."""
+    zip_path = os.path.join(cue_env.paths.root, CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME)
+    os.makedirs(os.path.dirname(zip_path), exist_ok=True)
+    zip_shared_tree(cue_env.paths.root, zip_path)
+    return zip_path
+
+
 # ==========================================================================
-# _apply_restore -- happy path through a real backup zip
+# restore -- the disk phase (_restore_worker) + the main-thread reload
+# (_finish_reload / poll), split so the merge runs in the background
 # ==========================================================================
 
-def test_apply_restore_reloads_store_from_zip(cue_env, mgr, _fake_singletons):
+def test_restore_reloads_store_from_zip(cue_env, mgr, backups, _fake_singletons):
     # _key is authoritative (the DB writes it into every marker file; the
     # filename heuristic is only a fallback).
     _seed_marker_file(cue_env, "v_scene.ogv.json",
                       '{"_key": "v_scene.ogv", "pools": [{"time": 1.0, "files": ["a.ogg"]}]}')
+    zip_path = _backup_zip(cue_env)
 
-    zip_path = os.path.join(cue_env.paths.root, CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME)
-    os.makedirs(os.path.dirname(zip_path), exist_ok=True)
-    zip_shared_tree(cue_env.paths.root, zip_path)
-
-    mgr._apply_restore(zip_path)
+    backups._restore_worker(zip_path)
+    assert backups._restore_pending is True
+    backups._finish_reload()
 
     # Store reloaded from the restored marker file.
     assert mgr._store._data["v_scene.ogv"]["pools"][0]["files"] == ["a.ogg"]
@@ -121,46 +143,88 @@ def test_apply_restore_reloads_store_from_zip(cue_env, mgr, _fake_singletons):
     assert mgr._video_editor.refresh_calls == 1
     assert _markers._cue.undo.reset_calls == 1
     assert mgr._session_created == set()
+    assert backups.restore_status.startswith("Restored 1 files")
+
+
+def test_restore_busy_noop(cue_env, backups):
+    backups.is_restoring = True
+    backups._restore_thread = None
+    backups._apply_restore("whatever.zip")
+    assert backups._restore_thread is None  # busy guard swallowed the spawn
+
+
+def test_restore_spawns_background_thread(cue_env, mgr, backups, _fake_singletons):
+    _seed_marker_file(cue_env, "v_scene.ogv.json",
+                      '{"_key": "v_scene.ogv", "pools": []}')
+    zip_path = _backup_zip(cue_env)
+
+    backups._apply_restore(zip_path)
+    assert backups.is_restoring is True
+    assert backups._restore_thread is not None
+    backups._restore_thread.join(timeout=10)
+
+    assert backups.is_restoring is False
+    assert backups._restore_pending is True
+    backups.poll()
+    assert backups._restore_pending is False
+    assert mgr._store._data["v_scene.ogv"]["pools"] == []
 
 
 # ==========================================================================
-# _apply_restore -- guard / branch coverage
+# restore -- guard / branch coverage
 # ==========================================================================
 
-def test_apply_restore_db_closed_noop(cue_env, mgr):
+def test_restore_worker_db_closed_noop(cue_env, backups):
     cue_env.db.close()
-    mgr._apply_restore("whatever.zip")  # must not raise
+    backups._restore_worker("whatever.zip")  # must not raise
+    assert backups._restore_pending is False
 
 
-def test_apply_restore_wait_timeout_noop(cue_env, mgr, monkeypatch):
-    monkeypatch.setattr(cue_env.db._backup, "wait_until_idle", lambda: False)
-    mgr._apply_restore("whatever.zip")  # must not raise
+def test_restore_worker_wait_timeout_noop(cue_env, backups, monkeypatch):
+    monkeypatch.setattr(cue_env.db._backup.auto, "wait_until_idle", lambda: False)
+    backups._restore_worker("whatever.zip")  # must not raise
+    assert "auto-backup" in backups.restore_error
 
 
-def test_apply_restore_scans_restored_music(cue_env, mgr):
+def test_restore_scans_restored_music(cue_env, backups, _fake_singletons):
     _seed_marker_file(cue_env, "v_scene.ogv.json",
                       '{"_key": "v_scene.ogv", "pools": [{"time": 1.0, "files": ["a.ogg"]}]}')
-    zip_path = os.path.join(cue_env.paths.root, CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME)
-    os.makedirs(os.path.dirname(zip_path), exist_ok=True)
-    zip_shared_tree(cue_env.paths.root, zip_path)
+    zip_path = _backup_zip(cue_env)
 
     scanned = []
-    _markers._cue.music = types.SimpleNamespace(user_music=types.SimpleNamespace(
-        scan=lambda: scanned.append(1)))
-    mgr._apply_restore(zip_path)
+    _fake_singletons.music.user_music.scan = lambda: scanned.append(1)
+    backups._restore_worker(zip_path)
+    backups._finish_reload()
     assert scanned == [1]
 
 
-def test_apply_restore_error_handled(cue_env, mgr, monkeypatch):
+def test_restore_worker_error_handled(cue_env, backups, monkeypatch):
     def _boom(*args, **kwargs):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(_markers, "restore_pieces", _boom)
-    mgr._apply_restore("whatever.zip")  # must not raise
+    monkeypatch.setattr(_backup, "restore_pieces", _boom)
+    backups._restore_worker("whatever.zip")  # must not raise
+    assert "Restore failed" in backups.restore_error
+    assert backups._restore_pending is False
+
+
+def test_finish_reload_error(cue_env, backups, monkeypatch):
+    _seed_marker_file(cue_env, "v_scene.ogv.json",
+                      '{"_key": "v_scene.ogv", "pools": [{"time": 1.0, "files": ["a.ogg"]}]}')
+    zip_path = _backup_zip(cue_env)
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(_markers, "_cue_load_scalars_from_persistent", _boom)
+
+    backups._restore_worker(zip_path)
+    backups._finish_reload()
+    assert "Restore reload failed" in backups.restore_error
+    assert backups._restore_pending is False
 
 
 # ==========================================================================
-# restore_from_file
+# restore -- the Restore button entry point
 # ==========================================================================
 
 class _FakeConfirmDialog(object):
@@ -171,33 +235,31 @@ class _FakeConfirmDialog(object):
         self.show_calls.append((message, action))
 
 
-def test_restore_from_file_db_closed_noop(cue_env, mgr):
+def test_restore_db_closed_noop(cue_env, backups):
     cue_env.db.close()
-    mgr.restore_from_file()  # must not raise
+    backups.restore()  # must not raise
 
 
-def test_restore_from_file_no_zip_noop(cue_env, mgr):
-    mgr.restore_from_file()  # no backup.zip on disk -> must not raise
+def test_restore_no_zip_noop(cue_env, backups):
+    backups.restore()  # no backup.zip on disk -> must not raise
 
 
-def test_restore_from_file_invalid_zip_noop(cue_env, mgr):
+def test_restore_invalid_zip_noop(cue_env, backups):
     zip_path = os.path.join(cue_env.paths.root, CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME)
     os.makedirs(os.path.dirname(zip_path), exist_ok=True)
     with open(zip_path, "w") as f:
         f.write("not a zip")
-    mgr.restore_from_file()  # must not raise
+    backups.restore()  # must not raise
 
 
-def test_restore_from_file_valid_zip_confirms(cue_env, mgr):
+def test_restore_valid_zip_confirms(cue_env, backups):
     _seed_marker_file(cue_env, "v_scene.ogv.json",
                       '{"_key": "v_scene.ogv", "pools": [{"time": 1.0, "files": ["a.ogg"]}]}')
-    zip_path = os.path.join(cue_env.paths.root, CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME)
-    os.makedirs(os.path.dirname(zip_path), exist_ok=True)
-    zip_shared_tree(cue_env.paths.root, zip_path)
+    zip_path = _backup_zip(cue_env)
 
     confirm = _FakeConfirmDialog()
-    mgr._confirm_dialog = confirm
-    mgr.restore_from_file()
+    backups._confirm_dialog = confirm
+    backups.restore()
     assert len(confirm.show_calls) == 1
     assert "Restore from backups/backup.zip?" in confirm.show_calls[0][0]
 

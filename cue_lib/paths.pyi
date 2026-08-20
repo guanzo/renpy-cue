@@ -2,7 +2,7 @@
 from typing import Optional
 
 class CuePaths:
-    _root: str
+    _original_root: str
     _game_id: str
     _active_root: Optional[str]
 
@@ -42,3 +42,9 @@ class CuePaths:
     def video_dir(self) -> str: ...
     @property
     def shared_config_path(self) -> str: ...
+    @property
+    def backups_dir(self) -> str: ...
+    @property
+    def auto_backups_dir(self) -> str: ...
+    @property
+    def manual_backup_path(self) -> str: ...

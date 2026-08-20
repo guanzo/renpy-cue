@@ -460,14 +460,12 @@ def test_activate_swaps_root_and_pauses_backup(cue_env, tmp_path, import_threads
     assert cue_env.paths.audio_dir == os.path.join(expected, "audio") + "/"
     assert cue_env.paths.shared_config_path == os.path.join(
         str(tmp_path / "cue_root"), "data", "cue_config.json")
-    assert cue_env.db._backup._is_paused is True
     assert len(calls) == 1
 
     mgr.deactivate()
 
     assert cue_env.paths._active_root is None
     assert cue_env.paths.root == str(tmp_path / "cue_root")
-    assert cue_env.db._backup._is_paused is False
     assert mgr.is_active is False
     assert mgr.active_import is None
     assert len(calls) == 2

@@ -146,9 +146,7 @@ screen cue_export_section():
             null height 4
 
             if _exporter.is_exporting:
-                # Redraw every 0.1s while the build runs so the percentage
-                # ticks up without any user input.
-                timer 0.1 repeat True action NullAction()
+                timer 0.1 repeat True action Function(renpy.restart_interaction, _update_screens=False)
 
             hbox:
                 spacing 5
@@ -177,9 +175,7 @@ screen cue_import_imports():
         if _cue.importer.scan_error:
             text _cue.importer.scan_error color _cue_color_error
         if _cue.importer.is_importing:
-            # Redraw every 0.1s while an extraction runs so the percentage
-            # ticks up; the scan poll picks the import up when it's done.
-            timer 0.1 repeat True action NullAction()
+            timer 0.1 repeat True action Function(renpy.restart_interaction, _update_screens=False)
             $ _imp_pct = int(_cue.importer.import_fraction * 100)
             text ("Extracting {} ({}%)...".format(
                 _cue.importer.import_label, _imp_pct)) color _cue_color_text_muted

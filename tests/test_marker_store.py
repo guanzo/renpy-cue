@@ -8,13 +8,10 @@
 # layer lacked before the extraction: existing marker tests only exercised the
 # context sub-objects through FakeManager.
 
-import errno
 import os
-import shutil
 
 import pytest
 
-from cue_lib.backup import CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME
 from cue_lib.constants import CUE_VOLUME_DEFAULT, CueLoopFrequency
 from cue_lib.marker_store import CueMarkerStore
 
@@ -379,14 +376,6 @@ def test_delete_removed_files_preset_only_when_session_created(store, cue_env):
     assert "Old" in fresh._presets
 
 
-def test_backup_to_file_creates_zip(store, cue_env):
-    store._data["v_a"] = {"pools": []}
-    store.save_all()
-    store.backup_to_file()
-    zip_path = os.path.join(cue_env.paths.root, CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME)
-    assert os.path.isfile(zip_path)
-
-
 # ---------------------------------------------------------------------------
 # on_save hook
 # ---------------------------------------------------------------------------
@@ -602,21 +591,3 @@ def test_load_from_db_no_db_resets(cue_env):
     s.load_from_db()
     assert s._data == {}
     assert s._video_presets == {}
-
-
-def test_backup_to_file_no_db_returns(cue_env):
-    s = CueMarkerStore(None, cue_env.paths)
-    s.backup_to_file()  # must not raise
-
-
-def test_backup_to_file_no_data_dir_logs(store, cue_env):
-    shutil.rmtree(os.path.join(cue_env.paths.root, "data"))
-    store.backup_to_file()  # must not raise
-
-
-def test_backup_to_file_makedirs_error_logged(store, cue_env, monkeypatch):
-    def _boom(path):
-        raise OSError(errno.EACCES, "denied")
-    monkeypatch.setattr(os, "makedirs", _boom)
-
-    store.backup_to_file()  # must not raise; re-raised error is logged

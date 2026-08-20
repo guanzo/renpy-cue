@@ -117,7 +117,7 @@ def test_refresh_overlay_reloads_markers_from_effective_root(cue, tmp_path):
     store = CueMarkerStore(db, paths, lambda: None)
     cue.markers = CueMarkerManager(
         CueContext(), store, FakeVidManager(duration=10.0),
-        FakeSfxManager(), None, None, None)
+        FakeSfxManager(), None, None)
 
     # CueDatabase.open() created the live marker dir; write the live marker.
     live_marker_dir = paths.marker_dir
