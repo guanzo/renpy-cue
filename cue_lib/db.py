@@ -18,14 +18,12 @@ import tempfile as _tempfile
 from cue_lib.util import _cue_log, _cue_replace_file, _to_str
 from cue_lib.backup import CueBackupManager
 from cue_lib.constants import (
+    CUE_HASH_TRUNC_LEN,
     CUE_IMG_KEY_PREFIX,
     CUE_LOOP_KEY_PREFIX,
     CUE_DLG_KEY_PREFIX,
     CUE_VID_KEY_PREFIX,
 )
-
-# Number of characters to keep from a SHA1 hex digest for file naming.
-CUE_HASH_TRUNC_LEN = 8
 
 # Filename for the per-replay default music trigger log, stored directly
 # under markers/{game_id}/.

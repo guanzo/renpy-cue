@@ -1,7 +1,7 @@
 ###############################################################################
 # Cue — bootstrap and wiring.
 # .py modules live in cue_lib/; this file has ONLY the init blocks needed
-# to import the package, bridge names into the Ren'Py store for screens,
+# to import the import, bridge names into the Ren'Py store for screens,
 # and run the one-time runtime setup.
 ###############################################################################
 
@@ -40,10 +40,13 @@ init -999 python:
 
     from cue_lib.constants import (
         CuePage, CueLoopFrequency, CueContextType,
+        CueImportCategory, CueImportMatch, CueExportScope,
+        CueExportFileTypes,
         CUE_DEBUG, CUE_SFX_CHANNEL_COUNT,
         CUE_DEFAULT_VIDEO_SPEED, CUE_POPPER_DEFAULT_OFFSET,
         CUE_POPPER_DEFAULT_MARGIN, CUE_SFX_LIBRARY_HEADER, CUE_AUDIO_EXTS,
         CUE_GAME_MUSIC_DIRS,
+        CUE_IMPORT_CATEGORY_ORDER, CUE_IMPORT_CATEGORY_LABELS,
     )
     from cue_lib.util import (
         create_img_key as _cue_create_img_key,
@@ -154,7 +157,11 @@ init -900 python:
     from cue_lib.audio.recent import CueRecentManager, _cue_keep_sfx, _cue_keep_music
     from cue_lib.constants import CUE_RECENT_SFX_KEY, CUE_RECENT_MUSIC_KEY
     from cue_lib.ui.icons import CueIconManager
-    from cue_lib.ui.dialogs import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
+    from cue_lib.ui.dialogs import (
+        CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog, CueMergeDialog,
+    )
+    from cue_lib.importer import CueImportManager
+    from cue_lib.exporter import CueExportManager
     from cue_lib.db import CueDatabase
     from cue_lib.paths import CuePaths
     from cue_lib.state import _cue
@@ -183,6 +190,7 @@ init -900 python:
         auto_speed = CueAutoSpeedGenerator(
             _cue.ctx, marker_store, speed_resolver,
             vid_manager, video_sequence)
+
         # speed_resolver and auto_speed both take the sequence in their
         # constructors (a cycle), so the sequence late-binds them here.
         video_sequence.bind(speed_resolver, auto_speed)
@@ -191,6 +199,7 @@ init -900 python:
         video_editor = CueVideoEditor(
             _cue.ctx, ffmpeg, speed_resolver,
             vid_manager, paths)
+
         # undo takes the video editor (for post-restore UI refresh); both are
         # referenced only at call time by the store's on_save lambda above.
         undo = CueUndoManager(_cue.ctx, marker_store, video_editor)
@@ -203,6 +212,13 @@ init -900 python:
         keybinds = CueKeybindsManager(db)
         icons = CueIconManager(paths)
         music = CueMusicManager(_cue.ctx, marker_store, db, paths)
+        
+        # importer swaps the effective root while active and needs the overlay
+        # refresh to repaint; _cue_refresh_overlay is a store global bound at
+        # init -999.  exporter and merge_dialog complete the import/export set.
+        importer = CueImportManager(paths, db, _cue_refresh_overlay)
+        exporter = CueExportManager(paths)
+        merge_dialog = CueMergeDialog(importer)
 
         # markers is the coordinator, wired LAST so every injected collaborator
         # (vid_manager, sfx_manager, trigger, video_editor, confirm_dialog) is
@@ -252,6 +268,9 @@ init -900 python:
         _cue.icons = icons
         _cue.music = music
         _cue.markers = markers
+        _cue.importer = importer
+        _cue.exporter = exporter
+        _cue.merge_dialog = merge_dialog
 
     _cue_wire_managers()
 

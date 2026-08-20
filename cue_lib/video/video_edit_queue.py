@@ -497,7 +497,7 @@ class CueVideoEditQueue(object):
                 "The game still has this video file open. "
                 "Advance past this video scene, then try again.")
             job.status = CueJobStatus.ERROR
-            job.error_msg = job._swap_error_msg or "File locked -- retry later"
+            job.error_msg = job._swap_error_msg or "File locked.  Retry later"
             _cue_log("Variant: swap FAILED -- {} (job_id={})".format(
                 job._swap_error_msg or "file locked", job.job_id))
 
@@ -782,5 +782,5 @@ def _cue_swap_job(job):
                 _time.sleep(1.0)
     else:
         job._swap_ok = False
-        job._swap_error_msg = "File locked -- retry later"
+        job._swap_error_msg = "File locked.  Retry later"
     job._swap_done = True

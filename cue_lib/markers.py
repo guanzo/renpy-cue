@@ -548,8 +548,8 @@ class CueMarkerManager(object):
             "Restore from backups/backup.zip? This will overwrite this "
             "game's markers, presets, shared config, and the audio/ and "
             "music/ folders with the backup's version. Data not included in "
-            "the backup -- including anything added after, and other games' "
-            "markers -- is left untouched. Previous data is saved to data_bak.",
+            "the backup (including anything added after, and other games' "
+            "markers) is left untouched. Previous data is saved to data_bak.",
             Function(self._apply_restore, zip_path),
         )
 
@@ -651,7 +651,7 @@ class CueMarkerManager(object):
         ctx_id = self.resolve_target_context()
         ctx = getattr(self, ctx_id)
         if not ctx.has_pools():
-            return "No pool yet -- click + to create one."
+            return "No pool yet.  Click + to create one."
         if ctx_id == CueContextType.VIDEO:
             pool = ctx.get_active_pool()
             return "Pool {} @ {}".format(

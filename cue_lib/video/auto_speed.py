@@ -92,7 +92,7 @@ _CUE_AUTO_PRESETS = {
     },
     "edge": {
         "label": "Edge",
-        "desc":  "Climbs toward peak, then drops suddenly -- never quite gets there",
+        "desc":  "Climbs toward peak, then drops suddenly, never quite getting there",
         "method": "_gen_edge",
     },
     "anchor": {
@@ -102,12 +102,12 @@ _CUE_AUTO_PRESETS = {
     },
     "pulse": {
         "label": "Pulse",
-        "desc":  "Steady repetitive beat — alternates around a central speed",
+        "desc":  "Steady repetitive beat that alternates around a central speed",
         "method": "_gen_pulse",
     },
     "shuffle": {
         "label": "Shuffle",
-        "desc":  "Picks a random rhythm each sequence -- expect anything!",
+        "desc":  "Picks a random rhythm each sequence, so expect anything!",
     },
 }
 

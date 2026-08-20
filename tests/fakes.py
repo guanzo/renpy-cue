@@ -348,7 +348,8 @@ def make_runtime_cue(root="", audio_dir=""):
     from cue_lib.state import Cue
 
     cue = Cue()
-    cue.paths = types.SimpleNamespace(root=root, audio_dir=audio_dir)
+    cue.paths = types.SimpleNamespace(
+        root=root, original_root=root, audio_dir=audio_dir)
     cue.calls = {}
     cue.ensured_pools = []
 
@@ -378,6 +379,7 @@ def make_runtime_cue(root="", audio_dir=""):
         get_preset=_rec("markers", "get_preset"),
         get_video_preset=_rec("markers", "get_video_preset"),
         reload_presets=_rec("markers", "reload_presets"),
+        load_persistent=_rec("markers", "load_persistent"),
         _ensure_pool=_ensure_pool,
         resolve_pool=lambda pool: types.SimpleNamespace(trigger_on_shake=False),
     )
@@ -461,6 +463,8 @@ def make_runtime_cue(root="", audio_dir=""):
         base_path_for=lambda current_file: None,
         is_variant_of=lambda path, target: False,
     )
+    cue.importer = _ns("importer", ["scan"])
+    cue.exporter = _ns("exporter", ["refresh"])
 
     return cue
 

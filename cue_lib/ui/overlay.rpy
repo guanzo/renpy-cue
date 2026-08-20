@@ -55,6 +55,8 @@ screen cue_overlay():
         key CUE_KEYMAP_TARGET_IMAGE action Function(_cue.markers.set_target_context, CueContextType.IMAGE)
         key CUE_KEYMAP_TARGET_DIALOGUE action Function(_cue.markers.set_target_context, CueContextType.DIALOGUE)
         key CUE_KEYMAP_TARGET_LOOP action Function(_cue.markers.set_target_context, CueContextType.LOOP)
+    elif _cue.overlay_active_page == CuePage.IMPORT:
+        timer 2.0 repeat True action Function(_cue.importer.scan)
 
     $ _z = _cue_overlay_zoom()
 
@@ -107,11 +109,19 @@ screen cue_overlay_content():
             # --- Top bar: active checkbox + copy + paste + dump + restore + refresh + close ---
             use cue_header_toolbar()
 
+            # While an import is active the editor edits the import, not live
+            # data; the banner stays clickable (Merge/Deactivate) because it's
+            # above the page.
+            if _cue.importer.is_active:
+                use cue_edit_banner()
+
             # --- Active page replaces all content below the toolbar ---
             if _cue.overlay_active_page == CuePage.SFX:
                 use cue_sfx_page()
             elif _cue.overlay_active_page == CuePage.MUSIC:
                 use cue_music_page()
+            elif _cue.overlay_active_page == CuePage.IMPORT:
+                use cue_import_export_page()
             else:
                 use cue_settings_page()
 
@@ -170,6 +180,9 @@ screen cue_header_toolbar():
             $ _music_bg = _cue_color_active if _cue.overlay_active_page == CuePage.MUSIC else None
             use cue_icon_btn("music", Function(_cue_set_page, CuePage.MUSIC), "Music",
                 bg=_music_bg)
+            $ _import_bg = _cue_color_active if _cue.overlay_active_page == CuePage.IMPORT else None
+            use cue_icon_btn("file-zipper", Function(_cue_set_page, CuePage.IMPORT), "Import / Export",
+                bg=_import_bg)
             $ _settings_bg = _cue_color_active if _cue.overlay_active_page == CuePage.SETTINGS else None
             use cue_icon_btn("gear", Function(_cue_set_page, CuePage.SETTINGS), "Settings",
                 bg=_settings_bg)

@@ -39,6 +39,39 @@ class CuePage(object):
     SFX = 0       # SFX editor (markers / library)
     MUSIC = 1     # Music page
     SETTINGS = 2  # Settings page
+    IMPORT = 3    # Import / Export page
+
+
+class CueImportCategory(object):
+    """Import/export categories.  Each maps to a shared-root path prefix via
+    _cue_import_category in cue_lib/importer_io.py (the single source of that
+    mapping).  UNKNOWN is the catch-all for paths outside the 5 categories."""
+    MARKERS = 0
+    SFX = 1
+    MUSIC = 2
+    SPEED_VARIANTS = 3
+    PRESETS = 4
+    UNKNOWN = 5
+
+
+class CueExportScope(object):
+    """What the export button packs: whole game, or selected replays."""
+    ALL_REPLAYS = 0
+    SPECIFIC_REPLAYS = 1
+
+
+class CueExportFileTypes(object):
+    """File-type filter for the export: everything, or only the checked
+    categories."""
+    ALL = 0
+    SPECIFIC = 1
+
+
+class CueImportMatch(object):
+    """game_id match levels between an import and the current game."""
+    AUTO = 0       # exact -- no user action needed
+    CONFIRM = 1    # heuristic -- surface as a guess the user confirms
+    MISMATCH = 2   # no match -- manual remap required
 
 
 class CueContextType(object):
@@ -190,3 +223,41 @@ CUE_DIR_OVERRIDE_FILENAME = "dir.txt"
 # Shared-config JSON file inside the shared data/ tree (disabled_files,
 # keybinds).  Lives at {shared}/data/cue_config.json.
 CUE_SHARED_CONFIG_FILENAME = "cue_config.json"
+
+# Import format version, bumped only on breaking format changes (not the mod
+# version).  The importer rejects an import whose format is NEWER than this.
+CUE_IMPORT_FORMAT_VERSION = 1
+
+# Manifest filename inside an import zip.  Drives import validation, the merge
+# filter, and the summary counts.
+CUE_IMPORT_MANIFEST_NAME = "manifest.json"
+
+# Subdirs of the shared root where exported imports and dropped-in imports
+# live.  Exports are written here; the user drops .zip files here to import.
+# Both are computed from original_root so they never follow an active import.
+CUE_EXPORT_DIR = "exports"
+# Number of characters to keep from a SHA1 hex digest for file naming.
+# Shared by db._preset_path and importer_io._cue_preset_files -- keep in sync.
+CUE_HASH_TRUNC_LEN = 8
+
+CUE_IMPORT_DIR = "imports"
+# Subdir of imports/ where dropped zips are extracted into editable working
+# copies -- keeps the drop zone archives-only.
+CUE_IMPORT_UNZIP_DIR = "unzipped"
+
+# Canonical checkbox order and labels for the 5 import/export categories.
+# The labels are user-facing; keep them in sync with the order here.
+CUE_IMPORT_CATEGORY_ORDER = (
+    CueImportCategory.MARKERS,
+    CueImportCategory.SFX,
+    CueImportCategory.MUSIC,
+    CueImportCategory.SPEED_VARIANTS,
+    CueImportCategory.PRESETS,
+)
+CUE_IMPORT_CATEGORY_LABELS = {
+    CueImportCategory.MARKERS: "Markers",
+    CueImportCategory.SFX: "SFX files",
+    CueImportCategory.MUSIC: "Music files",
+    CueImportCategory.SPEED_VARIANTS: "Speed variant files",
+    CueImportCategory.PRESETS: "Presets",
+}

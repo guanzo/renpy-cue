@@ -87,10 +87,60 @@ def test_hide_overlay(cue):
 
 def test_refresh_overlay_scans_and_reloads(cue):
     _runtime._cue_refresh_overlay()
-    assert cue.calls["markers.reload_presets"] == [((), {})]
+    assert cue.calls["markers.load_persistent"] == [((), {})]
     assert cue.calls["music.reload_presets"] == [((), {})]
     assert cue.calls["sfx_manager.scan"] == [((), {})]
     assert cue.calls["music.user_music.scan"] == [((), {})]
+
+
+def test_refresh_overlay_reloads_markers_from_effective_root(cue, tmp_path):
+    """Import isolation contract: activating an import swaps the in-memory
+    markers, not just the path pointer.  _cue_refresh_overlay reloads markers
+    from paths.marker_dir, which follows _active_root, so a refresh after the
+    swap serves the package's markers instead of the live tree's.
+
+    Regression test: activation used to leave the live tree's markers in
+    memory (the path swapped but the data did not)."""
+    import os
+
+    from cue_lib.db import CueDatabase
+    from cue_lib.marker_store import CueMarkerStore
+    from cue_lib.markers import CueMarkerManager
+    from cue_lib.paths import CuePaths
+    from cue_lib.state import CueContext
+    from tests.fakes import FakeSfxManager, FakeVidManager
+
+    root = str(tmp_path / "cue_root")
+    paths = CuePaths(root, game_id="test_game")
+    db = CueDatabase(paths)
+    db.open()
+    store = CueMarkerStore(db, paths, lambda: None)
+    cue.markers = CueMarkerManager(
+        CueContext(), store, FakeVidManager(duration=10.0),
+        FakeSfxManager(), None, None, None)
+
+    # CueDatabase.open() created the live marker dir; write the live marker.
+    live_marker_dir = paths.marker_dir
+    with open(os.path.join(live_marker_dir, "v_live.json"), "w") as f:
+        f.write('{"_key": "v_live", "pools": []}')
+
+    imp_root = os.path.join(root, "imports", "pkg")
+    imp_marker_dir = os.path.join(imp_root, "data", "markers", "test_game")
+    os.makedirs(imp_marker_dir)
+    with open(os.path.join(imp_marker_dir, "v_import.json"), "w") as f:
+        f.write('{"_key": "v_import", "pools": []}')
+
+    # Live root: the editor serves the live tree's markers.
+    _runtime._cue_refresh_overlay()
+    assert "v_live" in cue.markers
+    assert "v_import" not in cue.markers
+
+    # Activate an import: swap the effective root, then the same refresh the
+    # imports manager runs must serve the package's markers instead.
+    paths._active_root = imp_root
+    _runtime._cue_refresh_overlay()
+    assert "v_import" in cue.markers
+    assert "v_live" not in cue.markers
 
 
 # ==========================================================================
@@ -134,6 +184,14 @@ def test_set_page_plain_page_switch(cue):
     _runtime._cue_set_page(CuePage.MUSIC)
     assert cue.overlay_active_page == CuePage.MUSIC
     assert cue.setup_dir_text == "SHOULD-NOT-LEAK"  # no settings prep
+
+
+def test_set_page_import_refreshes_importer_and_exporter(cue):
+    cue.overlay_active_page = CuePage.SFX
+    _runtime._cue_set_page(CuePage.IMPORT)
+    assert cue.overlay_active_page == CuePage.IMPORT
+    assert cue.calls["importer.scan"] == [((), {})]
+    assert cue.calls["exporter.refresh"] == [((), {})]
 
 
 # ==========================================================================

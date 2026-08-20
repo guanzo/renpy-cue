@@ -467,6 +467,52 @@ def test_maybe_throttled_within_interval(tmp_path):
     assert m._backup_in_progress is False
 
 
+def test_set_paused_blocks_maybe(tmp_path):
+    root = str(tmp_path / "shared")
+    m = CueBackupManager(root, GAME_ID)
+    m._last_backup_ts = 0  # outside throttle window -> would normally fire
+    m.set_paused(True)
+
+    m.maybe()
+
+    assert m._backup_in_progress is False
+
+
+def test_set_paused_blocks_force_backup(tmp_path):
+    root = str(tmp_path / "shared")
+    m = CueBackupManager(root, GAME_ID)
+    m._last_backup_ts = 123.0
+    m.set_paused(True)
+
+    m.force_backup()
+
+    # force_backup must not clear the timestamp while paused -- otherwise the
+    # next unpaused maybe() would fire immediately.
+    assert m._last_backup_ts == 123.0
+
+
+def test_unpause_resumes_maybe(tmp_path, monkeypatch):
+    class FakeThread(object):
+        daemon = False
+        started = False
+
+        def __init__(self, target):
+            self.target = target
+
+        def start(self):
+            FakeThread.started = True
+
+    monkeypatch.setattr(_backup._threading, "Thread", FakeThread)
+    root = str(tmp_path / "shared")
+    m = CueBackupManager(root, GAME_ID)
+    m._last_backup_ts = 0
+    m.set_paused(False)
+
+    m.maybe()
+
+    assert m._backup_in_progress is True
+
+
 def test_run_backup_without_data_dir(tmp_path):
     root = str(tmp_path / "shared")
     m = CueBackupManager(root, GAME_ID)

@@ -5,12 +5,18 @@
 import renpy
 from renpy.store import Function
 
+from cue_lib.constants import CueImportMatch
+from cue_lib.importer_io import (
+    _cue_category_counts,
+    _cue_filter_contents,
+    _cue_merge_overwrites,
+)
 from cue_lib.state import _cue
 from cue_lib.util import create_vid_key
 
 MYPY = False
 if MYPY:
-    from typing import Callable
+    from typing import Any, Callable, Dict  # pyright: ignore[reportUnusedImport]
 
 
 class CuePresetDialog(object):
@@ -136,6 +142,100 @@ class CueConfirmDialog(object):
         self.message = ""
         self.on_confirm = None
         renpy.hide_screen("cue_confirm_dialog", layer="cue_layer")
+
+
+class CueMergeDialog(object):
+    """Category picker for merging an import into live data.
+
+    State is reset on open; confirm() hands the checked categories to the
+    imports manager, which does the copy.  The imports surface is injected so
+    the dialog is testable headlessly."""
+    def __init__(self, imports):
+        # type: (Any) -> None
+        self._imports = imports
+        self.imp = None
+        self.checked = {}  # type: Dict[int, bool]
+        self.counts = {}
+        self.overwrites = []
+        self.total_files = 0
+        self.error = ""
+
+    def open(self, imp):
+        # type: (str) -> None
+        """Open the picker for a valid, non-mismatched import."""
+        entry = self._imports.import_for(imp)
+        if entry is None or not entry["valid"]:
+            return
+        if entry["match"] == CueImportMatch.MISMATCH:
+            return
+        self.imp = imp
+        folder = self._imports.folder_files(imp)
+        self.counts = _cue_category_counts(folder)
+        self.checked = dict((cat, True) for cat in self.counts)
+        self.overwrites = []
+        self.total_files = len(folder)
+        self.error = ""
+        renpy.show_screen("cue_merge_dialog", _layer="cue_layer")
+
+    def toggle(self, cat):
+        # type: (int) -> None
+        if cat in self.checked:
+            self.checked[cat] = not self.checked[cat]
+
+    def is_checked(self, cat):
+        # type: (int) -> bool
+        return bool(self.checked.get(cat, False))
+
+    def is_category_enabled(self, cat):
+        # type: (int) -> bool
+        return cat in self.checked
+
+    def summary(self):
+        # type: () -> str
+        """Live merge summary: selected file count + overwrite count (against
+        the real data tree, so it reflects what the merge would hit)."""
+        if not self.imp:
+            return ""
+        folder = self._imports.folder_files(self.imp)
+        checked = [cat for cat in self.checked if self.is_checked(cat)]
+        filtered = _cue_filter_contents(folder, checked)
+        self.overwrites = _cue_merge_overwrites(
+            self._imports._paths.original_root, filtered)
+        text = "Merge {} file(s) into your data.".format(len(filtered))
+        if self.overwrites:
+            plural = "s" if len(self.overwrites) != 1 else ""
+            text += "\n\n{} file{} will be overwritten (files are backed up to data_bak).".format(
+                len(self.overwrites), plural)
+        entry = self._imports.import_for(self.imp)
+        missing = (entry.get("missing") or []) if entry else []
+        if missing:
+            text += (
+                "\n\n{} listed file(s) are missing from the zip and won't "
+                "be merged:\n{}").format(len(missing), "\n".join(missing))
+        return text
+
+    def cancel(self):
+        # type: () -> None
+        self._reset()
+        renpy.hide_screen("cue_merge_dialog", layer="cue_layer")
+
+    def confirm(self):
+        # type: () -> None
+        imp = self.imp
+        checked = [cat for cat in self.checked if self.is_checked(cat)]
+        self._reset()
+        if imp:
+            self._imports.merge_confirm(imp, checked)
+        renpy.hide_screen("cue_merge_dialog", layer="cue_layer")
+
+    def _reset(self):
+        # type: () -> None
+        self.imp = None
+        self.checked = {}
+        self.counts = {}
+        self.overwrites = []
+        self.total_files = 0
+        self.error = ""
 
 
 def _cue_confirm_delete_preset(preset_name):

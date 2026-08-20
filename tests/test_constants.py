@@ -54,3 +54,39 @@ def test_keymap_names_are_distinct():
     assert len(set(names)) == len(names)
 
 
+def test_package_category_enum_has_five_categories_plus_unknown():
+    cats = constants.CueImportCategory
+    five = [
+        cats.MARKERS, cats.SFX, cats.MUSIC, cats.SPEED_VARIANTS, cats.PRESETS,
+    ]
+    assert len(set(five)) == 5
+    assert cats.UNKNOWN not in five
+
+
+def test_package_category_order_matches_enum_and_excludes_unknown():
+    order = constants.CUE_IMPORT_CATEGORY_ORDER
+    cats = constants.CueImportCategory
+    assert len(order) == len(set(order)) == 5
+    assert cats.UNKNOWN not in order
+    # Every enum category is listed exactly once.
+    assert set(order) == {
+        cats.MARKERS, cats.SFX, cats.MUSIC, cats.SPEED_VARIANTS, cats.PRESETS,
+    }
+
+
+def test_package_category_labels_cover_every_ordered_category():
+    labels = constants.CUE_IMPORT_CATEGORY_LABELS
+    assert set(labels.keys()) == set(constants.CUE_IMPORT_CATEGORY_ORDER)
+    for cat in constants.CUE_IMPORT_CATEGORY_ORDER:
+        assert labels[cat]
+
+
+def test_package_match_levels_are_distinct():
+    m = constants.CueImportMatch
+    assert len({m.AUTO, m.CONFIRM, m.MISMATCH}) == 3
+
+
+def test_import_format_version_is_positive():
+    assert constants.CUE_IMPORT_FORMAT_VERSION >= 1
+
+

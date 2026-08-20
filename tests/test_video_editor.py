@@ -648,10 +648,10 @@ def test_finish_swap_fail_locked(ve, tmp_path):
     q = ve.job_queue
     job = make_job(ve, tmp_path)
     job._swap_ok = False
-    job._swap_error_msg = "File locked -- retry later"
+    job._swap_error_msg = "File locked.  Retry later"
     q._finish_swap(job)
     assert job.status == CueJobStatus.ERROR
-    assert job.error_msg == "File locked -- retry later"
+    assert job.error_msg == "File locked.  Retry later"
     assert "still has this video file open" in ve._states[job.vpath].last_error
 
 
@@ -950,7 +950,7 @@ def test_swap_job_failure_retries(ve, tmp_path, monkeypatch):
     write_file(job.fspath_tmp)
     _qeditor._cue_swap_job(job)
     assert job._swap_ok is False
-    assert job._swap_error_msg == "File locked -- retry later"
+    assert job._swap_error_msg == "File locked.  Retry later"
     assert job._swap_done is True
 
 

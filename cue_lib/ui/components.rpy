@@ -311,7 +311,7 @@ screen cue_search_bar(field_path, manager, hint="Search"):
             use cue_text_input(field_path, Function(manager.rebuild_tree), _label, editing_ref=manager)
 
         if manager.search_truncated:
-            text "{} more results -- narrow your search".format(manager.search_truncated) style "cue_help"
+            text "{} more results.  Narrow your search".format(manager.search_truncated) style "cue_help"
 
 # Pool tab row: optional Delete button, + Pool button, numbered tabs [1][2]...
 # tab_action_fn(tab_action_args..., pi) is called when tab pi is clicked.

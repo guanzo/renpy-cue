@@ -11,7 +11,14 @@ from cue_lib._types import (
 from cue_lib.video.auto_speed import CueAutoSpeedGenerator
 from cue_lib.video.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
 from cue_lib.trigger import CueTriggerEngine
-from cue_lib.ui.dialogs import CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog
+from cue_lib.ui.dialogs import (
+    CueConfirmDialog,
+    CueMergeDialog,
+    CuePresetDialog,
+    CueVideoPresetDialog,
+)
+from cue_lib.importer import CueImportManager
+from cue_lib.exporter import CueExportManager
 from cue_lib.undo import CueUndoManager
 from cue_lib.video.video import CueVideoManager
 from cue_lib.video.video_editor import CueVideoEditor
@@ -72,6 +79,9 @@ class Cue:
     keybinds: CueKeybindsManager
     icons: CueIconManager
     music: CueMusicManager
+    importer: CueImportManager
+    exporter: CueExportManager
+    merge_dialog: CueMergeDialog
 
     _cue_next_sfx_channel: int
     _shake_just_happened: bool

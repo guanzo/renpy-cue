@@ -26,6 +26,46 @@ def test_root_and_game_id_props(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Active-root swap -- import preview points every serving dir at the package
+# ---------------------------------------------------------------------------
+
+def test_original_root_stays_original_while_active_root_swaps(tmp_path):
+    root = str(tmp_path / "root")
+    imp = str(tmp_path / "root" / "imports" / "imp")
+    p = CuePaths(root, "g1")
+    assert p.original_root == root
+    assert p._active_root is None
+    p._active_root = imp
+    assert p.root == imp
+    assert p.original_root == root
+    p._active_root = None
+    assert p.root == root
+
+
+def test_serving_dirs_follow_active_root(tmp_path):
+    root = str(tmp_path / "root")
+    imp = str(tmp_path / "root" / "imports" / "imp")
+    p = CuePaths(root, "g1")
+    p._active_root = imp
+    assert p.audio_dir == imp + "/audio/"
+    assert p.music_dir == imp + "/music/"
+    assert p.marker_dir == os.path.join(imp, "data", "markers", "g1") + "/"
+    assert p.presets_dir == os.path.join(imp, "data", "presets") + "/"
+    assert p.audio_preset_dir == os.path.join(imp, "data", "presets", "audio") + "/"
+    assert p.video_preset_dir == os.path.join(imp, "data", "presets", "video") + "/"
+    assert p.music_preset_dir == os.path.join(imp, "data", "presets", "music") + "/"
+    assert p.video_dir == os.path.join(imp, "video", "g1").replace("\\", "/") + "/"
+
+
+def test_shared_config_path_never_follows_active_root(tmp_path):
+    root = str(tmp_path / "root")
+    imp = str(tmp_path / "root" / "imports" / "imp")
+    p = CuePaths(root, "g1")
+    p._active_root = imp
+    assert p.shared_config_path == os.path.join(root, "data", "cue_config.json")
+
+
+# ---------------------------------------------------------------------------
 # platform_shared_dir -- per-OS default
 # ---------------------------------------------------------------------------
 

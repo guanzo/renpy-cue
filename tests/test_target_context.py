@@ -179,7 +179,7 @@ def test_send_target_record_flag(mgr):
 def test_target_active_label_no_pool(mgr):
     _set_image(mgr)
     mgr.set_target_context(CueContextType.IMAGE)
-    assert mgr.target_active_label() == "No pool yet -- click + to create one."
+    assert mgr.target_active_label() == "No pool yet.  Click + to create one."
 
 
 def test_target_active_label_pool(mgr):

@@ -48,6 +48,76 @@ testcase page_nav:
     run Function(_cue_set_page, CuePage.MUSIC)
     assert eval (_cue.overlay_active_page == CuePage.MUSIC)
 
+testcase import_page_nav:
+    run Jump("start")
+    # _cue_set_page(IMPORT) scans imports/ and refreshes the export categories
+    # before the page renders.  A compile error in the import/export page
+    # fails this interaction.
+    run Function(_cue_set_page, CuePage.IMPORT)
+    assert eval (_cue.overlay_active_page == CuePage.IMPORT)
+
+testcase import_shield_and_banner_render:
+    run Jump("start")
+    $ _cue_test_reset()
+    # An active package makes the editor read-only: the page body gets a
+    # click-swallowing shield and the toolbar gains a banner.  Set the active
+    # state directly -- the export/scan/activate path is covered by the
+    # roundtrip testcase.  Rendering the SFX page under this state is the
+    # smoke test: a broken shield/banner screen fails this interaction.
+    $ _cue.importer.is_active = True
+    $ _cue.importer.active_import = "ShieldPkg"
+    run Function(_cue_set_page, CuePage.SFX)
+    assert eval (_cue.overlay_active_page == CuePage.SFX)
+    assert eval (_cue.importer.active_import_name() == "ShieldPkg")
+    assert eval (renpy.get_screen("cue_overlay", layer="cue_layer"))
+    # Restore live state for the testcases that run after this one.
+    run Function(_cue.importer.deactivate)
+    assert eval (not _cue.importer.is_active)
+
+testcase import_export_roundtrip:
+    run Jump("start")
+    $ _cue_test_reset()
+    # Local harness runs leave exports/ + imports/ residue (the script only
+    # wipes data/backups/video), so clear both dirs first -- the export name
+    # and the copied .zip must be deterministic.
+    $ import os as _os
+    $ import shutil as _shutil
+    $ _shutil.rmtree(_cue.exporter.exports_dir(), ignore_errors=True)
+    $ _shutil.rmtree(_cue.importer.imports_dir(), ignore_errors=True)
+    # The shared-root fixtures carry audio/, so the SFX category is non-empty.
+    run Function(_cue.exporter.refresh)
+    assert eval (_cue.exporter.is_category_enabled(CueImportCategory.SFX))
+    $ _cue.exporter.name = "Roundtrip"
+    run Function(_cue.exporter.export)
+    assert eval (_cue.exporter.export_error == "")
+    assert eval (_cue.exporter.export_status != "")
+    # A recipient drops the .zip into imports/; scan() auto-extracts it and
+    # matches it to this game (same game_id -> AUTO).
+    $ _zip_src = _os.path.join(_cue.exporter.exports_dir(), "Roundtrip.zip")
+    $ _zip_dst = _os.path.join(_cue.importer.imports_dir(), "Roundtrip.zip")
+    $ _os.makedirs(_cue.importer.imports_dir())
+    $ _shutil.copy(_zip_src, _zip_dst)
+    run Function(_cue.importer.scan)
+    assert eval (len(_cue.importer.imports) == 1)
+    assert eval (_cue.importer.imports[0]["valid"])
+    assert eval (_cue.importer.imports[0]["match"] == CueImportMatch.AUTO)
+    # The merge dialog opens on the scanned package and renders its category
+    # rows + overwrite summary.
+    run Function(_cue.merge_dialog.open, "Roundtrip")
+    assert screen "cue_merge_dialog" layer "cue_layer"
+    keysym "K_ESCAPE"
+    assert not screen "cue_merge_dialog" layer "cue_layer"
+    # Activate serves the whole editor from the extracted package: the
+    # effective root follows, shared_config stays on the real data root.
+    run Function(_cue.importer.activate, "Roundtrip")
+    assert eval (_cue.importer.is_active)
+    assert eval (_cue.paths.root.endswith("Roundtrip"))
+    assert eval (_cue.paths.shared_config_path.startswith(_cue.paths.original_root))
+    # Deactivate drops back to the live data tree.
+    run Function(_cue.importer.deactivate)
+    assert eval (not _cue.importer.is_active)
+    assert eval (_cue.paths.root == _cue.paths.original_root)
+
 testcase confirm_dialog_escape:
     run Jump("start")
     run Function(_cue.confirm_dialog.show, "Really?", _cue_hide_overlay)

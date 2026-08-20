@@ -60,6 +60,86 @@ testcase page_nav:
     $ if not (_cue.overlay_active_page == CuePage.MUSIC): renpy.quit(status=1)
     $ renpy.quit()
 
+testcase import_page_nav:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    # _cue_set_page(IMPORT) scans imports/ and refreshes the export categories
+    # before the page renders.  A compile error in the import/export page
+    # fails this interaction.
+    run Function(_cue_set_page, CuePage.IMPORT)
+    pause 0.5
+    $ if not (_cue.overlay_active_page == CuePage.IMPORT): renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase import_shield_and_banner_render:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    # An active package makes the editor read-only: the page body gets a
+    # click-swallowing shield and the toolbar gains a banner.  Set the active
+    # state directly -- the export/scan/activate path is covered by the
+    # roundtrip testcase.  Rendering the SFX page under this state is the
+    # smoke test: a broken shield/banner screen fails this interaction.
+    $ _cue.importer.is_active = True
+    $ _cue.importer.active_import = "ShieldPkg"
+    run Function(_cue_set_page, CuePage.SFX)
+    pause 0.5
+    $ _ok = _cue.overlay_active_page == CuePage.SFX
+    $ _ok = _ok and _cue.importer.active_import_name() == "ShieldPkg"
+    $ _ok = _ok and renpy.get_screen("cue_overlay", layer="cue_layer") is not None
+    run Function(_cue.importer.deactivate)
+    $ _ok = _ok and not _cue.importer.is_active
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase import_export_roundtrip:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    # Local harness runs leave exports/ + imports/ residue (the script only
+    # wipes data/backups/video), so clear both dirs first -- the export name
+    # and the copied .zip must be deterministic.
+    $ import os as _os
+    $ import shutil as _shutil
+    $ _shutil.rmtree(_cue.exporter.exports_dir(), ignore_errors=True)
+    $ _shutil.rmtree(_cue.importer.imports_dir(), ignore_errors=True)
+    # The shared-root fixtures carry audio/, so the SFX category is non-empty.
+    run Function(_cue.exporter.refresh)
+    $ _cue.exporter.name = "Roundtrip"
+    run Function(_cue.exporter.export)
+    $ _ok = _cue.exporter.export_error == ""
+    $ _ok = _ok and _cue.exporter.export_status != ""
+    # A recipient drops the .zip into imports/; scan() auto-extracts it and
+    # matches it to this game (same game_id -> AUTO).
+    $ _zip_src = _os.path.join(_cue.exporter.exports_dir(), "Roundtrip.zip")
+    $ _zip_dst = _os.path.join(_cue.importer.imports_dir(), "Roundtrip.zip")
+    $ _os.makedirs(_cue.importer.imports_dir())
+    $ _shutil.copy(_zip_src, _zip_dst)
+    run Function(_cue.importer.scan)
+    $ _ok = _ok and len(_cue.importer.imports) == 1
+    $ _ok = _ok and _cue.importer.imports[0]["valid"]
+    $ _ok = _ok and _cue.importer.imports[0]["match"] == CueImportMatch.AUTO
+    # The merge dialog opens on the scanned package and renders its category
+    # rows + overwrite summary.
+    run Function(_cue.merge_dialog.open, "Roundtrip")
+    pause 0.5
+    $ _ok = _ok and renpy.get_screen("cue_merge_dialog", layer="cue_layer") is not None
+    run Function(_cue.merge_dialog.cancel)
+    pause 0.5
+    $ _ok = _ok and renpy.get_screen("cue_merge_dialog", layer="cue_layer") is None
+    # Activate serves the whole editor from the extracted package: the
+    # effective root follows.
+    run Function(_cue.importer.activate, "Roundtrip")
+    $ _ok = _ok and _cue.importer.is_active
+    $ _ok = _ok and _cue.paths.root.endswith("Roundtrip")
+    # Deactivate drops back to the live data tree.
+    run Function(_cue.importer.deactivate)
+    $ _ok = _ok and not _cue.importer.is_active
+    $ _ok = _ok and _cue.paths.root == _cue.paths.original_root
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
 testcase confirm_dialog_escape:
     $ _cue.is_overlay_visible = True
     run Jump("start")

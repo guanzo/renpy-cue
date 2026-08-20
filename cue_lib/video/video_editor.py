@@ -186,7 +186,7 @@ class CueVideoEditor(object):
         fs = self._get_video_fspath()
         if fs is None:
             if self._is_in_rpa():
-                return ("rpa", "Video is inside an .rpa archive -- extract it first.")
+                return ("rpa", "Video is inside an .rpa archive.  Extract it first.")
             return ("error", "Video file not found on disk.")
         if not os.access(fs, os.W_OK):
             return ("error", "Video file is read-only.")
@@ -291,7 +291,7 @@ class CueVideoEditor(object):
     def prepare_create(self):
         # type: () -> None
         if not self._ready:
-            self.last_error = "Checking ffmpeg -- try again in a moment."
+            self.last_error = "Checking ffmpeg.  Try again in a moment."
             return
         if self._warm_cache_error:
             self.last_error = "ffmpeg check failed: {}".format(self._warm_cache_error)

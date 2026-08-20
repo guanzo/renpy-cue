@@ -49,6 +49,20 @@ CUE_KEYMAP_TARGET_LOOP: Final = "cue_target_loop"
 CUE_SHARED_KEY_KEYBINDS: Final = "keybinds"
 CUE_DIR_OVERRIDE_FILENAME: Final = "dir.txt"
 CUE_SHARED_CONFIG_FILENAME: Final = "cue_config.json"
+CUE_IMPORT_FORMAT_VERSION: Final = 1
+CUE_IMPORT_MANIFEST_NAME: Final = "manifest.json"
+CUE_EXPORT_DIR: Final = "exports"
+CUE_IMPORT_DIR: Final = "imports"
+CUE_IMPORT_UNZIP_DIR: Final = "unzipped"
+CUE_HASH_TRUNC_LEN: Final = 8
+CUE_IMPORT_CATEGORY_ORDER: Final = (0, 1, 2, 3, 4)
+CUE_IMPORT_CATEGORY_LABELS: Final = {
+    0: "Markers",
+    1: "SFX files",
+    2: "Music files",
+    3: "Speed variant files",
+    4: "Presets",
+}
 CUE_DEBUG: bool = True  # not Final -- tests flip this to silence debug.log
 CUE_DEBUG_LOG_FILENAME: Final = "debug.log"
 CUE_DEBUG_LOG_BUFFER_LINES: Final = 64
@@ -69,6 +83,28 @@ class CuePage:
     SFX: Final = 0
     MUSIC: Final = 1
     SETTINGS: Final = 2
+    IMPORT: Final = 3
+
+class CueImportCategory:
+    MARKERS: Final = 0
+    SFX: Final = 1
+    MUSIC: Final = 2
+    SPEED_VARIANTS: Final = 3
+    PRESETS: Final = 4
+    UNKNOWN: Final = 5
+
+class CueExportScope:
+    ALL_REPLAYS: Final = 0
+    SPECIFIC_REPLAYS: Final = 1
+
+class CueExportFileTypes:
+    ALL: Final = 0
+    SPECIFIC: Final = 1
+
+class CueImportMatch:
+    AUTO: Final = 0
+    CONFIRM: Final = 1
+    MISMATCH: Final = 2
 
 class CueContextType:
     VIDEO: Final = "video"

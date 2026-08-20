@@ -227,3 +227,47 @@ screen cue_confirm_dialog():
                 xalign 0.5
                 use cue_txt_button("Cancel", Function(_d.hide))
                 use cue_txt_button("OK", [Function(_d.hide), _d.on_confirm])
+
+
+screen cue_merge_dialog():
+    style_group "cue"
+
+    $ _d = _cue.merge_dialog
+    $ _summary = _d.summary()
+    # Category order is canonical; counts only holds present categories.
+    $ _merge_cats = [c for c in CUE_IMPORT_CATEGORY_ORDER if c in _d.counts]
+    key "K_RETURN" action Function(_d.confirm)
+    key "K_KP_ENTER" action Function(_d.confirm)
+    key "K_ESCAPE" action Function(_d.cancel)
+
+    button:
+        style "cue_dialog"
+        action NullAction()
+
+        vbox:
+            spacing 8
+            text "Merge Import" style "cue_hdr"
+
+            for _cat in _merge_cats:
+                $ _label = CUE_IMPORT_CATEGORY_LABELS.get(_cat, "?")
+                $ _n = _d.counts[_cat]
+                hbox:
+                    spacing 8
+                    use cue_checkbox(
+                        _d.is_checked(_cat),
+                        _label,
+                        Function(_d.toggle, _cat),
+                        enabled=_d.is_category_enabled(_cat))
+                    text "{} file(s)".format(_n) color _cue_color_text_accent
+
+            null height 5
+
+            text _summary
+
+            null height 5
+
+            hbox:
+                spacing 8
+                xalign 0.5
+                use cue_txt_button("Cancel", Function(_d.cancel))
+                use cue_txt_button("Merge", Function(_d.confirm))

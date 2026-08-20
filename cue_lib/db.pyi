@@ -8,6 +8,8 @@ CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME: Final = "default_music_triggers.json"
 
 def _key_to_filename(key: str) -> str: ...
 
+def _atomic_json_write(fpath: str, data: Any, indent: Optional[int] = None) -> None: ...
+
 class CueDatabase(object):
     _backup: CueBackupManager
     paths: CuePaths

@@ -1,11 +1,16 @@
 # Type stub for cue_lib.paths
+from typing import Optional
+
 class CuePaths:
     _root: str
     _game_id: str
+    _active_root: Optional[str]
 
     def __init__(self, root: str, game_id: str) -> None: ...
     @property
     def root(self) -> str: ...
+    @property
+    def original_root(self) -> str: ...
     @property
     def game_id(self) -> str: ...
 

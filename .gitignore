@@ -30,6 +30,9 @@ test_game/game/testcases.rpy
 tests/fixtures/data/data/
 tests/fixtures/data/backups/
 tests/fixtures/data/video/
+# import/export runtime artifacts: export zips + extracted import packages
+tests/fixtures/data/exports/
+tests/fixtures/data/imports/
 
 # beat_extractor runtime artifacts (default --out is ./output)
 __pycache__/

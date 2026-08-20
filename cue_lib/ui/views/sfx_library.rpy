@@ -90,11 +90,6 @@ screen cue_sfx_library_content(_is_video):
         $ _video_preset_names = [n for n in _video_preset_names if _cue_query_matches(n, _q)]
     viewport:
         xfill True
-        # yfill True makes this viewport's render size track its allocated
-        # height, which raises in the renderer when _cue_refresh_context
-        # restart_interaction()s mid whole-scene fade (checkerboard in dev,
-        # black flash in non-dev). Keep disabled.
-        yfill True
         mousewheel True
         scrollbars "vertical"
         vscrollbar_unscrollable "hide"

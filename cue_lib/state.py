@@ -61,6 +61,9 @@ class Cue(_renpy_python.NoRollback):
         self.icons = None
         self.music = None
         self.paths = None
+        self.importer = None
+        self.exporter = None
+        self.merge_dialog = None
 
         # --- Internal ---
         self._cue_next_sfx_channel = 0

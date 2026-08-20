@@ -261,7 +261,7 @@ screen cue_video_vfx():
                         tt="Fast low-quality encode to judge the edited speed.")
                     use cue_select_btn("Normal", (_ved.encode_mode == _ved.MODE_NORMAL),
                         Function(_cue.video_editor.set_encode_mode, _ved.MODE_NORMAL),
-                        tt="Standard encode at the original quality — no extra processing.")
+                        tt="Standard encode at the original quality, with no extra processing.")
                     use cue_select_btn("Interpolate Frames", (_ved.encode_mode == _ved.MODE_INTERPOLATE),
                         Function(_cue.video_editor.set_encode_mode, _ved.MODE_INTERPOLATE),
                         tt=("Uses ffmpeg to generate in-between frames for smoother motion. "
@@ -322,7 +322,7 @@ screen cue_auto_preset_btn(preset_name, auto):
     elif _is_active and auto.is_shuffle_mode:
         # Shuffle delegate -- this preset is playing, but shuffle is the mode (yellow)
         textbutton _label:
-            background _cue_color_yellow
+            background "#887722"
             action NullAction()
             tooltip _desc
     elif _is_active:

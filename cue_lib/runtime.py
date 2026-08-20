@@ -55,9 +55,15 @@ def _cue_set_page(page):
     if _cue.overlay_active_page == page:
         return
     if page == CuePage.SETTINGS:
-        _cue.setup_dir_text = _cue.paths.root
+        # The Shared Dir field names the real data root -- never an import
+        # path the active overlay happens to serve.
+        _cue.setup_dir_text = _cue.paths.original_root
         _cue.shared_dir_error = ""
         _cue.shared_dir_success = ""
+    elif page == CuePage.IMPORT:
+        _cue.importer.scan()
+        _cue.exporter.refresh()
+        
     _cue.overlay_active_page = page
 
 @_cue_ui_refresh
@@ -142,9 +148,16 @@ def _cue_show_overlay():
 
 def _cue_refresh_overlay():
     # type: () -> None
-    """Refresh overlay data: presets, context, and SFX/music file scans."""
-    _cue_refresh_context()
-    _cue.markers.reload_presets()
+    """Reload overlay data: markers+presets, SFX/music scans, then re-derive
+    the current context against the freshly loaded data.
+
+    Markers are reloaded from the effective root (load_persistent reads
+    paths.marker_dir, which follows an active import), so activating an
+    import actually serves the package's markers instead of the live tree's.
+    Context refresh runs last so the trigger/context drivers resolve pools
+    against the new data, not the pre-swap markers.
+    """
+    _cue.markers.load_persistent()
     _cue.music.reload_presets()
 
     _cue.sfx_manager.scan()
@@ -152,6 +165,8 @@ def _cue_refresh_overlay():
 
     _cue.sfx_manager.maybe_rebuild()
     _cue.music.library.maybe_rebuild()
+
+    _cue_refresh_context()
 
 def _cue_hide_overlay():
     # type: () -> None

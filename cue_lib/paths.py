@@ -45,10 +45,23 @@ class CuePaths(object):
         # type: (str, str) -> None
         self._root = root
         self._game_id = game_id
+        # Set while an import is active; every serving dir then resolves
+        # against the import instead of the live data tree.
+        self._active_root = None
 
     @property
     def root(self):
         # type: () -> str
+        """Effective root: the active import if one is active, else
+        the original data root."""
+        return self._active_root if self._active_root is not None else self._root
+
+    @property
+    def original_root(self):
+        # type: () -> str
+        """The original data root, never the active import.  Used for
+        imports/exports dirs, the Settings shared-dir field, and anywhere a
+        path must stay on the user's real data."""
         return self._root
 
     @property
@@ -150,12 +163,12 @@ class CuePaths(object):
     @property
     def audio_dir(self):
         # type: () -> str
-        return self._root + "/audio/"
+        return self.root + "/audio/"
 
     @property
     def music_dir(self):
         # type: () -> str
-        return self._root + "/music/"
+        return self.root + "/music/"
 
     # ------------------------------------------------------------------
     # Internal data tree
@@ -164,12 +177,12 @@ class CuePaths(object):
     @property
     def marker_dir(self):
         # type: () -> str
-        return os.path.join(self._root, "data", "markers", self._game_id) + "/"
+        return os.path.join(self.root, "data", "markers", self._game_id) + "/"
 
     @property
     def presets_dir(self):
         # type: () -> str
-        return os.path.join(self._root, "data", "presets") + "/"
+        return os.path.join(self.root, "data", "presets") + "/"
 
     @property
     def audio_preset_dir(self):
@@ -189,7 +202,7 @@ class CuePaths(object):
     @property
     def video_dir(self):
         # type: () -> str
-        return os.path.join(self._root, "video", self._game_id).replace("\\", "/") + "/"
+        return os.path.join(self.root, "video", self._game_id).replace("\\", "/") + "/"
 
     @property
     def shared_config_path(self):

@@ -1,0 +1,287 @@
+# -*- coding: utf-8 -*-
+# cue_lib/exporter.py -- the export side: builds a .zip import from this
+# game's data.
+#
+# CueExportManager owns the scope toggle (whole game vs selected replays),
+# the category/replay checkboxes, and the zip build.  It enumerates this
+# game's files from original_root (never the active overlay) and writes
+# exports/<sanitized-name>.zip with a collision-safe name.  A replay export
+# packs the replay's markers plus the files those markers reference.
+
+import os
+import renpy
+import threading
+
+from cue_lib.constants import (
+    CUE_EXPORT_DIR,
+    CUE_IMPORT_CATEGORY_ORDER,
+    CueExportFileTypes,
+    CueExportScope,
+)
+from cue_lib.importer_io import (
+    _cue_build_import_zip,
+    _cue_enumerate_import_files,
+    _cue_replay_assets,
+    _cue_replay_labels,
+    _cue_sanitize_filename,
+)
+
+MYPY = False
+if MYPY:
+    from typing import Any, Dict, List, Set  # pyright: ignore[reportUnusedImport]
+
+
+class CueExportManager(object):
+    """Scope + selection + zip build for sharing this game's data."""
+
+    def __init__(self, paths):
+        # type: (Any) -> None
+        self._paths = paths
+        self.scope = CueExportScope.ALL_REPLAYS
+        self.file_types = CueExportFileTypes.ALL
+        self.checked = dict((cat, True) for cat in CUE_IMPORT_CATEGORY_ORDER)  # type: Dict[int, bool]
+        self.name = ""
+        self.author = ""
+        self.description = ""
+        self.contents_by_category = {}  # type: Dict[int, List[str]]
+        self.counts = {}                # type: Dict[int, int]
+        self.replays = []               # list of {"label": str, "count": int}
+        self.checked_replays = set()    # type: Set[str]
+        self.current_replay = ""        # the replay the user is in right now
+        self.export_status = ""
+        self.export_error = ""
+        self.is_exporting = False       # zip build running on a background thread
+        self.export_fraction = 0.0      # 0..1 progress of the active build
+        self._export_thread = None      # type: Any
+
+    def exports_dir(self):
+        # type: () -> str
+        return os.path.join(
+            self._paths.original_root, CUE_EXPORT_DIR).replace("\\", "/")
+
+    def refresh(self):
+        # type: () -> None
+        """Re-enumerate exportable files and the replay list.  Empty
+        categories are absent -- the UI greys out their checkbox.  Replays
+        are seeded checked; a selection made in an earlier refresh survives."""
+        self.contents_by_category = _cue_enumerate_import_files(
+            self._paths.original_root, self._paths.game_id)
+        self.counts = dict(
+            (cat, len(files))
+            for cat, files in self.contents_by_category.items())
+        labels = _cue_replay_labels(
+            self._paths.original_root, self._paths.game_id)
+        self.replays = [
+            {"label": label, "count": count} for label, count in labels]
+        known = set(self.checked_replays)
+        self.checked_replays = known | set(label for label, _c in labels)
+        self.current_replay = self._current_replay()
+
+    def _current_replay(self):
+        # type: () -> str
+        """The replay label the user is inside right now, or ''."""
+        try:
+            return getattr(renpy.store, "_in_replay", None) or ""
+        except Exception:
+            return ""
+
+    # ------------------------------------------------------------------
+    # scope + selection state
+    # ------------------------------------------------------------------
+
+    def set_scope(self, scope):
+        # type: (int) -> None
+        self.scope = scope
+        self.clear_status()
+
+    def set_file_types(self, file_types):
+        # type: (int) -> None
+        self.file_types = file_types
+        self.clear_status()
+
+    def toggle_category(self, cat):
+        # type: (int) -> None
+        self.checked[cat] = not self.is_checked(cat)
+
+    def is_checked(self, cat):
+        # type: (int) -> bool
+        return bool(self.checked.get(cat, False))
+
+    def is_category_enabled(self, cat):
+        # type: (int) -> bool
+        return self.counts.get(cat, 0) > 0
+
+    def any_unchecked(self):
+        # type: () -> bool
+        """True if the user turned off at least one category in Specific File
+        Types mode -- the import may not fully work (referenced files will be
+        missing).  Never true in All File Types mode, where no category can be
+        off."""
+        if self.file_types == CueExportFileTypes.ALL:
+            return False
+        return any(not self.is_checked(cat) for cat in CUE_IMPORT_CATEGORY_ORDER)
+
+    def toggle_replay(self, label):
+        # type: (str) -> None
+        if label in self.checked_replays:
+            self.checked_replays.discard(label)
+        else:
+            self.checked_replays.add(label)
+
+    def toggle_all_replays(self):
+        # type: () -> None
+        """Flip every replay checkbox at once.  All checked becomes all off,
+        anything else becomes all on -- after a refresh (all checked by
+        default) the first click clears everything, the next checks all."""
+        labels = set(self.replay_labels())
+        if self.checked_replays == labels:
+            self.checked_replays = set()
+        else:
+            self.checked_replays = labels
+
+    def is_replay_checked(self, label):
+        # type: (str) -> bool
+        return label in self.checked_replays
+
+    def replay_labels(self):
+        # type: () -> List[str]
+        return [r["label"] for r in self.replays]
+
+    # ------------------------------------------------------------------
+    # content selection
+    # ------------------------------------------------------------------
+
+    def selected_contents(self):
+        # type: () -> List[str]
+        """Files to pack for the current scope, in canonical category order."""
+        if self.scope == CueExportScope.SPECIFIC_REPLAYS:
+            return self._replay_contents()
+        return self._category_contents()
+
+    def _category_contents(self):
+        # type: () -> List[str]
+        """Every enabled category that's in scope: all of them, or only the
+        checked ones in Specific File Types mode."""
+        selected = []
+        for cat in CUE_IMPORT_CATEGORY_ORDER:
+            if not self.is_category_enabled(cat):
+                continue
+            if self.file_types == CueExportFileTypes.SPECIFIC:
+                if not self.is_checked(cat):
+                    continue
+            selected.extend(self.contents_by_category.get(cat, []))
+        return selected
+
+    def _replay_contents(self):
+        # type: () -> List[str]
+        """Markers + referenced assets for the checked replays, deduped.
+        The file-types filter prunes whole categories, same as the whole-game
+        path."""
+        labels = sorted(self.checked_replays)
+        if not labels:
+            return []
+        
+        per_cat = _cue_replay_assets(
+            self._paths.original_root, self._paths.game_id, labels)
+        selected = []
+
+        for cat in CUE_IMPORT_CATEGORY_ORDER:
+            if self.file_types == CueExportFileTypes.SPECIFIC:
+                if not self.is_checked(cat):
+                    continue
+            selected.extend(per_cat.get(cat, []))
+        return selected
+
+    def clear_status(self):
+        # type: () -> None
+        self.export_status = ""
+        self.export_error = ""
+
+    # ------------------------------------------------------------------
+    # export -- the zip build runs on a background thread so a large import
+    # doesn't freeze the game; the UI polls is_exporting / export_fraction
+    # ------------------------------------------------------------------
+
+    def export(self):
+        # type: () -> None
+        """Kick off an import zip build for the current scope.  Content
+        selection, the name, and the collision-safe path are resolved here on
+        the UI thread (so an empty selection errors immediately); only the zip
+        write happens off-thread.  Name defaults to the game_id; an existing
+        file gets a ' (N)' collision suffix."""
+        if self.is_exporting:
+            return
+        self.clear_status()
+        selected = self.selected_contents()
+
+        if not selected:
+            self.export_error = "Nothing selected to export."
+            return
+        base = self.name.strip() or self._paths.game_id
+        safe = _cue_sanitize_filename(base)
+        exports_dir = self.exports_dir()
+
+        if not os.path.isdir(exports_dir):
+            os.makedirs(exports_dir)
+        zip_path = os.path.join(exports_dir, safe + ".zip")
+        suffix = 2
+
+        while os.path.exists(zip_path):
+            zip_path = os.path.join(
+                exports_dir, "{} ({}).zip".format(safe, suffix))
+            suffix += 1
+
+        # Snapshot name/author/description so mid-build edits to the form
+        # can't corrupt the manifest the thread is writing.
+        name = self.name
+        author = self.author
+        description = self.description
+        self.is_exporting = True
+        self.export_fraction = 0.0
+
+        thread = threading.Thread(
+            target=self._build_zip_thread,
+            args=(selected, zip_path, name, author, description))
+        thread.daemon = True
+        self._export_thread = thread
+        thread.start()
+
+    def _build_zip_thread(self, contents, zip_path, name, author, description):
+        # type: (Any, str, str, str, str) -> None
+        """The off-thread zip write.  Sets export_status / export_error and
+        clears is_exporting when done; a failure mid-write is caught and
+        reported (the .tmp it was writing is left for the next build to
+        overwrite)."""
+        try:
+            _cue_build_import_zip(
+                self._paths.original_root,
+                self._paths.game_id,
+                name,
+                author,
+                description,
+                contents,
+                zip_path,
+                progress=self._set_export_progress)
+        except Exception as e:
+            self.export_error = "Export failed: {}".format(e)
+        else:
+            self.export_status = "Exported to {}.".format(zip_path)
+        finally:
+            self.is_exporting = False
+
+    def _set_export_progress(self, written, total):
+        # type: (int, int) -> None
+        self.export_fraction = (written / float(total)) if total else 1.0
+
+    def export_replay(self, label):
+        # type: (str) -> None
+        """One-click replay export: scope to replays, check only this one,
+        and export now.  Names the import after the replay when the Name
+        field is empty."""
+        if self.is_exporting:
+            return
+        self.scope = CueExportScope.SPECIFIC_REPLAYS
+        self.checked_replays = set([label])
+        if not self.name.strip():
+            self.name = label
+        self.export()
