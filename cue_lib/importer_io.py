@@ -17,6 +17,7 @@ import zipfile as _zipfile
 
 from cue_lib.backup import CUE_BAK_DIR, _safe_extract_path
 from cue_lib.constants import (
+    CUE_AUDIO_EXTS,
     CUE_HASH_TRUNC_LEN,
     CUE_MUSIC_GAME_TAG,
     CUE_MUSIC_PREFIX,
@@ -69,6 +70,29 @@ def _cue_import_category(path):
         if path.startswith(prefix):
             return cat
     return CueImportCategory.UNKNOWN
+
+
+# Extension allow-list per category.  An entry under a known prefix but
+# carrying a foreign extension is not cue content: it is skipped at extract
+# and merge, and never enumerated for export, so a manifest can't list a file
+# the import will drop.  Media dirs keep their audio/video extensions; markers
+# and presets are JSON.
+_CUE_VIDEO_EXTS = (".webm", ".mp4", ".mkv", ".ogv", ".avi")
+_CUE_CATEGORY_EXTS = {
+    CueImportCategory.MARKERS: (".json",),
+    CueImportCategory.PRESETS: (".json",),
+    CueImportCategory.SFX: CUE_AUDIO_EXTS,
+    CueImportCategory.MUSIC: CUE_AUDIO_EXTS,
+    CueImportCategory.SPEED_VARIANTS: _CUE_VIDEO_EXTS,
+}
+
+
+def _cue_known_content(path):
+    # type: (str) -> bool
+    """True when path is recognizable cue content: under one of the 5 category
+    prefixes and carrying that category's extension (case-insensitive)."""
+    exts = _CUE_CATEGORY_EXTS.get(_cue_import_category(path))
+    return exts is not None and path.lower().endswith(exts)
 
 
 # --------------------------------------------------------------------------
@@ -255,7 +279,9 @@ def _cue_sanitize_filename(name):
 def _cue_collect_tree(root, src_dir):
     # type: (str, str) -> List[str]
     """All files under src_dir as root-relative arcnames ('/' separated).
-    Tolerates a missing dir (yields nothing)."""
+    Non-cue files (foreign extensions under a category prefix) are skipped --
+    export only ships content the import can consume.  Tolerates a missing
+    dir (yields nothing)."""
     arcnames = []
     try:
         base = os.path.relpath(src_dir, root).replace("\\", "/")
@@ -264,7 +290,10 @@ def _cue_collect_tree(root, src_dir):
             for name in filenames:
                 rel = os.path.relpath(
                     os.path.join(dirpath, name), src_dir).replace("\\", "/")
-                arcnames.append(base + rel)
+                arcname = base + rel
+                if not _cue_known_content(arcname):
+                    continue
+                arcnames.append(arcname)
     except Exception as e:
         _cue_log("IMPORT: enumerate failed for {}: {}".format(src_dir, e))
     return arcnames
@@ -484,16 +513,17 @@ def _cue_build_import_zip(root, game_id, name, author, description,
     if progress is not None:
         for rel in contents:
             src = _safe_extract_path(root, rel)
-            if os.path.isfile(src):
-                total += os.path.getsize(src)
+            if src is None or not os.path.isfile(src):
+                continue
+            total += os.path.getsize(src)
     with _zipfile.ZipFile(tmp_path, "w", _zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(CUE_IMPORT_MANIFEST_NAME,
                     _json.dumps(manifest, sort_keys=True, indent=2))
         written = 0
         for rel in contents:
             src = _safe_extract_path(root, rel)
-            if not os.path.isfile(src):
-                _cue_log("EXPORT: missing {}, skipping".format(src))
+            if src is None or not os.path.isfile(src):
+                _cue_log("EXPORT: missing {}, skipping".format(rel))
                 continue
             zf.write(src, rel)
             count += 1
@@ -506,22 +536,34 @@ def _cue_build_import_zip(root, game_id, name, author, description,
 
 def _cue_extract_import_zip(zip_path, out_dir, progress=None):
     # type: (str, str, Optional[Any]) -> int
-    """Extract every file in the zip under out_dir (dir entries skipped,
-    parent traversal dropped).  Returns the file count.  When progress is
-    given it is called as progress(written_bytes, total_bytes) after each
-    file; total is the sum of uncompressed file sizes."""
+    """Extract the zip's cue content under out_dir: the manifest plus every
+    file under a known category prefix with a recognized extension.  Dir
+    entries, parent-traversal names, and unexpected files (stray .exe, foreign
+    extensions) are skipped.  Returns the file count.  When progress is given
+    it is called as progress(written_bytes, total_bytes) after each file;
+    total is the sum of uncompressed sizes of the entries that pass the
+    filters."""
     count = 0
     total = 0
     with _zipfile.ZipFile(zip_path, "r") as zf:
-        if progress is not None:
-            total = sum(info.file_size for info in zf.infolist()
-                        if not info.filename.endswith("/"))
-        written = 0
+        infos = []
         for info in zf.infolist():
             name = info.filename
             if name.endswith("/"):
                 continue
+            if name != CUE_IMPORT_MANIFEST_NAME and not _cue_known_content(name):
+                _cue_log("IMPORT: skipped unexpected file: {}".format(name))
+                continue
+            infos.append(info)
+        if progress is not None:
+            total = sum(info.file_size for info in infos)
+        written = 0
+        for info in infos:
+            name = info.filename
             dest = _safe_extract_path(out_dir, name)
+            if dest is None:
+                _cue_log("IMPORT: blocked unsafe path: {}".format(name))
+                continue
             parent = os.path.dirname(dest)
             if not os.path.isdir(parent):
                 os.makedirs(parent)
@@ -561,26 +603,38 @@ def _cue_copy_file(src, dst):
 
 def _cue_merge_overwrites(root, contents):
     # type: (str, List[str]) -> List[str]
-    """The contents whose destination under root already exists -- drives the
-    merge dialog's overwrite summary."""
-    return [rel for rel in contents
-            if os.path.isfile(_safe_extract_path(root, rel))]
+    """The cue content whose destination under root already exists -- drives
+    the merge dialog's overwrite summary.  Non-cue paths are never counted."""
+    out = []
+    for rel in contents:
+        if not _cue_known_content(rel):
+            continue
+        dest = _safe_extract_path(root, rel)
+        if dest is not None and os.path.isfile(dest):
+            out.append(rel)
+    return out
 
 
 def _cue_merge_files(root, src_root, contents):
     # type: (str, str, List[str]) -> int
-    """Copy each content file from src_root (the extracted import) into root.
-    An existing destination is first moved to {root}/data_bak/{rel} as a
-    safety net.  Copy, not rename, so the import stays intact for re-extract
-    recovery.  Returns the number of files merged."""
+    """Copy each cue content file from src_root (the extracted import) into
+    root.  Non-cue paths are skipped.  An existing destination is first moved
+    to {root}/data_bak/{rel} as a safety net.  Copy, not rename, so the import
+    stays intact for re-extract recovery.  Returns the number of files merged."""
     count = 0
     for rel in contents:
+        if not _cue_known_content(rel):
+            continue
         src = _safe_extract_path(src_root, rel)
-        if not os.path.isfile(src):
+        if src is None or not os.path.isfile(src):
             continue
         dst = _safe_extract_path(root, rel)
+        if dst is None:
+            continue
         if os.path.isfile(dst):
             bak = _safe_extract_path(os.path.join(root, CUE_BAK_DIR), rel)
+            if bak is None:
+                continue
             parent = os.path.dirname(bak)
             if not os.path.isdir(parent):
                 os.makedirs(parent)

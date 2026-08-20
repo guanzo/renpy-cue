@@ -8,6 +8,7 @@ import os
 import zipfile
 
 from cue_lib import importer_io as _imp
+from cue_lib.backup import _safe_extract_path
 from cue_lib.constants import CUE_IMPORT_MANIFEST_NAME
 
 GAME_ID = "g1"
@@ -162,13 +163,81 @@ def test_extract_rejects_parent_traversal(tmp_path):
     zip_path = str(tmp_path / "evil.zip")
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr("../evil.txt", "boom")
-        zf.writestr("ok.txt", "fine")
+        zf.writestr("audio/..\\..\\evil.txt", "boom")   # Windows-style ..\\
+        zf.writestr("C:\\evil.exe", "boom")             # drive-absolute
+        zf.writestr("audio/ok.mp3", "fine")
+        zf.writestr("music/ok.ogg", "fine")
 
     _imp._cue_extract_import_zip(zip_path, out)
 
+    # Nothing escaped out_dir -- on any platform.
     assert not os.path.isfile(str(tmp_path / "evil.txt"))
-    assert os.path.isfile(os.path.join(out, "evil.txt"))
-    assert os.path.isfile(os.path.join(out, "ok.txt"))
+    assert not os.path.isfile(os.path.join(str(tmp_path), "evil.exe"))
+    # Traversal-dropped names aren't cue content, so they're dropped too.
+    assert _walk_rel(out) == {"audio/ok.mp3", "music/ok.ogg"}
+
+
+def test_safe_extract_path_never_escapes(tmp_path):
+    out = str(tmp_path / "out")
+    base = os.path.normpath(out)
+    for name in ["../evil.txt", "..\\..\\evil.txt", "audio/..\\..\\evil.txt",
+                 "C:\\evil.exe", "/abs/evil.txt", "audio/ok.mp3"]:
+        dest = _safe_extract_path(out, name)
+        assert dest is None or dest == base or dest.startswith(base + os.sep)
+
+
+def test_extract_keeps_only_known_content(tmp_path):
+    out = str(tmp_path / "out")
+    zip_path = str(tmp_path / "pkg.zip")
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr(CUE_IMPORT_MANIFEST_NAME, "{}")
+        zf.writestr("audio/ok.mp3", "a")
+        zf.writestr("audio/evil.exe", "x")
+        zf.writestr("music/track.ogg", "b")
+        zf.writestr("data/markers/{}/m.json".format(GAME_ID), "{}")
+        zf.writestr("data/presets/audio/p.json", "{}")
+        zf.writestr("evil.exe", "x")          # root junk, no prefix
+        zf.writestr("notes.txt", "x")         # unknown extension
+
+    count = _imp._cue_extract_import_zip(zip_path, out)
+
+    assert count == 5  # manifest + ok.mp3 + track.ogg + m.json + p.json
+    assert _walk_rel(out) == {
+        CUE_IMPORT_MANIFEST_NAME,
+        "audio/ok.mp3",
+        "music/track.ogg",
+        "data/markers/{}/m.json".format(GAME_ID),
+        "data/presets/audio/p.json",
+    }
+
+
+def test_enumerate_skips_non_media_files(tmp_path):
+    """Export never ships non-cue files, so a manifest can't list content the
+    import would drop (which would surface as a bogus 'missing files' warn)."""
+    root = str(tmp_path / "root")
+    _write(root, "audio/ok.ogg", "a")
+    _write(root, "audio/notes.txt", "x")
+    _write(root, "video/{}/clip.mkv".format(GAME_ID), "v")
+    _write(root, "video/{}/thumb.png".format(GAME_ID), "p")
+
+    flat = [f for fs in _imp._cue_enumerate_import_files(root, GAME_ID).values()
+            for f in fs]
+
+    assert sorted(flat) == ["audio/ok.ogg", "video/{}/clip.mkv".format(GAME_ID)]
+
+
+def test_merge_skips_unknown_content(tmp_path):
+    root = str(tmp_path / "root")
+    src = str(tmp_path / "src")
+    _write(src, "audio/ok.mp3", "a")
+    _write(src, "audio/evil.exe", "x")
+    contents = ["audio/ok.mp3", "audio/evil.exe"]
+
+    count = _imp._cue_merge_files(root, src, contents)
+
+    assert count == 1
+    assert os.path.isfile(os.path.join(root, "audio", "ok.mp3"))
+    assert not os.path.exists(os.path.join(root, "audio", "evil.exe"))
 
 
 # ---------------------------------------------------------------------------
