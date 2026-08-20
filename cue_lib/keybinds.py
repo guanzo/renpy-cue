@@ -92,7 +92,7 @@ _MOD_DISPLAY = {
     "meta": "Win",
 }
 
-_VALID_MODS = frozenset(("shift", "ctrl", "alt", "meta"))
+_VALID_MODS = frozenset(("shift", "noshift", "ctrl", "alt", "meta"))
 
 # Python 2 (Ren'Py 7.x): `str` is bytes and json decodes to `unicode`.  Accept
 # both so saved keybind overrides aren't rejected as invalid on restart.
@@ -167,20 +167,23 @@ class CueKeybindsManager(object):
              "default": "alt_K_a",
              "label": "Toggle SFX Overlay",
              "desc": "Toggle SFX Library overlay mode"},
+            # noshift: a bare K_1..K_4 also matches Shift+1..4 in Ren'Py
+            # (plain keys only exclude alt/ctrl/meta), so without it the
+            # target keys would clobber shift_K_1/2/3/4 on the SFX page.
             {"id": CUE_KEYMAP_TARGET_VIDEO,
-             "default": "K_1",
+             "default": "noshift_K_1",
              "label": "Target Video",
              "desc": "SFX Library + target: Video SFX pool"},
             {"id": CUE_KEYMAP_TARGET_IMAGE,
-             "default": "K_2",
+             "default": "noshift_K_2",
              "label": "Target Image",
              "desc": "SFX Library + target: Image SFX pool"},
             {"id": CUE_KEYMAP_TARGET_DIALOGUE,
-             "default": "K_3",
+             "default": "noshift_K_3",
              "label": "Target Dialogue",
              "desc": "SFX Library + target: Dialogue SFX pool"},
             {"id": CUE_KEYMAP_TARGET_LOOP,
-             "default": "K_4",
+             "default": "noshift_K_4",
              "label": "Target Loop",
              "desc": "SFX Library + target: Loop SFX pool"},
             {"id": CUE_KEYMAP_PAGE_SFX,
@@ -335,11 +338,12 @@ class CueKeybindsManager(object):
             # F-keys ("F5"), and anything else we haven't mapped.
             label = key_upper
 
-        # Build modifier prefix ("Ctrl+Alt+...").
+        # Build modifier prefix ("Ctrl+Alt+..."). Segment match so the
+        # negative modifier "noshift" doesn't read as "shift" (substring).
         prefix = ""
+        mod_segs = [s for s in mods.rstrip("_").split("_") if s]
         for mod in ("meta", "ctrl", "alt", "shift"):
-            m = mod + "_"
-            if m in mods:
+            if mod in mod_segs:
                 prefix += _MOD_DISPLAY[mod] + "+"
 
         return prefix + label
