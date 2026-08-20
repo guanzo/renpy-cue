@@ -1157,6 +1157,27 @@ def test_wrap_all_movies_first_pass(env, monkeypatch):
         _display_images.clear()
 
 
+def test_wrap_all_movies_game_dynamic_displayable_movie_child(env, monkeypatch):
+    """A game DynamicDisplayable whose rendered child is a Movie gets wrapped --
+    only our CueDynamicDisplayable wrappers are skipped, not the game's."""
+    import renpy as _renpy
+    from renpy.display.image import images as _display_images
+    from renpy.display.layout import DynamicDisplayable
+
+    _display_images.clear()
+    try:
+        dd = DynamicDisplayable(lambda *a: None)
+        dd.child = _reg_movie(env)  # simulates an already-rendered DD child
+        _display_images[("dyn",)] = dd
+        monkeypatch.setattr(
+            _renpy, "image",
+            lambda name, d, **k: _display_images.__setitem__(name, d))
+        env.resolver.wrap_all_movies()
+        assert env.resolver.paths["dyn"] == env.base_fs
+    finally:
+        _display_images.clear()
+
+
 def test_wrap_all_movies_atl_pass(env):
     from renpy.display.image import images as _display_images
 

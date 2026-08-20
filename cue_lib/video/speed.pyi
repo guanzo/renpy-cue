@@ -1,6 +1,7 @@
 # Type stub for cue_lib.video.speed
 from typing import Any, Dict, Final, List, Optional, Set, Tuple
 from renpy.display.video import Movie
+from renpy.display.layout import DynamicDisplayable
 
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.video.video import CueVideoManager
@@ -17,6 +18,8 @@ class CueSpeedMode:
     SINGLE: str
     MULTI: str
     AUTO: str
+
+class CueDynamicDisplayable(DynamicDisplayable): ...
 
 class CueSpeedToast:
     toast_speeds: Optional[List[float]]

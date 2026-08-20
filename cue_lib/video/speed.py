@@ -320,7 +320,9 @@ class CueVidSpeedResolver(object):
 
         # First pass: Find all Movies
         for name_tuple, d in list(_display_images.items()):
-            if isinstance(d, DynamicDisplayable):
+            # Skip only our own wrappers; a game DynamicDisplayable whose
+            # rendered child is a Movie should still be wrapped.
+            if isinstance(d, CueDynamicDisplayable):
                 continue
             unwrapped = _cue_unwrap_displayable(d)
             if not isinstance(unwrapped, Movie):
@@ -330,7 +332,7 @@ class CueVidSpeedResolver(object):
             if not base_path:
                 continue
             self.paths[tag] = base_path
-            renpy.image(name_tuple, DynamicDisplayable(_cue_resolver, tag, base_path, unwrapped))
+            renpy.image(name_tuple, CueDynamicDisplayable(_cue_resolver, tag, base_path, unwrapped))
             _count += 1
 
         # Second pass: ATL images ("bg <name> movie") display a wrapped
@@ -340,7 +342,7 @@ class CueVidSpeedResolver(object):
         # populated, so this is independent of registry order.
         _atl_count = 0
         for name_tuple, d in list(_display_images.items()):
-            if isinstance(d, DynamicDisplayable):
+            if isinstance(d, CueDynamicDisplayable):
                 continue
             children = _cue_atl_child_displayables(d)
             if not children:
@@ -952,6 +954,11 @@ class CueSpeedToast(object):
 # ==========================================================================
 # Module-level wrappers (must be module-level for DynamicDisplayable pickling)
 # ==========================================================================
+
+class CueDynamicDisplayable(DynamicDisplayable):
+    """Marker subclass for the speed wrappers we register.  wrap_all_movies()
+    skips only these, letting the game's own DynamicDisplayables (whose
+    rendered child may be a Movie) through the unwrap path."""
 
 def _cue_resolver(st, at, tag, base_path, orig_movie):
     # type: (float, float, str, str, Movie) -> Tuple[Any, Any]
