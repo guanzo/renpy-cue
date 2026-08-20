@@ -329,8 +329,10 @@ init 999 python:
                     ch_name, "sfx", loop=False, stop_on_mute=True, tight=False
                 )
 
-        # Create a layer above screens for the Cue UI.
-        renpy.add_layer("cue_layer", above="screens")
+        # Create a layer above screens for the Cue UI, as a top layer so
+        # scene transitions (with fade) never capture or transition it.
+        config.top_layers.append("cue_layer")
+        config.menu_clear_layers.append("cue_layer")
 
         # Register after_load callback
         def _cue_after_load():
