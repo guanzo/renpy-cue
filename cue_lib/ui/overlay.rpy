@@ -157,26 +157,20 @@ screen cue_overlay_content():
 screen cue_header_toolbar():
     style_group "cue"
 
-    $ _toggle_on_tt = "SFX triggers are ON ("
-    $ _toggle_on_tt += _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_ACTIVE) + " to toggle)"
-    $ _toggle_off_tt = "SFX triggers are OFF ("
-    $ _toggle_off_tt += _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_ACTIVE) + " to toggle)"
+    $ _sfx_toggle_on_tt = "SFX triggers are ON ({} to toggle)".format(_cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_ACTIVE))
+    $ _sfx_toggle_off_tt = "SFX triggers are OFF ({} to toggle)".format(_cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_ACTIVE))
     $ _copy_tt = "Copy current scene markers (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_COPY_CONTEXT) + ")"
     $ _paste_tt = "Paste markers (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_PASTE_CONTEXT) + ")"
     $ _undo_tt = "Undo (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_UNDO) + ")"
     $ _redo_tt = "Redo (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_REDO) + ")"
     $ _pause_tt = "Pause game (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_PAUSE)
     $ _pause_tt += ")\nUse to pause on scenes that auto advance."
+
     hbox:
         xfill True
         spacing 2
         hbox:
             spacing 5
-            use cue_checkbox(_cue.trigger.active, "SFX Active",
-                Function(_cue_toggle_sfx_active),
-                _toggle_on_tt, _toggle_off_tt)        
-                
-            null width 10
 
             $ _sfx_bg = _cue_color_active if _cue.overlay_active_page == CuePage.SFX else None
             use cue_icon_btn("sliders", Function(_cue_set_page, CuePage.SFX), "Editor",
@@ -190,9 +184,19 @@ screen cue_header_toolbar():
             $ _settings_bg = _cue_color_active if _cue.overlay_active_page == CuePage.SETTINGS else None
             use cue_icon_btn("gear", Function(_cue_set_page, CuePage.SETTINGS), "Settings",
                 bg=_settings_bg)
+
+                
         hbox:
             xalign 1.0
             spacing 2
+            
+            $ _sfx_icon = "volume" if _cue.trigger.active else "volume-xmark"
+            $ _sfx_tt = _sfx_toggle_on_tt if _cue.trigger.active else _sfx_toggle_off_tt
+            $ _sfx_bg = _cue_color_active if _cue.trigger.active else _cue_color_dark_yellow
+            use cue_icon_btn(_sfx_icon, Function(_cue_toggle_sfx_active), _sfx_tt, bg=_sfx_bg) 
+
+            null width 5
+                   
             use cue_icon_btn("copy", Function(_cue.markers.copy_context), _copy_tt)
             use cue_icon_btn("paste", Function(_cue.markers.paste_context), _paste_tt)
             null width 5
