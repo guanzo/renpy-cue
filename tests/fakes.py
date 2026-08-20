@@ -104,7 +104,8 @@ class FakeManager(object):
         defaults = self._presets.get(pool["preset"], {}) if "preset" in pool else {}
         files = pool.get("files", defaults.get("files", []))
         volume = pool.get("volume", defaults.get("volume", 1.0))
-        return FakeResolvedPool(files=list(files), volume=volume)
+        trigger_on_shake = pool.get("trigger_on_shake", defaults.get("trigger_on_shake", False))
+        return FakeResolvedPool(files=list(files), volume=volume, trigger_on_shake=trigger_on_shake)
 
 
 class FakeDb(object):

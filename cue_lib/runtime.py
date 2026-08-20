@@ -26,6 +26,19 @@ if MYPY:
     from cue_lib._types import MarkerEntry, PoolDict, VideoPoolDict  # pyright: ignore[reportUnusedImport]
 
 
+# Dedup set for the TOP-LAYER-UNKNOWN debug log (which displayables have
+# already been reported). Module-level so a duplicate sighting stays silent.
+_cue_logged_unknown_displayables = set()
+
+# Slow lane: work that doesn't need the 20ms tick cadence runs at most every
+# CUE_SLOW_TICK_INTERVAL seconds.
+CUE_SLOW_TICK_INTERVAL = 0.25
+_cue_slow_tick_last = 0.0
+
+# Quick cross-fade duration for exclusive cut-in sweeps.
+CUE_EXCLUSIVE_FADE = 0.1
+
+
 # --------------------------------------------------------------------------
 # Visibility
 # --------------------------------------------------------------------------
@@ -232,11 +245,6 @@ def _cue_play_pool(entry, key, pool, pool_index, file=None, avoid_repeats=True):
 # Image / Movie Detection (master layer scene list)
 # --------------------------------------------------------------------------
 
-# Dedup set for the TOP-LAYER-UNKNOWN debug log (which displayables have
-# already been reported). Module-level so a duplicate sighting stays silent.
-_cue_logged_unknown_displayables = set()
-
-
 def _cue_get_top_layer():
     # type: () -> Tuple[Optional[str], Optional[str], Any]
     try:
@@ -347,10 +355,6 @@ def _cue_refresh_channel(displayable=None):
 # --------------------------------------------------------------------------
 # SFX Trigger Engine (Tick)
 # --------------------------------------------------------------------------
-
-CUE_SLOW_TICK_INTERVAL = 0.25
-_cue_slow_tick_last = 0.0
-
 
 def _cue_tick_trigger():
     # type: () -> None
@@ -517,10 +521,6 @@ def _cue_play_sfx(filename, source="", volume=1.0):
     except Exception:
         _cue_log("PLAY-SFX: exception during playback of {}".format(full_path))
         return None
-
-
-# Quick cross-fade duration for exclusive cut-in sweeps.
-CUE_EXCLUSIVE_FADE = 0.1
 
 
 def _cue_fade_out_sfx(exclude_channels=None, only_channels=None):

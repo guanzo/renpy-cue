@@ -22,6 +22,11 @@ if MYPY:
         MarkerEntry, PoolDict, VideoPoolDict,  # pyright: ignore[reportUnusedImport]
     )
 
+# Nonzero group marks a pool as exclusive. Grouping is derived at runtime
+# (scene + line for one-shots; loops never group), so the stored group value
+# is just an on/off flag -- any nonzero value works.
+CUE_EXCLUSIVE_GROUP = 1
+
 # =========================================================================
 # CueMarkerContext -- pool-based markers (shared by .image and .dialogue)
 # =========================================================================
@@ -232,12 +237,6 @@ class CueMarkerContext(object):
         if folder_ref not in files:
             files.append(folder_ref)
         self._mgr._db_save_marker(key)
-
-
-# Nonzero group marks a pool as exclusive. Grouping is derived at runtime
-# (scene + line for one-shots; loops never group), so the stored group value
-# is just an on/off flag -- any nonzero value works.
-CUE_EXCLUSIVE_GROUP = 1
 
 
 # =========================================================================

@@ -61,17 +61,6 @@ _CUE_MAX_NAME_LEN = 60
 _CUE_MAX_AUTHOR_LEN = 40
 _CUE_MAX_DESC_LEN = 300
 
-
-def _cue_import_category(path):
-    # type: (str) -> int
-    """Map a zip-relative path to its CueImportCategory (UNKNOWN if it
-    falls outside the 5 exportable categories)."""
-    for cat, prefix in _CUE_CATEGORY_PREFIX:
-        if path.startswith(prefix):
-            return cat
-    return CueImportCategory.UNKNOWN
-
-
 # Extension allow-list per category.  An entry under a known prefix but
 # carrying a foreign extension is not cue content: it is skipped at extract
 # and merge, and never enumerated for export, so a manifest can't list a file
@@ -85,6 +74,16 @@ _CUE_CATEGORY_EXTS = {
     CueImportCategory.MUSIC: CUE_AUDIO_EXTS,
     CueImportCategory.SPEED_VARIANTS: _CUE_VIDEO_EXTS,
 }
+
+
+def _cue_import_category(path):
+    # type: (str) -> int
+    """Map a zip-relative path to its CueImportCategory (UNKNOWN if it
+    falls outside the 5 exportable categories)."""
+    for cat, prefix in _CUE_CATEGORY_PREFIX:
+        if path.startswith(prefix):
+            return cat
+    return CueImportCategory.UNKNOWN
 
 
 def _cue_known_content(path):

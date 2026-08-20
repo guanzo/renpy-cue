@@ -27,6 +27,14 @@ from renpy.store import Function
 # Import time again for _logtime alias used by _cue_log
 _logtime = time
 
+# Debug lines buffer in memory and flush in batches: a burst of lines costs
+# one file open instead of one per line.  The main-thread slow tick flushes
+# it, so the log stays near-realtime; background threads only append under the
+# lock, never write.  The log is truncated on every restart, so it never
+# grows unbounded.
+_cue_log_buffer = []
+_cue_log_lock = _threading.Lock()
+
 MYPY = False
 if MYPY:
     from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -525,15 +533,6 @@ def _cue_parse_time(time_str):
 # --------------------------------------------------------------------------
 # Debug Logging
 # --------------------------------------------------------------------------
-
-# Debug lines buffer in memory and flush in batches: a burst of lines costs
-# one file open instead of one per line.  The main-thread slow tick flushes
-# it, so the log stays near-realtime; background threads only append under the
-# lock, never write.  The log is truncated on every restart, so it never
-# grows unbounded.
-_cue_log_buffer = []
-_cue_log_lock = _threading.Lock()
-
 
 def _cue_log(msg):
     # type: (str) -> None
