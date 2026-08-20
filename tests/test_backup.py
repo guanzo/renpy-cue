@@ -508,7 +508,7 @@ def test_backup_manager_set_auto_backups_delegates_to_db(cue_env):
     # the composite forwards to the db, which flips the switch and persists.
     db = cue_env.db
     bm = db._backup
-    bm._db = db  # init -900 wires _cue.backups._db
+    bm.wire(db, lambda count: None, None)  # init -900 wires the composite
 
     bm.set_auto_backups(False)
     assert bm.auto.enabled is False
@@ -524,6 +524,17 @@ def test_backup_manager_set_auto_backups_unwired_noop(tmp_path):
     bm = CueBackupManager(CuePaths(str(tmp_path / "shared"), GAME_ID))
     bm.set_auto_backups(False)
     assert bm.auto.enabled is True
+
+
+def test_backup_manager_wire_sets_db_and_forwards_to_manual(cue_env):
+    db = cue_env.db
+    bm = db._backup
+    bm.wire(db, lambda count: None, "confirm")
+
+    assert bm._db is db
+    assert bm.manual._db is db
+    assert bm.manual._reload_work is not None
+    assert bm.manual._confirm_dialog == "confirm"
 
 
 def test_open_seeds_auto_enabled_from_config(tmp_path):

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 # cue_lib/backup.py -- Backup of the shared data/ tree.
 #
-# Owned by CueDatabase as self._backup.  The composite CueBackupManager
+# The composite CueBackupManager is a top-level _cue manager, built in the
+# init -900 wiring block and injected into CueDatabase as self._backup.  It
 # splits the two backup flows into sub-managers:
 #
 #   .auto   -- CueAutoBackupManager.  After any disk CRUD in data/, the
@@ -441,7 +442,7 @@ class CueManualBackupManager(object):
     def __init__(self, owner):
         # type: (CueBackupManager) -> None
         self._owner = owner
-        self._db = None          # CueDatabase, wired by init -900
+        self._db = None          # CueDatabase, injected by wire()
         self._reload_work = None  # callable(count) -> None, wired by init -900
         self._confirm_dialog = None
         self.is_backing_up = False
@@ -638,7 +639,15 @@ class CueBackupManager(object):
         self._paths = paths
         self.auto = CueAutoBackupManager(self)
         self.manual = CueManualBackupManager(self)
-        self._db = None          # CueDatabase, wired by init -900 (settings toggle)
+        self._db = None          # CueDatabase, injected by wire()
+
+    def wire(self, db, reload_work, confirm_dialog):
+        # type: (Any, Callable[[int], None], Any) -> None
+        """Attach collaborators available only after full init: the open db
+        (settings toggle + manual restore guard) and the marker reload
+        callback."""
+        self._db = db
+        self.manual.wire(db, reload_work, confirm_dialog)
 
     @property
     def path(self):

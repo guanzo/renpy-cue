@@ -165,6 +165,7 @@ init -900 python:
     from cue_lib.importer import CueImportManager
     from cue_lib.exporter import CueExportManager
     from cue_lib.settings import CueSettings
+    from cue_lib.backup import CueBackupManager
     from cue_lib.db import CueDatabase
     from cue_lib.paths import CuePaths
     from cue_lib.state import _cue
@@ -175,7 +176,8 @@ init -900 python:
         the wiring leaves no footprint on the game's store namespace."""
         paths = CuePaths(CuePaths.resolve_root(), renpy.config.save_directory)
 
-        db = CueDatabase(paths)
+        backups = CueBackupManager(paths)
+        db = CueDatabase(paths, backups)
         db.open()
 
         # The marker store owns the data layer; the manager coordinates around
@@ -251,36 +253,36 @@ init -900 python:
 
         _cue.paths = paths
         _cue.db = db
+        _cue.markers = markers
         _cue.marker_store = marker_store
+
         _cue.vid_manager = vid_manager
-        _cue.volume = volume
         _cue.video_sequence = video_sequence
+        _cue.video_editor = video_editor
+        _cue.ffmpeg = ffmpeg
         _cue.speed_toast = speed_toast
         _cue.speed_resolver = speed_resolver
         _cue.auto_speed = auto_speed
         _cue.repeater = repeater
-        _cue.ffmpeg = ffmpeg
-        _cue.video_editor = video_editor
-        _cue.undo = undo
+
         _cue.trigger = trigger
         _cue.sfx_manager = sfx_manager
-        _cue.settings = settings
+        _cue.music = music
+        _cue.volume = volume
+
         _cue.dialogs.preset = preset_dialog
         _cue.dialogs.video_preset = video_preset_dialog
         _cue.dialogs.confirm = confirm_dialog
         _cue.dialogs.merge = merge_dialog
+
+        _cue.settings = settings
         _cue.keybinds = keybinds
         _cue.icons = icons
-        _cue.music = music
-        _cue.markers = markers
-        # Manual backup/restore collaborators only exist after full init: the
-        # open db (guard), the marker reload callback (main-thread), and the
-        # confirm dialog.  Auto backup runs on its own -- the db drives maybe()
-        # -- but the composite keeps a db ref so the settings toggle persists.
-        _cue.backups = db._backup
-        _cue.backups._db = db
-        _cue.backups.manual.wire(
-            db, markers._reload_after_restore, confirm_dialog)
+        _cue.undo = undo
+
+        _cue.backups = backups
+        backups.wire(db, markers._reload_after_restore, confirm_dialog)
+
         _cue.importer = importer
         _cue.exporter = exporter
 

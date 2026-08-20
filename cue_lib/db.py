@@ -114,11 +114,15 @@ class CueDatabase(object):
     Markers and videos are namespaced by game_id.  Presets are game-agnostic.
     """
 
-    def __init__(self, paths):
-        # type: (CuePaths) -> None
+    def __init__(self, paths, backup=None):
+        # type: (CuePaths, Optional[CueBackupManager]) -> None
         self.paths = paths         # the one CuePaths (shared with _cue for the live db)
         self._open = False
-        self._backup = CueBackupManager(paths)
+        # The backup manager is a top-level _cue manager, built in the init -900
+        # wiring block and injected here; the db drives it after writes and seeds
+        # its switch from config.  Callers without a composite (probes, tests)
+        # let the db build its own.
+        self._backup = backup if backup is not None else CueBackupManager(paths)
 
     # ------------------------------------------------------------------
     # Lifecycle
