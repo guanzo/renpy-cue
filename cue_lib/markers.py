@@ -18,7 +18,7 @@ from cue_lib.constants import (
     CUE_VOLUME_DEFAULT, CueExclusiveStart as CueExclusiveStart, CueLoopFrequency as CueLoopFrequency,
     CueContextType,
 )
-from cue_lib.context import CueImageContext, CueDialogueContext, CueVideoContext, CueLoopContext
+from cue_lib.marker_context import CueImageContext, CueDialogueContext, CueVideoContext, CueLoopContext
 from cue_lib.copy_paste import copy_context as _copy_context, paste_context as _paste_context
 # ResolvedExclusive is re-exported (as X form = explicit re-export): tests
 # import both snapshots from cue_lib.markers.

@@ -18,6 +18,7 @@ CUE_SEEK_MIN_TARGET = 0.001
 
 class CueVideoManager(object):
     """Per-video playback state and control.
+    Tracks the movie channel that's currently playing.
     Methods act on self.channel (the movie channel this state tracks),
     which _cue_refresh_channel keeps in sync."""
 

@@ -23,7 +23,7 @@ screen cue_sfx_page():
             $ _img_r = _cue.markers.resolve_pool(_cue.markers.image.get_active_pool())
             use cue_checkbox(_img_r.trigger_on_shake,
                 "Play SFX when screen shakes",
-                Function(_cue_toggle_shake_trigger))
+                Function(_cue.markers.image.toggle_shake_trigger))
 
     # --- Dialogue UI ---
     $ _is_dialogue = bool(_cue.current_dialogue)

@@ -15,7 +15,6 @@ import pytest
 import renpy as _renpy
 import renpy.audio.audio as _aaudio
 import renpy.audio.music as _music_mock
-import renpy.store as _store
 
 import cue_lib.runtime as _runtime
 import cue_lib.settings as _settings
@@ -34,7 +33,6 @@ def cue(monkeypatch, tmp_path):
     monkeypatch.setattr(_runtime, "_cue", c)
     monkeypatch.setattr(_util, "_cue", c)  # _cue_resolve_files/_cue_pick_file
     monkeypatch.setattr(_settings, "_cue", c)  # CueSettings methods read _cue
-    _store.persistent._cue = {}  # _cue_toggle_sfx_active writes triggers_active
     _music_mock._reset_all()
     _aaudio.channels.clear()
     _runtime._cue_slow_tick_last = 0.0
@@ -149,20 +147,6 @@ def test_refresh_overlay_reloads_markers_from_effective_root(cue, tmp_path):
 # Trigger / page state
 # ==========================================================================
 
-def test_toggle_active_flips_trigger_and_persists(cue):
-    cue.trigger.active = True
-    _runtime._cue_toggle_sfx_active()
-    assert cue.trigger.active is False
-    assert _store.persistent._cue["triggers_active"] is False
-
-
-def test_toggle_active_reverse(cue):
-    cue.trigger.active = False
-    _runtime._cue_toggle_sfx_active()
-    assert cue.trigger.active is True
-    assert _store.persistent._cue["triggers_active"] is True
-
-
 def test_set_page_same_page_noop(cue):
     cue.overlay_active_page = CuePage.SFX
     _runtime._cue_set_page(CuePage.SFX)
@@ -247,20 +231,6 @@ def test_confirm_shared_dir_save_failure(cue, monkeypatch, tmp_path):
 # ==========================================================================
 # Shake / mute toggles
 # ==========================================================================
-
-def test_toggle_shake_trigger_no_current_file(cue):
-    cue.current_file = ""
-    _runtime._cue_toggle_shake_trigger()
-    assert cue.calls == {}
-
-
-def test_toggle_shake_trigger_toggles_and_saves(cue):
-    cue.current_file = "scene.ogv"
-    _runtime._cue_toggle_shake_trigger()
-    assert cue.calls["markers._ensure_pool"] == [(("i_scene.ogv", 0), {})]
-    assert cue.ensured_pools[-1]["trigger_on_shake"] is True
-    assert cue.calls["markers.save_marker"] == [(("i_scene.ogv",), {})]
-
 
 def test_toggle_video_mute_no_current_file(cue):
     cue.current_file = ""

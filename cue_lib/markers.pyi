@@ -42,9 +42,9 @@ def _cue_markers_send(kind: str, ref: object, record: bool = True) -> None: ...
 def _cue_target_assign_tt() -> str: ...
 
 
-# Context classes were split into cue_lib/context.py; re-exported here so
-# existing consumers can keep importing them from cue_lib.markers.
-from cue_lib.context import (
+# Context classes were split into cue_lib/marker_context.py; re-exported here
+# so existing consumers can keep importing them from cue_lib.markers.
+from cue_lib.marker_context import (
     CueImageContext as CueImageContext,
     CueDialogueContext as CueDialogueContext,
     CueVideoContext as CueVideoContext,

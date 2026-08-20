@@ -10,6 +10,8 @@
 
 import pytest
 
+import renpy.store as _store
+
 import cue_lib.trigger as _trigger
 import cue_lib.runtime as _runtime
 from cue_lib.trigger import CueTriggerEngine, CUE_EXCL_KIND_LOOP, CUE_EXCL_KIND_ONESHOT
@@ -100,6 +102,24 @@ def test_markers_ctx_falls_back_to_singleton(monkeypatch):
     eng = CueTriggerEngine(FakeMarkerStore(), FakeRepeater(),
                            FakeSpeedResolver(), FakeVidManager())
     assert eng._markers_ctx() is fake
+
+
+def test_toggle_active_flips_trigger_and_persists():
+    eng = make_engine()
+    eng.active = True
+    _store.persistent._cue = {"triggers_active": True}
+    eng.toggle_active()
+    assert eng.active is False
+    assert _store.persistent._cue["triggers_active"] is False
+
+
+def test_toggle_active_reverse():
+    eng = make_engine()
+    eng.active = False
+    _store.persistent._cue = {"triggers_active": False}
+    eng.toggle_active()
+    assert eng.active is True
+    assert _store.persistent._cue["triggers_active"] is True
 
 
 # ---------------------------------------------------------------------------

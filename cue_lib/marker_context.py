@@ -251,6 +251,17 @@ class CueImageContext(CueMarkerContext):
         # type: () -> str
         return create_img_key(self._mgr._ctx.current_file)
 
+    def toggle_shake_trigger(self):
+        # type: () -> None
+        """Toggle the shake trigger for the current file's image marker."""
+        if not self._mgr._ctx.current_file:
+            return
+        key = self._key()
+        pool = self._mgr._ensure_pool(key, self.active_pool)
+        resolved = self._mgr.resolve_pool(pool)
+        pool["trigger_on_shake"] = not resolved.trigger_on_shake
+        self._mgr._db_save_marker(key)
+
 
 # =========================================================================
 # CueDialogueContext

@@ -8,7 +8,6 @@ import renpy.audio.music as _music
 import renpy.audio.audio as _aaudio
 import time as _time
 
-from renpy.store import persistent
 from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
 from cue_lib.constants import CuePage
 from cue_lib.state import _cue
@@ -38,11 +37,6 @@ def _cue_toggle_overlay():
     else:
         _cue_show_overlay()
 
-def _cue_toggle_sfx_active():
-    # type: () -> None
-    _cue.trigger.active = not _cue.trigger.active
-    persistent._cue["triggers_active"] = _cue.trigger.active
-
 def _cue_set_page(page):
     # type: (int) -> None
     """Switch the overlay sidebar to the given page.
@@ -58,16 +52,6 @@ def _cue_set_page(page):
         _cue.exporter.refresh()
         
     _cue.overlay_active_page = page
-
-def _cue_toggle_shake_trigger():
-    # type: () -> None
-    if not _cue.current_file:
-        return
-    shake_key = create_img_key(_cue.current_file)
-    pool = _cue.markers._ensure_pool(shake_key, _cue.markers.image.active_pool)
-    resolved = _cue.markers.resolve_pool(pool)
-    pool["trigger_on_shake"] = not resolved.trigger_on_shake
-    _cue.markers.save_marker(shake_key)
 
 def _cue_toggle_video_mute():
     # type: () -> None

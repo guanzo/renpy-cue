@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Tests for the Cue*Context classes in cue_lib.context.
+# Tests for the Cue*Context classes in cue_lib.marker_context.
 #
 # Contexts are constructed with a manager (constructor injection) and read
 # entries via self._mgr.get(key).  The real manager is wired to _cue and
@@ -9,7 +9,7 @@
 import pytest
 
 from cue_lib.constants import CUE_DUPLICATE_GAP_FRAC, CUE_INTERVAL_SELECT_TOLERANCE
-from cue_lib.context import (
+from cue_lib.marker_context import (
     CueImageContext,
     CueLoopContext,
     CueVideoContext,
@@ -112,6 +112,37 @@ def test_entry_and_pools_returns_entry_and_pools():
 def test_entry_and_pools_empty_when_key_missing():
     ctx = VideoCtx(FakeManager())
     assert ctx._entry_and_pools() == (None, [])
+
+
+# ---------------------------------------------------------------------------
+# CueImageContext.toggle_shake_trigger
+# ---------------------------------------------------------------------------
+
+def test_toggle_shake_trigger_no_current_file():
+    mgr = FakeManager(current_file="")
+    ctx = ImageCtx(mgr, key="i_file")
+    ctx.toggle_shake_trigger()
+    assert mgr._data == {}
+    assert mgr.saved_keys == []
+
+
+def test_toggle_shake_trigger_toggles_on_and_saves():
+    mgr = FakeManager(current_file="scene.ogv")
+    ctx = ImageCtx(mgr, key="i_scene.ogv")
+    ctx.toggle_shake_trigger()
+    pool = mgr._data["i_scene.ogv"]["pools"][0]
+    assert pool["trigger_on_shake"] is True
+    assert mgr.saved_keys == ["i_scene.ogv"]
+
+
+def test_toggle_shake_trigger_toggles_off():
+    mgr = FakeManager(current_file="scene.ogv",
+                      data={"i_scene.ogv": {"pools": [{"trigger_on_shake": True}]}})
+    ctx = ImageCtx(mgr, key="i_scene.ogv")
+    ctx.toggle_shake_trigger()
+    pool = mgr._data["i_scene.ogv"]["pools"][0]
+    assert pool["trigger_on_shake"] is False
+    assert mgr.saved_keys == ["i_scene.ogv"]
 
 
 # ---------------------------------------------------------------------------
@@ -925,7 +956,7 @@ def test_loop_set_frequency_missing_entry_noop():
 
 
 def test_get_delay_bases_with_zero_jitter(monkeypatch):
-    import cue_lib.context as _context
+    import cue_lib.marker_context as _context
     monkeypatch.setattr(_context._random, "uniform", lambda a, b: 0.0)
     assert CueLoopContext.get_delay(CueLoopFrequency.SLOWEST) == 5.0
     assert CueLoopContext.get_delay(CueLoopFrequency.FASTEST) == 0.15

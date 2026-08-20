@@ -1,4 +1,4 @@
-# Type stub for cue_lib.context
+# Type stub for cue_lib.marker_context
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 # Module-level binding of the stdlib random module (import random as _random
@@ -46,7 +46,9 @@ class CueMarkerContext:
     def _append_pool(self, entry: MarkerEntry, pools: List[Dict[str, Any]], pool_dict: Dict[str, Any]) -> None: ...
     def _record_use(self, kind: str, ref: str) -> None: ...
 
-class CueImageContext(CueMarkerContext): ...
+class CueImageContext(CueMarkerContext):
+    def toggle_shake_trigger(self) -> None: ...
+
 class CueDialogueContext(CueMarkerContext): ...
 
 class CueVideoContext(CueMarkerContext):

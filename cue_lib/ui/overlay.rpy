@@ -14,7 +14,7 @@ screen cue_key_listener():
     key CUE_KEYMAP_TOGGLE_OVERLAY action Function(_cue_toggle_overlay)
     key CUE_KEYMAP_COPY_CONTEXT action Function(_cue.markers.copy_context)
     key CUE_KEYMAP_PASTE_CONTEXT action Function(_cue.markers.paste_context)
-    key CUE_KEYMAP_TOGGLE_SFX_ACTIVE action Function(_cue_toggle_sfx_active)
+    key CUE_KEYMAP_TOGGLE_SFX_ACTIVE action Function(_cue.trigger.toggle_active)
     key CUE_KEYMAP_PAUSE action Function(renpy.invoke_in_new_context, renpy.pause)
     key CUE_KEYMAP_UNDO action Function(_cue.undo.undo)
     key CUE_KEYMAP_REDO action Function(_cue.undo.redo)
@@ -194,7 +194,7 @@ screen cue_header_toolbar():
             $ _sfx_icon = "volume" if _cue.trigger.active else "volume-xmark"
             $ _sfx_tt = _sfx_toggle_on_tt if _cue.trigger.active else _sfx_toggle_off_tt
             $ _sfx_bg = _cue_color_active if _cue.trigger.active else _cue_color_dark_yellow
-            use cue_icon_btn(_sfx_icon, Function(_cue_toggle_sfx_active), _sfx_tt, bg=_sfx_bg) 
+            use cue_icon_btn(_sfx_icon, Function(_cue.trigger.toggle_active), _sfx_tt, bg=_sfx_bg)
 
             null width 5
                    

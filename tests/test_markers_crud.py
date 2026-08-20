@@ -11,7 +11,7 @@
 
 import pytest
 
-import cue_lib.context as _context
+import cue_lib.marker_context as _context
 from cue_lib.constants import CueExclusiveStart, CueLoopFrequency, CUE_VOLUME_DEFAULT
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.markers import CueMarkerManager

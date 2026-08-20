@@ -6,6 +6,8 @@ import time as _time
 import random as _random
 import renpy.audio.music as _music
 
+from renpy.store import persistent
+
 from cue_lib.constants import CUE_VOLUME_DEFAULT
 from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
@@ -99,6 +101,12 @@ class CueTriggerEngine(object):
         """Markers manager -- wired after trigger, so fall back to the
         singleton at call time unless a fake was injected."""
         return self._markers if self._markers is not None else _cue.markers
+
+    def toggle_active(self):
+        # type: () -> None
+        """Flip the SFX trigger engine on/off and persist the choice."""
+        self.active = not self.active
+        persistent._cue["triggers_active"] = self.active
 
     # -- exclusive tracking (channel -> {"kind", "scene", "line", "hold"}) --
     # Grouping for one-shots is two-dimensional: the "scene" (file) plus a
