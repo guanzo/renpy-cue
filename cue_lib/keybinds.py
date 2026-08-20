@@ -94,6 +94,15 @@ _MOD_DISPLAY = {
 
 _VALID_MODS = frozenset(("shift", "ctrl", "alt", "meta"))
 
+# Python 2 (Ren'Py 7.x): `str` is bytes and json decodes to `unicode`.  Accept
+# both so saved keybind overrides aren't rejected as invalid on restart.
+try:
+    unicode  # pyright: ignore[reportUndefinedVariable, reportUnusedExpression]
+except NameError:
+    _KEY_STRING_TYPES = (str,)
+else:
+    _KEY_STRING_TYPES = (str, unicode)  # pyright: ignore[reportUndefinedVariable]
+
 
 # ---------------------------------------------------------------------------
 # Bridge functions for Function() screen actions (no lambdas in Ren'Py)
@@ -248,13 +257,19 @@ class CueKeybindsManager(object):
             if action["id"] not in renpy.config.keymap:
                 renpy.config.keymap[action["id"]] = [action["default"]]
 
-        # 2. Load saved overrides from shared config.
+        # 2. Load saved overrides from shared config.  A saved "" means
+        #    explicitly unbound (confirm_override writes it when a stolen
+        #    key's default is still taken); a missing key means "use default".
         cfg = self._db.load_shared_config()
         saved = cfg.get(CUE_SHARED_KEY_KEYBINDS, {})
         if isinstance(saved, dict):
             for action in self.actions:
                 ks = saved.get(action["id"])
-                if ks and self._is_valid_keysym(ks):
+                if ks is None:
+                    continue
+                if ks == "":
+                    renpy.config.keymap[action["id"]] = []  # explicitly unbound
+                elif self._is_valid_keysym(ks):
                     renpy.config.keymap[action["id"]] = [ks]
 
         # 3. Clear the compiled event cache so the new entries / overrides
@@ -555,7 +570,7 @@ class CueKeybindsManager(object):
     def _is_valid_keysym(keysym):
         # type: (str) -> bool
         """Return True if *keysym* looks like a valid Ren'Py keysym string."""
-        if not isinstance(keysym, str):
+        if not isinstance(keysym, _KEY_STRING_TYPES):
             return False
         idx = keysym.rfind("K_")
         if idx < 0:

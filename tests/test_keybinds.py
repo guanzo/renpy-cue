@@ -183,11 +183,49 @@ def test_setup_ignores_non_dict_saved(db, mgr):
     assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_OVERLAY] == ["K_BACKQUOTE"]
 
 
+def test_setup_applies_saved_unbound(db, mgr):
+    """An explicitly-unbound saved override must stay unbound on restart.
+
+    confirm_override writes "" for an action whose key was stolen when the
+    victim's default is still the stolen key.  setup() used `if ks`, which
+    dropped "" -- the action silently reverted to its default and the
+    collision came back on the next launch."""
+    db.shared[CUE_SHARED_KEY_KEYBINDS] = {CUE_KEYMAP_TOGGLE_OVERLAY: ""}
+    mgr.setup()
+    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_OVERLAY] == []
+
+
 def test_setup_clears_keymap_cache(mgr, monkeypatch):
     calls = []
     monkeypatch.setattr(_behavior, "clear_keymap_cache", lambda: calls.append(1))
     mgr.setup()
     assert calls == [1]
+
+
+def test_saved_override_applies_after_restart(cue_env):
+    """Rebind -> save -> fresh manager setup (as on game restart) applies the
+    persisted override instead of falling back to the default."""
+    from cue_lib.db import CueDatabase
+
+    mgr = CueKeybindsManager(cue_env.db)
+    mgr.setup()
+    renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] = ["alt_K_3"]
+    mgr.save()
+
+    mgr2 = CueKeybindsManager(CueDatabase(cue_env.paths))
+    mgr2.setup()
+    assert mgr2.get_keysym(CUE_KEYMAP_TOGGLE_SFX_ACTIVE) == "alt_K_3"
+
+
+def test_key_string_types_includes_native_str():
+    """The string-type gate must accept the native str on every interpreter.
+
+    On Ren'Py 7.x (Py2) the tuple also carries `unicode` -- the type json
+    decodes to -- so saved overrides aren't rejected as invalid on restart.
+    That branch is Py2-only and not exercisable here, but the gate existing
+    as a tuple (rather than a bare `isinstance(x, str)`) is the guard."""
+    assert str in _keybinds._KEY_STRING_TYPES
+    assert CueKeybindsManager._is_valid_keysym("alt_K_3")
 
 
 # ---------------------------------------------------------------------------
@@ -308,6 +346,45 @@ def test_confirm_override_without_pending_cancels(mgr):
     mgr.start_capture(CUE_KEYMAP_TOGGLE_OVERLAY)
     mgr.confirm_override()
     assert mgr._capturing_id == ""
+
+
+def test_confirm_override_unbinds_when_default_collides(db, mgr):
+    """Rebinding onto a key whose victim's DEFAULT is the stolen key must
+    unbind the victim -- resetting it to default would keep the collision.
+
+    The user scenario: Toggle SFX Triggers (default shift_K_3) rebinds to
+    alt_K_3, which is Open Import/Export's default."""
+    mgr.setup()
+    mgr.start_capture(CUE_KEYMAP_TOGGLE_SFX_ACTIVE)
+    mgr.on_captured("alt_K_3")
+    assert mgr._pending_keysym == "alt_K_3"  # collision with page_import
+
+    mgr.confirm_override()
+    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] == ["alt_K_3"]
+    assert renpy.config.keymap[CUE_KEYMAP_PAGE_IMPORT] == []  # unbound, not alt_K_3
+    assert db.saved  # save() ran
+
+
+def test_saved_unbound_survives_restart(cue_env):
+    """Full user scenario: rebind onto a default-owned key, restart, and both
+    sides stick -- the thief keeps alt_K_3 and the victim stays unbound."""
+    from cue_lib.db import CueDatabase
+
+    mgr = CueKeybindsManager(cue_env.db)
+    mgr.setup()
+    mgr.start_capture(CUE_KEYMAP_TOGGLE_SFX_ACTIVE)
+    mgr.on_captured("alt_K_3")
+    mgr.confirm_override()  # save() persists alt_K_3 + "" for page_import
+
+    # Simulate a real restart: the game rebuilds config.keymap from scratch,
+    # so cue entries are absent until setup() re-registers defaults.  Without
+    # this the leftover in-session keymap would mask the regression.
+    renpy.config.keymap.clear()
+
+    mgr2 = CueKeybindsManager(CueDatabase(cue_env.paths))
+    mgr2.setup()
+    assert mgr2.get_keysym(CUE_KEYMAP_TOGGLE_SFX_ACTIVE) == "alt_K_3"
+    assert mgr2.get_keysym(CUE_KEYMAP_PAGE_IMPORT) == ""  # stays unbound
 
 
 # ---------------------------------------------------------------------------
