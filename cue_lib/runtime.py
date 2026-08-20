@@ -104,6 +104,14 @@ def _cue_confirm_shared_dir():
     _cue.shared_dir_success = ("Success. If you have any data in the old dir, "
                                "move it to the new dir and relaunch.")
 
+def _cue_set_auto_backups(enabled):
+    # type: (bool) -> None
+    """Settings-page toggle for automatic backups; persisted to the shared
+    config so the choice carries across every game."""
+    db = _cue.db
+    if db is not None:
+        db.set_auto_backups(enabled)
+
 def _cue_toggle_shake_trigger():
     # type: () -> None
     if not _cue.current_file:

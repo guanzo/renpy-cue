@@ -34,6 +34,7 @@ from cue_lib.constants import (
     CUE_MANUAL_BACKUP_NAME,
     CUE_SHARED_CONFIG_FILENAME,
 )
+from cue_lib.db import CueDatabase
 from cue_lib.paths import CuePaths
 
 GAME_ID = "test_game"
@@ -313,7 +314,7 @@ def test_restore_returns_extracted_count(shared, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Manual backup -- the Back Up button (zip to backups/backup.zip)
+# Manual backup -- the Back Up button (zip to backups/renpy_cue_backup.zip)
 # ---------------------------------------------------------------------------
 
 def test_manual_zip_includes_media(manual, cue_env):
@@ -433,7 +434,7 @@ def test_manual_backup_worker_error_sets_error(manual, monkeypatch):
 
 def test_auto_backup_excludes_media(cue_env):
     # The rolling backup stays data-only; media rides only in the manual
-    # backup.zip.
+    # renpy_cue_backup.zip.
     _write(cue_env.paths.root, os.path.join("data", "markers", "test_game", "v_a.json"),
            '{"pools": []}')
     _write(cue_env.paths.root, "audio/hit.ogg", "A")
@@ -472,6 +473,49 @@ def test_maybe_throttled_within_interval(tmp_path):
     m.auto.maybe()
 
     assert m.auto._backup_in_progress is False
+
+
+def test_auto_backups_enabled_by_default(tmp_path):
+    m = CueBackupManager(CuePaths(str(tmp_path / "shared"), GAME_ID))
+    assert m.auto.enabled is True
+
+
+def test_auto_backups_disabled_gates_maybe(tmp_path):
+    root = str(tmp_path / "shared")
+    m = CueBackupManager(CuePaths(root, GAME_ID))
+    m.auto._last_backup_ts = 0  # interval long elapsed -> would normally fire
+    m.auto.enabled = False
+
+    m.auto.maybe()
+
+    assert m.auto._backup_in_progress is False
+
+
+def test_set_auto_backups_persists_to_config(cue_env):
+    db = cue_env.db
+
+    db.set_auto_backups(False)
+    assert db._backup.auto.enabled is False
+    assert db.load_shared_config().get("auto_backups") is False
+
+    db.set_auto_backups(True)
+    assert db._backup.auto.enabled is True
+    assert db.load_shared_config().get("auto_backups") is True
+
+
+def test_open_seeds_auto_enabled_from_config(tmp_path):
+    root = str(tmp_path / "shared")
+    _write(root, os.path.join("data", CUE_SHARED_CONFIG_FILENAME),
+           '{"auto_backups": false}')
+    db = CueDatabase(CuePaths(root, GAME_ID))
+    db.open()
+    assert db._backup.auto.enabled is False
+
+
+def test_open_defaults_auto_enabled(tmp_path):
+    db = CueDatabase(CuePaths(str(tmp_path / "shared"), GAME_ID))
+    db.open()
+    assert db._backup.auto.enabled is True
 
 
 def test_run_backup_without_data_dir(tmp_path):

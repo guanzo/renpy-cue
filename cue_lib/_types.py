@@ -145,6 +145,7 @@ class CuePersistentData(TypedDict):
     encode_mode: int
     remove_audio: bool
     seamless_transition: bool
+    auto_backups: bool
 
 
 # =========================================================================

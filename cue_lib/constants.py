@@ -231,11 +231,11 @@ CUE_SHARED_CONFIG_FILENAME = "cue_config.json"
 
 # Backup tree under the shared root.  Automatic backups live in
 # {shared}/backups/auto/auto_backup_<ts>.zip; the single manual backup is
-# {shared}/backups/backup.zip.  Owned by cue_lib/backup.py and resolved via
-# CuePaths.
+# {shared}/backups/renpy_cue_backup.zip.  Owned by cue_lib/backup.py and
+# resolved via CuePaths.
 CUE_BACKUP_DIR = "backups"
 CUE_BACKUP_AUTO_DIR = "auto"
-CUE_MANUAL_BACKUP_NAME = "backup.zip"
+CUE_MANUAL_BACKUP_NAME = "renpy_cue_backup.zip"
 
 # Import format version, bumped only on breaking format changes (not the mod
 # version).  The importer rejects an import whose format is NEWER than this.

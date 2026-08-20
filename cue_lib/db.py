@@ -142,6 +142,10 @@ class CueDatabase(object):
                 except Exception:
                     raise
         self._open = True
+        # The auto-backup switch lives in shared config so it carries across
+        # every game; default to on when no config exists yet.
+        self._backup.auto.enabled = self.load_shared_config().get(
+            "auto_backups", True)
 
     def close(self):
         # type: () -> None
@@ -343,6 +347,12 @@ class CueDatabase(object):
         config = self.load_shared_config()
         config.update(data)
         self.save_shared_config(config)
+
+    def set_auto_backups(self, enabled):
+        # type: (bool) -> None
+        """Turn automatic backups on/off; persists to cue_config.json."""
+        self._backup.auto.enabled = enabled
+        self.update_shared_config({"auto_backups": enabled})
 
     # ------------------------------------------------------------------
     # Default music triggers -- per-replay log of the original game's music

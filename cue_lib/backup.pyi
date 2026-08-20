@@ -3,12 +3,12 @@ from typing import Any, Callable, Final, List, Optional, Tuple
 
 from cue_lib.paths import CuePaths
 
-CUE_BACKUP_INTERVAL: Final = 43200
-CUE_BACKUP_MAX: Final = 60
+CUE_BACKUP_INTERVAL: Final = 86400
+CUE_BACKUP_MAX: Final = 30
 CUE_BACKUP_DIR: Final = "backups"
 CUE_BACKUP_AUTO_DIR: Final = "auto"
 CUE_BACKUP_PREFIX: Final = "auto_backup_"
-CUE_MANUAL_BACKUP_NAME: Final = "backup.zip"
+CUE_MANUAL_BACKUP_NAME: Final = "renpy_cue_backup.zip"
 CUE_BAK_DIR: Final = "data_bak"
 CUE_RESTORE_TMP_DIR: Final = "_restore_tmp"
 CUE_MEDIA_DIRS: Final = ("audio", "music")
@@ -32,6 +32,7 @@ class CueAutoBackupManager(object):
     _owner: CueBackupManager
     _last_backup_ts: float
     _backup_in_progress: bool
+    enabled: bool
 
     def __init__(self, owner: "CueBackupManager") -> None: ...
     def _backups_dir(self) -> str: ...

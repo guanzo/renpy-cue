@@ -77,7 +77,7 @@ init -999 python:
         _cue_play_pool, _cue_fade_out_sfx,
         _cue_toggle_sfx_active, _cue_set_page,
         _cue_toggle_shake_trigger, _cue_toggle_video_mute,
-        _cue_confirm_shared_dir,
+        _cue_confirm_shared_dir, _cue_set_auto_backups,
     )
 
     from cue_lib.video.speed import (

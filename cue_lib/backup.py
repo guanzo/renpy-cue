@@ -46,8 +46,8 @@ from cue_lib.util import _cue_log, _cue_replace_file, _to_str
 # CUE_BACKUP_INTERVAL seconds have passed since the last backup, zip the
 # data/ tree into {shared}/backups/auto/auto_backup_<unix_ts>.zip and keep
 # the CUE_BACKUP_MAX most recent files.
-CUE_BACKUP_INTERVAL = 43200  # twice a day (every 12h)
-CUE_BACKUP_MAX = 60  # ~a month at two backups/day
+CUE_BACKUP_INTERVAL = 86400  # once a day (every 24h)
+CUE_BACKUP_MAX = 30  # ~a month at one backup/day
 CUE_BACKUP_PREFIX = "auto_backup_"
 
 # Manual backup/restore: a single named zip in {shared}/backups/ that the
@@ -320,6 +320,10 @@ class CueAutoBackupManager(object):
         self._owner = owner
         self._last_backup_ts = self._latest_backup_timestamp()
         self._backup_in_progress = False
+        # Master switch for automatic backups.  True by default; the owning
+        # database seeds it from cue_config.json at open() and the Settings
+        # page toggles it via set_auto_backups().
+        self.enabled = True
 
     def _backups_dir(self):
         # type: () -> str
@@ -344,6 +348,8 @@ class CueAutoBackupManager(object):
     def maybe(self):
         # type: () -> None
         """Throttled trigger: spawn a background zip when it is time."""
+        if not self.enabled:
+            return
         if self._backup_in_progress:
             return
         if _time.time() - self._last_backup_ts < CUE_BACKUP_INTERVAL:
@@ -463,7 +469,7 @@ class CueManualBackupManager(object):
 
     def backup(self):
         # type: () -> None
-        """Zip the shared tree to backups/backup.zip on a background
+        """Zip the shared tree to backups/renpy_cue_backup.zip on a background
         thread; sets backup_status / backup_error when done."""
         if self.is_backing_up or self.is_restoring:
             return
@@ -483,7 +489,7 @@ class CueManualBackupManager(object):
         try:
             count = self._zip_to_file()
             self.backup_status = ("Backed up {} files to "
-                "backups/backup.zip.").format(count)
+                "backups/renpy_cue_backup.zip.").format(count)
         except Exception as e:
             self.backup_error = "Backup failed: {}".format(e)
         finally:
@@ -492,7 +498,8 @@ class CueManualBackupManager(object):
     def _zip_to_file(self):
         # type: () -> int
         """Zip the shared data/ tree plus audio/, music/, and video/ to
-        backups/backup.zip.  Returns the file count; raises on failure."""
+        backups/renpy_cue_backup.zip.  Returns the file count; raises on
+        failure."""
         db = self._db
         if db is None or not db.is_open():
             return 0
@@ -526,7 +533,7 @@ class CueManualBackupManager(object):
 
     def restore(self):
         # type: () -> None
-        """Validate backup.zip, then ask the user to confirm a restore."""
+        """Validate renpy_cue_backup.zip, then ask the user to confirm a restore."""
         db = self._db
         if db is None or not db.is_open():
             return
@@ -540,7 +547,7 @@ class CueManualBackupManager(object):
             return
         if self._confirm_dialog is not None:
             self._confirm_dialog.show(
-                "Restore from backups/backup.zip? This will overwrite this "
+                "Restore from backups/renpy_cue_backup.zip? This will overwrite this "
                 "game's markers, presets, shared config, and the audio/ and "
                 "music/ folders with the backup's version. Data not included in "
                 "the backup (including anything added after, and other games' "
@@ -550,9 +557,9 @@ class CueManualBackupManager(object):
 
     def _apply_restore(self, zip_path):
         # type: (str) -> None
-        """Merge backup.zip over the live tree in the background.  The disk
-        phase runs on a thread; the in-memory reload happens on the main
-        thread via poll() once the disk phase sets _restore_pending."""
+        """Merge renpy_cue_backup.zip over the live tree in the background.
+        The disk phase runs on a thread; the in-memory reload happens on the
+        main thread via poll() once the disk phase sets _restore_pending."""
         if self.is_restoring or self.is_backing_up:
             return
         self.restore_status = ""
@@ -607,7 +614,7 @@ class CueManualBackupManager(object):
         try:
             if self._reload_work is not None:
                 self._reload_work(self._restore_count)
-            self.restore_status = ("Restored {} files from backups/backup.zip. "
+            self.restore_status = ("Restored {} files from backups/renpy_cue_backup.zip. "
                 "Previous data saved to data_bak.").format(self._restore_count)
         except Exception as e:
             self.restore_error = "Restore reload failed: {}".format(e)

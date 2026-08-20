@@ -85,8 +85,19 @@ screen cue_settings_backup():
     use cue_section_frame("Backup & Restore"):
         vbox:
             spacing 8
-            text ("Backup data folder to backups/backup.zip, or restore that "
-                "backup's data over the current game.")
+            text ("Backup data folder to backups/{}, or restore that "
+                "backup's data over the current game.".format(CUE_MANUAL_BACKUP_NAME))
+            $ _auto_bk_tt = ("Auto back up your marker data once a day for 30 days. "
+                "Media files (audio, music, video) are excluded.\n"
+                "Stored in: {}".format(
+                    _cue.paths.auto_backups_dir.replace("\\", "/")))
+            hbox:
+                spacing 8
+                use cue_checkbox(
+                    _cue.backups.auto.enabled,
+                    "Auto Backups",
+                    Function(_cue_set_auto_backups, (not _cue.backups.auto.enabled)),
+                    tt_on=_auto_bk_tt)
             hbox:
                 spacing 8
                 use cue_txt_button(
