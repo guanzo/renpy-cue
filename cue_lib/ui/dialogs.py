@@ -240,21 +240,21 @@ class CueMergeDialog(object):
 
 def _cue_confirm_delete_preset(preset_name):
     # type: (str) -> None
-    _cue.confirm_dialog.show(
+    _cue.dialogs.confirm.show(
         "Delete preset '{}'?".format(preset_name),
         Function(_cue.markers.delete_preset, preset_name),
     )
 
 def _cue_confirm_delete_video_preset(preset_name):
     # type: (str) -> None
-    _cue.confirm_dialog.show(
+    _cue.dialogs.confirm.show(
         "Delete video preset '{}'?".format(preset_name),
         Function(_cue.markers.delete_video_preset, preset_name),
     )
 
 def _cue_confirm_delete_music_preset(preset_name):
     # type: (str) -> None
-    _cue.confirm_dialog.show(
+    _cue.dialogs.confirm.show(
         "Delete music preset '{}'?".format(preset_name),
         Function(_cue.music.delete_preset, preset_name),
     )
@@ -268,7 +268,7 @@ def _cue_maybe_apply_video_preset(preset_name):
         dur = _cue.vid_manager.get_duration()
         msg = "{} of {} marker(s) won't fit (video is {:.1f}s). Apply anyway?".format(
             out_count, total, dur)
-        _cue.confirm_dialog.show(
+        _cue.dialogs.confirm.show(
             msg,
             Function(_cue.markers.apply_video_preset, preset_name))
     else:

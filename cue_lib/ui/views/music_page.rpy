@@ -179,7 +179,7 @@ screen trigger_list(triggers):
                             xalign 1.0
                             use cue_icon(
                                 "floppy-disk",
-                                Function(_cue.preset_dialog.open_music, trigger["key"]),
+                                Function(_cue.dialogs.preset.open_music, trigger["key"]),
                                 "Save songs as a preset",
                                 on_hover=SetLocalVariable("_hovered_key", trigger["key"]),
                                 on_unhover=SetLocalVariable("_hovered_key", None))

@@ -328,7 +328,7 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
         if show_delete:
             use cue_icon_btn(
                 "xmark",
-                Function(_cue.confirm_dialog.show, delete_confirm, delete_action),
+                Function(_cue.dialogs.confirm.show, delete_confirm, delete_action),
                 delete_tt,
             )
         if show_delete and exclusive_ctx is not None:
@@ -562,7 +562,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 null width 5
                 use cue_icon_btn(
                     "floppy-disk",
-                    Function(_cue.preset_dialog.open, key, _target),
+                    Function(_cue.dialogs.preset.open, key, _target),
                     "Save pool as a preset",
                 )
                 if not ctx.ONE_SHOT:

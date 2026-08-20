@@ -107,7 +107,7 @@ testcase import_export_roundtrip:
     assert eval (_cue.importer.imports[0]["match"] == CueImportMatch.AUTO)
     # The merge dialog opens on the scanned package and renders its category
     # rows + overwrite summary.
-    run Function(_cue.merge_dialog.open, "Roundtrip")
+    run Function(_cue.dialogs.merge.open, "Roundtrip")
     assert screen "cue_merge_dialog" layer "cue_layer"
     keysym "K_ESCAPE"
     assert not screen "cue_merge_dialog" layer "cue_layer"
@@ -124,7 +124,7 @@ testcase import_export_roundtrip:
 
 testcase confirm_dialog_escape:
     run Jump("start")
-    run Function(_cue.confirm_dialog.show, "Really?", _cue_hide_overlay)
+    run Function(_cue.dialogs.confirm.show, "Really?", _cue_hide_overlay)
     assert screen "cue_confirm_dialog" layer "cue_layer"
     keysym "K_ESCAPE"
     assert not screen "cue_confirm_dialog" layer "cue_layer"

@@ -346,7 +346,7 @@ class CueImportManager(object):
             "The zip is missing {} file(s) listed in its manifest:\n\n"
             "{}\n\nThose files won't be there.  Activate anyway?").format(
                 len(missing), listing)
-        _cue.confirm_dialog.show(message, Function(self._do_activate, imp))
+        _cue.dialogs.confirm.show(message, Function(self._do_activate, imp))
 
     def _do_activate(self, imp):
         # type: (str) -> None
@@ -425,7 +425,7 @@ class CueImportManager(object):
         entry = self.import_for(imp)
         if entry is None:
             return
-        _cue.confirm_dialog.show(
+        _cue.dialogs.confirm.show(
             "Delete import '{}'?  The .zip and its extracted folder are "
             "removed.".format(entry["name"]),
             Function(self.delete_confirmed, imp),
@@ -471,7 +471,7 @@ class CueImportManager(object):
             return
         if entry["match"] != CueImportMatch.AUTO:
             return
-        _cue.merge_dialog.open(imp)
+        _cue.dialogs.merge.open(imp)
 
     def merge_confirm(self, imp, checked):
         # type: (str, Any) -> None

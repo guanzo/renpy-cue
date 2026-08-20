@@ -46,7 +46,8 @@ def ui_cue(monkeypatch):
         apply_video_preset=_rec("apply_video_preset"),
     )
     confirm = CueConfirmDialog()
-    cue = types.SimpleNamespace(markers=markers, confirm_dialog=confirm,
+    cue = types.SimpleNamespace(markers=markers,
+                                dialogs=types.SimpleNamespace(confirm=confirm),
                                 current_file="", calls=calls)
     cue.music = types.SimpleNamespace(
         songs_for_trigger=lambda key: [],
@@ -301,21 +302,21 @@ def test_confirm_show_hide(ui_cue, screens):
 
 def test_confirm_delete_preset(ui_cue, screens):
     _cue_confirm_delete_preset("Foo")
-    assert ui_cue.confirm_dialog.message == "Delete preset 'Foo'?"
+    assert ui_cue.dialogs.confirm.message == "Delete preset 'Foo'?"
     # on_confirm is the Function() wrapper (None in the mock store).
-    assert ui_cue.confirm_dialog.on_confirm is None
+    assert ui_cue.dialogs.confirm.on_confirm is None
     assert screens[0] == ["cue_confirm_dialog"]
 
 
 def test_confirm_delete_video_preset(ui_cue, screens):
     _cue_confirm_delete_video_preset("Bar")
-    assert ui_cue.confirm_dialog.message == "Delete video preset 'Bar'?"
+    assert ui_cue.dialogs.confirm.message == "Delete video preset 'Bar'?"
     assert screens[0] == ["cue_confirm_dialog"]
 
 
 def test_confirm_delete_music_preset(ui_cue, screens):
     _cue_confirm_delete_music_preset("Foo")
-    assert ui_cue.confirm_dialog.message == "Delete music preset 'Foo'?"
+    assert ui_cue.dialogs.confirm.message == "Delete music preset 'Foo'?"
     assert screens[0] == ["cue_confirm_dialog"]
 
 
@@ -330,8 +331,8 @@ def test_maybe_apply_video_preset_out_of_range(ui_cue, screens):
     ui_cue.markers.get_video_preset = lambda name: {"pools": [1, 2, 3, 4]}
     _cue_maybe_apply_video_preset("Preset")
     # out of range -> confirm dialog, message shows counts + duration.
-    assert "3 of 4 marker(s)" in ui_cue.confirm_dialog.message
-    assert "12.5s" in ui_cue.confirm_dialog.message
+    assert "3 of 4 marker(s)" in ui_cue.dialogs.confirm.message
+    assert "12.5s" in ui_cue.dialogs.confirm.message
     assert "apply_video_preset" not in ui_cue.calls
     assert screens[0] == ["cue_confirm_dialog"]
 
@@ -340,7 +341,7 @@ def test_maybe_apply_video_preset_out_of_range_no_preset(ui_cue, screens):
     ui_cue.markers.video_preset_out_of_range = lambda name: 2
     ui_cue.markers.get_video_preset = lambda name: None
     _cue_maybe_apply_video_preset("Ghost")
-    assert "2 of 0 marker(s)" in ui_cue.confirm_dialog.message
+    assert "2 of 0 marker(s)" in ui_cue.dialogs.confirm.message
     assert "apply_video_preset" not in ui_cue.calls
 
 

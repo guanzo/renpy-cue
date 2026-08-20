@@ -81,7 +81,7 @@ screen cue_save_preset_dialog():
 
     # Shared by the SFX-pool and music-trigger save flows; the summary rows
     # branch on which target the dialog holds.
-    $ _d = _cue.preset_dialog
+    $ _d = _cue.dialogs.preset
     $ _is_music = _d.music_key is not None
     if _is_music:
         $ _song_count = len(_cue.music.resolve_music_files(_d.songs))
@@ -126,7 +126,7 @@ screen cue_save_preset_dialog():
                 text "Name:"
                 input:
                     style "cue_input"
-                    value _CueFieldValue("_cue.preset_dialog.name")
+                    value _CueFieldValue("_cue.dialogs.preset.name")
                     default True
                     xsize 200
                     copypaste True
@@ -143,7 +143,7 @@ screen cue_save_preset_dialog():
 screen cue_save_video_preset_dialog():
     style_group "cue"
 
-    $ _d = _cue.video_preset_dialog
+    $ _d = _cue.dialogs.video_preset
     $ _vid_key = _cue_create_vid_key(_cue.current_file) if _cue.current_file else ""
     $ _entry = _cue.markers.get(_vid_key, {}) if _vid_key else {}
     $ _pools = _entry.get("pools", [])
@@ -190,7 +190,7 @@ screen cue_save_video_preset_dialog():
                 text "Name:"
                 input:
                     style "cue_input"
-                    value _CueFieldValue("_cue.video_preset_dialog.name")
+                    value _CueFieldValue("_cue.dialogs.video_preset.name")
                     default True
                     xsize 200
                     copypaste True
@@ -207,7 +207,7 @@ screen cue_save_video_preset_dialog():
 screen cue_confirm_dialog():
     style_group "cue"
 
-    $ _d = _cue.confirm_dialog
+    $ _d = _cue.dialogs.confirm
     key "K_RETURN" action [Function(_d.hide)] + ([_d.on_confirm] if _d.on_confirm else [])
     key "K_KP_ENTER" action [Function(_d.hide)] + ([_d.on_confirm] if _d.on_confirm else [])
     key "K_ESCAPE" action Function(_d.hide)
@@ -232,7 +232,7 @@ screen cue_confirm_dialog():
 screen cue_merge_dialog():
     style_group "cue"
 
-    $ _d = _cue.merge_dialog
+    $ _d = _cue.dialogs.merge
     $ _summary = _d.summary()
     # Category order is canonical; counts only holds present categories.
     $ _merge_cats = [c for c in CUE_IMPORT_CATEGORY_ORDER if c in _d.counts]

@@ -264,16 +264,16 @@ init -900 python:
         _cue.undo = undo
         _cue.trigger = trigger
         _cue.sfx_manager = sfx_manager
-        _cue.preset_dialog = preset_dialog
-        _cue.video_preset_dialog = video_preset_dialog
-        _cue.confirm_dialog = confirm_dialog
+        _cue.dialogs.preset = preset_dialog
+        _cue.dialogs.video_preset = video_preset_dialog
+        _cue.dialogs.confirm = confirm_dialog
         _cue.keybinds = keybinds
         _cue.icons = icons
         _cue.music = music
         _cue.markers = markers
         _cue.importer = importer
         _cue.exporter = exporter
-        _cue.merge_dialog = merge_dialog
+        _cue.dialogs.merge = merge_dialog
 
     _cue_wire_managers()
 

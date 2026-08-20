@@ -41,7 +41,7 @@ screen cue_video_sfx():
                 $ _has_markers = _cue.markers.video.has_markers()
                 use cue_icon_btn(
                     "floppy-disk",
-                    Function(_cue.video_preset_dialog.open),
+                    Function(_cue.dialogs.video_preset.open),
                     "Save all video markers as a preset",
                     enabled=(not _multi_selected),
                 )

@@ -126,10 +126,10 @@ testcase import_export_roundtrip:
     $ _ok = _ok and _cue.importer.imports[0]["match"] == CueImportMatch.AUTO
     # The merge dialog opens on the scanned package and renders its category
     # rows + overwrite summary.
-    run Function(_cue.merge_dialog.open, "Roundtrip")
+    run Function(_cue.dialogs.merge.open, "Roundtrip")
     pause 0.5
     $ _ok = _ok and renpy.get_screen("cue_merge_dialog", layer="cue_layer") is not None
-    run Function(_cue.merge_dialog.cancel)
+    run Function(_cue.dialogs.merge.cancel)
     pause 0.5
     $ _ok = _ok and renpy.get_screen("cue_merge_dialog", layer="cue_layer") is None
     # Activate serves the whole editor from the extracted package: the
@@ -148,7 +148,7 @@ testcase confirm_dialog_escape:
     $ _cue.is_overlay_visible = True
     run Jump("start")
     pause 2.0
-    run Function(_cue.confirm_dialog.show, "Really?", _cue_hide_overlay)
+    run Function(_cue.dialogs.confirm.show, "Really?", _cue_hide_overlay)
     pause 0.5
     $ if not renpy.get_screen("cue_confirm_dialog", layer="cue_layer"): renpy.quit(status=1)
     $ import pygame_sdl2

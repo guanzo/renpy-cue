@@ -281,7 +281,7 @@ def test_on_captured_collision_sets_pending(db, mgr):
     mgr.on_captured("K_F7")
     assert mgr._capturing_id == CUE_KEYMAP_TOGGLE_OVERLAY  # still capturing
     assert mgr._pending_keysym == "K_F7"
-    assert "Toggle SFX Active" in mgr.collision_message
+    assert "Toggle SFX Triggers" in mgr.collision_message
     assert CUE_KEYMAP_TOGGLE_OVERLAY not in renpy.config.keymap  # not applied
 
 
@@ -360,7 +360,7 @@ def test_find_collisions_excludes_self(mgr):
 def test_find_collisions_cue_owner(mgr):
     renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] = ["K_F7"]
     owners = mgr._find_collisions("K_F7", CUE_KEYMAP_TOGGLE_OVERLAY)
-    assert owners == ["Cue: Toggle SFX Active"]
+    assert owners == ["Cue: Toggle SFX Triggers"]
 
 
 # ---------------------------------------------------------------------------

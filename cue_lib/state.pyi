@@ -41,6 +41,13 @@ class CueContext:
     def __init__(self) -> None: ...
 
 
+class CueDialogs:
+    preset: CuePresetDialog
+    video_preset: CueVideoPresetDialog
+    confirm: CueConfirmDialog
+    merge: CueMergeDialog
+
+
 class Cue:
     initialized: bool
     is_overlay_visible: bool
@@ -73,15 +80,12 @@ class Cue:
     speed_toast: CueSpeedToast
     auto_speed: CueAutoSpeedGenerator
     sfx_manager: CueSfxManager
-    preset_dialog: CuePresetDialog
-    video_preset_dialog: CueVideoPresetDialog
-    confirm_dialog: CueConfirmDialog
+    dialogs: CueDialogs
     keybinds: CueKeybindsManager
     icons: CueIconManager
     music: CueMusicManager
     importer: CueImportManager
     exporter: CueExportManager
-    merge_dialog: CueMergeDialog
 
     _cue_next_sfx_channel: int
     _shake_just_happened: bool
