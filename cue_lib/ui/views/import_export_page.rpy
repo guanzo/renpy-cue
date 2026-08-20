@@ -41,8 +41,6 @@ screen cue_export_section():
                     "Specific Replays",
                     Function(_exporter.set_scope, CueExportScope.SPECIFIC_REPLAYS))
 
-            null height 2
-
             if (_exporter.scope == CueExportScope.SPECIFIC_REPLAYS):
                 if not _exporter.replays:
                     text ("No replays yet.  Markers edited inside a replay "

@@ -56,14 +56,14 @@ testcase import_page_nav:
     run Function(_cue_set_page, CuePage.IMPORT)
     assert eval (_cue.overlay_active_page == CuePage.IMPORT)
 
-testcase import_shield_and_banner_render:
+testcase import_banner_render:
     run Jump("start")
     $ _cue_test_reset()
-    # An active package makes the editor read-only: the page body gets a
-    # click-swallowing shield and the toolbar gains a banner.  Set the active
-    # state directly -- the export/scan/activate path is covered by the
+    # An active package swaps the editor to the import and the toolbar shows
+    # the edit banner (the click-swallowing shield was dropped).  Set the
+    # active state directly -- the export/scan/activate path is covered by the
     # roundtrip testcase.  Rendering the SFX page under this state is the
-    # smoke test: a broken shield/banner screen fails this interaction.
+    # smoke test: a broken banner screen fails this interaction.
     $ _cue.importer.is_active = True
     $ _cue.importer.active_import = "ShieldPkg"
     run Function(_cue_set_page, CuePage.SFX)
@@ -89,6 +89,8 @@ testcase import_export_roundtrip:
     assert eval (_cue.exporter.is_category_enabled(CueImportCategory.SFX))
     $ _cue.exporter.name = "Roundtrip"
     run Function(_cue.exporter.export)
+    # The zip build runs on a background thread; wait for it to finish.
+    pause 0.1 until eval (not _cue.exporter.is_exporting) timeout 15.0
     assert eval (_cue.exporter.export_error == "")
     assert eval (_cue.exporter.export_status != "")
     # A recipient drops the .zip into imports/; scan() auto-extracts it and
@@ -98,6 +100,8 @@ testcase import_export_roundtrip:
     $ _os.makedirs(_cue.importer.imports_dir())
     $ _shutil.copy(_zip_src, _zip_dst)
     run Function(_cue.importer.scan)
+    # Scan (list + extract + manifest read) also runs on a background thread.
+    pause 0.1 until eval (not _cue.importer.is_scanning) timeout 15.0
     assert eval (len(_cue.importer.imports) == 1)
     assert eval (_cue.importer.imports[0]["valid"])
     assert eval (_cue.importer.imports[0]["match"] == CueImportMatch.AUTO)
