@@ -32,11 +32,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned SDKs are immutable, so a version-keyed cache never goes stale.
+      # Restoring the extracted tree skips the 100-150MB download + tar.bz2
+      # decompress on every run.
+      - name: Cache Ren'Py SDK
+        uses: actions/cache@v4
+        id: cache-sdk
+        with:
+          path: renpy-${{ matrix.renpy }}-sdk
+          key: renpy-sdk-${{ matrix.renpy }}-${{ runner.os }}
+
       - name: Download Ren'Py SDK
+        if: steps.cache-sdk.outputs.cache-hit != 'true'
         run: |
           curl -fL "https://www.renpy.org/dl/${{ matrix.renpy }}/renpy-${{ matrix.renpy }}-sdk.tar.bz2" -o sdk.tar.bz2
           tar xjf sdk.tar.bz2
-          echo "SDK_DIR=$PWD/renpy-${{ matrix.renpy }}-sdk" >> "$GITHUB_ENV"
+
+      - name: Set SDK_DIR
+        run: echo "SDK_DIR=$PWD/renpy-${{ matrix.renpy }}-sdk" >> "$GITHUB_ENV"
 
       # The `test` command is uses_display=True and the 7.x leg forces
       # SDL_VIDEODRIVER=x11 -- both need a real X server. xvfb provides it.
@@ -55,12 +68,25 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
+        id: python
         with:
           python-version: "3.12"
+
+      # Cache the poetry venv in-project. The key includes the exact resolved
+      # Python patch because a venv's interpreter symlink is tied to that
+      # path -- when the hosted image bumps the patch the key changes and the
+      # venv is rebuilt, instead of restoring a dead one.
+      - name: Cache poetry venv
+        uses: actions/cache@v4
+        id: cache-venv
+        with:
+          path: .venv
+          key: poetry-venv-${{ runner.os }}-${{ steps.python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
 
       - name: Install poetry + deps
         run: |
           python -m pip install --upgrade pip "poetry==2.4.1"
+          poetry config virtualenvs.in-project true
           poetry install
 
       # bin/lint.sh calls bare `pyright` (not `poetry run pyright`), so the
@@ -69,12 +95,23 @@ jobs:
       # pyrightconfig.json's extraPaths point at the SDK (relative ./sdk plus
       # machine-local absolute paths that don't exist here). Download the SDK
       # and symlink it into ./sdk so pyright can resolve renpy.* on this
-      # clean runner.
+      # clean runner. The 8.5.3 testcases leg seeds the same version-keyed
+      # cache, so whichever job starts first saves it and the other reads it.
+      - name: Cache Ren'Py SDK for pyright
+        uses: actions/cache@v4
+        id: cache-sdk
+        with:
+          path: renpy-8.5.3-sdk
+          key: renpy-sdk-8.5.3-${{ runner.os }}
+
       - name: Download Ren'Py SDK for pyright
+        if: steps.cache-sdk.outputs.cache-hit != 'true'
         run: |
           curl -fL "https://www.renpy.org/dl/8.5.3/renpy-8.5.3-sdk.tar.bz2" -o sdk.tar.bz2
           tar xjf sdk.tar.bz2
-          ln -s "$PWD/renpy-8.5.3-sdk" sdk
+
+      - name: Symlink SDK
+        run: ln -s "$PWD/renpy-8.5.3-sdk" sdk
 
       - name: Lint
         run: |
