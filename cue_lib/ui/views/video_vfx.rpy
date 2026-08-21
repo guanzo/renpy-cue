@@ -98,7 +98,7 @@ screen cue_video_vfx():
                                 $ _is_pending = (_cue.speed_resolver._pending_speed is not None
                                     and _sp == _cue.speed_resolver._pending_speed)
                                 $ _is_selected = _cur == _sp or _is_pending
-                                $ _btn_color = ("#_cue_color_dark_yellow" if _is_pending else _cue_color_active)
+                                $ _btn_color = (_cue_color_dark_yellow if _is_pending else _cue_color_active)
                                 use cue_select_btn(_label, _is_selected,
                                     Function(_cue.speed_resolver.set_speed, _sp),
                                     tt=_tt, active_color=_btn_color)
