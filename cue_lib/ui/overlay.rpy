@@ -247,7 +247,7 @@ screen cue_speed_toast():
                 else _cue.speed_resolver._get_speed_pref(_cue.speed_toast.toast_tag))
             $ _is_pending = _pending is not None and _sp == _pending
             $ _is_active = _sp == _playing
-            text _cue_speed_label(_sp):
+            etext _cue_speed_label(_sp):
                 color ("#ffcc00" if _is_pending
                     else "#ffffff" if _is_active
                     else "#cccccc")

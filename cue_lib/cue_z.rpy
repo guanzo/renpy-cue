@@ -31,6 +31,28 @@ python early:
         },
     ).add_property("target").add_property("placement").add_property("offset").add_property("viewport_margin")
 
+    def _cue_make_etext(*args, **kwargs):
+        """Factory for register_sl_displayable. Returns a CueSafeText instance.
+        CueSafeText is resolved at call time (screen execution), by which point
+        the init -999 bridge has imported it into store."""
+        return CueSafeText(*args, **kwargs)
+
+    # etext -- a 1:1 mirror of the built-in text statement (same positional,
+    # keywords and properties) whose displayable escapes the value first.
+    renpy.register_sl_displayable(
+        "etext",
+        _cue_make_etext,
+        style="text",
+        nchildren=0,
+        scope=True,
+        replaces=True,
+    ).add_positional("text") \
+        .add_property("slow") \
+        .add_property("slow_done") \
+        .add_property("substitute") \
+        .add_property("scope") \
+        .add_property_group("text")
+
 
 init -999 python:
     import cue_lib
@@ -54,7 +76,7 @@ init -999 python:
         create_loop_key as _cue_create_loop_key,
         create_dlg_key as _cue_create_dlg_key,
         _cue_format_time, _cue_parse_time, _cue_clamp_time, _cue_speed_label,
-        _cue_format_size, _cue_format_duration,
+        _cue_format_size, _cue_format_duration, _cue_escape_text,
         _cue_log, _cue_resolve_files, _cue_pick_file, _cue_query_matches,
         _cue_unwrap_displayable, _cue_ui_refresh,
         _cue_wrap_with_statement, _cue_wrap_config_show,
@@ -63,6 +85,8 @@ init -999 python:
         _cue_unwrap_persistent,
         _cue_make_tab_action,
     )
+
+    from cue_lib.text import CueSafeText
 
     from cue_lib.logger import (
         _cue_logger,

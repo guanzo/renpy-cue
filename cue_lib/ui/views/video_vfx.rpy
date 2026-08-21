@@ -11,7 +11,7 @@ screen _cue_edit_queue_vbox():
 
     vbox:
         spacing 3
-        text "Edit Queue" size 14 bold True
+        etext "Edit Queue" size 14 bold True
         null height 2
         for job in _cue.video_editor.job_queue.jobs:
             hbox:
@@ -28,12 +28,12 @@ screen _cue_edit_queue_vbox():
                         "xmark",
                         Function(_cue.video_editor.job_queue.remove, job.job_id),
                         "Remove from queue")
-                text job.filename() + " " + job.speed_label substitute False size 11
-                text "(" + job.status_text() + ")" size 11
+                etext job.filename() + " " + job.speed_label substitute False size 11
+                etext "(" + job.status_text() + ")" size 11
                 if job.status != CueJobStatus.QUEUED:
                     $ _elapsed = int(job.elapsed())
                     $ _elapsed_text = "%d:%02d" % (_elapsed // 60, _elapsed % 60)
-                    text _elapsed_text size 11 color _cue_color_text_muted
+                    etext _elapsed_text size 11 color _cue_color_text_muted
 
             if job.status == CueJobStatus.ERROR and job.error_msg and not job.cancelled:
                 hbox:
@@ -42,7 +42,7 @@ screen _cue_edit_queue_vbox():
                     # An ffmpeg failure message (e.g. "[Errno 2] ...") is not
                     # markup: substituting it would py_eval the brackets and
                     # crash the whole overlay on every frame.
-                    text job.error_msg substitute False size 11 color _cue_color_error
+                    etext job.error_msg substitute False size 11 color _cue_color_error
                     use cue_txt_button("Retry",
                         Function(_cue.video_editor.job_queue.retry, job.job_id))
 
@@ -88,7 +88,7 @@ screen cue_video_vfx():
                     $ _cur = _cue.speed_resolver.speed_for(_cue.current_file)
                     vbox:
                         spacing 5
-                        text "The video will only play at the selected speed"
+                        etext "The video will only play at the selected speed"
                         hbox:
                             spacing 5
                             box_wrap True
@@ -121,7 +121,7 @@ screen cue_video_vfx():
 
                 # --- Multi Speed tab ---
                 elif _mode == CueSpeedMode.MULTI:
-                    text "The video plays through each speed in order, then loops."
+                    etext "The video plays through each speed in order, then loops."
                     hbox:
                         spacing 5
                         box_wrap True
@@ -143,9 +143,9 @@ screen cue_video_vfx():
                         if len(_seq) >= 2:
                             add CueAutoSpeedChart() xsize 440 ysize 80
                         else:
-                            text "Click 1 more speed."
+                            etext "Click 1 more speed."
                     else:
-                        text "Click the speed buttons to create a sequence. Minimum 2 speeds."
+                        etext "Click the speed buttons to create a sequence. Minimum 2 speeds."
 
                 # --- Auto Speed tab ---
                 elif _mode == CueSpeedMode.AUTO:
@@ -163,7 +163,7 @@ screen cue_video_vfx():
 
                     if not _has_auto:
                         null height 3
-                        text "You don't have enough speeds, generate more in the Create tab."
+                        etext "You don't have enough speeds, generate more in the Create tab."
 
                     if _has_auto:
                         null height 3
@@ -208,7 +208,7 @@ screen cue_video_vfx():
                         if _seq and len(_seq) >= 2:
                             add CueAutoSpeedChart() xsize 440 ysize 80
             else:
-                text "No speed variants available. Generate them in the Create tab."
+                etext "No speed variants available. Generate them in the Create tab."
 
         # --- Create tab ---
         if _cue.video_editor.active:
@@ -221,7 +221,7 @@ screen cue_video_vfx():
                     spacing 5
                     box_wrap True
                     box_wrap_spacing 3
-                    text "Created Speeds:"
+                    etext "Created Speeds:"
                     if _has_speeds:
                         for _sp in _avail:
                             if _sp != CUE_DEFAULT_VIDEO_SPEED:
@@ -233,12 +233,12 @@ screen cue_video_vfx():
                                 Function(_cue_create_delete_speed),
                                 tt="Delete the " + _cue_speed_label(_del_sel) + " file.")
                     else:
-                        text "None" color _cue_color_text_muted
+                        etext "None" color _cue_color_text_muted
                 
                 null height 5
                 hbox:
                     spacing 5
-                    text "New Speed:"
+                    etext "New Speed:"
                     $ _commit = Function(_cue.video_editor.commit_text)
                     $ _display = _cue_speed_label(float(_ved.factor_text))
                     use cue_float_input("_cue.video_editor.factor_text", _commit, _display,
@@ -251,14 +251,14 @@ screen cue_video_vfx():
                             use cue_txt_button(_cue_speed_label(_sp),
                                 Function(_cue.video_editor.set_quick, _sp),
                                 tt="Set speed to " + _cue_speed_label(_sp))
-                text "Speed multiplier is based on original video" style "cue_help" yalign 0.5
+                etext "Speed multiplier is based on original video" style "cue_help" yalign 0.5
 
             # --- Encode mode radio buttons ---
             vbox:
                 spacing 5
                 hbox:
                     spacing 5
-                    text "Quality:"
+                    etext "Quality:"
                     use cue_select_btn("Fast Preview", (_ved.encode_mode == _ved.MODE_FAST_PREVIEW),
                         Function(_cue.video_editor.set_encode_mode, _ved.MODE_FAST_PREVIEW),
                         tt="Fast low-quality encode to judge the edited speed.")
@@ -270,11 +270,11 @@ screen cue_video_vfx():
                         tt=("Uses ffmpeg to generate in-between frames for smoother motion. "
                             "Video takes longer to encode."))
                 if _ved.encode_mode == _ved.MODE_INTERPOLATE:
-                    text "Slower encode, higher quality" style "cue_help"
+                    etext "Slower encode, higher quality" style "cue_help"
                 elif _ved.encode_mode == _ved.MODE_FAST_PREVIEW:
-                    text "Faster encode, lower quality" style "cue_help"
+                    etext "Faster encode, lower quality" style "cue_help"
                 else:
-                    text "Match original quality" style "cue_help"
+                    etext "Match original quality" style "cue_help"
             if _ved._current_has_audio:
                 use cue_checkbox(_ved.remove_audio, "Remove audio track",
                     Function(_cue.video_editor.toggle_remove_audio),
@@ -284,7 +284,7 @@ screen cue_video_vfx():
                 Function(_cue.video_editor.prepare_create),
                 sensitive=_ved._ready)
             if _ved.last_error:
-                text _ved.last_error color _cue_color_error
+                etext _ved.last_error color _cue_color_error
 
             # --- Edit queue ---
             if _cue.video_editor.job_queue.jobs:
@@ -318,23 +318,23 @@ screen cue_auto_preset_btn(preset_name, auto):
 
     if _is_shuffle_mode:
         # Shuffle is the selected "mode" -- green
-        textbutton _label:
+        textbutton _cue_escape_text(_label):
             background _cue_color_active
             action NullAction()
             tooltip _desc
     elif _is_active and auto.is_shuffle_mode:
         # Shuffle delegate -- this preset is playing, but shuffle is the mode (yellow)
-        textbutton _label:
+        textbutton _cue_escape_text(_label):
             background _cue_color_dark_yellow
             action NullAction()
             tooltip _desc
     elif _is_active:
         # Normal active preset (green)
-        textbutton _label:
+        textbutton _cue_escape_text(_label):
             background _cue_color_active
             action NullAction()
             tooltip _desc
     else:
-        textbutton _label:
+        textbutton _cue_escape_text(_label):
             action Function(auto.select_preset, preset_name)
             tooltip _desc

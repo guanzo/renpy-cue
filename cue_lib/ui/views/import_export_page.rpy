@@ -26,7 +26,7 @@ screen cue_export_section():
 
             $ _exports_source = ("Exports always come from your data, "
                                  "not from an active import.")
-            text _exports_source
+            etext _exports_source
 
             null height 5
 
@@ -43,7 +43,7 @@ screen cue_export_section():
 
             if (_exporter.scope == CueExportScope.SPECIFIC_REPLAYS):
                 if not _exporter.replays:
-                    text ("No replays yet.  Markers edited inside a replay "
+                    etext ("No replays yet.  Markers edited inside a replay "
                           "show up here.")
                 else:
                     if _current_has_data:
@@ -51,7 +51,7 @@ screen cue_export_section():
                             "You're in \"{}\" now:".format(_current_replay))
                         hbox:
                             spacing 8
-                            text _in_replay_line color _cue_color_text_muted
+                            etext _in_replay_line color _cue_color_text_muted
                             use cue_txt_button(
                                 "Export this replay",
                                 Function(_exporter.export_replay, _current_replay))
@@ -75,9 +75,9 @@ screen cue_export_section():
                                         _exporter.is_replay_checked(_r["label"]),
                                         _r["label"],
                                         Function(_exporter.toggle_replay, _r["label"]))
-                                    text "{} marker(s)".format(_r["count"]) color _cue_color_text_muted
+                                    etext "{} marker(s)".format(_r["count"]) color _cue_color_text_muted
                                     if (_r["label"] == _current_replay):
-                                        text "(current)" color _cue_color_warn
+                                        etext "(current)" color _cue_color_warn
 
             null height 5
 
@@ -109,11 +109,11 @@ screen cue_export_section():
                             enabled=_enabled)
                         if (_exporter.scope == CueExportScope.ALL_REPLAYS):
                             if _enabled:
-                                text "{} file(s)".format(_count) color _cue_color_text_muted
+                                etext "{} file(s)".format(_count) color _cue_color_text_muted
                             else:
-                                text "empty" color _cue_color_text_dim
+                                etext "empty" color _cue_color_text_dim
                 if _exporter.any_unchecked():
-                    text ("Some file types are unchecked, so this export may not "
+                    etext ("Some file types are unchecked, so this export may not "
                           "fully work when imported.") color _cue_color_warn size 11
 
             null height 4
@@ -122,9 +122,9 @@ screen cue_export_section():
                 spacing 8
                 vbox:
                     spacing 5
-                    text "Title:" xsize 60
-                    text "Author:" xsize 60
-                    text "Description:" xsize 60
+                    etext "Title:" xsize 60
+                    etext "Author:" xsize 60
+                    etext "Description:" xsize 60
                 vbox:
                     spacing 5
                     use cue_text_input(
@@ -156,11 +156,11 @@ screen cue_export_section():
                     sensitive=(not _exporter.is_exporting))
                 if _exporter.is_exporting:
                     $ _export_pct = int(_exporter.export_fraction * 100)
-                    text ("Exporting ({}%)".format(_export_pct)) color _cue_color_text_muted
+                    etext ("Exporting ({}%)".format(_export_pct)) color _cue_color_text_muted
                 elif _exporter.export_error:
-                    text _exporter.export_error color _cue_color_error
+                    etext _exporter.export_error color _cue_color_error
                 elif _exporter.export_status:
-                    text _exporter.export_status color _cue_color_green
+                    etext _exporter.export_status color _cue_color_green
 
 
 screen cue_import_imports():
@@ -169,7 +169,7 @@ screen cue_import_imports():
     $ _imports_hint = ("Add export .zip file to:\n{}").format(_cue.importer.imports_dir())
 
     use cue_section_frame("Import", tt=_imports_hint):
-        text ("Imports can be previewed, which will temporarily replace your data (except your Settings). "
+        etext ("Imports can be previewed, which will temporarily replace your data (except your Settings). "
             "If you like the import, you can copy it into your data folder with \"Merge\".")
 
         null height 4
@@ -177,15 +177,15 @@ screen cue_import_imports():
         use cue_url_downloader()
 
         if _cue.importer.scan_error:
-            text _cue.importer.scan_error color _cue_color_error
+            etext _cue.importer.scan_error color _cue_color_error
         if _cue.importer.is_importing:
             timer 0.1 repeat True action Function(renpy.restart_interaction, _update_screens=False)
             $ _imp_pct = int(_cue.importer.import_fraction * 100)
-            text ("Extracting {} ({}%)...".format(
+            etext ("Extracting {} ({}%)...".format(
                 _cue.importer.import_label, _imp_pct)) color _cue_color_text_muted
         elif not _cue.importer.imports:
-            text "No imports found yet."
-            text _imports_hint
+            etext "No imports found yet."
+            etext _imports_hint
             
         viewport:
             xfill True
@@ -231,14 +231,14 @@ screen cue_url_downloader():
             if _cue.url_importer.download_total:
                 $ _url_total = _cue_format_size(_cue.url_importer.download_total)
                 $ _url_pct = int(_cue.url_importer.download_done * 100.0 / _cue.url_importer.download_total)
-                text ("{}% - {} / {} - {}".format(
+                etext ("{}% - {} / {} - {}".format(
                     _url_pct, _url_done, _url_total, _url_elapsed)) color _cue_color_text_muted
             else:
-                text ("Downloading... {}".format(_url_done)) color _cue_color_text_muted
+                etext ("Downloading... {}".format(_url_done)) color _cue_color_text_muted
         elif _cue.url_importer.download_error:
-            text _cue.url_importer.download_error color _cue_color_error substitute False
+            etext _cue.url_importer.download_error color _cue_color_error substitute False
         elif _cue.url_importer.download_status:
-            text _cue.url_importer.download_status color _cue_color_green substitute False
+            etext _cue.url_importer.download_status color _cue_color_green substitute False
 
 
 screen cue_import_row(_imp):
@@ -268,15 +268,15 @@ screen cue_import_row(_imp):
                 xfill True
                 hbox:
                     spacing 6
-                    text _imp_name color _cue_color_text_accent
+                    etext _imp_name color _cue_color_text_accent
                     if _missing:
-                        text "missing {} file(s)".format(len(_missing)) color _cue_color_warn size 11
+                        etext "missing {} file(s)".format(len(_missing)) color _cue_color_warn size 11
                     if _author_line:
-                        text _author_line color _cue_color_text_muted
+                        etext _author_line color _cue_color_text_muted
             if _desc_line:
-                text _desc_line color _cue_color_text_muted size 11
+                etext _desc_line color _cue_color_text_muted size 11
             if _status and _match != CueImportMatch.AUTO:
-                text _status color _cue_color_warn size 11
+                etext _status color _cue_color_warn size 11
             hbox:
                 spacing 6
                 if _can_activate:
@@ -320,10 +320,10 @@ screen cue_edit_banner():
             xfill True
             hbox:
                 spacing 6
-                text "Import:"
-                text _imp_display color _cue_color_text_accent
-            text "Edits apply to the import. Your own data will be restored when you exit preview."
-        
+                etext "Import:"
+                etext _imp_display color _cue_color_text_accent
+            etext "Edits apply to the import. Your own data will be restored when you exit preview."
+
             hbox:
                 spacing 6
                 use cue_txt_button(

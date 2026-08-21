@@ -8,7 +8,7 @@ from renpy.text.text import Text as Txt
 from renpy.display.core import Displayable, IgnoreEvent
 
 from cue_lib.state import _cue
-from cue_lib.util import _cue_format_time
+from cue_lib.util import _cue_escape_text, _cue_format_time
 
 MYPY = False
 if MYPY:
@@ -583,7 +583,7 @@ def _cue_render_tooltip(text, anchor, st, at):
     clamps to the screen. Shared by CueTooltip and CueVideoMarkerTooltip.
     """
     text_widget = Txt(
-        text, style="cue_text", size=12, color="#cccccc",
+        _cue_escape_text(text, brackets=False) or "", style="cue_text", size=12, color="#cccccc",
         italic=False, substitute=False,
     )
     max_width = 350

@@ -583,3 +583,32 @@ testcase music_play_interceptor_installed:
     run Jump("start")
     $ import renpy.audio.music as _music
     assert eval (getattr(_music.play, "__name__", "") == "_on_play")
+
+# Renders etext with tag + interpolation characters in the value, so the
+# statement compiles and displays them literally (an unescaped value would
+# crash the interaction or garble the text).
+screen _cue_etext_smoke():
+    style_group "cue"
+
+    vbox:
+        etext "{b}file[x].mp3"
+        etext "{b}file[x].mp3" substitute False
+
+testcase etext_escapes_dynamic_string:
+    run Jump("start")
+    # CueSafeText escapes before Text substitutes: `{` is doubled for the tag
+    # tokenizer (it stays doubled in .text), and the escaped `[` was collapsed
+    # back to a literal by substitution -- .text holds the escaped form that
+    # renders as the literal input.
+    $ _t = CueSafeText("{b}file[x].mp3")
+    assert eval (_t.text[0] == "{{b}file[x].mp3")
+    # substitute False: brackets are already literal (no substitution runs),
+    # so only braces are doubled; the value still renders literally.
+    $ _t2 = CueSafeText("{b}file[x].mp3", substitute=False)
+    assert eval (_t2.text[0] == "{{b}file[x].mp3")
+    # Render the statement itself -- both variants display without the raw
+    # string being parsed as a tag or interpolated.
+    $ renpy.show_screen("_cue_etext_smoke", _layer="cue_layer")
+    pause 0.5
+    assert screen "_cue_etext_smoke" layer "cue_layer"
+    $ renpy.hide_screen("_cue_etext_smoke")

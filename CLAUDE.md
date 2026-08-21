@@ -55,6 +55,10 @@ Code must work for 7.4.x and up.
 
 **NOTE**: In `.py` files, use the real module path `renpy.audio.music` (not `renpy.music`). `renpy.music` is a `sys.modules` alias set up at runtime by `import_all()` — it doesn't exist as a file on disk and won't resolve during `init -999` before the alias is created.
 
+## Ren'Py Text Escaping
+
+Use the `etext` screen statement (not `text`) for any displayed string that is not a mod-authored literal with deliberate formatting — file/folder names, game dialogue, and any value from an external source (ffmpeg output, HTTP responses, URLs, user input). `etext` is a `CueSafeText` (`cue_lib/text.py`), a `renpy.text.text.Text` subclass that escapes its value before display: `{` → `{{`, `[` → `[[`, so the literal characters render instead of being parsed as tags/interpolation. It is registered in `cue_lib/cue_z.rpy` 1:1 with the built-in `text` statement — same keywords (`slow`, `slow_done`, `substitute`, `scope`) and properties — so any `text` line can be renamed to `etext` unchanged. Reserve `text` for strings that deliberately use tags (`{b}bold{/b}`) or interpolation (`[var]`). For renderers that aren't `text` statements — `textbutton` labels, `Text()`/`Txt()` displayables, tooltips — call `_cue_escape_text()` directly (pass `brackets=False` on `substitute=False` displayables, where `[` is already literal). Never escape twice on one path: escaping at set time + display time doubles the brackets.
+
 ## Platform Gotchas
 
 - **`os.rename` does NOT overwrite on Windows.** POSIX renames atomically

@@ -18,6 +18,7 @@ import renpy.config as _config
 from renpy.store import persistent
 
 from cue_lib.state import CueContext
+from cue_lib.util import _cue_escape_text
 from cue_lib.video import ffmpeg as _ffmpeg_mod
 from cue_lib.video import video_edit_queue as _qeditor
 from cue_lib.video import video_editor as _veditor
@@ -968,10 +969,13 @@ def test_editor_factor_text_roundtrip(ve):
     assert ve.factor_text == "2.50"
 
 
-def test_editor_last_error_escapes_brackets(ve):
+def test_editor_last_error_stores_raw(ve):
+    # Escaping happens at display (etext), not in the setter -- the raw value
+    # is kept so a later render escapes it exactly once.
     ve._current = ve._ensure_state("movies/scene.webm")
     ve.last_error = "Bad [x]"
-    assert ve.last_error == "Bad [[x]]"
+    assert ve.last_error == "Bad [x]"
+    assert _cue_escape_text(ve.last_error) == "Bad [[x]"
 
 
 def test_editor_last_error_no_current_is_noop(ve):

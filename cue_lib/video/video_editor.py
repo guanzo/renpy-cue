@@ -17,7 +17,6 @@ from cue_lib.video.video_edit_queue import (
     CUE_VE_MODE_FAST_PREVIEW,
     CueVideoEditQueue,
     CueVideoJob,
-    _cue_esc,
 )
 from cue_lib.util import _cue_log, _cue_ui_refresh
 
@@ -117,7 +116,8 @@ class CueVideoEditor(object):
         # type: (str) -> None
         s = self._get_state()
         if s is not None:
-            s.last_error = _cue_esc(value)
+            # Raw value; escaping happens at display (etext).
+            s.last_error = value
 
     def _get_video_vpath(self):
         # type: () -> Optional[str]

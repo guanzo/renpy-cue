@@ -21,16 +21,16 @@ screen cue_repeat_markers_dialog():
 
         vbox:
             spacing 8
-            text "Repeat Markers" style "cue_hdr"
+            etext "Repeat Markers" style "cue_hdr"
 
             hbox:
                 spacing 5
-                text "Selected:"
-                text "{} marker(s)".format(sel_count) color _cue_color_text_accent
+                etext "Selected:"
+                etext "{} marker(s)".format(sel_count) color _cue_color_text_accent
 
             hbox:
                 spacing 5
-                text "Anchor:"
+                etext "Anchor:"
                 $ _anchor_dec = Function(_cue.repeater.nudge_anchor, -0.01)
                 $ _anchor_inc = Function(_cue.repeater.nudge_anchor, 0.01)
                 $ _anchor_commit = Function(_cue.repeater.commit_anchor)
@@ -41,7 +41,7 @@ screen cue_repeat_markers_dialog():
             hbox:
                 spacing 3
                 xalign 0.0
-                text "Interval:"
+                etext "Interval:"
                 $ _commit = Function(_cue.repeater.commit_interval)
                 $ _display = _cue.repeater.interval_text
                 use cue_float_input("_cue.repeater.interval_text", _commit, _display,
@@ -51,7 +51,7 @@ screen cue_repeat_markers_dialog():
             hbox:
                 spacing 3
                 xalign 0.0
-                text "Repeat:"
+                etext "Repeat:"
                 $ _dec = Function(_cue.repeater.nudge_count, -1)
                 $ _inc = Function(_cue.repeater.nudge_count, 1)
                 $ _commit = Function(_cue.repeater.commit_count)
@@ -63,7 +63,7 @@ screen cue_repeat_markers_dialog():
                 Function(_cue.repeater.toggle_preview_sfx))
 
             $ _preview_label = _cue.repeater.preview_text()
-            text _preview_label
+            etext _preview_label
 
             null height 5
 
@@ -101,29 +101,29 @@ screen cue_save_preset_dialog():
 
         vbox:
             spacing 8
-            text "Save Preset" style "cue_hdr"
+            etext "Save Preset" style "cue_hdr"
 
             if _is_music:
                 hbox:
                     spacing 5
-                    text "Songs:"
-                    text "{} file(s)".format(_song_count) color _cue_color_text_accent
+                    etext "Songs:"
+                    etext "{} file(s)".format(_song_count) color _cue_color_text_accent
             else:
                 hbox:
                     spacing 5
-                    text "Files:"
-                    text "{} file(s)".format(_file_count) color _cue_color_text_accent
+                    etext "Files:"
+                    etext "{} file(s)".format(_file_count) color _cue_color_text_accent
 
                 hbox:
                     spacing 5
-                    text "Volume:"
-                    text "{:.1f}".format(_r.volume) color _cue_color_text_accent
+                    etext "Volume:"
+                    etext "{:.1f}".format(_r.volume) color _cue_color_text_accent
 
             null height 5
 
             hbox:
                 spacing 5
-                text "Name:"
+                etext "Name:"
                 input:
                     style "cue_input"
                     value _CueFieldValue("_cue.dialogs.preset.name")
@@ -166,28 +166,28 @@ screen cue_save_video_preset_dialog():
 
         vbox:
             spacing 8
-            text "Save Video Preset" style "cue_hdr"
+            etext "Save Video Preset" style "cue_hdr"
 
             hbox:
                 spacing 5
-                text "Markers:"
-                text "{} marker(s)".format(_marker_count) color _cue_color_text_accent
+                etext "Markers:"
+                etext "{} marker(s)".format(_marker_count) color _cue_color_text_accent
 
             hbox:
                 spacing 5
-                text "Span:"
-                text _span_text color _cue_color_text_accent
+                etext "Span:"
+                etext _span_text color _cue_color_text_accent
 
             hbox:
                 spacing 5
-                text "Files:"
-                text "{} file(s)".format(_total_files) color _cue_color_text_accent
+                etext "Files:"
+                etext "{} file(s)".format(_total_files) color _cue_color_text_accent
 
             null height 5
 
             hbox:
                 spacing 5
-                text "Name:"
+                etext "Name:"
                 input:
                     style "cue_input"
                     value _CueFieldValue("_cue.dialogs.video_preset.name")
@@ -218,7 +218,7 @@ screen cue_confirm_dialog():
 
         vbox:
             spacing 8
-            text _d.message
+            etext _d.message
 
             null height 5
 
@@ -246,7 +246,7 @@ screen cue_merge_dialog():
 
         vbox:
             spacing 8
-            text "Merge Import" style "cue_hdr"
+            etext "Merge Import" style "cue_hdr"
 
             for _cat in _merge_cats:
                 $ _label = CUE_IMPORT_CATEGORY_LABELS.get(_cat, "?")
@@ -258,11 +258,11 @@ screen cue_merge_dialog():
                         _label,
                         Function(_d.toggle, _cat),
                         enabled=_d.is_category_enabled(_cat))
-                    text "{} file(s)".format(_n) color _cue_color_text_accent
+                    etext "{} file(s)".format(_n) color _cue_color_text_accent
 
             null height 5
 
-            text _summary
+            etext _summary
 
             null height 5
 

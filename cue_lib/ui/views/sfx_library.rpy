@@ -24,9 +24,9 @@ screen cue_sfx_library(_is_video):
     use cue_section_frame(CUE_SFX_LIBRARY_HEADER, tt=sfx_tt, icons=_icons):
         if not _cue.sfx.library.tree:
             if _cue.sfx.library.scan_error:
-                text "[_cue.sfx.library.scan_error]" color _cue_color_error
-            text "No audio files found in: [_cue.paths.audio_dir]"
-            text ("Add {} files there "
+                etext _cue.sfx.library.scan_error color _cue_color_error
+            etext "No audio files found in: {}".format(_cue.paths.audio_dir)
+            etext ("Add {} files there "
                 "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS))
         else:
             use cue_target_context()
@@ -52,7 +52,7 @@ screen cue_target_context():
     $ _tgt_loop_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_LOOP) + " to select."
     hbox:
         spacing 2
-        text "Target:"
+        etext "Target:"
         use cue_select_btn("Video", (_target == CueContextType.VIDEO),
             Function(_cue.markers.set_target_context, CueContextType.VIDEO),
             tt=_tgt_video_tt,
@@ -71,8 +71,8 @@ screen cue_target_context():
             sensitive=_cue.markers.target_is_available(CueContextType.LOOP))
     hbox:
         spacing 2
-        text "Pool:"
-        text _cue.markers.target_active_label()
+        etext "Pool:"
+        etext _cue.markers.target_active_label()
 
 
 screen cue_sfx_library_content(_is_video):
@@ -114,7 +114,7 @@ screen cue_sfx_library_content(_is_video):
 
                 if _cue.sfx.library.presets_expanded:
                     if not _preset_names:
-                        text "No pool presets yet. Save a pool as a preset to fill this." style "cue_help"
+                        etext "No pool presets yet. Save a pool as a preset to fill this." style "cue_help"
                     use cue_audio_presets_list(_preset_names)
 
             if not _searching or _video_preset_names:
@@ -124,7 +124,7 @@ screen cue_sfx_library_content(_is_video):
 
                 if _cue.sfx.library.video_presets_expanded:
                     if not _video_preset_names:
-                        text "No video presets yet. Save video markers as a preset to fill this." style "cue_help"
+                        etext "No video presets yet. Save video markers as a preset to fill this." style "cue_help"
                     use cue_video_presets_list(_is_video, _video_preset_names)
 
             $ _no_results = (_searching and not _recent_entries
@@ -132,7 +132,7 @@ screen cue_sfx_library_content(_is_video):
                 and not _video_preset_names
                 and not _cue.sfx.library.visible_tree)
             if _no_results:
-                text 'No files found for "{}".'.format(_q)
+                etext 'No files found for "{}".'.format(_q)
             else:
                 use cue_file_tree()
 
@@ -148,11 +148,11 @@ screen cue_recent_list(entries):
     $ _tgt_tt = _cue_target_assign_tt()
 
     if not entries:
-        text "Files you add to pools show up here."  style "cue_help"
+        etext "Files you add to pools show up here."  style "cue_help"
     for _re in entries:
         hbox:
             spacing 2
-            text " "  # indent under Recently Used/
+            etext " "  # indent under Recently Used/
             if _re["type"] == "file":
                 $ _re_idx = _cue.sfx.library._file_index.get(_re["ref"], -1)
                 $ _re_ok = _re_idx >= 0
@@ -162,7 +162,7 @@ screen cue_recent_list(entries):
                     Function(_cue_markers_send, "file", _re_idx, False),
                     _tgt_tt, enabled=(_tgt_ok and _re_ok))
                 null width 1
-                text _re["ref"] color _cue_color_text_accent
+                etext _re["ref"] color _cue_color_text_accent
             elif _re["type"] == "folder":
                 use cue_icon_btn(
                     "play",
@@ -173,7 +173,7 @@ screen cue_recent_list(entries):
                     Function(_cue_markers_send, "folder", _re["ref"], False),
                     _tgt_tt, enabled=_tgt_ok)
                 null width 1
-                text _re["ref"] color _cue_color_text_accent
+                etext _re["ref"] color _cue_color_text_accent
             else:  # preset
                 use cue_icon_btn(
                     "play",
@@ -184,7 +184,7 @@ screen cue_recent_list(entries):
                     Function(_cue_markers_send, "preset", _re["ref"], False),
                     _tgt_tt, enabled=_tgt_ok)
                 null width 1
-                text _re["ref"] color _cue_color_text_accent
+                etext _re["ref"] color _cue_color_text_accent
 
 
 # Audio preset rows, shown when the Presets folder is expanded.
@@ -202,7 +202,7 @@ screen cue_audio_presets_list(name_filter=None):
         $ _p_files = _cue_resolve_files(_pdata.get("files", [])) if _pdata else []
         hbox:
             spacing 2
-            text " "  # indent under Presets/
+            etext " "  # indent under Presets/
             use cue_icon_btn("xmark", Function(_cue_confirm_delete_preset, _pname), "Delete preset")
             use cue_icon_btn(
                 "play",
@@ -218,14 +218,14 @@ screen cue_audio_presets_list(name_filter=None):
             for _child in _p_files:
                 hbox:
                     spacing 2
-                    text "  "
+                    etext "  "
                     use cue_icon_btn(
                         "xmark",
                         Function(_cue.markers.preset_remove_file, _pname, _child),
                         "Remove file from preset")
                     use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, _child), "Preview file")
                     null width 1
-                    text _child color _cue_color_text_accent size 11
+                    etext _child color _cue_color_text_accent size 11
 
 
 # Video preset rows, shown when the Video Presets folder is expanded.
@@ -241,7 +241,7 @@ screen cue_video_presets_list(_is_video, name_filter=None):
         $ _vp_pools = _vpdata.get("pools", []) if _vpdata else []
         hbox:
             spacing 2
-            text " "  # indent under Video Presets/
+            etext " "  # indent under Video Presets/
             use cue_icon_btn(
                 "xmark",
                 Function(_cue_confirm_delete_video_preset, _vpname),
@@ -264,8 +264,8 @@ screen cue_video_presets_list(_is_video, name_filter=None):
                 $ _pool_label = "{} ({} files)".format(_cue_format_time(_pool_time), _pool_files)
                 hbox:
                     spacing 2
-                    text "  "
-                    text _pool_label color _cue_color_text_accent size 11
+                    etext "  "
+                    etext _pool_label color _cue_color_text_accent size 11
 
 
 # Folder/file rows for the current audio tree.
@@ -282,7 +282,7 @@ screen cue_file_tree():
             spacing 2
             # Indent
             if item["depth"] > 0:
-                text " " * item["depth"]
+                etext " " * item["depth"]
             if item["type"] == "folder":
                 if item["has_files"]:
                     use cue_icon_btn(
@@ -302,4 +302,4 @@ screen cue_file_tree():
                     Function(_cue_markers_send, "file", item["index"]),
                     _tgt_tt, enabled=_tgt_ok)
                 null width 1
-                text item["name"] color _cue_color_text_accent
+                etext item["name"] color _cue_color_text_accent

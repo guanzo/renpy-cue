@@ -8,7 +8,6 @@ from cue_lib.paths import CuePaths
 from cue_lib.state import CueContext
 from cue_lib.video.video_edit_queue import CueVideoEditQueue
 
-def _cue_esc(text: str) -> str: ...
 def _cue_extract_rpa(editor: "CueVideoEditor", vp: str) -> None: ...
 
 class CueVideoEditorState:

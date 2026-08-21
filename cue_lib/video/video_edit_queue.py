@@ -39,15 +39,6 @@ class CueJobStatus(object):
     ERROR = "Error"
 
 
-def _cue_esc(text):
-    # type: (str) -> str
-    """Escape square brackets so Ren'Py text interpolation doesn't
-    try to resolve them as variable references."""
-    if text:
-        return text.replace("[", "[[").replace("]", "]]")
-    return text
-
-
 class CueVideoJob(object):
     """One ffmpeg encode job in the queue."""
     def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, encode_mode,
@@ -493,8 +484,7 @@ class CueVideoEditQueue(object):
             _cue_log("Variant: generated {:.1f}x at {} (job_id={})".format(
                 job.factor, os.path.basename(out), job.job_id))
         else:
-            state.last_error = _cue_esc(
-                "The game still has this video file open. "
+            state.last_error = ("The game still has this video file open. "
                 "Advance past this video scene, then try again.")
             job.status = CueJobStatus.ERROR
             job.error_msg = job._swap_error_msg or "File locked.  Retry later"

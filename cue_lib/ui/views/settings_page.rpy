@@ -15,7 +15,7 @@ screen cue_settings_page():
             vbox:
                 spacing 5
                 frame:
-                    text "Settings" style "cue_hdr" xoffset 4
+                    etext "Settings" style "cue_hdr" xoffset 4
                     yminimum 0
 
                 use cue_data_dir()
@@ -28,16 +28,16 @@ screen cue_data_dir():
     use cue_section_frame("Data Folder"):
         vbox:
             spacing 8
-            text "Cue stores everything (markers, video, audio, backups, etc.) in this folder."
-            text ("If you change the folder, you must move all files to the new "
+            etext "Cue stores everything (markers, video, audio, backups, etc.) in this folder."
+            etext ("If you change the folder, you must move all files to the new "
                 "folder and restart the game.")
             use cue_text_input("_cue.settings.setup_dir_text",
                 Function(_cue.settings.confirm_shared_dir),
                 _cue.settings.setup_dir_text)
             if _cue.settings.shared_dir_error:
-                text _cue.settings.shared_dir_error color _cue_color_error
+                etext _cue.settings.shared_dir_error color _cue_color_error
             elif _cue.settings.shared_dir_success:
-                text _cue.settings.shared_dir_success color _cue_color_green
+                etext _cue.settings.shared_dir_success color _cue_color_green
             use cue_txt_button("Save", Function(_cue.settings.confirm_shared_dir))
 
 
@@ -61,7 +61,7 @@ screen cue_settings_keybinds():
                 ysize 16
                 hbox:
                     xsize 150
-                    text _kb["label"] yalign 0.5
+                    etext _kb["label"] yalign 0.5
 
                 hbox:
                     spacing 8
@@ -92,7 +92,7 @@ screen cue_settings_backup():
     use cue_section_frame("Backup & Restore"):
         vbox:
             spacing 8
-            text ("Backup data folder to backups/{}, or restore that "
+            etext ("Backup data folder to backups/{}, or restore that "
                 "backup's data over the current game.".format(CUE_MANUAL_BACKUP_NAME))
             $ _auto_bk_tt = ("Auto back up your marker data once an hour for 30 days. "
                 "Media files (audio, music, video) are excluded.\n"
@@ -113,13 +113,13 @@ screen cue_settings_backup():
 
                 if _cue.backups.is_backing_up:
                     $ _backup_pct = int(_cue.backups.backup_fraction * 100)
-                    text ("Backing up... ({}%)".format(_backup_pct)) color _cue_color_text_muted
+                    etext ("Backing up... ({}%)".format(_backup_pct)) color _cue_color_text_muted
                 if _cue.backups.backup_error:
-                    text _cue.backups.backup_error color _cue_color_error
+                    etext _cue.backups.backup_error color _cue_color_error
                 elif _cue.backups.backup_status:
-                    text _cue.backups.backup_status color _cue_color_green
+                    etext _cue.backups.backup_status color _cue_color_green
 
-            text ("Restore merges the backup over current data. Anything "
+            etext ("Restore merges the backup over current data. Anything "
                 "in the data folder that's not in the backup is untouched.")
             hbox:
                 spacing 8
@@ -128,11 +128,11 @@ screen cue_settings_backup():
                     sensitive=(not _backup_busy))
 
                 if _cue.backups.is_restoring:
-                    text "Restoring..." color _cue_color_text_muted
+                    etext "Restoring..." color _cue_color_text_muted
                 if _cue.backups.restore_error:
-                    text _cue.backups.restore_error color _cue_color_error
+                    etext _cue.backups.restore_error color _cue_color_error
                 elif _cue.backups.restore_status:
-                    text _cue.backups.restore_status color _cue_color_green
+                    etext _cue.backups.restore_status color _cue_color_green
 
 
 # -----------------------------------------------------------------------------
@@ -156,11 +156,11 @@ screen cue_keybind_capture():
         xfill False
         vbox:
             spacing 8
-            text "Press a key(s) for " + _cue.keybinds.current_label()
-            text "Ctrl / Alt / Shift can be combined."
-            text "Press Esc to cancel."
+            etext "Press a key(s) for " + _cue.keybinds.current_label()
+            etext "Ctrl / Alt / Shift can be combined."
+            etext "Press Esc to cancel."
             if _cue.keybinds.collision_message:
-                text _cue.keybinds.collision_message color _cue_color_error
+                etext _cue.keybinds.collision_message color _cue_color_error
             hbox:
                 spacing 5
                 use cue_txt_button("Cancel", Function(_cue_keybind_cancel))

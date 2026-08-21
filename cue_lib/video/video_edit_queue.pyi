@@ -13,7 +13,6 @@ class CueJobStatus:
     DONE: str
     ERROR: str
 
-def _cue_esc(text: str) -> str: ...
 def _cue_swap_job(job: CueVideoJob) -> None: ...
 
 class CueVideoJob:

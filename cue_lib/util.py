@@ -480,6 +480,27 @@ def _cue_format_duration(seconds):
     return "{:02d}:{:02d}".format(minutes, secs)
 
 
+def _cue_escape_text(s, brackets=True):
+    # type: (Optional[str], bool) -> Optional[str]
+    """Double Ren'Py text-tag escapes so s displays literally. Doubles
+    `{` always; `[` when `brackets` (pass False where substitution is
+    disabled, e.g. substitute=False displayables -- there `[` is literal
+    and doubling would show `[[`). `}`/`]` are literal and untouched."""
+    if s is None:
+        return None
+
+    if not hasattr(s, "replace"):
+        return s
+
+    s = s.replace("{", "{{")
+
+    if brackets:
+        s = s.replace("[", "[[")
+
+    return s
+
+
+
 def _cue_parse_time(time_str):
     # type: (Optional[str]) -> Optional[float]
     """Parse a time string back to float seconds.

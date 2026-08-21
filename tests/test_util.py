@@ -24,6 +24,7 @@ from cue_lib.util import (
     _cue_atl_child_displayables,
     _cue_build_tree,
     _cue_clamp_time,
+    _cue_escape_text,
     _cue_format_time,
     _cue_get_movie_play,
     _cue_is_screenshake,
@@ -1046,3 +1047,41 @@ def test_config_show_wrapper_no_at_list_ok():
     assert result == "RESULT"
     assert _cue.ctx._shake_just_happened is False
     assert show.calls[0][1]["layer"] == "master"
+
+
+# ---------------------------------------------------------------------------
+# Text escaping
+# ---------------------------------------------------------------------------
+
+def test_escape_text_none_returns_none():
+    assert _cue_escape_text(None) is None
+
+
+def test_escape_text_plain_string_unchanged():
+    assert _cue_escape_text("plain string 123") == "plain string 123"
+
+
+def test_escape_text_doubles_braces():
+    assert _cue_escape_text("a{b}c") == "a{{b}c"
+
+
+def test_escape_text_doubles_brackets():
+    assert _cue_escape_text("a[b]c") == "a[[b]c"
+
+
+def test_escape_text_mixed():
+    assert _cue_escape_text("a{b}[c]{d}") == "a{{b}[[c]{{d}"
+
+
+def test_escape_text_assorted_printables_unchanged():
+    s = "ab c 09 .-_!@#$%^&*()+=|/\\;:~`'"
+    assert _cue_escape_text(s) == s
+
+
+def test_escape_text_brackets_false_braces_only():
+    assert _cue_escape_text("a{b}[c]", brackets=False) == "a{{b}[c]"
+
+
+def test_escape_text_non_string_passes_through():
+    obj = object()
+    assert _cue_escape_text(obj) is obj

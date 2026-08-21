@@ -8,7 +8,7 @@ screen cue_video_sfx():
 
     use cue_section_frame("Video SFX"):
         $ _vid_name = _cue.current_file if _cue.current_file else "?"
-        text "Video: [_vid_name]"
+        etext "Video: {}".format(_vid_name)
 
         # --- Speed gate: SFX editing is only meaningful on the 1.0x
         #     original.  Variants autoscale from the 1.0x markers, so
@@ -23,11 +23,11 @@ screen cue_video_sfx():
             spacing 5
             hbox:
                 spacing 0
-                text "Time: "
+                etext "Time: "
                 add CueSelfUpdatingLabel(_cue.vid_manager.time_label, style="cue_text")
             hbox:
                 spacing 0
-                text "Frames: "
+                etext "Frames: "
                 add CueSelfUpdatingLabel(_cue.vid_manager.frame_label, style="cue_text")
         hbox:
             spacing 5
@@ -128,17 +128,17 @@ screen cue_video_sfx():
                     spacing 5
                     box_wrap True
                     box_wrap_spacing 3
-                    text _active_label
+                    etext _active_label
                     if _multi_selected:
                         $ _n_selected = len(_cue.markers.video.get_selected())
-                        text "(Edits apply to all {} selected markers)".format(_n_selected) style "cue_help"
+                        etext "(Edits apply to all {} selected markers)".format(_n_selected) style "cue_help"
 
                 hbox:
                     spacing 5
                     box_wrap True
                     box_wrap_spacing 3
 
-                    text "Time:"
+                    etext "Time:"
                     $ _dec10 = Function(_cue.markers.video.nudge, -0.01)
                     $ _dec100 = Function(_cue.markers.video.nudge, -0.1)
                     $ _inc10 = Function(_cue.markers.video.nudge, 0.01)
@@ -183,13 +183,13 @@ screen cue_video_sfx():
                         marker_key=_vid_key, pool_index=_vid_target,
                         folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
                 else:
-                    text "SFX plays when this video reaches the marked time(s)."
-                    text "Click + in the SFX Library with Video selected to add files to this pool."
+                    etext "SFX plays when this video reaches the marked time(s)."
+                    etext "Click + in the SFX Library with Video selected to add files to this pool."
             else:
-                text "SFX plays when this video reaches the marked time(s)."
-                text ("Click + in the SFX Library with Video selected to create a new pool "
+                etext "SFX plays when this video reaches the marked time(s)."
+                etext ("Click + in the SFX Library with Video selected to create a new pool "
                     "or add to the active pool.")
         else:
             null height 5
-            text ("Only the original video (1.0x) can be edited. Speed variants inherit "
+            etext ("Only the original video (1.0x) can be edited. Speed variants inherit "
                 + "the 1.0x configuration. Switch back to 1.0x to edit markers.")
