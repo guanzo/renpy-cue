@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Creator-Defined Displayables for the Cue overlay.
-# CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline, CueTooltip, CueMarkerTooltipOverlay.
+# CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline, CueTooltip, CueVideoMarkerTooltip.
 
 import pygame
 import renpy
@@ -208,7 +208,7 @@ class CueVideoTimeline(Displayable):
 class CueVideoMarkerTimeline(Displayable):
     """Timeline with draggable marker tabs."""
 
-    # Published for CueMarkerTooltipOverlay -- one timeline is visible at a
+    # Published for CueVideoMarkerTooltip -- one timeline is visible at a
     # time, so class-level state is the shared mailbox.
     _marker_tip_text = ""
     _marker_tip_x = 0
@@ -365,8 +365,17 @@ class CueVideoMarkerTimeline(Displayable):
 
         if self._tip_text:
             CueVideoMarkerTimeline._marker_tip_text = self._tip_text
-            CueVideoMarkerTimeline._marker_tip_x = self._screen_x + self._tip_x + 10
-            CueVideoMarkerTimeline._marker_tip_y = self._screen_y + self._tip_y
+            # Anchor to the hovered/dragged marker tab, not the cursor, so the
+            # tip doesn't drift as the mouse moves within the tab.
+            tip_idx = self._hover_idx if self._hover_idx >= 0 else self._drag_idx
+            if 0 <= tip_idx < len(markers):
+                px = self._time_to_x(markers[tip_idx].get("time", 0.0), dur, inner_w)
+                CueVideoMarkerTimeline._marker_tip_x = self._screen_x + px
+                CueVideoMarkerTimeline._marker_tip_y = (
+                    self._screen_y + self.TRACK_H - 2 + self.TAB_H)
+            else:
+                CueVideoMarkerTimeline._marker_tip_x = self._screen_x + self._tip_x
+                CueVideoMarkerTimeline._marker_tip_y = self._screen_y + self._tip_y
         else:
             CueVideoMarkerTimeline._marker_tip_text = ""
 
@@ -565,6 +574,72 @@ class CueVideoMarkerTimeline(Displayable):
         return None
 
 
+def _cue_render_tooltip(text, anchor, st, at):
+    # type: (str, Tuple[int, int, int, int], float, float) -> Any
+    """Render an auto-sized tooltip positioned relative to an anchor rect.
+
+    `anchor` is the hovered element's screen bounds (fx, fy, fw, fh). The
+    tooltip centers above it, flipping below when there's no room above, and
+    clamps to the screen. Shared by CueTooltip and CueVideoMarkerTooltip.
+    """
+    text_widget = Txt(
+        text, style="cue_text", size=12, color="#cccccc",
+        italic=False, substitute=False,
+    )
+    max_width = 350
+    text_render = renpy.render(text_widget, max_width, 100, st, at)
+    tw, th = text_render.get_size()
+
+    pad_x, pad_y = 4, 2
+    fw = tw + pad_x * 2
+    fh = th + pad_y * 2
+
+    # Outer footprint: 1px border on every side plus a 2px drop shadow on
+    # the right/bottom. Positioned as a whole so the border never clips.
+    BORDER = 1
+    SHADOW = 2
+    ow = fw + BORDER * 2 + SHADOW
+    oh = fh + BORDER * 2 + SHADOW
+
+    sw = renpy.config.screen_width
+    sh = renpy.config.screen_height
+
+    fx, fy, fw_elem, fh_elem = anchor
+    # Anchor to the hovered element (not the cursor) so the tooltip never
+    # covers it: centered above, flipping below when there's no room above.
+    tx = fx + (fw_elem - ow) // 2
+    ty = fy - oh - 4
+    if ty < 0:
+        ty = fy + fh_elem + 4
+
+    # Clamp to keep the tooltip fully on screen
+    if tx + ow > sw:
+        tx = sw - ow
+    if ty + oh > sh:
+        ty = sh - oh
+    if tx < 0:
+        tx = 0
+    if ty < 0:
+        ty = 0
+
+    r = renpy.Render(1, 1)
+    tip = renpy.Render(ow, oh)
+
+    # Drop shadow: translucent black offset 2px past the bottom-right border.
+    shadow = renpy.Render(ow - SHADOW, oh - SHADOW)
+    shadow.canvas().rect("#000000", (0, 0, ow - SHADOW, oh - SHADOW))
+    shadow.alpha = 0.45
+    tip.blit(shadow, (SHADOW, SHADOW))
+
+    # 1px border (palette _cue_color_divider) around the interior fill.
+    tip.canvas().rect("#555555", (0, 0, ow - SHADOW, oh - SHADOW), 1)
+    tip.canvas().rect("#2e2e2e", (BORDER, BORDER, fw, fh))
+
+    tip.blit(text_render, (BORDER + pad_x, BORDER + pad_y))
+    r.blit(tip, (tx, ty))
+    return r
+
+
 class CueTooltip(Displayable):
     """Hover tooltip that auto-sizes to fit text."""
 
@@ -574,85 +649,22 @@ class CueTooltip(Displayable):
 
     def render(self, width, height, st, at):
         # type: (int, int, float, float) -> Any
-        text_widget = Txt(
-            self._text, style="cue_text", size=12, color="#cccccc",
-            italic=False, substitute=False,
-        )
-        max_width = 350
-        text_render = renpy.render(text_widget, max_width, 100, st, at)
-        tw, th = text_render.get_size()
-
-        pad_x, pad_y = 4, 2
-        fw = tw + pad_x * 2
-        fh = th + pad_y * 2
-
-        # Outer footprint: 1px border on every side plus a 2px drop shadow on
-        # the right/bottom. Positioned as a whole so the border never clips.
-        BORDER = 1
-        SHADOW = 2
-        ow = fw + BORDER * 2 + SHADOW
-        oh = fh + BORDER * 2 + SHADOW
-
-        sw = renpy.config.screen_width
-        sh = renpy.config.screen_height
-
-        fx, fy, fw_elem, fh_elem = renpy.focus_coordinates()
-        if fx is not None and fy is not None and fw_elem is not None and fh_elem is not None:
-            # Anchor to the hovered element (not the cursor) so the tooltip
-            # never covers it: centered above, flipping below when there's
-            # no room above.
-            tx = fx + (fw_elem - ow) // 2
-            ty = fy - oh - 4
-            if ty < 0:
-                ty = fy + fh_elem + 4
-
-            # Clamp to keep the tooltip fully on screen
-            if tx + ow > sw:
-                tx = sw - ow
-            if ty + oh > sh:
-                ty = sh - oh
-            if tx < 0:
-                tx = 0
-            if ty < 0:
-                ty = 0
-        else:
-            # Fallback (nothing focused): right and slightly above the cursor.
-            mx, my = renpy.get_mouse_pos()
-            tx = mx + 12
-            ty = my - 8
-
-            if tx + ow > sw:
-                tx = mx - ow - 12  # flip to left of cursor
-            if ty + oh > sh:
-                ty = sh - oh
-            if tx < 0:
-                tx = 0
-            if ty < 0:
-                ty = 0
-
-        r = renpy.Render(1, 1)
-        tip = renpy.Render(ow, oh)
-
-        # Drop shadow: translucent black offset 2px past the bottom-right border.
-        shadow = renpy.Render(ow - SHADOW, oh - SHADOW)
-        shadow.canvas().rect("#000000", (0, 0, ow - SHADOW, oh - SHADOW))
-        shadow.alpha = 0.45
-        tip.blit(shadow, (SHADOW, SHADOW))
-
-        # 1px border (palette _cue_color_divider) around the interior fill.
-        tip.canvas().rect("#555555", (0, 0, ow - SHADOW, oh - SHADOW), 1)
-        tip.canvas().rect("#2e2e2e", (BORDER, BORDER, fw, fh))
-
-        tip.blit(text_render, (BORDER + pad_x, BORDER + pad_y))
-        r.blit(tip, (tx, ty))
-        return r
+        fc = renpy.focus_coordinates()
+        if fc is not None:
+            fx, fy, fw_elem, fh_elem = fc
+            if (fx is not None and fy is not None
+                    and fw_elem is not None and fh_elem is not None):
+                return _cue_render_tooltip(self._text, (fx, fy, fw_elem, fh_elem), st, at)
+        # Nothing focused yet (transient) -- anchor at the cursor instead.
+        mx, my = renpy.get_mouse_pos()
+        return _cue_render_tooltip(self._text, (mx, my, 0, 0), st, at)
 
 
-class CueMarkerTooltipOverlay(Displayable):
+class CueVideoMarkerTooltip(Displayable):
     """Renders the marker timeline tooltip on top of all other UI."""
 
     def __init__(self, **properties):
-        super(CueMarkerTooltipOverlay, self).__init__(**properties)
+        super(CueVideoMarkerTooltip, self).__init__(**properties)
 
     def render(self, width, height, st, at):
         # type: (int, int, float, float) -> Any
@@ -661,23 +673,13 @@ class CueMarkerTooltipOverlay(Displayable):
         if not text:
             return renpy.Render(1, 1)
 
-        tip_widget = Txt(text, style="cue_text", size=12,
-                          color="#cccccc", italic=False, substitute=False)
-        tip_render = renpy.render(tip_widget, 300, 100, st, at)
-        tw, th = tip_render.get_size()
-        fw = min(tw + 8, 300)
-        fh = th + 4
-
-        tip = renpy.Render(fw, fh)
-        tip.canvas().rect("#2e2e2e", (0, 0, fw, fh))
-        tip.blit(tip_render, (4, 2))
-
-        tx = CueVideoMarkerTimeline._marker_tip_x
-        ty = CueVideoMarkerTimeline._marker_tip_y
-
-        r = renpy.Render(1, 1)
-        r.blit(tip, (tx, ty))
-        return r
+        # Anchor on the marker tab (the published point is its center) so the
+        # tip mirrors CueTooltip: centered above, flipping below when no room.
+        tab = CueVideoMarkerTimeline
+        anchor = (CueVideoMarkerTimeline._marker_tip_x - tab.TAB_W // 2,
+                  CueVideoMarkerTimeline._marker_tip_y - tab.TAB_H,
+                  tab.TAB_W, tab.TAB_H)
+        return _cue_render_tooltip(text, anchor, st, at)
 
 
 class CueAutoSpeedChart(Displayable):

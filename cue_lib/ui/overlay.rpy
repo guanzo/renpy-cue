@@ -90,7 +90,7 @@ screen cue_overlay():
         add CueTooltip(_tt)
 
     # --- Marker timeline tooltip (rendered last so it's always on top) ---
-    add CueMarkerTooltipOverlay()
+    add CueVideoMarkerTooltip()
 
 
 # =============================================================================

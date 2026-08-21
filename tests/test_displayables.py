@@ -13,7 +13,7 @@ import cue_lib.ui.displayables as _displ
 from cue_lib.ui.displayables import (
     CueAutoSpeedChart,
     CueKeyCaptureDisplayable,
-    CueMarkerTooltipOverlay,
+    CueVideoMarkerTooltip,
     CueSelfUpdatingLabel,
     CueTooltip,
     CueVideoMarkerTimeline,
@@ -328,7 +328,8 @@ def test_mtl_render_uses_px_cache_when_dur_zero(monkeypatch):
     assert r is not None
 
 
-def test_mtl_render_publishes_tip(monkeypatch):
+def test_mtl_render_publishes_tip_fallback(monkeypatch):
+    # No hover/drag index yet -- falls back to the cursor-anchored point.
     env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}])
     env.tl._tip_text = "Tip!"
     env.tl._screen_x = 10
@@ -337,8 +338,39 @@ def test_mtl_render_publishes_tip(monkeypatch):
     env.tl._tip_y = 40
     env.tl.render(200, 60, 0.0, 0.0)
     assert CueVideoMarkerTimeline._marker_tip_text == "Tip!"
-    assert CueVideoMarkerTimeline._marker_tip_x == 10 + 30 + 10
+    assert CueVideoMarkerTimeline._marker_tip_x == 10 + 30
     assert CueVideoMarkerTimeline._marker_tip_y == 20 + 40
+
+
+def test_mtl_render_publishes_tip_anchored_to_marker(monkeypatch):
+    # Hovering marker 2 (t=5): the tip anchors to the tab, not the cursor.
+    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}])
+    env.tl._tip_text = "Tip!"
+    env.tl._screen_x = 10
+    env.tl._screen_y = 20
+    env.tl._tip_x = 30   # would-be cursor position -- must be ignored
+    env.tl._tip_y = 40
+    env.tl._hover_idx = 1
+    env.tl.render(200, 60, 0.0, 0.0)
+    # t=5 over dur=10, inner width 180 -> tab center at local x=100.
+    assert CueVideoMarkerTimeline._marker_tip_text == "Tip!"
+    assert CueVideoMarkerTimeline._marker_tip_x == 10 + 100
+    # Tab bottom at local y = TRACK_H - 2 + TAB_H.
+    assert CueVideoMarkerTimeline._marker_tip_y == 20 + (env.tl.TRACK_H - 2 + env.tl.TAB_H)
+
+
+def test_mtl_render_publishes_tip_anchored_during_drag(monkeypatch):
+    # Dragging marker 1 (t=0): tip tracks the moving tab.
+    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}])
+    env.tl._tip_text = "Dragging"
+    env.tl._screen_x = 10
+    env.tl._screen_y = 20
+    env.tl._hover_idx = -1
+    env.tl._drag_idx = 0
+    env.tl.render(200, 60, 0.0, 0.0)
+    # t=0 -> tab center at local x = PAD_X.
+    assert CueVideoMarkerTimeline._marker_tip_x == 10 + env.tl.PAD_X
+    assert CueVideoMarkerTimeline._marker_tip_y == 20 + (env.tl.TRACK_H - 2 + env.tl.TAB_H)
 
 
 def test_mtl_event_mousemotion_hover_sets_tip(monkeypatch):
@@ -629,20 +661,21 @@ def test_tooltip_render_basic(monkeypatch):
     r = tip.render(800, 600, 0.0, 0.0)
     # text render is 350 wide / 100 tall in the mock; pad to 358x104.
     assert len(r.blits) == 1
-    assert r.blits[0][1] == (512, 392)
+    # No focus target -- anchor at the cursor, centered above it.
+    assert r.blits[0][1] == (500 + (0 - 362) // 2, 400 - 108 - 4)
 
 
-def test_tooltip_render_flips_left_on_right_edge(monkeypatch):
-    monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (1000, 400))
+def test_tooltip_render_no_focus_clamps_to_right_edge(monkeypatch):
+    monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (1200, 300))
     tip = CueTooltip("hello")
     r = tip.render(800, 600, 0.0, 0.0)
     tx, _ = r.blits[0][1]
     # Outer box is 362 wide (content + 1px border + 2px shadow).
-    assert tx == 1000 - 362 - 12
+    assert tx == 1280 - 362
 
 
-def test_tooltip_render_clamps_bottom_and_negative(monkeypatch):
-    monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (1000, 700))
+def test_tooltip_render_no_focus_clamps_bottom(monkeypatch):
+    monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (1200, 800))
     tip = CueTooltip("hello")
     r = tip.render(800, 600, 0.0, 0.0)
     _, ty = r.blits[0][1]
@@ -708,20 +741,59 @@ def test_tooltip_focus_clamps_to_right_edge(monkeypatch):
 
 
 # ==========================================================================
-# CueMarkerTooltipOverlay
+# CueVideoMarkerTooltip
 # ==========================================================================
 
 def test_tooltip_overlay_empty():
-    r = CueMarkerTooltipOverlay().render(800, 600, 0.0, 0.0)
+    r = CueVideoMarkerTooltip().render(800, 600, 0.0, 0.0)
     assert r.width == 1
 
 
-def test_tooltip_overlay_with_text():
+def test_tooltip_overlay_centers_above_tab():
+    # Tab anchor: tip point is the tab center; overlay builds a tab-sized
+    # rect and mirrors CueTooltip's above/center placement.
     CueVideoMarkerTimeline._marker_tip_text = "Tip"
-    CueVideoMarkerTimeline._marker_tip_x = 50
+    CueVideoMarkerTimeline._marker_tip_x = 500 + CueVideoMarkerTimeline.TAB_W // 2
+    CueVideoMarkerTimeline._marker_tip_y = 300
+    r = CueVideoMarkerTooltip().render(800, 600, 0.0, 0.0)
+    tx, ty = r.blits[0][1]
+    assert tx == 500 + (CueVideoMarkerTimeline.TAB_W - 362) // 2
+    assert ty == 300 - CueVideoMarkerTimeline.TAB_H - 108 - 4
+
+
+def test_tooltip_overlay_flips_below_when_no_room_above():
+    CueVideoMarkerTimeline._marker_tip_text = "Tip"
+    CueVideoMarkerTimeline._marker_tip_x = 500 + CueVideoMarkerTimeline.TAB_W // 2
+    CueVideoMarkerTimeline._marker_tip_y = 60   # tab near the top edge
+    r = CueVideoMarkerTooltip().render(800, 600, 0.0, 0.0)
+    _, ty = r.blits[0][1]
+    assert ty == 60 - CueVideoMarkerTimeline.TAB_H + CueVideoMarkerTimeline.TAB_H + 4
+
+
+def test_tooltip_overlay_matches_cue_tooltip_positioning(monkeypatch):
+    # Same anchor rect as a focused CueTooltip -> identical blit position.
+    anchor = (500, 286, CueVideoMarkerTimeline.TAB_W, CueVideoMarkerTimeline.TAB_H)
+    monkeypatch.setattr(_renpy, "focus_coordinates", lambda: anchor)
+    t = CueTooltip("Tip")
+    CueVideoMarkerTimeline._marker_tip_text = "Tip"
+    CueVideoMarkerTimeline._marker_tip_x = anchor[0] + CueVideoMarkerTimeline.TAB_W // 2
+    CueVideoMarkerTimeline._marker_tip_y = anchor[1] + CueVideoMarkerTimeline.TAB_H
+    ov = CueVideoMarkerTooltip()
+    assert t.render(800, 600, 0.0, 0.0).blits[0][1] == \
+        ov.render(800, 600, 0.0, 0.0).blits[0][1]
+
+
+def test_tooltip_overlay_clamps_to_screen():
+    CueVideoMarkerTimeline._marker_tip_text = "Tip"
+    CueVideoMarkerTimeline._marker_tip_x = 100
     CueVideoMarkerTimeline._marker_tip_y = 60
-    r = CueMarkerTooltipOverlay().render(800, 600, 0.0, 0.0)
-    assert r.blits[0][1] == (50, 60)
+    r = CueVideoMarkerTooltip().render(800, 600, 0.0, 0.0)
+    tx, ty = r.blits[0][1]
+    # Tooltip is 362 wide and the tab anchor is near x=100; centering pushes
+    # it off the left edge, and y has no room above so it flips below and
+    # clamps. Anchor rect = (100-7, 60-14, 14, 14) = (93, 46, 14, 14).
+    assert tx == 0
+    assert ty == 46 + 14 + 4
 
 
 # ==========================================================================

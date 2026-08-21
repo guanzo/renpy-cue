@@ -101,7 +101,7 @@ init -999 python:
 
     from cue_lib.ui.displayables import (
         CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline,
-        CueTooltip, CueMarkerTooltipOverlay, CueAutoSpeedChart,
+        CueTooltip, CueVideoMarkerTooltip, CueAutoSpeedChart,
         CueKeyCaptureDisplayable,
     )
 
