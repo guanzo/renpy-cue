@@ -8,10 +8,7 @@ screen cue_settings_page():
     frame:
         background _cue_color_bg_overlay
         padding (0, 0)
-        xfill True
-        yminimum 0
         viewport:
-            xfill True
             mousewheel True
             scrollbars "vertical"
             vscrollbar_unscrollable "hide"
@@ -48,22 +45,27 @@ screen cue_settings_keybinds():
     style_group "cue"
 
     use cue_section_frame("Keybinds"):
-        grid 2 len(_cue.keybinds.visible_actions()):
-            spacing 10
+        for _kb in _cue.keybinds.visible_actions():
+            $ _ks = _cue.keybinds.get_keysym(_kb["id"])
+            if _ks == "":
+                $ _label = "--"
+                $ _is_default = False
+            else:
+                $ _label = _cue.keybinds.keysym_label(_ks)
+                $ _is_default = (_ks == _kb["default"])
 
-            for _kb in _cue.keybinds.visible_actions():
-                $ _ks = _cue.keybinds.get_keysym(_kb["id"])
-                if _ks == "":
-                    $ _label = "--"
-                    $ _is_default = False
-                else:
-                    $ _label = _cue.keybinds.keysym_label(_ks)
-                    $ _is_default = (_ks == _kb["default"])
-
-                text _kb["label"] xsize 170 yalign 0.5
+            # Have to hardcode ysize/xsize on all hbox's here, 
+            # otherwise there's some weird layout shift bug with tooltips.
+            hbox:
+                spacing 10
+                ysize 16
+                hbox:
+                    xsize 150
+                    text _kb["label"] yalign 0.5
 
                 hbox:
                     spacing 8
+                    xsize 150
                     use cue_txt_button(
                         _label,
                         Function(_cue_keybind_start, _kb["id"]),
