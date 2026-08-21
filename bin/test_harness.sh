@@ -25,6 +25,12 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GAME="$ROOT/test_game"
 TEMPLATES="$GAME/templates"
 
+# A testcase that never yields (an interaction whose rebuild never completes)
+# leaves the rpytest executor silent, so no test-level timeout fires and the
+# engine hangs the whole CI job. Bound the engine process; when it fires, the
+# normal failure path below dumps the partial log. Generous vs real runs.
+CUE_ENGINE_TIMEOUT="${CUE_ENGINE_TIMEOUT:-600}"
+
 # --- Resolve the launcher's game root and the bundled Ren'Py major version. ---
 # 7.x games carry a literal `version_tuple = (7, ...)` in renpy/__init__.py;
 # 8.x builds it dynamically (VersionTuple(...)) and never has that literal.
@@ -110,7 +116,7 @@ if [ "$DSL" = "legacy" ]; then
     for name in $NAMES; do
         echo "[cue] running testcase: $name"
         rm -f "$MOD/debug.log"
-        if ! $RUN_PREFIX "$LAUNCHER" --savedir "$SAVEDIR" "$GAME" test "$name"; then
+        if ! timeout "$CUE_ENGINE_TIMEOUT" $RUN_PREFIX "$LAUNCHER" --savedir "$SAVEDIR" "$GAME" test "$name"; then
             echo "[cue] testcase FAILED: $name" >&2
             if [ -f "$MOD/debug.log" ]; then
                 echo "[cue] renpy_cue/debug.log:" >&2
@@ -125,7 +131,7 @@ fi
 # 8.x: one suite run. The test `exit` statement raises QuitException so the
 # process exits 0 regardless of pass/fail -- parse the reporter summary.
 LOG="$(mktemp -t cue_testcases.XXXXXX.log)"
-$RUN_PREFIX "$LAUNCHER" --savedir "$SAVEDIR" "$GAME" test "$@" > "$LOG" 2>&1 || true
+timeout "$CUE_ENGINE_TIMEOUT" $RUN_PREFIX "$LAUNCHER" --savedir "$SAVEDIR" "$GAME" test "$@" > "$LOG" 2>&1 || true
 cat "$LOG"
 
 if grep -q "Status: PASSED" "$LOG"; then

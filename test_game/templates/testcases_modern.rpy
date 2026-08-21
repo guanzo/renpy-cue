@@ -32,7 +32,12 @@ init 1000 python:
 
 testsuite global:
     before testcase:
-        $ _test.timeout = 2.0
+        # Generous: a cold/loaded CI runner can take >2s to settle the SFX
+        # page rebuild after a restart_interaction (sfx_target_context timed
+        # out at the old 2.0 on 8.5.3/ubuntu-24.04). Slow-but-finite renders
+        # time out; only a truly never-yielding render still hangs (bounded
+        # by CUE_ENGINE_TIMEOUT in the harness).
+        $ _test.timeout = 10.0
         $ _test.transition_timeout = 0.05
         $ _cue.is_overlay_visible = True
 
