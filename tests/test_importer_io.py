@@ -165,6 +165,7 @@ def test_extract_rejects_parent_traversal(tmp_path):
         zf.writestr("../evil.txt", "boom")
         zf.writestr("audio/..\\..\\evil.txt", "boom")   # Windows-style ..\\
         zf.writestr("C:\\evil.exe", "boom")             # drive-absolute
+        zf.writestr("audio/../escape.ogg", "boom")      # mid-path .., known content
         zf.writestr("audio/ok.mp3", "fine")
         zf.writestr("music/ok.ogg", "fine")
 
@@ -180,8 +181,13 @@ def test_extract_rejects_parent_traversal(tmp_path):
 def test_safe_extract_path_never_escapes(tmp_path):
     out = str(tmp_path / "out")
     base = os.path.normpath(out)
+    # Any name carrying a '..' segment is rejected outright -- never rewritten
+    # into a sibling path (audio/../escape.ogg must not land at audio/escape.ogg).
     for name in ["../evil.txt", "..\\..\\evil.txt", "audio/..\\..\\evil.txt",
-                 "C:\\evil.exe", "/abs/evil.txt", "audio/ok.mp3"]:
+                 "audio/../escape.ogg"]:
+        assert _safe_extract_path(out, name) is None
+    # Everything else must resolve inside out_dir.
+    for name in ["C:\\evil.exe", "/abs/evil.txt", "audio/ok.mp3"]:
         dest = _safe_extract_path(out, name)
         assert dest is None or dest == base or dest.startswith(base + os.sep)
 

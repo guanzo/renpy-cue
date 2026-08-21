@@ -96,14 +96,20 @@ def _matches_any(name, matchers):
 
 def _safe_extract_path(out_dir, name):
     # type: (str, str) -> Optional[str]
-    """Join a zip arcname under out_dir, dropping parent-traversal parts.
+    """Join a zip arcname under out_dir, rejecting parent-traversal names.
 
     Backslashes are folded to '/' first so Windows-style traversal
-    (..\\..\\evil.txt) can't slip past the '..' filter, then the result is
-    verified to still sit under out_dir.  Returns None for names that escape
-    (a drive-absolute name on Windows) -- callers skip the entry."""
+    (..\\..\\evil.txt) can't slip past the '..' filter.  Any name carrying a
+    '..' segment is rejected outright -- the mod never writes such arcnames,
+    so one means the archive is lying about its layout, and rewriting it
+    (dropping the '..') would land the file at an unclaimed path.  The result
+    is then verified to still sit under out_dir.  Returns None for rejected
+    names (traversal or a drive-absolute name on Windows) -- callers skip."""
     name = _to_str(name).replace("\\", "/")
-    parts = [p for p in name.split("/") if p and p != ".."]
+    parts = [p for p in name.split("/") if p]
+    if ".." in parts:
+        _cue_log("CUE: blocked path traversal: {}".format(name))
+        return None
     dest = os.path.normpath(os.path.join(out_dir, *parts))
     base = os.path.normpath(out_dir)
     if dest != base and not dest.startswith(base + os.sep):
