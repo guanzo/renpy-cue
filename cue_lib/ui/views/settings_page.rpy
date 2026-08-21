@@ -33,7 +33,8 @@ screen cue_data_dir():
                 "folder and restart the game.")
             use cue_text_input("_cue.settings.setup_dir_text",
                 Function(_cue.settings.confirm_shared_dir),
-                _cue.settings.setup_dir_text)
+                _cue.settings.setup_dir_text,
+                xsize=430)
             if _cue.settings.shared_dir_error:
                 etext _cue.settings.shared_dir_error color _cue_color_error
             elif _cue.settings.shared_dir_success:

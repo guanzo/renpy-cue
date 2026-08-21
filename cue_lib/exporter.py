@@ -113,7 +113,8 @@ class CueExportManager(object):
         labels = _cue_replay_labels(
             self._paths.original_root, self._paths.game_id)
         replays = [
-            {"label": label, "count": count} for label, count in labels]
+            {"replay": label, "marker_count": count}
+            for label, count in labels]
         known = set(self.checked_replays)
         self.contents_by_category = contents
         self.counts = counts
@@ -189,7 +190,7 @@ class CueExportManager(object):
 
     def replay_labels(self):
         # type: () -> List[str]
-        return [r["label"] for r in self.replays]
+        return [r["replay"] for r in self.replays]
 
     # ------------------------------------------------------------------
     # content selection

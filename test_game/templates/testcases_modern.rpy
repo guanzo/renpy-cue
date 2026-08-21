@@ -91,6 +91,9 @@ testcase import_export_roundtrip:
     $ _shutil.rmtree(_cue.importer.imports_dir(), ignore_errors=True)
     # The shared-root fixtures carry audio/, so the SFX category is non-empty.
     run Function(_cue.exporter.refresh)
+    # refresh() runs on a background thread; wait for the snapshot swap before
+    # asserting the category counts are populated.
+    pause 0.1 until eval (not _cue.exporter.is_refreshing) timeout 15.0
     assert eval (_cue.exporter.is_category_enabled(CueImportCategory.SFX))
     $ _cue.exporter.name = "Roundtrip"
     run Function(_cue.exporter.export)

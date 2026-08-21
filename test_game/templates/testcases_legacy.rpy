@@ -80,6 +80,15 @@ init -10 python:
             and len(_cue.trigger.played_video_keys) >= 1
         )
 
+    def _cue_io_idle():
+        # Refresh/export/scan each run on a background thread; the roundtrip
+        # must wait for the snapshot swap before acting on its results.
+        return (
+            not _cue.exporter.is_refreshing
+            and not _cue.exporter.is_exporting
+            and not _cue.importer.is_scanning
+        )
+
 testcase overlay_shows_on_start:
     $ _cue.is_overlay_visible = True
     run Jump("start")
@@ -141,10 +150,13 @@ testcase import_export_roundtrip:
     $ _shutil.rmtree(_cue.importer.imports_dir(), ignore_errors=True)
     # The shared-root fixtures carry audio/, so the SFX category is non-empty.
     run Function(_cue.exporter.refresh)
+    $ _deadline = _test_time.time() + 15.0
+    pause 0.1 until run _cue_test_wait_until_true(_cue_io_idle, _deadline)
     $ _cue.exporter.name = "Roundtrip"
     run Function(_cue.exporter.export)
-    # Zip build runs on a background thread; give it time to finish.
-    pause 2.0
+    # Refresh + zip build run on background threads; wait for the snapshot swap.
+    $ _deadline = _test_time.time() + 15.0
+    pause 0.1 until run _cue_test_wait_until_true(_cue_io_idle, _deadline)
     $ _ok = _cue.exporter.export_error == ""
     $ _ok = _ok and _cue.exporter.export_status != ""
     # A recipient drops the .zip into imports/; scan() auto-extracts it and
@@ -155,7 +167,8 @@ testcase import_export_roundtrip:
     $ _shutil.copy(_zip_src, _zip_dst)
     run Function(_cue.importer.scan)
     # Scan (list + extract + manifest read) also runs on a background thread.
-    pause 2.0
+    $ _deadline = _test_time.time() + 15.0
+    pause 0.1 until run _cue_test_wait_until_true(_cue_io_idle, _deadline)
     $ _ok = _ok and len(_cue.importer.imports) == 1
     $ _ok = _ok and _cue.importer.imports[0]["valid"]
     $ _ok = _ok and _cue.importer.imports[0]["match"] == CueImportMatch.AUTO

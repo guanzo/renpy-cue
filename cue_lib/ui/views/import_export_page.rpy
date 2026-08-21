@@ -72,11 +72,11 @@ screen cue_export_section():
                                 hbox:
                                     spacing 8
                                     use cue_checkbox(
-                                        _exporter.is_replay_checked(_r["label"]),
-                                        _r["label"],
-                                        Function(_exporter.toggle_replay, _r["label"]))
-                                    etext "{} marker(s)".format(_r["count"]) color _cue_color_text_muted
-                                    if (_r["label"] == _current_replay):
+                                        _exporter.is_replay_checked(_r["replay"]),
+                                        _r["replay"],
+                                        Function(_exporter.toggle_replay, _r["replay"]))
+                                    etext "{} marker(s)".format(_r["marker_count"]) color _cue_color_text_muted
+                                    if (_r["replay"] == _current_replay):
                                         etext "(current)" color _cue_color_warn
 
             null height 5
@@ -170,8 +170,8 @@ screen cue_import_imports():
             "If you like the import, you can copy it into your data folder with \"Merge\".")
 
         null height 4
-
         use cue_url_downloader()
+        null height 2
 
         if _cue.importer.scan_error:
             etext _cue.importer.scan_error color _cue_color_error
@@ -204,8 +204,8 @@ screen cue_url_downloader():
             use cue_text_input(
                 "_cue.url_importer.url",
                 Function(_cue.url_importer.clear_status),
-                _cue.url_importer.url or "Paste a URL to a .zip...",
-                xsize=200,
+                _cue.url_importer.url or "Paste a URL to a .zip",
+                xsize=370,
                 editing_ref=_cue.url_importer,
                 clear_action=Function(_cue.url_importer.clear_url),
                 clear_tt="Clear URL",
@@ -252,14 +252,15 @@ screen cue_import_row(_imp):
     $ _valid = _imp["valid"]
     $ _author_line = ("by " + _imp["author"]) if _imp["author"] else ""
     $ _desc_line = _imp["description"]
+    $ _replay_toggle_key = "row"
     $ _is_active = (_cue.importer.is_active
                     and _cue.importer.active_import == _imp_key)
     $ _can_activate = (_valid and _match == CueImportMatch.AUTO
-                       and not _cue.importer.is_active)
+                       and not _is_active)
     $ _can_merge = (_valid and _match == CueImportMatch.AUTO)
     frame:
         background (_cue_color_bg_panel if not _is_active else _cue_color_bg_input)
-        padding (6, 6)
+        padding (0, 6)
         xfill True
         vbox:
             spacing 4
@@ -298,6 +299,7 @@ screen cue_import_row(_imp):
                         "Preview",
                         Function(_cue.importer.activate, _imp_key),
                         tt="Switch to this import to preview and edit its data.")
+                    use cue_replay_toggle(_imp_key, _replay_toggle_key)
                 if _can_merge:
                     use cue_txt_button(
                         "Merge",
@@ -314,6 +316,8 @@ screen cue_import_row(_imp):
                     "Delete",
                     Function(_cue.importer.confirm_delete, _imp_key),
                     tt="Remove this import.")
+            if _can_activate:
+                use cue_replay_children(_imp_key, _replay_toggle_key)
 
 
 ###############################################################################
@@ -328,6 +332,7 @@ screen cue_edit_banner():
 
     $ _active_imp = _cue.importer.active_import
     $ _imp_display = _cue.importer.active_import_name()
+    $ _replay_toggle_key = "banner"
     use cue_section_frame("Preview Import"):
         vbox:
             spacing 8
@@ -340,6 +345,7 @@ screen cue_edit_banner():
 
             hbox:
                 spacing 6
+                use cue_replay_toggle(_active_imp, _replay_toggle_key)
                 use cue_txt_button(
                     "Merge",
                     Function(_cue.importer.open_merge, _active_imp),
@@ -347,3 +353,4 @@ screen cue_edit_banner():
                 use cue_txt_button(
                     "Exit Preview",
                     Function(_cue.importer.deactivate))
+            use cue_replay_children(_active_imp, _replay_toggle_key)

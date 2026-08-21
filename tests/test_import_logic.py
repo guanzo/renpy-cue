@@ -177,6 +177,18 @@ def test_build_manifest_truncates_long_fields():
     assert m["description"] == "d" * 300
 
 
+def test_build_manifest_includes_replays():
+    replays = [{"replay": "Run 1", "marker_count": 2}]
+    m = _imp._cue_build_manifest(
+        "g1", "", "", "", ["audio/a.ogg"], replays)
+    assert m["replays"] == replays
+
+
+def test_build_manifest_replays_default_empty():
+    m = _imp._cue_build_manifest("g1", "", "", "", ["audio/a.ogg"])
+    assert m["replays"] == []
+
+
 def test_validate_manifest_accepts_ok():
     m = _imp._cue_build_manifest("g1", "", "", "", ["audio/a.ogg"])
     ok, _err = _imp._cue_validate_manifest(m, {"audio/a.ogg"})
@@ -234,6 +246,47 @@ def test_missing_files_coerces_unicode_and_bytes(monkeypatch):
     m = _imp._cue_build_manifest("g1", "", "", "", ["music/café.ogg"])
     zip_names = [b"music/caf\xc3\xa9.ogg"]  # Py2 str bytes, not Py3 .encode()
     assert _imp._cue_missing_files(m, zip_names) == []
+
+
+def test_manifest_replays_counts_by_field(cue_env):
+    _write_marker(cue_env, "a", {"replay": "Run 2", "pools": []})
+    _write_marker(cue_env, "b", {"replay": "Run 1", "pools": []})
+    _write_marker(cue_env, "c", {"replay": "Run 1", "pools": []})
+    _write_marker(cue_env, "d", {"pools": []})  # never edited inside a replay
+    contents = [
+        "data/markers/{}/a.json".format(GAME_ID),
+        "data/markers/{}/b.json".format(GAME_ID),
+        "data/markers/{}/c.json".format(GAME_ID),
+        "data/markers/{}/d.json".format(GAME_ID),
+    ]
+    replays = _imp._cue_manifest_replays(
+        cue_env.paths.original_root, GAME_ID, contents)
+    assert replays == [
+        {"replay": "Run 1", "marker_count": 2},
+        {"replay": "Run 2", "marker_count": 1},
+    ]
+
+
+def test_manifest_replays_only_counts_packed_files(cue_env):
+    # A marker excluded from the zip must not be listed -- a Specific-Replays
+    # export carries only its own replays' markers.
+    _write_marker(cue_env, "a", {"replay": "Run 1", "pools": []})
+    _write_marker(cue_env, "b", {"replay": "Run 2", "pools": []})
+    contents = ["data/markers/{}/a.json".format(GAME_ID)]
+    replays = _imp._cue_manifest_replays(
+        cue_env.paths.original_root, GAME_ID, contents)
+    assert replays == [{"replay": "Run 1", "marker_count": 1}]
+
+
+def test_manifest_replays_ignores_unreadable_marker(cue_env):
+    _write_marker(cue_env, "a", {"replay": "Run 1", "pools": []})
+    contents = [
+        "data/markers/{}/a.json".format(GAME_ID),
+        "data/markers/{}/broken.json".format(GAME_ID),  # not on disk
+    ]
+    replays = _imp._cue_manifest_replays(
+        cue_env.paths.original_root, GAME_ID, contents)
+    assert replays == [{"replay": "Run 1", "marker_count": 1}]
 
 
 # ---------------------------------------------------------------------------

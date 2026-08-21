@@ -192,8 +192,9 @@ def _cue_filter_contents(contents, checked_categories):
 # manifest build / validate / load
 # --------------------------------------------------------------------------
 
-def _cue_build_manifest(game_id, name, author, description, contents):
-    # type: (str, str, str, str, List[str]) -> dict
+def _cue_build_manifest(game_id, name, author, description, contents,
+                        replays=None):
+    # type: (str, str, str, str, List[str], Optional[List[dict]]) -> dict
     return {
         _CUE_MANIFEST_FORMAT_KEY: CUE_IMPORT_FORMAT_VERSION,
         "game_id": game_id,
@@ -201,6 +202,7 @@ def _cue_build_manifest(game_id, name, author, description, contents):
         "author": (author or "")[:_CUE_MAX_AUTHOR_LEN],
         "description": (description or "")[:_CUE_MAX_DESC_LEN],
         "contents": sorted(contents),
+        "replays": replays or [],
     }
 
 
@@ -414,6 +416,29 @@ def _cue_replay_labels(root, game_id):
     return sorted(counts.items())
 
 
+def _cue_manifest_replays(root, game_id, contents):
+    # type: (str, str, List[str]) -> List[dict]
+    """[{"replay": label, "marker_count": count}] for the replay-tagged
+    marker files among contents, sorted by label.  Only markers actually
+    packed count -- a Specific-Replays export lists just the replays whose
+    markers made it into the zip.  A marker never edited inside a replay has
+    no replay field and is omitted."""
+    prefix = "data/markers/{}/".format(game_id)
+    counts = {}
+    for rel in contents:
+        if not rel.startswith(prefix) or not rel.endswith(".json"):
+            continue
+        entry = _cue_read_json_file(os.path.join(root, rel))
+        if not isinstance(entry, dict):
+            continue
+        label = entry.get("replay")
+        if not label:
+            continue
+        counts[label] = counts.get(label, 0) + 1
+    return [{"replay": label, "marker_count": counts[label]}
+            for label in sorted(counts)]
+
+
 def _cue_add_asset(result, cat, rel):
     # type: (Dict[int, List[str]], int, str) -> None
     files = result.setdefault(cat, [])
@@ -508,7 +533,9 @@ def _cue_build_import_zip(root, game_id, name, author, description,
     moves it over zip_path.  Returns the number of content files packed.  When
     progress is given, it is called as progress(written_bytes, total_bytes)
     after each file; total is pre-computed over the files that exist."""
-    manifest = _cue_build_manifest(game_id, name, author, description, contents)
+    manifest = _cue_build_manifest(
+        game_id, name, author, description, contents,
+        _cue_manifest_replays(root, game_id, contents))
     tmp_path = zip_path + ".tmp"
     count = 0
     total = 0

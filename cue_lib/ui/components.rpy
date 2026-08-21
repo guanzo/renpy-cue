@@ -367,6 +367,7 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=200, editin
             # bg + text offset; flush against the icon slot it reads as one box.
             textbutton _cue_escape_text(display_text):
                 action _start_edit
+                text_xalign 0
                 background _cue_color_bg_input
                 hover_background _cue_color_bg_input_hover
                 padding (6, 0)
@@ -528,6 +529,47 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
         use _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
                                 marker_key, pool_index, folder_child_remove_fn,
                                 folder_label, folder_children)
+
+# Collapsible replay list for an import row / preview banner.  Mirrors the
+# file/folder UI: a toggle button labeled with the count, then per-replay
+# rows with a Play action.  Play enters preview first (see
+# CueImportManager.play_replay) and jumps straight to that replay.
+screen cue_replay_toggle(_imp_key, _section):
+    style_group "cue"
+
+    $ _replays = _cue.importer.replays_for(_imp_key)
+    if _replays:
+        $ _is_open = _cue.importer.is_replays_expanded(_section, _imp_key)
+        $ _caret = _cue.icons.displayable_for(
+            "caret-down" if _is_open else "caret-right")
+        button:
+            style "cue_button"
+            action Function(_cue.importer.toggle_replays, _section, _imp_key)
+            tooltip "Replays contained in this import.  Play enters preview and starts a replay."
+            hbox:
+                spacing 4
+                add _caret yalign 0.5
+                etext "Replays ({})".format(len(_replays)) style "cue_button_text"
+
+
+screen cue_replay_children(_imp_key, _section):
+    # Expanded replay rows for a section+import.  Sits below the action-button
+    # row so opening it pushes content down instead of relaying out the row.
+    style_group "cue"
+
+    $ _replays = _cue.importer.replays_for(_imp_key)
+    if _replays and _cue.importer.is_replays_expanded(_section, _imp_key):
+        for _r in _replays:
+            hbox:
+                spacing 6
+                etext " "  # indent to match folder child rows
+                use cue_icon_btn(
+                    "play",
+                    Function(_cue.importer.play_replay, _imp_key, _r["replay"]),
+                    "Play replay",
+                    enabled=_cue.importer.can_preview(_imp_key))
+                etext _r["replay"] color _cue_color_text_accent size 11
+                etext "{} marker(s)".format(_r["marker_count"]) color _cue_color_text_muted size 11
 
 # Section frame: styled frame + header, with transclude for child content.
 style cue_section_hdr_btn is empty:

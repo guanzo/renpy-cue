@@ -202,3 +202,14 @@ def test_scan_real_exports_builds_expected_entries(tmp_path, import_threads):
     assert by_name[prefix_imp]["match"] == CueImportMatch.CONFIRM
     assert by_name[prefix_imp]["match_reason"] == \
         "both share prefix 'cue_test_harness'"
+
+    # The committed manifests carry the replays field (replay + marker_count),
+    # computed from the packed markers -- exactly what a real export writes.
+    assert by_name[max_imp]["replays"] == [
+        {"replay": "scene_A_label", "marker_count": 3},
+        {"replay": "scene_B_label", "marker_count": 2},
+    ]
+    assert by_name[prefix_imp]["replays"] == [
+        {"replay": "probe_label", "marker_count": 1},
+    ]
+    assert by_name[mismatch_imp]["replays"] == []

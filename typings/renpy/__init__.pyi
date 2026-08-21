@@ -69,6 +69,9 @@ def add_layer(layer: str, above: Optional[str] = None, below: Optional[str] = No
 # Rollback
 def in_rollback() -> bool: ...
 
+# Replay (public :doc: replay export)
+def call_replay(label: str, scope: Optional[dict] = None) -> None: ...
+
 # Ren'Py version
 version_tuple: Tuple[int, int, int, int]
 version: str

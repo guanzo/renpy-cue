@@ -461,8 +461,8 @@ def test_refresh_populates_replays_and_seeds_checked(cue_env):
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
 
-    assert mgr.replays == [{"label": "Run 1", "count": 1},
-                           {"label": "Run 2", "count": 1}]
+    assert mgr.replays == [{"replay": "Run 1", "marker_count": 1},
+                           {"replay": "Run 2", "marker_count": 1}]
     assert mgr.is_replay_checked("Run 1") is True
     assert mgr.is_replay_checked("Run 2") is True
 

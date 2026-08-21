@@ -8,6 +8,7 @@
 # the overlay refresh is constructor-injected from cue_z.rpy init -900.
 
 import os
+import renpy
 import shutil as _shutil
 import threading
 
@@ -35,7 +36,7 @@ from cue_lib.util import _cue_log
 
 MYPY = False
 if MYPY:
-    from typing import Any, Callable, List, Optional, Tuple  # pyright: ignore[reportUnusedImport]
+    from typing import Any, Callable, Dict, List, Optional, Tuple  # pyright: ignore[reportUnusedImport]
 
 
 def _imp_file_names(imp_dir):
@@ -48,6 +49,30 @@ def _imp_file_names(imp_dir):
             rel = os.path.relpath(
                 os.path.join(dirpath, name), imp_dir).replace("\\", "/")
             result.add(rel)
+    return result
+
+
+def _cue_normalize_replays(raw):
+    # type: (Any) -> List[dict]
+    """Normalize a manifest replays list to [{"replay", "marker_count"}],
+    sorted by label.  Malformed entries are dropped; an old export without
+    the field yields []."""
+    result = []
+    if not isinstance(raw, list):
+        return result
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        label = item.get("replay")
+        if not label:
+            continue
+        count = item.get("marker_count")
+        try:
+            count = int(count) if count is not None else 0
+        except (TypeError, ValueError):
+            count = 0
+        result.append({"replay": label, "marker_count": count})
+    result.sort(key=lambda r: r["replay"])
     return result
 
 
@@ -105,6 +130,7 @@ class CueImportManager(object):
         self.is_importing = False   # the worker is extracting right now
         self.import_label = ""      # zip name currently being extracted
         self.import_fraction = 0.0  # 0..1 progress of the active extraction
+        self.expanded_replays = {}  # (section, imp) -> replay list folder open
 
     # ------------------------------------------------------------------
     # scanning
@@ -257,6 +283,7 @@ class CueImportManager(object):
             "valid": True,
             "missing": _cue_missing_files(manifest, zip_names),
             "error": "",
+            "replays": _cue_normalize_replays(manifest.get("replays")),
             "mtime": _zip_mtime(zip_path),
         }
 
@@ -346,21 +373,23 @@ class CueImportManager(object):
         exactly this game yet (remap first -- the import's markers/videos
         live under its own game_id until then).  An import whose zip is
         missing manifest-listed files previews anyway -- the row's warning
-        icon already flags them; the missing files simply won't play."""
-        if self.is_active:
-            return
+        icon already flags them; the missing files simply won't play.
+        Previewing a second import drops the current preview and swaps in
+        the clicked one."""
         entry = self.import_for(imp)
         if entry is None or not entry["valid"]:
             return
         if entry["match"] != CueImportMatch.AUTO:
             return
+        if self.is_active and self.active_import == imp:
+            return
+        if self.is_active:
+            self.deactivate()
         self._do_activate(imp)
 
     def _do_activate(self, imp):
         # type: (str) -> None
-        """The actual root swap, shared by activate() and the confirm dialog."""
-        if self.is_active:
-            return
+        """The actual root swap.  Callers ensure no other import is active."""
         entry = self.import_for(imp)
         if entry is None or not entry["valid"]:
             return
@@ -381,6 +410,54 @@ class CueImportManager(object):
         self.is_active = False
         self.active_import = None
         self._refresh_overlay()
+
+    # ------------------------------------------------------------------
+    # replays -- manifest replay list + jump-to-play for a row
+    # ------------------------------------------------------------------
+
+    def can_preview(self, imp):
+        # type: (str) -> bool
+        """Whether replay Play can work for this import right now: it must be
+        valid and matched to this game, since play runs inside preview."""
+        entry = self.import_for(imp)
+        if entry is None:
+            return False
+        return (entry["valid"]
+                and entry["match"] == CueImportMatch.AUTO)
+
+    def replays_for(self, imp):
+        # type: (str) -> List[dict]
+        """The manifest's replay list, normalized to [{"replay",
+        "marker_count"}].  Empty when the manifest predates the field or the
+        import is broken."""
+        entry = self.import_for(imp)
+        if entry is None:
+            return []
+        return list(entry.get("replays") or [])
+
+    def toggle_replays(self, section, imp):
+        # type: (str, str) -> None
+        """Flip the replay-list folder for one section+import.  The section
+        ('row' vs 'banner') keeps the list open in one place independent of
+        the other -- the same import can be expanded in the banner while its
+        row stays collapsed."""
+        self.expanded_replays[(section, imp)] = not self.is_replays_expanded(
+            section, imp)
+
+    def is_replays_expanded(self, section, imp):
+        # type: (str, str) -> bool
+        return bool(self.expanded_replays.get((section, imp), False))
+
+    def play_replay(self, imp, label):
+        # type: (str, str) -> None
+        """Jump straight into a replay from the import list.  Play runs
+        inside preview -- enter it first if needed, then hand off to Ren'Py's
+        replay machinery, which restores store/log on exit.  No-op when the
+        import can't be previewed or is active elsewhere."""
+        if self.active_import != imp:
+            self.activate(imp)
+        if self.is_active and self.active_import == imp:
+            renpy.call_replay(label)
 
     # ------------------------------------------------------------------
     # remap -- bring a CONFIRM import to this game's namespaced folders

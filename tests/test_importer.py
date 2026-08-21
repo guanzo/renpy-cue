@@ -47,7 +47,7 @@ def _entry(imp="pack", match=CueImportMatch.CONFIRM, reason="x",
         "imp": imp, "zip": imp + ".zip", "name": "Pack", "author": "",
         "description": "", "game_id": game_id, "contents": ["audio/a.ogg"],
         "match": match, "match_reason": reason, "valid": valid,
-        "missing": [], "error": "",
+        "missing": [], "error": "", "replays": [],
     }
 
 
@@ -608,6 +608,208 @@ def test_activate_missing_files_previews_directly(cue_env, imp_cue, tmp_path,
     assert mgr.is_active is True
     assert cue_env.paths._active_root == os.path.join(_unzip_dir(tmp_path), imp)
     assert len(imp_cue) == 0
+
+
+def test_activate_switches_from_another_preview(cue_env, tmp_path,
+                                                import_threads):
+    # Previewing one import and activating another drops the first preview
+    # and swaps the root to the clicked import -- no "Exit Preview" needed
+    # in between.  Re-clicking the already-active import is a no-op.
+    _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "a")], zip_name="a.zip")
+    _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "b")], zip_name="b.zip")
+    mgr, _calls = _make_mgr(cue_env)
+    _scan_and_join(mgr, import_threads)
+    imps = {e["imp"]: e for e in mgr.imports}
+    imp_a, imp_b = imps["a"]["imp"], imps["b"]["imp"]
+
+    mgr.activate(imp_a)
+    assert mgr.is_active is True
+    assert mgr.active_import == imp_a
+
+    mgr.activate(imp_b)
+
+    assert mgr.is_active is True
+    assert mgr.active_import == imp_b
+    assert cue_env.paths._active_root == os.path.join(_unzip_dir(tmp_path), imp_b)
+    # the abandoned preview's folder is untouched, just no longer served
+    assert os.path.isdir(os.path.join(_unzip_dir(tmp_path), imp_a))
+
+    # activating the already-active import does not reset the overlay
+    mgr.activate(imp_b)
+    assert mgr.active_import == imp_b
+
+
+# ---------------------------------------------------------------------------
+# replays -- manifest replay list, preview guard, jump-to-play
+# ---------------------------------------------------------------------------
+
+def test_scan_entry_carries_manifest_replays(cue_env, tmp_path, import_threads):
+    # A package whose markers carry a replay field gets a normalized replays
+    # list on its entry -- the exporter wrote it into the manifest.  A marker
+    # never edited inside a replay has no replay field and is skipped.
+    _drop_package(tmp_path, GAME_ID, [
+        ("data/markers/{}/a.json".format(GAME_ID), '{"replay": "Run 2", "pools": []}'),
+        ("data/markers/{}/b.json".format(GAME_ID), '{"replay": "Run 1", "pools": []}'),
+        ("data/markers/{}/c.json".format(GAME_ID), '{"pools": []}'),
+        ("audio/sfx.ogg", "sfx"),
+    ])
+    mgr, _calls = _make_mgr(cue_env)
+    _scan_and_join(mgr, import_threads)
+
+    entry = mgr.imports[0]
+    assert entry["replays"] == [
+        {"replay": "Run 1", "marker_count": 1},
+        {"replay": "Run 2", "marker_count": 1},
+    ]
+    assert mgr.replays_for(entry["imp"]) == entry["replays"]
+
+
+def test_old_manifest_without_replays_yields_empty(cue_env, tmp_path,
+                                                   import_threads):
+    # A pre-replays-field export has no replay list -- the row stays compact.
+    imports_dir = os.path.join(str(tmp_path / "cue_root"), CUE_IMPORT_DIR)
+    os.makedirs(imports_dir)
+    with zipfile.ZipFile(os.path.join(imports_dir, "old.zip"), "w") as zf:
+        zf.writestr(
+            "manifest.json",
+            '{"format_version": 1, "game_id": "%s", "contents": ["audio/sfx.ogg"]}'
+            % GAME_ID)
+        zf.writestr("audio/sfx.ogg", "sfx")
+    mgr, _calls = _make_mgr(cue_env)
+    _scan_and_join(mgr, import_threads)
+
+    assert mgr.imports[0]["replays"] == []
+    assert mgr.replays_for(mgr.imports[0]["imp"]) == []
+
+
+def test_normalize_replays_drops_malformed():
+    raw = [
+        {"replay": "Run 2", "marker_count": "3"},
+        {"replay": "Run 1"},
+        {"replay": "", "marker_count": 9},
+        {"marker_count": 4},
+        "not-a-dict",
+    ]
+    assert _imports._cue_normalize_replays(raw) == [
+        {"replay": "Run 1", "marker_count": 0},
+        {"replay": "Run 2", "marker_count": 3},
+    ]
+
+
+def test_normalize_replays_rejects_non_list():
+    assert _imports._cue_normalize_replays(None) == []
+    assert _imports._cue_normalize_replays({}) == []
+
+
+def test_replay_expansion_toggles_per_import(cue_env, tmp_path, import_threads):
+    _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
+    mgr, _calls = _make_mgr(cue_env)
+    _scan_and_join(mgr, import_threads)
+    imp = mgr.imports[0]["imp"]
+
+    assert mgr.is_replays_expanded("row", imp) is False
+    mgr.toggle_replays("row", imp)
+    assert mgr.is_replays_expanded("row", imp) is True
+    mgr.toggle_replays("row", imp)
+    assert mgr.is_replays_expanded("row", imp) is False
+
+
+def test_replay_expansion_row_and_banner_independent(cue_env, tmp_path,
+                                                     import_threads):
+    _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
+    mgr, _calls = _make_mgr(cue_env)
+    _scan_and_join(mgr, import_threads)
+    imp = mgr.imports[0]["imp"]
+
+    # The same import can be expanded in the banner while its row stays
+    # collapsed -- and vice versa.  The section is part of the state key.
+    mgr.toggle_replays("row", imp)
+    assert mgr.is_replays_expanded("row", imp) is True
+    assert mgr.is_replays_expanded("banner", imp) is False
+
+    mgr.toggle_replays("banner", imp)
+    assert mgr.is_replays_expanded("banner", imp) is True
+    assert mgr.is_replays_expanded("row", imp) is True
+
+    mgr.toggle_replays("row", imp)
+    assert mgr.is_replays_expanded("row", imp) is False
+    assert mgr.is_replays_expanded("banner", imp) is True
+
+
+def test_can_preview_true_for_valid_auto(cue_env, tmp_path, import_threads):
+    _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
+    mgr, _calls = _make_mgr(cue_env)
+    _scan_and_join(mgr, import_threads)
+    imp = mgr.imports[0]["imp"]
+    assert mgr.imports[0]["match"] == CueImportMatch.AUTO
+
+    assert mgr.can_preview(imp) is True
+
+
+def test_can_preview_false_when_not_matched(cue_env, tmp_path, import_threads):
+    _drop_package(tmp_path, "other-game", [("audio/sfx.ogg", "sfx")])
+    mgr, _calls = _make_mgr(cue_env)
+    _scan_and_join(mgr, import_threads)
+    imp = mgr.imports[0]["imp"]
+    assert mgr.imports[0]["match"] == CueImportMatch.MISMATCH
+
+    assert mgr.can_preview(imp) is False
+
+
+def test_play_replay_enters_preview_then_calls(monkeypatch, cue_env, tmp_path,
+                                               import_threads):
+    calls = []
+    monkeypatch.setattr(_imports.renpy, "call_replay",
+                        lambda label: calls.append(label), raising=False)
+    _drop_package(tmp_path, GAME_ID, [
+        ("data/markers/{}/a.json".format(GAME_ID),
+         '{"replay": "Run 1", "pools": []}'),
+    ])
+    mgr, _calls = _make_mgr(cue_env)
+    _scan_and_join(mgr, import_threads)
+    imp = mgr.imports[0]["imp"]
+    assert not mgr.is_active
+
+    mgr.play_replay(imp, "Run 1")
+
+    assert mgr.is_active is True
+    assert mgr.active_import == imp
+    assert cue_env.paths._active_root == os.path.join(_unzip_dir(tmp_path), imp)
+    assert calls == ["Run 1"]
+
+
+def test_play_replay_noop_when_not_previewable(monkeypatch, cue_env, tmp_path,
+                                               import_threads):
+    calls = []
+    monkeypatch.setattr(_imports.renpy, "call_replay",
+                        lambda label: calls.append(label), raising=False)
+    _drop_package(tmp_path, "other-game", [("audio/sfx.ogg", "sfx")])
+    mgr, _calls = _make_mgr(cue_env)
+    _scan_and_join(mgr, import_threads)
+    imp = mgr.imports[0]["imp"]
+
+    mgr.play_replay(imp, "Run 1")
+
+    assert mgr.is_active is False
+    assert calls == []
+
+
+def test_play_replay_reuses_existing_preview(monkeypatch, cue_env, tmp_path,
+                                             import_threads):
+    # Already previewing the same import: no root swap, straight to call.
+    calls = []
+    monkeypatch.setattr(_imports.renpy, "call_replay",
+                        lambda label: calls.append(label), raising=False)
+    _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
+    mgr, _calls = _make_mgr(cue_env)
+    _scan_and_join(mgr, import_threads)
+    imp = mgr.imports[0]["imp"]
+    mgr.activate(imp)
+
+    mgr.play_replay(imp, "Run 1")
+
+    assert mgr.active_import == imp
+    assert calls == ["Run 1"]
 
 
 # ---------------------------------------------------------------------------
