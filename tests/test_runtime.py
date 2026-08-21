@@ -18,6 +18,7 @@ import renpy.audio.music as _music_mock
 import renpy.store as _store
 
 import cue_lib.audio.sfx_manager as _sfx_manager
+import cue_lib.logger as _logger_mod
 import cue_lib.markers as _markers
 import cue_lib.runtime as _runtime
 import cue_lib.settings as _settings
@@ -340,6 +341,7 @@ def test_get_top_layer_exception_returns_none(cue, monkeypatch):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(_renpy, "get_showing_tags", _boom)
+    monkeypatch.setattr(_logger_mod._cue_logger, "log_error", lambda *a: None)
     assert _runtime._cue_get_top_layer() == (None, None, None)
 
 
@@ -1086,6 +1088,9 @@ def isolated_cue():
 def captured_log(monkeypatch):
     calls = []
     monkeypatch.setattr(_runtime, "_cue_log", lambda *a: calls.append(a))
+    # Guards write to the error log via the logger singleton; keep the real
+    # error.log off the CWD (mock gamedir is "") and the calls visible.
+    monkeypatch.setattr(_logger_mod._cue_logger, "log_error", lambda *a: calls.append(a))
     return calls
 
 

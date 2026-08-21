@@ -9,10 +9,11 @@ import renpy.audio.audio as _aaudio
 import time as _time
 
 from cue_lib.constants import CuePage
+from cue_lib.logger import _cue_logger
 from cue_lib.markers import _cue_load_scalars_from_persistent
 from cue_lib.state import _cue
 from cue_lib.util import (
-    _cue_log, _cue_flush_debug_log, _cue_unwrap_displayable,
+    _cue_log, _cue_unwrap_displayable,
     _cue_get_movie_play,
     create_img_key, create_vid_key, create_dlg_key,
 )
@@ -143,7 +144,7 @@ def _cue_refresh_context():
     try:
         _cue_refresh_context_impl()
     except Exception as exc:
-        _cue_log("REFRESH-CTX-ERR {}".format(repr(exc)))
+        _cue_logger.log_error("REFRESH-CTX-ERR {}".format(repr(exc)))
 
 
 def _cue_refresh_context_impl():
@@ -268,7 +269,7 @@ def _cue_get_top_layer():
                     name, d.__class__.__name__))
         return name, "image", d
     except Exception as exc:
-        _cue_log("TOP-LAYER-ERR {}".format(repr(exc)))
+        _cue_logger.log_error("TOP-LAYER-ERR {}".format(repr(exc)))
         return None, None, None
 
 
@@ -358,7 +359,7 @@ def _cue_tick_trigger():
     try:
         _cue_tick_trigger_impl()
     except Exception as exc:
-        _cue_log("TICK-ERR {}".format(repr(exc)))
+        _cue_logger.log_error("TICK-ERR {}".format(repr(exc)))
 
 def _cue_tick_trigger_impl():
     # type: () -> None
@@ -383,7 +384,7 @@ def _cue_tick_trigger_impl():
         _cue_slow_tick_last = _time.time()
 
         _cue.volume.flush_pending_saves()
-        _cue_flush_debug_log()
+        _cue_logger.flush()
 
         if _cue.video_editor.processing:
             _cue.video_editor.job_queue.poll()

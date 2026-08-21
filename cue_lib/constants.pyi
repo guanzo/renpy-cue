@@ -73,6 +73,7 @@ CUE_IMPORT_CATEGORY_LABELS: Final = {
 }
 CUE_DEBUG: bool = True  # not Final -- tests flip this to silence debug.log
 CUE_DEBUG_LOG_FILENAME: Final = "debug.log"
+CUE_ERROR_LOG_FILENAME: Final = "error.log"
 CUE_DEBUG_LOG_BUFFER_LINES: Final = 64
 
 class CueExclusiveStart:

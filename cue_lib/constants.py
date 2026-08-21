@@ -95,6 +95,11 @@ CUE_DEBUG = _cue_env_flag("RENPY_CUE_DEBUG", False)
 # Debug log filename, written into the in-game base dir.
 CUE_DEBUG_LOG_FILENAME = "debug.log"
 
+# Error log filename, same directory as debug.log.  Unguarded: critical errors
+# in the per-frame hot spots land here even when CUE_DEBUG is off, so a broken
+# tick/context can't silently eat exceptions.
+CUE_ERROR_LOG_FILENAME = "error.log"
+
 # Debug lines buffer in memory before writing to disk (auto-flush threshold).
 CUE_DEBUG_LOG_BUFFER_LINES = 64
 

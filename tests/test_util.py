@@ -18,14 +18,13 @@ import renpy.config as _config
 import renpy.display.video as _video
 
 from cue_lib.state import _cue
+from cue_lib.logger import _cue_logger
 
 from cue_lib.util import (
     _cue_atl_child_displayables,
     _cue_build_tree,
     _cue_clamp_time,
-    _cue_clear_debug_log,
     _cue_format_time,
-    _cue_flush_debug_log,
     _cue_get_movie_play,
     _cue_is_screenshake,
     _cue_log,
@@ -526,7 +525,7 @@ def test_log_writes_when_debug_enabled(tmp_path, monkeypatch):
     monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
     monkeypatch.setattr(_config, "gamedir", str(tmp_path))
     _cue_log("hello world")
-    _cue_flush_debug_log()  # buffered lines only hit disk on a flush
+    _cue_logger.flush()  # buffered lines only hit disk on a flush
     log_file = tmp_path / "renpy_cue" / "debug.log"
     assert log_file.exists()
     assert "hello world" in log_file.read_text()
@@ -553,10 +552,82 @@ def test_clear_debug_log_truncates(tmp_path, monkeypatch):
     log_file = tmp_path / "renpy_cue" / "debug.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
     log_file.write_text("stale content")
-    _cue_clear_debug_log()
+    _cue_logger.clear_debug()
     assert log_file.read_text() == ""
 
 
+# ---------------------------------------------------------------------------
+# Error logging (unguarded)
+# ---------------------------------------------------------------------------
+
+def test_log_error_writes_when_debug_disabled(tmp_path, monkeypatch):
+    monkeypatch.setattr(_constants, "CUE_DEBUG", False)  # unguarded guarantee
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    _cue_logger.log_error("boom")
+    # Write-through: no flush call needed.
+    log_file = tmp_path / "renpy_cue" / "error.log"
+    assert log_file.exists()
+    assert "boom" in log_file.read_text()
+
+
+def test_log_error_writes_when_debug_enabled(tmp_path, monkeypatch):
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    _cue_logger.log_error("still logged")
+    assert "still logged" in (tmp_path / "renpy_cue" / "error.log").read_text()
+
+
+def test_log_error_appends_across_calls(tmp_path, monkeypatch):
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    _cue_logger.log_error("first")
+    _cue_logger.log_error("second")
+    text = (tmp_path / "renpy_cue" / "error.log").read_text()
+    assert text.index("first") < text.index("second")
+
+
+def test_log_error_appends_traceback_inside_except(monkeypatch, tmp_path):
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    try:
+        raise ValueError("exploded")
+    except ValueError:
+        _cue_logger.log_error("caught")
+    text = (tmp_path / "renpy_cue" / "error.log").read_text()
+    assert "exploded" in text          # the exception message
+    assert "ValueError" in text        # the traceback frame
+
+
+def test_log_error_no_traceback_outside_except(tmp_path, monkeypatch):
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    _cue_logger.log_error("clean")
+    text = (tmp_path / "renpy_cue" / "error.log").read_text()
+    assert "Traceback" not in text
+
+
+def test_log_error_missing_paths_never_raises(monkeypatch):
+    monkeypatch.setattr(_cue, "paths", None)  # AttributeError inside -> swallowed
+    _cue_logger.log_error("no paths")  # must not raise
+
+
+def test_clear_error_log_truncates(tmp_path, monkeypatch):
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    log_file = tmp_path / "renpy_cue" / "error.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    log_file.write_text("stale content")
+    _cue_logger.clear_error()
+    assert log_file.read_text() == ""
+
+
+def test_clear_error_log_creates_missing_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    _cue_logger.clear_error()  # must not raise when dir / file absent
+    assert (tmp_path / "renpy_cue" / "error.log").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -857,7 +928,7 @@ def test_parse_time_non_string_returns_none():
 def test_clear_debug_log_creates_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
     monkeypatch.setattr(_config, "gamedir", str(tmp_path))
-    _cue_clear_debug_log()  # dir missing -> makedirs; must not raise
+    _cue_logger.clear_debug()  # dir missing -> makedirs; must not raise
     assert (tmp_path / "renpy_cue" / "debug.log").exists()
 
 
@@ -869,7 +940,7 @@ def test_clear_debug_log_swallows_error(tmp_path, monkeypatch):
         raise OSError("no perms")
     monkeypatch.setattr(os, "makedirs", _boom)
 
-    _cue_clear_debug_log()  # must not raise
+    _cue_logger.clear_debug()  # must not raise
 
 
 def test_screenshake_swallows_inner_error(monkeypatch):

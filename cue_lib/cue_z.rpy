@@ -61,7 +61,10 @@ init -999 python:
         _cue_top_layer_name, _cue_top_movie_name, _cue_get_movie_play,
         _cue_unwrap_persistent,
         _cue_make_tab_action,
-        _cue_clear_debug_log,
+    )
+
+    from cue_lib.logger import (
+        _cue_logger,
     )
 
     from cue_lib.audio.sfx_manager import (
@@ -432,7 +435,8 @@ init 999 python:
     _v = getattr(renpy, "version_tuple", (0, 0, 0))
     _cue_log("INIT: renpy_version={}".format(".".join(str(x) for x in _v)))
 
-    _cue_clear_debug_log()
+    _cue_logger.clear_debug()
+    _cue_logger.clear_error()
     _cue.keybinds.setup()
     _cue_patch_runtime()
     _cue_install_callbacks()

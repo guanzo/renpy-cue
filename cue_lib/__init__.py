@@ -31,6 +31,7 @@ for _name in dir(_renpy_exports):
 # ---------------------------------------------------------------------------
 
 from cue_lib import state
+from cue_lib import logger
 from cue_lib import util
 from cue_lib import backup
 from cue_lib import db

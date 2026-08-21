@@ -4,33 +4,18 @@
 # debug logging, file resolution, displayable name helpers.
 
 import os
-import time
 import random as _random
 import functools as _functools
-import threading as _threading
 import pygame
 import renpy
 import renpy.atl as _atl
-import renpy.config as _config
-
-import cue_lib.constants as _constants  # module ref so CUE_DEBUG stays live (tests flip it)
 
 from cue_lib.constants import (
     CUE_IMG_KEY_PREFIX, CUE_LOOP_KEY_PREFIX, CUE_DLG_KEY_PREFIX, CUE_VID_KEY_PREFIX,
 )
+from cue_lib.logger import _cue_logger
 from cue_lib.state import _cue
 from renpy.store import Function
-
-# Import time again for _logtime alias used by _cue_log
-_logtime = time
-
-# Debug lines buffer in memory and flush in batches: a burst of lines costs
-# one file open instead of one per line.  The main-thread slow tick flushes
-# it, so the log stays near-realtime; background threads only append under the
-# lock, never write.  The log is truncated on every restart, so it never
-# grows unbounded.
-_cue_log_buffer = []
-_cue_log_lock = _threading.Lock()
 
 MYPY = False
 if MYPY:
@@ -513,66 +498,15 @@ def _cue_parse_time(time_str):
 
 
 # --------------------------------------------------------------------------
-# Debug Logging
+# Debug Logging -- thin delegator to CueLogger (cue_lib/logger.py).
+# _cue_log has ~150 call sites so it keeps a shim; the other logger calls go
+# straight to _cue_logger (only a handful of callers).
 # --------------------------------------------------------------------------
 
 def _cue_log(msg):
     # type: (str) -> None
-    """Buffer a debug message, flushing once the buffer crosses its threshold."""
-    try:
-        if not _constants.CUE_DEBUG:
-            return
-        ts = time.strftime("%H:%M:%S") + ".{:03d}".format(int(time.time() * 1000) % 1000)
-        line = "[{}] {}\n".format(ts, msg)
-        with _cue_log_lock:
-            _cue_log_buffer.append(line)
-            should_flush = len(_cue_log_buffer) >= _constants.CUE_DEBUG_LOG_BUFFER_LINES
-        if should_flush:
-            _cue_flush_debug_log()
-    except Exception:
-        pass  # Never let logging break the game
-
-def _cue_flush_debug_log():
-    # type: () -> None
-    """Write all buffered debug lines to disk.  Main-thread only."""
-    try:
-        global _cue_log_buffer
-        with _cue_log_lock:
-            lines = _cue_log_buffer
-            _cue_log_buffer = []
-        _cue_write_debug_lines(lines)
-    except Exception:
-        pass  # Never let logging break the game
-
-def _cue_write_debug_lines(lines):
-    # type: (list) -> None
-    log_path = _cue_log_path()
-    if log_path is None:
-        return
-    with open(log_path, "a") as f:
-        f.write("".join(lines))
-
-def _cue_clear_debug_log():
-    # type: () -> None
-    """Truncate (or create) the debug log and drop any buffered lines."""
-    try:
-        global _cue_log_buffer
-        with _cue_log_lock:
-            _cue_log_buffer = []
-        log_path = _cue_log_path()
-        if log_path is None:
-            return
-        open(log_path, "w").close()
-    except Exception:
-        pass  # Never let clearing the log break the game
-
-def _cue_log_path():
-    # type: () -> str
-    """Resolve the debug log path, creating its directory.  None on failure."""
-    log_dir = os.path.join(_config.gamedir, _cue.paths.in_game_base_dir)
-    if not os.path.isdir(log_dir):
-        os.makedirs(log_dir)
-    return os.path.join(log_dir, _constants.CUE_DEBUG_LOG_FILENAME)
+    """Buffer a debug message; the main-thread slow tick flushes it."""
+    _cue_logger.log(msg)
 
 
 # --------------------------------------------------------------------------
