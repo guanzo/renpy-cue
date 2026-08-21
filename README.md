@@ -52,7 +52,7 @@ One copy of the code serves every game, and an update propagates to all of them 
 
 ## Usage
 
-Press **`** (backquote) to open the Cue overlay. It has three pages:
+Press `` ` `` (backtick) or `Shift+Alt+E` to open the Cue overlay. It has three pages:
 
 - **SFX editor** (default) — context-sensitive.
   - On a **video**: **Video VFX** (speed selection, multi-speed sequences, auto-speed presets, and a Create tab that encodes speed variants with a quality picker and job queue) and **Video SFX** (a timeline visualizer with draggable markers, pause/play, per-marker volume, repeat-markers, mute-original-audio, and save-as-video-preset).
