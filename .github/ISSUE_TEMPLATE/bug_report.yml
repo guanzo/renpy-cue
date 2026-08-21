@@ -6,8 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to report a bug. Please fill in as much as you can --
-        the more detail, the faster it can be diagnosed.
+        Thanks for taking the time to report a bug. Please be specific and attach
+        screenshots if applicable.
 
   - type: textarea
     id: description
@@ -21,7 +21,7 @@ body:
     id: repro
     attributes:
       label: Steps to reproduce
-      description: Be specific. What did you click/trigger, and what state was Cue in?
+      description: Be specific. What did you do, and what state was Cue in?
       placeholder: |
         1. Open the Cue overlay with ` (backtick)
         2. ...
@@ -37,6 +37,12 @@ body:
     validations:
       required: true
 
+  - type: input
+    id: game
+    attributes:
+      label: Which game and version?
+      description: Which visual novel version were you using when the bug happened?
+
   - type: dropdown
     id: os
     attributes:
@@ -47,34 +53,3 @@ body:
         - Linux
     validations:
       required: true
-
-  - type: input
-    id: game
-    attributes:
-      label: Game Cue is installed into
-      description: Which visual novel were you using when the bug happened?
-
-  - type: dropdown
-    id: ffmpeg
-    attributes:
-      label: Does the bug involve video speed variants?
-      description: ffmpeg is only required for the video speed-variant features.
-      options:
-        - "No"
-        - "Yes"
-      default: 0
-
-  - type: textarea
-    id: logs
-    attributes:
-      label: Relevant log output
-      description: |
-        Paste any errors from the game's `errors.txt` or the console here. If the bug
-        crashes the game, include the traceback.
-      render: shell
-
-  - type: textarea
-    id: notes
-    attributes:
-      label: Anything else?
-      description: Screenshots, video, or other context that might help.
