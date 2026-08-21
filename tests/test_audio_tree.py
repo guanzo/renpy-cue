@@ -2,7 +2,7 @@
 # Tests for the audio-library tree managers: the pure _cue_filter_tree search
 # helper (util.py), CueAudioTreeManager (scan, tree walk, search cap,
 # debounced rebuild), CueUserMusic / CueGameMusic (scan sources), and
-# CueSfxManager (file enable toggle, preset/folder expand state, pool-ref
+# CueSfxLibraryTree (file enable toggle, preset/folder expand state, pool-ref
 # rows, overlay mode).
 
 import copy
@@ -15,12 +15,13 @@ import renpy as _renpy
 
 import cue_lib.audio.audio_tree as _tree
 import cue_lib.audio.game_music as _game
-import cue_lib.audio.sfx_manager as _sfx
 import cue_lib.audio.user_music as _user
 import cue_lib.util as _util
 from cue_lib.audio.audio_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
 from cue_lib.audio.game_music import CueGameMusic
-from cue_lib.audio.sfx_manager import CueSfxManager
+from cue_lib.audio.sfx_manager import (
+    CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name,
+)
 from cue_lib.audio.user_music import CueUserMusic
 from cue_lib.util import _cue_build_tree, _cue_filter_tree
 
@@ -389,13 +390,16 @@ def test_game_music_discover_filters(monkeypatch):
 
 
 # ==========================================================================
-# CueSfxManager
+# CueSfxLibraryTree
 # ==========================================================================
 
 @pytest.fixture
 def sfx(tmp_path):
     audio = str(tmp_path / "audio") + "/"
-    return CueSfxManager(types.SimpleNamespace(audio_dir=audio), FakeDb())
+    # Library-tree tests only exercise the tree; volume/ctx/markers are unused.
+    return CueSfxManager(
+        types.SimpleNamespace(audio_dir=audio), FakeDb(),
+        types.SimpleNamespace(), types.SimpleNamespace(), False).library
 
 
 def test_sfx_init_state(sfx):
@@ -459,8 +463,9 @@ def test_sfx_count_file_list_rows(sfx):
 
 
 def test_sfx_count_file_list_rows_expands_folder_ref(sfx, monkeypatch):
-    fake = types.SimpleNamespace(sfx_manager=types.SimpleNamespace(
-        files=["pool/a.ogg"], disabled_files=set()))
+    fake = types.SimpleNamespace(sfx=types.SimpleNamespace(
+        library=types.SimpleNamespace(
+            files=["pool/a.ogg"], disabled_files=set())))
     monkeypatch.setattr(_util, "_cue", fake)
     sfx.expanded_file_refs["pool/"] = True
     n = sfx.count_file_list_rows(None, None, ["pool/"])
@@ -468,8 +473,9 @@ def test_sfx_count_file_list_rows_expands_folder_ref(sfx, monkeypatch):
 
 
 def test_sfx_count_file_list_rows_collapsed_ref(sfx, monkeypatch):
-    fake = types.SimpleNamespace(sfx_manager=types.SimpleNamespace(
-        files=["pool/a.ogg"], disabled_files=set()))
+    fake = types.SimpleNamespace(sfx=types.SimpleNamespace(
+        library=types.SimpleNamespace(
+            files=["pool/a.ogg"], disabled_files=set())))
     monkeypatch.setattr(_util, "_cue", fake)
     n = sfx.count_file_list_rows(None, None, ["pool/"])
     assert n == 1  # collapsed: ref row only
@@ -511,6 +517,15 @@ def test_sfx_toggle_overlay_mode_restarts(sfx, monkeypatch):
     sfx.toggle_overlay_mode()
     assert sfx.overlay_mode is False
     assert rec == [1, 1]
+
+
+# ---------------------------------------------------------------------------
+# SFX channel helpers (moved here from util.py with the playback manager)
+# ---------------------------------------------------------------------------
+
+def test_sfx_channel_name_and_index():
+    assert _cue_sfx_channel_name(3) == "_cue_3"
+    assert _cue_sfx_channel_index("_cue_7") == 7
 
 
 # ---------------------------------------------------------------------------

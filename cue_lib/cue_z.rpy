@@ -58,23 +58,22 @@ init -999 python:
         _cue_unwrap_displayable, _cue_ui_refresh,
         _cue_wrap_with_statement, _cue_wrap_config_show,
         _cue_strip_key_prefix,
-        _cue_loop_still_playing, _cue_get_movie_or_image,
-        _cue_sfx_channel_name,
         _cue_top_layer_name, _cue_top_movie_name, _cue_get_movie_play,
         _cue_unwrap_persistent,
         _cue_make_tab_action,
         _cue_clear_debug_log,
     )
 
+    from cue_lib.audio.sfx_manager import (
+        _cue_sfx_channel_name,
+    )
+
     from cue_lib.runtime import (
         _cue_toggle_overlay, _cue_show_overlay, _cue_hide_overlay,
         _cue_full_reload,
         _cue_refresh_context, _cue_log_context, _cue_get_top_layer,
-        _cue_refresh_channel, _cue_tick_trigger, _cue_play_sfx,
-        _cue_preview_sfx,
-        _cue_preview_preset, _cue_preview_folder, _cue_preview_video_preset,
+        _cue_refresh_channel, _cue_tick_trigger,
         _cue_preview_music_preset,
-        _cue_play_pool, _cue_fade_out_sfx,
         _cue_set_page,
         _cue_toggle_video_mute,
     )
@@ -205,16 +204,13 @@ init -900 python:
             _cue.ctx, ffmpeg, speed_resolver,
             vid_manager, paths)
 
-        # undo takes the video editor (for post-restore UI refresh); both are
-        # referenced only at call time by the store's on_save lambda above.
         undo = CueUndoManager(_cue.ctx, marker_store, video_editor)
         trigger = CueTriggerEngine(
             marker_store, repeater, speed_resolver, vid_manager)
-        sfx_manager = CueSfxManager(paths, db)
+        sfx_manager = CueSfxManager(
+            paths, db, volume, _cue.ctx, _cue._has_relative_volume)
+
         settings = CueSettings()
-        preset_dialog = CuePresetDialog()
-        video_preset_dialog = CueVideoPresetDialog()
-        confirm_dialog = CueConfirmDialog()
         keybinds = CueKeybindsManager(db)
         icons = CueIconManager(paths)
         music = CueMusicManager(_cue.ctx, marker_store, db, paths)
@@ -224,7 +220,11 @@ init -900 python:
         # import/export set.
         importer = CueImportManager(paths, db, _cue_full_reload)
         exporter = CueExportManager(paths)
+
         merge_dialog = CueMergeDialog(importer)
+        preset_dialog = CuePresetDialog()
+        video_preset_dialog = CueVideoPresetDialog()
+        confirm_dialog = CueConfirmDialog()
 
         # markers is the coordinator, wired LAST so every injected collaborator
         # (vid_manager, sfx_manager, trigger, video_editor) is already
@@ -234,14 +234,18 @@ init -900 python:
             _cue.ctx, marker_store, vid_manager,
             sfx_manager, trigger, video_editor)
 
-        # The "Recently Used" list lives on the SFX library manager: it records
+        # markers and sfx_manager take each other at construction -- break the
+        # cycle with the same late-bind pattern as video_sequence.bind.
+        sfx_manager.bind_markers(markers)
+
+        # The "Recently Used" list lives on the SFX library tree: it records
         # SFX send_* attempts (the marker contexts funnel through
-        # sfx_manager._recent).  Its prune existence check reads both
-        # sfx_manager.files and markers.list_presets() at call time, so it is
+        # sfx_manager.library._recent).  Its prune existence check reads both
+        # sfx_manager.library.files and markers.list_presets() at call time, so it is
         # built here where both are in scope.
-        sfx_manager._recent = CueRecentManager(
+        sfx_manager.library._recent = CueRecentManager(
             CUE_RECENT_SFX_KEY,
-            lambda kind, ref: _cue_keep_sfx(kind, ref, sfx_manager.files, markers.list_presets()))
+            lambda kind, ref: _cue_keep_sfx(kind, ref, sfx_manager.library.files, markers.list_presets()))
 
         # Music's "Recently Used" list lives on the music manager: it records
         # add-to-trigger attempts through music's own _add_ref_to_trigger funnel.
@@ -266,7 +270,7 @@ init -900 python:
         _cue.repeater = repeater
 
         _cue.trigger = trigger
-        _cue.sfx_manager = sfx_manager
+        _cue.sfx = sfx_manager
         _cue.music = music
         _cue.volume = volume
 
@@ -344,16 +348,11 @@ init 999 python:
             _rl.load._cue_loader_wrapped = True
 
     def _cue_install_callbacks():
-        """Version detect, SFX channels, the overlay layer, and the game hooks
-        (after-load / character / start-interact / replay).  Reinstalled on
-        every init, like the patches: reload_all() restores renpy.* modules to
-        their post-import state, wiping the config callback lists too."""
-        # Detect Ren'Py version for relative_volume support (added in 7.5)
-        _v = getattr(renpy, 'version_tuple', (0, 0, 0))
-        _cue._has_relative_volume = (_v >= (7, 5, 0))
-        _cue_log("INIT: renpy_version={} relative_volume={}".format(
-            ".".join(str(x) for x in _v), _cue._has_relative_volume))
-
+        """SFX channels, the overlay layer, and the game hooks (after-load /
+        character / start-interact / replay).  Reinstalled on every init, like
+        the patches: reload_all() restores renpy.* modules to their
+        post-import state, wiping the config callback lists too."""
+        
         # Register 8 dedicated SFX channels on the "sfx" mixer
         for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
             ch_name = _cue_sfx_channel_name(i)
@@ -410,7 +409,7 @@ init 999 python:
         _cue_original_after_replay = config.after_replay_callback
 
         def _cue_after_replay():
-            _cue_fade_out_sfx()
+            _cue.sfx.fade_out()
             if _cue_original_after_replay is not None:
                 _cue_original_after_replay()
 
@@ -428,9 +427,11 @@ init 999 python:
         _cue.music.install()
 
         _cue.initialized = True
-        _cue_log("INIT: Done")
 
     
+    _v = getattr(renpy, "version_tuple", (0, 0, 0))
+    _cue_log("INIT: renpy_version={}".format(".".join(str(x) for x in _v)))
+
     _cue_clear_debug_log()
     _cue.keybinds.setup()
     _cue_patch_runtime()
@@ -440,3 +441,4 @@ init 999 python:
     # reload, so re-hydrating would re-wrap movies / re-seed undo.
     if not _cue.initialized:
         _cue_load_initial_data()
+        _cue_log("INIT: Done")

@@ -12,9 +12,6 @@ import pygame
 import renpy
 import renpy.atl as _atl
 import renpy.config as _config
-import renpy.display.video as _video
-import renpy.display.im as _im
-import renpy.audio.music as _music
 
 import cue_lib.constants as _constants  # module ref so CUE_DEBUG stays live (tests flip it)
 
@@ -176,21 +173,6 @@ def _cue_unwrap_displayable(name_or_displayable):
             break
         seen += 1
     return d
-
-
-def _cue_get_movie_or_image(name_or_displayable):
-    # type: (Union[str, Any]) -> Tuple[Any, Any]
-    """Given an image tag/name (str) or a displayable object, returns
-    (kind, displayable) where kind is 'movie', 'image', or None if
-    neither could be resolved."""
-
-    d = _cue_unwrap_displayable(name_or_displayable)
-
-    if isinstance(d, _video.Movie):
-        return "movie", d
-    if isinstance(d, _im.Image):
-        return "image", d
-    return None, d
 
 
 def _cue_atl_child_displayables(d):
@@ -605,10 +587,10 @@ def _cue_resolve_files(files):
     for item in files:
         if item.endswith("/"):
             # Folder reference -- expand to all matching available files
-            for f in _cue.sfx_manager.files:
-                if f.startswith(item) and f not in _cue.sfx_manager.disabled_files and f not in result:
+            for f in _cue.sfx.library.files:
+                if f.startswith(item) and f not in _cue.sfx.library.disabled_files and f not in result:
                     result.append(f)
-        elif item not in _cue.sfx_manager.disabled_files and item not in result:
+        elif item not in _cue.sfx.library.disabled_files and item not in result:
             result.append(item)
     return result
 
@@ -795,33 +777,3 @@ def _cue_wrap_config_show(original_config_show):
         if original_config_show is not None:
             return original_config_show(*args, **kwargs)
     return _wrapped
-
-
-# --------------------------------------------------------------------------
-# SFX Playback Helpers
-# --------------------------------------------------------------------------
-
-def _cue_sfx_channel_name(index):
-    # type: (int) -> str
-    """Channel name for a 1-based index into the shared _cue_ SFX channels."""
-    return "_cue_{}".format(index)
-
-
-def _cue_sfx_channel_index(ch_name):
-    # type: (str) -> int
-    """Reverse of _cue_sfx_channel_name: parse the 1-based index from a
-    shared _cue_ SFX channel name."""
-    return int(ch_name.split("_")[-1])
-
-
-def _cue_loop_still_playing(channels):
-    # type: (List[str]) -> bool
-    """True if any channel in the list is currently playing.
-    Unknown/unregistered channels are treated as silent."""
-    for ch in channels:
-        try:
-            if _music.is_playing(channel=ch):
-                return True
-        except Exception:
-            pass
-    return False

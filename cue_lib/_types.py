@@ -166,7 +166,7 @@ class AutoSpeedKnobs(TypedDict):
 # =========================================================================
 
 class AudioTreeFolderNode(TypedDict):
-    """Folder node in _cue.sfx_manager.tree / visible_tree."""
+    """Folder node in _cue.sfx.library.tree / visible_tree."""
     type: str
     name: str
     full_path: str
@@ -176,7 +176,7 @@ class AudioTreeFolderNode(TypedDict):
 
 
 class AudioTreeFileNode(TypedDict):
-    """File node in _cue.sfx_manager.tree / visible_tree."""
+    """File node in _cue.sfx.library.tree / visible_tree."""
     type: str
     name: str
     full_path: str

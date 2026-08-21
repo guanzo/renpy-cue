@@ -6,13 +6,13 @@
 screen cue_sfx_library(_is_video):
     style_group "cue"
 
-    $ _overlay_mode = _cue.sfx_manager.overlay_mode
+    $ _overlay_mode = _cue.sfx.library.overlay_mode
     $ _ov_tt = "Overlay Mode: When enabled, this section will float on top when expanded.\n\n"
     $ _ov_tt = _ov_tt + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_LIBRARY) + " to toggle expansion."
 
     $ _icons = [{
         "name": "window-maximize" if _overlay_mode else "window-restore",
-        "action": Function(_cue.sfx_manager.toggle_overlay_mode),
+        "action": Function(_cue.sfx.library.toggle_overlay_mode),
         "tt": _ov_tt
     }]
 
@@ -22,16 +22,16 @@ screen cue_sfx_library(_is_video):
     ).format(", ".join(CUE_AUDIO_EXTS), _cue.paths.audio_dir)
 
     use cue_section_frame(CUE_SFX_LIBRARY_HEADER, tt=sfx_tt, icons=_icons):
-        if not _cue.sfx_manager.tree:
-            if _cue.sfx_manager.scan_error:
-                text "[_cue.sfx_manager.scan_error]" color _cue_color_error
+        if not _cue.sfx.library.tree:
+            if _cue.sfx.library.scan_error:
+                text "[_cue.sfx.library.scan_error]" color _cue_color_error
             text "No audio files found in: [_cue.paths.audio_dir]"
             text ("Add {} files there "
                 "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS))
         else:
             use cue_target_context()
             null height 2
-            use cue_search_bar("_cue.sfx_manager.search_query", _cue.sfx_manager)
+            use cue_search_bar("_cue.sfx.library.search_query", _cue.sfx.library)
             use cue_sfx_library_content(_is_video)
 
 # Target-context bar: the [1]..[4] chips select where [+] rows dispatch.
@@ -78,7 +78,7 @@ screen cue_target_context():
 screen cue_sfx_library_content(_is_video):
     style_group "cue"
 
-    $ _q = _cue.sfx_manager.search_query
+    $ _q = _cue.sfx.library.search_query
     $ _searching = bool(_q.strip())
     # Preset names, filtered by the search query so the preset sections join
     # the file-tree search flow (same term semantics as the tree).  During a
@@ -95,7 +95,7 @@ screen cue_sfx_library_content(_is_video):
         vscrollbar_unscrollable "hide"
         vbox:
             spacing 2
-            $ _recent = _cue.sfx_manager._recent
+            $ _recent = _cue.sfx.library._recent
             $ _recent_entries = _recent.entries() if _recent is not None else []
             if _searching:
                 $ _recent_entries = [e for e in _recent_entries if _cue_query_matches(e["ref"], _q)]
@@ -110,9 +110,9 @@ screen cue_sfx_library_content(_is_video):
             if not _searching or _preset_names:
                 hbox:
                     spacing 2
-                    use cue_txt_button("Pool Presets/", Function(_cue.sfx_manager.toggle_presets_expand))
+                    use cue_txt_button("Pool Presets/", Function(_cue.sfx.library.toggle_presets_expand))
 
-                if _cue.sfx_manager.presets_expanded:
+                if _cue.sfx.library.presets_expanded:
                     if not _preset_names:
                         text "No pool presets yet. Save a pool as a preset to fill this." style "cue_help"
                     use cue_audio_presets_list(_preset_names)
@@ -120,9 +120,9 @@ screen cue_sfx_library_content(_is_video):
             if not _searching or _video_preset_names:
                 hbox:
                     spacing 2
-                    use cue_txt_button("Video Presets/", Function(_cue.sfx_manager.toggle_video_presets_expand))
+                    use cue_txt_button("Video Presets/", Function(_cue.sfx.library.toggle_video_presets_expand))
 
-                if _cue.sfx_manager.video_presets_expanded:
+                if _cue.sfx.library.video_presets_expanded:
                     if not _video_preset_names:
                         text "No video presets yet. Save video markers as a preset to fill this." style "cue_help"
                     use cue_video_presets_list(_is_video, _video_preset_names)
@@ -130,7 +130,7 @@ screen cue_sfx_library_content(_is_video):
             $ _no_results = (_searching and not _recent_entries
                 and not _preset_names
                 and not _video_preset_names
-                and not _cue.sfx_manager.visible_tree)
+                and not _cue.sfx.library.visible_tree)
             if _no_results:
                 text 'No files found for "{}".'.format(_q)
             else:
@@ -154,9 +154,9 @@ screen cue_recent_list(entries):
             spacing 2
             text " "  # indent under Recently Used/
             if _re["type"] == "file":
-                $ _re_idx = _cue.sfx_manager._file_index.get(_re["ref"], -1)
+                $ _re_idx = _cue.sfx.library._file_index.get(_re["ref"], -1)
                 $ _re_ok = _re_idx >= 0
-                use cue_icon_btn("play", Function(_cue_preview_sfx, _re["ref"]), "Preview audio")
+                use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, _re["ref"]), "Preview audio")
                 use cue_icon_btn(
                     "plus",
                     Function(_cue_markers_send, "file", _re_idx, False),
@@ -166,7 +166,7 @@ screen cue_recent_list(entries):
             elif _re["type"] == "folder":
                 use cue_icon_btn(
                     "play",
-                    Function(_cue_preview_folder, _re["ref"]),
+                    Function(_cue.sfx.preview_folder, _re["ref"]),
                     "Play random file from folder")
                 use cue_icon_btn(
                     "plus",
@@ -177,7 +177,7 @@ screen cue_recent_list(entries):
             else:  # preset
                 use cue_icon_btn(
                     "play",
-                    Function(_cue_preview_preset, _re["ref"]),
+                    Function(_cue.sfx.preview_preset, _re["ref"]),
                     "Play random file from preset")
                 use cue_icon_btn(
                     "plus",
@@ -198,7 +198,7 @@ screen cue_audio_presets_list(name_filter=None):
     $ _tgt_tt = _cue_target_assign_tt()
     for _pname in _names:
         $ _pdata = _cue.markers.get_preset(_pname)
-        $ _p_expanded = _cue.sfx_manager.expanded_presets.get(_pname, False)
+        $ _p_expanded = _cue.sfx.library.expanded_presets.get(_pname, False)
         $ _p_files = _cue_resolve_files(_pdata.get("files", [])) if _pdata else []
         hbox:
             spacing 2
@@ -206,13 +206,13 @@ screen cue_audio_presets_list(name_filter=None):
             use cue_icon_btn("xmark", Function(_cue_confirm_delete_preset, _pname), "Delete preset")
             use cue_icon_btn(
                 "play",
-                Function(_cue_preview_preset, _pname),
+                Function(_cue.sfx.preview_preset, _pname),
                 "Play random file from preset")
             use cue_icon_btn(
                 "plus",
                 Function(_cue_markers_send, "preset", _pname),
                 _tgt_tt, enabled=_tgt_ok)
-            use cue_txt_button(_pname, Function(_cue.sfx_manager.toggle_preset_expand, _pname))
+            use cue_txt_button(_pname, Function(_cue.sfx.library.toggle_preset_expand, _pname))
 
         if _p_expanded:
             for _child in _p_files:
@@ -223,7 +223,7 @@ screen cue_audio_presets_list(name_filter=None):
                         "xmark",
                         Function(_cue.markers.preset_remove_file, _pname, _child),
                         "Remove file from preset")
-                    use cue_icon_btn("play", Function(_cue_preview_sfx, _child), "Preview file")
+                    use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, _child), "Preview file")
                     null width 1
                     text _child color _cue_color_text_accent size 11
 
@@ -237,7 +237,7 @@ screen cue_video_presets_list(_is_video, name_filter=None):
     $ _names = name_filter if name_filter is not None else _cue.markers.list_video_presets()
     for _vpname in _names:
         $ _vpdata = _cue.markers.get_video_preset(_vpname)
-        $ _vp_expanded = _cue.sfx_manager.expanded_video_presets.get(_vpname, False)
+        $ _vp_expanded = _cue.sfx.library.expanded_video_presets.get(_vpname, False)
         $ _vp_pools = _vpdata.get("pools", []) if _vpdata else []
         hbox:
             spacing 2
@@ -248,14 +248,14 @@ screen cue_video_presets_list(_is_video, name_filter=None):
                 "Delete video preset")
             use cue_icon_btn(
                 "play",
-                Function(_cue_preview_video_preset, _vpname),
+                Function(_cue.sfx.preview_video_preset, _vpname),
                 "Play random file from video preset")
             use cue_icon_btn(
                 "V",
                 Function(_cue_maybe_apply_video_preset, _vpname),
                 "Apply video markers to the current video.\nOverwrites existing markers.",
                 enabled=_is_video)
-            use cue_txt_button(_vpname, Function(_cue.sfx_manager.toggle_video_preset_expand, _vpname))
+            use cue_txt_button(_vpname, Function(_cue.sfx.library.toggle_video_preset_expand, _vpname))
 
         if _vp_expanded:
             for _pool in _vp_pools:
@@ -277,7 +277,7 @@ screen cue_file_tree():
     $ _tgt_ok = _cue.markers.target_is_available(_cue.markers.resolve_target_context())
     $ _tgt_tt = _cue_target_assign_tt()
 
-    for item in _cue.sfx_manager.visible_tree:
+    for item in _cue.sfx.library.visible_tree:
         hbox:
             spacing 2
             # Indent
@@ -287,16 +287,16 @@ screen cue_file_tree():
                 if item["has_files"]:
                     use cue_icon_btn(
                         "play",
-                        Function(_cue_preview_folder, item["full_path"]),
+                        Function(_cue.sfx.preview_folder, item["full_path"]),
                         "Play random file from folder")
                     use cue_icon_btn(
                         "plus",
                         Function(_cue_markers_send, "folder", item["full_path"]),
                         _tgt_tt, enabled=_tgt_ok)
-                use cue_txt_button(item["name"], Function(_cue.sfx_manager.toggle_folder, item["full_path"]))
+                use cue_txt_button(item["name"], Function(_cue.sfx.library.toggle_folder, item["full_path"]))
             else:
                 # Play preview
-                use cue_icon_btn("play", Function(_cue_preview_sfx, item["full_path"]), "Preview audio")
+                use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, item["full_path"]), "Preview audio")
                 use cue_icon_btn(
                     "plus",
                     Function(_cue_markers_send, "file", item["index"]),

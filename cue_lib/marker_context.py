@@ -48,13 +48,13 @@ class CueMarkerContext(object):
 
     def add_file(self, file_index):
         # type: (int) -> None
-        if not self._mgr._sfx_manager.files:
+        if not self._mgr._sfx_manager.library.files:
             return
-        if file_index < 0 or file_index >= len(self._mgr._sfx_manager.files):
+        if file_index < 0 or file_index >= len(self._mgr._sfx_manager.library.files):
             return
         key = self._key()
-        filename = self._mgr._sfx_manager.files[file_index]
-        if filename in self._mgr._sfx_manager.disabled_files:
+        filename = self._mgr._sfx_manager.library.files[file_index]
+        if filename in self._mgr._sfx_manager.library.disabled_files:
             return
         self._mgr._add_file_to_pool(key, filename, self.get_active_index())
 
@@ -67,8 +67,8 @@ class CueMarkerContext(object):
         # disabled or out-of-range file still counts as an attempt, but one
         # we cannot resolve to a path does not.  record=False is passed by
         # recently-used rows so acting from the list doesn't re-feed it.
-        if record and 0 <= file_index < len(self._mgr._sfx_manager.files):
-            self._record_use("file", self._mgr._sfx_manager.files[file_index])
+        if record and 0 <= file_index < len(self._mgr._sfx_manager.library.files):
+            self._record_use("file", self._mgr._sfx_manager.library.files[file_index])
 
     def send_folder(self, folder_path, record=True):
         # type: (str, bool) -> None
@@ -88,7 +88,7 @@ class CueMarkerContext(object):
 
     def _record_use(self, kind, ref):
         # type: (str, str) -> None
-        recent = self._mgr._sfx_manager._recent
+        recent = self._mgr._sfx_manager.library._recent
         if recent is not None:
             recent.record(kind, ref)
 
@@ -366,12 +366,12 @@ class CueVideoContext(CueMarkerContext):
 
     def add_file(self, file_index):
         # type: (int) -> None
-        if not self._mgr._sfx_manager.files:
+        if not self._mgr._sfx_manager.library.files:
             return
-        if file_index < 0 or file_index >= len(self._mgr._sfx_manager.files):
+        if file_index < 0 or file_index >= len(self._mgr._sfx_manager.library.files):
             return
-        filename = self._mgr._sfx_manager.files[file_index]
-        if filename in self._mgr._sfx_manager.disabled_files:
+        filename = self._mgr._sfx_manager.library.files[file_index]
+        if filename in self._mgr._sfx_manager.library.disabled_files:
             return
         vid_key = self._key()
         entry = self._mgr._get_or_create_entry(vid_key)

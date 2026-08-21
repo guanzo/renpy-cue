@@ -10,15 +10,20 @@ screen cue_settings_page():
         padding (0, 0)
         xfill True
         yminimum 0
-        vbox:
-            spacing 5
-            frame:
-                text "Settings" style "cue_hdr" xoffset 4
-                yminimum 0
+        viewport:
+            xfill True
+            mousewheel True
+            scrollbars "vertical"
+            vscrollbar_unscrollable "hide"
+            vbox:
+                spacing 5
+                frame:
+                    text "Settings" style "cue_hdr" xoffset 4
+                    yminimum 0
 
-            use cue_settings_keybinds()
-            use cue_data_dir()
-            use cue_settings_backup()
+                use cue_data_dir()
+                use cue_settings_keybinds()
+                use cue_settings_backup()
 
 screen cue_data_dir():
     style_group "cue"

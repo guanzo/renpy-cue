@@ -186,8 +186,8 @@ class CueMarkerManager(object):
         for fi, f in enumerate(files):
             if f.endswith("/") and file_path.startswith(f):
                 resolved = []
-                for rf in self._sfx_manager.files:
-                    if rf.startswith(f) and rf not in self._sfx_manager.disabled_files and rf not in resolved:
+                for rf in self._sfx_manager.library.files:
+                    if rf.startswith(f) and rf not in self._sfx_manager.library.disabled_files and rf not in resolved:
                         resolved.append(rf)
                 if file_path in resolved:
                     resolved.remove(file_path)
@@ -345,8 +345,8 @@ class CueMarkerManager(object):
         if not folder_ref.endswith("/"):
             return
         resolved = []
-        for f in self._sfx_manager.files:
-            if f.startswith(folder_ref) and f not in self._sfx_manager.disabled_files and f not in resolved:
+        for f in self._sfx_manager.library.files:
+            if f.startswith(folder_ref) and f not in self._sfx_manager.library.disabled_files and f not in resolved:
                 resolved.append(f)
         if child_file in resolved:
             resolved.remove(child_file)
@@ -645,7 +645,7 @@ def _cue_load_scalars_from_persistent():
     else:
         _cue_dict.pop("disabled_files", None)
 
-    _cue.sfx_manager.disabled_files = set(shared.get("disabled_files", []))
+    _cue.sfx.library.disabled_files = set(shared.get("disabled_files", []))
     _cue.trigger.active = _cue_dict.get("triggers_active", True)
     _cue.video_editor.encode_mode = _cue_dict.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
     _cue.video_editor.remove_audio = _cue_dict.get("remove_audio", True)

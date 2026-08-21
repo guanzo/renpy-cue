@@ -41,7 +41,6 @@ class Cue(_renpy_python.NoRollback):
         self.is_overlay_visible = False
         self.overlay_active_page = CuePage.SFX
         self.collapsed_sections = {}       # section_name -> bool (cue_section_frame)
-        self._has_relative_volume = False
         self.ctx = CueContext()          # per-frame scene state (current_file, dialogue, top layer)
 
         # --- Manager slots (wired by cue_z.rpy init -900) ---
@@ -59,7 +58,7 @@ class Cue(_renpy_python.NoRollback):
         self.video_sequence = None
         self.speed_toast = None
         self.auto_speed = None
-        self.sfx_manager = None
+        self.sfx = None
         self.settings = None          # CueSettings
         self.dialogs = CueDialogs()  # dialog managers (wired by cue_z.rpy init -900)
         self.keybinds = None
@@ -68,6 +67,12 @@ class Cue(_renpy_python.NoRollback):
         self.paths = None
         self.importer = None
         self.exporter = None
+
+    @property
+    def _has_relative_volume(self):
+        # type: () -> bool
+        """True on Ren'Py 7.5+ -- play() accepts relative_volume there."""
+        return getattr(renpy, "version_tuple", (0, 0, 0)) >= (7, 5, 0)
 
     # ------------------------------------------------------------------
     # Scene state (read-through to ctx)

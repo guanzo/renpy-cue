@@ -73,5 +73,5 @@ screen cue_sfx_page():
                 tt="~0.2s between plays")
 
     # Audio file browser (in-flow, only when overlay mode is OFF)
-    if not _cue.sfx_manager.overlay_mode:
+    if not _cue.sfx.library.overlay_mode:
         use cue_sfx_library(_is_video)

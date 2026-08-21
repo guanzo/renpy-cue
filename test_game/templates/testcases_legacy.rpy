@@ -164,8 +164,8 @@ testcase sfx_library_rows:
     $ _cue.is_overlay_visible = True
     run Jump("start")
     pause 2.0
-    $ _ok = len(_cue.sfx_manager.files) >= 2 and _cue.sfx_manager.scan_error == ""
-    $ _ok = _ok and "sfx_001.ogg" in _cue.sfx_manager.files
+    $ _ok = len(_cue.sfx.library.files) >= 2 and _cue.sfx.library.scan_error == ""
+    $ _ok = _ok and "sfx_001.ogg" in _cue.sfx.library.files
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
@@ -173,8 +173,8 @@ testcase sfx_file_tree_expand:
     $ _cue.is_overlay_visible = True
     run Jump("start")
     pause 2.0
-    run Function(_cue.sfx_manager.toggle_folder, "Sub/")
-    $ if not _cue.sfx_manager.expanded_folders.get("Sub/", False): renpy.quit(status=1)
+    run Function(_cue.sfx.library.toggle_folder, "Sub/")
+    $ if not _cue.sfx.library.expanded_folders.get("Sub/", False): renpy.quit(status=1)
     $ renpy.quit()
 
 testcase music_my_music_rows:
@@ -200,20 +200,20 @@ testcase sfx_recently_used:
     $ _cue.is_overlay_visible = True
     run Jump("start")
     pause 2.0
-    $ _ok = _cue.sfx_manager._recent.entries() == []
-    $ _ok = _ok and not _cue.sfx_manager._recent.expanded
+    $ _ok = _cue.sfx.library._recent.entries() == []
+    $ _ok = _ok and not _cue.sfx.library._recent.expanded
     run Function(_cue.markers.image.send_file, 0)
-    $ _ok = _ok and _cue.sfx_manager._recent.entries() == [{"type": "file", "ref": _cue.sfx_manager.files[0]}]
-    $ _ok = _ok and not _cue.sfx_manager._recent.expanded
+    $ _ok = _ok and _cue.sfx.library._recent.entries() == [{"type": "file", "ref": _cue.sfx.library.files[0]}]
+    $ _ok = _ok and not _cue.sfx.library._recent.expanded
     run Function(_cue.markers.image.send_folder, "Sub/")
-    $ _ok = _ok and _cue.sfx_manager._recent.entries()[0] == {"type": "folder", "ref": "Sub/"}
-    $ _ok = _ok and len(_cue.sfx_manager._recent.entries()) == 2
+    $ _ok = _ok and _cue.sfx.library._recent.entries()[0] == {"type": "folder", "ref": "Sub/"}
+    $ _ok = _ok and len(_cue.sfx.library._recent.entries()) == 2
     run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
     run Function(_cue.markers.image.send_preset, "Test Preset")
-    $ _ok = _ok and len(_cue.sfx_manager._recent.entries()) == 3
+    $ _ok = _ok and len(_cue.sfx.library._recent.entries()) == 3
     run Function(_cue.markers.image.send_preset, "Test Preset")
-    $ _ok = _ok and len(_cue.sfx_manager._recent.entries()) == 3
-    $ _ok = _ok and _cue.sfx_manager._recent.entries()[0] == {"type": "preset", "ref": "Test Preset"}
+    $ _ok = _ok and len(_cue.sfx.library._recent.entries()) == 3
+    $ _ok = _ok and _cue.sfx.library._recent.entries()[0] == {"type": "preset", "ref": "Test Preset"}
     run Function(_cue_set_page, CuePage.SFX)
     pause 0.5
     $ if not _ok: renpy.quit(status=1)
@@ -265,8 +265,8 @@ testcase sfx_target_context:
     $ if not (_cue.markers.target_context == CueContextType.VIDEO): renpy.quit(status=1)
     # Compile the preset + video preset + recently-used list rows.
     run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
-    run Function(_cue.sfx_manager.toggle_presets_expand)
-    run Function(_cue.sfx_manager.toggle_video_presets_expand)
+    run Function(_cue.sfx.library.toggle_presets_expand)
+    run Function(_cue.sfx.library.toggle_video_presets_expand)
     # Image on screen: video target falls back to image; [+] routes there.
     $ _cue_test_reset()
     $ renpy.show("cueimg_a")

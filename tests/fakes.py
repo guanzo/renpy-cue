@@ -287,20 +287,61 @@ class FakeVidManager(object):
 
 class FakeSfxManager(object):
     """SFX-library stand-in for the folder-ref expansion surface markers.py
-    reads: the files list + disabled_files set."""
+    reads: the library.files list + library.disabled_files set.
+
+    The real CueSfxManager owns a CueSfxLibraryTree as ``library``, so
+    consumers read sfx_manager.library.files.  Tests keep writing
+    mgr._sfx_manager.files / .disabled_files / ._recent directly -- those
+    forward to the nested library, as do scan_calls / rebuild_calls."""
 
     def __init__(self, files=None, disabled_files=None):
-        self.files = files if files is not None else []
-        self.disabled_files = disabled_files if disabled_files is not None else set()
-        self.scan_calls = 0
-        self.rebuild_calls = 0
-        self._recent = None  # type: Optional[FakeRecent]  # set by recording tests
+        self.library = types.SimpleNamespace(
+            files=files if files is not None else [],
+            disabled_files=disabled_files if disabled_files is not None else set(),
+            _recent=None,  # type: Optional[FakeRecent]  # set by recording tests
+            scan_calls=0,
+            rebuild_calls=0,
+        )
+        self.library.scan = self._scan
+        self.library.maybe_rebuild = self._maybe_rebuild
 
-    def scan(self):
-        self.scan_calls += 1
+    def _scan(self):
+        self.library.scan_calls += 1
 
-    def maybe_rebuild(self):
-        self.rebuild_calls += 1
+    def _maybe_rebuild(self):
+        self.library.rebuild_calls += 1
+
+    @property
+    def files(self):
+        return self.library.files
+
+    @files.setter
+    def files(self, value):
+        self.library.files = value
+
+    @property
+    def disabled_files(self):
+        return self.library.disabled_files
+
+    @disabled_files.setter
+    def disabled_files(self, value):
+        self.library.disabled_files = value
+
+    @property
+    def _recent(self):
+        return self.library._recent
+
+    @_recent.setter
+    def _recent(self, value):
+        self.library._recent = value
+
+    @property
+    def scan_calls(self):
+        return self.library.scan_calls
+
+    @property
+    def rebuild_calls(self):
+        return self.library.rebuild_calls
 
 
 class FakeTrigger(object):
@@ -419,17 +460,21 @@ def make_runtime_cue(root="", audio_dir=""):
         poll_autopause=_rec("vid_manager", "poll_autopause"),
     )
 
-    # sfx_manager -- files/disabled_files read by _cue_resolve_files, plus the
-    # _recent/scan/maybe_rebuild surface _cue_full_reload drives
-    cue.sfx_manager = types.SimpleNamespace(
-        files=[],
-        disabled_files=set(),
+    # sfx_manager -- library subtree holds the tree state (_cue_resolve_files
+    # reads library.files/disabled_files; _cue_full_reload drives library
+    # scan/_recent/maybe_rebuild), the manager itself the playback channel
+    # state.  Rec keys stay "sfx_manager.X" so call assertions don't change.
+    cue.sfx = types.SimpleNamespace(
         _next_sfx_channel=0,
         _preview_channel=None,
-        _recent=types.SimpleNamespace(load=_rec("sfx_manager._recent", "load")),
-        scan=_rec("sfx_manager", "scan"),
-        rebuild_tree=_rec("sfx_manager", "rebuild_tree"),
-        maybe_rebuild=_rec("sfx_manager", "maybe_rebuild"),
+        library=types.SimpleNamespace(
+            files=[],
+            disabled_files=set(),
+            _recent=types.SimpleNamespace(load=_rec("sfx_manager._recent", "load")),
+            scan=_rec("sfx_manager", "scan"),
+            rebuild_tree=_rec("sfx_manager", "rebuild_tree"),
+            maybe_rebuild=_rec("sfx_manager", "maybe_rebuild"),
+        ),
     )
 
     # music -- user_music/game_music subtrees + driver methods

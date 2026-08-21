@@ -1,39 +1,247 @@
 # -*- coding: utf-8 -*-
-# CueSfxManager -- SFX library file scan, folder/file tree UI state, and
-# disabled files: expand/collapse, visible tree building, and the audio
-# scan that feeds them.  The tree/scan/toggle core is inherited from
-# CueAudioTreeManager; this class adds the SFX-specific extras (preset
-# folders, video preset folders, pool file-list refs, disabled files) and
-# the index/enabled fields on each file row.
-# Instantiated once at _cue.sfx_manager, lives on the NoRollback _cue object.
+# CueSfxManager -- SFX playback (shared _cue_ channels) plus the SFX library
+# orchestration around it.  The library tree (audio scan, folder/preset tree
+# UI state, disabled files) lives in CueSfxLibraryTree, owned here as
+# ``library`` -- mirroring how CueMusicManager owns its CueCombinedMusicTree.
+# Collaborators (paths/db/volume/ctx) are constructor-injected; markers is
+# late-bound via bind_markers (construction cycle with CueMarkerManager).
+# Instantiated once at _cue.sfx, lives on the NoRollback _cue object.
 
+import random as _random
 import renpy
+import renpy.audio.music as _music
 
 from cue_lib.audio.audio_tree import CueAudioTreeManager
-from cue_lib.util import _cue_resolve_files
+from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
+from cue_lib.util import (
+    _cue_log, _cue_resolve_files, _cue_pick_file,
+    is_vid_key, is_img_key, is_dlg_key,
+    get_key_file, get_key_dialogue,
+)
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List, Optional, Set
-    from cue_lib.paths import CuePaths  # pyright: ignore[reportUnusedImport]
+    from typing import Any, Dict, List, Optional, Set  # pyright: ignore[reportUnusedImport]
+    from cue_lib._types import MarkerEntry, PoolDict  # pyright: ignore[reportUnusedImport]
     from cue_lib.db import CueDatabase  # pyright: ignore[reportUnusedImport]
+    from cue_lib.markers import CueMarkerManager  # pyright: ignore[reportUnusedImport]
+    from cue_lib.paths import CuePaths  # pyright: ignore[reportUnusedImport]
+    from cue_lib.state import CueContext  # pyright: ignore[reportUnusedImport]
+    from cue_lib.volume import CueVolumeManager  # pyright: ignore[reportUnusedImport]
 
 
-class CueSfxManager(CueAudioTreeManager):
+# Quick cross-fade duration for exclusive cut-in sweeps.
+CUE_EXCLUSIVE_FADE = 0.1
+
+
+def _cue_sfx_channel_name(index):
+    # type: (int) -> str
+    """Channel name for a 1-based index into the shared _cue_ SFX channels."""
+    return "_cue_{}".format(index)
+
+
+def _cue_sfx_channel_index(ch_name):
+    # type: (str) -> int
+    """Reverse of _cue_sfx_channel_name: parse the 1-based index from a
+    shared _cue_ SFX channel name."""
+    return int(ch_name.split("_")[-1])
+
+
+class CueSfxManager(object):
+    """SFX playback + library orchestration.
+
+    Owns the SFX library tree (CueSfxLibraryTree) and the playback state
+    and methods that drive the shared _cue_ channels.  Playback methods are
+    callable via Function() from screen actions; trigger.py calls play_pool
+    / fade_out for exclusive cut-ins."""
+
+    def __init__(self, paths, db, volume, ctx, supports_relative_volume):
+        # type: (CuePaths, CueDatabase, CueVolumeManager, CueContext, bool) -> None
+        self.library = CueSfxLibraryTree(paths, db)
+        self._paths = paths
+        self._db = db
+        self._volume = volume
+        self._ctx = ctx
+        self._supports_relative_volume = supports_relative_volume
+        self._markers = None  # type: Optional[CueMarkerManager]
+
+        # SFX playback state
+        self._next_sfx_channel = 0     # round-robin fallback when all channels are busy
+        self._preview_channel = None   # channel currently playing a preview
+
+    def bind_markers(self, markers):
+        # type: (CueMarkerManager) -> None
+        """Late-bind markers -- CueMarkerManager takes sfx_manager (its
+        library) at construction, so this breaks the two-way construction
+        cycle.  Called by cue_z.rpy once markers exists; playback methods
+        read it at call time."""
+        self._markers = markers
+
+    def _markers_ctx(self):
+        # type: () -> CueMarkerManager
+        """The bound marker manager.  Always set by the time playback runs
+        (cue_z.rpy calls bind_markers at init); a missing bind is a wiring
+        bug, so fail loudly rather than skip playback silently."""
+        if self._markers is None:
+            raise RuntimeError("CueSfxManager markers not bound (bind_markers never called)")
+        return self._markers
+
+    # ------------------------------------------------------------------
+    # Playback
+    # ------------------------------------------------------------------
+
+    def play_pool(self, entry, key, pool, pool_index, file=None, avoid_repeats=True):
+        # type: (Optional[MarkerEntry], str, PoolDict, int, Optional[str], bool) -> Optional[str]
+        resolved = self._markers_ctx().resolve_pool(pool)
+        files = _cue_resolve_files(resolved.files)
+        if not files:
+            return None
+        f = file if file is not None else _cue_pick_file(files, avoid_repeats=avoid_repeats)  # type: Any
+        vol = self._volume.get_effective(entry, key, pool_index=pool_index)
+        return self.play_sfx(f, key, volume=vol)
+
+    def play_sfx(self, filename, source="", volume=1.0):
+        # type: (str, str, float) -> Optional[str]
+
+        # Apply +-10% volume jitter for natural variation
+        MAX_JITTER = 0.1
+        jitter = _random.uniform(1.0 - MAX_JITTER, 1.0 + MAX_JITTER)
+        volume = volume * jitter
+
+        full_path = self._paths.audio_dir + filename
+
+        target_ch = None
+        for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
+            ch_name = _cue_sfx_channel_name(i)
+            if not _music.is_playing(channel=ch_name):
+                target_ch = ch_name
+                break
+
+        if target_ch is None:
+            idx = self._next_sfx_channel
+            target_ch = _cue_sfx_channel_name(idx + 1)
+            self._next_sfx_channel = (idx + 1) % CUE_SFX_CHANNEL_COUNT
+        else:
+            ch_num = _cue_sfx_channel_index(target_ch)
+            self._next_sfx_channel = ch_num % CUE_SFX_CHANNEL_COUNT
+
+        try:
+            curr_file = self._ctx.current_file
+            warn = None
+            if is_vid_key(source):
+                expected_vid = get_key_file(source)
+                if expected_vid and curr_file and expected_vid != curr_file:
+                    warn = "expected vid={} actual vid={}".format(expected_vid, curr_file)
+            elif is_img_key(source):
+                expected_img = get_key_file(source)
+                if expected_img and curr_file and expected_img != curr_file:
+                    warn = "expected img={} actual img={}".format(expected_img, curr_file)
+            elif is_dlg_key(source):
+                expected_img = get_key_file(source)
+                expected_dlg = get_key_dialogue(source)
+                cur_dlg = (self._ctx.current_dialogue or "")[:40]
+                if expected_img != curr_file or expected_dlg != cur_dlg:
+                    warn = "expected img={}|{} actual img={}|{}".format(
+                        expected_img, expected_dlg, curr_file, cur_dlg)
+            if warn:
+                _cue_log("WARN CTX-MISMATCH file={} src={} {}".format(
+                    filename.rsplit("/", 1)[-1], source, warn))
+
+            if self._supports_relative_volume:
+                _music.play(full_path, channel=target_ch, loop=False, relative_volume=volume)
+            else:
+                _music.play(full_path, channel=target_ch, loop=False)
+                _music.set_volume(volume, delay=0, channel=target_ch)
+
+            _cue_log("PLAY-SFX file={} src={} ch={} jitter={} vol={:.2f}".format(
+                filename.rsplit("/", 1)[-1], source, target_ch, jitter, volume))
+
+            return target_ch
+        except Exception:
+            _cue_log("PLAY-SFX: exception during playback of {}".format(full_path))
+            return None
+
+    def preview_sfx(self, filename, volume=1.0):
+        # type: (str, float) -> None
+        prev_ch = self._preview_channel
+        if prev_ch is not None and _music.is_playing(channel=prev_ch):
+            _music.stop(channel=prev_ch, fadeout=0)
+        self._preview_channel = self.play_sfx(filename, "preview", volume=volume)
+
+    # ------------------------------------------------------------------
+    # Library previews
+    # ------------------------------------------------------------------
+
+    def preview_preset(self, preset_name):
+        # type: (str) -> None
+        preset = self._markers_ctx().get_preset(preset_name)
+        if preset is None:
+            return
+        files = _cue_resolve_files(preset.get("files", []))
+        if files:
+            f = _random.choice(files)
+            self.preview_sfx(f)
+
+    def preview_folder(self, folder_path, volume=1.0):
+        # type: (str, float) -> None
+        """Preview a random file from an SFX Library folder."""
+        files = _cue_resolve_files([folder_path])
+        if files:
+            f = _random.choice(files)
+            self.preview_sfx(f, volume=volume)
+
+    def preview_video_preset(self, preset_name):
+        # type: (str) -> None
+        """Preview a random file from a video preset (across all pools)."""
+        preset = self._markers_ctx().get_video_preset(preset_name)
+        if preset is None:
+            return
+        all_files = []
+        for pool in preset.get("pools", []):
+            all_files.extend(pool.get("files", []))
+        resolved = _cue_resolve_files(all_files)
+        if resolved:
+            f = _random.choice(resolved)
+            self.preview_sfx(f)
+
+    def fade_out(self, exclude_channels=None, only_channels=None):
+        # type: (Optional[List[str]], Optional[List[str]]) -> int
+        """Quickly fade out SFX on the shared _cue_ channels.
+
+        ``exclude_channels`` are same-group channels to spare; ``only_channels``
+        restricts the sweep to a single domain (loops fade only loops, one-shots
+        fade only one-shots). Returns the number of channels faded."""
+        excluded = set(exclude_channels) if exclude_channels else set()
+        only = set(only_channels) if only_channels is not None else None
+        faded = 0
+        for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
+            ch_name = _cue_sfx_channel_name(i)
+            if only is not None and ch_name not in only:
+                continue
+            if ch_name in excluded:
+                continue
+            if _music.is_playing(channel=ch_name):
+                _music.stop(channel=ch_name, fadeout=CUE_EXCLUSIVE_FADE)
+                faded += 1
+        return faded
+
+
+class CueSfxLibraryTree(CueAudioTreeManager):
     """SFX library audio tree state, expand/collapse, disabled files, and scan.
 
     Owns all UI state for the SFX Library audio tree, preset folders,
     video preset folders, section frames, and pool file-list folder refs.
     The audio file caches (files / tree / scan_error) and the scan that
     builds them live in CueAudioTreeManager.  Provides toggle methods
-    callable via Function() from screen actions."""
+    callable via Function() from screen actions.  Owned by CueSfxManager
+    as its ``library`` attribute."""
 
     _scan_label = "audio folder"
     _log_tag = "AUDIO"
 
     def __init__(self, paths, db):
         # type: (CuePaths, CueDatabase) -> None
-        super(CueSfxManager, self).__init__()
+        super(CueSfxLibraryTree, self).__init__()
         self._paths = paths
         self._db = db
 
@@ -54,10 +262,6 @@ class CueSfxManager(CueAudioTreeManager):
         # Overlay mode: SFX Library section floats at 50% height
         self.overlay_mode = False
 
-        # SFX playback state
-        self._next_sfx_channel = 0     # round-robin fallback when all channels are busy
-        self._preview_channel = None   # channel currently playing a preview
-
     # ------------------------------------------------------------------
     # Scanning
     # ------------------------------------------------------------------
@@ -70,7 +274,7 @@ class CueSfxManager(CueAudioTreeManager):
     def _file_node(self, item, full, depth):
         # type: (Dict[str, Any], str, int) -> Dict[str, Any]
         """File row with index/enabled for the SFX Library."""
-        node = super(CueSfxManager, self)._file_node(item, full, depth)
+        node = super(CueSfxLibraryTree, self)._file_node(item, full, depth)
         node["index"] = self._file_index.get(full, -1)
         node["enabled"] = full not in self.disabled_files
         return node
@@ -159,7 +363,6 @@ class CueSfxManager(CueAudioTreeManager):
         """Toggle overlay mode for the SFX Library section.
         Enabling overlay mode collapses the section if expanded.
         Exiting overlay mode expands the section if collapsed."""
-        was_overlay = self.overlay_mode
-        self.overlay_mode = not was_overlay
+        self.overlay_mode = not self.overlay_mode
 
         renpy.restart_interaction()

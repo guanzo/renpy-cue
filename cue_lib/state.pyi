@@ -79,7 +79,7 @@ class Cue:
     video_sequence: CueVidSpeedSequence
     speed_toast: CueSpeedToast
     auto_speed: CueAutoSpeedGenerator
-    sfx_manager: CueSfxManager
+    sfx: CueSfxManager
     settings: CueSettings
     dialogs: CueDialogs
     keybinds: CueKeybindsManager

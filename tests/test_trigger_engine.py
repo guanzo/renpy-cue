@@ -3,18 +3,21 @@
 #
 # The engine is constructor-injected (store/repeater/speed_resolver/vid_manager/
 # markers), so every collaborator is a fake and the tick/context state machines
-# run headlessly.  _cue_play_pool / _cue_fade_out_sfx are imported lazily from
-# cue_lib.runtime at call time, so they're monkeypatched on that module.
-# _cue_resolve_files is auto-patched to identity -- file resolution reads the
-# _cue singleton's sfx_manager, which unit tests don't wire up.
+# run headlessly.  _cue_resolve_files is auto-patched to identity -- file
+# resolution reads the _cue singleton's sfx_manager, which unit tests don't wire
+# up.  play_pool / fade_out live on the _cue singleton's sfx_manager, so the
+# playback fixtures fake that surface instead of a runtime module function.
+
+import types
 
 import pytest
 
 import renpy.store as _store
+import renpy.audio.music as _music
 
 import cue_lib.trigger as _trigger
-import cue_lib.runtime as _runtime
-from cue_lib.trigger import CueTriggerEngine, CUE_EXCL_KIND_LOOP, CUE_EXCL_KIND_ONESHOT
+from cue_lib.trigger import (
+    CueTriggerEngine, CUE_EXCL_KIND_LOOP, CUE_EXCL_KIND_ONESHOT, _cue_loop_still_playing)
 from cue_lib.constants import CueExclusiveStart, CueLoopFrequency
 
 from tests.fakes import (
@@ -28,30 +31,38 @@ def _identity_resolve_files(monkeypatch):
 
 
 @pytest.fixture
-def play_stub(monkeypatch):
-    """Stub _cue_play_pool that records (key, pool_index, file) and returns a
-    truthy channel so the caller records a play."""
-    calls = []
-
-    def fake_play(entry, key, pool, pool_index, **kw):
-        calls.append((key, pool_index, kw.get("file")))
-        return "cue_sfx_1"
-
-    monkeypatch.setattr(_runtime, "_cue_play_pool", fake_play)
-    return calls
+def sfx_playback(monkeypatch):
+    """Fake _cue.sfx surface trigger.py drives: play_pool + fade_out."""
+    mgr = types.SimpleNamespace(play_pool=None, fade_out=None)
+    calls = types.SimpleNamespace(play=[], fade=[])
+    monkeypatch.setattr(_trigger._cue, "sfx", mgr)
+    return mgr, calls
 
 
 @pytest.fixture
-def fade_stub(monkeypatch):
-    """Stub _cue_fade_out_sfx recording its kwargs."""
-    calls = []
+def play_stub(sfx_playback):
+    """Record (key, pool_index, file) for _cue.sfx.play_pool calls."""
+    mgr, calls = sfx_playback
+
+    def fake_play(entry, key, pool, pool_index, **kw):
+        calls.play.append((key, pool_index, kw.get("file")))
+        return "cue_sfx_1"
+
+    mgr.play_pool = fake_play
+    return calls.play
+
+
+@pytest.fixture
+def fade_stub(sfx_playback):
+    """Record kwargs for _cue.sfx.fade_out calls."""
+    mgr, calls = sfx_playback
 
     def fake_fade(**kw):
-        calls.append(kw)
+        calls.fade.append(kw)
         return []
 
-    monkeypatch.setattr(_runtime, "_cue_fade_out_sfx", fake_fade)
-    return calls
+    mgr.fade_out = fake_fade
+    return calls.fade
 
 
 def make_engine(store=None, repeater=None, speed=None, vid=None, markers=None):
@@ -76,6 +87,29 @@ def loop_store():
     return FakeMarkerStore({
         "l_scene.ogg": {"pools": [
             {"files": ["a.ogg"], "frequency": CueLoopFrequency.MEDIUM}]}})
+
+
+# ---------------------------------------------------------------------------
+# _cue_loop_still_playing (moved here from util.py with the trigger engine)
+# ---------------------------------------------------------------------------
+
+def test_loop_still_playing_all_silent(monkeypatch):
+    monkeypatch.setattr(_music, "is_playing", lambda channel="music", **k: False)
+    assert _cue_loop_still_playing(["a", "b"]) is False
+
+
+def test_loop_still_playing_one_playing(monkeypatch):
+    def _is_playing(channel="music", **k):
+        return channel == "b"
+    monkeypatch.setattr(_music, "is_playing", _is_playing)
+    assert _cue_loop_still_playing(["a", "b"]) is True
+
+
+def test_loop_still_playing_unknown_channel_skipped(monkeypatch):
+    def _is_playing(channel="music", **k):
+        raise Exception("unknown channel")
+    monkeypatch.setattr(_music, "is_playing", _is_playing)
+    assert _cue_loop_still_playing(["x"]) is False
 
 
 # ---------------------------------------------------------------------------

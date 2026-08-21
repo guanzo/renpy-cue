@@ -12,7 +12,7 @@ from cue_lib.constants import CUE_VOLUME_DEFAULT
 from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
 from cue_lib.util import (
-    _cue_log, _cue_resolve_files, _cue_pick_file, _cue_loop_still_playing,
+    _cue_log, _cue_resolve_files, _cue_pick_file,
     create_loop_key, create_vid_key, get_key_file, is_dlg_key,
 )
 
@@ -31,6 +31,19 @@ if MYPY:
 # exclusive loop leaves image/dialogue SFX untouched and vice versa.
 CUE_EXCL_KIND_LOOP = "loop"
 CUE_EXCL_KIND_ONESHOT = "oneshot"
+
+
+def _cue_loop_still_playing(channels):
+    # type: (List[str]) -> bool
+    """True if any channel in the list is currently playing.
+    Unknown/unregistered channels are treated as silent."""
+    for ch in channels:
+        try:
+            if _music.is_playing(channel=ch):
+                return True
+        except Exception:
+            pass
+    return False
 
 
 def _cue_pick_deduped(files, picked, max_tries=3):
@@ -262,16 +275,14 @@ class CueTriggerEngine(object):
                     continue
                 picked.append(file)
 
-                # _cue_play_pool is in runtime.py; import lazily to avoid cycle
-                from cue_lib.runtime import _cue_play_pool, _cue_fade_out_sfx
                 if excl.start == CueExclusiveStart.FADE:
                     # Cut-in: fade out one-shots outside this group, plus any
                     # playing loops and video SFX (one-shots cut loops).
-                    faded = _cue_fade_out_sfx(
+                    faded = _cue.sfx.fade_out(
                         exclude_channels=self._excl_group_channels(CUE_EXCL_KIND_ONESHOT, scene, line))
                     _cue_log("CTX-FADE key={} pool={} faded={}".format(
                         key, pi, faded))
-                ch_used = _cue_play_pool(entry, key, pool, pi, file=file)
+                ch_used = _cue.sfx.play_pool(entry, key, pool, pi, file=file)
                 self._excl_track(ch_used, CUE_EXCL_KIND_ONESHOT, scene, line, excl.hold)
 
     # -- loop triggers (l: keys) --
@@ -351,15 +362,14 @@ class CueTriggerEngine(object):
             if picked_file is None:
                 continue
             picked.append(picked_file)
-            from cue_lib.runtime import _cue_play_pool, _cue_fade_out_sfx
             if excl.start == CueExclusiveStart.FADE:
                 # Cut-in: fade out other loops (never image/dialogue SFX).
-                faded = _cue_fade_out_sfx(
+                faded = _cue.sfx.fade_out(
                     exclude_channels=self._excl_group_channels(CUE_EXCL_KIND_LOOP, None, None),
                     only_channels=self._excl_kind_channels(CUE_EXCL_KIND_LOOP))
                 _cue_log("TICK#{} POOL-SWEEP key={} pool={} faded={}".format(
                     tick, loop_key, pi, faded))
-            ch_used = _cue_play_pool(entry, loop_key, pool, pi, file=picked_file)
+            ch_used = _cue.sfx.play_pool(entry, loop_key, pool, pi, file=picked_file)
             if ch_used:
                 pst["channels"] = [ch_used]
                 pst["play_start"] = now
@@ -442,8 +452,7 @@ class CueTriggerEngine(object):
                         continue
 
                     if _cue_marker_reached(pool_entry["time"], effective_elapsed, prev_eff, marker_tolerance):
-                        from cue_lib.runtime import _cue_play_pool
-                        f = _cue_play_pool(entry, vid_key, pool_entry, pool_index, avoid_repeats=False)  # pyright: ignore[reportArgumentType]
+                        f = _cue.sfx.play_pool(entry, vid_key, pool_entry, pool_index, avoid_repeats=False)  # pyright: ignore[reportArgumentType]
                         if f:
                             self.played_video_keys.add(ts_key)
 

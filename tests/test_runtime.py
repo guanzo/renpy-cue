@@ -17,10 +17,12 @@ import renpy.audio.audio as _aaudio
 import renpy.audio.music as _music_mock
 import renpy.store as _store
 
+import cue_lib.audio.sfx_manager as _sfx_manager
 import cue_lib.markers as _markers
 import cue_lib.runtime as _runtime
 import cue_lib.settings as _settings
 import cue_lib.util as _util
+from cue_lib.audio.sfx_manager import CueSfxManager
 from cue_lib.constants import CuePage
 from cue_lib.state import _cue
 from tests.fakes import make_runtime_cue
@@ -64,7 +66,7 @@ def test_toggle_overlay_shows_when_hidden(cue, monkeypatch):
 
 
 def test_show_overlay_scans_empty_libraries(cue):
-    cue.sfx_manager.files = []
+    cue.sfx.library.files = []
     cue.music.user_music.files = []
     _runtime._cue_show_overlay()
     assert cue.is_overlay_visible is True
@@ -75,7 +77,7 @@ def test_show_overlay_scans_empty_libraries(cue):
 
 
 def test_show_overlay_skips_scan_when_populated(cue):
-    cue.sfx_manager.files = ["a.ogg"]
+    cue.sfx.library.files = ["a.ogg"]
     cue.music.user_music.files = ["m.ogg"]
     _runtime._cue_show_overlay()
     assert "sfx_manager.scan" not in cue.calls
@@ -467,6 +469,7 @@ def test_refresh_context_shake_skips_duplicate_after_file_change(cue, monkeypatc
 def _rec_log(monkeypatch):
     msgs = []
     monkeypatch.setattr(_runtime, "_cue_log", lambda m: msgs.append(m))
+    monkeypatch.setattr(_sfx_manager, "_cue_log", lambda m: msgs.append(m))
     return msgs
 
 
@@ -518,35 +521,47 @@ def test_log_context_is_playing_exception(cue, monkeypatch):
 
 
 # ==========================================================================
-# _cue_play_pool
+# CueSfxManager.play_pool
 # ==========================================================================
 
-def test_play_pool_no_files_returns_none(cue, monkeypatch):
+@pytest.fixture
+def sfx_mgr(cue):
+    """Real CueSfxManager with injected collaborators.  paths/volume/markers/
+    ctx are the same objects the cue fixture exposes, so tests keep driving
+    them through cue.* -- only the relative-volume flag is snapshotted (set
+    it via sfx_mgr._supports_relative_volume)."""
+    mgr = CueSfxManager(
+        cue.paths, types.SimpleNamespace(), cue.volume, cue.ctx, cue._has_relative_volume)
+    mgr.bind_markers(cue.markers)
+    return mgr
+
+
+def test_play_pool_no_files_returns_none(cue, sfx_mgr):
     cue.markers.resolve_pool = lambda pool: types.SimpleNamespace(files=[])
-    assert _runtime._cue_play_pool(None, "i_scene.ogv", {}, 0) is None
+    assert sfx_mgr.play_pool(None, "i_scene.ogv", {}, 0) is None
 
 
-def test_play_pool_file_override(cue, monkeypatch):
+def test_play_pool_file_override(cue, sfx_mgr, monkeypatch):
     cue.markers.resolve_pool = (
         lambda pool: types.SimpleNamespace(files=["a.ogg", "b.ogg"]))
-    cue.sfx_manager.files = ["a.ogg", "b.ogg"]
+    cue.sfx.library.files = ["a.ogg", "b.ogg"]
     played = []
-    monkeypatch.setattr(_runtime, "_cue_play_sfx",
+    monkeypatch.setattr(sfx_mgr, "play_sfx",
                         lambda f, key, volume=1.0:
                             played.append((f, key, volume)) or "cue_1")
     cue.volume.get_effective = lambda entry, key, pool_index: 0.5
-    ch = _runtime._cue_play_pool(None, "i_scene.ogv", {}, 0, file="b.ogg")
+    ch = sfx_mgr.play_pool(None, "i_scene.ogv", {}, 0, file="b.ogg")
     assert ch == "cue_1"
     assert played == [("b.ogg", "i_scene.ogv", 0.5)]
 
 
-def test_play_pool_picks_file(cue, monkeypatch):
+def test_play_pool_picks_file(cue, sfx_mgr, monkeypatch):
     cue.markers.resolve_pool = (
         lambda pool: types.SimpleNamespace(files=["a.ogg"]))
     played = []
-    monkeypatch.setattr(_runtime, "_cue_play_sfx",
+    monkeypatch.setattr(sfx_mgr, "play_sfx",
                         lambda f, key, volume=1.0: played.append(f) or "cue_1")
-    _runtime._cue_play_pool(None, "i_scene.ogv", {}, 0)
+    sfx_mgr.play_pool(None, "i_scene.ogv", {}, 0)
     assert played == ["a.ogg"]
 
 
@@ -814,120 +829,123 @@ def test_tick_processing_polls_job_queue(cue, monkeypatch):
 
 
 # ==========================================================================
-# SFX / music previews
+# CueSfxManager previews
 # ==========================================================================
 
-def test_preview_preset_missing(cue, monkeypatch):
+def test_preview_preset_missing(cue, sfx_mgr, monkeypatch):
     cue.markers.get_preset = lambda name: None
     played = []
-    monkeypatch.setattr(_runtime, "_cue_preview_sfx", lambda f: played.append(f))
-    _runtime._cue_preview_preset("p")
+    monkeypatch.setattr(sfx_mgr, "preview_sfx", lambda f: played.append(f))
+    sfx_mgr.preview_preset("p")
     assert played == []
 
 
-def test_preview_preset_plays_random(cue, monkeypatch):
+def test_preview_preset_plays_random(cue, sfx_mgr, monkeypatch):
     cue.markers.get_preset = lambda name: {"files": ["a.ogg", "b.ogg"]}
-    cue.sfx_manager.files = ["a.ogg", "b.ogg"]
+    cue.sfx.library.files = ["a.ogg", "b.ogg"]
     played = []
-    monkeypatch.setattr(_runtime._random, "choice", lambda files: files[1])
-    monkeypatch.setattr(_runtime, "_cue_preview_sfx", lambda f: played.append(f))
-    _runtime._cue_preview_preset("p")
+    monkeypatch.setattr(_sfx_manager._random, "choice", lambda files: files[1])
+    monkeypatch.setattr(sfx_mgr, "preview_sfx", lambda f: played.append(f))
+    sfx_mgr.preview_preset("p")
     assert played == ["b.ogg"]
 
 
-def test_preview_preset_empty_files(cue, monkeypatch):
+def test_preview_preset_empty_files(cue, sfx_mgr, monkeypatch):
     cue.markers.get_preset = lambda name: {"files": []}
     played = []
-    monkeypatch.setattr(_runtime, "_cue_preview_sfx", lambda f: played.append(f))
-    _runtime._cue_preview_preset("p")
+    monkeypatch.setattr(sfx_mgr, "preview_sfx", lambda f: played.append(f))
+    sfx_mgr.preview_preset("p")
     assert played == []
 
 
-def test_preview_folder_plays_with_volume(cue, monkeypatch):
-    cue.sfx_manager.files = ["sfx/dir/a.ogg", "sfx/dir/b.ogg"]
+def test_preview_folder_plays_with_volume(cue, sfx_mgr, monkeypatch):
+    cue.sfx.library.files = ["sfx/dir/a.ogg", "sfx/dir/b.ogg"]
     played = []
-    monkeypatch.setattr(_runtime._random, "choice", lambda files: files[0])
-    monkeypatch.setattr(_runtime, "_cue_preview_sfx",
+    monkeypatch.setattr(_sfx_manager._random, "choice", lambda files: files[0])
+    monkeypatch.setattr(sfx_mgr, "preview_sfx",
                         lambda f, volume=1.0: played.append((f, volume)))
-    _runtime._cue_preview_folder("sfx/dir/", volume=0.5)
+    sfx_mgr.preview_folder("sfx/dir/", volume=0.5)
     assert played == [("sfx/dir/a.ogg", 0.5)]
 
 
-def test_preview_folder_empty(cue, monkeypatch):
-    cue.sfx_manager.files = []
+def test_preview_folder_empty(cue, sfx_mgr, monkeypatch):
+    cue.sfx.library.files = []
     played = []
-    monkeypatch.setattr(_runtime, "_cue_preview_sfx",
+    monkeypatch.setattr(sfx_mgr, "preview_sfx",
                         lambda f, volume=1.0: played.append(f))
-    _runtime._cue_preview_folder("sfx/dir/")
+    sfx_mgr.preview_folder("sfx/dir/")
     assert played == []
 
 
-def test_preview_video_preset_aggregates_pools(cue, monkeypatch):
+def test_preview_video_preset_aggregates_pools(cue, sfx_mgr, monkeypatch):
     cue.markers.get_video_preset = lambda name: {
         "pools": [{"files": ["a.ogg"]}, {"files": ["b.ogg", "c.ogg"]}]}
-    cue.sfx_manager.files = ["a.ogg", "b.ogg", "c.ogg"]
+    cue.sfx.library.files = ["a.ogg", "b.ogg", "c.ogg"]
     played = []
-    monkeypatch.setattr(_runtime._random, "choice", lambda files: files[1])
-    monkeypatch.setattr(_runtime, "_cue_preview_sfx", lambda f: played.append(f))
-    _runtime._cue_preview_video_preset("p")
+    monkeypatch.setattr(_sfx_manager._random, "choice", lambda files: files[1])
+    monkeypatch.setattr(sfx_mgr, "preview_sfx", lambda f: played.append(f))
+    sfx_mgr.preview_video_preset("p")
     assert played == ["b.ogg"]
 
 
-def test_preview_video_preset_missing(cue, monkeypatch):
+def test_preview_video_preset_missing(cue, sfx_mgr, monkeypatch):
     cue.markers.get_video_preset = lambda name: None
     played = []
-    monkeypatch.setattr(_runtime, "_cue_preview_sfx", lambda f: played.append(f))
-    _runtime._cue_preview_video_preset("p")
+    monkeypatch.setattr(sfx_mgr, "preview_sfx", lambda f: played.append(f))
+    sfx_mgr.preview_video_preset("p")
     assert played == []
 
 
-def test_preview_sfx_stops_previous(cue, monkeypatch):
+def test_preview_sfx_stops_previous(cue, sfx_mgr, monkeypatch):
     _music_mock.play("old.ogg", channel="_cue_1")
-    cue.sfx_manager._preview_channel = "_cue_1"
-    monkeypatch.setattr(_runtime, "_cue_play_sfx",
+    sfx_mgr._preview_channel = "_cue_1"
+    monkeypatch.setattr(sfx_mgr, "play_sfx",
                         lambda f, source, volume=1.0: "cue_2")
-    _runtime._cue_preview_sfx("new.ogg")
+    sfx_mgr.preview_sfx("new.ogg")
     assert _music_mock._registry["_cue_1"]["playing"] is None  # stopped
-    assert cue.sfx_manager._preview_channel == "cue_2"
+    assert sfx_mgr._preview_channel == "cue_2"
 
 
-def test_preview_sfx_no_previous(cue, monkeypatch):
-    cue.sfx_manager._preview_channel = None
-    monkeypatch.setattr(_runtime, "_cue_play_sfx",
+def test_preview_sfx_no_previous(cue, sfx_mgr, monkeypatch):
+    sfx_mgr._preview_channel = None
+    monkeypatch.setattr(sfx_mgr, "play_sfx",
                         lambda f, source, volume=1.0: "cue_1")
-    _runtime._cue_preview_sfx("new.ogg")
-    assert cue.sfx_manager._preview_channel == "cue_1"
+    sfx_mgr.preview_sfx("new.ogg")
+    assert sfx_mgr._preview_channel == "cue_1"
 
 
 
 # ==========================================================================
-# _cue_play_sfx
+# CueSfxManager.play_sfx
 # ==========================================================================
 
-def test_play_sfx_free_channel(cue, monkeypatch):
-    monkeypatch.setattr(_runtime._random, "uniform", lambda a, b: 1.0)
-    cue.sfx_manager._next_sfx_channel = 0
-    ch = _runtime._cue_play_sfx("a.ogg", "preview", volume=0.5)
+def test_play_sfx_free_channel(cue, sfx_mgr, monkeypatch):
+    # Legacy (<7.5) path: _has_relative_volume is True under the mock's 8.0.0,
+    # so pin the snapshot to False to exercise set_volume.
+    sfx_mgr._supports_relative_volume = False
+    monkeypatch.setattr(_sfx_manager._random, "uniform", lambda a, b: 1.0)
+    sfx_mgr._next_sfx_channel = 0
+    ch = sfx_mgr.play_sfx("a.ogg", "preview", volume=0.5)
     assert ch == "_cue_1"
     assert _music_mock._registry["_cue_1"]["playing"] == \
         cue.paths.audio_dir + "a.ogg"
     assert _music_mock._registry["_cue_1"]["volume"] == 0.5  # set_volume path
-    assert cue.sfx_manager._next_sfx_channel == 1
+    assert sfx_mgr._next_sfx_channel == 1
 
 
-def test_play_sfx_round_robin_when_all_busy(cue, monkeypatch):
-    monkeypatch.setattr(_runtime._random, "uniform", lambda a, b: 1.0)
+def test_play_sfx_round_robin_when_all_busy(cue, sfx_mgr, monkeypatch):
+    monkeypatch.setattr(_sfx_manager._random, "uniform", lambda a, b: 1.0)
     for i in range(1, 9):
         _music_mock.play("busy.ogg", channel="_cue_{}".format(i))
-    cue.sfx_manager._next_sfx_channel = 3
-    _runtime._cue_play_sfx("a.ogg")
+    sfx_mgr._next_sfx_channel = 3
+    sfx_mgr.play_sfx("a.ogg")
     assert _music_mock._registry["_cue_4"]["playing"] == \
         cue.paths.audio_dir + "a.ogg"
-    assert cue.sfx_manager._next_sfx_channel == 4
+    assert sfx_mgr._next_sfx_channel == 4
 
 
-def test_play_sfx_relative_volume(cue, monkeypatch):
-    monkeypatch.setattr(_runtime._random, "uniform", lambda a, b: 1.0)
+def test_play_sfx_relative_volume(cue, sfx_mgr, monkeypatch):
+    monkeypatch.setattr(_sfx_manager._random, "uniform", lambda a, b: 1.0)
     recorded = {}
 
     def _play(filenames, channel="music", loop=None, **kwargs):
@@ -935,94 +953,94 @@ def test_play_sfx_relative_volume(cue, monkeypatch):
         recorded["kwargs"] = kwargs
 
     monkeypatch.setattr(_music_mock, "play", _play)
-    cue._has_relative_volume = True
-    _runtime._cue_play_sfx("a.ogg", volume=0.5)
+    sfx_mgr._supports_relative_volume = True
+    sfx_mgr.play_sfx("a.ogg", volume=0.5)
     assert recorded["channel"] == "_cue_1"
     assert recorded["kwargs"]["relative_volume"] == 0.5
 
 
-def test_play_sfx_vid_mismatch_warns(cue, monkeypatch):
+def test_play_sfx_vid_mismatch_warns(cue, sfx_mgr, monkeypatch):
     msgs = _rec_log(monkeypatch)
-    monkeypatch.setattr(_runtime._random, "uniform", lambda a, b: 1.0)
+    monkeypatch.setattr(_sfx_manager._random, "uniform", lambda a, b: 1.0)
     cue.current_file = "actual.ogv"
-    _runtime._cue_play_sfx("a.ogg", "v_expected.ogv")
+    sfx_mgr.play_sfx("a.ogg", "v_expected.ogv")
     assert any("WARN CTX-MISMATCH" in m for m in msgs)
 
 
-def test_play_sfx_img_mismatch_warns(cue, monkeypatch):
+def test_play_sfx_img_mismatch_warns(cue, sfx_mgr, monkeypatch):
     msgs = _rec_log(monkeypatch)
-    monkeypatch.setattr(_runtime._random, "uniform", lambda a, b: 1.0)
+    monkeypatch.setattr(_sfx_manager._random, "uniform", lambda a, b: 1.0)
     cue.current_file = "actual.ogv"
-    _runtime._cue_play_sfx("a.ogg", "i_expected.ogv")
+    sfx_mgr.play_sfx("a.ogg", "i_expected.ogv")
     assert any("WARN CTX-MISMATCH" in m for m in msgs)
 
 
-def test_play_sfx_dlg_mismatch_warns(cue, monkeypatch):
+def test_play_sfx_dlg_mismatch_warns(cue, sfx_mgr, monkeypatch):
     msgs = _rec_log(monkeypatch)
-    monkeypatch.setattr(_runtime._random, "uniform", lambda a, b: 1.0)
+    monkeypatch.setattr(_sfx_manager._random, "uniform", lambda a, b: 1.0)
     cue.current_file = "actual.ogv"
     cue.current_dialogue = "Now"
-    _runtime._cue_play_sfx("a.ogg", "d_expected.ogv__Hello")
+    sfx_mgr.play_sfx("a.ogg", "d_expected.ogv__Hello")
     assert any("WARN CTX-MISMATCH" in m for m in msgs)
 
 
-def test_play_sfx_matching_no_warn(cue, monkeypatch):
+def test_play_sfx_matching_no_warn(cue, sfx_mgr, monkeypatch):
     msgs = _rec_log(monkeypatch)
-    monkeypatch.setattr(_runtime._random, "uniform", lambda a, b: 1.0)
+    monkeypatch.setattr(_sfx_manager._random, "uniform", lambda a, b: 1.0)
     cue.current_file = "scene.ogv"
-    _runtime._cue_play_sfx("a.ogg", "i_scene.ogv")
+    sfx_mgr.play_sfx("a.ogg", "i_scene.ogv")
     assert not any("WARN CTX-MISMATCH" in m for m in msgs)
 
 
-def test_play_sfx_exception_returns_none(cue, monkeypatch):
+def test_play_sfx_exception_returns_none(cue, sfx_mgr, monkeypatch):
     msgs = _rec_log(monkeypatch)
-    monkeypatch.setattr(_runtime._random, "uniform", lambda a, b: 1.0)
+    monkeypatch.setattr(_sfx_manager._random, "uniform", lambda a, b: 1.0)
 
     def _boom(*args, **kwargs):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(_music_mock, "play", _boom)
-    assert _runtime._cue_play_sfx("a.ogg") is None
+    assert sfx_mgr.play_sfx("a.ogg") is None
     assert any("PLAY-SFX: exception during playback" in m for m in msgs)
 
 
 # ==========================================================================
-# _cue_fade_out_sfx
+# CueSfxManager.fade_out
 # ==========================================================================
 
-def test_fade_out_sfx_counts_faded(cue):
+def test_fade_out_sfx_counts_faded(cue, sfx_mgr):
     for i in range(1, 5):
         _music_mock.play("busy.ogg", channel="_cue_{}".format(i))
-    n = _runtime._cue_fade_out_sfx()
+    n = sfx_mgr.fade_out()
     assert n == 4
     for i in range(1, 5):
         assert _music_mock._registry["_cue_{}".format(i)]["playing"] is None
 
 
-def test_fade_out_sfx_exclude_channels(cue):
+def test_fade_out_sfx_exclude_channels(cue, sfx_mgr):
     for i in range(1, 4):
         _music_mock.play("busy.ogg", channel="_cue_{}".format(i))
-    n = _runtime._cue_fade_out_sfx(exclude_channels=["_cue_2"])
+    n = sfx_mgr.fade_out(exclude_channels=["_cue_2"])
     assert n == 2  # _cue_2 spared
 
 
-def test_fade_out_sfx_only_channels(cue):
+def test_fade_out_sfx_only_channels(cue, sfx_mgr):
     for i in range(1, 6):
         _music_mock.play("busy.ogg", channel="_cue_{}".format(i))
-    n = _runtime._cue_fade_out_sfx(only_channels=["_cue_1", "_cue_2"])
+    n = sfx_mgr.fade_out(only_channels=["_cue_1", "_cue_2"])
     assert n == 2
 
 
-def test_fade_out_sfx_exclude_and_only(cue):
+def test_fade_out_sfx_exclude_and_only(cue, sfx_mgr):
     for i in range(1, 4):
         _music_mock.play("busy.ogg", channel="_cue_{}".format(i))
-    n = _runtime._cue_fade_out_sfx(exclude_channels=["_cue_1"],
-                                   only_channels=["_cue_1", "_cue_3"])
+    n = sfx_mgr.fade_out(exclude_channels=["_cue_1"],
+                         only_channels=["_cue_1", "_cue_3"])
     assert n == 1  # _cue_1 excluded, _cue_3 faded
 
 
-def test_fade_out_sfx_none_playing(cue):
-    assert _runtime._cue_fade_out_sfx() == 0
+def test_fade_out_sfx_none_playing(cue, sfx_mgr):
+    assert sfx_mgr.fade_out() == 0
 
 
 # ==========================================================================
@@ -1050,7 +1068,7 @@ class _RaisingTrigger(object):
 # don't leak fakes into other test modules.
 _CUE_ATTRS = [
     "ctx", "vid_manager", "video_sequence", "trigger", "volume",
-    "video_editor", "sfx_manager", "music",
+    "video_editor", "sfx", "music",
 ]
 
 
@@ -1084,7 +1102,7 @@ def _install_tick_collaborators(trigger=None):
     _cue.trigger = trigger if trigger is not None else _RaisingTrigger()
     _cue.volume = SimpleNamespace(flush_pending_saves=lambda: None)
     _cue.video_editor = SimpleNamespace(processing=False)
-    _cue.sfx_manager = SimpleNamespace(maybe_rebuild=lambda: None)
+    _cue.sfx = SimpleNamespace(library=SimpleNamespace(maybe_rebuild=lambda: None))
     _cue.music = SimpleNamespace(
         user_music=SimpleNamespace(maybe_rebuild=lambda: None),
         game_music=SimpleNamespace(maybe_rebuild=lambda: None))
@@ -1106,7 +1124,7 @@ def test_tick_guard_contains_slow_lane_error(isolated_cue, captured_log):
     _cue.volume = SimpleNamespace(flush_pending_saves=lambda: None)
     _cue.video_editor = SimpleNamespace(
         processing=True, job_queue=SimpleNamespace(poll=lambda: None))
-    _cue.sfx_manager = SimpleNamespace(maybe_rebuild=lambda: None)
+    _cue.sfx = SimpleNamespace(library=SimpleNamespace(maybe_rebuild=lambda: None))
     _cue.music = SimpleNamespace(
         user_music=SimpleNamespace(maybe_rebuild=_boom),
         game_music=SimpleNamespace(maybe_rebuild=lambda: None))

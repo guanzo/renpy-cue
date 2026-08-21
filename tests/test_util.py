@@ -2,8 +2,8 @@
 # Tests for the pure logic in cue_lib.util -- key helpers, time formatting,
 # persistent unwrapping, file-tree / file-picking, OS-safe file replace, and
 # the displayable/movie/SFX helpers.  Functions that reach the _cue singleton
-# or Ren'Py runtime monkeypatch the specific seam (e.g. _cue.sfx_manager,
-# _music.is_playing) instead of touching the real runtime.
+# or Ren'Py runtime monkeypatch the specific seam (e.g. _cue.sfx)
+# instead of touching the real runtime.
 
 import functools
 import os
@@ -14,9 +14,7 @@ import cue_lib.constants as _constants
 import pygame
 import renpy
 import renpy.atl as _atl
-import renpy.audio.music as _music
 import renpy.config as _config
-import renpy.display.im as _im
 import renpy.display.video as _video
 
 from cue_lib.state import _cue
@@ -28,18 +26,14 @@ from cue_lib.util import (
     _cue_clear_debug_log,
     _cue_format_time,
     _cue_flush_debug_log,
-    _cue_get_movie_or_image,
     _cue_get_movie_play,
     _cue_is_screenshake,
-    _cue_loop_still_playing,
     _cue_log,
     _cue_make_tab_action,
     _cue_parse_time,
     _cue_pick_file,
     _cue_replace_file,
     _cue_resolve_files,
-    _cue_sfx_channel_index,
-    _cue_sfx_channel_name,
     _cue_shift_held,
     _cue_speed_label,
     _cue_strip_key_prefix,
@@ -401,21 +395,24 @@ def test_build_tree_folder_without_direct_files():
 # ---------------------------------------------------------------------------
 
 def test_resolve_files_expands_folder_refs(monkeypatch):
-    monkeypatch.setattr(_cue, "sfx_manager",
-                        SimpleNamespace(files=["music/a.ogg", "music/b.ogg", "other.ogg"],
-                                        disabled_files=set(["music/b.ogg"])))
+    monkeypatch.setattr(_cue, "sfx",
+                        SimpleNamespace(library=SimpleNamespace(
+                            files=["music/a.ogg", "music/b.ogg", "other.ogg"],
+                            disabled_files=set(["music/b.ogg"]))))
     assert _cue_resolve_files(["music/"]) == ["music/a.ogg"]
 
 
 def test_resolve_files_passthrough_and_dedupe(monkeypatch):
-    monkeypatch.setattr(_cue, "sfx_manager",
-                        SimpleNamespace(files=["music/a.ogg"], disabled_files=set()))
+    monkeypatch.setattr(_cue, "sfx",
+                        SimpleNamespace(library=SimpleNamespace(
+                            files=["music/a.ogg"], disabled_files=set())))
     assert _cue_resolve_files(["music/", "music/a.ogg", "other.ogg"]) == ["music/a.ogg", "other.ogg"]
 
 
 def test_resolve_files_skips_disabled_direct(monkeypatch):
-    monkeypatch.setattr(_cue, "sfx_manager",
-                        SimpleNamespace(files=["music/a.ogg"], disabled_files=set(["music/a.ogg"])))
+    monkeypatch.setattr(_cue, "sfx",
+                        SimpleNamespace(library=SimpleNamespace(
+                            files=["music/a.ogg"], disabled_files=set(["music/a.ogg"]))))
     assert _cue_resolve_files(["music/a.ogg"]) == []
 
 
@@ -521,34 +518,6 @@ def test_replace_file_nt_no_stale_dst(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# SFX channel helpers
-# ---------------------------------------------------------------------------
-
-def test_sfx_channel_name_and_index():
-    assert _cue_sfx_channel_name(3) == "_cue_3"
-    assert _cue_sfx_channel_index("_cue_7") == 7
-
-
-def test_loop_still_playing_all_silent(monkeypatch):
-    monkeypatch.setattr(_music, "is_playing", lambda channel="music", **k: False)
-    assert _cue_loop_still_playing(["a", "b"]) is False
-
-
-def test_loop_still_playing_one_playing(monkeypatch):
-    def _is_playing(channel="music", **k):
-        return channel == "b"
-    monkeypatch.setattr(_music, "is_playing", _is_playing)
-    assert _cue_loop_still_playing(["a", "b"]) is True
-
-
-def test_loop_still_playing_unknown_channel_skipped(monkeypatch):
-    def _is_playing(channel="music", **k):
-        raise Exception("unknown channel")
-    monkeypatch.setattr(_music, "is_playing", _is_playing)
-    assert _cue_loop_still_playing(["x"]) is False
-
-
-# ---------------------------------------------------------------------------
 # Debug logging
 # ---------------------------------------------------------------------------
 
@@ -597,8 +566,8 @@ def test_clear_debug_log_truncates(tmp_path, monkeypatch):
 def test_make_tab_action_appends_index(monkeypatch):
     captured = {}
     monkeypatch.setattr(_util, "Function", lambda fn, *args: captured.update(fn=fn, args=args))
-    result = _cue_make_tab_action(_cue_sfx_channel_name, ("a", "b"), 3)
-    assert captured["fn"] is _cue_sfx_channel_name
+    result = _cue_make_tab_action(_cue_format_time, ("a", "b"), 3)
+    assert captured["fn"] is _cue_format_time
     assert captured["args"] == ("a", "b", 3)
     assert result is None
 
@@ -694,26 +663,6 @@ def test_unwrap_displayable_string_branch(monkeypatch):
     inner = object()
     monkeypatch.setattr(renpy, "displayable", lambda name: inner)
     assert _cue_unwrap_displayable("bg forest") is inner
-
-
-def test_get_movie_or_image_movie():
-    m = _video.Movie(play="m.webm")
-    kind, d = _cue_get_movie_or_image(m)
-    assert kind == "movie"
-    assert d is m
-
-
-def test_get_movie_or_image_image():
-    i = _im.Image("img.png")
-    kind, d = _cue_get_movie_or_image(i)
-    assert kind == "image"
-    assert d is i
-
-
-def test_get_movie_or_image_other():
-    kind, d = _cue_get_movie_or_image(object())
-    assert kind is None
-    assert d is not None
 
 
 def test_atl_child_displayables_not_atl():

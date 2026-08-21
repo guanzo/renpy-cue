@@ -368,16 +368,18 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
         spacing 2
         if folder_label is not None:
             # --- Virtual folder (e.g. preset-backed pool / video pool) ---
-            $ _is_expanded = _cue.sfx_manager.expanded_file_refs.get(folder_label, False)
+            $ _is_expanded = _cue.sfx.library.expanded_file_refs.get(folder_label, False)
             $ _count = len(folder_children) if folder_children else 0
             hbox:
                 spacing row_spacing
                 use cue_icon_btn("xmark", Function(remove_fn, *remove_args), "Remove preset")
                 use cue_icon_btn(
                     "play",
-                    Function(_cue_preview_sfx, _cue_pick_file(folder_children or [""], False), preview_vol),
+                    Function(_cue.sfx.preview_sfx, _cue_pick_file(folder_children or [""], False), preview_vol),
                     "Play random file from preset")
-                use cue_txt_button(folder_label, Function(_cue.sfx_manager.toggle_file_ref_expand, folder_label))
+                use cue_txt_button(
+                    folder_label,
+                    Function(_cue.sfx.library.toggle_file_ref_expand, folder_label))
                 text "({} files)".format(_count) style "cue_help"
 
             if _is_expanded and folder_children:
@@ -389,22 +391,22 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                             use cue_icon_btn("xmark",
                                 Function(folder_child_remove_fn, marker_key, pool_index, 0, _child),
                                 "Remove file from pool")
-                        use cue_icon_btn("play", Function(_cue_preview_sfx, _child, preview_vol))
+                        use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, _child, preview_vol))
                         text _child color _cue_color_text_accent size 11
 
         for fi, f in enumerate(files):
             if f.endswith("/"):
                 # --- Folder: expandable (matches SFX Library folder UI) ---
-                $ _is_expanded = _cue.sfx_manager.expanded_file_refs.get(f, False)
+                $ _is_expanded = _cue.sfx.library.expanded_file_refs.get(f, False)
                 $ _count = len(_cue_resolve_files([f]))
                 hbox:
                     spacing row_spacing
                     use cue_icon_btn("xmark", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder")
                     use cue_icon_btn(
                         "play",
-                        Function(_cue_preview_folder, f, preview_vol),
+                        Function(_cue.sfx.preview_folder, f, preview_vol),
                         "Play random file from folder")
-                    use cue_txt_button(f, Function(_cue.sfx_manager.toggle_file_ref_expand, f))
+                    use cue_txt_button(f, Function(_cue.sfx.library.toggle_file_ref_expand, f))
                     text "({} files)".format(_count) style "cue_help"
 
                 if _is_expanded:
@@ -416,7 +418,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                                 use cue_icon_btn("xmark",
                                     Function(folder_child_remove_fn, marker_key, pool_index, fi, _child),
                                     "Remove file from the folder")
-                            use cue_icon_btn("play", Function(_cue_preview_sfx, _child, preview_vol))
+                            use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, _child, preview_vol))
                             $ _display = _child[len(f):]  # strip folder prefix
                             text _display color _cue_color_text_accent size 11
             else:
@@ -424,7 +426,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 hbox:
                     spacing row_spacing
                     use cue_icon_btn("xmark", _cue_make_tab_action(remove_fn, remove_args, fi))
-                    use cue_icon_btn("play", Function(_cue_preview_sfx, f, preview_vol))
+                    use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, f, preview_vol))
                     text f color _cue_color_text_accent size 11
 
 # Scrollable file list: only wraps in a viewport when content exceeds ~6 rows (120 px).
@@ -433,7 +435,7 @@ screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
                      folder_label=None, folder_children=None):
     style_group "cue"
 
-    $ _rows = _cue.sfx_manager.count_file_list_rows(folder_label, folder_children, files)
+    $ _rows = _cue.sfx.library.count_file_list_rows(folder_label, folder_children, files)
     if _rows > 6:
         viewport:
             xfill True

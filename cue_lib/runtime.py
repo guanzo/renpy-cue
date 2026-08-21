@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Runtime drivers -- overlay show/hide, context detection, tick engine, SFX playback.
+# Runtime drivers -- overlay show/hide, context detection, tick engine.
 # Extracted from cue_z.rpy Section 3 (init python: free functions).
 
 import random as _random
@@ -8,23 +8,18 @@ import renpy.audio.music as _music
 import renpy.audio.audio as _aaudio
 import time as _time
 
-from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
 from cue_lib.constants import CuePage
 from cue_lib.markers import _cue_load_scalars_from_persistent
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_flush_debug_log, _cue_unwrap_displayable,
-    _cue_get_movie_play, _cue_resolve_files, _cue_pick_file,
-    _cue_sfx_channel_name, _cue_sfx_channel_index,
+    _cue_get_movie_play,
     create_img_key, create_vid_key, create_dlg_key,
-    is_vid_key, is_img_key, is_dlg_key,
-    get_key_file, get_key_dialogue,
 )
 
 MYPY = False
 if MYPY:
-    from typing import Any, List, Optional, Tuple  # pyright: ignore[reportUnusedImport]
-    from cue_lib._types import MarkerEntry, PoolDict, VideoPoolDict  # pyright: ignore[reportUnusedImport]
+    from typing import Any, Optional, Tuple  # pyright: ignore[reportUnusedImport]
 
 
 # Dedup set for the TOP-LAYER-UNKNOWN debug log (which displayables have
@@ -86,14 +81,14 @@ def _cue_toggle_video_mute():
 def _cue_show_overlay():
     # type: () -> None
     _cue.is_overlay_visible = True
-    if not _cue.sfx_manager.files:
-        _cue.sfx_manager.scan()
+    if not _cue.sfx.library.files:
+        _cue.sfx.library.scan()
     if not _cue.music.user_music.files:
         _cue.music.user_music.scan()
 
     _cue_refresh_context()
     _cue.music.library.maybe_rebuild()
-    _cue.sfx_manager.maybe_rebuild()
+    _cue.sfx.library.maybe_rebuild()
     _cue.video_editor.refresh()
 
     renpy.show_screen("cue_overlay", _layer="cue_layer")
@@ -117,13 +112,13 @@ def _cue_full_reload():
     _cue.markers.reload_presets()
     _cue.music.reload_presets()
 
-    _cue.sfx_manager.scan()
+    _cue.sfx.library.scan()
     _cue.music.user_music.scan()
     _cue.music.game_music.scan()
-    _cue.sfx_manager._recent.load()  # pyright: ignore[reportOptionalMemberAccess]
+    _cue.sfx.library._recent.load()  # pyright: ignore[reportOptionalMemberAccess]
     _cue.music._recent.load()
 
-    _cue.sfx_manager.maybe_rebuild()
+    _cue.sfx.library.maybe_rebuild()
     _cue.music.library.maybe_rebuild()
     _cue.undo.reset()
     _cue.video_editor.refresh()
@@ -238,17 +233,6 @@ def _cue_log_context():
         _cue.current_file or "(none)", ctx_type, vname,
         _cue.vid_manager.channel or "(none)", playing,
         _cue.current_dialogue[:60] if _cue.current_dialogue else "(none)"))
-
-
-def _cue_play_pool(entry, key, pool, pool_index, file=None, avoid_repeats=True):
-    # type: (Optional[MarkerEntry], str, PoolDict, int, Optional[str], bool) -> Optional[str]
-    resolved = _cue.markers.resolve_pool(pool)
-    files = _cue_resolve_files(resolved.files)
-    if not files:
-        return None
-    f = file if file is not None else _cue_pick_file(files, avoid_repeats=avoid_repeats)  # type: Any
-    vol = _cue.volume.get_effective(entry, key, pool_index=pool_index)
-    return _cue_play_sfx(f, key, volume=vol)
 
 
 # --------------------------------------------------------------------------
@@ -408,28 +392,8 @@ def _cue_tick_trigger_impl():
         # extraction happens before a job exists).
         _cue.video_editor.poll_extract()
 
-        for _m in (_cue.sfx_manager, _cue.music.library):
+        for _m in (_cue.sfx.library, _cue.music.library):
             _m.maybe_rebuild()
-
-
-def _cue_preview_preset(preset_name):
-    # type: (str) -> None
-    preset = _cue.markers.get_preset(preset_name)
-    if preset is None:
-        return
-    files = _cue_resolve_files(preset.get("files", []))
-    if files:
-        f = _random.choice(files)
-        _cue_preview_sfx(f)
-
-
-def _cue_preview_folder(folder_path, volume=1.0):
-    # type: (str, float) -> None
-    """Preview a random file from an SFX Library folder."""
-    files = _cue_resolve_files([folder_path])
-    if files:
-        f = _random.choice(files)
-        _cue_preview_sfx(f, volume=volume)
 
 
 def _cue_preview_music_preset(preset_name):
@@ -442,114 +406,3 @@ def _cue_preview_music_preset(preset_name):
     if files:
         f = _random.choice(files)
         _cue.music.library.preview(f)
-
-
-def _cue_preview_video_preset(preset_name):
-    # type: (str) -> None
-    """Preview a random file from a video preset (across all pools)."""
-    preset = _cue.markers.get_video_preset(preset_name)
-    if preset is None:
-        return
-    all_files = []
-    for pool in preset.get("pools", []):
-        all_files.extend(pool.get("files", []))
-    resolved = _cue_resolve_files(all_files)
-    if resolved:
-        f = _random.choice(resolved)
-        _cue_preview_sfx(f)
-
-
-# --------------------------------------------------------------------------
-# SFX Playback
-# --------------------------------------------------------------------------
-
-def _cue_preview_sfx(filename, volume=1.0):
-    # type: (str, float) -> None
-    prev_ch = _cue.sfx_manager._preview_channel
-    if prev_ch is not None and _music.is_playing(channel=prev_ch):
-        _music.stop(channel=prev_ch, fadeout=0)
-    _cue.sfx_manager._preview_channel = _cue_play_sfx(filename, "preview", volume=volume)
-
-
-def _cue_play_sfx(filename, source="", volume=1.0):
-    # type: (str, str, float) -> Optional[str]
-
-    # Apply +-10% volume jitter for natural variation
-    MAX_JITTER = 0.1
-    jitter = _random.uniform(1.0 - MAX_JITTER, 1.0 + MAX_JITTER)
-    volume = volume * jitter
-
-    full_path = _cue.paths.audio_dir + filename
-
-    target_ch = None
-    for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
-        ch_name = _cue_sfx_channel_name(i)
-        if not _music.is_playing(channel=ch_name):
-            target_ch = ch_name
-            break
-
-    if target_ch is None:
-        idx = _cue.sfx_manager._next_sfx_channel
-        target_ch = _cue_sfx_channel_name(idx + 1)
-        _cue.sfx_manager._next_sfx_channel = (idx + 1) % CUE_SFX_CHANNEL_COUNT
-    else:
-        ch_num = _cue_sfx_channel_index(target_ch)
-        _cue.sfx_manager._next_sfx_channel = ch_num % CUE_SFX_CHANNEL_COUNT
-
-    try:
-        curr_file = _cue.current_file
-        warn = None
-        if is_vid_key(source):
-            expected_vid = get_key_file(source)
-            if expected_vid and curr_file and expected_vid != curr_file:
-                warn = "expected vid={} actual vid={}".format(expected_vid, curr_file)
-        elif is_img_key(source):
-            expected_img = get_key_file(source)
-            if expected_img and curr_file and expected_img != curr_file:
-                warn = "expected img={} actual img={}".format(expected_img, curr_file)
-        elif is_dlg_key(source):
-            expected_img = get_key_file(source)
-            expected_dlg = get_key_dialogue(source)
-            cur_dlg = (_cue.current_dialogue or "")[:40]
-            if expected_img != curr_file or expected_dlg != cur_dlg:
-                warn = "expected img={}|{} actual img={}|{}".format(
-                    expected_img, expected_dlg, curr_file, cur_dlg)
-        if warn:
-            _cue_log("WARN CTX-MISMATCH file={} src={} {}".format(
-                filename.rsplit("/", 1)[-1], source, warn))
-
-        if _cue._has_relative_volume:
-            _music.play(full_path, channel=target_ch, loop=False, relative_volume=volume)
-        else:
-            _music.play(full_path, channel=target_ch, loop=False)
-            _music.set_volume(volume, delay=0, channel=target_ch)
-
-        _cue_log("PLAY-SFX file={} src={} ch={} jitter={} vol={:.2f}".format(
-            filename.rsplit("/", 1)[-1], source, target_ch, jitter, volume))
-
-        return target_ch
-    except Exception:
-        _cue_log("PLAY-SFX: exception during playback of {}".format(full_path))
-        return None
-
-
-def _cue_fade_out_sfx(exclude_channels=None, only_channels=None):
-    # type: (Optional[List[str]], Optional[List[str]]) -> int
-    """Quickly fade out SFX on the shared _cue_ channels.
-
-    ``exclude_channels`` are same-group channels to spare; ``only_channels``
-    restricts the sweep to a single domain (loops fade only loops, one-shots
-    fade only one-shots). Returns the number of channels faded."""
-    excluded = set(exclude_channels) if exclude_channels else set()
-    only = set(only_channels) if only_channels is not None else None
-    faded = 0
-    for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
-        ch_name = _cue_sfx_channel_name(i)
-        if only is not None and ch_name not in only:
-            continue
-        if ch_name in excluded:
-            continue
-        if _music.is_playing(channel=ch_name):
-            _music.stop(channel=ch_name, fadeout=CUE_EXCLUSIVE_FADE)
-            faded += 1
-    return faded

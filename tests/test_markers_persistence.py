@@ -87,7 +87,7 @@ def _make_fake_cue():
         undo=FakeUndo(),
         music=FakeMusicRestore(),
         db=FakeDb(),
-        sfx_manager=sfx,
+        sfx=sfx,
         trigger=FakeTrigger(),
         video_editor=FakeVideoEditor(),
         speed_resolver=types.SimpleNamespace(seamless_transition=False),
@@ -101,10 +101,10 @@ def mgr(cue_env, _fake_singletons):
     store = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
     ctx = CueContext()
     vid = FakeVidManager(duration=10.0)
-    # Full reload drives _cue.sfx_manager/_cue.video_editor, so the manager
+    # Full reload drives _cue.sfx/_cue.video_editor, so the manager
     # must be built on the same instances the fake singleton exposes -- the
     # assertions read those call counters back through mgr.
-    sfx = fake.sfx_manager
+    sfx = fake.sfx
     editor = fake.video_editor
     mgr = CueMarkerManager(ctx, store, vid, sfx, FakeTrigger(), editor)
     fake.markers = mgr
@@ -311,7 +311,7 @@ def test_load_scalars_migrates_defaults_to_shared_config():
     cue = _markers._cue
     # disabled_files migrated to shared config; scalars landed on managers.
     assert cue.db.shared["disabled_files"] == []
-    assert cue.sfx_manager.disabled_files == set()
+    assert cue.sfx.disabled_files == set()
     assert cue.trigger.active is True
     assert cue.video_editor.encode_mode == 0  # MODE_INTERPOLATE
     assert cue.video_editor.remove_audio is True
@@ -331,7 +331,7 @@ def test_load_scalars_shared_config_wins():
         "seamless_transition": True,
     }
     _markers._cue_load_scalars_from_persistent()
-    assert cue.sfx_manager.disabled_files == {"a.ogg"}  # shared wins
+    assert cue.sfx.disabled_files == {"a.ogg"}  # shared wins
     assert "disabled_files" not in _store.persistent._cue
     assert cue.trigger.active is False
     assert cue.video_editor.encode_mode == 1
