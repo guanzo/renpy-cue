@@ -445,6 +445,41 @@ def _cue_speed_label(sp):
     return "{:.1f}x".format(sp)
 
 
+def _cue_format_size(num_bytes):
+    # type: (Optional[float]) -> str
+    """Format a byte count with a human unit: 1536 -> '1.5 KB'.  Non-numeric
+    input formats as '0 B'."""
+    if num_bytes is None:
+        return "0 B"
+    try:
+        n = float(num_bytes)
+    except (TypeError, ValueError):
+        return "0 B"
+    units = ("B", "KB", "MB", "GB", "TB", "PB")
+    i = 0
+    while n >= 1024.0 and i < len(units) - 1:
+        n /= 1024.0
+        i += 1
+    if i == 0:
+        return "{} B".format(int(n))
+    return "{:.1f} {}".format(n, units[i])
+
+
+def _cue_format_duration(seconds):
+    # type: (Optional[float]) -> str
+    """Format seconds as MM:SS; HH:MM:SS past the hour.  Non-negative input."""
+    if seconds is None or seconds < 0:
+        return "00:00"
+    total = int(seconds)
+    minutes = total // 60
+    secs = total % 60
+    if minutes >= 60:
+        hours = minutes // 60
+        minutes = minutes % 60
+        return "{:02d}:{:02d}:{:02d}".format(hours, minutes, secs)
+    return "{:02d}:{:02d}".format(minutes, secs)
+
+
 def _cue_parse_time(time_str):
     # type: (Optional[str]) -> Optional[float]
     """Parse a time string back to float seconds.

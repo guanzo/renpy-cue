@@ -67,6 +67,7 @@ class Cue(_renpy_python.NoRollback):
         self.paths = None
         self.importer = None
         self.exporter = None
+        self.url_importer = None
 
     @property
     def _has_relative_volume(self):

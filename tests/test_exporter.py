@@ -297,6 +297,39 @@ def test_export_includes_music_trigger_log(cue_env):
                 in names)
 
 
+def test_export_ships_every_category(cue_env):
+    # One export carrying all five categories -- presets are the one category
+    # the other exporter tests never seed, and no test asserts a single
+    # package spanning every category.
+    _seed(cue_env, [
+        ("data/markers/{}/v_a.json".format(GAME_ID), '{}'),
+        ("audio/sfx.ogg", "a"),
+        ("music/song.ogg", "m"),
+        ("video/{}/clip.mkv".format(GAME_ID), "v"),
+        ("data/presets/audio/p.json", "ap"),
+        ("data/presets/video/p.json", "vp"),
+        ("data/presets/music/p.json", "mp"),
+    ])
+    mgr = CueExportManager(cue_env.paths)
+    mgr.refresh()
+    mgr.name = "Full"
+    assert mgr.is_category_enabled(CueImportCategory.PRESETS) is True
+    assert mgr.counts[CueImportCategory.PRESETS] == 3
+
+    _export_and_join(mgr)
+
+    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Full.zip")) as zf:
+        names = set(zf.namelist())
+    for rel in ("data/markers/{}/v_a.json".format(GAME_ID),
+                "audio/sfx.ogg",
+                "music/song.ogg",
+                "video/{}/clip.mkv".format(GAME_ID),
+                "data/presets/audio/p.json",
+                "data/presets/video/p.json",
+                "data/presets/music/p.json"):
+        assert rel in names
+
+
 def test_export_skips_unchecked(cue_env):
     _seed(cue_env, [
         ("audio/a.ogg", "a"),

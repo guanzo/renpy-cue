@@ -166,11 +166,15 @@ screen cue_export_section():
 screen cue_import_imports():
     style_group "cue"
 
-    $ _imports_hint = ("Imports are loaded from:\n{}").format(_cue.importer.imports_dir())
+    $ _imports_hint = ("Add export .zip file to:\n{}").format(_cue.importer.imports_dir())
 
     use cue_section_frame("Import", tt=_imports_hint):
         text ("Imports can be \"activated\", which will temporarily replace your data (except your Settings). "
             "If you like the import, you can copy it into your data folder with \"Merge\".")
+
+        null height 4
+
+        use cue_url_downloader()
 
         if _cue.importer.scan_error:
             text _cue.importer.scan_error color _cue_color_error
@@ -192,6 +196,53 @@ screen cue_import_imports():
                 for _imp in _cue.importer.imports:
                     use cue_import_row(_imp)
 
+
+screen cue_url_downloader():
+    style_group "cue"
+
+    vbox:
+        spacing 8
+        hbox:
+            spacing 5
+            if (_cue.url_importer.url.strip() or _cue.url_importer.search_is_editing):
+                use cue_icon_btn(
+                    "xmark",
+                    [Function(_cue.url_importer.clear_url),
+                     SetField(_cue.url_importer, "search_is_editing", False)],
+                    "Clear URL")
+            use cue_text_input(
+                "_cue.url_importer.url",
+                Function(_cue.url_importer.clear_status),
+                _cue.url_importer.url or "Paste a URL to a .zip...",
+                xsize=200,
+                editing_ref=_cue.url_importer)
+            if _cue.url_importer.is_downloading:
+                use cue_txt_button(
+                    "Cancel",
+                    Function(_cue.url_importer.cancel))
+            else:
+                use cue_txt_button(
+                    "Import URL",
+                    [Function(_cue.url_importer.import_url),
+                     SetField(_cue.url_importer, "search_is_editing", False)],
+                    sensitive=(not _cue.url_importer.is_downloading),
+                    tt="Download a .zip from a URL into your imports folder.")
+
+        if _cue.url_importer.is_downloading:
+            timer 0.1 repeat True action Function(renpy.restart_interaction, _update_screens=False)
+            $ _url_done = _cue_format_size(_cue.url_importer.download_done)
+            $ _url_elapsed = _cue_format_duration(_cue.url_importer.download_duration())
+            if _cue.url_importer.download_total:
+                $ _url_total = _cue_format_size(_cue.url_importer.download_total)
+                $ _url_pct = int(_cue.url_importer.download_done * 100.0 / _cue.url_importer.download_total)
+                text ("{}% - {} / {} - {}".format(
+                    _url_pct, _url_done, _url_total, _url_elapsed)) color _cue_color_text_muted
+            else:
+                text ("Downloading... {}".format(_url_done)) color _cue_color_text_muted
+        elif _cue.url_importer.download_error:
+            text _cue.url_importer.download_error color _cue_color_error substitute False
+        elif _cue.url_importer.download_status:
+            text _cue.url_importer.download_status color _cue_color_green substitute False
 
 
 screen cue_import_row(_imp):

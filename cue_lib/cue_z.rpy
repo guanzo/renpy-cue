@@ -54,6 +54,7 @@ init -999 python:
         create_loop_key as _cue_create_loop_key,
         create_dlg_key as _cue_create_dlg_key,
         _cue_format_time, _cue_parse_time, _cue_clamp_time, _cue_speed_label,
+        _cue_format_size, _cue_format_duration,
         _cue_log, _cue_resolve_files, _cue_pick_file, _cue_query_matches,
         _cue_unwrap_displayable, _cue_ui_refresh,
         _cue_wrap_with_statement, _cue_wrap_config_show,
@@ -166,6 +167,7 @@ init -900 python:
     )
     from cue_lib.importer import CueImportManager
     from cue_lib.exporter import CueExportManager
+    from cue_lib.url_importer import CueUrlImporter
     from cue_lib.settings import CueSettings
     from cue_lib.backup import CueBackupManager
     from cue_lib.db import CueDatabase
@@ -223,6 +225,7 @@ init -900 python:
         # import/export set.
         importer = CueImportManager(paths, db, _cue_full_reload)
         exporter = CueExportManager(paths)
+        url_importer = CueUrlImporter(importer)
 
         merge_dialog = CueMergeDialog(importer)
         preset_dialog = CuePresetDialog()
@@ -292,6 +295,7 @@ init -900 python:
 
         _cue.importer = importer
         _cue.exporter = exporter
+        _cue.url_importer = url_importer
 
     _cue_wire_managers()
 

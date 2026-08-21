@@ -19,6 +19,7 @@ from cue_lib.ui.dialogs import (
 )
 from cue_lib.importer import CueImportManager
 from cue_lib.exporter import CueExportManager
+from cue_lib.url_importer import CueUrlImporter
 from cue_lib.undo import CueUndoManager
 from cue_lib.video.video import CueVideoManager
 from cue_lib.video.video_editor import CueVideoEditor
@@ -87,6 +88,7 @@ class Cue:
     music: CueMusicManager
     importer: CueImportManager
     exporter: CueExportManager
+    url_importer: CueUrlImporter
 
     _create_delete_speed: Optional[Tuple[str, float]]
 

@@ -471,6 +471,38 @@ def test_activate_swaps_root_and_pauses_backup(cue_env, tmp_path, import_threads
     assert len(calls) == 2
 
 
+def test_scan_and_activate_cover_every_category(cue_env, tmp_path, import_threads):
+    # A package carrying every content category -- presets are the one
+    # category no other manager test drops.  Scan must list them all, and
+    # activation must serve a preset from the extracted root.
+    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [
+        ("data/markers/{}/v_a.json".format(GAME_ID), '{"pools": []}'),
+        ("audio/sfx.ogg", "sfx"),
+        ("music/song.ogg", "music"),
+        ("video/{}/m_cue0.5x.mkv".format(GAME_ID), "v"),
+        ("data/presets/audio/p.json", "ap"),
+        ("data/presets/video/p.json", "vp"),
+        ("data/presets/music/p.json", "mp"),
+    ])
+    mgr, _calls = _make_mgr(cue_env)
+    _scan_and_join(mgr, import_threads)
+    entry = mgr.imports[0]
+    assert entry["valid"]
+    assert entry["match"] == CueImportMatch.AUTO
+    contents = set(entry["contents"])
+    assert "data/markers/{}/v_a.json".format(GAME_ID) in contents
+    assert "audio/sfx.ogg" in contents
+    assert "music/song.ogg" in contents
+    assert "video/{}/m_cue0.5x.mkv".format(GAME_ID) in contents
+    assert "data/presets/audio/p.json" in contents
+    assert "data/presets/video/p.json" in contents
+    assert "data/presets/music/p.json" in contents
+
+    mgr.activate(entry["imp"])
+    assert os.path.isfile(os.path.join(
+        cue_env.paths.root, "data", "presets", "audio", "p.json"))
+
+
 def test_activate_refuses_mismatch(cue_env, tmp_path, import_threads):
     _drop_package(tmp_path, "other-game", [
         ("audio/sfx.ogg", "sfx"),
