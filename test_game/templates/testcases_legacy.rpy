@@ -45,6 +45,41 @@ init 1000 python:
     # The video_seamless testcase re-enables it itself.
     _cue.speed_resolver.seamless_transition = False
 
+init -10 python:
+    # The legacy test DSL cannot wait on an arbitrary predicate (`until` only
+    # checks UI focus / action sensitivity), and a fixed pause races slow 7.x
+    # movie startup under xvfb -- video_marker_fires_at_ts flaked on CI when
+    # the movie hadn't reached elapsed > 0 within the pause.  `pause N until
+    # run _cue_test_wait_until_true(...)` polls the predicate every frame via
+    # the Action's get_sensitive(); after `deadline` it reports ready anyway so
+    # the testcase fails on its own assertions below instead of hanging the
+    # engine (a never-yielding executor gets no test-level timeout).
+    import time as _test_time
+
+    class CueTestWaitUntilTrue(renpy.ui.Action):
+        def __init__(self, predicate, deadline):
+            self.predicate = predicate
+            self.deadline = deadline
+
+        def get_sensitive(self):
+            if self.predicate():
+                return True
+            return _test_time.time() >= self.deadline
+
+        def __call__(self):
+            return None
+
+    def _cue_test_wait_until_true(predicate, deadline):
+        return CueTestWaitUntilTrue(predicate, deadline)
+
+    def _cue_vid_marker_ready():
+        return (
+            _cue.top_layer_type == "movie"
+            and _cue.vid_manager.get_duration() > 0
+            and _cue.vid_manager.get_elapsed() > 0.0
+            and len(_cue.trigger.played_video_keys) >= 1
+        )
+
 testcase overlay_shows_on_start:
     $ _cue.is_overlay_visible = True
     run Jump("start")
@@ -671,9 +706,10 @@ testcase video_marker_fires_at_ts:
     # Wait out the 7.x movie startup: the v_ marker fires on the first tick
     # even before the movie advances, but played_video_keys is wiped every tick
     # while last_elapsed == 0.  Only once the movie actually plays (elapsed > 0)
-    # does the fired key stick -- 7.x startup under xvfb is slow enough that a
-    # short fixed pause races it.
-    pause 5.0
+    # does the fired key stick.  Poll until it does (see the init -10 waiter
+    # above) -- a fixed pause races slow 7.x startup under xvfb.
+    $ _test_wait_deadline = _test_time.time() + 15.0
+    pause 0.5 until run _cue_test_wait_until_true(_cue_vid_marker_ready, _test_wait_deadline)
     $ _ok = _cue.top_layer_type == "movie"
     $ _ok = _ok and _cue.vid_manager.get_duration() > 0
     $ _ok = _ok and _cue.vid_manager.get_elapsed() > 0.0
