@@ -209,11 +209,12 @@ def test_match_label_mismatch_shows_both_game_ids(cue_env, tmp_path,
     _scan_and_join(mgr, import_threads)
     imp = mgr.imports[0]["imp"]
 
-    status = mgr.match_label(imp)
-
-    assert "Game ID mismatch" in status
-    assert "Current Game ID: {}".format(GAME_ID) in status
-    assert "Import Game ID: other-game" in status
+    assert mgr.match_label(imp) == "Potential problem"
+    warnings = mgr.match_warnings(imp)
+    assert len(warnings) == 1
+    assert "Check if it's really the same game, then click Remap" in warnings[0]
+    assert "Current Game ID: {}".format(GAME_ID) in warnings[0]
+    assert "Import Game ID: other-game" in warnings[0]
 
 
 def test_match_label_confirm_shows_same_mismatch_text(cue_env, tmp_path,
@@ -228,10 +229,42 @@ def test_match_label_confirm_shows_same_mismatch_text(cue_env, tmp_path,
     _scan_and_join(mgr, import_threads)
 
     assert mgr.imports[0]["match"] == CueImportMatch.CONFIRM
-    status = mgr.match_label(mgr.imports[0]["imp"])
+    imp = mgr.imports[0]["imp"]
 
-    assert "Import Game ID: test_game456" in status
-    assert "Looks like the same game" not in status
+    assert mgr.match_label(imp) == "Potential problem"
+    warnings = mgr.match_warnings(imp)
+    assert "Import Game ID: test_game456" in warnings[0]
+    assert "Looks like the same game" not in warnings[0]
+
+
+def test_match_warnings_missing_files(cue_env, tmp_path, import_threads):
+    # A matching import missing manifest-listed files warns about it -- the
+    # warning icon shows even though the game_id already matches.
+    _drop_missing_files_package(tmp_path, GAME_ID)
+    mgr, _calls = _make_mgr(cue_env)
+    _scan_and_join(mgr, import_threads)
+
+    entry = mgr.imports[0]
+    assert entry["match"] == CueImportMatch.AUTO
+    assert entry["missing"] == ["audio/nope.ogg"]
+
+    assert mgr.match_label(entry["imp"]) == "Potential problem"
+    warnings = mgr.match_warnings(entry["imp"])
+    assert len(warnings) == 1
+    assert "missing 1 file(s)" in warnings[0]
+
+
+def test_match_label_clean_import_empty(cue_env, tmp_path, import_threads):
+    # A matching, complete import needs no label and no warning icon.
+    _drop_package(tmp_path, GAME_ID, [
+        ("audio/sfx.ogg", "sfx"),
+    ])
+    mgr, _calls = _make_mgr(cue_env)
+    _scan_and_join(mgr, import_threads)
+
+    imp = mgr.imports[0]["imp"]
+    assert mgr.match_label(imp) == ""
+    assert mgr.match_warnings(imp) == []
 
 
 def test_scan_marks_newer_format_invalid(cue_env, tmp_path, import_threads):
@@ -560,8 +593,11 @@ def _drop_missing_files_package(tmp_path, game_id):
     return imports_dir
 
 
-def test_activate_missing_files_confirms(cue_env, imp_cue, tmp_path,
-                                         import_threads):
+def test_activate_missing_files_previews_directly(cue_env, imp_cue, tmp_path,
+                                                  import_threads):
+    # Missing manifest-listed files no longer block Preview with a confirm
+    # dialog -- the row's warning icon already flags them, so activate swaps
+    # straight to the overlay and no confirm is shown.
     imports_dir = _drop_missing_files_package(tmp_path, GAME_ID)
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
@@ -569,27 +605,9 @@ def test_activate_missing_files_confirms(cue_env, imp_cue, tmp_path,
 
     mgr.activate(imp)
 
-    assert mgr.is_active is False
-    assert cue_env.paths._active_root is None
-    assert len(imp_cue) == 1
-    message, _action = imp_cue[0]
-    assert "audio/nope.ogg" in message
-    assert "Preview anyway" in message
-
-
-def test_do_activate_missing_files_swaps(cue_env, imp_cue, tmp_path,
-                                         import_threads):
-    imports_dir = _drop_missing_files_package(tmp_path, GAME_ID)
-    mgr, calls = _make_mgr(cue_env)
-    _scan_and_join(mgr, import_threads)
-    imp = mgr.imports[0]["imp"]
-
-    # The confirm dialog's action: proceed with the swap anyway.
-    mgr._do_activate(imp)
-
     assert mgr.is_active is True
     assert cue_env.paths._active_root == os.path.join(_unzip_dir(tmp_path), imp)
-    assert len(calls) == 1
+    assert len(imp_cue) == 0
 
 
 # ---------------------------------------------------------------------------

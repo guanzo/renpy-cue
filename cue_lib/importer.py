@@ -294,21 +294,46 @@ class CueImportManager(object):
 
     def match_label(self, imp):
         # type: (str) -> str
-        """Status for an import row.  Empty when there's nothing to say -- a
-        import that already matches this game needs no attention.  Any
-        mismatch shows the same reminder with both game ids: the user decides
-        whether it's really this game, then Remap rehomes it."""
+        """Status label for an import row.  Empty when there's nothing to say --
+        an import that already matches this game needs no attention.  A broken
+        import shows its error inline; a usable import with warnings shows the
+        generic 'Potential problem' label, with each issue in the tooltip."""
         entry = self.import_for(imp)
         if entry is None:
             return ""
         if not entry["valid"]:
             return entry["error"]
-        if entry["match"] == CueImportMatch.AUTO:
-            return ""
-        return ("Game ID mismatch.\nCheck if it's really the same game, then click Remap.\n\n"
-                "Current Game ID: {}\n"
-                "Import Game ID: {}").format(
-                    self._paths.game_id, entry.get("game_id") or "")
+        if self._has_warnings(entry):
+            return "Potential problem"
+        return ""
+
+    def match_warnings(self, imp):
+        # type: (str) -> List[str]
+        """Every detected warning for a valid import, one self-contained
+        paragraph each.  The row joins them with a delimiter for the tooltip."""
+        entry = self.import_for(imp)
+        if entry is None or not entry["valid"]:
+            return []
+        warnings = []
+        if entry["match"] != CueImportMatch.AUTO:
+            warnings.append(
+                ("Game ID mismatch.\n"
+                 "Check if it's really the same game, then click Remap.\n\n"
+                 "Current Game ID: {}\n"
+                 "Import Game ID: {}").format(
+                     self._paths.game_id, entry.get("game_id") or ""))
+        missing = entry.get("missing") or []
+        if missing:
+            warnings.append(
+                "The zip is missing {} file(s) listed in its manifest.".format(len(missing)))
+        return warnings
+
+    def _has_warnings(self, entry):
+        # type: (dict) -> bool
+        """Whether a valid import needs the warning icon: a non-matching
+        game_id or manifest-listed files absent from the zip."""
+        return (entry["match"] != CueImportMatch.AUTO
+                or bool(entry.get("missing")))
 
     # ------------------------------------------------------------------
     # activate / deactivate -- root-swap overlay
@@ -319,8 +344,9 @@ class CueImportManager(object):
         """Serve the whole editor from the import's extracted folder instead
         of live data.  Refuses invalid imports and any import that isn't
         exactly this game yet (remap first -- the import's markers/videos
-        live under its own game_id until then); an import whose zip is missing
-        manifest-listed files asks first, then activates on confirm."""
+        live under its own game_id until then).  An import whose zip is
+        missing manifest-listed files previews anyway -- the row's warning
+        icon already flags them; the missing files simply won't play."""
         if self.is_active:
             return
         entry = self.import_for(imp)
@@ -328,25 +354,7 @@ class CueImportManager(object):
             return
         if entry["match"] != CueImportMatch.AUTO:
             return
-        if entry.get("missing"):
-            self._confirm_missing_activate(imp)
-            return
         self._do_activate(imp)
-
-    def _confirm_missing_activate(self, imp):
-        # type: (str) -> None
-        """Warn that the zip is missing manifest-listed files, then activate
-        on confirm.  The missing files simply won't play."""
-        entry = self.import_for(imp)
-        if entry is None:
-            return
-        missing = entry.get("missing") or []
-        listing = "\n".join("  " + m for m in missing)
-        message = (
-            "The zip is missing {} file(s) listed in its manifest:\n\n"
-            "{}\n\nThose files won't be there.  Preview anyway?").format(
-                len(missing), listing)
-        _cue.dialogs.confirm.show(message, Function(self._do_activate, imp))
 
     def _do_activate(self, imp):
         # type: (str) -> None

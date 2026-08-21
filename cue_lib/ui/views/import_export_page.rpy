@@ -247,11 +247,11 @@ screen cue_import_row(_imp):
     $ _imp_key = _imp["imp"]
     $ _imp_name = _imp["name"]
     $ _status = _cue.importer.match_label(_imp_key)
+    $ _warnings = _cue.importer.match_warnings(_imp_key)
     $ _match = _imp["match"]
     $ _valid = _imp["valid"]
     $ _author_line = ("by " + _imp["author"]) if _imp["author"] else ""
     $ _desc_line = _imp["description"]
-    $ _missing = _imp.get("missing") or []
     $ _is_active = (_cue.importer.is_active
                     and _cue.importer.active_import == _imp_key)
     $ _can_activate = (_valid and _match == CueImportMatch.AUTO
@@ -266,17 +266,31 @@ screen cue_import_row(_imp):
             hbox:
                 spacing 6
                 xfill True
-                hbox:
-                    spacing 6
-                    etext _imp_name color _cue_color_text_accent
-                    if _missing:
-                        etext "missing {} file(s)".format(len(_missing)) color _cue_color_warn size 11
-                    if _author_line:
-                        etext _author_line color _cue_color_text_muted
+                box_wrap True
+                box_wrap_spacing 3
+                etext _imp_name color _cue_color_text_accent
+                if _author_line:
+                    etext _author_line color _cue_color_text_muted
             if _desc_line:
                 etext _desc_line color _cue_color_text_muted size 11
-            if _status and _match != CueImportMatch.AUTO:
-                etext _status color _cue_color_warn size 11
+            if _warnings:
+                $ _status_tt = "\n---\n".join(_warnings)
+                $ _warn_icon = _cue.icons.displayable_for("triangle-exclamation", _cue_color_warn, 11)
+                button:
+                    style "empty"
+                    padding (0, 0)
+                    background None
+                    hover_background None
+                    action NullAction()
+                    tooltip _status_tt
+                    hbox:
+                        spacing 5
+                        add _warn_icon yalign 0.5
+                        etext _status color _cue_color_warn size 11
+                null height 3
+
+            elif _status:
+                etext _status color _cue_color_error size 11
             hbox:
                 spacing 6
                 if _can_activate:
