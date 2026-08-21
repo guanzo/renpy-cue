@@ -344,7 +344,7 @@ class CueImportManager(object):
         listing = "\n".join("  " + m for m in missing)
         message = (
             "The zip is missing {} file(s) listed in its manifest:\n\n"
-            "{}\n\nThose files won't be there.  Activate anyway?").format(
+            "{}\n\nThose files won't be there.  Preview anyway?").format(
                 len(missing), listing)
         _cue.dialogs.confirm.show(message, Function(self._do_activate, imp))
 

@@ -574,7 +574,7 @@ def test_activate_missing_files_confirms(cue_env, imp_cue, tmp_path,
     assert len(imp_cue) == 1
     message, _action = imp_cue[0]
     assert "audio/nope.ogg" in message
-    assert "Activate anyway" in message
+    assert "Preview anyway" in message
 
 
 def test_do_activate_missing_files_swaps(cue_env, imp_cue, tmp_path,

@@ -169,7 +169,7 @@ screen cue_import_imports():
     $ _imports_hint = ("Add export .zip file to:\n{}").format(_cue.importer.imports_dir())
 
     use cue_section_frame("Import", tt=_imports_hint):
-        text ("Imports can be \"activated\", which will temporarily replace your data (except your Settings). "
+        text ("Imports can be previewed, which will temporarily replace your data (except your Settings). "
             "If you like the import, you can copy it into your data folder with \"Merge\".")
 
         null height 4
@@ -204,18 +204,14 @@ screen cue_url_downloader():
         spacing 8
         hbox:
             spacing 5
-            if (_cue.url_importer.url.strip() or _cue.url_importer.search_is_editing):
-                use cue_icon_btn(
-                    "xmark",
-                    [Function(_cue.url_importer.clear_url),
-                     SetField(_cue.url_importer, "search_is_editing", False)],
-                    "Clear URL")
             use cue_text_input(
                 "_cue.url_importer.url",
                 Function(_cue.url_importer.clear_status),
                 _cue.url_importer.url or "Paste a URL to a .zip...",
                 xsize=200,
-                editing_ref=_cue.url_importer)
+                editing_ref=_cue.url_importer,
+                clear_action=Function(_cue.url_importer.clear_url),
+                clear_tt="Clear URL")
             if _cue.url_importer.is_downloading:
                 use cue_txt_button(
                     "Cancel",
@@ -285,7 +281,7 @@ screen cue_import_row(_imp):
                 spacing 6
                 if _can_activate:
                     use cue_txt_button(
-                        "Activate",
+                        "Preview",
                         Function(_cue.importer.activate, _imp_key),
                         tt="Switch to this import to preview and edit its data.")
                 if _can_merge:
@@ -318,23 +314,22 @@ screen cue_edit_banner():
 
     $ _active_imp = _cue.importer.active_import
     $ _imp_display = _cue.importer.active_import_name()
-    use cue_section_frame("Active Import"):
+    use cue_section_frame("Preview Import"):
         vbox:
             spacing 8
             xfill True
             hbox:
                 spacing 6
-                text "Previewing import:"
+                text "Import:"
                 text _imp_display color _cue_color_text_accent
-            text ("This import has temporarily replaced your data.")
-            text ("Edits you make will apply to the import, not your data. "
-                  "Click Merge to choose what to copy into your data folder. "
-                  "Click Deactivate to exit the import preview.")
+            text "Edits apply to the import. Your own data will be restored when you exit preview."
+        
             hbox:
                 spacing 6
                 use cue_txt_button(
                     "Merge",
-                    Function(_cue.importer.open_merge, _active_imp))
+                    Function(_cue.importer.open_merge, _active_imp),
+                    tt="Choose what to copy into your data folder")
                 use cue_txt_button(
-                    "Deactivate",
+                    "Exit Preview",
                     Function(_cue.importer.deactivate))
