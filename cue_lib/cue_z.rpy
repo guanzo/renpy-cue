@@ -14,9 +14,6 @@ python early:
         sys.path.insert(0, _cue_lib_parent)
 
     def _cue_popper_factory(*args, **kwargs):
-        """Factory for register_sl_displayable. Returns a CuePopper instance.
-        CuePopper is resolved at call time (screen execution), by which point
-        the init -999 bridge has imported it into store."""
         return CuePopper(*args, **kwargs)
 
     renpy.register_sl_displayable(
@@ -32,9 +29,6 @@ python early:
     ).add_property("target").add_property("placement").add_property("offset").add_property("viewport_margin")
 
     def _cue_make_etext(*args, **kwargs):
-        """Factory for register_sl_displayable. Returns a CueSafeText instance.
-        CueSafeText is resolved at call time (screen execution), by which point
-        the init -999 bridge has imported it into store."""
         return CueSafeText(*args, **kwargs)
 
     # etext -- a 1:1 mirror of the built-in text statement (same positional,
@@ -86,7 +80,7 @@ init -999 python:
         _cue_make_tab_action,
     )
 
-    from cue_lib.text import CueSafeText
+    from cue_lib.ui.sl_statements.text import CueSafeText
 
     from cue_lib.logger import (
         _cue_logger,

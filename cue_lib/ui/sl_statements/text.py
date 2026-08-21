@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-# cue_lib/text.py -- CueSafeText, the displayable behind the etext screen
+# cue_lib/ui/sl_statements/text.py -- CueSafeText, the displayable behind the
+# etext screen statement.  A Text subclass that escapes its value so literal
+# {/[ render instead of being parsed as tags/interpolation.
 # statement.  A Text subclass that escapes its value so literal {/[
 # render instead of being parsed as tags/interpolation.
 

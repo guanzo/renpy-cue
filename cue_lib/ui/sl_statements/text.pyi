@@ -1,4 +1,4 @@
-# Type stub for cue_lib.text
+# Type stub for cue_lib.ui.sl_statements.text
 from typing import Any, Dict
 
 from renpy.text.text import Text
