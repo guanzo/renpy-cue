@@ -25,6 +25,7 @@ from cue_lib.importer_io import (
     _cue_replay_labels,
     _cue_sanitize_filename,
 )
+from cue_lib.util import _cue_log
 
 MYPY = False
 if MYPY:
@@ -53,6 +54,8 @@ class CueExportManager(object):
         self.is_exporting = False       # zip build running on a background thread
         self.export_fraction = 0.0      # 0..1 progress of the active build
         self._export_thread = None      # type: Any
+        self.is_refreshing = False      # a background refresh pass is running
+        self._refresh_thread = None     # type: Any
 
     def exports_dir(self):
         # type: () -> str
@@ -61,19 +64,60 @@ class CueExportManager(object):
 
     def refresh(self):
         # type: () -> None
-        """Re-enumerate exportable files and the replay list.  Empty
-        categories are absent -- the UI greys out their checkbox.  Replays
-        are seeded checked; a selection made in an earlier refresh survives."""
-        self.contents_by_category = _cue_enumerate_import_files(
+        """Request a background refresh.  The worker thread does the whole
+        disk pass -- tree enumeration + replay label scan -- so the UI thread
+        never blocks on it.  The page keeps showing the last snapshot until
+        the worker swaps a fresh one in, which the next poll displays.
+        Idempotent and safe to call on every poll: no-op while a pass runs."""
+        self._kick_refresh_thread()
+
+    def _kick_refresh_thread(self):
+        # type: () -> None
+        """Start one daemon refresh worker if none is running.  A call that
+        lands mid-pass is dropped; the next one starts a fresh pass over
+        whatever the last one left behind."""
+        if self.is_refreshing:
+            return
+        self.is_refreshing = True
+        thread = threading.Thread(target=self._refresh_worker)
+        thread.daemon = True
+        self._refresh_thread = thread
+        thread.start()
+
+    def _refresh_worker(self):
+        # type: () -> None
+        """The background refresh pass.  Any failure is logged and the
+        previous snapshot stays put rather than a half-built one."""
+        try:
+            self._do_refresh()
+        except Exception as e:
+            _cue_log("EXPORT: refresh failed: {}".format(e))
+        finally:
+            self.is_refreshing = False
+            self._refresh_thread = None
+
+    def _do_refresh(self):
+        # type: () -> None
+        """The full refresh, run entirely off the UI thread: enumerate every
+        exportable file, count each category, and collect the replay labels.
+        The snapshot is swapped in with a few attribute writes, so the UI
+        only ever sees a consistent result -- a torn read between two writes
+        is one cosmetic frame at worst, since the GIL makes each assignment
+        atomic.  Replays are seeded checked; a selection made in an earlier
+        refresh survives."""
+        contents = _cue_enumerate_import_files(
             self._paths.original_root, self._paths.game_id)
-        self.counts = dict(
+        counts = dict(
             (cat, len(files))
-            for cat, files in self.contents_by_category.items())
+            for cat, files in contents.items())
         labels = _cue_replay_labels(
             self._paths.original_root, self._paths.game_id)
-        self.replays = [
+        replays = [
             {"label": label, "count": count} for label, count in labels]
         known = set(self.checked_replays)
+        self.contents_by_category = contents
+        self.counts = counts
+        self.replays = replays
         self.checked_replays = known | set(label for label, _c in labels)
         self.current_replay = self._current_replay()
 

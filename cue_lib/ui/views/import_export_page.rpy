@@ -145,7 +145,7 @@ screen cue_export_section():
 
             null height 4
 
-            if _exporter.is_exporting:
+            if _exporter.is_refreshing or _exporter.is_exporting:
                 timer 0.1 repeat True action Function(renpy.restart_interaction, _update_screens=False)
 
             hbox:
@@ -239,6 +239,8 @@ screen cue_url_downloader():
             etext _cue.url_importer.download_error color _cue_color_error substitute False
         elif _cue.url_importer.download_status:
             etext _cue.url_importer.download_status color _cue_color_green substitute False
+        else:
+            etext "URL must be a direct download link, not a website with a download button." style "cue_help"
 
 
 screen cue_import_row(_imp):

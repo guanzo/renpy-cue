@@ -5,6 +5,8 @@
 import os
 import zipfile
 
+import pytest
+
 import cue_lib.exporter as _exporter
 
 from cue_lib.constants import (
@@ -27,9 +29,17 @@ class _FakeThread(object):
         self.args = args
         self.daemon = False
         self.started = False
+        self.joined = False
 
     def start(self):
         self.started = True
+
+    def join(self):
+        """Run the recorded body once -- tests drive both the refresh worker
+        and the zip build through join(), real or fake, uniformly."""
+        if self.started and not self.joined:
+            self.joined = True
+            self.target()
 
 
 def _capture_thread_factory():
@@ -68,6 +78,15 @@ def _export_and_join(mgr):
         mgr._export_thread.join()
 
 
+def _refresh_and_join(mgr):
+    """refresh() now defers the enumeration to a background worker so the UI
+    thread never blocks on the disk walk; tests join it before asserting on
+    the swapped-in snapshot.  Works for real and recorded threads alike."""
+    mgr.refresh()
+    if mgr._refresh_thread is not None:
+        mgr._refresh_thread.join()
+
+
 # ---------------------------------------------------------------------------
 # refresh / counts / enabled
 # ---------------------------------------------------------------------------
@@ -80,7 +99,7 @@ def test_refresh_counts_and_enabled(cue_env):
         ("video/{}/m.mkv".format(GAME_ID), "v"),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
 
     assert mgr.counts[CueImportCategory.SFX] == 2
     assert mgr.counts[CueImportCategory.MARKERS] == 1
@@ -91,7 +110,7 @@ def test_refresh_counts_and_enabled(cue_env):
 
 def test_refresh_empty_root_has_no_enabled(cue_env):
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     assert mgr.counts == {}
     for cat in (CueImportCategory.SFX, CueImportCategory.MARKERS,
                 CueImportCategory.MUSIC):
@@ -127,7 +146,7 @@ def test_selected_contents_drops_unchecked_and_empty(cue_env):
         ("music/m.ogg", "m"),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.set_file_types(CueExportFileTypes.SPECIFIC)
     mgr.toggle_category(CueImportCategory.SFX)
 
@@ -144,7 +163,7 @@ def test_selected_contents_in_category_order(cue_env):
         ("data/markers/{}/v_a.json".format(GAME_ID), '{}'),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     sel = mgr.selected_contents()
     assert sel.index("data/markers/{}/v_a.json".format(GAME_ID)) < \
         sel.index("audio/a.ogg")
@@ -160,7 +179,7 @@ def test_export_writes_sanitized_zip(cue_env):
         ("music/m.ogg", "m"),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.name = "My Pack"
     mgr.author = "author"
     mgr.description = "desc"
@@ -182,7 +201,7 @@ def test_export_writes_sanitized_zip(cue_env):
 def test_export_collision_suffix(cue_env):
     _seed(cue_env, [("audio/a.ogg", "a")])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.name = "Pack"
 
     for _i in range(3):
@@ -197,7 +216,7 @@ def test_export_collision_suffix(cue_env):
 def test_export_sanitizes_filename(cue_env):
     _seed(cue_env, [("audio/a.ogg", "a")])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.name = "a/b\\c:bad"
 
     _export_and_join(mgr)
@@ -207,7 +226,7 @@ def test_export_sanitizes_filename(cue_env):
 
 def test_export_empty_is_error(cue_env):
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
 
     mgr.export()
 
@@ -222,7 +241,7 @@ def test_export_runs_zip_build_off_thread(cue_env, monkeypatch):
     created, _factory = _capture_thread_factory()
     monkeypatch.setattr(_exporter.threading, "Thread", _factory)
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.name = "Pack"
 
     mgr.export()
@@ -247,7 +266,7 @@ def test_export_ignores_reentry_while_building(cue_env, monkeypatch):
     created, _factory = _capture_thread_factory()
     monkeypatch.setattr(_exporter.threading, "Thread", _factory)
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.name = "Pack"
 
     mgr.export()
@@ -255,7 +274,7 @@ def test_export_ignores_reentry_while_building(cue_env, monkeypatch):
     mgr.export()  # is_exporting still True -> no-op, no second thread
 
     assert mgr._export_thread is first
-    assert len(created) == 1
+    assert len(created) == 2  # one refresh worker + one zip build, no more
 
 
 def test_export_progress_callback_reports_fraction(cue_env, monkeypatch):
@@ -263,7 +282,7 @@ def test_export_progress_callback_reports_fraction(cue_env, monkeypatch):
     created, _factory = _capture_thread_factory()
     monkeypatch.setattr(_exporter.threading, "Thread", _factory)
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.name = "Pack"
 
     mgr.export()
@@ -286,7 +305,7 @@ def test_export_includes_music_trigger_log(cue_env):
          '{"replay_r1": [{"key_before": "i_room", "filepath": "m.ogg"}]}'),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.name = "LogPack"
 
     _export_and_join(mgr)
@@ -311,7 +330,7 @@ def test_export_ships_every_category(cue_env):
         ("data/presets/music/p.json", "mp"),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.name = "Full"
     assert mgr.is_category_enabled(CueImportCategory.PRESETS) is True
     assert mgr.counts[CueImportCategory.PRESETS] == 3
@@ -336,7 +355,7 @@ def test_export_skips_unchecked(cue_env):
         ("music/m.ogg", "m"),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.name = "Only music"
     mgr.set_file_types(CueExportFileTypes.SPECIFIC)
     mgr.toggle_category(CueImportCategory.SFX)
@@ -372,7 +391,7 @@ def test_set_scope_switches_content_source(cue_env):
         ("audio/a.ogg", "a"),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
 
     assert mgr.scope == CueExportScope.SPECIFIC_REPLAYS
@@ -390,7 +409,7 @@ def test_all_file_types_ignores_category_checks(cue_env):
         ("music/m.ogg", "m"),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.toggle_category(CueImportCategory.SFX)
 
     sel = mgr.selected_contents()
@@ -406,7 +425,7 @@ def test_specific_file_types_filters_categories(cue_env):
         ("music/m.ogg", "m"),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.set_file_types(CueExportFileTypes.SPECIFIC)
     mgr.toggle_category(CueImportCategory.SFX)
 
@@ -422,7 +441,7 @@ def test_any_unchecked_only_in_specific_mode(cue_env):
         ("music/m.ogg", "m"),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.toggle_category(CueImportCategory.SFX)
 
     assert mgr.any_unchecked() is False  # All mode: nothing can be off
@@ -440,7 +459,7 @@ def test_refresh_populates_replays_and_seeds_checked(cue_env):
          '{"replay": "Run 2", "pools": []}'),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
 
     assert mgr.replays == [{"label": "Run 1", "count": 1},
                            {"label": "Run 2", "count": 1}]
@@ -454,7 +473,7 @@ def test_toggle_replay_unchecks(cue_env):
          '{"replay": "Run 1", "pools": []}'),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.toggle_replay("Run 1")
 
     assert mgr.is_replay_checked("Run 1") is False
@@ -468,7 +487,7 @@ def test_toggle_all_replays_alternates(cue_env):
          '{"replay": "Run 2", "pools": []}'),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()  # all checked by default
+    _refresh_and_join(mgr)  # all checked by default
 
     mgr.toggle_all_replays()
     assert mgr.is_replay_checked("Run 1") is False
@@ -490,7 +509,7 @@ def test_toggle_all_replays_from_partial_checks_all(cue_env):
          '{"replay": "Run 2", "pools": []}'),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.toggle_replay("Run 2")  # one left unchecked
 
     mgr.toggle_all_replays()
@@ -509,7 +528,7 @@ def test_replay_scope_contents_is_subset(cue_env):
          '{"replay": "Run 2", "pools": [{"files": ["audio/b.ogg"]}]}'),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
     mgr.toggle_replay("Run 2")  # only Run 1 stays checked
 
@@ -528,7 +547,7 @@ def test_replay_contents_respect_file_types(cue_env):
          '{"replay": "Run 1", "pools": [{"files": ["audio/a.ogg"]}]}'),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
     mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
     mgr.set_file_types(CueExportFileTypes.SPECIFIC)
     mgr.toggle_category(CueImportCategory.SFX)
@@ -551,7 +570,7 @@ def test_export_replay_packs_only_that_replay(cue_env):
          '{"replay": "Run 1", "pools": [{"files": ["audio/a.ogg"]}]}'),
     ])
     mgr = CueExportManager(cue_env.paths)
-    mgr.refresh()
+    _refresh_and_join(mgr)
 
     mgr.export_replay("Run 1")
     mgr._export_thread.join()
@@ -575,3 +594,90 @@ def test_current_replay_reads_store(cue_env, monkeypatch):
     mgr = CueExportManager(cue_env.paths)
 
     assert mgr._current_replay() == "Run 1"
+
+
+# ---------------------------------------------------------------------------
+# refresh -- background snapshot swap (mirrors CueImportManager.scan)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def export_threads(monkeypatch):
+    """Patch Thread with a recording factory so refresh()'s background worker
+    is deferred instead of run live.  Returns (created, _join); _join() runs
+    every recorded thread body inline once, so tests can drive the worker
+    synchronously."""
+    created = []
+
+    def _factory(**kw):
+        t = _FakeThread(**kw)
+        created.append(t)
+        return t
+
+    monkeypatch.setattr(_exporter.threading, "Thread", _factory)
+
+    def _join():
+        for t in created:
+            if t.started and not t.joined:
+                t.joined = True
+                t.target()
+
+    return created, _join
+
+
+def test_refresh_defers_disk_work_off_thread(cue_env, export_threads):
+    _seed(cue_env, [
+        ("audio/a.ogg", "a"),
+        ("data/markers/{}/v_a.json".format(GAME_ID), '{}'),
+    ])
+    mgr = CueExportManager(cue_env.paths)
+
+    mgr.refresh()
+
+    # Nothing populated yet -- the snapshot swap hasn't happened; the disk
+    # walk is deferred to a daemon worker.
+    assert mgr.counts == {}
+    assert mgr.is_refreshing is True
+    _created, _join = export_threads
+    assert len(_created) == 1
+    assert _created[0].daemon is True
+    assert _created[0].started is True
+
+    # Driving the recorded body reproduces the worker's finish.
+    _join()
+
+    assert mgr.is_refreshing is False
+    assert mgr.counts[CueImportCategory.SFX] == 1
+    assert mgr.counts[CueImportCategory.MARKERS] == 1
+
+
+def test_refresh_ignores_reentry_while_running(cue_env, export_threads):
+    mgr = CueExportManager(cue_env.paths)
+
+    mgr.refresh()
+    mgr.refresh()  # is_refreshing still True -> no-op, no second worker
+
+    _created, _join = export_threads
+    assert len(_created) == 1
+
+
+def test_refresh_keeps_last_snapshot_on_failure(cue_env, export_threads,
+                                                monkeypatch):
+    _seed(cue_env, [("audio/a.ogg", "a")])
+    mgr = CueExportManager(cue_env.paths)
+    _created, _join = export_threads
+
+    mgr.refresh()
+    _join()
+    assert mgr.counts[CueImportCategory.SFX] == 1
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(_exporter, "_cue_enumerate_import_files", _boom)
+    mgr.refresh()
+    _join()
+
+    # The failed pass leaves the previous snapshot in place, never a
+    # half-built one, and clears the running flag.
+    assert mgr.is_refreshing is False
+    assert mgr.counts[CueImportCategory.SFX] == 1
