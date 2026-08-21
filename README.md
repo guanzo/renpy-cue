@@ -71,7 +71,7 @@ All markers, presets, shared config, user audio/music, backups, and speed-varian
 - **macOS**: `~/Library/Application Support/renpy_cue`
 - **Linux**: `$XDG_DATA_HOME/renpy_cue`, or `~/.local/share/renpy_cue`
 
-You can relocate it from **Settings → Cue Data Directory** (applies machine-wide, takes effect after restart), or override it with the `RENPY_CUE_DIR` environment variable. Every game with Cue installed shares this one directory. User media goes in two subfolders: `audio/` (SFX) and `music/`.
+You can relocate it from **Settings → Data Folder** (applies machine-wide, takes effect after restart), or override it with the `RENPY_CUE_DIR` environment variable. Every game with Cue installed shares this one directory. User media goes in two subfolders: `audio/` (SFX) and `music/`.
 
 ## Development
 
