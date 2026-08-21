@@ -43,16 +43,6 @@ body:
       label: Which game and version?
       description: Which visual novel version were you using when the bug happened?
 
-  - type: textarea
-    id: logs
-    attributes:
-      label: Logs
-      description: |-
-        Check if an error.log file exists at game/renpy_cue/error.log. 
-        If so, paste the file contents here.
-    validations:
-      required: false
-
   - type: dropdown
     id: os
     attributes:
@@ -63,3 +53,13 @@ body:
         - Linux
     validations:
       required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |-
+        Check if an error.log file exists at game/renpy_cue/error.log. 
+        If so, paste the file contents here.
+    validations:
+      required: false
