@@ -28,7 +28,7 @@ screen _cue_edit_queue_vbox():
                         "xmark",
                         Function(_cue.video_editor.job_queue.remove, job.job_id),
                         "Remove from queue")
-                text job.filename() + " " + job.speed_label size 11
+                text job.filename() + " " + job.speed_label substitute False size 11
                 text "(" + job.status_text() + ")" size 11
                 if job.status != CueJobStatus.QUEUED:
                     $ _elapsed = int(job.elapsed())
@@ -39,7 +39,10 @@ screen _cue_edit_queue_vbox():
                 hbox:
                     spacing 5
                     null width 20
-                    text job.error_msg size 11 color _cue_color_error
+                    # An ffmpeg failure message (e.g. "[Errno 2] ...") is not
+                    # markup: substituting it would py_eval the brackets and
+                    # crash the whole overlay on every frame.
+                    text job.error_msg substitute False size 11 color _cue_color_error
                     use cue_txt_button("Retry",
                         Function(_cue.video_editor.job_queue.retry, job.job_id))
 

@@ -51,6 +51,12 @@ jobs:
       - name: Set SDK_DIR
         run: echo "SDK_DIR=$PWD/renpy-${{ matrix.renpy }}-sdk" >> "$GITHUB_ENV"
 
+      # The video-variant testcases encode with real ffmpeg/ffprobe; the ubuntu
+      # runner images don't ship them, so a job launch fails with OSError errno 2
+      # (the "fix weird layout shift" era of CI failures). Install before run.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       # The `test` command is uses_display=True and the 7.x leg forces
       # SDL_VIDEODRIVER=x11 -- both need a real X server. xvfb provides it.
       - name: Run testcases

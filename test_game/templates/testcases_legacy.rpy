@@ -541,6 +541,38 @@ testcase click_create_tab_opens_editor:
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
+testcase video_queue_error_msg_substitute_guard:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.video_editor.create(1.5)
+    python:
+        import time as _time
+        _queue = _cue.video_editor.job_queue
+        _deadline = _time.time() + 30.0
+        while _queue.processing and _time.time() < _deadline:
+            _queue.poll()
+            _time.sleep(0.1)
+    # Regression for the CI crash on runners without ffmpeg: a failed encode
+    # sets error_msg to "[Errno 2] ...". The queue text used to be substituted,
+    # so those brackets were py_eval'd and crashed the whole overlay on every
+    # render. Both dynamic text lines are `substitute False` now -- render the
+    # queue with a bracketed error (and bracketed filename) to prove it.
+    $ _cue.video_editor.open_editor()
+    $ _job = _cue.video_editor.job_queue.jobs[-1]
+    $ _job.status = CueJobStatus.ERROR
+    $ _job.vpath = "videos/[bracket] scene.mp4"
+    $ _job.error_msg = "[Errno 2] No such file or directory: 'ffmpeg'"
+    $ renpy.restart_interaction()
+    pause 0.5
+    $ _ok = _job.error_msg == "[Errno 2] No such file or directory: 'ffmpeg'"
+    $ _cue.video_editor.close_editor()
+    $ renpy.restart_interaction()
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
 testcase video_seamless_transition_preserves_position:
     $ _cue.is_overlay_visible = True
     run Jump("start")
