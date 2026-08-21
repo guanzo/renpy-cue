@@ -17,6 +17,7 @@ define _cue_color_border = "#786262"
 define _cue_color_bg_btn = "#444444"
 define _cue_color_divider = "#555555"
 define _cue_color_bg_btn_hover = "#666666"
+define _cue_color_bg_input_hover = "#383838"
 
 # --- Text ---
 define _cue_color_text = "#cccccc"

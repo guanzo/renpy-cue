@@ -53,6 +53,14 @@ init -900 python:
                 self._multi_setter(value)
             _cue.volume.marker_queue_save(self._marker_key)
 
+    def _cue_split_dotted_path(dotted_path):
+        # type: (str) -> tuple
+        """Split "_cue.foo.bar" into (obj, "bar") like _CueFieldValue."""
+        _dot = dotted_path.rfind(".")
+        if _dot == -1:
+            return (renpy.store, dotted_path)
+        return (renpy.python.py_eval(dotted_path[:_dot]), dotted_path[_dot + 1:])
+
 
 
 # Vertical divider: thin line for visual separation between controls.
@@ -257,41 +265,80 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
 # commit_action: Function() called on Enter to confirm
 # display_text: the label shown on the textbutton
 # editing_ref: optional object with a search_is_editing attribute; when given
-#   it is the source of truth for edit mode, so a sibling (e.g. the search
-#   bar's clear button) can exit editing by setting it to False.
-screen cue_text_input(field_name, commit_action, display_text, xsize=None, editing_ref=None):
+#   it is the source of truth for edit mode, so the clear button can exit
+#   editing by setting it to False.
+# clear_btn: when True the leading slot holds a clear (xmark) button while
+#   editing or while the field has text; an idle empty field shows a
+#   non-clickable hint icon instead, so the layout never shifts.
+# clear_action: Function() called by the clear button (default: empty the
+#   field value).  Clears derived state too when relevant (e.g. search).
+# clear_tt: tooltip on the clear button.
+# hint_icon: icon name shown in the idle+empty slot (default keyboard);
+#   override per input, e.g. cue_search_bar passes a magnifying glass.
+screen cue_text_input(field_name, commit_action, display_text, xsize=200, editing_ref=None,
+                      clear_btn=True, clear_action=None, clear_tt="Clear", hint_icon="keyboard"):
     style_group "cue"
 
     default editing = False
-    $ height = 16
+    $ ysize = 16
     if editing_ref is not None:
         $ editing = editing_ref.search_is_editing
         $ _start_edit = SetField(editing_ref, "search_is_editing", True)
         $ _commit = [commit_action, SetField(editing_ref, "search_is_editing", False)]
+        $ _exit_edit = SetField(editing_ref, "search_is_editing", False)
     else:
         $ _start_edit = SetLocalVariable("editing", True)
         $ _commit = [commit_action, SetLocalVariable("editing", False)]
-    if editing:
-        frame:
-            # key must be inside frame, otherwise a parent vbox will add spacing
-            # because it considers "key" to be a UI element.
-            key "K_RETURN" action _commit
-            key "K_KP_ENTER" action _commit
-            background _cue_color_bg_input
-            padding (2, 0)
-            ysize height
-            #xfill True
-            input:
-                value _CueFieldValue(field_name)
-                default True
-                copypaste True
-                if xsize is not None:
-                    xsize xsize
-                ysize height
+        $ _exit_edit = SetLocalVariable("editing", False)
+
+    $ _pair = _cue_split_dotted_path(field_name)
+    $ _obj = _pair[0]
+    $ _field = _pair[1]
+    $ _has_text = bool(getattr(_obj, _field, ""))
+    if clear_action is not None:
+        $ _clear_core = clear_action
     else:
-        use cue_txt_button(display_text,
-            _start_edit,
-            xsize=xsize, ysize=height, tt="Click to type. Enter to confirm.")
+        # Default clear: empty the field value.
+        $ _clear_core = SetField(_obj, _field, "")
+    $ _clear = [_clear_core, _exit_edit]
+
+    hbox:
+        spacing 0
+
+        if clear_btn and (editing or _has_text):
+            use cue_icon_btn("xmark", _clear, clear_tt, bg=_cue_color_bg_input)
+        elif hint_icon:
+            # Idle hint: input-colored box filling the clear button's slot so
+            # nothing shifts when editing starts or stops.
+            use cue_icon_btn(hint_icon, enabled=False, bg=_cue_color_bg_input)
+        if editing:
+            frame:
+                # key must be inside frame, otherwise a parent vbox will add spacing
+                # because it considers "key" to be a UI element.
+                key "K_RETURN" action _commit
+                key "K_KP_ENTER" action _commit
+                background _cue_color_bg_input
+                padding (6, 0)
+                ysize ysize
+                xsize xsize
+                input:
+                    value _CueFieldValue(field_name)
+                    default True
+                    copypaste True
+                    xsize xsize
+                    ysize ysize
+        else:
+            # Idle state is an inline textbutton so it can carry the input's
+            # bg + text offset; flush against the icon slot it reads as one box.
+            textbutton display_text:
+                action _start_edit
+                background _cue_color_bg_input
+                hover_background _cue_color_bg_input_hover
+                padding (6, 0)
+                tooltip "Click to type. Enter to confirm."
+                if xsize is not None and xsize > 0:
+                    xsize xsize
+                ysize ysize
 
 screen cue_search_bar(field_path, manager, hint="Search"):
     style_group "cue"
@@ -300,15 +347,11 @@ screen cue_search_bar(field_path, manager, hint="Search"):
     $ _label = _q if _q.strip() else hint
     vbox:
         spacing 4
-        hbox:
-            spacing 0
-            if _q.strip() or manager.search_is_editing:
-                use cue_icon_btn("xmark",
-                    [Function(manager.clear_search), SetField(manager, "search_is_editing", False)],
-                    "Clear search")
-            else:
-                use cue_icon_btn("magnifying-glass")
-            use cue_text_input(field_path, Function(manager.rebuild_tree), _label, editing_ref=manager)
+        use cue_text_input(field_path, Function(manager.rebuild_tree), _label,
+            editing_ref=manager,
+            clear_action=Function(manager.clear_search),
+            clear_tt="Clear search",
+            hint_icon="magnifying-glass")
 
         if manager.search_truncated:
             text "{} more results.  Narrow your search".format(manager.search_truncated) style "cue_help"
