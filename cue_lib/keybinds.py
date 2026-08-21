@@ -3,7 +3,7 @@
 # cue_lib/keybinds.py -- CueKeybindsManager: rebindable hotkey system.
 #
 # All cue hotkeys are routed through config.keymap entries (keymap names like
-# "cue_toggle_overlay").  The cue_key_listener screen uses static keymap-name
+# "cue_toggle_overlay").  The cue_runtime_driver screen uses static keymap-name
 # key statements, and runtime rebinds mutate config.keymap + clear the compiled
 # event cache so changes take effect immediately.
 #

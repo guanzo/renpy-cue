@@ -61,6 +61,28 @@ init -900 python:
             return (renpy.store, dotted_path)
         return (renpy.python.py_eval(dotted_path[:_dot]), dotted_path[_dot + 1:])
 
+    def _cue_read_clipboard():
+        # type: () -> str
+        """Return the system clipboard text, or "" when unavailable or empty."""
+        try:
+            import pygame
+            _raw = pygame.scrap.get(pygame.SCRAP_TEXT)
+            if _raw:
+                return _raw.decode("utf-8", "replace")
+        except Exception:
+            _cue_log("CUE-CLIPBOARD: could not read clipboard")
+        return ""
+
+    def _cue_paste_into_field(dotted_path):
+        # type: (str) -> None
+        """Paste clipboard text into the field addressed by dotted_path."""
+        _clip = _cue_read_clipboard()
+        if not _clip:
+            return
+        _pair = _cue_split_dotted_path(dotted_path)
+        setattr(_pair[0], _pair[1], _clip)
+        renpy.restart_interaction()
+
 
 
 # Vertical divider: thin line for visual separation between controls.
@@ -275,8 +297,12 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
 # clear_tt: tooltip on the clear button.
 # hint_icon: icon name shown in the idle+empty slot (default keyboard);
 #   override per input, e.g. cue_search_bar passes a magnifying glass.
+# paste_btn: when True the idle+empty slot holds a clickable paste button
+#   instead of the hint icon; clicking it starts editing and drops the
+#   system clipboard into the field so it shows in the input.
 screen cue_text_input(field_name, commit_action, display_text, xsize=200, editing_ref=None,
-                      clear_btn=True, clear_action=None, clear_tt="Clear", hint_icon="keyboard"):
+                      clear_btn=True, clear_action=None, clear_tt="Clear", hint_icon="keyboard",
+                      paste_btn=False):
     style_group "cue"
 
     default editing = False
@@ -307,6 +333,15 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=200, editin
 
         if clear_btn and (editing or _has_text):
             use cue_icon_btn("xmark", _clear, clear_tt, bg=_cue_color_bg_input)
+        elif paste_btn:
+            # Paste button fills the hint slot: clicking it starts editing
+            # and drops the clipboard into the field so it shows in the input.
+            use cue_icon_btn(
+                "paste",
+                [_start_edit, Function(_cue_paste_into_field, field_name)],
+                "Paste from clipboard",
+                bg=_cue_color_bg_input,
+            )
         elif hint_icon:
             # Idle hint: input-colored box filling the clear button's slot so
             # nothing shifts when editing starts or stops.

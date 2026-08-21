@@ -4,11 +4,12 @@
 
 
 ###############################################################################
-# Key Listener — invisible screen that catches global hotkeys and drives the
-# tick engine.
+# Runtime Driver — invisible always-on screen that drives the tick engine,
+# catches global hotkeys, and runs background polls.
 ###############################################################################
 
-screen cue_key_listener():
+# Put timers here, because for some stupid reason they occupy space in the layout.
+screen cue_runtime_driver():
     zorder 10000
 
     key CUE_KEYMAP_TOGGLE_OVERLAY action Function(_cue_toggle_overlay)
@@ -25,6 +26,9 @@ screen cue_key_listener():
     key CUE_KEYMAP_SPEED_DOWN action Function(_cue.speed_resolver.cycle_speed, -1)
     key CUE_KEYMAP_TOGGLE_SFX_LIBRARY action Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
     
+    if CUE_DEBUG:
+        key CUE_KEYMAP_QUIT_RELAUNCH action Function(renpy.quit, relaunch=True)
+
     if _cue.is_overlay_visible:
         key CUE_KEYMAP_TOGGLE_SFX_OVERLAY action Function(_cue.sfx.library.toggle_overlay_mode)
         key CUE_KEYMAP_PAGE_SFX action Function(_cue_set_page, CuePage.SFX)
@@ -39,9 +43,9 @@ screen cue_key_listener():
             key CUE_KEYMAP_TARGET_LOOP action Function(_cue.markers.set_target_context, CueContextType.LOOP)
         elif _cue.overlay_active_page == CuePage.IMPORT:
             timer 2.0 repeat True action Function(_cue.importer.scan)
-
-    if CUE_DEBUG:
-        key CUE_KEYMAP_QUIT_RELAUNCH action Function(renpy.quit, relaunch=True)
+            
+            if _cue.exporter.is_refreshing or _cue.exporter.is_exporting:
+                timer 0.1 repeat True action Function(renpy.restart_interaction, _update_screens=False)
 
     timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
     timer 1 repeat True action Function(_cue.backups.poll, _update_screens=False)

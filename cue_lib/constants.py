@@ -133,7 +133,7 @@ CUE_AUTO_SPEED_MIN_VARIANTS = 4
 CUE_AUTO_SPEED_IDEAL_VARIANTS = 8
 
 # SFX Library section header text and lookup key.  A constant because the
-# toggle-SFX hotkey in cue_key_listener references the same string from a
+# toggle-SFX hotkey in cue_runtime_driver references the same string from a
 # second location.  Other section titles are single-use literals.
 CUE_SFX_LIBRARY_HEADER = "SFX Library"
 

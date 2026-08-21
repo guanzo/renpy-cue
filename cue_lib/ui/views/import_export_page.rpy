@@ -145,9 +145,6 @@ screen cue_export_section():
 
             null height 4
 
-            if _exporter.is_refreshing or _exporter.is_exporting:
-                timer 0.1 repeat True action Function(renpy.restart_interaction, _update_screens=False)
-
             hbox:
                 spacing 5
                 use cue_txt_button(
@@ -211,7 +208,8 @@ screen cue_url_downloader():
                 xsize=200,
                 editing_ref=_cue.url_importer,
                 clear_action=Function(_cue.url_importer.clear_url),
-                clear_tt="Clear URL")
+                clear_tt="Clear URL",
+                paste_btn=True)
             if _cue.url_importer.is_downloading:
                 use cue_txt_button(
                     "Cancel",
