@@ -18,7 +18,8 @@ screen cue_sfx_library(_is_video):
 
     $ sfx_tt = (
         "Add {} files to\n{}\n\n"
-        "Click the + button to add files to the selected \"Target\""
+        "Click the + button to add files to the selected \"Target\"\n\n"
+        "Prefer adding folders over single files."
     ).format(", ".join(CUE_AUDIO_EXTS), _cue.paths.audio_dir)
 
     use cue_section_frame(CUE_SFX_LIBRARY_HEADER, tt=sfx_tt, icons=_icons):
@@ -80,16 +81,18 @@ screen cue_sfx_library_content(_is_video):
 
     $ _q = _cue.sfx.library.search_query
     $ _searching = bool(_q.strip())
-    # Preset names, filtered by the search query so the preset sections join
-    # the file-tree search flow (same term semantics as the tree).  During a
+    # Preset/igroup names, filtered by the search query so the preset sections
+    # join the file-tree search flow (same term semantics as the tree).  Pool
+    # presets and intensity groups also match on their contents, so a search
+    # surfaces a section when any file/folder inside it matches.  During a
     # search each section header only shows when something in it matches.
     $ _preset_names = _cue.markers.list_presets()
     $ _video_preset_names = _cue.markers.list_video_presets()
     $ _igroup_names = _cue.intensity.list_igroups()
     if _searching:
-        $ _preset_names = [n for n in _preset_names if _cue_query_matches(n, _q)]
+        $ _preset_names = [n for n in _preset_names if _cue_preset_search_matches(n, _q)]
         $ _video_preset_names = [n for n in _video_preset_names if _cue_query_matches(n, _q)]
-        $ _igroup_names = [n for n in _igroup_names if _cue_query_matches(n, _q)]
+        $ _igroup_names = [n for n in _igroup_names if _cue_igroup_search_matches(n, _q)]
     viewport:
         xfill True
         mousewheel True
@@ -114,10 +117,12 @@ screen cue_sfx_library_content(_is_video):
                     spacing 2
                     use cue_txt_button("Pool Presets/", Function(_cue.sfx.library.toggle_presets_expand))
 
-                if _cue.sfx.library.presets_expanded:
+                # Rows auto-show during a search (like Recently Used) so a
+                # content match is visible without expanding the section.
+                if _searching or _cue.sfx.library.presets_expanded:
                     if not _preset_names:
                         etext "No pool presets yet. Save a pool as a preset to fill this." style "cue_help"
-                    use cue_audio_presets_list(_preset_names)
+                    use cue_audio_presets_list(_preset_names, _q)
 
             if not _searching or _video_preset_names:
                 hbox:
@@ -129,7 +134,7 @@ screen cue_sfx_library_content(_is_video):
                         etext "No video presets yet. Save video markers as a preset to fill this." style "cue_help"
                     use cue_video_presets_list(_is_video, _video_preset_names)
 
-            use cue_intensity_group_row(_igroup_names, _searching)
+            use cue_intensity_group_row(_igroup_names, _searching, _q)
 
             $ _no_results = (_searching and not _recent_entries
                 and not _preset_names
@@ -194,17 +199,20 @@ screen cue_recent_list(entries):
 
 # Audio preset rows, shown when the Presets folder is expanded.
 # name_filter: preset names to show (None = all); set by the search flow.
+# search_query: active search term; rows are filtered to the matching files
+# (content-matched presets show only what matched).
 # [+] applies the preset to the resolved target context's active pool.
-screen cue_audio_presets_list(name_filter=None):
+screen cue_audio_presets_list(name_filter=None, search_query=""):
     style_group "cue"
 
     $ _names = name_filter if name_filter is not None else _cue.markers.list_presets()
+    $ _searching = bool(search_query.strip())
     $ _tgt_ok = _cue.markers.target_is_available(_cue.markers.resolve_target_context())
     $ _tgt_tt = _cue_target_assign_tt()
     for _pname in _names:
         $ _pdata = _cue.markers.get_preset(_pname)
         $ _p_expanded = _cue.sfx.library.expanded_presets.get(_pname, False)
-        $ _p_files = _cue_resolve_files(_pdata.get("files", [])) if _pdata else []
+        $ _p_files = _cue_filter_preset_files(_pname, search_query)
         hbox:
             spacing 2
             etext " "  # indent under Presets/
@@ -220,7 +228,9 @@ screen cue_audio_presets_list(name_filter=None):
                 _tgt_tt, enabled=_tgt_ok)
             use cue_txt_button(_pname, Function(_cue.sfx.library.toggle_preset_expand, _pname))
 
-        if _p_expanded:
+        # File rows auto-show during a search (like the tree) so a
+        # content-matched preset reveals what matched without a click.
+        if _p_expanded or _searching:
             for _child in _p_files:
                 hbox:
                     spacing 2
@@ -273,37 +283,42 @@ screen cue_video_presets_list(_is_video, name_filter=None):
                     etext "  "
                     etext _pool_label color _cue_color_text_accent size 11
 
-screen cue_intensity_group_row(igroup_names, searching):
+screen cue_intensity_group_row(igroup_names, searching, search_query=""):
     # The parent (cue_sfx_library_content) filters igroup names by the search
     # query and passes them here -- a `use`d screen gets its own scope, so
-    # _searching/_q from the caller aren't visible.
+    # _searching/_q from the caller aren't visible.  Rows auto-show during a
+    # search (like Recently Used) so a content match is visible without
+    # expanding the section.
     if not searching or igroup_names:
         use cue_txt_button("Intensity Groups/", Function(_cue.sfx.library.toggle_igroups_expand))
-            
-        if _cue.sfx.library.igroups_expanded:
+
+        if searching or _cue.sfx.library.igroups_expanded:
             hbox:
                 spacing 2
                 etext " "  # indent
-                use cue_txt_button("+ New Group", Function(_cue.dialogs.intensity.open),
+                use cue_txt_button("+ Group", Function(_cue.dialogs.intensity.open),
                     tt="Create a new intensity group.")
 
-            use cue_intensity_groups_list(igroup_names)
+            use cue_intensity_groups_list(igroup_names, search_query)
 # Intensity group rows, shown when the Intensity Groups/ block is expanded.
 # Each igroup row expands to its ordered level rows (folder order = level
 # order).  The folder-plus button toggles add-folder mode for that group (one
 # group at a time); while active, a tree folder's + adds it directly.  The
 # other group folders (B, C...) are never added to pools here -- usage is the
 # pool-side hook, handled in the Video SFX inspector.
-screen cue_intensity_groups_list(igroup_names):
+# search_query: active search term; level rows are filtered to the matching
+# folders (content-matched groups show only what matched).
+screen cue_intensity_groups_list(igroup_names, search_query=""):
     style_group "cue"
 
     if not igroup_names:
         etext "No intensity groups yet. New Group to create one." style "cue_help"
         etext "An intensity group is a soft-to-hard folder list; folder order is the level order." style "cue_help"
 
+    $ _searching = bool(search_query.strip())
     for _gname in igroup_names:
         $ _gdata = _cue.intensity.get_igroup(_gname)
-        $ _g_folders = _gdata.get("folders", []) if _gdata else []
+        $ _g_folders = _cue_filter_igroup_folders(_gname, search_query)
         $ _g_expanded = _cue.sfx.library.expanded_igroups.get(_gname, False)
         $ _in_add = (_cue.sfx.library.igroup_add_target == _gname)
         hbox:
@@ -318,27 +333,32 @@ screen cue_intensity_groups_list(igroup_names):
                 bg=(_cue_color_selected_alt if _in_add else None))
             use cue_txt_button(_gname, Function(_cue.sfx.library.toggle_igroup_expand, _gname))
 
-        if _g_expanded:
-            if not _g_folders:
-                etext "  No levels yet. Click the group's folder button, then a folder's + button." style "cue_help"
-                etext "  Add up to 3 levels for the best experience." style "cue_help"
+        # Level rows auto-show during a search (like the tree) so a
+        # content-matched group reveals what matched without a click.
+        if _g_expanded or _searching:
+            # The level buttons are index-based and must not run on the
+            # filtered view -- hide them (and the level label) while searching.
+            if not _searching and not _g_folders:
+                etext "  No levels yet. Click the group's folder button to add files." style "cue_help"
+                etext "  Add up to ~3 levels for the best experience." style "cue_help"
                 null height 2
             for _idx in range(len(_g_folders)):
                 $ _folder = _g_folders[_idx]
                 hbox:
                     spacing 2
                     etext "    "
-                    use cue_icon_btn("xmark",
-                        Function(_cue.intensity.remove_level, _gname, _idx),
-                        "Remove this level")
-                    use cue_icon_btn("chevron-up",
-                        Function(_cue.intensity.move_level, _gname, _idx, -1),
-                        "Move level up", enabled=(_idx > 0))
-                    use cue_icon_btn("chevron-down",
-                        Function(_cue.intensity.move_level, _gname, _idx, 1),
-                        "Move level down", enabled=(_idx < len(_g_folders) - 1))
-                    etext "Level {}:".format(_idx + 1) color _cue_color_text_accent size 11
-                    null width 1
+                    if not _searching:
+                        use cue_icon_btn("xmark",
+                            Function(_cue.intensity.remove_level, _gname, _idx),
+                            "Remove this level")
+                        use cue_icon_btn("chevron-up",
+                            Function(_cue.intensity.move_level, _gname, _idx, -1),
+                            "Move level up", enabled=(_idx > 0))
+                        use cue_icon_btn("chevron-down",
+                            Function(_cue.intensity.move_level, _gname, _idx, 1),
+                            "Move level down", enabled=(_idx < len(_g_folders) - 1))
+                        etext "Level {}:".format(_idx + 1) color _cue_color_text_accent size 11
+                        null width 1
                     etext _folder color _cue_color_text_accent size 11
 
 

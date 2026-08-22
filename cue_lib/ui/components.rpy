@@ -703,26 +703,26 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
             if _r.files:
                 if _is_preset_pool:
                     # Preset-backed: render as expandable folder
-                    use cue_file_list([], _cue.markers.detach_pool_at, (key, _target), _active_eff, 5,
+                    use cue_file_list([], _cue.markers.detach_pool_at, (key, _target), _active_eff, 2,
                         marker_key=key, pool_index=_target,
                         folder_label=_active_pool["preset"],
                         folder_children=_cue_resolve_files(_r.files),
                         folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
                 else:
-                    use cue_file_list(_r.files, ctx.remove_file, (_target,), _active_eff, 5,
+                    use cue_file_list(_r.files, ctx.remove_file, (_target,), _active_eff, 2,
                         marker_key=key, pool_index=_target,
                         folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
             else:
                 if key and description is not None:
                     etext description
                 if key:
-                    etext ("Click + in the SFX Library with {} selected "
+                    etext ("Click + in the SFX Library with {} targeted "
                         "to add files to this pool.").format(_ctx_label)
         else:
             if key and description is not None:
                 etext description
             if key:
-                etext ("Click + in the SFX Library with {} selected to create a new pool "
+                etext ("Click + in the SFX Library with {} targeted to create a new pool "
                     "or add files to the active pool.").format(_ctx_label)
 
 # Toggle button: square-check icon when checked, square when unchecked.

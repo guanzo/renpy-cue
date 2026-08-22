@@ -73,6 +73,8 @@ init -999 python:
         _cue_format_time, _cue_parse_time, _cue_clamp_time, _cue_speed_label,
         _cue_format_size, _cue_format_duration, _cue_escape_text,
         _cue_log, _cue_resolve_files, _cue_pick_file, _cue_query_matches,
+        _cue_preset_search_matches, _cue_igroup_search_matches,
+        _cue_filter_preset_files, _cue_filter_igroup_folders,
         _cue_unwrap_displayable, _cue_ui_refresh,
         _cue_wrap_with_statement, _cue_wrap_config_show,
         _cue_strip_key_prefix,

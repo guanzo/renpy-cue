@@ -866,6 +866,137 @@ def test_query_matches_escaped_pipe_literal():
 
 
 # ---------------------------------------------------------------------------
+# _cue_matches_any / preset + igroup search matchers (search-bar content
+# matching: a pool preset or intensity group surfaces when a file/folder
+# inside it matches, not just its own name)
+# ---------------------------------------------------------------------------
+
+def _stub_sfx_library(monkeypatch, files):
+    monkeypatch.setattr(_cue, "sfx",
+                        SimpleNamespace(library=SimpleNamespace(
+                            files=list(files), disabled_files=set())))
+
+
+def test_matches_any_empty_query_matches_everything():
+    assert _util._cue_matches_any("", ["music/a.ogg"])
+    assert _util._cue_matches_any("   ", ["music/a.ogg"])
+
+
+def test_matches_any_substring_case_insensitive():
+    assert _util._cue_matches_any("scream", ["music/Scream.wav", "music/moan.wav"])
+    assert not _util._cue_matches_any("zzz", ["music/Scream.wav"])
+
+
+def test_matches_any_empty_items_is_false():
+    assert not _util._cue_matches_any("scream", [])
+
+
+def test_preset_search_matches_by_name(monkeypatch):
+    monkeypatch.setattr(_cue, "markers", SimpleNamespace(get_preset=lambda n: None))
+    assert _util._cue_preset_search_matches("Action Pack", "action")
+
+
+def test_preset_search_matches_by_file_content(monkeypatch):
+    _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
+    monkeypatch.setattr(_cue, "markers", SimpleNamespace(
+        get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]}))
+    assert _util._cue_preset_search_matches("Action Pack", "scream")
+
+
+def test_preset_search_matches_folder_ref_content(monkeypatch):
+    _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
+    monkeypatch.setattr(_cue, "markers", SimpleNamespace(
+        get_preset=lambda n: {"files": ["music/"]}))
+    assert _util._cue_preset_search_matches("Ambient", "scream")
+
+
+def test_preset_search_matches_nothing(monkeypatch):
+    _stub_sfx_library(monkeypatch, ["music/scream.wav"])
+    monkeypatch.setattr(_cue, "markers", SimpleNamespace(
+        get_preset=lambda n: {"files": ["music/scream.wav"]}))
+    assert not _util._cue_preset_search_matches("Action Pack", "zzz")
+
+
+def test_preset_search_matches_missing_preset(monkeypatch):
+    monkeypatch.setattr(_cue, "markers", SimpleNamespace(get_preset=lambda n: None))
+    assert not _util._cue_preset_search_matches("Ghost", "scream")
+
+
+def test_igroup_search_matches_by_name(monkeypatch):
+    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(get_igroup=lambda n: {"folders": []}))
+    assert _util._cue_igroup_search_matches("Soft", "soft")
+
+
+def test_igroup_search_matches_by_folder_content(monkeypatch):
+    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(
+        get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]}))
+    assert _util._cue_igroup_search_matches("Build", "gasps")
+
+
+def test_igroup_search_matches_nothing(monkeypatch):
+    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(
+        get_igroup=lambda n: {"folders": ["moans/soft"]}))
+    assert not _util._cue_igroup_search_matches("Build", "zzz")
+
+
+def test_igroup_search_matches_missing_group(monkeypatch):
+    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(get_igroup=lambda n: None))
+    assert not _util._cue_igroup_search_matches("Ghost", "soft")
+
+
+# _cue_filter_preset_files: no search or a name match keeps all files; a
+# content-only match keeps just the matching files (the tree's folder-match
+# semantics -- matching folder keeps all descendants).
+
+def test_filter_preset_files_no_query_all_files(monkeypatch):
+    _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
+    monkeypatch.setattr(_cue, "markers", SimpleNamespace(
+        get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]}))
+    assert _util._cue_filter_preset_files("Action Pack", "") == \
+        ["music/scream.wav", "music/moan.wav"]
+
+
+def test_filter_preset_files_name_match_keeps_all(monkeypatch):
+    _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
+    monkeypatch.setattr(_cue, "markers", SimpleNamespace(
+        get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]}))
+    assert _util._cue_filter_preset_files("Action Pack", "action") == \
+        ["music/scream.wav", "music/moan.wav"]
+
+
+def test_filter_preset_files_content_match_keeps_matches(monkeypatch):
+    _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
+    monkeypatch.setattr(_cue, "markers", SimpleNamespace(
+        get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]}))
+    assert _util._cue_filter_preset_files("Action Pack", "scream") == ["music/scream.wav"]
+
+
+def test_filter_preset_files_folder_ref_resolves_then_filters(monkeypatch):
+    _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
+    monkeypatch.setattr(_cue, "markers", SimpleNamespace(
+        get_preset=lambda n: {"files": ["music/"]}))
+    assert _util._cue_filter_preset_files("Ambient", "scream") == ["music/scream.wav"]
+
+
+def test_filter_igroup_folders_no_query_all(monkeypatch):
+    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(
+        get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]}))
+    assert _util._cue_filter_igroup_folders("Build", "") == ["moans/soft", "gasps/light"]
+
+
+def test_filter_igroup_folders_name_match_keeps_all(monkeypatch):
+    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(
+        get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]}))
+    assert _util._cue_filter_igroup_folders("Build", "build") == ["moans/soft", "gasps/light"]
+
+
+def test_filter_igroup_folders_content_match_keeps_matches(monkeypatch):
+    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(
+        get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]}))
+    assert _util._cue_filter_igroup_folders("Build", "gasps") == ["gasps/light"]
+
+
+# ---------------------------------------------------------------------------
 # Branch tails -- error paths, Py2 unicode paths, dead-code fallbacks
 # ---------------------------------------------------------------------------
 

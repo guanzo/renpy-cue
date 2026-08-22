@@ -403,6 +403,71 @@ def _cue_query_matches(name, query):
     return _cue_compile_query(query)(name)
 
 
+def _cue_matches_any(query, items):
+    # type: (str, List[str]) -> bool
+    """True when the query matches any item (same semantics as
+    _cue_query_matches).  An empty query matches everything; empty items never
+    match."""
+    if not query.strip():
+        return True
+    matches = _cue_compile_query(query)
+    for item in items:
+        if matches(item):
+            return True
+    return False
+
+
+def _cue_preset_search_matches(name, query):
+    # type: (str, str) -> bool
+    """True when a search keeps a pool preset: the name matches, or any file
+    inside the preset matches.  Preset files resolve the same way the preset
+    list renders them (folder refs expanded, disabled files skipped)."""
+    if _cue_query_matches(name, query):
+        return True
+    data = _cue.markers.get_preset(name)
+    if not data:
+        return False
+    return _cue_matches_any(query, _cue_resolve_files(data.get("files", [])))
+
+
+def _cue_igroup_search_matches(name, query):
+    # type: (str, str) -> bool
+    """True when a search keeps an intensity group: the name matches, or any
+    level folder inside the group matches."""
+    if _cue_query_matches(name, query):
+        return True
+    data = _cue.intensity.get_igroup(name)
+    if not data:
+        return False
+    return _cue_matches_any(query, data.get("folders", []))
+
+
+def _cue_filter_preset_files(name, query):
+    # type: (str, str) -> List[str]
+    """Resolve a preset's files for display under a search query.
+
+    No search (empty query) or a name match keeps all files -- the tree's
+    "matching folder keeps all descendants" rule.  A preset that matched only
+    by its contents keeps just the matching files, so the search result shows
+    why it surfaced."""
+    data = _cue.markers.get_preset(name)
+    files = _cue_resolve_files(data.get("files", [])) if data else []
+    if not query.strip() or _cue_query_matches(name, query):
+        return files
+    return [f for f in files if _cue_query_matches(f, query)]
+
+
+def _cue_filter_igroup_folders(name, query):
+    # type: (str, str) -> List[str]
+    """Level folders to display for an intensity group under a search query,
+    applying the same semantics as _cue_filter_preset_files."""
+    data = _cue.intensity.get_igroup(name)
+    folders = data.get("folders", []) if data else []
+    if not query.strip() or _cue_query_matches(name, query):
+        return folders
+    return [f for f in folders if _cue_query_matches(f, query)]
+
+
 # --------------------------------------------------------------------------
 # Utility: Time Formatting
 # --------------------------------------------------------------------------
