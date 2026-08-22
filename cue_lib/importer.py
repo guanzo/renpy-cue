@@ -509,8 +509,7 @@ class CueImportManager(object):
         if entry is None:
             return
         _cue.dialogs.confirm.show(
-            "Delete import '{}'?  The .zip and its extracted folder are "
-            "removed.".format(entry["name"]),
+            "Delete import '{}'?".format(entry["name"]),
             Function(self.delete_confirmed, imp),
         )
 

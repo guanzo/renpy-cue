@@ -178,7 +178,7 @@ screen cue_import_imports():
 
     use cue_section_frame("Import", tt=_imports_hint):
         etext ("Imports can be previewed, which will temporarily replace your data (except your Settings). "
-            "If you like the import, you can copy it into your data folder with \"Merge\".")
+            "If you like the preview, you can copy it into your data folder with \"Merge\".")
 
         null height 4
         use cue_url_downloader()

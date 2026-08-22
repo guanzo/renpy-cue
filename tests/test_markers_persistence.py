@@ -298,8 +298,10 @@ def test_restore_valid_zip_confirms(cue_env, backups):
     confirm = _FakeConfirmDialog()
     backups._confirm_dialog = confirm
     backups.restore()
+    backups._restore_thread.join(timeout=10)
+    backups.poll()  # preflight finished -> confirm dialog shown from the timer
     assert len(confirm.show_calls) == 1
-    assert "Restore from backups/renpy_cue_backup.zip?" in confirm.show_calls[0][0]
+    assert "will be overwritten" in confirm.show_calls[0][0]
 
 
 # ==========================================================================

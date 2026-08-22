@@ -35,6 +35,7 @@ import threading as _threading
 import time as _time
 import zipfile as _zipfile
 
+import renpy
 from renpy.store import Function
 
 from cue_lib.constants import (
@@ -315,6 +316,50 @@ def restore_pieces(zip_path, shared_dir, game_id):
     return count
 
 
+def restore_counts(zip_path, shared_dir, game_id):
+    # type: (str, str, str) -> Tuple[int, int]
+    """Count what a restore of zip_path would overwrite vs add, without
+    touching the live tree.
+
+    Mirrors restore_pieces()'s matchers and path bases exactly: audio/,
+    music/, and video/ entries land at the shared root, everything else under
+    data/.  An entry whose live target already exists counts as an overwrite
+    (restore moves it to data_bak first); a missing target counts as added.
+    Returns (overwritten, added)."""
+    overwritten = 0
+    added = 0
+    data_dir = os.path.join(shared_dir, "data")
+    matchers = ["markers/{}".format(game_id), "presets", CUE_SHARED_CONFIG_FILENAME]
+    matchers += list(CUE_MEDIA_DIRS)
+    matchers.append("{}/{}".format(CUE_VIDEO_DIR, game_id))
+    with _zipfile.ZipFile(zip_path, "r") as zf:
+        for name in zf.namelist():
+            if not _matches_any(name, matchers):
+                continue
+            first = name.split("/", 1)[0]
+            base = (shared_dir if (first in CUE_MEDIA_DIRS
+                                   or first == CUE_VIDEO_DIR) else data_dir)
+            target = _safe_extract_path(base, name)
+            if target is None:
+                continue
+            if os.path.lexists(target):
+                overwritten += 1
+            else:
+                added += 1
+    return (overwritten, added)
+
+
+def restore_confirm_message(overwritten, added):
+    # type: (int, int) -> str
+    """The confirm-dialog body for a restore preflight."""
+    op = "file" if overwritten == 1 else "files"
+    ap = "file" if added == 1 else "files"
+    return ("Confirm restore.\n\n"
+            "{} {} will be overwritten, {} new {} will be added.\n"
+            "Existing files are saved to data_bak.").format(
+                overwritten, op, added, ap)
+
+
 # =========================================================================
 # CueAutoBackupManager
 # =========================================================================
@@ -462,6 +507,11 @@ class CueManualBackupManager(object):
         self._restore_thread = None
         self._restore_pending = False
         self._restore_count = 0
+        # Confirm-dialog preflight (validate + count), run off-thread so the
+        # Restore click stays instant.  _confirm_payload is consumed by poll().
+        self._restore_checking = False
+        self._confirm_pending = False
+        self._confirm_payload = None  # (zip_path, overwritten, added)
 
     def wire(self, db, reload_work, confirm_dialog):
         # type: (Any, Callable[[int], None], Any) -> None
@@ -471,6 +521,12 @@ class CueManualBackupManager(object):
         self._db = db
         self._reload_work = reload_work
         self._confirm_dialog = confirm_dialog
+
+    @property
+    def is_restore_checking(self):
+        # type: () -> bool
+        """True while the confirm preflight (validate + count) runs off-thread."""
+        return self._restore_checking
 
     # -- backup --
 
@@ -540,27 +596,56 @@ class CueManualBackupManager(object):
 
     def restore(self):
         # type: () -> None
-        """Validate renpy_cue_backup.zip, then ask the user to confirm a restore."""
+        """Validate renpy_cue_backup.zip and count its impact off-thread, then
+        ask the user to confirm a restore.
+
+        Validation (testzip decompresses the whole archive) and the per-file
+        overwrite/new count run on a daemon thread so the Restore click stays
+        instant; the confirm dialog is shown from poll() once the preflight
+        finishes.  A missing or invalid backup surfaces as restore_error."""
         db = self._db
         if db is None or not db.is_open():
             return
+        if self._restore_checking or self._confirm_pending:
+            return
+        if self.is_restoring or self.is_backing_up:
+            return
+        # Clear any previous message so a failed early-exit below never
+        # leaves a stale green status on screen.
+        self.restore_status = ""
+        self.restore_error = ""
         zip_path = self._owner._paths.manual_backup_path
         if not os.path.isfile(zip_path):
             _cue_log("RESTORE-MARKERS-NO-FILE path={}".format(zip_path))
+            self.restore_error = "No backup to restore -- run Back Up first."
             return
-        ok, reason = validate_backup_zip(zip_path)
-        if not ok:
-            _cue_log("RESTORE-MARKERS-INVALID {}".format(reason))
-            return
-        if self._confirm_dialog is not None:
-            self._confirm_dialog.show(
-                "Restore from backups/renpy_cue_backup.zip? This will overwrite this "
-                "game's markers, presets, shared config, and the audio/ and "
-                "music/ folders with the backup's version. Data not included in "
-                "the backup (including anything added after, and other games' "
-                "markers) is left untouched. Previous data is saved to data_bak.",
-                Function(self._apply_restore, zip_path),
-            )
+        self._restore_checking = True
+        t = _threading.Thread(target=self._restore_check_worker,
+                              args=(zip_path,))
+        t.daemon = True
+        self._restore_thread = t
+        t.start()
+
+    def _restore_check_worker(self, zip_path):
+        # type: (str) -> None
+        """Off-thread preflight: validate the backup and count what a restore
+        would overwrite/add.  Hands the counts to the main thread via
+        _confirm_pending + _confirm_payload, consumed by poll()."""
+        try:
+            ok, reason = validate_backup_zip(zip_path)
+            if not ok:
+                _cue_log("RESTORE-MARKERS-INVALID {}".format(reason))
+                self.restore_error = "Backup is invalid: {}".format(reason)
+                return
+            paths = self._owner._paths
+            overwritten, added = restore_counts(
+                zip_path, paths.original_root, paths.game_id)
+            self._confirm_payload = (zip_path, overwritten, added)
+            self._confirm_pending = True
+        except Exception as e:
+            self.restore_error = "Restore check failed: {}".format(e)
+        finally:
+            self._restore_checking = False
 
     def _apply_restore(self, zip_path):
         # type: (str) -> None
@@ -607,11 +692,32 @@ class CueManualBackupManager(object):
 
     def poll(self):
         # type: () -> None
-        """Screen-timer hook: run the main-thread half of a finished restore
-        (the in-memory reload) once the background disk phase is done.  Cheap
-        no-op every other tick."""
+        """Screen-timer hook: run the main-thread halves of the restore flow
+        (the confirm-dialog preflight result, then the post-restore reload)
+        once the background disk phases are done.  Cheap no-op every other
+        tick."""
+        if self._confirm_pending:
+            self._finish_confirm()
         if self._restore_pending:
             self._finish_reload()
+
+    def _finish_confirm(self):
+        # type: () -> None
+        """Main-thread half of a finished preflight: show the confirm dialog
+        with the overwrite/new counts."""
+        self._confirm_pending = False
+        payload = self._confirm_payload
+        self._confirm_payload = None
+        if self._confirm_dialog is None or payload is None:
+            return
+        zip_path, overwritten, added = payload
+        self._confirm_dialog.show(
+            restore_confirm_message(overwritten, added),
+            Function(self._apply_restore, zip_path))
+        # poll() runs under _update_screens=False (overlay timer), so
+        # show_screen alone would defer the dialog to an interaction that
+        # never comes; force the repaint here (same as _reload_after_restore).
+        renpy.restart_interaction()
 
     def _finish_reload(self):
         # type: () -> None
@@ -720,6 +826,11 @@ class CueBackupManager(object):
     def is_restoring(self):
         # type: () -> bool
         return self.manual.is_restoring
+
+    @property
+    def is_restore_checking(self):
+        # type: () -> bool
+        return self.manual.is_restore_checking
 
     @property
     def backup_status(self):

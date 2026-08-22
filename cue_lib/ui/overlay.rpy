@@ -48,7 +48,7 @@ screen cue_runtime_driver():
                 timer 0.1 repeat True action Function(renpy.restart_interaction, _update_screens=False)
 
     timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
-    timer 1 repeat True action Function(_cue.backups.poll, _update_screens=False)
+    timer 0.5 repeat True action Function(_cue.backups.poll, _update_screens=False)
 
 ###############################################################################
 # Main Overlay — the sidebar frame.

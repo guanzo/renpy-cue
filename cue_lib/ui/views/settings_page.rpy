@@ -19,8 +19,9 @@ screen cue_settings_page():
                     yminimum 0
 
                 use cue_data_dir()
-                use cue_settings_keybinds()
-                use cue_settings_backup()
+                use cue_keybinds()
+                use cue_backup_restore()
+                use cue_about()
 
 screen cue_data_dir():
     style_group "cue"
@@ -43,7 +44,7 @@ screen cue_data_dir():
             use cue_txt_button("Save", Function(_cue.settings.confirm_shared_dir))
 
 
-screen cue_settings_keybinds():
+screen cue_keybinds():
     style_group "cue"
 
     use cue_section_frame("Keybinds"):
@@ -83,10 +84,11 @@ screen cue_settings_keybinds():
                         )
 
 
-screen cue_settings_backup():
+screen cue_backup_restore():
     style_group "cue"
 
-    $ _backup_busy = _cue.backups.is_backing_up or _cue.backups.is_restoring
+    $ _backup_busy = (_cue.backups.is_backing_up or _cue.backups.is_restoring
+                      or _cue.backups.is_restore_checking)
 
     if _backup_busy:
         timer 0.1 repeat True action Function(renpy.restart_interaction, _update_screens=False)
@@ -94,8 +96,7 @@ screen cue_settings_backup():
     use cue_section_frame("Backup & Restore"):
         vbox:
             spacing 8
-            etext ("Backup data folder to backups/{}, or restore that "
-                "backup's data over the current game.".format(CUE_MANUAL_BACKUP_NAME))
+            etext ("Backup data folder to backups/{}.".format(CUE_MANUAL_BACKUP_NAME))
             $ _auto_bk_tt = ("Auto back up your marker data once an hour for 30 days. "
                 "Media files (audio, music, video) are excluded.\n"
                 "Stored in: {}".format(
@@ -129,6 +130,8 @@ screen cue_settings_backup():
                     "Restore", Function(_cue.backups.restore),
                     sensitive=(not _backup_busy))
 
+                if _cue.backups.is_restore_checking:
+                    etext "Preparing restore..." color _cue_color_text_muted
                 if _cue.backups.is_restoring:
                     etext "Restoring..." color _cue_color_text_muted
                 if _cue.backups.restore_error:

@@ -331,7 +331,7 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=200,
         spacing 0
         yalign 0.5
 
-        if editing or _has_text:
+        if editing:
             use cue_icon_btn("xmark", _clear, "Clear", bg=_cue_color_bg_input)
         elif paste_btn:
             use cue_icon_btn(

@@ -429,6 +429,131 @@ def test_manual_backup_worker_error_sets_error(manual, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# restore -- early-exit error surfacing (no file / invalid zip)
+# ---------------------------------------------------------------------------
+
+def test_restore_no_file_sets_error(manual, cue_env):
+    # A missing backup zip must surface as restore_error, not a silent no-op.
+    manual.restore()
+    assert manual.restore_error == "No backup to restore -- run Back Up first."
+
+
+def test_restore_invalid_zip_sets_error(manual, cue_env):
+    # A garbage file at the backup path is invalid, and surfaces as an error.
+    # Validation now runs on the preflight worker thread, so join it.
+    backups_dir = os.path.dirname(cue_env.paths.manual_backup_path)
+    if not os.path.isdir(backups_dir):
+        os.makedirs(backups_dir)
+    with open(cue_env.paths.manual_backup_path, "w") as f:
+        f.write("not a zip")
+    manual.restore()
+    manual._restore_thread.join(timeout=10)
+    assert "Backup is invalid" in manual.restore_error
+
+
+def test_restore_no_file_clears_stale_status(manual, cue_env):
+    # A previous success message must not linger once the zip is gone.
+    manual.restore_status = "Restored 3 files ..."
+    manual.restore()
+    assert manual.restore_status == ""
+    assert manual.restore_error
+
+
+def test_restore_counts_overwrite_vs_added(tmp_path):
+    # restore_counts mirrors restore_pieces' matchers and path bases: entries
+    # under audio/music/video land at the shared root, the rest under data/.
+    root = str(tmp_path / "shared")
+    _write(root, os.path.join("data", "markers", GAME_ID, "v_a.json"), '{"pools": []}')
+    _write(root, os.path.join("data", "markers", GAME_ID, "v_b.json"), '{"pools": []}')
+    _write(root, "audio/hit.ogg", "A")
+    _write(root, "music/song.ogg", "M")
+    _write(root, os.path.join("data", CUE_SHARED_CONFIG_FILENAME), '{"flag": true}')
+    zip_path = str(tmp_path / "backup.zip")
+    zip_shared_tree(root, zip_path)
+
+    # These two were in the backup but are gone from the live tree -> "added".
+    os.remove(os.path.join(root, "data", "markers", GAME_ID, "v_b.json"))
+    os.remove(os.path.join(root, "music", "song.ogg"))
+
+    overwritten, added = _backup.restore_counts(zip_path, root, GAME_ID)
+    assert overwritten == 3  # v_a.json + hit.ogg + cue_config.json
+    assert added == 2        # v_b.json + song.ogg
+
+
+def test_restore_counts_ignores_non_matching_entries(tmp_path):
+    # Other games' markers/video and anything not a restore matcher are never
+    # counted -- the backup may carry a whole tree only partially restored.
+    root = str(tmp_path / "shared")
+    _write(root, os.path.join("data", "markers", GAME_ID, "v_a.json"), '{"pools": []}')
+    _write(root, os.path.join("data", "markers", "other", "v_x.json"), '{"pools": []}')
+    _write(root, "video/{}/a.ogv".format(GAME_ID), "V")
+    _write(root, "video/other/b.ogv", "V")
+    zip_path = str(tmp_path / "backup.zip")
+    zip_shared_tree(root, zip_path)
+
+    overwritten, added = _backup.restore_counts(zip_path, root, GAME_ID)
+    assert (overwritten, added) == (2, 0)
+
+
+def test_restore_confirm_message_pluralizes():
+    msg = _backup.restore_confirm_message(1, 0)
+    assert "1 file will be overwritten" in msg
+    assert "0 new files will be added" in msg
+    assert "saved to data_bak" in msg
+
+    msg = _backup.restore_confirm_message(2, 1)
+    assert "2 files will be overwritten" in msg
+    assert "1 new file will be added" in msg
+
+
+class _FakeConfirmDialog(object):
+    def __init__(self):
+        self.message = None
+        self.action = None
+
+    def show(self, message, action):
+        self.message = message
+        self.action = action
+
+
+def test_restore_preflight_shows_dialog_with_counts(manual, cue_env, monkeypatch):
+    # The heavy validate + count runs off-thread; poll() (the screen timer)
+    # delivers the confirm dialog with overwrite/new counts once it is done.
+    _write(cue_env.paths.root,
+           os.path.join("data", "markers", "test_game", "v_a.json"),
+           '{"pools": []}')
+    _write(cue_env.paths.root, "audio/hit.ogg", "A")
+    manual._zip_to_file()
+
+    dialog = _FakeConfirmDialog()
+    manual._confirm_dialog = dialog
+    restarts = []
+    # poll() runs under _update_screens=False, so the dialog only appears
+    # because _finish_confirm forces a repaint.
+    monkeypatch.setattr(_backup.renpy, "restart_interaction",
+                        lambda: restarts.append(1))
+    manual.restore()
+    manual._restore_thread.join(timeout=10)
+    manual.poll()
+
+    assert dialog.message is not None
+    assert "2 files will be overwritten" in dialog.message
+    assert "0 new files will be added" in dialog.message
+    assert restarts == [1]
+    assert manual._confirm_pending is False
+    assert manual.is_restore_checking is False
+
+
+def test_restore_preflight_in_flight_swallows_second_click(manual):
+    # A second Restore click while the preflight worker runs must not spawn
+    # another thread (the button is also disabled via is_restore_checking).
+    manual._restore_checking = True
+    manual._restore_thread = None
+    manual.restore()
+    assert manual._restore_thread is None
+
+
+# ---------------------------------------------------------------------------
 # Auto backup -- throttle, run, prune
 # ---------------------------------------------------------------------------
 
@@ -638,6 +763,8 @@ def test_composite_facade(cue_env):
     assert bm.is_backing_up is True
     bm.manual.is_restoring = True
     assert bm.is_restoring is True
+    bm.manual._restore_checking = True
+    assert bm.is_restore_checking is True
     bm.manual.backup_status = "s"
     assert bm.backup_status == "s"
     bm.manual.backup_error = "e"
