@@ -23,7 +23,6 @@ from cue_lib.constants import (
     CUE_MUSIC_PREFIX,
     CUE_MUSIC_USER_TAG,
     CUE_IMPORT_CATEGORY_ORDER,
-    CUE_IMPORT_FORMAT_VERSION,
     CUE_IMPORT_MANIFEST_NAME,
     CUE_VID_KEY_PREFIX,
     CueImportCategory,
@@ -35,6 +34,10 @@ from cue_lib.util import _cue_log, _cue_replace_file, _to_str
 MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
+
+# Import format version, bumped only on breaking format changes (not the mod
+# version).  The importer rejects an import whose format is NEWER than this.
+CUE_IMPORT_FORMAT_VERSION = 1
 
 # --------------------------------------------------------------------------
 # Category mapping -- path prefix -> CueImportCategory.  Single source of

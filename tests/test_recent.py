@@ -12,9 +12,8 @@ from renpy.store import persistent
 
 from cue_lib.audio.music import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
 from cue_lib.audio.recent import (
-    CueRecentManager, _cue_keep_music, _cue_keep_sfx,
+    CUE_RECENT_MAX_ENTRIES, CueRecentManager, _cue_keep_music, _cue_keep_sfx,
 )
-from cue_lib.constants import CUE_RECENT_MAX_ENTRIES
 
 
 @pytest.fixture(autouse=True)

@@ -29,11 +29,10 @@ from cue_lib.backup import (
     zip_tree,
 )
 from cue_lib.constants import (
-    CUE_BACKUP_AUTO_DIR,
-    CUE_BACKUP_DIR,
     CUE_MANUAL_BACKUP_NAME,
     CUE_SHARED_CONFIG_FILENAME,
 )
+from cue_lib.paths import CUE_BACKUP_AUTO_DIR, CUE_BACKUP_DIR
 from cue_lib.db import CueDatabase
 from cue_lib.paths import CuePaths
 

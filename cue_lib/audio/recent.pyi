@@ -1,8 +1,10 @@
 # Type stub for cue_lib.audio.recent
-from typing import Callable, List
+from typing import Callable, Final, List
 
 from cue_lib.audio.user_music import CueUserMusic
 from cue_lib.audio.game_music import CueGameMusic
+
+CUE_RECENT_MAX_ENTRIES: Final = 8
 
 
 class CueRecentManager:

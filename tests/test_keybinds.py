@@ -13,7 +13,7 @@ import renpy
 import renpy.display.behavior as _behavior
 
 import cue_lib.keybinds as _keybinds
-from cue_lib.keybinds import CueKeybindsManager
+from cue_lib.keybinds import CUE_SHARED_KEY_KEYBINDS, CueKeybindsManager
 from cue_lib.constants import (
     CUE_KEYMAP_TOGGLE_OVERLAY,
     CUE_KEYMAP_TOGGLE_SFX_ACTIVE,
@@ -27,7 +27,6 @@ from cue_lib.constants import (
     CUE_KEYMAP_TARGET_IMAGE,
     CUE_KEYMAP_TARGET_DIALOGUE,
     CUE_KEYMAP_TARGET_LOOP,
-    CUE_SHARED_KEY_KEYBINDS,
 )
 
 from tests.fakes import FakeDb

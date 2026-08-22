@@ -37,13 +37,15 @@ from cue_lib.constants import (
     CUE_KEYMAP_TARGET_IMAGE,
     CUE_KEYMAP_TARGET_DIALOGUE,
     CUE_KEYMAP_TARGET_LOOP,
-    CUE_SHARED_KEY_KEYBINDS,
 )
 
 MYPY = False
 if MYPY:
     from typing import List, Optional
     from cue_lib.db import CueDatabase  # pyright: ignore[reportUnusedImport]
+
+# Shared-config key for persisting custom keybinds across games.
+CUE_SHARED_KEY_KEYBINDS = "keybinds"
 
 
 # ---------------------------------------------------------------------------

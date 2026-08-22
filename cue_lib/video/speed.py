@@ -17,7 +17,7 @@ from renpy.display.video import (
 )
 from renpy.display.image import images as _display_images
 
-from cue_lib.constants import CUE_DEFAULT_VIDEO_SPEED, CUE_AUTO_SPEED_MIN_VARIANTS, CUE_MULTI_SPEED_MIN_VARIANTS
+from cue_lib.constants import CUE_DEFAULT_VIDEO_SPEED, CUE_AUTO_SPEED_MIN_VARIANTS
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log, _cue_unwrap_displayable, _cue_get_movie_play,
@@ -44,6 +44,10 @@ CUE_TOAST_DURATION_SEAMLESS = 1.6
 # Fade-out split points for the toast transform in cue_ui_overlay.rpy.
 CUE_TOAST_FADE_DURATION = 0.5
 CUE_TOAST_FADE_OFFSET = 0.6
+
+# Minimum number of speed variants required before auto / multi-speed
+# sequences activate.  Fewer than this is pointless.
+CUE_MULTI_SPEED_MIN_VARIANTS = 2
 
 
 class CueSpeedMode(object):

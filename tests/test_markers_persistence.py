@@ -26,7 +26,8 @@ import cue_lib.backup as _backup
 import cue_lib.markers as _markers
 import cue_lib.runtime as _runtime
 from cue_lib.backup import zip_shared_tree
-from cue_lib.constants import CUE_BACKUP_DIR, CUE_MANUAL_BACKUP_NAME
+from cue_lib.constants import CUE_MANUAL_BACKUP_NAME
+from cue_lib.paths import CUE_BACKUP_DIR
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.markers import CueMarkerManager
 from cue_lib.state import CueContext

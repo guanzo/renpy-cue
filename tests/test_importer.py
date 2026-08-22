@@ -15,8 +15,6 @@ import pytest
 import cue_lib.importer as _imports
 from cue_lib import importer_io as _imp
 from cue_lib.constants import (
-    CUE_IMPORT_DIR,
-    CUE_IMPORT_UNZIP_DIR,
     CueImportCategory,
     CueImportMatch,
 )
@@ -67,7 +65,7 @@ def _unzip_dir(tmp_path):
     """Extracted working copies live under imports/unzipped/ -- the drop
     zone (imports/) holds archives only."""
     return os.path.join(
-        str(tmp_path / "cue_root"), CUE_IMPORT_DIR, CUE_IMPORT_UNZIP_DIR)
+        str(tmp_path / "cue_root"), "imports", "unzipped")
 
 
 def _drop_package(tmp_path, game_id, files, zip_name="pack.zip"):
@@ -78,7 +76,7 @@ def _drop_package(tmp_path, game_id, files, zip_name="pack.zip"):
     flat = []
     for fs in _imp._cue_enumerate_import_files(src, game_id).values():
         flat.extend(fs)
-    imports_dir = os.path.join(str(tmp_path / "cue_root"), CUE_IMPORT_DIR)
+    imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     if not os.path.isdir(imports_dir):
         os.makedirs(imports_dir)
     zip_path = os.path.join(imports_dir, zip_name)
@@ -270,7 +268,7 @@ def test_match_label_clean_import_empty(cue_env, tmp_path, import_threads):
 
 
 def test_scan_marks_newer_format_invalid(cue_env, tmp_path, import_threads):
-    imports_dir = os.path.join(str(tmp_path / "cue_root"), CUE_IMPORT_DIR)
+    imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     os.makedirs(imports_dir)
     zip_path = os.path.join(imports_dir, "bad.zip")
     with zipfile.ZipFile(zip_path, "w") as zf:
@@ -286,7 +284,7 @@ def test_scan_marks_newer_format_invalid(cue_env, tmp_path, import_threads):
 
 
 def test_scan_flags_missing_files_not_invalid(cue_env, tmp_path, import_threads):
-    imports_dir = os.path.join(str(tmp_path / "cue_root"), CUE_IMPORT_DIR)
+    imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     os.makedirs(imports_dir)
     with zipfile.ZipFile(os.path.join(imports_dir, "bad.zip"), "w") as zf:
         zf.writestr("manifest.json",
@@ -329,7 +327,7 @@ def test_scan_sorts_recent_drop_first_within_tier(cue_env, tmp_path,
                   zip_name="old.zip")
     _drop_package(tmp_path, GAME_ID, [("audio/b.ogg", "b")],
                   zip_name="new.zip")
-    imports_dir = os.path.join(str(tmp_path / "cue_root"), CUE_IMPORT_DIR)
+    imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     os.utime(os.path.join(imports_dir, "old.zip"), (1000, 1000))
     os.utime(os.path.join(imports_dir, "new.zip"), (2000, 2000))
 
@@ -343,7 +341,7 @@ def test_scan_sorts_error_rows_last(cue_env, tmp_path, import_threads):
     # A broken zip isn't 'the wrong game' -- it sinks below every match tier.
     _drop_package(tmp_path, "other-game", [("audio/c.ogg", "c")],
                   zip_name="mismatch.zip")
-    imports_dir = os.path.join(str(tmp_path / "cue_root"), CUE_IMPORT_DIR)
+    imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     _write(imports_dir, "corrupt.zip", "not a zip at all")
 
     mgr, _calls = _make_mgr(cue_env)
@@ -398,7 +396,7 @@ def test_scan_is_noop_while_worker_runs(cue_env, tmp_path, import_threads):
 
 def test_corrupt_zip_shows_error_and_retries_next_pass(cue_env, tmp_path,
                                                        import_threads):
-    imports_dir = os.path.join(str(tmp_path / "cue_root"), CUE_IMPORT_DIR)
+    imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     _write(imports_dir, "corrupt.zip", "not a zip at all")
     mgr, _calls = _make_mgr(cue_env)
     created, _join = import_threads
@@ -571,7 +569,7 @@ def test_activate_refuses_confirm_until_remapped(cue_env, tmp_path,
 
 
 def test_activate_refuses_invalid(cue_env, tmp_path, import_threads):
-    imports_dir = os.path.join(str(tmp_path / "cue_root"), CUE_IMPORT_DIR)
+    imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     os.makedirs(imports_dir)
     with zipfile.ZipFile(os.path.join(imports_dir, "bad.zip"), "w") as zf:
         zf.writestr("manifest.json", '{"format_version": 999, "contents": []}')
@@ -585,7 +583,7 @@ def test_activate_refuses_invalid(cue_env, tmp_path, import_threads):
 
 def _drop_missing_files_package(tmp_path, game_id):
     """A zip whose manifest lists a file the archive doesn't carry."""
-    imports_dir = os.path.join(str(tmp_path / "cue_root"), CUE_IMPORT_DIR)
+    imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     os.makedirs(imports_dir)
     with zipfile.ZipFile(os.path.join(imports_dir, "pack.zip"), "w") as zf:
         zf.writestr(
@@ -669,7 +667,7 @@ def test_scan_entry_carries_manifest_replays(cue_env, tmp_path, import_threads):
 def test_old_manifest_without_replays_yields_empty(cue_env, tmp_path,
                                                    import_threads):
     # A pre-replays-field export has no replay list -- the row stays compact.
-    imports_dir = os.path.join(str(tmp_path / "cue_root"), CUE_IMPORT_DIR)
+    imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     os.makedirs(imports_dir)
     with zipfile.ZipFile(os.path.join(imports_dir, "old.zip"), "w") as zf:
         zf.writestr(

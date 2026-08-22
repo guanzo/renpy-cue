@@ -23,13 +23,11 @@ def test_key_prefixes_are_distinct():
 
 def test_audio_and_video_tuning_values_are_sane():
     assert constants.CUE_SFX_CHANNEL_COUNT >= 1
-    assert constants.CUE_MAX_INTERP_FPS > 0
     assert constants.CUE_DEFAULT_VIDEO_SPEED > 0
 
 
-def test_multi_speed_thresholds_are_ordered():
-    assert constants.CUE_MULTI_SPEED_MIN_VARIANTS >= 1
-    assert constants.CUE_AUTO_SPEED_MIN_VARIANTS >= constants.CUE_MULTI_SPEED_MIN_VARIANTS
+def test_auto_speed_thresholds_are_ordered():
+    assert constants.CUE_AUTO_SPEED_MIN_VARIANTS >= 1
     assert constants.CUE_AUTO_SPEED_IDEAL_VARIANTS >= constants.CUE_AUTO_SPEED_MIN_VARIANTS
 
 
@@ -84,9 +82,3 @@ def test_package_category_labels_cover_every_ordered_category():
 def test_package_match_levels_are_distinct():
     m = constants.CueImportMatch
     assert len({m.AUTO, m.CONFIRM, m.MISMATCH}) == 3
-
-
-def test_import_format_version_is_positive():
-    assert constants.CUE_IMPORT_FORMAT_VERSION >= 1
-
-

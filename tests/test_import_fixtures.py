@@ -17,7 +17,6 @@ import pytest
 from cue_lib import importer_io as _imp
 from cue_lib.constants import (
     CUE_IMPORT_CATEGORY_ORDER,
-    CUE_IMPORT_DIR,
     CUE_IMPORT_MANIFEST_NAME,
     CueImportMatch,
 )
@@ -172,7 +171,7 @@ def _make_mgr(tmp_path, refresh_calls):
 
 def test_scan_real_exports_builds_expected_entries(tmp_path, import_threads):
     mgr = _make_mgr(tmp_path, [])
-    imports_dir = os.path.join(str(tmp_path / "cue_root"), CUE_IMPORT_DIR)
+    imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     os.makedirs(imports_dir)
     for name in (MAX_ZIP, MISMATCH_ZIP, PREFIX_ZIP):
         dst = os.path.join(imports_dir, name)

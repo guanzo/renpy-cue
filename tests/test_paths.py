@@ -9,8 +9,7 @@
 import os
 import sys
 
-from cue_lib.constants import CUE_DIR_OVERRIDE_FILENAME
-from cue_lib.paths import CUE_MOD_DIRNAME, CuePaths
+from cue_lib.paths import CUE_DIR_OVERRIDE_FILENAME, CUE_MOD_DIRNAME, CuePaths
 
 
 def test_in_game_base_dir_and_icon(tmp_path):

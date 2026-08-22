@@ -8,11 +8,11 @@ import os
 from cue_lib import importer_io as _imp
 from cue_lib.constants import (
     CUE_IMPORT_CATEGORY_ORDER,
-    CUE_IMPORT_FORMAT_VERSION,
     CUE_IMPORT_MANIFEST_NAME,
     CueImportCategory,
     CueImportMatch,
 )
+from cue_lib.importer_io import CUE_IMPORT_FORMAT_VERSION
 
 GAME_ID = "test_game"
 

@@ -23,7 +23,7 @@ body:
       label: Steps to reproduce
       description: Be specific. What did you do, and what state was Cue in?
       placeholder: |
-        1. Open the Cue overlay with ` (backtick)
+        1. ...
         2. ...
         3. ...
     validations:
@@ -38,6 +38,12 @@ body:
       required: true
 
   - type: input
+    id: cue_version
+    attributes:
+      label: Cue version
+      description: Find the version in the mod's Settings -> About
+
+  - type: input
     id: game
     attributes:
       label: Which game and version?
@@ -50,9 +56,8 @@ body:
       options:
         - Windows
         - macOS
+        - Android
         - Linux
-    validations:
-      required: true
 
   - type: textarea
     id: logs
@@ -61,5 +66,3 @@ body:
       description: |-
         Check if an error.log file exists at game/renpy_cue/error.log. 
         If so, paste the file contents here.
-    validations:
-      required: false

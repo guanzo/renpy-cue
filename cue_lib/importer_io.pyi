@@ -1,5 +1,7 @@
 # Type stub for cue_lib.importer_io
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Final, List, Optional, Set, Tuple
+
+CUE_IMPORT_FORMAT_VERSION: Final = 1
 
 def _cue_import_category(path: str) -> int: ...
 def _cue_known_content(path: str) -> bool: ...

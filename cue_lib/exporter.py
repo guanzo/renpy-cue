@@ -13,7 +13,6 @@ import renpy
 import threading
 
 from cue_lib.constants import (
-    CUE_EXPORT_DIR,
     CUE_IMPORT_CATEGORY_ORDER,
     CueExportFileTypes,
     CueExportScope,
@@ -66,7 +65,7 @@ class CueExportManager(object):
     def exports_dir(self):
         # type: () -> str
         return os.path.join(
-            self._paths.original_root, CUE_EXPORT_DIR).replace("\\", "/")
+            self._paths.original_root, "exports").replace("\\", "/")
 
     def refresh(self):
         # type: () -> None

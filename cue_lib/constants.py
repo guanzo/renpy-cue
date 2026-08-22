@@ -92,39 +92,12 @@ CUE_VID_KEY_PREFIX = "v_"
 
 CUE_DEBUG = _cue_env_flag("RENPY_CUE_DEBUG", False)
 
-# Debug log filename, written into the in-game base dir.
-CUE_DEBUG_LOG_FILENAME = "debug.log"
-
-# Error log filename, same directory as debug.log.  Unguarded: critical errors
-# in the per-frame hot spots land here even when CUE_DEBUG is off, so a broken
-# tick/context can't silently eat exceptions.
-CUE_ERROR_LOG_FILENAME = "error.log"
-
-# Debug lines buffer in memory before writing to disk (auto-flush threshold).
-CUE_DEBUG_LOG_BUFFER_LINES = 64
-
 # Number of dedicated SFX channels on the "sfx" mixer.
 # Channels are named _cue_1 through _cue_N.
 CUE_SFX_CHANNEL_COUNT = 8
 
-# Maximum FPS cap for frame interpolation (minterpolate filter).
-# Doubled source framerate is clamped to this ceiling.
-CUE_MAX_INTERP_FPS = 60
-
-# ffmpeg/ffprobe subprocess hang guards.  A hung binary can't block a thread
-# forever: _cue_run_proc joins a communicate() thread with CUE_SUBPROC_TIMEOUT
-# and _cue_wait_proc polls with CUE_KILL_WAIT_TIMEOUT.  The thread/poll
-# implementations work on both Python 2.7 (Ren'Py 7.x) and Python 3 (8.x) --
-# the native communicate(timeout=) kwarg only exists on Py3, so it isn't used.
-CUE_SUBPROC_TIMEOUT = 10.0   # probe / encoder discovery communicate()
-CUE_KILL_WAIT_TIMEOUT = 5.0  # post-kill reap in _kill_proc
-
 # Default video playback speed (1.0 = original speed).
 CUE_DEFAULT_VIDEO_SPEED = 1.0
-
-# Minimum number of speed variants required before auto / multi-speed
-# sequences activate.  Fewer than this is pointless.
-CUE_MULTI_SPEED_MIN_VARIANTS = 2
 
 # Minimum number of speed variants required for auto-speed presets.
 CUE_AUTO_SPEED_MIN_VARIANTS = 4
@@ -145,19 +118,6 @@ CUE_HELP_SHIFT_SKIP_DELETE = "\nShift+Click to skip delete confirmation"
 # Audio file extensions accepted by the SFX library and My Music scans.
 # Ren'Py officially supported formats.
 CUE_AUDIO_EXTS = (".ogg", ".mp3", ".wav", ".opus")
-
-# Maximum entries in a "Recently Used" list (SFX library; later, music).
-CUE_RECENT_MAX_ENTRIES = 8
-
-# persistent._cue keys for the "Recently Used" lists.  Music gets its own key
-# so the two type-spaces (u:/g: refs vs sfx paths/preset names) never collide.
-CUE_RECENT_SFX_KEY = "recent_entries"
-CUE_RECENT_MUSIC_KEY = "recent_music_entries"
-
-# Directory-name heuristic for Game Music discovery: a game file whose path
-# contains one of these segments (case-insensitive) is classified as music.
-# Shared with the Music page's empty-state text.
-CUE_GAME_MUSIC_DIRS = ("music", "bgm", "ost", "soundtrack")
 
 # My Music files are stored relative to the shared root, prefixed with the
 # music dir's name plus a slash ("music/Folder/song.ogg").  user_music.py adds
@@ -186,24 +146,6 @@ CUE_MUSIC_GAME_TAG = "g:"
 # still aliases this so legacy _cue.volume.VOL_DEFAULT references keep working.
 CUE_VOLUME_DEFAULT = 1.0
 
-# Popper displayable defaults — distance from anchor and viewport edge clearance.
-CUE_POPPER_DEFAULT_OFFSET = 5
-CUE_POPPER_DEFAULT_MARGIN = 8
-
-# Matching tolerance for interval selection in the video marker timeline
-# (Alt+Shift+Click): a marker counts as continuing the active-to-clicked
-# spacing when it lands within +/- this of the projected grid position.
-CUE_INTERVAL_SELECT_TOLERANCE = 0.010
-
-# Duplicated markers land a fixed pixel gap after their source on the
-# timeline, so the copy doesn't overlap it.  The gap is defined in pixels at a
-# reference width and converted to a frac of the timeline width, then to
-# seconds via frac * duration -- the same geometry the timeline's _time_to_x
-# uses (frac = (t/speed)/dur, at the base speed duplicates are gated to).
-CUE_DUPLICATE_GAP_PX = 28      # two 14px marker tabs of separation
-CUE_TIMELINE_REF_W = 480       # reference inner width the gap is defined at
-CUE_DUPLICATE_GAP_FRAC = CUE_DUPLICATE_GAP_PX / float(CUE_TIMELINE_REF_W)
-
 # Keymap names for rebindable cue hotkeys (registered in config.keymap).
 CUE_KEYMAP_TOGGLE_OVERLAY     = "cue_toggle_overlay"
 CUE_KEYMAP_QUIT_RELAUNCH      = "cue_quit_relaunch"
@@ -226,47 +168,20 @@ CUE_KEYMAP_TARGET_IMAGE       = "cue_target_image"
 CUE_KEYMAP_TARGET_DIALOGUE    = "cue_target_dialogue"
 CUE_KEYMAP_TARGET_LOOP        = "cue_target_loop"
 
-# Shared-config key for persisting custom keybinds across games.
-CUE_SHARED_KEY_KEYBINDS = "keybinds"
-
-# Pointer file inside the platform-default shared dir that redirects to the
-# user-chosen shared dir.  The default dir is the one anchor every game on
-# the same OS user computes identically, so the choice applies to all games.
-# In-game choice wins over the RENPY_CUE_DIR env var.
-CUE_DIR_OVERRIDE_FILENAME = "dir.txt"
-
 # Shared-config JSON file inside the shared data/ tree (disabled_files,
 # keybinds).  Lives at {shared}/data/cue_config.json.
 CUE_SHARED_CONFIG_FILENAME = "cue_config.json"
 
-# Backup tree under the shared root.  Automatic backups live in
-# {shared}/backups/auto/auto_backup_<ts>.zip; the single manual backup is
-# {shared}/backups/renpy_cue_backup.zip.  Owned by cue_lib/backup.py and
-# resolved via CuePaths.
-CUE_BACKUP_DIR = "backups"
-CUE_BACKUP_AUTO_DIR = "auto"
+# The single manual backup is {shared}/backups/renpy_cue_backup.zip.
 CUE_MANUAL_BACKUP_NAME = "renpy_cue_backup.zip"
-
-# Import format version, bumped only on breaking format changes (not the mod
-# version).  The importer rejects an import whose format is NEWER than this.
-CUE_IMPORT_FORMAT_VERSION = 1
 
 # Manifest filename inside an import zip.  Drives import validation, the merge
 # filter, and the summary counts.
 CUE_IMPORT_MANIFEST_NAME = "manifest.json"
 
-# Subdirs of the shared root where exported imports and dropped-in imports
-# live.  Exports are written here; the user drops .zip files here to import.
-# Both are computed from original_root so they never follow an active import.
-CUE_EXPORT_DIR = "exports"
 # Number of characters to keep from a SHA1 hex digest for file naming.
 # Shared by db._preset_path and importer_io._cue_preset_files -- keep in sync.
 CUE_HASH_TRUNC_LEN = 8
-
-CUE_IMPORT_DIR = "imports"
-# Subdir of imports/ where dropped zips are extracted into editable working
-# copies -- keeps the drop zone archives-only.
-CUE_IMPORT_UNZIP_DIR = "unzipped"
 
 # Canonical checkbox order and labels for the 5 import/export categories.
 # The labels are user-facing; keep them in sync with the order here.

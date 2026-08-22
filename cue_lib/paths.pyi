@@ -1,5 +1,10 @@
 # Type stub for cue_lib.paths
-from typing import Optional
+from typing import Final, Optional
+
+CUE_MOD_DIRNAME: Final = "renpy_cue"
+CUE_DIR_OVERRIDE_FILENAME: Final = "dir.txt"
+CUE_BACKUP_DIR: Final = "backups"
+CUE_BACKUP_AUTO_DIR: Final = "auto"
 
 class CuePaths:
     _original_root: str

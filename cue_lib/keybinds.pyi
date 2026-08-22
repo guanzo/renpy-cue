@@ -2,6 +2,8 @@ from typing import Dict, Final, List, Optional
 
 from cue_lib.db import CueDatabase
 
+CUE_SHARED_KEY_KEYBINDS: Final = "keybinds"
+
 # Bridge functions
 def _cue_keybind_start(action_id: str) -> None: ...
 def _cue_keybind_cancel() -> None: ...

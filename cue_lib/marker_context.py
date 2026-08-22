@@ -7,7 +7,7 @@ import copy as _copy
 import random as _random
 
 from cue_lib.constants import (
-    CUE_DUPLICATE_GAP_FRAC, CUE_INTERVAL_SELECT_TOLERANCE, CUE_VOLUME_DEFAULT,
+    CUE_VOLUME_DEFAULT,
     CueExclusiveStart, CueLoopFrequency,
 )
 from cue_lib.util import (
@@ -26,6 +26,20 @@ if MYPY:
 # (scene + line for one-shots; loops never group), so the stored group value
 # is just an on/off flag -- any nonzero value works.
 CUE_EXCLUSIVE_GROUP = 1
+
+# Matching tolerance for interval selection in the video marker timeline
+# (Alt+Shift+Click): a marker counts as continuing the active-to-clicked
+# spacing when it lands within +/- this of the projected grid position.
+CUE_INTERVAL_SELECT_TOLERANCE = 0.010
+
+# Duplicated markers land a fixed pixel gap after their source on the
+# timeline, so the copy doesn't overlap it.  The gap is defined in pixels at a
+# reference width and converted to a frac of the timeline width, then to
+# seconds via frac * duration -- the same geometry the timeline's _time_to_x
+# uses (frac = (t/speed)/dur, at the base speed duplicates are gated to).
+CUE_DUPLICATE_GAP_PX = 28      # two 14px marker tabs of separation
+CUE_TIMELINE_REF_W = 480       # reference inner width the gap is defined at
+CUE_DUPLICATE_GAP_FRAC = CUE_DUPLICATE_GAP_PX / float(CUE_TIMELINE_REF_W)
 
 # =========================================================================
 # CueMarkerContext -- pool-based markers (shared by .image and .dialogue)

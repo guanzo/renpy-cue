@@ -22,6 +22,10 @@ MYPY = False
 if MYPY:
     from typing import Any
 
+# Debug / error log filenames, written into the in-game base dir.
+CUE_DEBUG_LOG_FILENAME = "debug.log"
+CUE_ERROR_LOG_FILENAME = "error.log"
+
 
 class CueLogger(object):
     """Debug + error log writer."""
@@ -43,7 +47,7 @@ class CueLogger(object):
             line = "[{}] {}\n".format(ts, msg)
             with self._lock:
                 self._buffer.append(line)
-                should_flush = len(self._buffer) >= _constants.CUE_DEBUG_LOG_BUFFER_LINES
+                should_flush = len(self._buffer) >= 64
             if should_flush:
                 self.flush()
         except Exception:
@@ -66,7 +70,7 @@ class CueLogger(object):
         try:
             with self._lock:
                 self._buffer = []
-            with open(self._log_path(_constants.CUE_DEBUG_LOG_FILENAME), "w"):
+            with open(self._log_path(CUE_DEBUG_LOG_FILENAME), "w"):
                 pass
         except Exception:
             pass  # Never let clearing the log break the game
@@ -88,7 +92,7 @@ class CueLogger(object):
                 if tb:
                     parts.append(tb.rstrip() + "\n")
             with self._lock:
-                with open(self._log_path(_constants.CUE_ERROR_LOG_FILENAME), "a") as f:
+                with open(self._log_path(CUE_ERROR_LOG_FILENAME), "a") as f:
                     f.write("".join(parts))
         except Exception:
             pass  # Never let logging break the game
@@ -99,7 +103,7 @@ class CueLogger(object):
         starts clean, matching debug.log's restart truncation."""
         try:
             with self._lock:
-                with open(self._log_path(_constants.CUE_ERROR_LOG_FILENAME), "w"):
+                with open(self._log_path(CUE_ERROR_LOG_FILENAME), "w"):
                     pass
         except Exception:
             pass  # Never let clearing the log break the game
@@ -108,7 +112,7 @@ class CueLogger(object):
 
     def _write_debug_lines(self, lines):
         # type: (list) -> None
-        log_path = self._log_path(_constants.CUE_DEBUG_LOG_FILENAME)
+        log_path = self._log_path(CUE_DEBUG_LOG_FILENAME)
         if log_path is None:
             return
         with open(log_path, "a") as f:

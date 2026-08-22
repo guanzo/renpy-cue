@@ -15,8 +15,6 @@ import threading
 from renpy.store import Function
 
 from cue_lib.constants import (
-    CUE_IMPORT_DIR,
-    CUE_IMPORT_UNZIP_DIR,
     CUE_IMPORT_MANIFEST_NAME,
     CueImportMatch,
 )
@@ -141,14 +139,14 @@ class CueImportManager(object):
         """Where dropped .zips live -- always under original_root, never the
         active import, so activation can't hide the import folder."""
         return os.path.join(
-            self._paths.original_root, CUE_IMPORT_DIR).replace("\\", "/")
+            self._paths.original_root, "imports").replace("\\", "/")
 
     def imports_unzip_dir(self):
         # type: () -> str
         """Where dropped zips are extracted into editable working copies --
         imports/ stays archives-only, so the drop zone isn't cluttered."""
         return os.path.join(
-            self.imports_dir(), CUE_IMPORT_UNZIP_DIR).replace("\\", "/")
+            self.imports_dir(), "unzipped").replace("\\", "/")
 
     def _imp_dir(self, imp):
         # type: (str) -> str

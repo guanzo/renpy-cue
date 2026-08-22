@@ -7,12 +7,14 @@ import renpy
 from renpy.store import NullAction
 from renpy.display.layout import Container
 
-from cue_lib.constants import CUE_POPPER_DEFAULT_OFFSET, CUE_POPPER_DEFAULT_MARGIN
-
 MYPY = False
 if MYPY:
     from typing import Any, Optional, Tuple
 
+
+# Popper displayable defaults -- distance from anchor and viewport edge clearance.
+CUE_POPPER_DEFAULT_OFFSET = 5
+CUE_POPPER_DEFAULT_MARGIN = 8
 
 # Ren'Py 7.x fallback: focus anchors keyed by capture name.  Module-level so
 # the popper machinery stays self-contained (not state on _cue).

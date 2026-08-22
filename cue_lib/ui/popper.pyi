@@ -1,11 +1,10 @@
 # Type stub for cue_lib.ui.popper
-from typing import Any, Optional, Tuple
+from typing import Any, Final, Optional, Tuple
 from renpy.display.layout import Container
-from cue_lib.constants import (
-    CUE_POPPER_DEFAULT_OFFSET, CUE_POPPER_DEFAULT_MARGIN,  # pyright: ignore[reportUnusedImport]
-)
 
 ARROW_SZ: int
+CUE_POPPER_DEFAULT_OFFSET: Final = 5
+CUE_POPPER_DEFAULT_MARGIN: Final = 8
 
 # Focus rect helpers
 def _cue_store_focus_rect(name: str) -> None: ...

@@ -11,9 +11,12 @@
 from renpy.store import persistent
 
 from cue_lib.constants import (
-    CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG, CUE_RECENT_MAX_ENTRIES,
+    CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG,
 )
 from cue_lib.util import _cue_unwrap_persistent
+
+# Maximum entries in a "Recently Used" list.
+CUE_RECENT_MAX_ENTRIES = 8
 
 MYPY = False
 if MYPY:

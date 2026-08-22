@@ -5,8 +5,6 @@ from cue_lib.paths import CuePaths
 
 CUE_BACKUP_INTERVAL: Final = 3600
 CUE_BACKUP_MAX: Final = 720
-CUE_BACKUP_DIR: Final = "backups"
-CUE_BACKUP_AUTO_DIR: Final = "auto"
 CUE_BACKUP_PREFIX: Final = "auto_backup_"
 CUE_MANUAL_BACKUP_NAME: Final = "renpy_cue_backup.zip"
 CUE_BAK_DIR: Final = "data_bak"

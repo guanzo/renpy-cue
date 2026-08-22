@@ -10,7 +10,11 @@
 import renpy
 
 from cue_lib.audio.audio_tree import CueAudioTreeManager
-from cue_lib.constants import CUE_AUDIO_EXTS, CUE_GAME_MUSIC_DIRS
+from cue_lib.constants import CUE_AUDIO_EXTS
+
+# Directory-name heuristic for Game Music discovery: a game file whose path
+# contains one of these segments (case-insensitive) is classified as music.
+CUE_GAME_MUSIC_DIRS = ("music", "bgm", "ost", "soundtrack")
 
 MYPY = False
 if MYPY:

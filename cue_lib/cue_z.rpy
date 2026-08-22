@@ -59,10 +59,10 @@ init -999 python:
         CueImportCategory, CueImportMatch, CueExportScope,
         CueExportFileTypes,
         CUE_DEBUG, CUE_SFX_CHANNEL_COUNT,
-        CUE_DEFAULT_VIDEO_SPEED, CUE_POPPER_DEFAULT_OFFSET,
-        CUE_POPPER_DEFAULT_MARGIN, CUE_SFX_LIBRARY_HEADER, CUE_AUDIO_EXTS,
+        CUE_DEFAULT_VIDEO_SPEED,
+        CUE_SFX_LIBRARY_HEADER, CUE_AUDIO_EXTS,
         CUE_HELP_SHIFT_SKIP_DELETE,
-        CUE_GAME_MUSIC_DIRS, CUE_MANUAL_BACKUP_NAME,
+        CUE_MANUAL_BACKUP_NAME,
         CUE_IMPORT_CATEGORY_ORDER, CUE_IMPORT_CATEGORY_LABELS,
     )
     from cue_lib.util import (
@@ -136,7 +136,7 @@ init -999 python:
         _cue_auto_preset_label, _cue_auto_preset_description,
     )
     from cue_lib.constants import (
-        CUE_AUTO_SPEED_MIN_VARIANTS, CUE_AUTO_SPEED_IDEAL_VARIANTS, CUE_MULTI_SPEED_MIN_VARIANTS,
+        CUE_AUTO_SPEED_MIN_VARIANTS, CUE_AUTO_SPEED_IDEAL_VARIANTS,
         CUE_KEYMAP_TOGGLE_OVERLAY, CUE_KEYMAP_QUIT_RELAUNCH,
         CUE_KEYMAP_COPY_CONTEXT, CUE_KEYMAP_PASTE_CONTEXT,
         CUE_KEYMAP_TOGGLE_SFX_ACTIVE, CUE_KEYMAP_PAUSE,
@@ -148,7 +148,6 @@ init -999 python:
         CUE_KEYMAP_PAGE_IMPORT, CUE_KEYMAP_PAGE_SETTINGS,
         CUE_KEYMAP_TARGET_VIDEO, CUE_KEYMAP_TARGET_IMAGE,
         CUE_KEYMAP_TARGET_DIALOGUE, CUE_KEYMAP_TARGET_LOOP,
-        CUE_SHARED_KEY_KEYBINDS,
     )
     from cue_lib.keybinds import (
         CueKeybindsManager, _cue_keybind_start, _cue_keybind_cancel,
@@ -179,7 +178,6 @@ init -900 python:
     from cue_lib.video.auto_speed import CueAutoSpeedGenerator
     from cue_lib.audio.sfx_manager import CueSfxManager
     from cue_lib.audio.recent import CueRecentManager, _cue_keep_sfx, _cue_keep_music
-    from cue_lib.constants import CUE_RECENT_SFX_KEY, CUE_RECENT_MUSIC_KEY
     from cue_lib.ui.icons import CueIconManager
     from cue_lib.ui.dialogs import (
         CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog, CueMergeDialog,
@@ -269,7 +267,7 @@ init -900 python:
         # sfx_manager.library.files and markers.list_presets() at call time, so it is
         # built here where both are in scope.
         sfx_manager.library._recent = CueRecentManager(
-            CUE_RECENT_SFX_KEY,
+            "recent_entries",
             lambda kind, ref: _cue_keep_sfx(kind, ref, sfx_manager.library.files, markers.list_presets()))
 
         # Music's "Recently Used" list lives on the music manager: it records
@@ -277,7 +275,7 @@ init -900 python:
         # Its prune existence check reads the two sub-managers' .files at call
         # time, so it is built here and only loaded once both scans ran.
         music._recent = CueRecentManager(
-            CUE_RECENT_MUSIC_KEY,
+            "recent_music_entries",
             lambda kind, ref: _cue_keep_music(kind, ref, music.user_music, music.game_music))
 
         _cue.paths = paths
@@ -329,22 +327,13 @@ init 999 python:
     def _cue_patch_runtime():
         """Reinstall the Ren'Py monkey patches.  Runs on every init (including
         Shift+R reload), because Ren'Py rebuilds config fresh on reload."""
-        # Screenshake hooks: with_statement catches "with" shakes, config.show
-        # catches "at" shakes (which bypass with_statement).  The wrappers live
-        # in util so the detection is unit-testable; they forward every arg
-        # unchanged so a future engine adding kwargs can't break the hook.
+
         renpy.with_statement = _cue_wrap_with_statement(renpy.with_statement)
         renpy.config.show = _cue_wrap_config_show(renpy.config.show)
 
-        # Patch renpy.loader.load/loadable so absolute paths into the shared
-        # data dir (video variants, SFX, My Music) survive the POSIX lstrip.
-        # Inline here with the other hooks (engine code, verified by the
-        # harness testcases, not pytest).
         import renpy.loader as _rl
 
         if not getattr(_rl.load, "_cue_loader_wrapped", False):
-            # Idempotent: on Shift+R reload renpy.loader keeps our wrappers, so
-            # skip re-wrapping (re-capturing would stack wrapper layers).
             _cue_orig_loader_load = _rl.load
             _cue_orig_loader_loadable = _rl.loadable
             _cue_orig_loader_open = _rl.open_file
@@ -352,12 +341,8 @@ init 999 python:
             def _cue_loader_load(name, *args, **kwargs):
                 try:
                     if os.path.isabs(name) and os.path.isfile(name):
-                        # 8.5.3's open_file is RWopsIO (what the audio stack
-                        # expects); 7.4.10's is plain open. Return whichever the
-                        # engine natively produces, not a bare open().
                         return _cue_orig_loader_open(name, "rb")
                 except (TypeError, ValueError):
-                    # name is not a path string (AudioData, int, ...) -- delegate.
                     pass
                 return _cue_orig_loader_load(name, *args, **kwargs)
 
@@ -392,7 +377,6 @@ init 999 python:
         config.top_layers.append("cue_layer")
         config.menu_clear_layers.append("cue_layer")
 
-        # Register after_load callback
         def _cue_after_load():
             if _cue.is_overlay_visible:
                 _cue.is_overlay_visible = False
@@ -400,8 +384,6 @@ init 999 python:
 
         config.after_load_callbacks.append(_cue_after_load)
 
-        # Character callback — updates dialogue text only (context change
-        # detection now lives in start_interact_callbacks below).
         def _cue_char_callback(event, interact=True, **kwargs):
             if event == "show":
                 _cue.ctx.prev_dialogue = _cue.ctx.current_dialogue
@@ -429,9 +411,6 @@ init 999 python:
 
         config.start_interact_callbacks.append(_cue_start_interact_callback)
 
-        # after_replay callback — fade out any cue SFX still playing on the
-        # shared _cue_ channels when a replay ends, so they don't linger into
-        # the main game.  Wrap a game-defined callback if one exists.
         _cue_original_after_replay = config.after_replay_callback
 
         def _cue_after_replay():
@@ -444,9 +423,6 @@ init 999 python:
     def _cue_load_initial_data():
         """Hydrate the freshly-wired managers from persistent/shared config and
         prime the SFX/music libraries.  Runs once, right after callbacks."""
-        # Everything reloadable goes through the one idempotent entry point;
-        # what remains is one-time boot wiring (restore queue, movie wrap,
-        # renpy music patch) that must not re-run on later full reloads.
         _cue_full_reload()
         _cue.video_editor.job_queue.load_from_persistent()
         _cue.speed_resolver.wrap_all_movies()
@@ -464,8 +440,6 @@ init 999 python:
     _cue_patch_runtime()
     _cue_install_callbacks()
 
-    # Only the data hydration is one-time -- the managers themselves survive
-    # reload, so re-hydrating would re-wrap movies / re-seed undo.
     if not _cue.initialized:
         _cue_load_initial_data()
         _cue_log("INIT: Done")

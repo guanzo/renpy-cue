@@ -14,11 +14,6 @@ import time as _time
 
 import renpy.config as _config
 
-from cue_lib.constants import (
-    CUE_MAX_INTERP_FPS,
-    CUE_SUBPROC_TIMEOUT,
-    CUE_KILL_WAIT_TIMEOUT,
-)
 from cue_lib.util import _cue_log
 
 MYPY = False
@@ -30,6 +25,17 @@ if os.name == "nt":
     CREATIONFLAGS = 0x08000000  # CREATE_NO_WINDOW
 else:
     CREATIONFLAGS = 0
+
+# Subprocess hang guards: a hung binary can't block a thread forever --
+# _cue_run_proc joins a communicate() thread with CUE_SUBPROC_TIMEOUT and
+# _cue_wait_proc polls with CUE_KILL_WAIT_TIMEOUT.  The thread/poll
+# implementations work on both Python 2.7 (Ren'Py 7.x) and Python 3 (8.x).
+CUE_SUBPROC_TIMEOUT = 10.0   # probe / encoder discovery communicate()
+CUE_KILL_WAIT_TIMEOUT = 5.0  # post-kill reap in _kill_proc
+
+# Maximum FPS cap for frame interpolation (minterpolate filter).
+# Doubled source framerate is clamped to this ceiling.
+CUE_MAX_INTERP_FPS = 60
 
 
 class CueSubprocessTimeout(Exception):

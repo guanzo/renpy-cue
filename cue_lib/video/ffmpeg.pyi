@@ -1,7 +1,10 @@
 # Type stub for cue_lib.video.ffmpeg
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Final, List, Optional, Tuple
 
 CREATIONFLAGS: int
+CUE_SUBPROC_TIMEOUT: Final = 10.0
+CUE_KILL_WAIT_TIMEOUT: Final = 5.0
+CUE_MAX_INTERP_FPS: Final = 60
 
 
 class CueSubprocessTimeout(Exception): ...

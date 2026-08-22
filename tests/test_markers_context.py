@@ -8,7 +8,7 @@
 
 import pytest
 
-from cue_lib.constants import CUE_DUPLICATE_GAP_FRAC, CUE_INTERVAL_SELECT_TOLERANCE
+from cue_lib.marker_context import CUE_DUPLICATE_GAP_FRAC, CUE_INTERVAL_SELECT_TOLERANCE
 from cue_lib.marker_context import (
     CueImageContext,
     CueLoopContext,

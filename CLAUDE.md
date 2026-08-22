@@ -86,28 +86,23 @@ Boolean names must begin with `is_`, `has_`, `can_`, `did_`, `was_`, `should_`, 
 
 # Constants
 
-Use a named constant when duplicated values could silently get out of sync.
+Use a `CUE_` constant when the value:
 
-| Situation                         | Location                                |
-| --------------------------------- | --------------------------------------- |
-| Used across `.py` files           | `constants.py`, `CUE_` prefix           |
-| Used in `.py` and `.rpy`          | `constants.py`, bridged via `cue_z.rpy` |
-| Duplicated within one file        | Module-level `CUE_` constant            |
-| Mirrored between `.py` and `.rpy` | Single source in `.py`; `.rpy` reads it |
-| Discrete values map to behavior   | Flat enum class                         |
+* Is duplicated in 2+ places that could silently drift out of sync.
+* Is a magic literal whose meaning isn't self-evident at the call site (a tolerance, pixel gap, channel count).
+* Is a contract others depend on (format version, filename, shared-config key, a default callers may override).
 
-Raw values are acceptable in `python early`, where importing `cue_lib` is unsafe.
+Inline the literal when it is single-use and self-explanatory (`"imports"`, `"exports"`, a 5px offset), or a local tuning value (retry count, sleep delay, layout pixel) whose number is the spec.
 
-Do not create constants for:
+Then place it by consumer count:
 
-* Obvious retry counts or local sleep delays.
-* Algorithm-defining tuning values.
-* Screen layout values.
-* Single-use sentinel values.
+| Situation                                     | Location                                                            |
+| --------------------------------------------- | ------------------------------------------------------------------- |
+| Referenced in 2+ files                        | `constants.py`, mirrored in `constants.pyi` with `Final`            |
+| Referenced once, used several times in module | Module-level `CUE_` constant in the owning module, mirrored in its `.pyi` |
+| Single-use, self-explanatory                  | Inline the literal; no constant                                     |
 
-## `constants.py`
-
-New cross-file constants go in `cue_lib/constants.py`, use the `CUE_` prefix, and must also be added to `constants.pyi` with `Final`.
+`cue_z.rpy` bridge imports exist only for names `.rpy` screens actually consume. Test assertions and stub re-exports are not consumers.
 
 ## Enum Classes
 

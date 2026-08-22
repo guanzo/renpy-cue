@@ -1,5 +1,5 @@
 # Type stub for cue_lib.marker_context
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Final, List, Optional, Set, Tuple
 
 # Module-level binding of the stdlib random module (import random as _random
 # in the source). Declared as Any so tests can monkeypatch it.
@@ -8,6 +8,11 @@ _random: Any
 # Exclusive-group tag shared by video marker pools. Defined in context.py with
 # the contexts that stamp it.
 CUE_EXCLUSIVE_GROUP: int
+
+CUE_INTERVAL_SELECT_TOLERANCE: Final = 0.010
+CUE_DUPLICATE_GAP_PX: Final = 28
+CUE_TIMELINE_REF_W: Final = 480
+CUE_DUPLICATE_GAP_FRAC: Final = 0.058333333333333334
 
 from cue_lib._types import MarkerEntry, PoolDict, VideoPoolDict
 from cue_lib.constants import CueLoopFrequency

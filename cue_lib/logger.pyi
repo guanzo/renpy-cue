@@ -1,5 +1,8 @@
 # Type stub for cue_lib.logger
-from typing import Any, List
+from typing import Any, Final, List
+
+CUE_DEBUG_LOG_FILENAME: Final = "debug.log"
+CUE_ERROR_LOG_FILENAME: Final = "error.log"
 
 class CueLogger:
     _buffer: List[str]

@@ -12,9 +12,6 @@ import os
 import sys
 
 from cue_lib.constants import (
-    CUE_BACKUP_AUTO_DIR,
-    CUE_BACKUP_DIR,
-    CUE_DIR_OVERRIDE_FILENAME,
     CUE_MANUAL_BACKUP_NAME,
     CUE_SHARED_CONFIG_FILENAME,
 )
@@ -27,6 +24,18 @@ if MYPY:
 # logs, ffmpeg progress/log, icons) and the platform default dir under
 # APPDATA/etc.  One identity, one name.
 CUE_MOD_DIRNAME = "renpy_cue"
+
+# Pointer file inside the platform-default shared dir that redirects to the
+# user-chosen shared dir.  The default dir is the one anchor every game on
+# the same OS user computes identically, so the choice applies to all games.
+# In-game choice wins over the RENPY_CUE_DIR env var.
+CUE_DIR_OVERRIDE_FILENAME = "dir.txt"
+
+# Backup tree under the shared root.  Automatic backups live in
+# {shared}/backups/auto/auto_backup_<ts>.zip; the single manual backup is
+# {shared}/backups/renpy_cue_backup.zip.
+CUE_BACKUP_DIR = "backups"
+CUE_BACKUP_AUTO_DIR = "auto"
 
 
 class CuePaths(object):
