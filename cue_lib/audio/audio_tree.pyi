@@ -14,7 +14,6 @@ class CueAudioTreeManager:
     expanded_folders: Dict[str, bool]
     search_query: str
     search_truncated: int
-    search_is_editing: bool
     _search_applied: str
     _has_expanded_roots: bool
     _recent: Optional[CueRecentManager]

@@ -118,30 +118,41 @@ screen cue_export_section():
 
             null height 4
 
-            hbox:
-                spacing 8
-                vbox:
-                    spacing 5
-                    etext "Title:" xsize 60
-                    etext "Author:" xsize 60
-                    etext "Description:" xsize 60
-                vbox:
-                    spacing 5
+            vbox:
+                spacing 5
+                hbox:
+                    spacing 8
+                    frame:
+                        style "empty"
+                        xsize 40
+                        etext "Title:" yalign 0.5
                     use cue_text_input(
                         "_cue.exporter.name",
                         Function(_exporter.clear_status),
                         _exporter.name or "(none)",
-                        xsize=100)
+                        xsize=1.0)
+                hbox:
+                    spacing 8
+                    frame:
+                        style "empty"
+                        xsize 40
+                        etext "Author:" yalign 0.5
                     use cue_text_input(
                         "_cue.exporter.author",
                         Function(_exporter.clear_status),
                         _exporter.author or "(none)",
-                        xsize=100)
+                        xsize=1.0)
+                hbox:
+                    spacing 8
+                    frame:
+                        style "empty"
+                        xsize 40
+                        etext "Notes:" yalign 0.5
                     use cue_text_input(
                         "_cue.exporter.description",
                         Function(_exporter.clear_status),
                         _exporter.description or "(none)",
-                        xsize=100)
+                        xsize=1.0)
 
             null height 4
 
@@ -206,9 +217,7 @@ screen cue_url_downloader():
                 Function(_cue.url_importer.clear_status),
                 _cue.url_importer.url or "Paste a URL to a .zip",
                 xsize=370,
-                editing_ref=_cue.url_importer,
                 clear_action=Function(_cue.url_importer.clear_url),
-                clear_tt="Clear URL",
                 paste_btn=True)
             if _cue.url_importer.is_downloading:
                 use cue_txt_button(
@@ -218,7 +227,7 @@ screen cue_url_downloader():
                 use cue_txt_button(
                     "Import URL",
                     [Function(_cue.url_importer.import_url),
-                     SetField(_cue.url_importer, "search_is_editing", False)],
+                     SetField(_cue, "editing_input", "")],
                     sensitive=(not _cue.url_importer.is_downloading),
                     tt="Download a .zip from a URL into your imports folder.")
 
@@ -333,7 +342,7 @@ screen cue_edit_banner():
     $ _active_imp = _cue.importer.active_import
     $ _imp_display = _cue.importer.active_import_name()
     $ _replay_toggle_key = "banner"
-    use cue_section_frame("Preview Import"):
+    use cue_section_frame("Import Preview"):
         vbox:
             spacing 8
             xfill True

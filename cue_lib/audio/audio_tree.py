@@ -52,7 +52,6 @@ class CueAudioTreeManager(object):
         self.expanded_folders = {}  # folder_path -> bool
         self.search_query = ""      # non-empty -> visible_tree is a filtered view
         self.search_truncated = 0   # rows dropped by the search cap (0 when idle)
-        self.search_is_editing = False  # search bar input is in edit mode
         self._search_applied = ""   # query last rebuilt for (debounce marker)
         self._has_expanded_roots = False  # one-time root expansion done
 

@@ -34,7 +34,8 @@ screen cue_data_dir():
             use cue_text_input("_cue.settings.setup_dir_text",
                 Function(_cue.settings.confirm_shared_dir),
                 _cue.settings.setup_dir_text,
-                xsize=430)
+                xsize=430,
+                commit_on_enter=False)
             if _cue.settings.shared_dir_error:
                 etext _cue.settings.shared_dir_error color _cue_color_error
             elif _cue.settings.shared_dir_success:

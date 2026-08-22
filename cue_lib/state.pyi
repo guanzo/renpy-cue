@@ -58,6 +58,7 @@ class Cue:
     overlay_active_page: int
     collapsed_sections: Dict[str, bool]
     ctx: CueContext
+    editing_input: str
     current_file: str
     current_dialogue: str
     prev_dialogue: str

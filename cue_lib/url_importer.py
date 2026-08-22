@@ -196,7 +196,6 @@ class CueUrlImporter(object):
         self.url = u""
         self.is_downloading = False
         self.cancel_requested = False
-        self.search_is_editing = False   # cue_text_input editing_ref contract
         self.download_done = 0
         self.download_total = None   # type: Optional[int]
         self.download_started = 0.0

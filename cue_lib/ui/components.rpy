@@ -10,8 +10,15 @@ init -900 python:
         FieldInputValue("_cue.video_editor", "factor_text") — it splits
         on the LAST dot and treats everything before it as the object
         expression, everything after as the field name.
+
+        enter_action (optional) is run via renpy.run() when the focused
+        input commits on Enter: the input's own input_enter path calls
+        value.enter(), so the input can commit/exit editing without any
+        `key` statement in the tree.  That keeps the editing frame
+        single-child — a multi-child frame gets an implicit Fixed that
+        claims all available height.
         """
-        def __init__(self, dotted_path, default=True):
+        def __init__(self, dotted_path, default=True, enter_action=None):
             _dot = dotted_path.rfind(".")
             if _dot == -1:
                 # No dot: treat as a simple store variable
@@ -25,6 +32,13 @@ init -900 python:
             # FieldInputValue's isinstance(obj, str) gate in get_text/set_text.
             _obj = renpy.python.py_eval(self._obj_expr)
             FieldInputValue.__init__(self, _obj, self._field, default=default)
+            self.enter_action = enter_action
+
+        def enter(self):
+            if self.enter_action is not None:
+                renpy.run(self.enter_action)
+                renpy.restart_interaction()
+            return FieldInputValue.enter(self)
 
     class _CueVolumeValue(DictValue):
         """A DictValue that persists the owning marker after the bar changes.
@@ -282,40 +296,24 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
         use cue_icon_btn("+", inc10_action)
         #use cue_icon_btn("++", inc100_action, None, 22)
 
-# Text input: textbutton that becomes an input on click, Enter to confirm.
-# field_name: string for _CueFieldValue (e.g. "_cue.settings.setup_dir_text")
-# commit_action: Function() called on Enter to confirm
-# display_text: the label shown on the textbutton
-# editing_ref: optional object with a search_is_editing attribute; when given
-#   it is the source of truth for edit mode, so the clear button can exit
-#   editing by setting it to False.
-# clear_btn: when True the leading slot holds a clear (xmark) button while
-#   editing or while the field has text; an idle empty field shows a
-#   non-clickable hint icon instead, so the layout never shifts.
-# clear_action: Function() called by the clear button (default: empty the
-#   field value).  Clears derived state too when relevant (e.g. search).
-# clear_tt: tooltip on the clear button.
-# hint_icon: icon name shown in the idle+empty slot (default keyboard);
-#   override per input, e.g. cue_search_bar passes a magnifying glass.
-# paste_btn: when True the idle+empty slot holds a clickable paste button
-#   instead of the hint icon; clicking it starts editing and drops the
-#   system clipboard into the field so it shows in the input.
-screen cue_text_input(field_name, commit_action, display_text, xsize=200, editing_ref=None,
-                      clear_btn=True, clear_action=None, clear_tt="Clear", hint_icon="keyboard",
-                      paste_btn=False):
+screen cue_text_input(field_name, commit_action, display_text, xsize=200,
+                      clear_action=None, hint_icon="keyboard",
+                      paste_btn=False, commit_on_enter=True):
     style_group "cue"
 
-    default editing = False
     $ ysize = 16
-    if editing_ref is not None:
-        $ editing = editing_ref.search_is_editing
-        $ _start_edit = SetField(editing_ref, "search_is_editing", True)
-        $ _commit = [commit_action, SetField(editing_ref, "search_is_editing", False)]
-        $ _exit_edit = SetField(editing_ref, "search_is_editing", False)
+    # Each input derives its own editing flag from the shared _cue.editing_input
+    # (holds this field's dotted path while it's being edited, "" = none), so
+    # only one field is in edit mode at a time.
+    $ editing = (_cue.editing_input == field_name)
+    $ _start_edit = SetField(_cue, "editing_input", field_name)
+    $ _commit = [commit_action, SetField(_cue, "editing_input", "")]
+    $ _exit_edit = SetField(_cue, "editing_input", "")
+
+    if commit_on_enter:
+        $ _enter = _commit
     else:
-        $ _start_edit = SetLocalVariable("editing", True)
-        $ _commit = [commit_action, SetLocalVariable("editing", False)]
-        $ _exit_edit = SetLocalVariable("editing", False)
+        $ _enter = _exit_edit
 
     $ _pair = _cue_split_dotted_path(field_name)
     $ _obj = _pair[0]
@@ -328,14 +326,14 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=200, editin
         $ _clear_core = SetField(_obj, _field, "")
     $ _clear = [_clear_core, _exit_edit]
 
+
     hbox:
         spacing 0
+        yalign 0.5
 
-        if clear_btn and (editing or _has_text):
-            use cue_icon_btn("xmark", _clear, clear_tt, bg=_cue_color_bg_input)
+        if editing or _has_text:
+            use cue_icon_btn("xmark", _clear, "Clear", bg=_cue_color_bg_input)
         elif paste_btn:
-            # Paste button fills the hint slot: clicking it starts editing
-            # and drops the clipboard into the field so it shows in the input.
             use cue_icon_btn(
                 "paste",
                 [_start_edit, Function(_cue_paste_into_field, field_name)],
@@ -343,38 +341,34 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=200, editin
                 bg=_cue_color_bg_input,
             )
         elif hint_icon:
-            # Idle hint: input-colored box filling the clear button's slot so
-            # nothing shifts when editing starts or stops.
             use cue_icon_btn(hint_icon, enabled=False, bg=_cue_color_bg_input)
         if editing:
+            # Single child only: a second child makes the frame wrap its
+            # contents in a Fixed, which claims all available height.
+            # Enter is handled by the value's enter_action, not a key.
             frame:
-                # key must be inside frame, otherwise a parent vbox will add spacing
-                # because it considers "key" to be a UI element.
-                key "K_RETURN" action _commit
-                key "K_KP_ENTER" action _commit
+                style "empty"
                 background _cue_color_bg_input
                 padding (6, 0)
-                ysize ysize
                 xsize xsize
+                yminimum ysize
                 input:
-                    value _CueFieldValue(field_name)
+                    value _CueFieldValue(field_name, enter_action=_enter)
                     default True
                     copypaste True
                     xsize xsize
-                    ysize ysize
+                    yminimum ysize
+                    yoffset 1
         else:
-            # Idle state is an inline textbutton so it can carry the input's
-            # bg + text offset; flush against the icon slot it reads as one box.
             textbutton _cue_escape_text(display_text):
                 action _start_edit
                 text_xalign 0
                 background _cue_color_bg_input
                 hover_background _cue_color_bg_input_hover
                 padding (6, 0)
-                tooltip "Click to type. Enter to confirm."
-                if xsize is not None and xsize > 0:
-                    xsize xsize
-                ysize ysize
+                xsize xsize
+                tooltip ("Click to type. Enter to confirm."
+                    if commit_on_enter else "Click to type. Commit with the button.")
 
 screen cue_search_bar(field_path, manager, hint="Search"):
     style_group "cue"
@@ -384,9 +378,7 @@ screen cue_search_bar(field_path, manager, hint="Search"):
     vbox:
         spacing 4
         use cue_text_input(field_path, Function(manager.rebuild_tree), _label,
-            editing_ref=manager,
             clear_action=Function(manager.clear_search),
-            clear_tt="Clear search",
             hint_icon="magnifying-glass")
 
         if manager.search_truncated:
@@ -566,7 +558,7 @@ screen cue_replay_children(_imp_key, _section):
                 use cue_icon_btn(
                     "play",
                     Function(_cue.importer.play_replay, _imp_key, _r["replay"]),
-                    "Play replay",
+                    "Start replay",
                     enabled=_cue.importer.can_preview(_imp_key))
                 etext _r["replay"] color _cue_color_text_accent size 11
                 etext "{} marker(s)".format(_r["marker_count"]) color _cue_color_text_muted size 11

@@ -64,7 +64,7 @@ style cue_popper_frame is empty:
     xfill False
 
 style cue_button is empty:
-    ysize _cue_btn_height
+    yminimum _cue_btn_height
     background _cue_color_bg_btn
     hover_background _cue_color_bg_btn_hover
     insensitive_background _cue_color_bg_dialog

@@ -21,7 +21,6 @@ class CueUrlImporter(object):
     url: str
     is_downloading: bool
     cancel_requested: bool
-    search_is_editing: bool
     download_done: int
     download_total: Optional[int]
     download_started: float
