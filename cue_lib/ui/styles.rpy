@@ -32,7 +32,8 @@ define _cue_color_green = "#55aa55"
 define _cue_color_green_hover = "#77cc77"
 define _cue_color_active = "#567f56"
 define _cue_color_active_hover = "#679067"
-define _cue_color_selected = "#446688"
+define _cue_color_selected_alt = "#446688"
+define _cue_color_selected_alt_hover = "#5588aa"
 define _cue_color_dark_yellow = "#886600"
 define _cue_color_warn = "#ffd24a"
 define _cue_color_red = "#664444"
@@ -52,7 +53,7 @@ style cue_frame is empty:
 
 style cue_dialog is empty:
     xpos _cue_overlay_panel_width
-    ypos 8
+    ypos 4
     padding (16, 8)
     background _cue_color_bg_dialog
     hover_background _cue_color_bg_dialog

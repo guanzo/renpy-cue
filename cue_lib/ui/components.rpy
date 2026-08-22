@@ -335,7 +335,7 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=200,
             use cue_icon_btn("xmark", _clear, "Clear", bg=_cue_color_bg_input)
         elif paste_btn:
             use cue_icon_btn(
-                "paste",
+                "clipboard",
                 [_start_edit, Function(_cue_paste_into_field, field_name)],
                 "Paste from clipboard",
                 bg=_cue_color_bg_input,
@@ -421,11 +421,15 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
             $ _is_active = (pi == target)
             # Selected-but-not-active tabs get a blue highlight so the
             # multi-select group reads at a glance (active green wins).
+            $ _is_selected = (pi in selected_tabs)
             $ _tab_bg = (_cue_color_active if _is_active
-                         else (_cue_color_selected if (pi in selected_tabs) else _cue_color_bg_btn))
+                         else (_cue_color_selected_alt if _is_selected else _cue_color_bg_btn))
+            $ _tab_hover = (_cue_color_active_hover if _is_active
+                            else (_cue_color_selected_alt_hover if _is_selected else _cue_color_bg_btn_hover))
             textbutton str(pi + 1):
                 xsize 14
                 background _tab_bg
+                hover_background _tab_hover
                 action _cue_make_tab_action(tab_action_fn, tab_action_args, pi)
                 if tab_tt is not None:
                     tooltip tab_tt
