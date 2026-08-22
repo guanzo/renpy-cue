@@ -216,6 +216,45 @@ class CueMarkerManager(object):
         # type: () -> List[str]
         return self._store.list_video_presets()
 
+    def remove_video_preset_pool(self, name, pool_index):
+        # type: (str, int) -> None
+        """Remove one pool from a video preset; a preset left with no pools is
+        deleted (a saved video preset always has at least one pool)."""
+        preset = self._video_presets.get(name)
+        if preset is None:
+            return
+        pools = preset.get("pools", [])
+        if not (0 <= pool_index < len(pools)):
+            return
+        del pools[pool_index]
+        if not pools:
+            self.delete_video_preset(name)
+            return
+        self._db_save_video_preset(name)
+        _cue_log("REMOVE-VIDEO-POOL preset={} index={}".format(name, pool_index))
+
+    def remove_video_preset_pool_file(self, name, pool_index, file_path):
+        # type: (str, int, str) -> None
+        """Remove one file from a pool in a saved video preset.
+
+        Same folder-ref handling as _remove_file_from_preset_pool: a ref
+        covering ``file_path`` is expanded via _detach_folder_ref_in_files."""
+        preset = self._video_presets.get(name)
+        if preset is None:
+            return
+        pools = preset.get("pools", [])
+        if not (0 <= pool_index < len(pools)):
+            return
+        files = pools[pool_index].get("files", [])
+        for fi, f in enumerate(files):
+            if f.endswith("/") and file_path.startswith(f):
+                self._detach_folder_ref_in_files(files, fi, file_path)
+                break
+        else:
+            if file_path in files:
+                files.remove(file_path)
+        self._db_save_video_preset(name)
+
     def video_preset_out_of_range(self, name):
         # type: (str) -> int
         preset = self._video_presets.get(name)

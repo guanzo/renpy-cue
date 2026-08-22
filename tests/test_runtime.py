@@ -898,6 +898,27 @@ def test_preview_video_preset_missing(cue, sfx_mgr, monkeypatch):
     assert played == []
 
 
+def test_preview_video_pool_picks_from_pool(cue, sfx_mgr, monkeypatch):
+    cue.markers.get_video_preset = lambda name: {
+        "pools": [{"files": ["a.ogg"]}, {"files": ["b.ogg", "c.ogg"]}]}
+    cue.sfx.library.files = ["a.ogg", "b.ogg", "c.ogg"]
+    played = []
+    monkeypatch.setattr(_sfx_manager._random, "choice", lambda files: files[0])
+    monkeypatch.setattr(sfx_mgr, "preview_sfx", lambda f: played.append(f))
+    sfx_mgr.preview_video_pool("p", 1)
+    assert played == ["b.ogg"]
+
+
+def test_preview_video_pool_missing_or_bad_index(cue, sfx_mgr, monkeypatch):
+    cue.markers.get_video_preset = lambda name: {
+        "pools": [{"files": ["a.ogg"]}]} if name != "gone" else None
+    played = []
+    monkeypatch.setattr(sfx_mgr, "preview_sfx", lambda f: played.append(f))
+    sfx_mgr.preview_video_pool("gone", 0)
+    sfx_mgr.preview_video_pool("p", 5)
+    assert played == []
+
+
 def test_preview_sfx_stops_previous(cue, sfx_mgr, monkeypatch):
     _music_mock.play("old.ogg", channel="_cue_1")
     sfx_mgr._preview_channel = "_cue_1"

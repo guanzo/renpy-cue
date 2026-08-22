@@ -66,6 +66,51 @@ def test_video_preset_crud(mgr):
     assert mgr.get_video_preset("vp") is None
 
 
+def test_remove_video_preset_pool_deletes_pool(mgr):
+    mgr.create_video_preset("vp", {"pools": [
+        {"time": 0.0, "files": ["a.ogg"]},
+        {"time": 2.0, "files": ["b.ogg"]}]})
+    mgr.remove_video_preset_pool("vp", 0)
+    pools = mgr.get_video_preset("vp")["pools"]
+    assert len(pools) == 1
+    assert pools[0]["time"] == 2.0
+
+
+def test_remove_video_preset_pool_last_pool_deletes_preset(mgr):
+    mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg"]}]})
+    mgr.remove_video_preset_pool("vp", 0)
+    assert mgr.get_video_preset("vp") is None
+    assert mgr.list_video_presets() == []
+
+
+def test_remove_video_preset_pool_missing_or_bad_index_noop(mgr):
+    mgr.remove_video_preset_pool("missing", 0)
+    mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg"]}]})
+    mgr.remove_video_preset_pool("vp", 5)
+    assert mgr.get_video_preset("vp")["pools"]
+
+
+def test_remove_video_preset_pool_file_direct(mgr):
+    mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg", "b.ogg"]}]})
+    mgr.remove_video_preset_pool_file("vp", 0, "a.ogg")
+    assert mgr.get_video_preset("vp")["pools"][0]["files"] == ["b.ogg"]
+
+
+def test_remove_video_preset_pool_file_folder_ref(mgr):
+    mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["sfx/"]}]})
+    mgr._sfx_manager.library.files = ["sfx/a.ogg", "sfx/b.ogg", "other.ogg"]
+    mgr.remove_video_preset_pool_file("vp", 0, "sfx/a.ogg")
+    assert mgr.get_video_preset("vp")["pools"][0]["files"] == ["sfx/b.ogg"]
+
+
+def test_remove_video_preset_pool_file_missing_or_bad_index_noop(mgr):
+    mgr.remove_video_preset_pool_file("missing", 0, "a.ogg")
+    mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg"]}]})
+    mgr.remove_video_preset_pool_file("vp", 5, "a.ogg")
+    mgr.remove_video_preset_pool_file("vp", 0, "nope.ogg")
+    assert mgr.get_video_preset("vp")["pools"][0]["files"] == ["a.ogg"]
+
+
 def test_preset_remove_file_direct(mgr):
     mgr.create_preset("basic", {"files": ["a.ogg", "b.ogg"]})
     mgr.preset_remove_file("basic", "a.ogg")

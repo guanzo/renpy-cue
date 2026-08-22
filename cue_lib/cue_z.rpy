@@ -115,6 +115,7 @@ init -999 python:
     from cue_lib.ui.dialogs import (
         CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog,
         _cue_confirm_delete_preset, _cue_confirm_delete_video_preset,
+        _cue_confirm_remove_video_preset_pool,
         _cue_confirm_delete_music_preset, _cue_confirm_delete_igroup,
         _cue_maybe_apply_video_preset,
     )

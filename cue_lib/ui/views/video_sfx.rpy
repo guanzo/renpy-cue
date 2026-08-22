@@ -69,6 +69,7 @@ screen cue_video_sfx():
                 xfill True
                 ysize 18
                 add CueVideoTimeline()
+                
         # Video marker tabs + active pool
         $ _vid_key = _cue_create_vid_key(_cue.current_file) if _cue.current_file else ""
         $ _vid_entry = _cue.markers.get(_vid_key, {})

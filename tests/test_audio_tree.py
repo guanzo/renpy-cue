@@ -408,6 +408,7 @@ def test_sfx_init_state(sfx):
     assert sfx.expanded_presets == {}
     assert sfx.video_presets_expanded is False
     assert sfx.expanded_video_presets == {}
+    assert sfx.expanded_video_pools == {}
     assert sfx.disabled_files == set()
     assert sfx.igroup_add_target is None
     assert sfx.overlay_mode is False
@@ -508,6 +509,19 @@ def test_sfx_toggle_video_preset_expand(sfx):
     assert sfx.expanded_video_presets["v"] is True
     sfx.toggle_video_preset_expand("v")
     assert sfx.expanded_video_presets["v"] is False
+
+
+def test_sfx_toggle_video_pool_expand(sfx):
+    sfx.toggle_video_pool_expand("v", 0)
+    assert sfx.expanded_video_pools["v"][0] is True
+    sfx.toggle_video_pool_expand("v", 0)
+    assert sfx.expanded_video_pools["v"][0] is False
+
+
+def test_sfx_toggle_video_pool_expand_per_pool(sfx):
+    sfx.toggle_video_pool_expand("v", 0)
+    sfx.toggle_video_pool_expand("v", 1)
+    assert sfx.expanded_video_pools["v"] == {0: True, 1: True}
 
 
 def test_sfx_toggle_overlay_mode_restarts(sfx, monkeypatch):

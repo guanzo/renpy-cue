@@ -263,25 +263,47 @@ screen cue_video_presets_list(_is_video, name_filter=None):
                 Function(_cue_confirm_delete_video_preset, _vpname),
                 "Delete video preset" + CUE_HELP_SHIFT_SKIP_DELETE)
             use cue_icon_btn(
-                "play",
-                Function(_cue.sfx.preview_video_preset, _vpname),
-                "Play random file from video preset")
-            use cue_icon_btn(
                 "V",
                 Function(_cue_maybe_apply_video_preset, _vpname),
                 "Apply video markers to the current video.\nOverwrites existing markers.",
                 enabled=_is_video)
             use cue_txt_button(_vpname, Function(_cue.sfx.library.toggle_video_preset_expand, _vpname))
 
+        # Pool rows are timestamp folders; expanding one reveals its files
+        # (same shape as an expanded audio preset's file rows).
         if _vp_expanded:
-            for _pool in _vp_pools:
-                $ _pool_time = _pool.get("time", 0)
-                $ _pool_files = len(_cue_resolve_files(_pool.get("files", [])))
-                $ _pool_label = "{} ({} files)".format(_cue_format_time(_pool_time), _pool_files)
+            $ _vp_pools_state = _cue.sfx.library.expanded_video_pools.get(_vpname, {})
+            for _pool_index, _pool in enumerate(_vp_pools):
+                $ _pool_label = _cue_format_time(_pool.get("time", 0))
+                $ _pool_expanded = _vp_pools_state.get(_pool_index, False)
+                $ _pool_files = _cue_resolve_files(_pool.get("files", []))
                 hbox:
                     spacing 2
                     etext "  "
-                    etext _pool_label color _cue_color_text_accent size 11
+                    use cue_icon_btn(
+                        "xmark",
+                        Function(_cue_confirm_remove_video_preset_pool, _vpname, _pool_index),
+                        "Remove this pool from the video preset" + CUE_HELP_SHIFT_SKIP_DELETE)
+                    use cue_icon_btn(
+                        "play",
+                        Function(_cue.sfx.preview_video_pool, _vpname, _pool_index),
+                        "Play random file from this pool")
+                    use cue_txt_button(
+                        _pool_label,
+                        Function(_cue.sfx.library.toggle_video_pool_expand, _vpname, _pool_index))
+
+                if _pool_expanded:
+                    for _child in _pool_files:
+                        hbox:
+                            spacing 2
+                            etext "    "
+                            use cue_icon_btn(
+                                "xmark",
+                                Function(_cue.markers.remove_video_preset_pool_file, _vpname, _pool_index, _child),
+                                "Remove file from pool")
+                            use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, _child), "Preview file")
+                            null width 1
+                            etext _child color _cue_color_text_accent size 11
 
 screen cue_intensity_group_row(igroup_names, searching, search_query=""):
     # The parent (cue_sfx_library_content) filters igroup names by the search

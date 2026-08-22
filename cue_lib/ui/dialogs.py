@@ -311,6 +311,13 @@ def _cue_confirm_delete_video_preset(preset_name):
         Function(_cue.markers.delete_video_preset, preset_name),
     )
 
+def _cue_confirm_remove_video_preset_pool(preset_name, pool_index):
+    # type: (str, int) -> None
+    _cue.dialogs.confirm.show_or_run(
+        "Remove this pool from video preset?\n\n{}".format(preset_name),
+        Function(_cue.markers.remove_video_preset_pool, preset_name, pool_index),
+    )
+
 def _cue_confirm_delete_igroup(igroup_name):
     # type: (str) -> None
     _cue.dialogs.confirm.show_or_run(

@@ -202,16 +202,16 @@ class CueSfxManager(object):
             f = _random.choice(files)
             self.preview_sfx(f, volume=volume)
 
-    def preview_video_preset(self, preset_name):
-        # type: (str) -> None
-        """Preview a random file from a video preset (across all pools)."""
+    def preview_video_pool(self, preset_name, pool_index):
+        # type: (str, int) -> None
+        """Preview a random file from one pool of a video preset."""
         preset = self._markers_ctx().get_video_preset(preset_name)
         if preset is None:
             return
-        all_files = []
-        for pool in preset.get("pools", []):
-            all_files.extend(pool.get("files", []))
-        resolved = _cue_resolve_files(all_files)
+        pools = preset.get("pools", [])
+        if not (0 <= pool_index < len(pools)):
+            return
+        resolved = _cue_resolve_files(pools[pool_index].get("files", []))
         if resolved:
             f = _random.choice(resolved)
             self.preview_sfx(f)
@@ -268,6 +268,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # Video presets expand/collapse
         self.video_presets_expanded = False
         self.expanded_video_presets = {}  # preset_name -> bool
+        self.expanded_video_pools = {}    # preset_name -> {pool_index: bool}
 
         # Intensity group block: expand/collapse + per-group expand, plus the
         # active add-folder target (one igroup at a time).
@@ -373,6 +374,15 @@ class CueSfxLibraryTree(CueAudioTreeManager):
             self.expanded_video_presets[preset_name] = not self.expanded_video_presets[preset_name]
         else:
             self.expanded_video_presets[preset_name] = True
+
+    def toggle_video_pool_expand(self, preset_name, pool_index):
+        # type: (str, int) -> None
+        """Toggle expand/collapse for a single pool row inside a video preset."""
+        pools = self.expanded_video_pools.setdefault(preset_name, {})
+        if pool_index in pools:
+            pools[pool_index] = not pools[pool_index]
+        else:
+            pools[pool_index] = True
 
     # ------------------------------------------------------------------
     # Toggle: overlay mode
