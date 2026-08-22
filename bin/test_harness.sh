@@ -1,11 +1,14 @@
 #!/bin/sh
 # Usage: bin/test_harness.sh /path/to/game/Game.sh [testcase...] [test-options...]
+#        bin/test_harness.sh --both [testcase...]  (modern + legacy, concurrently)
 #
 # Runs the harness game (test_game/) under the given Ren'Py runtime with the
-# mod's cue_lib symlinked in.  RENPY_CUE_DIR defaults to the committed
-# fixtures root (tests/fixtures/data) -- the same tree CI points at -- so
-# local runs exercise the sfx/music fixtures exactly like CI does. Generated
-# artifacts (video variants, db writes) land under gitignored subdirs.
+# mod's cue_lib symlinked in.  Each run copies the small game tree and the
+# fixture root (tests/fixtures/data by default; an explicit RENPY_CUE_DIR
+# seeds the copy) into fresh temp dirs, so concurrent invocations -- e.g.
+# modern and legacy side by side -- never share mutable state, and the
+# committed test_game/ + fixtures stay pristine.  Generated artifacts (video
+# variants, db writes, saves) land in the temp dirs and are removed on exit.
 #
 # Runs are headless by default when xvfb-run is installed, so the engine
 # window doesn't pop up and steal focus. Set RENPY_HEADLESS=0 to show the
@@ -20,9 +23,72 @@
 #                    testcase; failures exit nonzero via renpy.quit(status=1).
 set -e
 
-LAUNCHER="$1"; shift || { echo "Usage: $0 /path/to/game/Game.sh [testcase...] [options...]" >&2; exit 2; }
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-GAME="$ROOT/test_game"
+
+# --both: run the modern (8.x) and legacy (7.x) harnesses concurrently, each
+# spawning its own isolated temp dirs below.  Testcase filters: legacy honors
+# several names; modern takes exactly one (renpy test's positional nargs="?").
+if [ "$1" = "--both" ]; then
+    shift
+    MODERN=""
+    LEGACY=""
+    for d in "$ROOT"/.local/renpy-*-sdk; do
+        [ -d "$d" ] || continue
+        if grep -q 'version_tuple = (7,' "$d/renpy/__init__.py" 2>/dev/null; then
+            LEGACY="$d/renpy.sh"
+        else
+            MODERN="$d/renpy.sh"
+        fi
+    done
+    if [ -z "$MODERN" ] || [ -z "$LEGACY" ]; then
+        echo "need both a 7.x and an 8.x renpy-*-sdk under .local/ for --both" >&2
+        exit 2
+    fi
+
+    MLOG="$(mktemp -t cue_both_modern.XXXXXX.log)"
+    LLOG="$(mktemp -t cue_both_legacy.XXXXXX.log)"
+    trap 'rm -f "$MLOG" "$LLOG"' EXIT
+    if [ $# -gt 0 ]; then
+        M_ARGS="$1"
+        L_ARGS="$*"
+    else
+        M_ARGS=""
+        L_ARGS=""
+    fi
+    ( "$0" "$MODERN" $M_ARGS >"$MLOG" 2>&1 ) &
+    MPID=$!
+    ( "$0" "$LEGACY" $L_ARGS >"$LLOG" 2>&1 ) &
+    LPID=$!
+    if wait "$MPID"; then MR=0; else MR=$?; fi
+    if wait "$LPID"; then LR=0; else LR=$?; fi
+    echo "=== MODERN ($MODERN) ==="
+    cat "$MLOG"
+    echo "=== LEGACY ($LEGACY) ==="
+    cat "$LLOG"
+    if [ "$MR" -ne 0 ] || [ "$LR" -ne 0 ]; then
+        echo "[cue] --both failed: modern=$MR legacy=$LR" >&2
+        exit 1
+    fi
+    exit 0
+fi
+
+LAUNCHER="$1"; shift || { echo "Usage: $0 /path/to/game/Game.sh [testcase...] [options...]  (or $0 --both [testcase...])" >&2; exit 2; }
+
+# Per-run isolation: copy the small game tree and fixture root into temp dirs
+# so concurrent invocations (e.g. modern + legacy side by side) never share
+# mutable state, and the committed test_game/ + fixtures stay pristine.  Only
+# the read-only cue_lib source is shared (via the symlink in the mod section).
+# An explicit RENPY_CUE_DIR seeds the fixture copy instead of the default.
+GAME="$(mktemp -d "${TMPDIR:-/tmp}/cue_testgame.XXXXXX")"
+DATA="$(mktemp -d "${TMPDIR:-/tmp}/cue_testdata.XXXXXX")"
+trap 'rm -rf "$GAME" "$DATA"' EXIT
+cp -r "$ROOT/test_game/." "$GAME/"
+cp -r "${RENPY_CUE_DIR:-$ROOT/tests/fixtures/data}/." "$DATA/"
+# Dirty fixture sources (prior runs leave data/backups/video residue) must not
+# seed the run; the mod's CueDatabase.open() recreates these subdirs at init.
+rm -rf "$DATA/data" "$DATA/backups" "$DATA/video"
+rm -rf "$GAME/game/saves"
+export RENPY_CUE_DIR="$DATA"
 TEMPLATES="$GAME/templates"
 
 # A testcase that never yields (an interaction whose rebuild never completes)
@@ -60,22 +126,12 @@ rm -f "$GAME/errors.txt" "$GAME/traceback.txt"
 # run's.
 rm -f "$GAME/game/renpy_cue/debug.log"
 
-# --- Wire in the mod and the scratch data root. ---
+# --- Wire in the mod. ---
 MOD="$GAME/game/renpy_cue"
 mkdir -p "$MOD"
 [ -e "$MOD/cue_lib" ] || ln -s "$ROOT/cue_lib" "$MOD/cue_lib"
-export RENPY_CUE_DIR="${RENPY_CUE_DIR:-$ROOT/tests/fixtures/data}"
 
-# The mod writes runtime state (marker DB, presets, generated video variants,
-# Ren'Py saves/persistent) into the shared fixtures root and the test game's
-# saves dir -- all gitignored.  They accumulate across local runs and can flip
-# timing-sensitive testcases; CI starts from a fresh checkout, so it never
-# sees the residue.  Start every run from the same clean slate (the committed
-# audio/ and music/ fixtures are outside these dirs and are left alone).
-rm -rf "$RENPY_CUE_DIR/data" "$RENPY_CUE_DIR/backups" "$RENPY_CUE_DIR/video"
-rm -rf "$GAME/game/saves"
-
-# Point saves + persistent at the wiped game/saves dir.  Without --savedir,
+# Point saves + persistent at the per-run game/saves dir.  Without --savedir,
 # save_directory sends persistent to the user-data dir (~/.renpy/...), which
 # survives the wipe above and accumulates residue across local runs.  --savedir
 # is applied before savelocation.init() -- options.rpy init code runs after it,

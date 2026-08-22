@@ -211,7 +211,7 @@ Harness runs are headless by default. Set `RENPY_HEADLESS=0` to show the game wi
 After changing `cue_lib/*.py`:
 
 * Update the corresponding `.pyi` if its public API changed.
-* Run `/lint`, then `/test`.
+* Run `/lint`, then `/test`, then `/test-harness`.
 
 After adding a manager:
 
