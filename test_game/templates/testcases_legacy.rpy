@@ -1013,6 +1013,24 @@ testcase music_play_interceptor_installed:
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
+testcase music_play_pause_toggle:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ import renpy.audio.music as _music
+    run Function(_cue.music.library.preview, "My Music/song_001.ogg")
+    pause 2.0
+    $ _ok = _cue.music.now_playing() is not None
+    run Function(_cue_set_page, CuePage.MUSIC)
+    pause 2.0
+    $ _ok = _ok and _music.get_pause(channel="music") == False
+    run Function(_cue.music.toggle_pause)
+    $ _ok = _ok and _music.get_pause(channel="music") == True
+    run Function(_cue.music.toggle_pause)
+    $ _ok = _ok and _music.get_pause(channel="music") == False
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
 # Renders etext with tag + interpolation characters in the value, so the
 # statement compiles and displays them literally (an unescaped value would
 # crash the interaction or garble the text).

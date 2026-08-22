@@ -146,6 +146,23 @@ class CueMusicManager(object):
             return CUE_MY_MUSIC_FOLDER + path
         return CUE_GAME_MUSIC_FOLDER + path
 
+    @property
+    def is_paused(self):
+        # type: () -> bool
+        """True while the music channel is paused (live read)."""
+        try:
+            return bool(_music.get_pause(channel=CUE_DEFAULT_MUSIC_CHANNEL))
+        except Exception:
+            return False
+
+    def toggle_pause(self):
+        # type: () -> None
+        """Pause or resume the current music channel track."""
+        try:
+            _music.set_pause(not self.is_paused, channel=CUE_DEFAULT_MUSIC_CHANNEL)
+        except Exception:
+            pass
+
     def default_display_path(self, path):
         # type: (str) -> str
         """Display path for a recorded default music filepath.

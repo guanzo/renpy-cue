@@ -134,6 +134,35 @@ def test_now_playing_game_relative_unchanged(mgr):
     assert mgr.now_playing() == CUE_GAME_MUSIC_FOLDER + "music/bgm.ogg"
 
 
+def test_toggle_pause(mgr):
+    _music_mock.play("music/song.ogg", channel=CUE_DEFAULT_MUSIC_CHANNEL)
+    assert mgr.is_paused is False
+    mgr.toggle_pause()
+    assert mgr.is_paused is True
+    assert _music_mock.get_pause(channel=CUE_DEFAULT_MUSIC_CHANNEL) is True
+    mgr.toggle_pause()
+    assert mgr.is_paused is False
+
+
+def test_toggle_pause_no_track(mgr):
+    assert mgr.is_paused is False
+    mgr.toggle_pause()  # no-op on an empty channel
+    assert mgr.is_paused is False
+
+
+def test_toggle_pause_exception(mgr, monkeypatch):
+    _music_mock.play("music/song.ogg", channel=CUE_DEFAULT_MUSIC_CHANNEL)
+
+    def _boom(channel="music", **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(_music_mock, "get_pause", _boom)
+    assert mgr.is_paused is False
+    monkeypatch.setattr(_music_mock, "set_pause", _boom)
+    mgr.toggle_pause()  # swallowed
+    assert mgr.is_paused is False
+
+
 def test_default_display_path_game_root(mgr):
     # Defaults are the game's own `play music` files -- shown under the
     # synthetic Game Music/ root, never the user "music/" prefix.

@@ -50,6 +50,12 @@ screen cue_music_page():
                         box_wrap True
                         box_wrap_spacing 3
                         etext "Now Playing:"
+                        hbox:
+                            yalign 0.5
+                            use cue_icon_btn(
+                                ("play" if _cue.music.is_paused else "pause"),
+                                Function(_cue.music.toggle_pause),
+                                enabled=(_cue.music.now_playing() is not None))
                         etext (_cue.music.now_playing() or "(None)") color _cue_color_text_accent
                     hbox:
                         spacing 8

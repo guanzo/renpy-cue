@@ -780,6 +780,22 @@ testcase music_play_interceptor_installed:
     $ import renpy.audio.music as _music
     assert eval (getattr(_music.play, "__name__", "") == "_on_play")
 
+testcase music_play_pause_toggle:
+    run Jump("start")
+    $ import renpy.audio.music as _music
+    # Play the committed silent fixture; the Music page then renders a live
+    # play/pause button in the Now Playing row.
+    run Function(_cue.music.library.preview, "My Music/song_001.ogg")
+    pause 0.5
+    assert eval (_cue.music.now_playing() is not None)
+    run Function(_cue_set_page, CuePage.MUSIC)
+    pause 0.5
+    assert eval (_music.get_pause(channel="music") == False)
+    run Function(_cue.music.toggle_pause)
+    assert eval (_music.get_pause(channel="music") == True)
+    run Function(_cue.music.toggle_pause)
+    assert eval (_music.get_pause(channel="music") == False)
+
 # Renders etext with tag + interpolation characters in the value, so the
 # statement compiles and displays them literally (an unescaped value would
 # crash the interaction or garble the text).
