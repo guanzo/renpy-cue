@@ -506,7 +506,7 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                     etext f color _cue_color_text_accent size 11
 
 # Scrollable file list: only wraps in a viewport when content exceeds ~6 rows (120 px).
-screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing,
+screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing=2,
                      marker_key=None, pool_index=None, folder_child_remove_fn=None,
                      folder_label=None, folder_children=None):
     style_group "cue"
@@ -703,13 +703,13 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
             if _r.files:
                 if _is_preset_pool:
                     # Preset-backed: render as expandable folder
-                    use cue_file_list([], _cue.markers.detach_pool_at, (key, _target), _active_eff, 2,
+                    use cue_file_list([], _cue.markers.detach_pool_at, (key, _target), _active_eff,
                         marker_key=key, pool_index=_target,
                         folder_label=_active_pool["preset"],
                         folder_children=_cue_resolve_files(_r.files),
                         folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
                 else:
-                    use cue_file_list(_r.files, ctx.remove_file, (_target,), _active_eff, 2,
+                    use cue_file_list(_r.files, ctx.remove_file, (_target,), _active_eff,
                         marker_key=key, pool_index=_target,
                         folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
             else:

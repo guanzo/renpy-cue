@@ -174,12 +174,12 @@ screen cue_video_sfx():
                     use cue_vol_row(_vol_label, _vol_target, _vid_key, multi_setter=_vol_multi_setter)
                 
                 if _is_preset_ts:
-                    use cue_file_list([], _cue.markers.detach_active_video_ts, (), _active_eff, 2,
+                    use cue_file_list([], _cue.markers.detach_active_video_ts, (), _active_eff,
                         folder_label=_preset_name, folder_children=_active_files,
                         marker_key=_vid_key, pool_index=_vid_target,
                         folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
                 elif _raw_files:
-                    use cue_file_list(_raw_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff, 2,
+                    use cue_file_list(_raw_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff,
                         marker_key=_vid_key, pool_index=_vid_target,
                         folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
                 else:
