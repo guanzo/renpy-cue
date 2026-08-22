@@ -537,7 +537,6 @@ screen cue_replay_toggle(_imp_key, _section):
         button:
             style "cue_button"
             action Function(_cue.importer.toggle_replays, _section, _imp_key)
-            tooltip "Replays contained in this import.  Play enters preview and starts a replay."
             hbox:
                 spacing 4
                 add _caret yalign 0.5
@@ -558,7 +557,7 @@ screen cue_replay_children(_imp_key, _section):
                 use cue_icon_btn(
                     "play",
                     Function(_cue.importer.play_replay, _imp_key, _r["replay"]),
-                    "Start replay",
+                    "Preview import and start replay",
                     enabled=_cue.importer.can_preview(_imp_key))
                 etext _r["replay"] color _cue_color_text_accent size 11
                 etext "{} marker(s)".format(_r["marker_count"]) color _cue_color_text_muted size 11

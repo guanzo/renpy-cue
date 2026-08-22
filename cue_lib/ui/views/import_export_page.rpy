@@ -264,9 +264,7 @@ screen cue_import_row(_imp):
     $ _replay_toggle_key = "row"
     $ _is_active = (_cue.importer.is_active
                     and _cue.importer.active_import == _imp_key)
-    $ _can_activate = (_valid and _match == CueImportMatch.AUTO
-                       and not _is_active)
-    $ _can_merge = (_valid and _match == CueImportMatch.AUTO)
+    $ _can_preview = (_valid and _match == CueImportMatch.AUTO)
     frame:
         background (_cue_color_bg_panel if not _is_active else _cue_color_bg_input)
         padding (0, 6)
@@ -303,13 +301,18 @@ screen cue_import_row(_imp):
                 etext _status color _cue_color_error size 11
             hbox:
                 spacing 6
-                if _can_activate:
-                    use cue_txt_button(
-                        "Preview",
-                        Function(_cue.importer.activate, _imp_key),
-                        tt="Switch to this import to preview and edit its data.")
+                if _can_preview:
+                    if _is_active:
+                        use cue_txt_button(
+                            "Exit Preview",
+                            Function(_cue.importer.deactivate),
+                            tt="Stop previewing. Your own data is restored.")
+                    else:
+                        use cue_txt_button(
+                            "Preview",
+                            Function(_cue.importer.activate, _imp_key),
+                            tt="Preview this import and optionally edit its data.")
                     use cue_replay_toggle(_imp_key, _replay_toggle_key)
-                if _can_merge:
                     use cue_txt_button(
                         "Merge",
                         Function(_cue.importer.open_merge, _imp_key),
@@ -323,9 +326,8 @@ screen cue_import_row(_imp):
                            "so it can be imported.")
                 use cue_txt_button(
                     "Delete",
-                    Function(_cue.importer.confirm_delete, _imp_key),
-                    tt="Remove this import.")
-            if _can_activate:
+                    Function(_cue.importer.confirm_delete, _imp_key))
+            if _can_preview:
                 use cue_replay_children(_imp_key, _replay_toggle_key)
 
 
