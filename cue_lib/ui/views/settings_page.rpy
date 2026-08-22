@@ -87,12 +87,6 @@ screen cue_keybinds():
 screen cue_backup_restore():
     style_group "cue"
 
-    $ _backup_busy = (_cue.backups.is_backing_up or _cue.backups.is_restoring
-                      or _cue.backups.is_restore_checking)
-
-    if _backup_busy:
-        timer 0.1 repeat True action Function(renpy.restart_interaction, _update_screens=False)
-
     use cue_section_frame("Backup & Restore"):
         vbox:
             spacing 8
@@ -112,7 +106,7 @@ screen cue_backup_restore():
                 spacing 8
                 use cue_txt_button(
                     "Back Up", Function(_cue.backups.backup),
-                    sensitive=(not _backup_busy))
+                    sensitive=(not _cue.backups.is_busy))
 
                 if _cue.backups.is_backing_up:
                     $ _backup_pct = int(_cue.backups.backup_fraction * 100)
@@ -128,7 +122,7 @@ screen cue_backup_restore():
                 spacing 8
                 use cue_txt_button(
                     "Restore", Function(_cue.backups.restore),
-                    sensitive=(not _backup_busy))
+                    sensitive=(not _cue.backups.is_busy))
 
                 if _cue.backups.is_restore_checking:
                     etext "Preparing restore..." color _cue_color_text_muted
@@ -139,6 +133,16 @@ screen cue_backup_restore():
                 elif _cue.backups.restore_status:
                     etext _cue.backups.restore_status color _cue_color_green
 
+
+screen cue_about():
+    style_group "cue"
+
+    use cue_section_frame("About Cue"):
+        text 'hi'
+        # TODO: Add cue version, add "Cue Version" field to github bug template
+        # Add github issues link
+        # add discord link
+        # add contact email (set this up)
 
 # -----------------------------------------------------------------------------
 # Keybind-capture modal — shown while waiting for the user to press a key

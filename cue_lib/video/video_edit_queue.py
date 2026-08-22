@@ -731,11 +731,6 @@ class CueVideoEditQueue(object):
             return self._current.elapsed()
         return 0.0
 
-    def refresh_ui(self):
-        # type: () -> None
-        if self._current is not None or self._jobs:
-            renpy.restart_interaction()
-
 
 # ==================================================================
 # Background file swap

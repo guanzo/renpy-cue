@@ -528,6 +528,13 @@ class CueManualBackupManager(object):
         """True while the confirm preflight (validate + count) runs off-thread."""
         return self._restore_checking
 
+    @property
+    def is_busy(self):
+        # type: () -> bool
+        """True while a manual backup, restore, or preflight is in flight."""
+        return (self.is_backing_up or self.is_restoring
+                or self.is_restore_checking)
+
     # -- backup --
 
     def backup(self):
@@ -831,6 +838,11 @@ class CueBackupManager(object):
     def is_restore_checking(self):
         # type: () -> bool
         return self.manual.is_restore_checking
+
+    @property
+    def is_busy(self):
+        # type: () -> bool
+        return self.manual.is_busy
 
     @property
     def backup_status(self):

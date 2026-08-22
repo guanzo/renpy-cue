@@ -132,6 +132,18 @@ def test_all_categories_checked_by_default(cue_env):
         assert mgr.is_checked(cat) is True
 
 
+def test_is_busy_tracks_refresh_and_export(cue_env):
+    mgr = CueExportManager(cue_env.paths)
+    assert mgr.is_busy is False
+    mgr.is_refreshing = True
+    assert mgr.is_busy is True
+    mgr.is_refreshing = False
+    mgr.is_exporting = True
+    assert mgr.is_busy is True
+    mgr.is_exporting = False
+    assert mgr.is_busy is False
+
+
 def test_toggle_category_flips_checked(cue_env):
     mgr = CueExportManager(cue_env.paths)
     mgr.toggle_category(CueImportCategory.SFX)

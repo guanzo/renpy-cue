@@ -1264,15 +1264,6 @@ def test_editor_queue_properties(ve, tmp_path):
     assert ve._state_for_vpath("nope") is None
 
 
-def test_editor_refresh_ui_when_idle(ve):
-    ve.job_queue.refresh_ui()  # no jobs -> no restart, no crash
-
-
-def test_editor_refresh_ui_with_job(ve, tmp_path):
-    ve.job_queue._jobs.append(make_job(ve, tmp_path))
-    ve.job_queue.refresh_ui()  # must not raise
-
-
 # ---------------------------------------------------------------------------
 # coverage push: editor + queue exception branches
 # ---------------------------------------------------------------------------

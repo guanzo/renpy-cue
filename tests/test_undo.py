@@ -2,7 +2,7 @@
 # Tests for cue_lib.undo -- CueUndoManager snapshot-on-save undo/redo.
 #
 # The manager takes its collaborators as constructor args (store, ctx,
-# video_editor, markers), so the fixture is a plain factory call -- no _cue
+# markers), so the fixture is a plain factory call -- no _cue
 # singleton mutation.  renpy.restart_interaction() is mocked by conftest.
 
 import time
@@ -38,14 +38,6 @@ class FakeMarkers(object):
         self.video = FakeVideoContext()
 
 
-class FakeVideoEditor(object):
-    def __init__(self):
-        self.refreshed = 0
-
-    def refresh_ui(self):
-        self.refreshed += 1
-
-
 class FakeStore(object):
     """Data store stand-in: the three dicts plus the persistence calls
     _restore() makes.  Undo logic is about snapshots, not disk layout, so a
@@ -75,7 +67,7 @@ def store():
 
 @pytest.fixture
 def undo(store):
-    return CueUndoManager(CueContext(), store, FakeVideoEditor(), markers=FakeMarkers())
+    return CueUndoManager(CueContext(), store, markers=FakeMarkers())
 
 
 # ---------------------------------------------------------------------------
@@ -340,20 +332,3 @@ def test_clamp_ui_clamps_all_targets(undo, store):
     assert undo._markers.video.active_pool == 2     # min(5, 3 - 1)
     assert undo._markers.video.selected == set()
     assert undo._markers.video.sync_text_calls == 1
-
-
-def test_clamp_ui_refreshes_editor_when_overlay_visible(undo, monkeypatch):
-    from cue_lib.state import _cue
-    monkeypatch.setattr(_cue, "is_overlay_visible", True, raising=False)
-    undo._clamp_ui()
-    assert undo._video_editor.refreshed == 1
-
-
-def test_clamp_ui_refresh_ui_error(undo, monkeypatch):
-    from cue_lib.state import _cue
-    monkeypatch.setattr(_cue, "is_overlay_visible", True, raising=False)
-
-    def _boom():
-        raise RuntimeError("no screen")
-    monkeypatch.setattr(undo._video_editor, "refresh_ui", _boom)
-    undo._clamp_ui()  # must not raise

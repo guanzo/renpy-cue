@@ -289,10 +289,6 @@ screen cue_video_vfx():
             # --- Edit queue ---
             if _cue.video_editor.job_queue.jobs:
                 use cue_h_divider()
-                timer 0.2 repeat True action [
-                    Function(_cue.video_editor.job_queue.poll),
-                    Function(_cue.video_editor.job_queue.refresh_ui),
-                ]
                 frame:
                     padding (0, 0)
                     yminimum 0

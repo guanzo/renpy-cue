@@ -13,7 +13,6 @@ import time as _time
 import renpy
 
 from cue_lib.state import _cue
-from cue_lib.util import _cue_log
 from cue_lib.util import create_img_key, create_dlg_key, create_loop_key, create_vid_key
 
 MYPY = False
@@ -22,7 +21,6 @@ if MYPY:
     from cue_lib._types import UndoSnapshot
     from cue_lib.marker_store import CueMarkerStore
     from cue_lib.state import CueContext
-    from cue_lib.video.video_editor import CueVideoEditor
     from cue_lib.markers import CueMarkerManager
 
 
@@ -33,11 +31,10 @@ class CueUndoManager(object):
     MAX_UNDO = 20
     DEDUPE_WINDOW = 0.15  # seconds -- saves within this window share a slot
 
-    def __init__(self, ctx, store, video_editor, markers=None):
-        # type: (CueContext, CueMarkerStore, CueVideoEditor, Optional[CueMarkerManager]) -> None
+    def __init__(self, ctx, store, markers=None):
+        # type: (CueContext, CueMarkerStore, Optional[CueMarkerManager]) -> None
         self._store = store
         self._ctx = ctx
-        self._video_editor = video_editor
         # Coordinator for _clamp_ui()'s selection-target reads.  Injected in
         # tests; in the game it resolves to the singleton at call time because
         # the manager is wired after undo (it depends on trigger, which is
@@ -199,11 +196,3 @@ class CueUndoManager(object):
             m.video.active_pool = min(m.video.active_pool, n - 1) if n else 0
             m.video.selected = set()
             m.video.sync_text()
-
-        # Update the video editor UI if visible
-        # TODO: This is ugly. doesn't belong here.
-        if _cue.is_overlay_visible:
-            try:
-                self._video_editor.refresh_ui()
-            except Exception:
-                _cue_log("UNDO-CLAMP: refresh_ui failed")

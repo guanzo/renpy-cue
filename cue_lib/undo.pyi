@@ -4,7 +4,6 @@ from typing import Optional
 from cue_lib._types import UndoSnapshot
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.state import CueContext
-from cue_lib.video.video_editor import CueVideoEditor
 from cue_lib.markers import CueMarkerManager
 
 class CueUndoManager:
@@ -13,14 +12,12 @@ class CueUndoManager:
     _previous: Optional[UndoSnapshot]
     _store: CueMarkerStore
     _ctx: CueContext
-    _video_editor: CueVideoEditor
     _markers: Optional[CueMarkerManager]
 
     def __init__(
         self,
         ctx: CueContext,
         store: CueMarkerStore,
-        video_editor: CueVideoEditor,
         markers: Optional[CueMarkerManager] = None) -> None: ...
     def seed(self) -> None: ...
     def reset(self) -> None: ...

@@ -765,6 +765,8 @@ def test_composite_facade(cue_env):
     assert bm.is_restoring is True
     bm.manual._restore_checking = True
     assert bm.is_restore_checking is True
+    assert bm.manual.is_busy is True
+    assert bm.is_busy is True
     bm.manual.backup_status = "s"
     assert bm.backup_status == "s"
     bm.manual.backup_error = "e"
@@ -773,6 +775,21 @@ def test_composite_facade(cue_env):
     assert bm.restore_status == "rs"
     bm.manual.restore_error = "re"
     assert bm.restore_error == "re"
+
+
+def test_manual_is_busy(manual):
+    manual.is_backing_up = False
+    manual.is_restoring = False
+    manual._restore_checking = False
+    assert manual.is_busy is False
+    manual.is_backing_up = True
+    assert manual.is_busy is True
+    manual.is_backing_up = False
+    manual.is_restoring = True
+    assert manual.is_busy is True
+    manual.is_restoring = False
+    manual._restore_checking = True
+    assert manual.is_busy is True
 
 
 # ---------------------------------------------------------------------------

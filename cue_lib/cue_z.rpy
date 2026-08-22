@@ -227,7 +227,7 @@ init -900 python:
             _cue.ctx, ffmpeg, speed_resolver,
             vid_manager, paths)
 
-        undo = CueUndoManager(_cue.ctx, marker_store, video_editor)
+        undo = CueUndoManager(_cue.ctx, marker_store)
         trigger = CueTriggerEngine(
             marker_store, repeater, speed_resolver, vid_manager)
         sfx_manager = CueSfxManager(

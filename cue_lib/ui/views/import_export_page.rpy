@@ -187,7 +187,6 @@ screen cue_import_imports():
         if _cue.importer.scan_error:
             etext _cue.importer.scan_error color _cue_color_error
         if _cue.importer.is_importing:
-            timer 0.1 repeat True action Function(renpy.restart_interaction, _update_screens=False)
             $ _imp_pct = int(_cue.importer.import_fraction * 100)
             etext ("Extracting {} ({}%)...".format(
                 _cue.importer.import_label, _imp_pct)) color _cue_color_text_muted
@@ -232,7 +231,6 @@ screen cue_url_downloader():
                     tt="Download a .zip from a URL into your imports folder.")
 
         if _cue.url_importer.is_downloading:
-            timer 0.1 repeat True action Function(renpy.restart_interaction, _update_screens=False)
             $ _url_done = _cue_format_size(_cue.url_importer.download_done)
             $ _url_elapsed = _cue_format_duration(_cue.url_importer.download_duration())
             if _cue.url_importer.download_total:

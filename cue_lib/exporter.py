@@ -57,6 +57,12 @@ class CueExportManager(object):
         self.is_refreshing = False      # a background refresh pass is running
         self._refresh_thread = None     # type: Any
 
+    @property
+    def is_busy(self):
+        # type: () -> bool
+        """True while a refresh pass or zip build runs in the background."""
+        return self.is_refreshing or self.is_exporting
+
     def exports_dir(self):
         # type: () -> str
         return os.path.join(

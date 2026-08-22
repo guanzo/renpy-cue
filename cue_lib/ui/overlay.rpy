@@ -11,7 +11,11 @@
 # Put timers here, because for some stupid reason they occupy space in the layout.
 screen cue_runtime_driver():
     zorder 10000
+    use cue_runtime_keybinds()
+    use cue_runtime_timers()
 
+
+screen cue_runtime_keybinds():
     key CUE_KEYMAP_TOGGLE_OVERLAY action Function(_cue_toggle_overlay)
     # Hardcoded fallback (not rebindable): some games claim backtick for their
     # own console, so Shift+Alt+E is a guaranteed-free alternative.
@@ -25,7 +29,7 @@ screen cue_runtime_driver():
     key CUE_KEYMAP_SPEED_UP action Function(_cue.speed_resolver.cycle_speed, 1)
     key CUE_KEYMAP_SPEED_DOWN action Function(_cue.speed_resolver.cycle_speed, -1)
     key CUE_KEYMAP_TOGGLE_SFX_LIBRARY action Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
-    
+
     if CUE_DEBUG:
         key CUE_KEYMAP_QUIT_RELAUNCH action Function(renpy.quit, relaunch=True)
 
@@ -35,20 +39,34 @@ screen cue_runtime_driver():
         key CUE_KEYMAP_PAGE_MUSIC action Function(_cue_set_page, CuePage.MUSIC)
         key CUE_KEYMAP_PAGE_IMPORT action Function(_cue_set_page, CuePage.IMPORT)
         key CUE_KEYMAP_PAGE_SETTINGS action Function(_cue_set_page, CuePage.SETTINGS)
-        
+
         if _cue.overlay_active_page == CuePage.SFX:
             key CUE_KEYMAP_TARGET_VIDEO action Function(_cue.markers.set_target_context, CueContextType.VIDEO)
             key CUE_KEYMAP_TARGET_IMAGE action Function(_cue.markers.set_target_context, CueContextType.IMAGE)
             key CUE_KEYMAP_TARGET_DIALOGUE action Function(_cue.markers.set_target_context, CueContextType.DIALOGUE)
             key CUE_KEYMAP_TARGET_LOOP action Function(_cue.markers.set_target_context, CueContextType.LOOP)
-        elif _cue.overlay_active_page == CuePage.IMPORT:
-            timer 2.0 repeat True action Function(_cue.importer.scan)
-            
-            if _cue.exporter.is_refreshing or _cue.exporter.is_exporting:
-                timer 0.1 repeat True action Function(renpy.restart_interaction, _update_screens=False)
+
+
+screen cue_runtime_timers():
+    $ _is_busy = (
+        _cue.backups.is_busy
+        or _cue.exporter.is_busy
+        or _cue.importer.is_importing
+        or _cue.url_importer.is_downloading
+        or _cue.video_editor.job_queue.jobs)
+
+    # One restart poll for all background ops.  Fires only while one is live
+    # and the overlay is up, so progress text re-renders and the timer drops
+    # out once the op finishes.
+    if _cue.is_overlay_visible and _is_busy:
+        timer 0.25 repeat True action Function(renpy.restart_interaction, _update_screens=False)
+
+    if _cue.overlay_active_page == CuePage.IMPORT:
+        timer 2.0 repeat True action Function(_cue.importer.scan)
+    elif _cue.overlay_active_page == CuePage.SETTINGS:
+        timer 0.5 repeat True action Function(_cue.backups.poll, _update_screens=False)
 
     timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
-    timer 0.5 repeat True action Function(_cue.backups.poll, _update_screens=False)
 
 ###############################################################################
 # Main Overlay — the sidebar frame.
