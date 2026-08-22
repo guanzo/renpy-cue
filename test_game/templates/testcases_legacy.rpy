@@ -1063,3 +1063,52 @@ testcase etext_escapes_dynamic_string:
     run Function(renpy.hide_screen, "_cue_etext_smoke")
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
+
+testcase pages_render_data:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _cue_test_reset()
+    # Render smoke test: every page must execute its render code under
+    # realistic data.  A screen referencing an unbridged store name (or any
+    # render crash) fails the interaction.
+    $ _ok = True
+    # Seed pool + video presets, an intensity group, recents and an expanded
+    # tree folder so each section's data-driven branches actually run.
+    run Function(_cue.markers.create_preset, "Render Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    run Function(_cue.markers.create_video_preset, "Render Video Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    run Function(_cue.sfx.library.toggle_presets_expand)
+    run Function(_cue.sfx.library.toggle_video_presets_expand)
+    run Function(_cue.sfx.library.toggle_folder, "Sub/")
+    # In-memory recents (no persistent write) so the row render runs.
+    $ _cue.sfx.library._recent._entries = [{"type": "file", "ref": "sfx_001.ogg"}]
+    $ _cue.sfx.library._recent.expanded = True
+    run Function(_cue.intensity.create_igroup, "Render IGroup")
+    run Function(_cue.intensity.add_folder, "Render IGroup", "Sub/")
+    run Function(_cue.sfx.library.toggle_igroups_expand)
+    run Function(_cue.sfx.library.toggle_igroup_expand, "Render IGroup")
+    # Music preset + recent for the Music page rows.
+    run Function(_cue.music.create_preset, "Render Music Preset", ["u:music/song_001.ogg"])
+    run Function(_cue.music.toggle_presets_expand)
+    run Function(_cue.music.toggle_preset_expand, "Render Music Preset")
+    $ _cue.music._recent._entries = [{"type": "file", "ref": "u:music/song_001.ogg"}]
+    $ _cue.music._recent.expanded = True
+    # Walk every page; each set_page + pause re-renders that page.
+    run Function(_cue_set_page, CuePage.SFX)
+    pause 0.5
+    run Function(_cue_set_page, CuePage.MUSIC)
+    pause 0.5
+    run Function(_cue_set_page, CuePage.IMPORT)
+    pause 0.5
+    run Function(_cue_set_page, CuePage.SETTINGS)
+    pause 0.5
+    # Overlay survived the walk on the final page.
+    $ _ok = _ok and renpy.get_screen("cue_overlay", layer="cue_layer") is not None
+    $ _ok = _ok and _cue.overlay_active_page == CuePage.SETTINGS
+    # Cleanup (fresh process per legacy testcase, symmetric with modern).
+    run Function(_cue.markers.delete_preset, "Render Preset")
+    run Function(_cue.markers.delete_video_preset, "Render Video Preset")
+    run Function(_cue.intensity.delete_igroup, "Render IGroup")
+    run Function(_cue.music.delete_preset, "Render Music Preset")
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
