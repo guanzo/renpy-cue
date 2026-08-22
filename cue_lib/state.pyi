@@ -13,6 +13,7 @@ from cue_lib.video.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpe
 from cue_lib.trigger import CueTriggerEngine
 from cue_lib.ui.dialogs import (
     CueConfirmDialog,
+    CueIntensityGroupDialog,
     CueMergeDialog,
     CuePresetDialog,
     CueVideoPresetDialog,
@@ -31,6 +32,7 @@ from cue_lib.settings import CueSettings
 from cue_lib.keybinds import CueKeybindsManager
 from cue_lib.ui.icons import CueIconManager
 from cue_lib.paths import CuePaths
+from cue_lib.intensity import CueIntensityManager
 from cue_lib.constants import CuePage  # pyright: ignore[reportUnusedImport]  # re-exported from constants
 
 
@@ -50,6 +52,7 @@ class CueDialogs:
     video_preset: CueVideoPresetDialog
     confirm: CueConfirmDialog
     merge: CueMergeDialog
+    intensity: CueIntensityGroupDialog
 
 
 class Cue:
@@ -66,6 +69,7 @@ class Cue:
     _has_relative_volume: bool
 
     db: CueDatabase
+    intensity: CueIntensityManager
     backups: CueBackupManager
     paths: CuePaths
     marker_store: CueMarkerStore

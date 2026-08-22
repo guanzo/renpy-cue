@@ -113,7 +113,7 @@ init -999 python:
     from cue_lib.ui.dialogs import (
         CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog,
         _cue_confirm_delete_preset, _cue_confirm_delete_video_preset,
-        _cue_confirm_delete_music_preset,
+        _cue_confirm_delete_music_preset, _cue_confirm_delete_igroup,
         _cue_maybe_apply_video_preset,
     )
 
@@ -181,7 +181,9 @@ init -900 python:
     from cue_lib.ui.icons import CueIconManager
     from cue_lib.ui.dialogs import (
         CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog, CueMergeDialog,
+        CueIntensityGroupDialog,
     )
+    from cue_lib.intensity import CueIntensityManager
     from cue_lib.importer import CueImportManager
     from cue_lib.exporter import CueExportManager
     from cue_lib.url_importer import CueUrlImporter
@@ -248,6 +250,8 @@ init -900 python:
         preset_dialog = CuePresetDialog()
         video_preset_dialog = CueVideoPresetDialog()
         confirm_dialog = CueConfirmDialog()
+        intensity = CueIntensityManager(db)
+        igroup_dialog = CueIntensityGroupDialog()
 
         # markers is the coordinator, wired LAST so every injected collaborator
         # (vid_manager, sfx_manager, trigger, video_editor) is already
@@ -269,6 +273,10 @@ init -900 python:
         sfx_manager.library._recent = CueRecentManager(
             "recent_entries",
             lambda kind, ref: _cue_keep_sfx(kind, ref, sfx_manager.library.files, markers.list_presets()))
+        # The SFX library tree's scoped click-and-drop commits through the
+        # intensity manager; late-bound here (same pattern as _recent) so the
+        # tree only needs its own constructors at build time.
+        sfx_manager.library._intensity = intensity
 
         # Music's "Recently Used" list lives on the music manager: it records
         # add-to-trigger attempts through music's own _add_ref_to_trigger funnel.
@@ -280,6 +288,7 @@ init -900 python:
 
         _cue.paths = paths
         _cue.db = db
+        _cue.intensity = intensity
         _cue.markers = markers
         _cue.marker_store = marker_store
 
@@ -301,6 +310,7 @@ init -900 python:
         _cue.dialogs.video_preset = video_preset_dialog
         _cue.dialogs.confirm = confirm_dialog
         _cue.dialogs.merge = merge_dialog
+        _cue.dialogs.intensity = igroup_dialog
 
         _cue.settings = settings
         _cue.keybinds = keybinds

@@ -67,6 +67,10 @@ class MarkerEntry(TypedDict, total=False):
     speed_sequence: List[float] # per-video speed sequence
     speed_mode: str             # "single" or "multi"
     disabled_auto_speeds: List[float]  # speeds toggled off in auto-speed
+    intensity_enabled: bool     # per-video intensity master toggle (default on)
+    intensity_sfx_levels: bool  # sub-toggle: level folder vs the pool's own folders
+    intensity_volume: bool      # sub-toggle: apply the level volume multiplier
+    intensity_frequency: bool   # sub-toggle: apply the level frequency multiplier
     music: List[str]            # user-added songs only; default lives in the trigger log.
                                 # My Music files are stored relative to the My Music dir;
                                 # game-music files are stored game-relative.

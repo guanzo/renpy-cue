@@ -409,6 +409,7 @@ def test_sfx_init_state(sfx):
     assert sfx.video_presets_expanded is False
     assert sfx.expanded_video_presets == {}
     assert sfx.disabled_files == set()
+    assert sfx.igroup_add_target is None
     assert sfx.overlay_mode is False
 
 
@@ -517,6 +518,45 @@ def test_sfx_toggle_overlay_mode_restarts(sfx, monkeypatch):
     sfx.toggle_overlay_mode()
     assert sfx.overlay_mode is False
     assert rec == [1, 1]
+
+
+def test_sfx_igroup_add_mode_toggle_single_target(sfx):
+    assert sfx.igroup_add_target is None
+    sfx.toggle_igroup_add_mode("Impacts")
+    assert sfx.igroup_add_target == "Impacts"
+    # Toggling the active group exits add-folder mode.
+    sfx.toggle_igroup_add_mode("Impacts")
+    assert sfx.igroup_add_target is None
+
+
+def test_sfx_igroup_add_mode_switches_group(sfx):
+    sfx.toggle_igroup_add_mode("A")
+    sfx.toggle_igroup_add_mode("B")
+    assert sfx.igroup_add_target == "B"   # only one group at a time
+
+
+def test_sfx_igroup_add_folder_wired(sfx):
+    calls = []
+    sfx._intensity = types.SimpleNamespace(
+        get_igroup=lambda g: {"folders": []},
+        add_folder=lambda g, f: calls.append((g, f)))
+    sfx.igroup_add_folder("Impacts", "soft/")
+    assert calls == [("Impacts", "soft/")]
+    # No-op before the manager is wired.
+    sfx._intensity = None
+    sfx.igroup_add_folder("Impacts", "hard/")
+    assert calls == [("Impacts", "soft/")]
+
+
+def test_sfx_igroup_add_folder_clears_stale_target(sfx):
+    # Deleting the active add-target group leaves a stale target; the next
+    # add clears it instead of failing against a deleted group.
+    sfx._intensity = types.SimpleNamespace(
+        get_igroup=lambda g: None,
+        add_folder=lambda g, f: None)
+    sfx.igroup_add_target = "Gone"
+    sfx.igroup_add_folder("Gone", "soft/")
+    assert sfx.igroup_add_target is None
 
 
 # ---------------------------------------------------------------------------

@@ -27,6 +27,46 @@ init 1000 python:
         # show is a genuine context change (mirrors a real game's scene cut).
         renpy.scene()
 
+    # Runtime intensity fixtures: create real soft//hard//empty/ level folders
+    # under the audio dir (and remove them again) so the resolver and fire-path
+    # testcases exercise real folders, not just in-memory refs.  hard/ gets two
+    # files so _cue_pick_file takes the avoid-repeats branch and records the
+    # fire in last_played (a single-file list never records it).
+    def _cue_intensity_folders():
+        import os as _os
+        import shutil as _shutil
+        _ad = _cue.paths.audio_dir
+        for _name in ("soft", "hard", "empty"):
+            _dir = _ad + _name
+            if not _os.path.isdir(_dir):
+                _os.makedirs(_dir)
+        _shutil.copy2(_ad + "sfx_001.ogg", _ad + "soft/sfx_001.ogg")
+        _shutil.copy2(_ad + "sfx_001.ogg", _ad + "hard/sfx_001.ogg")
+        _shutil.copy2(_ad + "sfx_002.ogg", _ad + "hard/sfx_002.ogg")
+        _cue.sfx.library.scan()
+
+    def _cue_intensity_cleanup():
+        import os as _os
+        import shutil as _shutil
+        _ad = _cue.paths.audio_dir
+        for _name in ("soft", "hard", "empty"):
+            _shutil.rmtree(_ad + _name, ignore_errors=True)
+        _cue.sfx.library.scan()
+
+    def _cue_intensity_toggle_folders():
+        # Like _cue_intensity_folders, but soft/ also gets a second file so
+        # fires FROM soft/ are recorded in last_played (a single-file list
+        # never records a pick).  Used by the per-video toggle testcases.
+        _cue_intensity_folders()
+        import shutil as _shutil
+        _shutil.copy2(_cue.paths.audio_dir + "sfx_002.ogg", _cue.paths.audio_dir + "soft/sfx_002.ogg")
+        _cue.sfx.library.scan()
+
+    def _cue_played_from(folder):
+        # True once last_played recorded a fire picked from folder (a resolved
+        # intensity level folder, e.g. "hard/").
+        return any(_p.startswith(folder) for _p in _cue.trigger.last_played)
+
     # The video_seamless testcase re-enables it itself.
     _cue.speed_resolver.seamless_transition = False
 
@@ -158,6 +198,159 @@ testcase audio_presets_list:
     run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
     assert eval ("Test Preset" in _cue.markers.list_presets())
     assert eval (_cue.markers.get_preset("Test Preset")["files"] == ["sfx_001.ogg"])
+
+testcase intensity_groups_crud:
+    run Jump("start")
+    # Registry CRUD: create, list, get, and the empty-igroup default shape.
+    run Function(_cue.intensity.create_igroup, "Test Impacts")
+    assert eval ("Test Impacts" in _cue.intensity.list_igroups())
+    assert eval (_cue.intensity.get_igroup("Test Impacts")["folders"] == [])
+    assert eval (_cue.intensity.get_igroup("Test Impacts")["volume_multipliers"] == [])
+    # Add-folder mode: enable per-group, add a tree folder directly.
+    run Function(_cue.sfx.library.toggle_igroup_add_mode, "Test Impacts")
+    assert eval (_cue.sfx.library.igroup_add_target == "Test Impacts")
+    run Function(_cue.sfx.library.igroup_add_folder, "Test Impacts", "Sub/")
+    assert eval (_cue.intensity.get_igroup("Test Impacts")["folders"] == ["Sub/"])
+    assert eval (_cue.intensity.get_igroup("Test Impacts")["volume_multipliers"] == [1.0])
+    # Duplicate folder is rejected.
+    assert eval (_cue.intensity.add_folder("Test Impacts", "Sub/") is not None)
+    # Toggling again exits add-folder mode.
+    run Function(_cue.sfx.library.toggle_igroup_add_mode, "Test Impacts")
+    assert eval (_cue.sfx.library.igroup_add_target is None)
+    # Block + group rows compile and render on the SFX page.
+    run Function(_cue.sfx.library.toggle_igroups_expand)
+    assert eval (_cue.sfx.library.igroups_expanded)
+    run Function(_cue.sfx.library.toggle_igroup_expand, "Test Impacts")
+    assert eval (_cue.sfx.library.expanded_igroups.get("Test Impacts", False))
+    run Function(_cue_set_page, CuePage.SFX)
+    pause 0.5
+    # Add-mode branches render: folder-open icon + tree + becomes an adder.
+    run Function(_cue.sfx.library.toggle_igroup_add_mode, "Test Impacts")
+    pause 0.5
+    run Function(_cue.sfx.library.toggle_igroup_add_mode, "Test Impacts")
+    # New-group dialog smoke: opens, renders, cancels.
+    run Function(_cue.dialogs.intensity.open)
+    assert screen "cue_new_igroup_dialog" layer "cue_layer"
+    run Function(_cue.dialogs.intensity.cancel)
+    assert not screen "cue_new_igroup_dialog" layer "cue_layer"
+    # Rename moves the group.
+    run Function(_cue.intensity.rename_igroup, "Test Impacts", "Impacts 2")
+    assert eval ("Impacts 2" in _cue.intensity.list_igroups())
+    assert eval ("Test Impacts" not in _cue.intensity.list_igroups())
+    # One JSON landed on disk under data/presets/intensity/.
+    $ import os as _os
+    $ _ok = _os.path.isdir(_cue.paths.intensity_preset_dir)
+    $ _ok = _ok and len([f for f in _os.listdir(_cue.paths.intensity_preset_dir) if f.startswith("Impacts")]) == 1
+    assert eval (_ok)
+    # Delete removes it from memory and disk.
+    run Function(_cue.intensity.delete_igroup, "Impacts 2")
+    assert eval ("Impacts 2" not in _cue.intensity.list_igroups())
+
+testcase intensity_resolves_level_folders:
+    run Jump("start")
+    $ _cue_test_reset()
+    # Real 3-level group; band [0.7, 1.0, 1.3] lands one speed per level.
+    $ _cue_intensity_folders()
+    run Function(_cue.intensity.create_igroup, "Resolve Test")
+    run Function(_cue.intensity.add_folder, "Resolve Test", "soft/")
+    run Function(_cue.intensity.add_folder, "Resolve Test", "hard/")
+    run Function(_cue.intensity.add_folder, "Resolve Test", "empty/")
+    # A pool hooked to soft/ (Level 1) resolves up to the active level's folder.
+    $ _r1 = _cue.intensity.resolve_intensity(["soft/"], 0.7, [0.7, 1.0, 1.3])
+    assert eval (_r1 is not None)
+    assert eval (_r1.level == 1 and _r1.folder == "soft/")
+    assert eval (_r1.files == ["soft/sfx_001.ogg"])
+    assert eval (_r1.volume_mult == 1.0)
+    $ _r2 = _cue.intensity.resolve_intensity(["soft/"], 1.0, [0.7, 1.0, 1.3])
+    assert eval (_r2.level == 2 and _r2.folder == "hard/")
+    assert eval (_r2.files == ["hard/sfx_001.ogg", "hard/sfx_002.ogg"])
+    assert eval (_r2.volume_mult == 1.125)
+    # Fastest speed -> Level 3; its folder is empty, so silence (no fallback).
+    $ _r3 = _cue.intensity.resolve_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3])
+    assert eval (_r3.level == 3 and _r3.folder == "empty/")
+    assert eval (_r3.files == [])
+    # A pool not hooked to any group resolves to nothing.
+    assert eval (_cue.intensity.resolve_intensity(["sfx_001.ogg"], 1.0, [0.7, 1.0, 1.3]) is None)
+    run Function(_cue.intensity.delete_igroup, "Resolve Test")
+    $ _cue_intensity_cleanup()
+
+testcase intensity_loop_fire_path:
+    run Jump("start")
+    $ _cue_test_reset()
+    # Real 3-level group; the loop pool hooks soft/ (Level 1's folder).
+    $ _cue_intensity_folders()
+    run Function(_cue.intensity.create_igroup, "Fire Test")
+    run Function(_cue.intensity.add_folder, "Fire Test", "soft/")
+    run Function(_cue.intensity.add_folder, "Fire Test", "hard/")
+    run Function(_cue.intensity.add_folder, "Fire Test", "empty/")
+    # An image tag can't start a speed sequence (no video path), so current
+    # speed falls through to speed_pref = 1.0 -> Level 2 (hard/).
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_sequence"] = [0.7, 1.0, 1.3]
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
+    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"files": ["soft/"], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
+    $ renpy.show("cueimg_a")
+    pause 0.1 until eval (_cue_played_from("hard/")) timeout 5.0
+    assert eval (_cue_played_from("hard/"))
+    $ _cue.markers.pop("l_cueimg_a", None)
+    $ _cue.markers.pop("v_cueimg_a", None)
+    run Function(_cue.intensity.delete_igroup, "Fire Test")
+    $ _cue_intensity_cleanup()
+
+testcase intensity_toggle_master_off:
+    run Jump("start")
+    $ _cue_test_reset()
+    # Master toggle off: the loop pool's group hook is ignored -- it plays its
+    # OWN listed folder (soft/ as a plain folder) instead of the active level's
+    # folder (hard/).  soft/ gets two files so the pick is recorded.
+    $ _cue_intensity_toggle_folders()
+    run Function(_cue.intensity.create_igroup, "Toggle Test")
+    run Function(_cue.intensity.add_folder, "Toggle Test", "soft/")
+    run Function(_cue.intensity.add_folder, "Toggle Test", "hard/")
+    # The video entry carries a hooked (time-less) pool so the per-tick video
+    # gate can resolve; a time-less pool never fires as a video marker.
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["pools"] = [{"files": ["soft/"], "volume": 1.0}]
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_sequence"] = [0.7, 1.0, 1.3]
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["intensity_enabled"] = False
+    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"files": ["soft/"], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
+    $ renpy.show("cueimg_a")
+    pause 0.1 until eval (_cue_played_from("soft/")) timeout 5.0
+    assert eval (_cue_played_from("soft/"))
+    assert eval (not _cue_played_from("hard/"))
+    # Master off -> no intensity mode: the per-tick video gate stays None.
+    assert eval (_cue.trigger._vid_intensity is None)
+    $ _cue.markers.pop("l_cueimg_a", None)
+    $ _cue.markers.pop("v_cueimg_a", None)
+    run Function(_cue.intensity.delete_igroup, "Toggle Test")
+    $ _cue_intensity_cleanup()
+
+testcase intensity_toggle_sfx_levels_off:
+    run Jump("start")
+    $ _cue_test_reset()
+    # SFX-levels off (master on): the loop pool plays its own listed folders
+    # (soft/ as a plain folder) while the active level still drives volume --
+    # intensity mode stays live (the video gate is a resolution, not None).
+    $ _cue_intensity_toggle_folders()
+    run Function(_cue.intensity.create_igroup, "Toggle Test")
+    run Function(_cue.intensity.add_folder, "Toggle Test", "soft/")
+    run Function(_cue.intensity.add_folder, "Toggle Test", "hard/")
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["pools"] = [{"files": ["soft/"], "volume": 1.0}]
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_sequence"] = [0.7, 1.0, 1.3]
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["intensity_sfx_levels"] = False
+    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"files": ["soft/"], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
+    $ renpy.show("cueimg_a")
+    pause 0.1 until eval (_cue_played_from("soft/")) timeout 5.0
+    assert eval (_cue_played_from("soft/"))
+    assert eval (not _cue_played_from("hard/"))
+    assert eval (_cue.trigger._vid_intensity is not None)
+    $ _cue.markers.pop("l_cueimg_a", None)
+    $ _cue.markers.pop("v_cueimg_a", None)
+    run Function(_cue.intensity.delete_igroup, "Toggle Test")
+    $ _cue_intensity_cleanup()
 
 testcase sfx_recently_used:
     run Jump("start")

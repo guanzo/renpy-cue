@@ -1,6 +1,7 @@
 # Type stub for cue_lib.trigger
 from typing import Any, Dict, List, Optional, Set
 
+from cue_lib.intensity import CueIntensityResolution
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.video.repeater import CueMarkerRepeater
 from cue_lib.video.speed import CueVidSpeedResolver
@@ -10,6 +11,7 @@ from cue_lib.markers import CueMarkerManager
 def _cue_loop_still_playing(channels: List[str]) -> bool: ...
 def _cue_pick_deduped(files: List[str], picked: List[str], max_tries: int = 3) -> Optional[str]: ...
 def _cue_marker_reached(mt: float, effective_elapsed: float, prev_eff: float, marker_tolerance: float) -> bool: ...
+def _cue_effective_delay(base_delay: float, level_mult: float) -> float: ...
 
 class CueTriggerEngine:
     active: bool
@@ -19,6 +21,7 @@ class CueTriggerEngine:
     played_video_keys: Set[str]
     _prev_eff_elapsed: float
     _tick_count: int
+    _vid_intensity: Optional[CueIntensityResolution]
     _store: CueMarkerStore
     _repeater: CueMarkerRepeater
     _speed_resolver: CueVidSpeedResolver

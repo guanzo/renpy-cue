@@ -5,6 +5,7 @@ from cue_lib.audio.audio_tree import CueAudioTreeManager
 from cue_lib.db import CueDatabase
 from cue_lib.markers import CueMarkerManager
 from cue_lib.paths import CuePaths
+from cue_lib.intensity import CueIntensityManager
 from cue_lib.state import CueContext
 from cue_lib.volume import CueVolumeManager
 from cue_lib._types import MarkerEntry, PoolDict
@@ -21,6 +22,10 @@ class CueSfxLibraryTree(CueAudioTreeManager):
     expanded_video_presets: Dict[str, bool]
     disabled_files: Set[str]
     overlay_mode: bool
+    igroups_expanded: bool
+    expanded_igroups: Dict[str, bool]
+    igroup_add_target: Optional[str]
+    _intensity: Optional[CueIntensityManager]
 
     def __init__(self, paths: CuePaths, db: CueDatabase) -> None: ...
     def toggle_file_enabled(self, full_path: str) -> None: ...
@@ -34,6 +39,10 @@ class CueSfxLibraryTree(CueAudioTreeManager):
     def toggle_preset_expand(self, preset_name: str) -> None: ...
     def toggle_video_presets_expand(self) -> None: ...
     def toggle_video_preset_expand(self, preset_name: str) -> None: ...
+    def toggle_igroups_expand(self) -> None: ...
+    def toggle_igroup_expand(self, group_name: str) -> None: ...
+    def toggle_igroup_add_mode(self, group_name: str) -> None: ...
+    def igroup_add_folder(self, group_name: str, folder_path: str) -> None: ...
     def toggle_overlay_mode(self) -> None: ...
 
 class CueSfxManager(object):
@@ -65,7 +74,9 @@ class CueSfxManager(object):
         pool: PoolDict,
         pool_index: int,
         file: Optional[str] = None,
-        avoid_repeats: bool = True) -> Optional[str]: ...
+        avoid_repeats: bool = True,
+        files: Optional[List[str]] = None,
+        volume_mult: Optional[float] = None) -> Optional[str]: ...
     def fade_out(
         self,
         exclude_channels: Optional[List[str]] = None,

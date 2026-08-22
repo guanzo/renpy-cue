@@ -35,6 +35,7 @@ from cue_lib import logger
 from cue_lib import util
 from cue_lib import backup
 from cue_lib import db
+from cue_lib import intensity
 from cue_lib.video import auto_speed, ffmpeg, repeater, speed, video, video_edit_queue, video_editor
 from cue_lib import undo
 from cue_lib import volume

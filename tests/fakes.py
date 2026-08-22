@@ -258,13 +258,18 @@ class FakeRepeater(object):
 
 class FakeSpeedResolver(object):
     """Speed-resolver stand-in: get_current_speed() returns the configured rate
-    (multiplier on marker reference time, 1.0 = unsped)."""
+    (multiplier on marker reference time, 1.0 = unsped).  active_speeds returns
+    the configured variant set (None = single-speed, no intensity)."""
 
-    def __init__(self, speed=1.0):
+    def __init__(self, speed=1.0, variants=None):
         self.speed = speed
+        self.variants = variants
 
     def get_current_speed(self):
         return self.speed
+
+    def active_speeds(self, tag):
+        return self.variants
 
 
 class FakeVidManager(object):

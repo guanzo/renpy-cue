@@ -117,6 +117,22 @@ class CueVidSpeedResolver(object):
                     return speeds[si]
         return self.speed_for(tag)
 
+    def active_speeds(self, tag):
+        # type: (str) -> Optional[List[float]]
+        """Distinct speeds the current mode plays, for intensity banding.
+
+        MULTI/AUTO both drive playback through the stored speed_sequence, so
+        its distinct values are the variant set -- an O(1) read that avoids
+        re-scanning the video directory (auto_speed.enabled_speeds lists the
+        dir every call).  SINGLE-mode videos have no variants -> None (no
+        intensity)."""
+        mode = self._video_sequence.get_mode(tag)
+        if mode in (CueSpeedMode.MULTI, CueSpeedMode.AUTO):
+            seq = self._video_sequence.speeds_for(tag)
+            if seq:
+                return sorted(set(seq))
+        return None
+
     def base_path_for(self, tag):
         # type: (str) -> Optional[str]
         if not tag:

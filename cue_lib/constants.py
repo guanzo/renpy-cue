@@ -1,18 +1,16 @@
 # -*- coding: utf-8 -*-
-# Cross-file constants shared by multiple cue_lib modules.
-# Every constant has a CUE_ prefix to avoid collisions in the flat Ren'Py store.
+# Cross-file constants shared by multiple cue_lib modules.  The CUE_ prefix
+# avoids collisions in the flat Ren'Py store.
 
 import os
 
-# Debug mode, from the RENPY_CUE_DEBUG env var (1/true/yes/on, case-
-# insensitive).  Unset keeps debug on.  Read at import time, so the var must
-# be set before the game launches.
+# Debug flag from the RENPY_CUE_DEBUG env var; read at import, so set it
+# before the game launches.
 def _cue_env_flag(name, default=False):
     # type: (str, bool) -> bool
-    """Parse a boolean env var: 1/true/yes/on (case-insensitive) are true.
-
-    Unset/empty falls back to ``default``; any other value is false, so a
-    Windows user pasting a stray value can't silently flip a feature on."""
+    """Parse a boolean env var. 1/true/yes/on (case-insensitive) are true;
+    unset falls back to default; any other value is false, so a stray value
+    can't silently enable a feature."""
     val = os.environ.get(name, "").strip().lower()
     if not val:
         return default
@@ -43,9 +41,9 @@ class CuePage(object):
 
 
 class CueImportCategory(object):
-    """Import/export categories.  Each maps to a shared-root path prefix via
-    _cue_import_category in cue_lib/importer_io.py (the single source of that
-    mapping).  UNKNOWN is the catch-all for paths outside the 5 categories."""
+    """Import/export categories; each maps to a shared-root path prefix via
+    _cue_import_category (the single source of that mapping).  UNKNOWN catches
+    paths outside the 5 categories."""
     MARKERS = 0
     SFX = 1
     MUSIC = 2
@@ -61,8 +59,7 @@ class CueExportScope(object):
 
 
 class CueExportFileTypes(object):
-    """File-type filter for the export: everything, or only the checked
-    categories."""
+    """Export file-type filter: everything, or only the checked categories."""
     ALL = 0
     SPECIFIC = 1
 
@@ -75,7 +72,7 @@ class CueImportMatch(object):
 
 
 class CueContextType(object):
-    """SFX library target contexts for the [+] assign button. Values are the
+    """SFX library target contexts for the [+] assign button.  Values are the
     CueMarkerManager attribute names, so dispatch is getattr(manager, ctx_id)."""
     VIDEO = "video"
     IMAGE = "image"
@@ -83,8 +80,7 @@ class CueContextType(object):
     LOOP = "loop"
 
 
-# Key prefixes for marker trigger keys.  Single source of truth -- db.py keys
-# on the same strings, and util.py key helpers read them directly.
+# Marker trigger key prefixes; db.py and util.py helpers key on these strings.
 CUE_IMG_KEY_PREFIX = "i_"
 CUE_LOOP_KEY_PREFIX = "l_"
 CUE_DLG_KEY_PREFIX = "d_"
@@ -100,52 +96,55 @@ CUE_SFX_CHANNEL_COUNT = 16
 # Default video playback speed (1.0 = original speed).
 CUE_DEFAULT_VIDEO_SPEED = 1.0
 
-# Minimum number of speed variants required for auto-speed presets.
+# Minimum speed variants required for auto-speed presets.
 CUE_AUTO_SPEED_MIN_VARIANTS = 4
 
-# Ideal number of speed variants for rich auto-speed rhythm generation.
+# Ideal speed variants for rich auto-speed rhythm generation.
 CUE_AUTO_SPEED_IDEAL_VARIANTS = 8
 
-# SFX Library section header text and lookup key.  A constant because the
-# toggle-SFX hotkey in cue_runtime_driver references the same string from a
-# second location.  Other section titles are single-use literals.
+# SFX Library section header.  A constant because the toggle-SFX hotkey in
+# cue_runtime_driver references the same string from a second location.
 CUE_SFX_LIBRARY_HEADER = "SFX Library"
 
-# Tooltip suffix appended to every delete button's tooltip; the same string
-# across the pool-tab, preset, and import delete buttons so the shift+click
-# escape hatch stays consistent.
+# Delete-button tooltip suffix; shared across pool-tab, preset, and import
+# buttons so the shift+click escape hatch stays consistent.
 CUE_HELP_SHIFT_SKIP_DELETE = "\nShift+Click to skip delete confirmation"
 
-# Audio file extensions accepted by the SFX library and My Music scans.
-# Ren'Py officially supported formats.
+# Audio extensions accepted by the SFX library and My Music scans.
 CUE_AUDIO_EXTS = (".ogg", ".mp3", ".wav", ".opus")
 
-# My Music files are stored relative to the shared root, prefixed with the
-# music dir's name plus a slash ("music/Folder/song.ogg").  user_music.py adds
-# the prefix during discovery; music.py strips it when resolving a stored path
-# back to an absolute file.  A single constant so the two never drift.
+# Prefix for My Music files stored under the shared root
+# ("music/Folder/song.ogg").  user_music.py adds it; music.py strips it.
 CUE_MUSIC_PREFIX = "music/"
 
-# Synthetic top-level folder names in the combined Music Library tree.  The
-# combined view (CueCombinedMusicTree) wraps each source's tree under one of
-# these display-only folders, so the Music page shows exactly two top-level
-# folders no matter how many top-level dirs the Game Music heuristic finds.
+# Display-only top-level folders in the combined Music Library tree, so the
+# page always shows exactly two top-level folders.
 CUE_MY_MUSIC_FOLDER = "My Music/"
 CUE_GAME_MUSIC_FOLDER = "Game Music/"
 
-# Source tags for stored music refs.  My Music and Game Music can both contain
-# a "music/" folder, so a bare path is ambiguous; the tag records which cache
-# the ref came from so resolution never probes the disk to tell them apart.
-# Shared by music.py (split/display), music_tree.py (display paths), and
-# recent.py (_cue_keep_music prune check).
+# Source tags for stored music refs.  Both sources can hold a "music/" folder,
+# so the tag records which cache the ref came from.  Shared by music.py,
+# music_tree.py, and recent.py.
 CUE_MUSIC_USER_TAG = "u:"
 CUE_MUSIC_GAME_TAG = "g:"
 
-# Default pool / preset volume (1.0 = identity).  Shared by the marker store,
-# volume manager, trigger, and repeater -- was CueVolumeManager.VOL_DEFAULT
-# before the marker data layer was extracted.  CueVolumeManager.VOL_DEFAULT
-# still aliases this so legacy _cue.volume.VOL_DEFAULT references keep working.
+# Default pool / preset volume (1.0 = identity).  CueVolumeManager.VOL_DEFAULT
+# aliases this for legacy _cue.volume.VOL_DEFAULT references.
 CUE_VOLUME_DEFAULT = 1.0
+
+# Intensity groups persist as shared presets under data/presets/, reusing the
+# db preset-store machinery (save/delete/atomic write, _key injection).
+CUE_INTENSITY_PRESET_TYPE = "intensity"
+
+# Ramp ceilings for per-level intensity multipliers.  Volume stays within
+# [pool level, +25%]; frequency scales delay as base_delay / multiplier.
+CUE_INTENSITY_VOLUME_MAX = 1.25
+CUE_INTENSITY_FREQ_MAX = 2.0
+
+# Clamp for intensity-scaled loop delay (seconds): base_delay / level_mult
+# stays in this window.
+CUE_INTENSITY_DELAY_MIN = 0.2
+CUE_INTENSITY_DELAY_MAX = 6.0
 
 # Keymap names for rebindable cue hotkeys (registered in config.keymap).
 CUE_KEYMAP_TOGGLE_OVERLAY     = "cue_toggle_overlay"
@@ -169,23 +168,22 @@ CUE_KEYMAP_TARGET_IMAGE       = "cue_target_image"
 CUE_KEYMAP_TARGET_DIALOGUE    = "cue_target_dialogue"
 CUE_KEYMAP_TARGET_LOOP        = "cue_target_loop"
 
-# Shared-config JSON file inside the shared data/ tree (disabled_files,
-# keybinds).  Lives at {shared}/data/cue_config.json.
+# Shared-config JSON at {shared}/data/cue_config.json (disabled_files, keybinds).
 CUE_SHARED_CONFIG_FILENAME = "cue_config.json"
 
 # The single manual backup is {shared}/backups/renpy_cue_backup.zip.
 CUE_MANUAL_BACKUP_NAME = "renpy_cue_backup.zip"
 
-# Manifest filename inside an import zip.  Drives import validation, the merge
-# filter, and the summary counts.
+# Manifest filename inside an import zip; drives validation, merge filter, and
+# summary counts.
 CUE_IMPORT_MANIFEST_NAME = "manifest.json"
 
-# Number of characters to keep from a SHA1 hex digest for file naming.
-# Shared by db._preset_path and importer_io._cue_preset_files -- keep in sync.
+# Characters kept from a SHA1 hex digest for file naming.  Shared by
+# db._preset_path and importer_io._cue_preset_files -- keep in sync.
 CUE_HASH_TRUNC_LEN = 8
 
-# Canonical checkbox order and labels for the 5 import/export categories.
-# The labels are user-facing; keep them in sync with the order here.
+# Canonical checkbox order and labels for the 5 categories.  Labels are
+# user-facing; keep them in sync with the order here.
 CUE_IMPORT_CATEGORY_ORDER = (
     CueImportCategory.MARKERS,
     CueImportCategory.SFX,

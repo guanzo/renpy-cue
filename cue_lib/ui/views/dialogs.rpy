@@ -59,7 +59,8 @@ screen cue_repeat_markers_dialog():
                 use cue_float_input("_cue.repeater.count_text", _commit, _display,
                     dec_action=_dec, inc_action=_inc)
 
-            use cue_checkbox(_cue.repeater.preview_sfx_enabled, "Preview markers trigger SFX",
+            use cue_checkbox(_cue.repeater.preview_sfx_enabled, 
+                "Preview markers trigger SFX",
                 Function(_cue.repeater.toggle_preview_sfx))
 
             $ _preview_label = _cue.repeater.preview_text()
@@ -194,6 +195,44 @@ screen cue_save_video_preset_dialog():
                     default True
                     xsize 200
                     copypaste True
+
+            null height 5
+
+            hbox:
+                spacing 8
+                xalign 0.5
+                use cue_txt_button("Cancel", Function(_d.cancel))
+                use cue_txt_button("Save", Function(_d.commit))
+
+
+screen cue_new_igroup_dialog():
+    style_group "cue"
+
+    $ _d = _cue.dialogs.intensity
+    key "K_RETURN" action Function(_d.commit)
+    key "K_KP_ENTER" action Function(_d.commit)
+    key "K_ESCAPE" action Function(_d.cancel)
+
+    button:
+        style "cue_dialog"
+        action NullAction()
+
+        vbox:
+            spacing 8
+            etext ("Rename Intensity Group" if _d.renaming is not None else "New Intensity Group") style "cue_hdr"
+
+            hbox:
+                spacing 5
+                etext "Name:"
+                input:
+                    style "cue_input"
+                    value _CueFieldValue("_cue.dialogs.intensity.name")
+                    default True
+                    xsize 200
+                    copypaste True
+
+            if _d.error:
+                etext _d.error color _cue_color_error
 
             null height 5
 

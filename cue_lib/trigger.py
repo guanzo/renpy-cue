@@ -8,7 +8,11 @@ import renpy.audio.music as _music
 
 from renpy.store import persistent
 
-from cue_lib.constants import CUE_VOLUME_DEFAULT
+from cue_lib.constants import (
+    CUE_INTENSITY_DELAY_MAX,
+    CUE_INTENSITY_DELAY_MIN,
+    CUE_VOLUME_DEFAULT,
+)
 from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
 from cue_lib.util import (
@@ -19,6 +23,7 @@ from cue_lib.util import (
 MYPY = False
 if MYPY:
     from typing import Any, List, Optional
+    from cue_lib.intensity import CueIntensityResolution  # pyright: ignore[reportUnusedImport]
     from cue_lib.marker_store import CueMarkerStore  # pyright: ignore[reportUnusedImport]
     from cue_lib.video.repeater import CueMarkerRepeater  # pyright: ignore[reportUnusedImport]
     from cue_lib.video.speed import CueVidSpeedResolver  # pyright: ignore[reportUnusedImport]
@@ -91,6 +96,16 @@ def _cue_marker_reached(mt, effective_elapsed, prev_eff, marker_tolerance):
     return False
 
 
+def _cue_effective_delay(base_delay, level_mult):
+    # type: (float, float) -> float
+    """Next loop delay for a level: base_delay / multiplier, clamped to
+    [CUE_INTENSITY_DELAY_MIN, CUE_INTENSITY_DELAY_MAX].  A malformed
+    (<= 0) multiplier would divide by zero -- treat it as identity."""
+    if level_mult <= 0.0:
+        level_mult = 1.0
+    return min(CUE_INTENSITY_DELAY_MAX, max(CUE_INTENSITY_DELAY_MIN, base_delay / level_mult))
+
+
 class CueTriggerEngine(object):
     """Owns trigger dispatch state and logic.
 
@@ -116,6 +131,9 @@ class CueTriggerEngine(object):
         self.played_video_keys = set()
         self._prev_eff_elapsed = -1.0
         self._tick_count = 0
+        # Per-tick video-level intensity resolution; the global volume scale
+        # for non-hooked fires during a video with intensity.
+        self._vid_intensity = None  # type: Optional[Any]
 
     def _markers_ctx(self):
         # type: () -> Any
@@ -180,8 +198,8 @@ class CueTriggerEngine(object):
 
         Only fire_context and _tick_loop consult this gate; video-marker SFX
         and previews are hold-immune by construction.  The cut-in sweep, by
-        contrast, is channel-based and hits everything
-        in the same domain outside self's group."""
+        contrast, is channel-based and hits everything in the same domain
+        outside self's group."""
         self._prune_excl_channels()
         for info in self.excl_channels.values():
             if info.get("kind") != kind:
@@ -221,8 +239,48 @@ class CueTriggerEngine(object):
         tick = self._tick_count
         now = _time.time()
 
-        self._tick_loop(now, tick, current_file)
-        self._tick_video(current_file, top_layer_type)
+        # Speed + variant set, computed once per tick for intensity banding.
+        # variants is None for single-speed videos (no intensity).  The video
+        # level resolution doubles as the global volume scale applied to SFX
+        # that fire during the video but aren't themselves hooked to a group.
+        speed = self._speed_resolver.get_current_speed()
+        variants = self._speed_resolver.active_speeds(current_file)
+        self._vid_intensity = self._vid_intensity_resolution(current_file, speed, variants)
+
+        self._tick_loop(now, tick, current_file, speed, variants)
+        self._tick_video(current_file, top_layer_type, speed, variants)
+
+    def _vid_intensity_resolution(self, current_file, speed, variants):
+        # type: (str, float, Optional[List[float]]) -> Optional[Any]
+        """The current video's active intensity (its first hooked pool).
+
+        The result's volume_mult is the global scale for non-hooked fires
+        during the video.  None when the file has no video markers, no pool
+        is hooked, or intensity is toggled off for the video -- i.e. no
+        intensity mode, so fires play unscaled."""
+        if not current_file or not variants:
+            return None
+        entry = self._store.get(create_vid_key(current_file))
+        if entry is None:
+            return None
+        flags = _cue.intensity.flags_from_entry(entry)
+        if not flags.enabled:
+            return None
+        pools_files = []
+        for p in entry.get("pools", []):
+            pools_files.append(self._store.resolve_pool(p).files)
+        if not pools_files:
+            return None
+        return _cue.intensity.video_level(pools_files, speed, variants, flags=flags)
+
+    def _loop_delay(self, frequency, res):
+        # type: (int, Optional[CueIntensityResolution]) -> float
+        """Breathing delay for a loop pool, scaled by its intensity level.
+        res is None for pools not hooked to a group -- plain delay."""
+        delay = self._markers_ctx().loop.get_delay(frequency)
+        if res is not None:
+            delay = _cue_effective_delay(delay, res.freq_mult)
+        return delay
 
     # -- context triggers (i_, d_, shake) --
 
@@ -240,6 +298,20 @@ class CueTriggerEngine(object):
         only_shake_pools = kwargs.get("only_shake_pools", False)
         if not self.active:
             return
+
+        # Global intensity volume scale: context one-shots (image/dialogue/
+        # shake) firing during a video with intensity play at the video's
+        # active level volume.  Computed on demand -- fire_context runs before
+        # tick in the same frame, so the per-tick cache is one frame stale.
+        vid_scale = 1.0
+        if _cue.ctx.current_file:
+            vres = self._vid_intensity_resolution(
+                _cue.ctx.current_file,
+                self._speed_resolver.get_current_speed(),
+                self._speed_resolver.active_speeds(_cue.ctx.current_file))
+            if vres is not None:
+                vid_scale = vres.volume_mult
+
         for key in keys:
             if not key:
                 continue
@@ -295,13 +367,13 @@ class CueTriggerEngine(object):
                             + self._excl_kind_channels(CUE_EXCL_KIND_VIDEO)))
                     _cue_log("CTX-FADE key={} pool={} faded={}".format(
                         key, pi, faded))
-                ch_used = _cue.sfx.play_pool(entry, key, pool, pi, file=file)
+                ch_used = _cue.sfx.play_pool(entry, key, pool, pi, file=file, volume_mult=vid_scale)
                 self._track_excl_channel(ch_used, CUE_EXCL_KIND_ONESHOT, scene, line, excl.hold)
 
     # -- loop triggers (l_ keys) --
 
-    def _tick_loop(self, now, tick, current_file):
-        # type: (float, int, str) -> None
+    def _tick_loop(self, now, tick, current_file, speed, variants):
+        # type: (float, int, str, float, Optional[List[float]]) -> None
         """Loop state machine for l_ keys -- fires pooled SFX on a frequency cycle."""
         loop_key = create_loop_key(current_file or "")
 
@@ -318,6 +390,13 @@ class CueTriggerEngine(object):
         if not freqs:
             return
 
+        # Global volume scale for pools not hooked to an intensity group.
+        vid_scale = self._vid_intensity.volume_mult if self._vid_intensity is not None else 1.0
+
+        # Per-video toggles read from the current video's marker entry.
+        flags = _cue.intensity.flags_from_entry(
+            self._store.get(create_vid_key(current_file)) if current_file else None)
+
         # Init per-pool states under the loop key
         if loop_key not in self.loop_states:
             self.loop_states[loop_key] = {}
@@ -326,24 +405,41 @@ class CueTriggerEngine(object):
         picked = []
         for pi, pool in enumerate(pools):
             resolved = self._store.resolve_pool(pool)
-            files = _cue_resolve_files(resolved.files)
+            res = _cue.intensity.resolve_intensity(resolved.files, speed, variants, flags=flags)
+            if res is not None:
+                files = res.files
+                vol_mult = res.volume_mult
+                level = res.level
+            else:
+                files = _cue_resolve_files(resolved.files)
+                vol_mult = vid_scale
+                level = None
             if not files:
                 continue
 
             pst = ps.get(pi)
             if pst is None:
-                init_delay = _random.uniform(0.0, self._markers_ctx().loop.get_delay(resolved.frequency))
-                ps[pi] = {"ready_at": now + init_delay, "channels": [], "play_start": 0.0, "blocked_logged": False}
+                init_delay = _random.uniform(0.0, self._loop_delay(resolved.frequency, res))
+                ps[pi] = {"ready_at": now + init_delay, "channels": [], "play_start": 0.0,
+                          "blocked_logged": False, "ilevel": level}
                 pst = ps[pi]
 
             # If this pool's channels are done playing, reset for next cycle
             if pst["channels"] and not _cue_loop_still_playing(pst["channels"]):
                 dur = now - pst["play_start"]
-                breathing = self._markers_ctx().loop.get_delay(resolved.frequency)
+                breathing = self._loop_delay(resolved.frequency, res)
                 pst["ready_at"] = now + breathing
                 pst["channels"] = []
                 _cue_log("TICK#{} POOL-DONE  key={} pool={} dur={:.2f}s next_in={:.2f}s".format(
                     tick, loop_key, pi, dur, breathing))
+
+            # Level change: drop a pending/deferred fire and restart the timer
+            # with the new level's delay.  A sound still playing is left to
+            # finish -- POOL-DONE above re-arms with the new level.
+            if level is not None and pst.get("ilevel") != level:
+                pst["ilevel"] = level
+                if not pst["channels"]:
+                    pst["ready_at"] = now + self._loop_delay(resolved.frequency, res)
 
             # Skip if not ready yet
             if pst["channels"]:
@@ -382,21 +478,22 @@ class CueTriggerEngine(object):
                     only_channels=self._excl_kind_channels(CUE_EXCL_KIND_LOOP))
                 _cue_log("TICK#{} POOL-SWEEP key={} pool={} faded={}".format(
                     tick, loop_key, pi, faded))
-            ch_used = _cue.sfx.play_pool(entry, loop_key, pool, pi, file=picked_file)
+            ch_used = _cue.sfx.play_pool(entry, loop_key, pool, pi, file=picked_file, volume_mult=vol_mult)
             if ch_used:
                 pst["channels"] = [ch_used]
                 pst["play_start"] = now
                 pst["blocked_logged"] = False
                 self._track_excl_channel(ch_used, CUE_EXCL_KIND_LOOP, None, None, excl.hold)
+
                 _cue_log("TICK#{} POOL-PLAY  key={} pool={} ch={} dur={:.2f}s next_in={:.2f}s".format(
                     tick, loop_key, pi, ch_used,
                     _music.get_duration(channel=ch_used) or 0.0,
-                    self._markers_ctx().loop.get_delay(resolved.frequency)))
+                    self._loop_delay(resolved.frequency, res)))
 
     # -- video triggers (v_ keys) --
 
-    def _tick_video(self, current_file, top_layer_type):
-        # type: (str, str) -> None
+    def _tick_video(self, current_file, top_layer_type, speed, variants):
+        # type: (str, str, float, Optional[List[float]]) -> None
         """Video pool triggers for v_ keys -- fires SFX at marked times.
 
         Uses two complementary checks so markers aren't missed when playback
@@ -415,8 +512,10 @@ class CueTriggerEngine(object):
 
         # Autoscale: markers are stored at 1x reference time, so convert
         # variant elapsed to reference time when speed != 1.0.
-        speed = self._speed_resolver.get_current_speed()
         effective_elapsed = elapsed * speed
+
+        # Global volume scale for markers not hooked to an intensity group.
+        vid_scale = self._vid_intensity.volume_mult if self._vid_intensity is not None else 1.0
 
         # Previous tick's effective position for cross-between-ticks detection.
         # Initialized to -1.0 so markers at time 0 trigger on the first tick
@@ -438,6 +537,8 @@ class CueTriggerEngine(object):
                 _preview_count = len(preview_pools)
 
             if markers:
+                # Per-video toggles from this video's marker entry.
+                flags = _cue.intensity.flags_from_entry(vid_entry)
                 # Per-time counter so same-time markers get unique stable keys.
                 # Keyed by time instead of list index -- adding/removing markers
                 # at other timestamps doesn't invalidate already-fired keys.
@@ -465,7 +566,15 @@ class CueTriggerEngine(object):
                         continue
 
                     if _cue_marker_reached(pool_entry["time"], effective_elapsed, prev_eff, marker_tolerance):
-                        f = _cue.sfx.play_pool(entry, vid_key, pool_entry, pool_index, avoid_repeats=False)  # pyright: ignore[reportArgumentType]
+                        resolved = self._store.resolve_pool(pool_entry)
+                        res = _cue.intensity.resolve_intensity(resolved.files, speed, variants, flags=flags)
+                        if res is not None:
+                            files = res.files
+                            vol_mult = res.volume_mult
+                        else:
+                            files = None
+                            vol_mult = vid_scale
+                        f = _cue.sfx.play_pool(entry, vid_key, pool_entry, pool_index, avoid_repeats=False, files=files, volume_mult=vol_mult)  # pyright: ignore[reportArgumentType]
                         if f:
                             # Track as its own kind so exclusive cut-ins spare
                             # it.  Overwrites any stale entry on the reused

@@ -18,6 +18,12 @@ CUE_MUSIC_USER_TAG: Final = "u:"
 CUE_MUSIC_GAME_TAG: Final = "g:"
 CUE_VOLUME_DEFAULT: Final = 1.0
 
+CUE_INTENSITY_PRESET_TYPE: Final = "intensity"
+CUE_INTENSITY_VOLUME_MAX: Final = 1.25
+CUE_INTENSITY_FREQ_MAX: Final = 2.0
+CUE_INTENSITY_DELAY_MIN: Final = 0.2
+CUE_INTENSITY_DELAY_MAX: Final = 6.0
+
 CUE_KEYMAP_TOGGLE_OVERLAY: Final = "cue_toggle_overlay"
 CUE_KEYMAP_QUIT_RELAUNCH: Final = "cue_quit_relaunch"
 CUE_KEYMAP_COPY_CONTEXT: Final = "cue_copy_context"

@@ -18,7 +18,7 @@ screen cue_sfx_library(_is_video):
 
     $ sfx_tt = (
         "Add {} files to\n{}\n\n"
-        "Click the + button to send files to the selected \"Target\""
+        "Click the + button to add files to the selected \"Target\""
     ).format(", ".join(CUE_AUDIO_EXTS), _cue.paths.audio_dir)
 
     use cue_section_frame(CUE_SFX_LIBRARY_HEADER, tt=sfx_tt, icons=_icons):
@@ -30,7 +30,7 @@ screen cue_sfx_library(_is_video):
                 "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS))
         else:
             use cue_target_context()
-            null height 2
+            null height 1
             use cue_search_bar("_cue.sfx.library.search_query", _cue.sfx.library)
             use cue_sfx_library_content(_is_video)
 
@@ -42,13 +42,13 @@ screen cue_target_context():
 
     $ _target = _cue.markers.resolve_target_context()
     # Tooltips name the rebindable hotkey for each target (Settings > Keybinds).
-    $ _tgt_video_tt = "Click the + button to send files to the Video SFX pool.\n"
+    $ _tgt_video_tt = "Click the + button to add files to the Video SFX pool.\n"
     $ _tgt_video_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_VIDEO) + " to select."
-    $ _tgt_image_tt = "Click the + button to send files to the Image SFX pool.\n"
+    $ _tgt_image_tt = "Click the + button to add files to the Image SFX pool.\n"
     $ _tgt_image_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_IMAGE) + " to select."
-    $ _tgt_dialogue_tt = "Click the + button to send files to the Dialogue SFX pool.\n"
+    $ _tgt_dialogue_tt = "Click the + button to add files to the Dialogue SFX pool.\n"
     $ _tgt_dialogue_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_DIALOGUE) + " to select."
-    $ _tgt_loop_tt = "Click the + button to send files to the Loop SFX pool.\n"
+    $ _tgt_loop_tt = "Click the + button to add files to the Loop SFX pool.\n"
     $ _tgt_loop_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_LOOP) + " to select."
     hbox:
         spacing 2
@@ -85,9 +85,11 @@ screen cue_sfx_library_content(_is_video):
     # search each section header only shows when something in it matches.
     $ _preset_names = _cue.markers.list_presets()
     $ _video_preset_names = _cue.markers.list_video_presets()
+    $ _igroup_names = _cue.intensity.list_igroups()
     if _searching:
         $ _preset_names = [n for n in _preset_names if _cue_query_matches(n, _q)]
         $ _video_preset_names = [n for n in _video_preset_names if _cue_query_matches(n, _q)]
+        $ _igroup_names = [n for n in _igroup_names if _cue_query_matches(n, _q)]
     viewport:
         xfill True
         mousewheel True
@@ -127,9 +129,12 @@ screen cue_sfx_library_content(_is_video):
                         etext "No video presets yet. Save video markers as a preset to fill this." style "cue_help"
                     use cue_video_presets_list(_is_video, _video_preset_names)
 
+            use cue_intensity_group_row(_igroup_names, _searching)
+
             $ _no_results = (_searching and not _recent_entries
                 and not _preset_names
                 and not _video_preset_names
+                and not _igroup_names
                 and not _cue.sfx.library.visible_tree)
             if _no_results:
                 etext 'No files found for "{}".'.format(_q)
@@ -268,6 +273,74 @@ screen cue_video_presets_list(_is_video, name_filter=None):
                     etext "  "
                     etext _pool_label color _cue_color_text_accent size 11
 
+screen cue_intensity_group_row(igroup_names, searching):
+    # The parent (cue_sfx_library_content) filters igroup names by the search
+    # query and passes them here -- a `use`d screen gets its own scope, so
+    # _searching/_q from the caller aren't visible.
+    if not searching or igroup_names:
+        use cue_txt_button("Intensity Groups/", Function(_cue.sfx.library.toggle_igroups_expand))
+            
+        if _cue.sfx.library.igroups_expanded:
+            hbox:
+                spacing 2
+                etext " "  # indent
+                use cue_txt_button("+ New Group", Function(_cue.dialogs.intensity.open),
+                    tt="Create a new intensity group.")
+
+            use cue_intensity_groups_list(igroup_names)
+# Intensity group rows, shown when the Intensity Groups/ block is expanded.
+# Each igroup row expands to its ordered level rows (folder order = level
+# order).  The folder-plus button toggles add-folder mode for that group (one
+# group at a time); while active, a tree folder's + adds it directly.  The
+# other group folders (B, C...) are never added to pools here -- usage is the
+# pool-side hook, handled in the Video SFX inspector.
+screen cue_intensity_groups_list(igroup_names):
+    style_group "cue"
+
+    if not igroup_names:
+        etext "No intensity groups yet. New Group to create one." style "cue_help"
+        etext "An intensity group is a soft-to-hard folder list; folder order is the level order." style "cue_help"
+
+    for _gname in igroup_names:
+        $ _gdata = _cue.intensity.get_igroup(_gname)
+        $ _g_folders = _gdata.get("folders", []) if _gdata else []
+        $ _g_expanded = _cue.sfx.library.expanded_igroups.get(_gname, False)
+        $ _in_add = (_cue.sfx.library.igroup_add_target == _gname)
+        hbox:
+            spacing 2
+            etext " "  # indent under Intensity Groups/
+            use cue_icon_btn("xmark", Function(_cue_confirm_delete_igroup, _gname),
+                "Delete intensity group" + CUE_HELP_SHIFT_SKIP_DELETE)
+            use cue_icon_btn(("folder-open" if _in_add else "folder-plus"),
+                Function(_cue.sfx.library.toggle_igroup_add_mode, _gname),
+                ("Click again to stop adding folders" if _in_add
+                 else "Add folders from the tree to this group"),
+                bg=(_cue_color_selected_alt if _in_add else None))
+            use cue_txt_button(_gname, Function(_cue.sfx.library.toggle_igroup_expand, _gname))
+
+        if _g_expanded:
+            if not _g_folders:
+                etext "  No levels yet. Click the group's folder button, then a folder's + button." style "cue_help"
+                etext "  Add up to 3 levels for the best experience." style "cue_help"
+                null height 2
+            for _idx in range(len(_g_folders)):
+                $ _folder = _g_folders[_idx]
+                hbox:
+                    spacing 2
+                    etext "    "
+                    use cue_icon_btn("xmark",
+                        Function(_cue.intensity.remove_level, _gname, _idx),
+                        "Remove this level")
+                    use cue_icon_btn("chevron-up",
+                        Function(_cue.intensity.move_level, _gname, _idx, -1),
+                        "Move level up", enabled=(_idx > 0))
+                    use cue_icon_btn("chevron-down",
+                        Function(_cue.intensity.move_level, _gname, _idx, 1),
+                        "Move level down", enabled=(_idx < len(_g_folders) - 1))
+                    etext "Level {}:".format(_idx + 1) color _cue_color_text_accent size 11
+                    null width 1
+                    etext _folder color _cue_color_text_accent size 11
+
 
 # Folder/file rows for the current audio tree.
 # [+] sends the row to the resolved target context's active pool (see
@@ -277,6 +350,9 @@ screen cue_file_tree():
 
     $ _tgt_ok = _cue.markers.target_is_available(_cue.markers.resolve_target_context())
     $ _tgt_tt = _cue_target_assign_tt()
+    # An active igroup add-folder target turns the tree's + into a level
+    # adder for that group (one group at a time).
+    $ _igroup_target = _cue.sfx.library.igroup_add_target
 
     for item in _cue.sfx.library.visible_tree:
         hbox:
@@ -290,10 +366,20 @@ screen cue_file_tree():
                         "play",
                         Function(_cue.sfx.preview_folder, item["full_path"]),
                         "Play random file from folder")
-                    use cue_icon_btn(
-                        "plus",
-                        Function(_cue_markers_send, "folder", item["full_path"]),
-                        _tgt_tt, enabled=_tgt_ok)
+                    if _igroup_target is not None:
+                        $ _tgt_data = _cue.intensity.get_igroup(_igroup_target)
+                        $ _tgt_folders = _tgt_data.get("folders", []) if _tgt_data else []
+                        $ _is_dup = item["full_path"] in _tgt_folders
+                        use cue_icon_btn("plus",
+                            Function(_cue.sfx.library.igroup_add_folder, _igroup_target, item["full_path"]),
+                            "Add this folder to the {} intensity group.".format(_igroup_target),
+                            enabled=(not _is_dup),
+                            bg=(_cue_color_selected_alt if not _is_dup else None))
+                    else:
+                        use cue_icon_btn(
+                            "plus",
+                            Function(_cue_markers_send, "folder", item["full_path"]),
+                            _tgt_tt, enabled=_tgt_ok)
                 use cue_txt_button(item["name"], Function(_cue.sfx.library.toggle_folder, item["full_path"]))
             else:
                 # Play preview

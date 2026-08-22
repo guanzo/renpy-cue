@@ -125,6 +125,56 @@ class CueVideoPresetDialog(object):
         renpy.hide_screen("cue_save_video_preset_dialog", layer="cue_layer")
 
 
+class CueIntensityGroupDialog(object):
+    """Self-contained state for the New / Rename Group popup.
+
+    `renaming` holds the group being renamed (None = create).  Errors from
+    the intensity manager (empty/duplicate name) are shown inline and the
+    popup stays open until a valid commit or cancel."""
+    def __init__(self):
+        self.name = ""
+        self.renaming = None
+        self.error = ""
+
+    def open(self):
+        # type: () -> None
+        self.name = ""
+        self.renaming = None
+        self.error = ""
+        renpy.show_screen("cue_new_igroup_dialog", _layer="cue_layer")
+
+    def open_rename(self, group_name):
+        # type: (str) -> None
+        self.name = group_name
+        self.renaming = group_name
+        self.error = ""
+        renpy.show_screen("cue_new_igroup_dialog", _layer="cue_layer")
+
+    def commit(self):
+        # type: () -> None
+        if self.renaming is not None:
+            error = _cue.intensity.rename_igroup(self.renaming, self.name)
+        else:
+            error = _cue.intensity.create_igroup(self.name)
+        if error is None:
+            renpy.hide_screen("cue_new_igroup_dialog", layer="cue_layer")
+            self._reset()
+        else:
+            self.error = error
+            renpy.restart_interaction()
+
+    def cancel(self):
+        # type: () -> None
+        self._reset()
+        renpy.hide_screen("cue_new_igroup_dialog", layer="cue_layer")
+
+    def _reset(self):
+        # type: () -> None
+        self.name = ""
+        self.renaming = None
+        self.error = ""
+
+
 class CueConfirmDialog(object):
     """Reusable confirmation popup matching the overlay UI style."""
     def __init__(self):
@@ -259,6 +309,13 @@ def _cue_confirm_delete_video_preset(preset_name):
     _cue.dialogs.confirm.show_or_run(
         "Delete video preset '{}'?".format(preset_name),
         Function(_cue.markers.delete_video_preset, preset_name),
+    )
+
+def _cue_confirm_delete_igroup(igroup_name):
+    # type: (str) -> None
+    _cue.dialogs.confirm.show_or_run(
+        "Delete intensity group '{}'?".format(igroup_name),
+        Function(_cue.intensity.delete_igroup, igroup_name),
     )
 
 def _cue_confirm_delete_music_preset(preset_name):

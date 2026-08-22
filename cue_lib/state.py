@@ -30,6 +30,7 @@ class CueDialogs(object):
         self.video_preset = None
         self.confirm = None
         self.merge = None
+        self.intensity = None
 
 
 class Cue(_renpy_python.NoRollback):
@@ -46,6 +47,7 @@ class Cue(_renpy_python.NoRollback):
 
         # --- Manager slots (wired by cue_z.rpy init -900) ---
         self.db = None
+        self.intensity = None
         self.backups = None   # CueBackupManager, injected into db at init -900
         self.markers = None
         self.undo = None

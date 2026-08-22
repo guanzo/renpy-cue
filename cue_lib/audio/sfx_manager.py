@@ -16,7 +16,7 @@ from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
 from cue_lib.util import (
     _cue_log, _cue_resolve_files, _cue_pick_file,
     is_vid_key, is_img_key, is_dlg_key,
-    get_key_file, get_key_dialogue,
+    get_key_file, get_key_dialogue, create_dlg_key
 )
 
 MYPY = False
@@ -90,14 +90,25 @@ class CueSfxManager(object):
     # Playback
     # ------------------------------------------------------------------
 
-    def play_pool(self, entry, key, pool, pool_index, file=None, avoid_repeats=True):
-        # type: (Optional[MarkerEntry], str, PoolDict, int, Optional[str], bool) -> Optional[str]
+    def play_pool(self, entry, key, pool, pool_index, file=None, avoid_repeats=True, files=None, volume_mult=None):
+        # type: (Optional[MarkerEntry], str, PoolDict, int, Optional[str], bool, Optional[List[str]], Optional[float]) -> Optional[str]
+        """Play one sound from a pool.  The single fire choke point for all
+        trigger paths.
+
+        ``files`` overrides the pool's own file list -- the trigger engine
+        hands in an intensity-resolved level folder so hooked pools fire from
+        that folder instead of the raw pool.  ``volume_mult`` multiplies the
+        pool's effective volume (intensity level scale).  Both are None for
+        non-intensity playback: pick from the pool as before."""
         resolved = self._markers_ctx().resolve_pool(pool)
-        files = _cue_resolve_files(resolved.files)
+        if files is None:
+            files = _cue_resolve_files(resolved.files)
         if not files:
             return None
         f = file if file is not None else _cue_pick_file(files, avoid_repeats=avoid_repeats)  # type: Any
         vol = self._volume.get_effective(entry, key, pool_index=pool_index)
+        if volume_mult is not None:
+            vol = vol * volume_mult
         return self.play_sfx(f, key, volume=vol)
 
     def play_sfx(self, filename, source="", volume=1.0):
@@ -139,10 +150,11 @@ class CueSfxManager(object):
             elif is_dlg_key(source):
                 expected_img = get_key_file(source)
                 expected_dlg = get_key_dialogue(source)
-                cur_dlg = (self._ctx.current_dialogue or "")[:40]
+                cur_dlg = self._ctx.current_dialogue
                 if expected_img != curr_file or expected_dlg != cur_dlg:
-                    warn = "expected img={}|{} actual img={}|{}".format(
-                        expected_img, expected_dlg, curr_file, cur_dlg)
+                    warn = "expected_dlg={} actual_dlg={}".format(
+                        create_dlg_key((expected_img, expected_dlg)), 
+                        create_dlg_key((curr_file, cur_dlg)))
             if warn:
                 _cue_log("WARN CTX-MISMATCH file={} src={} {}".format(
                     filename.rsplit("/", 1)[-1], source, warn))
@@ -157,8 +169,8 @@ class CueSfxManager(object):
                 filename.rsplit("/", 1)[-1], source, target_ch, jitter, volume))
 
             return target_ch
-        except Exception:
-            _cue_log("PLAY-SFX: exception during playback of {}".format(full_path))
+        except Exception as e:
+            _cue_log("PLAY-SFX: exception during playback of {}: {}".format(full_path, e))
             return None
 
     def preview_sfx(self, filename, volume=1.0):
@@ -256,6 +268,13 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # Video presets expand/collapse
         self.video_presets_expanded = False
         self.expanded_video_presets = {}  # preset_name -> bool
+
+        # Intensity group block: expand/collapse + per-group expand, plus the
+        # active add-folder target (one igroup at a time).
+        self.igroups_expanded = False
+        self.expanded_igroups = {}        # group_name -> bool
+        self.igroup_add_target = None     # igroup in add-folder mode (None = none)
+        self._intensity = None            # late-bound CueIntensityManager (cue_z.rpy)
 
         # File disable
         self.disabled_files = set()       # full_path strings
@@ -358,6 +377,44 @@ class CueSfxLibraryTree(CueAudioTreeManager):
     # ------------------------------------------------------------------
     # Toggle: overlay mode
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Toggle: Intensity Groups/ block
+    # ------------------------------------------------------------------
+
+    def toggle_igroups_expand(self):
+        # type: () -> None
+        """Toggle expand/collapse for the Intensity Groups/ block."""
+        self.igroups_expanded = not self.igroups_expanded
+
+    def toggle_igroup_expand(self, group_name):
+        # type: (str) -> None
+        """Toggle expand/collapse for a single intensity group."""
+        if group_name in self.expanded_igroups:
+            self.expanded_igroups[group_name] = not self.expanded_igroups[group_name]
+        else:
+            self.expanded_igroups[group_name] = True
+
+    def toggle_igroup_add_mode(self, group_name):
+        # type: (str) -> None
+        """Toggle add-folder mode for one igroup.  Only one group can be in
+        add mode at a time: enabling a group while another is active switches
+        the target; toggling the active group exits."""
+        if self.igroup_add_target == group_name:
+            self.igroup_add_target = None
+        else:
+            self.igroup_add_target = group_name
+
+    def igroup_add_folder(self, group_name, folder_path):
+        # type: (str, str) -> None
+        """Add a tree folder as the group's next level.  No-op before the
+        manager is wired; clears a stale target whose group was deleted."""
+        if self._intensity is None:
+            return
+        if self._intensity.get_igroup(group_name) is None:
+            self.igroup_add_target = None
+            return
+        self._intensity.add_folder(group_name, folder_path)
 
     def toggle_overlay_mode(self):
         # type: () -> None

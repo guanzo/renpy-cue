@@ -133,6 +133,7 @@ class CueDatabase(object):
             self.paths.audio_preset_dir,
             self.paths.video_preset_dir,
             self.paths.music_preset_dir,
+            self.paths.intensity_preset_dir,
             self.paths.video_dir,
             self.paths.music_dir,
             self.paths.audio_dir,
@@ -162,6 +163,8 @@ class CueDatabase(object):
             return self.paths.audio_preset_dir
         if preset_type == "music":
             return self.paths.music_preset_dir
+        if preset_type == "intensity":
+            return self.paths.intensity_preset_dir
         return self.paths.video_preset_dir
 
     def _marker_path(self, key):
@@ -233,6 +236,11 @@ class CueDatabase(object):
         # type: () -> Dict[str, Any]
         """Return {name: music preset data} for the music library."""
         return self._load_preset_dir("music")
+
+    def load_intensity_presets(self):
+        # type: () -> Dict[str, Any]
+        """Return {name: intensity group data} for the group registry."""
+        return self._load_preset_dir("intensity")
 
     def _load_preset_dir(self, preset_type):
         # type: (str) -> Dict[str, Any]
