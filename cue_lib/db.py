@@ -25,10 +25,6 @@ from cue_lib.constants import (
     CUE_VID_KEY_PREFIX,
 )
 
-# Filename for the per-replay default music trigger log, stored directly
-# under markers/{game_id}/.
-CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME = "default_music_triggers.json"
-
 MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
@@ -72,8 +68,9 @@ def _is_marker_filename(name):
 
     Marker filenames always start with one of the type prefixes (i_, l_, d_,
     v_) -- see _key_to_filename().  Whitelisting keeps non-marker JSON that
-    shares the marker dir (e.g. default_music_triggers.json) from being swept
-    up as a marker by load_markers()."""
+    shares the marker dir from being swept up as a marker by load_markers().
+    The music_triggers/ subdir is excluded because load_markers() only lists
+    direct children of the marker dir."""
     return (name.endswith(".json")
             and name.startswith((CUE_IMG_KEY_PREFIX, CUE_LOOP_KEY_PREFIX,
                                  CUE_DLG_KEY_PREFIX, CUE_VID_KEY_PREFIX)))
@@ -105,7 +102,7 @@ class CueDatabase(object):
 
     Directory layout:
         {root}/data/markers/{game_id}/              -- one .json file per marker key
-        {root}/data/markers/{game_id}/              -- default_music_triggers.json (non-marker log)
+        {root}/data/markers/{game_id}/music_triggers/  -- one .json per replay (trigger log)
         {root}/data/presets/audio/                  -- one .json file per audio preset
         {root}/data/presets/video/                  -- one .json file per video preset
         {root}/data/presets/music/                  -- one .json file per music preset
@@ -364,53 +361,62 @@ class CueDatabase(object):
     # Shape: {replay_label: [ {"key_before": ..., "filepath": ...,
     # "key_after": ...}, ... ]}.  key_before = scene at the play call
     # (deterministic trigger); key_after = settled scene the user sees.
-    # Lives directly in the marker dir; load_markers() whitelists marker
-    # filenames (i_/l_/d_/v_ prefixes) so it is never swept up as a marker.
-
-    def _music_triggers_path(self):
-        # type: () -> str
-        return os.path.join(self.paths.marker_dir, CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME)
+    # Stored one file per replay under markers/{game_id}/music_triggers/,
+    # each file holding that replay's bare trigger list.  The subdir is not
+    # a direct .json child of the marker dir, so load_markers() never sweeps
+    # it up as a marker.
 
     def load_default_music_triggers(self):
         # type: () -> Dict[str, Any]
         """Load the default music trigger log. Returns {} if absent."""
-        fpath = self._music_triggers_path()
-        if not os.path.isfile(fpath):
+        dpath = self.paths.music_trigger_dir
+        if not os.path.isdir(dpath):
             return {}
+        result = {}
         try:
-            with open(fpath, "r") as f:
-                return _json.load(f)
+            names = os.listdir(dpath)
         except Exception:
-            _cue_log("MUSIC-TRIGGERS: load failed for {}".format(fpath))
-            return {}
-
-    def save_default_music_triggers(self, data):
-        # type: (Dict[str, Any]) -> None
-        """Write the whole default music trigger log."""
-        fpath = self._music_triggers_path()
-        dpath = os.path.dirname(fpath)
-        try:
-            if not os.path.isdir(dpath):
-                os.makedirs(dpath)
-            _atomic_json_write(fpath, data, indent=2)
-        except Exception:
-            _cue_log("MUSIC-TRIGGERS: save failed for {}".format(fpath))
+            return result
+        for name in names:
+            if not name.endswith(".json"):
+                continue
+            replay_id = name[:-len(".json")]
+            fpath = os.path.join(dpath, name)
+            try:
+                with open(fpath, "r") as f:
+                    items = _json.load(f)
+            except Exception:
+                _cue_log("MUSIC-TRIGGERS: load failed for {}".format(fpath))
+                continue
+            if not isinstance(items, list):
+                _cue_log("MUSIC-TRIGGERS: skipped non-list file {}".format(name))
+                continue
+            result[replay_id] = items
+        return result
 
     def update_default_music_triggers(self, replay_id, key_before, path, key_after=None):
         # type: (str, str, str, Optional[str]) -> None
         """Record one default music trigger for a replay.
 
-        One entry per scene (key_before) per replay: re-read the log from
-        disk, update the matching entry in place (or append), then resave --
-        so unrelated replay entries are never clobbered by a stale in-memory
-        copy.
+        One entry per scene (key_before) per replay: re-read that replay's
+        file from disk, update the matching entry in place (or append), then
+        resave -- a write touches only its own file, so unrelated replays
+        are never clobbered by a stale in-memory copy.
 
         `key_before` is the scene on screen at the `play music` call (the
         deterministic trigger); `key_after` is the settled scene the user
         sees, captured once the scene batch lands (None until then).
         """
-        data = self.load_default_music_triggers()
-        items = data.setdefault(replay_id, [])
+        fpath = self.paths.music_trigger_path(replay_id)
+        items = []
+        if os.path.isfile(fpath):
+            try:
+                with open(fpath, "r") as f:
+                    items = _json.load(f)
+            except Exception:
+                _cue_log("MUSIC-TRIGGERS: load failed for {}".format(fpath))
+        if not isinstance(items, list):
+            items = []
         for item in items:
             if item.get("key_before") == key_before:
                 item["key_before"] = key_before
@@ -423,5 +429,11 @@ class CueDatabase(object):
             if key_after is not None:
                 entry["key_after"] = key_after
             items.append(entry)
-        self.save_default_music_triggers(data)
+        dpath = os.path.dirname(fpath)
+        try:
+            if not os.path.isdir(dpath):
+                os.makedirs(dpath)
+            _atomic_json_write(fpath, items, indent=2)
+        except Exception:
+            _cue_log("MUSIC-TRIGGERS: save failed for {}".format(fpath))
 

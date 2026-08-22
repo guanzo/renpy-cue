@@ -309,12 +309,13 @@ def test_export_progress_callback_reports_fraction(cue_env, monkeypatch):
 
 
 def test_export_includes_music_trigger_log(cue_env):
-    # The default-music-trigger log lives in marker_dir; the exporter walks the
-    # whole dir, so the log must travel with the markers category.
+    # The per-replay trigger files live in marker_dir/music_triggers/; the
+    # exporter walks the whole dir recursively, so they must travel with the
+    # markers category.
     _seed(cue_env, [
         ("data/markers/{}/v_a.json".format(GAME_ID), '{}'),
-        ("data/markers/{}/default_music_triggers.json".format(GAME_ID),
-         '{"replay_r1": [{"key_before": "i_room", "filepath": "m.ogg"}]}'),
+        ("data/markers/{}/music_triggers/replay_r1.json".format(GAME_ID),
+         '[{"key_before": "i_room", "filepath": "m.ogg"}]'),
     ])
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
@@ -324,7 +325,7 @@ def test_export_includes_music_trigger_log(cue_env):
 
     with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "LogPack.zip")) as zf:
         names = zf.namelist()
-        assert ("data/markers/{}/default_music_triggers.json".format(GAME_ID)
+        assert ("data/markers/{}/music_triggers/replay_r1.json".format(GAME_ID)
                 in names)
 
 

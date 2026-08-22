@@ -9,7 +9,6 @@ import os
 import pytest
 
 from cue_lib.db import (
-    CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME,
     CUE_HASH_TRUNC_LEN,
     CueDatabase,
     _atomic_json_write,
@@ -279,14 +278,17 @@ def test_atomic_write_two_writes_same_path_last_wins(db):
 
 
 # ---------------------------------------------------------------------------
-# Default music triggers -- live in the marker dir root, never read as markers
+# Default music triggers -- one file per replay under music_triggers/, never
+# read as markers
 # ---------------------------------------------------------------------------
 
-def test_load_markers_ignores_default_music_triggers(db):
-    db.save_default_music_triggers(
-        {"r1": [{"key_before": "v_a", "filepath": "music/x.ogg"}]})
-    fpath = os.path.join(db.paths.marker_dir, CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME)
-    assert os.path.isfile(fpath)
+def test_load_markers_ignores_music_trigger_files(db):
+    # The music_triggers/ subdir is not a direct .json child of the marker
+    # dir, so load_markers() never sweeps it up as a marker.
+    dpath = db.paths.music_trigger_dir
+    os.makedirs(dpath)
+    with open(os.path.join(dpath, "r1.json"), "w") as _f:
+        _f.write('[{"key_before": "v_a", "filepath": "music/x.ogg"}]')
     assert db.load_markers() == {}
 
 
@@ -302,9 +304,12 @@ def test_default_music_triggers_round_trip(db):
     db.update_default_music_triggers("r1", "v_a", "music/x.ogg")
     assert db.load_default_music_triggers() == {
         "r1": [{"key_before": "v_a", "filepath": "music/x.ogg"}]}
-    # Stored at the marker dir root, not in a music/ subdir.
-    fpath = os.path.join(db.paths.marker_dir, CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME)
+    # Stored one file per replay under music_triggers/, not at the marker
+    # dir root or in a music/ subdir.
+    fpath = os.path.join(db.paths.music_trigger_dir, "r1.json")
     assert os.path.isfile(fpath)
+    assert not os.path.isfile(
+        os.path.join(db.paths.marker_dir, "default_music_triggers.json"))
     assert not os.path.isdir(os.path.join(db.paths.marker_dir, "music"))
 
 
@@ -317,6 +322,11 @@ def test_update_default_music_triggers_updates_in_place(db):
             {"key_before": "v_a", "filepath": "music/y.ogg"},
             {"key_before": "v_b", "filepath": "music/z.ogg"},
         ]}
+    # One file per replay; an unrelated replay has no file.
+    assert os.path.isfile(os.path.join(
+        db.paths.music_trigger_dir, "r1.json"))
+    assert not os.path.isfile(os.path.join(
+        db.paths.music_trigger_dir, "r2.json"))
 
 
 def test_update_default_music_triggers_sets_key_after_in_place(db):
@@ -325,6 +335,17 @@ def test_update_default_music_triggers_sets_key_after_in_place(db):
     assert db.load_default_music_triggers() == {
         "r1": [
             {"key_before": "v_a", "filepath": "music/y.ogg", "key_after": "v_settled"}]}
+
+
+def test_load_skips_corrupt_trigger_file(db):
+    dpath = db.paths.music_trigger_dir
+    os.makedirs(dpath)
+    with open(os.path.join(dpath, "bad.json"), "w") as _f:
+        _f.write("{not json")
+    with open(os.path.join(dpath, "ok.json"), "w") as _f:
+        _f.write('[{"key_before": "v_a", "filepath": "music/x.ogg"}]')
+    assert db.load_default_music_triggers() == {
+        "ok": [{"key_before": "v_a", "filepath": "music/x.ogg"}]}
 
 
 # ---------------------------------------------------------------------------
@@ -400,22 +421,9 @@ def test_save_shared_config_logs_write_error(db, monkeypatch):
     db.save_shared_config({"flag": True})  # must not raise
 
 
-def test_load_default_music_triggers_corrupt_returns_empty(db):
-    fpath = os.path.join(db.paths.marker_dir, CUE_DEFAULT_MUSIC_TRIGGERS_FILENAME)
-    with open(fpath, "w") as f:
-        f.write("{not json")
-    assert db.load_default_music_triggers() == {}
-
-
-def test_save_default_music_triggers_creates_parent(tmp_path):
-    database = _make_db(str(tmp_path))
-    database.save_default_music_triggers({"r1": []})
-    assert database.load_default_music_triggers() == {"r1": []}
-
-
-def test_save_default_music_triggers_logs_write_error(db, monkeypatch):
+def test_update_default_music_triggers_logs_write_error(db, monkeypatch):
     def _boom(*args, **kwargs):
         raise OSError("disk full")
     monkeypatch.setattr("cue_lib.db._atomic_json_write", _boom)
 
-    db.save_default_music_triggers({"r1": []})  # must not raise
+    db.update_default_music_triggers("r1", "v_a", "music/x.ogg")  # must not raise
