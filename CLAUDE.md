@@ -1,262 +1,275 @@
-# Ren'Py Version Compatibility
+# Ren'Py Compatibility
 
-Code must work for 7.4.x and up.
+Code must support Ren'Py 7.4+ (both 7.x and 8.x).
 
-## Code must work across ALL versions (7.x and 8.x)
+## Python Restrictions
 
-### FORBIDDEN (Python 3 only — crashes Ren'Py 7.x):
-- No f-strings: use "...{}...".format(...) or "%s" % ...
-- No type hints: def foo(x: int) -> str
-- No from __future__ import annotations
-- No matmul operator (@)
-- No non-ASCII characters in `.py` files: Ren'Py 7.x uses Python 2 which
-  defaults to ASCII encoding. Use `--` instead of em dashes (`—`), straight
-  quotes instead of curly quotes, etc.
-- All classes MUST inherit from `object` (or another new-style class):
-  `class Foo(object):` not `class Foo:`.  Python 2 old-style classes
-  don't support `super()`, descriptors, or `__class__` assignment.
+Ren'Py 7.x uses Python 2.7. In runtime `.py` files:
 
-### FORBIDDEN (not in all versions):
-- Character callback kwargs `what`/`start`/`end` — only in Ren'Py 8.2+
-  Use `store._last_say_what` instead
-- `renpy.get_displayable()` with `screen=`/`id=` kwargs — API varies
-- `<from N>` syntax on movie channels — ignored, always restarts from 0
+* No f-strings; use `.format()` or `%`.
+* No type hints or `from __future__ import annotations`.
+* No `@` operator.
+* No non-ASCII characters.
+* All classes inherit from `object` or another new-style class.
 
-### FORBIDDEN (screen language):
-- Python inline `x if cond else y` in screen property values ONLY works
-  when the entire expression is wrapped in parentheses:
-  `property ("#446644" if cond else "#444444")`.
-  Without parens the parser reads `if` as a screen-language block.
-- The same applies to `==` (and likely other comparison operators) in
-  screen statement arguments — Ren'Py 7.4's parser misinterprets the
-  expression as a keyword argument. Wrap in parens:
-  `use foo_btn(label, (_x == some_val), action)`
-- `VariableInputValue()` does NOT support dotted attribute paths like
-  `"_cue.foo.bar"` — it calls `globals()[self.variable]` which only
-  resolves flat names. Use `_CueFieldValue("_cue.foo.bar")` instead
-  (defined in `cue_ui_components.rpy`).  Under the hood it splits on
-  the last `.` and uses `FieldInputValue`.
+## Version-Specific APIs
 
-### SAFE across all versions:
-- `store._last_say_what` — current dialogue text
-- `store._last_say_who` — current speaker
-- `renpy.audio.music.get_pos()` / `get_duration()` / `is_playing()` / `get_playing()`
-- `renpy.audio.music.set_pause()` / `set_volume()`
-- `renpy.audio.music.register_channel()` / `channel_defined()`
-- `renpy.get_showing_tags()` / `renpy.showing()`
-- `renpy.list_files()`
-- `config.overlay_screens` — persistent screen injection
-- `config.all_character_callbacks` — list of callbacks
-- `config.after_load_callbacks` — list of callbacks
-- `config.developer` / `config.console`
-- `renpy.show_screen()` / `hide_screen()` with `_layer=`
-- `renpy.restart_interaction()`
-- `renpy.add_layer()`
+Do not use:
 
-**NOTE**: In `.py` files, use the real module path `renpy.audio.music` (not `renpy.music`). `renpy.music` is a `sys.modules` alias set up at runtime by `import_all()` — it doesn't exist as a file on disk and won't resolve during `init -999` before the alias is created.
+* Character callback kwargs `what`/`start`/`end` -- Ren'Py 8.2+ only. Use `store._last_say_what`.
+* `renpy.get_displayable()` with `screen=`/`id=` kwargs.
+* `<from N>` movie channel syntax -- it always restarts at 0.
 
-## Ren'Py Text Escaping
+## Screen Language
 
-Use the `etext` screen statement (not `text`) for any displayed string that is not a mod-authored literal with deliberate formatting — file/folder names, game dialogue, and any value from an external source (ffmpeg output, HTTP responses, URLs, user input). `etext` is a `CueSafeText` (`cue_lib/ui/sl_statements/text.py`), a `renpy.text.text.Text` subclass that escapes its value before display: `{` → `{{`, `[` → `[[`, so the literal characters render instead of being parsed as tags/interpolation. It is registered in `cue_lib/cue_z.rpy` 1:1 with the built-in `text` statement — same keywords (`slow`, `slow_done`, `substitute`, `scope`) and properties — so any `text` line can be renamed to `etext` unchanged. Reserve `text` for strings that deliberately use tags (`{b}bold{/b}`) or interpolation (`[var]`). For renderers that aren't `text` statements — `textbutton` labels, `Text()`/`Txt()` displayables, tooltips — call `_cue_escape_text()` directly (pass `brackets=False` on `substitute=False` displayables, where `[` is already literal). Never escape twice on one path: escaping at set time + display time doubles the brackets.
+* Wrap inline conditional expressions in parentheses:
 
-## Platform Gotchas
+  ```python
+  property ("#446644" if cond else "#444444")
+  ```
+* Also wrap comparisons used as screen arguments:
 
-- **`os.rename` does NOT overwrite on Windows.** POSIX renames atomically
-  over an existing destination; on Windows it raises `[Error 183] Cannot
-  create a file when that file already exists`. If the destination may
-  already exist (a zip you rewrite in place, a file you move into place),
-  remove the stale destination first on `os.name == "nt"` before renaming —
-  see `_cue_replace_file()` in `cue_lib/util.py`. This has bitten us multiple
-  times; always reach for `_cue_replace_file()` rather than bare `os.rename`
-  for overwrite semantics. Callers that rewrite a file in place should write
-  a temp file first, then `_cue_replace_file(tmp, final)`.
+  ```python
+  use foo_btn(label, (_x == some_val), action)
+  ```
+* `VariableInputValue()` does not support dotted paths. Use `_CueFieldValue()` for paths such as `"_cue.foo.bar"`.
 
-## Naming Conventions
+## Safe APIs
 
-Most logic lives in `.py` files under `cue_lib/`, which have their own module-level namespaces. However, `cue_z.rpy` bridges ~55 names into the Ren'Py store for screen actions (`Function()` calls) — and those names share a flat namespace with the game. To avoid collisions:
+Safe across supported versions:
 
-- **Module-level functions**: `_cue_` prefix — `_cue_play_sfx()`, `_cue_refresh_context()`, `_cue_tick_trigger()`
-- **Module-level classes**: `Cue` prefix — `CueMarkerRepeater`, `CueMarkerManager`, `CueVideoManager`
-- **Module-level singleton**: `_cue` (the `NoRollback` instance, created in `cue_lib/state.py`)
-- **`.py` file imports**: `import foo as _foo` — ensures the import is module-local, not exposed to the store
+* `store._last_say_what`, `store._last_say_who`
+* `renpy.audio.music.get_pos()`, `get_duration()`, `is_playing()`, `get_playing()`
+* `set_pause()`, `set_volume()`, `register_channel()`, `channel_defined()`
+* `renpy.get_showing_tags()`, `renpy.showing()`, `renpy.list_files()`
+* `config.overlay_screens`, `config.all_character_callbacks`, `config.after_load_callbacks`
+* `config.developer`, `config.console`
+* `renpy.show_screen()` / `hide_screen()` with `_layer=`
+* `renpy.restart_interaction()`
+* `renpy.add_layer()`
 
-Function-local variables do NOT need underscores — they're scoped to their function and can't collide.
+In `.py` files, use `renpy.audio.music`, not `renpy.music`. The latter is a runtime alias unavailable during early initialization.
 
-**Boolean naming**: use a prefix — `is_`, `has_`, `can_`, `did_`, `was_`, `should_`, `will_`. Not bare adjectives: `paused`, `visible`, `initialized`.
+# Text Escaping
 
-## Constants vs Magic Numbers
+Use `etext`, not `text`, for external or untrusted strings: file/folder names, game dialogue, ffmpeg output, HTTP responses, URLs, and user input.
 
-**Prefer named constants** over raw numbers/strings when a change would break
-things if the copies got out of sync. The litmus test: *"if someone changed one
-copy and forgot the other, would behavior silently break?"*
+Use `text` only for deliberate Ren'Py tags or interpolation.
 
-### Must be constants (cross-file or cross-language sync)
+For non-`text` renderers (`textbutton`, `Text()`, `Txt()`, tooltips), call `_cue_escape_text()` directly. Use `brackets=False` when `substitute=False`.
 
-| Pattern | Where | Example |
-|---|---|---|
-| Value used in multiple `.py` files | `constants.py` with `CUE_` prefix | `CUE_SFX_CHANNEL_COUNT`, `CUE_DEFAULT_VIDEO_SPEED` |
-| Value used in `.py` AND `.rpy` | `constants.py`, imported into store via `cue_z.rpy` init -999 | `CUE_MULTI_SPEED_MIN_VARIANTS` |
-| Value duplicated in same file | Module-level in that file, `CUE_` prefix | `CUE_SEEK_EPSILON` in `video.py` |
-| Value mirrored between `.py` and `.rpy` | Single source in `.py`, `.rpy` reads it | `_cue.volume.VOL_MAX` instead of `range=5.0` |
-| Number string mapped to behavior | Enum class | `CueLoopFrequency.SLOWEST`, `CueSpeedMode.SINGLE` |
+Never escape the same value twice.
 
-### python early limitation
+# Platform Gotchas
 
-`cue_z.rpy` `python early` blocks run before `renpy.store` exists. Importing
-from `cue_lib` there cascades into `state.py` (module-level `_cue = Cue()`) and
-`util.py` (`from renpy.store import Function`) — neither is importable that
-early. **Raw values in `python early` are acceptable** — there's no way around it.
+## File Replacement
 
-### Don't bother (trivial / self-documenting / inherently local)
+`os.rename()` does not overwrite existing files on Windows.
 
-- **Retry counts** (`for _attempt in range(3)`) — obvious in context
-- **Sleep delays** (`time.sleep(0.1)`) — local procedural logic
-- **Artistic tuning** (generator probabilities, ffmpeg CRF values) — algorithm-defining, not config
-- **Screen layout** (xpos, ypos, spacing, xsize) — Ren'Py can't reference Python constants in screen property position
-- **Single-use sentinels** (`-9999`, `-1.0`) — self-documenting as "unset"
+For overwrite semantics, use `_cue_replace_file()` from `cue_lib/util.py`. When rewriting a file:
 
-### constants.py
+1. Write to a temporary file.
+2. Call `_cue_replace_file(tmp, final)`.
 
-New cross-file constants go in `cue_lib/constants.py`. Every constant has a
-`CUE_` prefix. Keep `cue_lib/constants.pyi` in sync — add every constant there
-with `Final` annotation.
+# Naming
 
-### Enum classes
+Because `cue_z.rpy` exposes names into Ren'Py's flat store namespace:
 
-When a discrete set of values maps to behavior branches, use a flat enum class
-(inherit from `object`, no base enum — Python 2.7 compatibility):
+* Module functions: `_cue_` prefix.
+* Module classes: `Cue` prefix.
+* Singleton: `_cue`.
+* `.py` imports: `import foo as _foo`.
 
-```python
-class CueLoopFrequency(object):
-    SLOWEST = 4   # ~6.3s
-    SLOW = 0      # ~3.8s
-    MEDIUM = 1    # ~2.1s
-    FAST = 2      # ~0.6s
-    FASTEST = 3   # ~0.2s
+Function-local variables need no prefix.
+
+Boolean names must begin with `is_`, `has_`, `can_`, `did_`, `was_`, `should_`, or `will_`.
+
+# Constants
+
+Use a named constant when duplicated values could silently get out of sync.
+
+| Situation                         | Location                                |
+| --------------------------------- | --------------------------------------- |
+| Used across `.py` files           | `constants.py`, `CUE_` prefix           |
+| Used in `.py` and `.rpy`          | `constants.py`, bridged via `cue_z.rpy` |
+| Duplicated within one file        | Module-level `CUE_` constant            |
+| Mirrored between `.py` and `.rpy` | Single source in `.py`; `.rpy` reads it |
+| Discrete values map to behavior   | Flat enum class                         |
+
+Raw values are acceptable in `python early`, where importing `cue_lib` is unsafe.
+
+Do not create constants for:
+
+* Obvious retry counts or local sleep delays.
+* Algorithm-defining tuning values.
+* Screen layout values.
+* Single-use sentinel values.
+
+## `constants.py`
+
+New cross-file constants go in `cue_lib/constants.py`, use the `CUE_` prefix, and must also be added to `constants.pyi` with `Final`.
+
+## Enum Classes
+
+For discrete behavior values, use flat classes inheriting from `object`; do not use Python's `enum` module.
+
+Bridge enums into the store through `cue_z.rpy` when screens need them.
+
+# Code Organization
+
+* Encapsulate substantial features in classes that own their state and logic.
+* Prefer `_cue.feature = FeatureManager()` over scattered state and global helpers.
+* Put substantial standalone classes in their own `cue_lib/*.py` file.
+* Screen code and styles belong in `cue_lib/ui/*.rpy`.
+* Manager classes handle state, logic, and screen hooks.
+* `cue_z.rpy` contains bootstrap and bridging code; other source `.rpy` files do not.
+* `Function()` actions can only reference stable module-level objects. Managers should normally be reachable through `_cue`.
+
+## Screen Style Groups
+
+For screens that render displayables, the first line must be:
+
+```renpy
+style_group "cue"
 ```
 
-Import into store via `cue_z.rpy` init -999 so `.rpy` screens can use them.
+Follow it with a blank line.
 
-## Code Organization
+Screens containing only `use`, `key`, or `timer` statements omit it.
 
-- **Encapsulate features as classes.** When adding a new UI component, dialog, or feature, create a dedicated class that owns its state, logic, and screen hooks. Prefer `_cue.thing = ThingManager()` over scattered `_cue._thing_var1`, `_cue._thing_var2` and global `_cue_do_thing()` functions.
-- **One class, one file** in `cue_lib/` when the class is substantial enough to stand alone (e.g. `repeater.py` for `CueMarkerRepeater`, `volume.py` for `CueVolumeManager`).
-- **Screen code** lives in `cue_lib/ui/*.rpy` (screens + styles). The manager classes in `cue_lib/*.py` handle `renpy.show_screen`/`hide_screen` and provide callable methods for `Function()` screen actions.
-- **`style_group "cue"`** is the first line of every `screen` definition that renders displayables (frame, button, textbutton, hbox, text, etc.), followed by a blank line. Screens that only contain `use <screen>` statements (or only `key`/`timer`) omit it. Because of this, displayables resolve to `cue_<name>` automatically — do NOT write explicit `style "cue_text"` (or similar) on default displayables; it's redundant. (Python-constructed displayables like `Txt(...)` or `add CueSelfUpdatingLabel(..., style="cue_text")` still need the explicit kwarg — `style_group` doesn't reach them.)
-- **Bootstrap** lives in `cue_lib/cue_z.rpy` (python early import-path setup + sl-displayable registration + init blocks for bridge + callbacks). All other `.rpy` files under `src/` have been deleted. See `cue_lib/*.pyi` for type stubs.
-- **Ren'Py constraint**: `Function()` in screen actions can only reference module-level Python objects (no lambdas/closures), so the class instance must be reachable at a stable path — typically as an attribute of `_cue` (the `NoRollback` singleton).
+Do not explicitly specify default `cue_*` styles inside a `style_group`. Python-created displayables still need explicit styles.
 
-## Whitespace / Blank Lines
+# Whitespace
 
-Logical sections are surrounded by blank lines. A block-opening statement
-(`if`/`for`/`while`/`with`) that starts a new logical section gets a blank
-line before it; a blank line follows a closed block before the next
-section-level statement. Never leave a long function as one unbroken run of
-statements.
+Separate logical sections with blank lines.
 
-Do NOT insert blanks between a guard and its early return (`if not x:` /
-`return` chains stay tight), between `if`/`elif`/`else`, or inside
-dict/list literals.
+Do not add blank lines:
 
-## Ren'Py Rollback Rules
+* Between a guard and its early return.
+* Between `if` / `elif` / `else`.
+* Inside dict or list literals.
 
-- `_cue` is a `NoRollback()` instance created at module level in `cue_lib/state.py`. Never reassign `_cue` itself — only mutate its attributes.
-- `.py` modules under `cue_lib/` are invisible to rollback (Python module state is not tracked by Ren'Py). The store binding `from cue_lib.state import _cue` in `cue_z.rpy` init -900 is an import — not a `default` or `$` assignment — so no Ren'Py state is created.
-- `.rpy` files still use shadowed `dict`/`list`/`set` (Revertable variants). `.py` files use real builtins — `dict`/`list`/`set` work normally there.
-- **Prefer duck typing over `isinstance` for collection checks.** `isinstance(x, list)` fails on both plain lists (when `list` is shadowed to `RevertableList`) and RevertableLists (when comparing against the real `list` type). Use `hasattr(x, "__iter__") and not isinstance(x, (str, bytes))` to check for list-like types. Precedent: `_cue_unwrap_persistent` in `cue_lib/util.py`.
+Do not leave long functions as one uninterrupted block of statements.
 
-## Persistent vs Shared Config
+# Rollback
 
-Two places to store state that survives restarts:
+* `_cue` is a module-level `NoRollback()` instance. Never reassign it; mutate its attributes.
+* State in `cue_lib/*.py` modules is not tracked by Ren'Py rollback.
+* `.rpy` uses Ren'Py's revertable collections; `.py` uses normal builtins.
+* Prefer duck typing over `isinstance()` when checking collection-like values, since `list` may be shadowed by `RevertableList`.
 
-- **`persistent`** -- per-game. Each game the mod is installed to has its own.
-  This is the default choice. Low-stakes convenience flags that don't need to
-  carry across games live here, e.g. `triggers_active`, `encode_mode`.
-- **Shared config** -- one JSON file shared across ALL games the mod is
-  installed to. Use only when a setting should carry across games, e.g.
-  custom keybinds. Access via `_cue.db.load_shared_config()` /
-  `_cue.db.update_shared_config()`.
+# Persistent vs Shared Config
 
-## Tests
+Use:
 
-Write new logic TDD-style: red (write a failing pytest test for the behavior
-first), green (minimal code to pass), refactor (clean up under the test's
-safety net, re-run the suite). Skip to a harness testcase only for screen,
-render, or engine-invoked code where a headless pytest can't express the
-behavior.
+* `persistent` for per-game settings. This is the default.
+* Shared JSON config only for settings that must follow the user across games.
 
-New logic in `cue_lib/*.py` ships with tests in the same commit. Managers are
-constructor-injected specifically so their logic is testable headlessly against
-`tests/mock_renpy/`. The split: pure logic and state transitions -> pytest;
-screen, render, and engine-invoked code -> the testcases harness. A change must
-not lower total `cue_lib` coverage without a one-line note. Before any chunk is
-committed, `/lint` prints `CLEAN` and `python3 -m pytest tests/ -q` passes.
+Shared config is accessed through:
 
-To run a harness testcase, `bin/test_harness.sh <sdk>/renpy.sh` needs a real
-Ren'Py SDK (pytest's mock can't drive it). A testcase that must pass on both
-engine generations goes in BOTH `test_game/templates/testcases_modern.rpy` (8.x)
-and `templates/testcases_legacy.rpy` (7.x) -- the active `testcases.rpy` is
-materialized per SDK. The 3 smoke testcases need no media; the sfx/music/video
-tiers need fixture files first. CI runs the harness on every push/PR (7.4.10 + 8.5.3).
+```python
+_cue.db.load_shared_config()
+_cue.db.update_shared_config()
+```
 
-Local harness runs are headless by default (wrapped in `xvfb-run -a` when
-installed), so the engine window doesn't steal focus; set `RENPY_HEADLESS=0`
-to show it, e.g. to watch a testcase run. CI already wraps in xvfb-run.
+# Tests
 
-## Type Stubs
+New logic should follow TDD:
 
-Pylance can't resolve most `renpy.*` names (Ren'Py uses dynamic `import *` from `renpy.exports`). To get autocomplete and type-checking:
+1. Write a failing pytest.
+2. Implement the minimum code to pass.
+3. Refactor under test coverage.
 
-- **`pyrightconfig.json`** — ALL Pylance/Pyright config lives here (`stubPath`, `extraPaths`, `pythonVersion`). Do NOT put `python.analysis.*` settings in `.vscode/settings.json` — they conflict with pyrightconfig.json.
-- **`typings/renpy/`** — stubs for the Ren'Py runtime (third-party). Declares submodules plus top-level functions re-exported from `renpy.exports`. Configured via `stubPath` in pyrightconfig.json.
-- **`cue_lib/*.pyi`** — stubs for our own modules, living alongside their `.py` counterparts. Pylance finds them automatically via PEP 561.
-- **`cue_lib/_types.py`** — CANONICAL source for all TypedDict definitions (PoolDict, MarkerEntry, etc.). This is a real `.py` module that `.pyi` stubs import from. It is NEVER executed at runtime (only imported inside `if MYPY:` guards and by `.pyi` files), so it freely uses modern syntax (TypedDict, `from __future__ import annotations`). ONE definition per TypedDict — no duplication across `.pyi` files.
-- **AFTER editing any `cue_lib/*.py`** — check whether the corresponding `cue_lib/*.pyi` needs updating (new/renamed/deleted functions, classes, or method signatures). Keep them in sync.
-- **AFTER any changes to `cue_lib/` or `tests/`** — run `/lint` then `/test`. `/lint` must return `CLEAN` (see `.claude/skills/lint/SKILL.md` for the unfixable-error table); `/test` must pass (all tests green).
-- **AFTER adding a new manager** — wire it in the `cue_z.rpy` `init -900` block AND add it to `state.pyi` (both the import and the attribute on `class Cue`). Otherwise `_cue.new_manager` shows "unknown attribute" in every consumer.
-- **AFTER adding/changing a TypedDict** — update `cue_lib/_types.py` (the single source of truth). All `.pyi` files import from there.
+Use the harness only when pytest cannot express the behavior:
 
-### Self-File Hover (type info when viewing a function's own source file)
+* Pure logic/state transitions -> pytest.
+* Screen, rendering, or engine-driven behavior -> testcase harness.
 
-Pyright does NOT consult a module's `.pyi` stub when analyzing the module's own `.py` source. A `.pyi` describes the public contract for CONSUMERS; the module analyzing itself only sees its own source. Since our `.py` files have zero inline type annotations (Python 2.7/Ren'Py 7.x constraint — no `def foo(x: int)` syntax), self-file hover shows `Unknown` without extra help.
+Rules:
 
-The fix: **PEP 484 function-signature type comments** (`# type:`) backed by a **MYPY guard** that makes TypedDict names visible to the type checker without triggering a runtime import.
+* New `cue_lib/*.py` logic ships with tests.
+* Do not reduce total `cue_lib` coverage without a one-line note.
+* Before committing, `/lint` must print `CLEAN`.
+* `python3 -m pytest tests/ -q` must pass.
 
-#### Pattern
+Harness tests requiring both engine generations belong in both:
 
-In each `.py` file that needs self-file hover, add after the last real import:
+* `test_game/templates/testcases_modern.rpy` -- 8.x
+* `test_game/templates/testcases_legacy.rpy` -- 7.x
+
+The active `testcases.rpy` is generated per SDK.
+
+Harness runs are headless by default. Set `RENPY_HEADLESS=0` to show the game window.
+
+# Type Stubs
+
+* All Pylance/Pyright configuration belongs in `pyrightconfig.json`.
+* Do not add `python.analysis.*` settings to `.vscode/settings.json`.
+* `typings/renpy/` contains Ren'Py runtime stubs.
+* `cue_lib/*.pyi` contains stubs for Cue modules.
+* `cue_lib/_types.py` is the single source of truth for TypedDict definitions.
+
+`_types.py` may use modern Python syntax because it is never imported at runtime.
+
+## After Editing
+
+After changing `cue_lib/*.py`:
+
+* Update the corresponding `.pyi` if its public API changed.
+* Run `/lint`, then `/test`.
+
+After adding a manager:
+
+* Wire it into the `cue_z.rpy` `init -900` block.
+* Add its import and `_cue` attribute to `state.pyi`.
+
+After adding or changing a TypedDict:
+
+* Update `cue_lib/_types.py`.
+* Do not duplicate the definition in `.pyi` files.
+
+# Self-File Type Information
+
+Pyright does not use a module's `.pyi` while analyzing that module's own `.py` file.
+
+Runtime `.py` files cannot use inline annotations, so use PEP 484 type comments.
+
+For TypedDict names, add a dead `MYPY` guard after imports:
 
 ```python
 MYPY = False
+
 if MYPY:
-    from typing import Optional  # only if needed
-    from cue_lib._types import PoolDict, MarkerEntry  # whatever TypedDicts are referenced
+    from typing import Optional
+    from cue_lib._types import PoolDict, MarkerEntry
 ```
 
-Then add `# type:` comments to method signatures:
+Then annotate signatures with type comments:
 
 ```python
 def resolve_pool(self, pool):
     # type: (PoolDict) -> ResolvedPool
-    ...
 ```
 
-#### How it works
+Use this for public functions whose `.pyi` signatures reference TypedDicts. Built-in types do not require imports.
 
-- `MYPY = False` makes this a dead block at runtime — Python 2.7 never enters it, so it never tries to import `_types.py` (which uses Python 3 syntax).
-- Type checkers (Pyright, mypy) **special-case** `if MYPY:` / `if TYPE_CHECKING:` blocks — they are statically analyzed as if always taken, making the imported names available for `# type:` comment resolution.
-- This is the standard, checker-endorsed idiom — NOT a workaround.
+`_types.py` is:
 
-#### What needs a `# type:` comment
+* Never imported at runtime.
+* Imported by `.pyi` files and `if MYPY:` blocks only.
+* The single canonical definition for each TypedDict.
+* Located at `cue_lib/_types.py`.
 
-- Any function whose `.pyi` stub declares types involving TypedDicts (PoolDict, MarkerEntry, VideoPoolDict, RepeaterOffset, UndoSnapshot, etc.)
-- Functions using only built-in types (str, int, float, bool, list) DON'T need a MYPY guard — `# type:` comments with builtins work without imports
-- Internal helpers (`_foo`) can be annotated but it's lower priority — focus on public API methods first
+# Maintaining This Document
 
-#### The `_types.py` module
+Keep this document concise and action-oriented.
 
-- NEVER imported at runtime — only by `.pyi` files and inside `if MYPY:` guards
-- Uses `from __future__ import annotations` and `typing.TypedDict` — no Python 2.7 constraint
-- One canonical definition per TypedDict — `.pyi` stubs import from here, never redeclare
-- Located at `cue_lib/_types.py` (a real `.py` module) so Pyright can resolve it as an import target
-
+- State what to do or avoid first.
+- Include rationale only when it prevents ambiguity, incorrect generalization,
+  or likely violations of the rule.
+- Prefer a short constraint over historical context or lengthy explanations.
+- Keep examples only when the correct usage is not obvious from the rule.
+- Do not document implementation history, past bugs, or background knowledge
+  unless it directly affects how code should be written.
+- When adding a rule, ask: "Would an agent make the wrong decision without
+  knowing why?" If not, omit the explanation.
