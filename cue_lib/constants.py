@@ -92,9 +92,10 @@ CUE_VID_KEY_PREFIX = "v_"
 
 CUE_DEBUG = _cue_env_flag("RENPY_CUE_DEBUG", False)
 
-# Number of dedicated SFX channels on the "sfx" mixer.
-# Channels are named _cue_1 through _cue_N.
-CUE_SFX_CHANNEL_COUNT = 8
+# Dedicated SFX channels on the "sfx" mixer, named _cue_1.._cue_N.
+# 16 gives 8 SFX + 8 simultaneous dialogue/image one-shots headroom, so an
+# exclusive cut-in rarely has to steal a channel from a playing one-shot.
+CUE_SFX_CHANNEL_COUNT = 16
 
 # Default video playback speed (1.0 = original speed).
 CUE_DEFAULT_VIDEO_SPEED = 1.0

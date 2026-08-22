@@ -208,9 +208,10 @@ class CueSfxManager(object):
         # type: (Optional[List[str]], Optional[List[str]]) -> int
         """Quickly fade out SFX on the shared _cue_ channels.
 
-        ``exclude_channels`` are same-group channels to spare; ``only_channels``
-        restricts the sweep to a single domain (loops fade only loops, one-shots
-        fade only one-shots). Returns the number of channels faded."""
+        ``exclude_channels`` are channels to spare -- same-group friends, or
+        video-marker SFX (immune to cut-ins).  ``only_channels`` restricts the
+        sweep to a single domain (loops fade only loops). Returns the number of
+        channels faded."""
         excluded = set(exclude_channels) if exclude_channels else set()
         only = set(only_channels) if only_channels is not None else None
         faded = 0

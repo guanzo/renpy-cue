@@ -79,7 +79,7 @@ def pick(monkeypatch, value="a.ogg"):
 
 
 def keep_playing(monkeypatch):
-    """Keep every tracked channel alive through _prune_excl."""
+    """Keep every tracked channel alive through _prune_excl_channels."""
     monkeypatch.setattr(_trigger._music, "is_playing", lambda channel="music", **kw: True)
 
 
@@ -185,32 +185,32 @@ def test_tick_dispatches_loop_then_video(monkeypatch):
 # exclusive helpers
 # ---------------------------------------------------------------------------
 
-def test_excl_track_stores_info():
+def test_track_excl_channel_stores_info():
     eng = make_engine()
-    eng._excl_track("cue_sfx_1", CUE_EXCL_KIND_ONESHOT, "scene.ogg", None, False)
+    eng._track_excl_channel("cue_sfx_1", CUE_EXCL_KIND_ONESHOT, "scene.ogg", None, False)
     assert eng.excl_channels["cue_sfx_1"] == {
         "kind": CUE_EXCL_KIND_ONESHOT, "scene": "scene.ogg", "line": None, "hold": False}
 
 
-def test_excl_track_none_channel_ignored():
+def test_track_excl_channel_none_channel_ignored():
     eng = make_engine()
-    eng._excl_track(None, CUE_EXCL_KIND_ONESHOT, "scene.ogg", None, False)
+    eng._track_excl_channel(None, CUE_EXCL_KIND_ONESHOT, "scene.ogg", None, False)
     assert eng.excl_channels == {}
 
 
-def test_prune_excl_drops_finished_channels():
+def test_prune_excl_channels_drops_finished():
     eng = make_engine()
     eng.excl_channels = {"ch1": {"kind": CUE_EXCL_KIND_LOOP},
                          "ch2": {"kind": CUE_EXCL_KIND_ONESHOT}}
-    eng._prune_excl()  # mock is_playing -> False, so both dropped
+    eng._prune_excl_channels()  # mock is_playing -> False, so both dropped
     assert eng.excl_channels == {}
 
 
-def test_prune_excl_keeps_playing(monkeypatch):
+def test_prune_excl_channels_keeps_playing(monkeypatch):
     eng = make_engine()
     eng.excl_channels = {"ch1": {"kind": CUE_EXCL_KIND_LOOP}}
     keep_playing(monkeypatch)
-    eng._prune_excl()
+    eng._prune_excl_channels()
     assert eng.excl_channels == {"ch1": {"kind": CUE_EXCL_KIND_LOOP}}
 
 

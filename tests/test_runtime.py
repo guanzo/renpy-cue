@@ -24,7 +24,7 @@ import cue_lib.runtime as _runtime
 import cue_lib.settings as _settings
 import cue_lib.util as _util
 from cue_lib.audio.sfx_manager import CueSfxManager
-from cue_lib.constants import CuePage
+from cue_lib.constants import CuePage, CUE_SFX_CHANNEL_COUNT
 from cue_lib.state import _cue
 from tests.fakes import make_runtime_cue
 from types import SimpleNamespace
@@ -937,7 +937,7 @@ def test_play_sfx_free_channel(cue, sfx_mgr, monkeypatch):
 
 def test_play_sfx_round_robin_when_all_busy(cue, sfx_mgr, monkeypatch):
     monkeypatch.setattr(_sfx_manager._random, "uniform", lambda a, b: 1.0)
-    for i in range(1, 9):
+    for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
         _music_mock.play("busy.ogg", channel="_cue_{}".format(i))
     sfx_mgr._next_sfx_channel = 3
     sfx_mgr.play_sfx("a.ogg")

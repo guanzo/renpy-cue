@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# CueTriggerEngine -- trigger dispatch for i:, d:, l:, v: keys and shake.
+# CueTriggerEngine -- trigger dispatch for i_, d_, l_, v_ keys and shake.
 # Instantiated once at _cue.trigger, lives on the NoRollback _cue object.
 
 import time as _time
@@ -26,11 +26,19 @@ if MYPY:
     from cue_lib.markers import CueMarkerManager  # pyright: ignore[reportUnusedImport]
 
 
-# Exclusive domains: loops and one-shots never interact. An exclusive SFX
-# only waits for / fades / blocks other SFX in its own domain, so an
-# exclusive loop leaves image/dialogue SFX untouched and vice versa.
+# Exclusive domains: loops, one-shots, and video-marker SFX.  The wait/hold
+# gates are kind-filtered, so a loop never blocks a one-shot or vice versa.
+# The fade sweep is asymmetric, though: an exclusive loop fades only other
+# loops, while an exclusive one-shot fades everything outside its current
+# scene + line context -- loops and one-shots included (one-shots cut loops).
+# Video-marker SFX (v_key pools) are immune to every cut-in: they're tracked
+# as their own kind and the one-shot sweep spares them.  The movie channel's
+# own audio is never swept: fade_out only touches the _cue_ SFX channels.
+# Loops never share a group; one-shot group identity is scene AND line
+# (_excl_same_group).
 CUE_EXCL_KIND_LOOP = "loop"
 CUE_EXCL_KIND_ONESHOT = "oneshot"
+CUE_EXCL_KIND_VIDEO = "video"
 
 
 def _cue_loop_still_playing(channels):
@@ -128,10 +136,12 @@ class CueTriggerEngine(object):
     # line) -- so image and dialogue coexist, but a new dialogue line cuts the
     # previous one. Loops never share a group; each loop competes with the rest.
     #
-    # "kind" is the domain (loop vs one-shot). Domains never interact, so an
-    # exclusive loop only waits for / fades / blocks other loops.
+    # "kind" is the domain (loop vs one-shot vs video). Domains never
+    # interact, so an exclusive loop only waits for / fades / blocks other
+    # loops.  Video-marker SFX live in their own domain and are only tracked
+    # so the one-shot cut-in sweep can spare them.
 
-    def _prune_excl(self):
+    def _prune_excl_channels(self):
         # type: () -> None
         """Drop tracked channels that have finished playing."""
         for ch in list(self.excl_channels.keys()):
@@ -168,11 +178,11 @@ class CueTriggerEngine(object):
         """True if a holding SFX in the same domain but not self's group is
         playing -- an out-group SFX owns the air, so this SFX may not start.
 
-        Only fire_context and _tick_loop consult this gate; SFX played
-        elsewhere (video markers, preview) are hold-immune by construction.
-        The cut-in sweep, by contrast, is channel-based and hits everything
+        Only fire_context and _tick_loop consult this gate; video-marker SFX
+        and previews are hold-immune by construction.  The cut-in sweep, by
+        contrast, is channel-based and hits everything
         in the same domain outside self's group."""
-        self._prune_excl()
+        self._prune_excl_channels()
         for info in self.excl_channels.values():
             if info.get("kind") != kind:
                 continue
@@ -184,7 +194,7 @@ class CueTriggerEngine(object):
         # type: (str, Optional[str], Optional[str]) -> bool
         """True if any same-domain channel outside self's group is playing --
         polite holders wait for this to clear."""
-        self._prune_excl()
+        self._prune_excl_channels()
         for info in self.excl_channels.values():
             if info.get("kind") != kind:
                 continue
@@ -192,7 +202,7 @@ class CueTriggerEngine(object):
                 return True
         return False
 
-    def _excl_track(self, channel, kind, scene, line, hold):
+    def _track_excl_channel(self, channel, kind, scene, line, hold):
         # type: (Optional[str], str, Optional[str], Optional[str], bool) -> None
         """Record a playing SFX's domain, group identity, and hold state."""
         if channel:
@@ -203,7 +213,7 @@ class CueTriggerEngine(object):
 
     def tick(self, current_file, top_layer_type):
         # type: (str, str) -> None
-        """Called every frame. Handles loop (l:) and video (v:) triggers."""
+        """Called every frame. Handles loop (l_) and video (v_) triggers."""
         if not self.active:
             return
 
@@ -214,11 +224,11 @@ class CueTriggerEngine(object):
         self._tick_loop(now, tick, current_file)
         self._tick_video(current_file, top_layer_type)
 
-    # -- context triggers (i:, d:, shake) --
+    # -- context triggers (i_, d_, shake) --
 
     def fire_context(self, *keys, **kwargs):
         # type: (*Optional[str], **Any) -> None
-        """Fire i:, d:, or shake triggers for the given keys.
+        """Fire i_, d_, or shake triggers for the given keys.
 
         Multi-pool entries play one random file from EACH pool concurrently.
         Dedupe guard: same file in two pools of the same trigger is re-picked
@@ -277,19 +287,22 @@ class CueTriggerEngine(object):
 
                 if excl.start == CueExclusiveStart.FADE:
                     # Cut-in: fade out one-shots outside this group, plus any
-                    # playing loops and video SFX (one-shots cut loops).
+                    # playing loops (one-shots cut loops).  Video-marker SFX
+                    # are spared -- they're tracked as their own kind.
                     faded = _cue.sfx.fade_out(
-                        exclude_channels=self._excl_group_channels(CUE_EXCL_KIND_ONESHOT, scene, line))
+                        exclude_channels=(
+                            self._excl_group_channels(CUE_EXCL_KIND_ONESHOT, scene, line)
+                            + self._excl_kind_channels(CUE_EXCL_KIND_VIDEO)))
                     _cue_log("CTX-FADE key={} pool={} faded={}".format(
                         key, pi, faded))
                 ch_used = _cue.sfx.play_pool(entry, key, pool, pi, file=file)
-                self._excl_track(ch_used, CUE_EXCL_KIND_ONESHOT, scene, line, excl.hold)
+                self._track_excl_channel(ch_used, CUE_EXCL_KIND_ONESHOT, scene, line, excl.hold)
 
-    # -- loop triggers (l: keys) --
+    # -- loop triggers (l_ keys) --
 
     def _tick_loop(self, now, tick, current_file):
         # type: (float, int, str) -> None
-        """Loop state machine for l: keys -- fires pooled SFX on a frequency cycle."""
+        """Loop state machine for l_ keys -- fires pooled SFX on a frequency cycle."""
         loop_key = create_loop_key(current_file or "")
 
         entry = self._store.get(loop_key)
@@ -374,17 +387,17 @@ class CueTriggerEngine(object):
                 pst["channels"] = [ch_used]
                 pst["play_start"] = now
                 pst["blocked_logged"] = False
-                self._excl_track(ch_used, CUE_EXCL_KIND_LOOP, None, None, excl.hold)
+                self._track_excl_channel(ch_used, CUE_EXCL_KIND_LOOP, None, None, excl.hold)
                 _cue_log("TICK#{} POOL-PLAY  key={} pool={} ch={} dur={:.2f}s next_in={:.2f}s".format(
                     tick, loop_key, pi, ch_used,
                     _music.get_duration(channel=ch_used) or 0.0,
                     self._markers_ctx().loop.get_delay(resolved.frequency)))
 
-    # -- video triggers (v: keys) --
+    # -- video triggers (v_ keys) --
 
     def _tick_video(self, current_file, top_layer_type):
         # type: (str, str) -> None
-        """Video pool triggers for v: keys -- fires SFX at marked times.
+        """Video pool triggers for v_ keys -- fires SFX at marked times.
 
         Uses two complementary checks so markers aren't missed when playback
         position jumps more than marker_tolerance between ticks (common on
@@ -454,6 +467,11 @@ class CueTriggerEngine(object):
                     if _cue_marker_reached(pool_entry["time"], effective_elapsed, prev_eff, marker_tolerance):
                         f = _cue.sfx.play_pool(entry, vid_key, pool_entry, pool_index, avoid_repeats=False)  # pyright: ignore[reportArgumentType]
                         if f:
+                            # Track as its own kind so exclusive cut-ins spare
+                            # it.  Overwrites any stale entry on the reused
+                            # channel (dlg loops etc.), which is what makes the
+                            # immunity deterministic.
+                            self._track_excl_channel(f, CUE_EXCL_KIND_VIDEO, current_file, None, False)
                             self.played_video_keys.add(ts_key)
 
         # Detect video restart -- two cases clear the dedup set:
