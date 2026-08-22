@@ -508,7 +508,7 @@ class CueImportManager(object):
         entry = self.import_for(imp)
         if entry is None:
             return
-        _cue.dialogs.confirm.show(
+        _cue.dialogs.confirm.show_or_run(
             "Delete import '{}'?".format(entry["name"]),
             Function(self.delete_confirmed, imp),
         )

@@ -203,7 +203,8 @@ screen cue_audio_presets_list(name_filter=None):
         hbox:
             spacing 2
             etext " "  # indent under Presets/
-            use cue_icon_btn("xmark", Function(_cue_confirm_delete_preset, _pname), "Delete preset")
+            use cue_icon_btn("xmark", Function(_cue_confirm_delete_preset, _pname),
+                "Delete preset" + CUE_HELP_SHIFT_SKIP_DELETE)
             use cue_icon_btn(
                 "play",
                 Function(_cue.sfx.preview_preset, _pname),
@@ -245,7 +246,7 @@ screen cue_video_presets_list(_is_video, name_filter=None):
             use cue_icon_btn(
                 "xmark",
                 Function(_cue_confirm_delete_video_preset, _vpname),
-                "Delete video preset")
+                "Delete video preset" + CUE_HELP_SHIFT_SKIP_DELETE)
             use cue_icon_btn(
                 "play",
                 Function(_cue.sfx.preview_video_preset, _vpname),

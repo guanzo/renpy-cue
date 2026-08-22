@@ -372,7 +372,7 @@ screen cue_music_presets_list(name_filter=None):
             use cue_icon_btn(
                 "xmark",
                 Function(_cue_confirm_delete_music_preset, _pname),
-                "Delete preset")
+                "Delete preset" + CUE_HELP_SHIFT_SKIP_DELETE)
             use cue_icon_btn(
                 "plus",
                 Function(_cue.music.apply_preset, _pname),

@@ -296,6 +296,26 @@ def test_confirm_show_hide(ui_cue, screens):
     assert screens[1] == ["cue_confirm_dialog"]
 
 
+def test_confirm_show_or_run_shows_without_shift(ui_cue, screens, monkeypatch):
+    monkeypatch.setattr(_dlg, "_cue_shift_held", lambda: False)
+    d = CueConfirmDialog()
+    d.show_or_run("Sure?", lambda: None)
+    assert d.message == "Sure?"
+    assert callable(d.on_confirm)
+    assert screens[0] == ["cue_confirm_dialog"]
+
+
+def test_confirm_show_or_run_skips_with_shift(ui_cue, screens, monkeypatch):
+    monkeypatch.setattr(_dlg, "_cue_shift_held", lambda: True)
+    d = CueConfirmDialog()
+    calls = []
+    d.show_or_run("Sure?", lambda: calls.append(1))
+    assert calls == [1]
+    assert d.message == ""
+    assert d.on_confirm is None
+    assert screens[0] == []
+
+
 # ==========================================================================
 # confirm-delete / apply helpers
 # ==========================================================================
@@ -303,21 +323,45 @@ def test_confirm_show_hide(ui_cue, screens):
 def test_confirm_delete_preset(ui_cue, screens):
     _cue_confirm_delete_preset("Foo")
     assert ui_cue.dialogs.confirm.message == "Delete preset 'Foo'?"
-    # on_confirm is the Function() wrapper (None in the mock store).
-    assert ui_cue.dialogs.confirm.on_confirm is None
+    # on_confirm is the Function() wrapper -- callable, not run yet.
+    assert callable(ui_cue.dialogs.confirm.on_confirm)
+    assert "delete_preset" not in ui_cue.calls
     assert screens[0] == ["cue_confirm_dialog"]
 
 
 def test_confirm_delete_video_preset(ui_cue, screens):
     _cue_confirm_delete_video_preset("Bar")
     assert ui_cue.dialogs.confirm.message == "Delete video preset 'Bar'?"
+    assert "delete_video_preset" not in ui_cue.calls
     assert screens[0] == ["cue_confirm_dialog"]
 
 
 def test_confirm_delete_music_preset(ui_cue, screens):
     _cue_confirm_delete_music_preset("Foo")
     assert ui_cue.dialogs.confirm.message == "Delete music preset 'Foo'?"
+    assert "music_delete_preset" not in ui_cue.calls
     assert screens[0] == ["cue_confirm_dialog"]
+
+
+def test_confirm_delete_preset_skips_with_shift(ui_cue, screens, monkeypatch):
+    monkeypatch.setattr(_dlg, "_cue_shift_held", lambda: True)
+    _cue_confirm_delete_preset("Foo")
+    assert ui_cue.calls["delete_preset"] == [(("Foo",), {})]
+    assert screens[0] == []
+
+
+def test_confirm_delete_video_preset_skips_with_shift(ui_cue, screens, monkeypatch):
+    monkeypatch.setattr(_dlg, "_cue_shift_held", lambda: True)
+    _cue_confirm_delete_video_preset("Bar")
+    assert ui_cue.calls["delete_video_preset"] == [(("Bar",), {})]
+    assert screens[0] == []
+
+
+def test_confirm_delete_music_preset_skips_with_shift(ui_cue, screens, monkeypatch):
+    monkeypatch.setattr(_dlg, "_cue_shift_held", lambda: True)
+    _cue_confirm_delete_music_preset("Foo")
+    assert ui_cue.calls["music_delete_preset"] == [(("Foo",), {})]
+    assert screens[0] == []
 
 
 def test_maybe_apply_video_preset_in_range(ui_cue, screens):

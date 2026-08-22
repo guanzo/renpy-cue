@@ -137,6 +137,11 @@ CUE_AUTO_SPEED_IDEAL_VARIANTS = 8
 # second location.  Other section titles are single-use literals.
 CUE_SFX_LIBRARY_HEADER = "SFX Library"
 
+# Tooltip suffix appended to every delete button's tooltip; the same string
+# across the pool-tab, preset, and import delete buttons so the shift+click
+# escape hatch stays consistent.
+CUE_HELP_SHIFT_SKIP_DELETE = "\nShift+Click to skip delete confirmation"
+
 # Audio file extensions accepted by the SFX library and My Music scans.
 # Ren'Py officially supported formats.
 CUE_AUDIO_EXTS = (".ogg", ".mp3", ".wav", ".opus")

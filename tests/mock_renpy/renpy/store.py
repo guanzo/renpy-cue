@@ -9,8 +9,26 @@ class PersistentStub(object):
         self._cue = None
 
 
+class _MockFunction(object):
+    """Callable Function stand-in.
+
+    Mirrors real Ren'Py's Function.__call__: stores (fn, *args, **kwargs) and
+    invokes fn when called.  Lets tests both store an action and exercise a
+    code path that runs it (e.g. shift+click skip-confirm)."""
+
+    def __init__(self, args, kwargs):
+        self._args = args
+        self._kwargs = kwargs
+
+    def __call__(self):
+        fn = self._args[0] if self._args else None
+        if callable(fn):
+            return fn(*self._args[1:], **self._kwargs)
+        return None
+
+
 def Function(*args, **kwargs):
-    return None
+    return _MockFunction(args, kwargs)
 
 
 class NullAction(object):

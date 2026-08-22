@@ -12,7 +12,7 @@ from cue_lib.importer_io import (
     _cue_merge_overwrites,
 )
 from cue_lib.state import _cue
-from cue_lib.util import create_vid_key
+from cue_lib.util import _cue_shift_held, create_vid_key
 
 MYPY = False
 if MYPY:
@@ -137,6 +137,15 @@ class CueConfirmDialog(object):
         self.on_confirm = confirm_action
         renpy.show_screen("cue_confirm_dialog", _layer="cue_layer")
 
+    def show_or_run(self, message, confirm_action):
+        # type: (str, Callable[..., None]) -> None
+        """Show the confirm dialog, or run the action directly when the user
+        shift+clicks -- delete buttons skip confirmation that way."""
+        if _cue_shift_held():
+            confirm_action()
+        else:
+            self.show(message, confirm_action)
+
     def hide(self):
         # type: () -> None
         self.message = ""
@@ -240,21 +249,21 @@ class CueMergeDialog(object):
 
 def _cue_confirm_delete_preset(preset_name):
     # type: (str) -> None
-    _cue.dialogs.confirm.show(
+    _cue.dialogs.confirm.show_or_run(
         "Delete preset '{}'?".format(preset_name),
         Function(_cue.markers.delete_preset, preset_name),
     )
 
 def _cue_confirm_delete_video_preset(preset_name):
     # type: (str) -> None
-    _cue.dialogs.confirm.show(
+    _cue.dialogs.confirm.show_or_run(
         "Delete video preset '{}'?".format(preset_name),
         Function(_cue.markers.delete_video_preset, preset_name),
     )
 
 def _cue_confirm_delete_music_preset(preset_name):
     # type: (str) -> None
-    _cue.dialogs.confirm.show(
+    _cue.dialogs.confirm.show_or_run(
         "Delete music preset '{}'?".format(preset_name),
         Function(_cue.music.delete_preset, preset_name),
     )

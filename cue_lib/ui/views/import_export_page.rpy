@@ -324,7 +324,8 @@ screen cue_import_row(_imp):
                            "so it can be imported.")
                 use cue_txt_button(
                     "Delete",
-                    Function(_cue.importer.confirm_delete, _imp_key))
+                    Function(_cue.importer.confirm_delete, _imp_key),
+                    tt="Delete this import (zip + extracted folder)." + CUE_HELP_SHIFT_SKIP_DELETE)
             if _can_preview:
                 use cue_replay_children(_imp_key, _replay_toggle_key)
 

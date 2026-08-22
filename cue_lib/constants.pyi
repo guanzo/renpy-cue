@@ -19,6 +19,7 @@ CUE_DUPLICATE_GAP_FRAC: Final = 0.058333333333333334
 CUE_AUTO_SPEED_MIN_VARIANTS: Final = 4
 CUE_AUTO_SPEED_IDEAL_VARIANTS: Final = 8
 CUE_SFX_LIBRARY_HEADER: Final = "SFX Library"
+CUE_HELP_SHIFT_SKIP_DELETE: Final = "\nShift+Click to skip delete confirmation"
 CUE_AUDIO_EXTS: Final = (".ogg", ".mp3", ".wav", ".opus")
 CUE_RECENT_MAX_ENTRIES: Final = 8
 CUE_RECENT_SFX_KEY: Final = "recent_entries"

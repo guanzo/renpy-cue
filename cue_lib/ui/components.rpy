@@ -397,10 +397,11 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
         box_wrap True
         box_wrap_spacing 3
         if show_delete:
+            $ _delete_tt = delete_tt + CUE_HELP_SHIFT_SKIP_DELETE
             use cue_icon_btn(
                 "xmark",
-                Function(_cue.dialogs.confirm.show, delete_confirm, delete_action),
-                delete_tt,
+                Function(_cue.dialogs.confirm.show_or_run, delete_confirm, delete_action),
+                _delete_tt,
             )
         if show_delete and exclusive_ctx is not None:
             # Only one-shots pass an exclusive_ctx -- the toggle lives in the

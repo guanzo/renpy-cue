@@ -35,7 +35,9 @@ def imp_cue(monkeypatch):
 
     fake = types.SimpleNamespace(
         dialogs=types.SimpleNamespace(
-            confirm=types.SimpleNamespace(show=_show),
+            confirm=types.SimpleNamespace(
+                show=_show,
+                show_or_run=lambda message, action: _show(message, action)),
             merge=None))
     monkeypatch.setattr(_imports, "_cue", fake)
     return shown
