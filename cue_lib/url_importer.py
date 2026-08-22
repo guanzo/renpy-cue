@@ -76,7 +76,7 @@ def _cue_find_cacert():
     # type: () -> Optional[str]
     """Path to a usable CA bundle (certifi's), or None when unavailable."""
     try:
-        import certifi as _certifi
+        import certifi as _certifi  # pyright: ignore[reportMissingImports]  # optional runtime dep, not in the lint venv
         return _certifi.where()
     except ImportError:
         return None
