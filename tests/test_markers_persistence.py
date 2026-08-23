@@ -342,6 +342,24 @@ def test_load_scalars_shared_config_wins():
     assert cue.speed_resolver.seamless_transition is True
 
 
+def test_load_scalars_none_values_fall_back_to_defaults():
+    # A persistent._cue whose keys hold None (a partially-nulled dict) must
+    # not flip these settings falsy -- remove_audio=None would otherwise
+    # keep audio on every encode while the UI shows the toggle on.
+    _store.persistent._cue = {
+        "triggers_active": None,
+        "encode_mode": None,
+        "remove_audio": None,
+        "seamless_transition": None,
+    }
+    _markers._cue_load_scalars_from_persistent()
+    cue = _markers._cue
+    assert cue.trigger.active is True
+    assert cue.video_editor.encode_mode == 0
+    assert cue.video_editor.remove_audio is True
+    assert cue.speed_resolver.seamless_transition is False
+
+
 # ==========================================================================
 # paste_context -- replay + no-duration branches
 # ==========================================================================

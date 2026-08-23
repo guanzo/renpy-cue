@@ -686,10 +686,19 @@ def _cue_load_scalars_from_persistent():
         _cue_dict.pop("disabled_files", None)
 
     _cue.sfx.library.disabled_files = set(shared.get("disabled_files", []))
-    _cue.trigger.active = _cue_dict.get("triggers_active", True)
-    _cue.video_editor.encode_mode = _cue_dict.get("encode_mode", _cue.video_editor.MODE_INTERPOLATE)
-    _cue.video_editor.remove_audio = _cue_dict.get("remove_audio", True)
-    _cue.speed_resolver.seamless_transition = _cue_dict.get("seamless_transition", False)
+    # Coalesce None to the default: a dict whose keys hold None (e.g. a
+    # partially-nulled persistent._cue) must not silently flip these to
+    # falsy -- remove_audio=None would keep audio on every encode.
+    _triggers = _cue_dict.get("triggers_active")
+    _cue.trigger.active = True if _triggers is None else bool(_triggers)
+    _mode = _cue_dict.get("encode_mode")
+    if _mode is None:
+        _mode = _cue.video_editor.MODE_INTERPOLATE
+    _cue.video_editor.encode_mode = _mode
+    _ra = _cue_dict.get("remove_audio")
+    _cue.video_editor.remove_audio = True if _ra is None else bool(_ra)
+    _st = _cue_dict.get("seamless_transition")
+    _cue.speed_resolver.seamless_transition = False if _st is None else bool(_st)
 
 
 def _cue_markers_send(kind, ref, record=True):

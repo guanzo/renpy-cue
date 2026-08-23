@@ -26,10 +26,13 @@ from renpy.display.core import IgnoreEvent
 
 @pytest.fixture(autouse=True)
 def _reset_marker_tip_mailbox():
-    # Class-level tip state persists across tests -- clear it each time.
+    # Class-level tip state persists across tests -- clear it each time.  The
+    # timeline singleton is wired to the patched _cue, so also drop it so the
+    # next test rebuilds against its own fake.
     CueVideoMarkerTimeline._marker_tip_text = ""
     CueVideoMarkerTimeline._marker_tip_x = 0
     CueVideoMarkerTimeline._marker_tip_y = 0
+    CueVideoMarkerTimeline._instance = None
 
 
 # ==========================================================================
@@ -237,6 +240,64 @@ def _make_mtl(monkeypatch, markers_list, dur=10.0, speed=1.0, selected=None):
 MTL_MARKERS = [{"time": 0.0}, {"time": 5.0}]
 
 
+def _fake_video_context(markers_list, duration=5.0):
+    # type: (list, float) -> types.SimpleNamespace
+    state = {"active": 0}
+
+    def get_markers():
+        return markers_list
+
+    def get_active_index():
+        return state["active"]
+
+    def set_active_index(idx):
+        state["active"] = idx
+
+    def set_time(idx, t):
+        markers_list[idx]["time"] = t
+
+    def get_duration():
+        return duration
+
+    return types.SimpleNamespace(
+        get_markers=get_markers,
+        get_active_index=get_active_index,
+        set_active_index=set_active_index,
+        set_time=set_time,
+        get_duration=get_duration,
+    )
+
+
+def test_mtl_get_timeline_singleton_wired_to_video_context(monkeypatch):
+    markers_list = [{"time": 0.0}, {"time": 5.0}]
+    video = _fake_video_context(markers_list, duration=5.0)
+    cue = types.SimpleNamespace(markers=types.SimpleNamespace(video=video))
+    monkeypatch.setattr(_displ, "_cue", cue)
+    tl = CueVideoMarkerTimeline.get_timeline()
+    assert tl is CueVideoMarkerTimeline.get_timeline(), \
+        "timeline must be a stable singleton"
+    # Wired to the live video context's own methods, so the displayable reads
+    # and writes the marker state through it.
+    assert tl.get_dur() == 5.0
+    assert tl.get_active_index() == 0
+    video.set_active_index(2)
+    assert tl.get_active_index() == 2
+
+
+def test_mtl_reset_timeline_drag_clears_inflight_drag(monkeypatch):
+    video = _fake_video_context([{"time": 0.0}])
+    cue = types.SimpleNamespace(markers=types.SimpleNamespace(video=video))
+    monkeypatch.setattr(_displ, "_cue", cue)
+    tl = CueVideoMarkerTimeline.get_timeline()
+    tl._drag_idx = 1
+    tl._drag_on = True
+    tl._drag_orig_times = {0: 0.5}
+    CueVideoMarkerTimeline.reset_timeline_drag()
+    assert tl._drag_idx == -1
+    assert not tl._drag_on
+    assert tl._drag_orig_times == {}
+
+
 def test_mtl_render_basic(monkeypatch):
     env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}])
     r = env.tl.render(200, 60, 0.0, 0.0)
@@ -291,7 +352,8 @@ def test_mtl_render_zero_duration_skips_preview(monkeypatch):
 
 
 def test_mtl_render_while_dragging(monkeypatch):
-    # Render while a drag is in flight -- the dragged tab turns blue.
+    # Render while a drag is in flight -- the marker line turns blue as the
+    # drag indicator, but the tab background keeps its normal color.
     env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}])
     env.tl.render(200, 60, 0.0, 0.0)
     down = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
@@ -302,8 +364,12 @@ def test_mtl_render_while_dragging(monkeypatch):
         env.tl.event(mot, 120, 15, 0.0)
     assert env.tl._drag_on
     r = env.tl.render(200, 60, 0.0, 0.0)
-    colors = [op[1] for op in r.canvas().ops if op[0] == "rect"]
-    assert "#7777cc" in colors
+    # Line rects are 2px wide; tab rects are TAB_W wide.  The drag purple must
+    # appear on the line only, never as a tab background.
+    line_colors = [op[1] for op in r.canvas().ops if op[0] == "rect" and op[2][2] == 2]
+    tab_colors = [op[1] for op in r.canvas().ops if op[0] == "rect" and op[2][2] != 2]
+    assert "#7777cc" in line_colors
+    assert "#7777cc" not in tab_colors
 
 
 def test_mtl_render_after_hover(monkeypatch):
@@ -411,13 +477,15 @@ def test_mtl_event_motion_zero_duration_no_hit(monkeypatch):
     assert env.tl._tip_text == ""
 
 
-def test_mtl_event_hover_scaled_shows_note(monkeypatch):
+def test_mtl_event_hover_scaled_shows_pool_tooltip(monkeypatch):
     env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}], speed=2.0)
     env.tl.render(200, 60, 0.0, 0.0)
     ev = types.SimpleNamespace(type=_pygame.MOUSEMOTION)
-    # At 2.0x, marker 1 (t=5) draws at inner_x in [38, 52].
+    # At 2.0x, marker 1 (t=5) draws at inner_x in [38, 52].  Scaled mode still
+    # shows the pool tooltip on hover; the auto-scale note was removed.
     env.tl.event(ev, 55, 15, 0.0)
-    assert "[Auto-scaled from 1.0x." in env.tl._tip_text
+    assert "Pool 2 (00:05.00)" in env.tl._tip_text
+    assert "Auto-scaled" not in env.tl._tip_text
 
 
 def test_mtl_event_click_selects_single(monkeypatch):

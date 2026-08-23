@@ -78,14 +78,11 @@ screen cue_video_sfx():
         $ _vid_target = _cue.markers.video.active_pool
         $ _vid_target = max(0, min(_vid_target, _vid_count - 1)) if _vid_entries else 0
         # --- Draggable video marker timeline ---
+        # Reuse the class singleton: constructing it inline recreates the
+        # object on every restart_interaction, wiping drag and hover state
+        # mid-gesture.
         if _vid_entries:
-            add CueVideoMarkerTimeline(
-                get_markers=_cue.markers.video.get_markers,
-                get_active_index=_cue.markers.video.get_active_index,
-                set_active_index=_cue.markers.video.set_active_index,
-                set_time=_cue.markers.video.set_time,
-                get_dur=_cue.markers.video.get_duration,
-            ) yoffset -8
+            add CueVideoMarkerTimeline.get_timeline() yoffset -8
         if _is_base_speed:
             if _vid_entry:
                 $ _vid_entry.setdefault("volume", _cue.volume.VOL_DEFAULT)
@@ -194,3 +191,7 @@ screen cue_video_sfx():
             null height 5
             etext ("Only the original video (1.0x) can be edited. Speed variants auto create "
                 + "markers based on the 1.0x config.")
+            hbox:
+                spacing 5
+                use cue_txt_button("Switch to 1.0x",
+                    Function(_cue.speed_resolver.set_speed, CUE_DEFAULT_VIDEO_SPEED))

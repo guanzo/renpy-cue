@@ -12,6 +12,7 @@ from cue_lib.constants import CuePage
 from cue_lib.logger import _cue_logger
 from cue_lib.markers import _cue_load_scalars_from_persistent
 from cue_lib.state import _cue
+from cue_lib.ui.displayables import CueVideoMarkerTimeline
 from cue_lib.util import (
     _cue_log, _cue_unwrap_displayable,
     _cue_get_movie_play,
@@ -146,6 +147,10 @@ def _cue_full_reload():
 def _cue_hide_overlay():
     # type: () -> None
     _cue.is_overlay_visible = False
+    # The marker timeline outlives the overlay (built once as a class
+    # singleton), so a hide mid-drag would otherwise leave a stale in-flight
+    # drag on the next show.
+    CueVideoMarkerTimeline.reset_timeline_drag()
     renpy.hide_screen("cue_overlay", layer="cue_layer")
 
 

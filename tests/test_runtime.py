@@ -86,10 +86,16 @@ def test_show_overlay_skips_scan_when_populated(cue):
     assert cue.is_overlay_visible is True
 
 
-def test_hide_overlay(cue):
+def test_hide_overlay(cue, monkeypatch):
     cue.is_overlay_visible = True
+    calls = []
+    monkeypatch.setattr(_runtime.CueVideoMarkerTimeline, "reset_timeline_drag",
+                        lambda: calls.append(None))
     _runtime._cue_hide_overlay()
     assert cue.is_overlay_visible is False
+    # Hide aborts an in-flight marker drag so a stale one doesn't resurface
+    # on the next show (the timeline outlives the overlay).
+    assert calls == [None]
 
 
 def test_full_reload_scans_and_reloads(cue):

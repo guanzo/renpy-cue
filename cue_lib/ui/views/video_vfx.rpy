@@ -201,8 +201,8 @@ screen cue_video_vfx_intensity(_has_speeds):
         etext "How to set up:"
         vbox:
             spacing 2
-            text ("1. Generate at least one speed variant in the Create tab.\n"
-                "(Recommend [CUE_AUTO_SPEED_IDEAL_VARIANTS]+ variants)")
+            text ("1. Generate at least one speed variant in the Create tab. "
+                "(Ideally [CUE_AUTO_SPEED_IDEAL_VARIANTS]+ variants)")
             if _has_speeds:
                 hbox:
                     use cue_icon("circle-check", icon_color=_cue_color_green, fade=False)
@@ -214,8 +214,8 @@ screen cue_video_vfx_intensity(_has_speeds):
         vbox:
             spacing 2
             text ("2. Create an intensity group in the SFX Library and add any "
-                "one of it's \"level\" folders to a video pool.\n"
-                "(Recommend ~[CUE_INTENSITY_IDEAL_LEVELS] levels)")
+                "one of it's \"level\" folders to the video pools. "
+                "(Ideally ~[CUE_INTENSITY_IDEAL_LEVELS] levels)")
             if _has_group:
                 hbox:
                     use cue_icon("circle-check", icon_color=_cue_color_green, fade=False)

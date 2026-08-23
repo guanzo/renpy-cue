@@ -795,9 +795,10 @@ class CueVideoContext(CueMarkerContext):
         The spacing is the interval between the clicked marker and the active
         marker.  A marker joins when it lands within
         ``CUE_INTERVAL_SELECT_TOLERANCE`` of a projected grid position
-        (active time + k*spacing), so a chain of evenly spaced markers is
-        selected in one click.  The active marker is left unchanged -- it
-        stays the anchor."""
+        (active time + k*spacing) in the direction of the click -- markers
+        behind the active are never pulled in, so an interval select extends
+        only forward (or backward) from the active.  The active marker is
+        left unchanged -- it stays the anchor."""
         _, pools = self._entry_and_pools()
         if not (0 <= pool_index < len(pools)):
             return
@@ -812,8 +813,11 @@ class CueVideoContext(CueMarkerContext):
             self.selected.add(active)
             self.selected.add(pool_index)
             return
+        direction = 1 if t_click >= t_active else -1
         for i, pool in enumerate(pools):
             offset = pool["time"] - t_active
+            if offset * direction < 0:
+                continue
             k = round(offset / spacing)
             if abs(offset - k * spacing) <= CUE_INTERVAL_SELECT_TOLERANCE:
                 self.selected.add(i)

@@ -210,15 +210,29 @@ def test_add_interval_selection_selects_spacing_chain():
     assert ctx.selected == {0, 2, 4, 6}  # markers 1, 3, 5, 7
 
 
-def test_add_interval_selection_backward_extension():
-    # Grid continues behind the active marker too: 0, 1, 2, 3 at 1s spacing,
-    # active at index 1 (1.0s), click index 2 (2.0s) -> spacing 1.0s.
+def test_add_interval_selection_forward_click_does_not_reach_behind_active():
+    # User's example: 1,2,3,4,5 at 1s spacing, active is marker 2 (index 1,
+    # 1.0s), alt+shift+click marker 3 (index 2, 2.0s).  Only markers at or
+    # after the active in the click's direction join -- marker 1 (index 0,
+    # behind the active) must NOT be selected.
     mgr = FakeManager({"v_key": {"pools": [
-        {"time": 0.0}, {"time": 1.0}, {"time": 2.0}, {"time": 3.0}]}})
+        {"time": 0.0}, {"time": 1.0}, {"time": 2.0}, {"time": 3.0}, {"time": 4.0}]}})
     ctx = VideoCtx(mgr)
     ctx.active_pool = 1
     ctx.add_interval_selection(2)
-    assert ctx.selected == {0, 1, 2, 3}
+    assert ctx.selected == {1, 2, 3, 4}
+
+
+def test_add_interval_selection_backward_click_does_not_reach_ahead_of_active():
+    # Mirror case: active marker 2 (index 1), alt+shift+click marker 1
+    # (index 0).  Only markers at or before the active join; 3/4/5 (ahead)
+    # must NOT be selected.
+    mgr = FakeManager({"v_key": {"pools": [
+        {"time": 0.0}, {"time": 1.0}, {"time": 2.0}, {"time": 3.0}, {"time": 4.0}]}})
+    ctx = VideoCtx(mgr)
+    ctx.active_pool = 1
+    ctx.add_interval_selection(0)
+    assert ctx.selected == {0, 1}
 
 
 def test_add_interval_selection_reversed_anchor():

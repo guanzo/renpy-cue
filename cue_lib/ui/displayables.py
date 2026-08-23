@@ -214,6 +214,12 @@ class CueVideoMarkerTimeline(Displayable):
     _marker_tip_x = 0
     _marker_tip_y = 0
 
+    # Built once and reused across screen re-evaluations.  The SFX view adds
+    # this same object every interaction, so drag/hover state set on it
+    # survives a timer-fired restart_interaction (which would recreate an
+    # inline-constructed timeline and wipe the state mid-gesture).
+    _instance = None
+
     TRACK_H = 10
     TAB_H = 14
     LINE_H = 8
@@ -249,6 +255,41 @@ class CueVideoMarkerTimeline(Displayable):
         self._drag_orig_times = {}
         self._drag_group_min = 0.0
         self._drag_group_max = 0.0
+
+    def cancel_drag(self):
+        # type: () -> None
+        """Abort an in-flight drag without finalizing, e.g. the overlay hidden
+        mid-drag.  The instance outlives the overlay, so a stale drag must not
+        survive a hide."""
+        self._drag_idx = -1
+        self._drag_on = False
+        self._reset_drag_state()
+
+    @classmethod
+    def get_timeline(cls):
+        # type: () -> CueVideoMarkerTimeline
+        """The marker timeline displayable, wired to the live video context.
+
+        Constructing it inline in the screen creates a fresh object every
+        interaction, wiping drag/hover state on any restart_interaction.  The
+        class keeps one instance instead."""
+        if cls._instance is None:
+            video = _cue.markers.video
+            cls._instance = cls(
+                get_markers=video.get_markers,
+                get_active_index=video.get_active_index,
+                set_active_index=video.set_active_index,
+                set_time=video.set_time,
+                get_dur=video.get_duration,
+            )
+        return cls._instance
+
+    @classmethod
+    def reset_timeline_drag(cls):
+        # type: () -> None
+        """Abort an in-flight marker drag, e.g. the overlay hidden mid-drag."""
+        if cls._instance is not None:
+            cls._instance.cancel_drag()
 
     def _total_h(self):
         # type: () -> int
@@ -325,9 +366,7 @@ class CueVideoMarkerTimeline(Displayable):
                 else:
                     lc = "#666666"
 
-                if i == self._drag_idx and self._drag_on:
-                    bg = "#7777cc"
-                elif i == active:
+                if i == active:
                     bg = "#669966"
                 elif in_sel:
                     bg = self.SEL_BG
