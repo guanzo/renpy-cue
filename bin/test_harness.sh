@@ -79,9 +79,10 @@ LAUNCHER="$1"; shift || { echo "Usage: $0 /path/to/game/Game.sh [testcase...] [o
 # mutable state, and the committed test_game/ + fixtures stay pristine.  Only
 # the read-only cue_lib source is shared (via the symlink in the mod section).
 # An explicit RENPY_CUE_DIR seeds the fixture copy instead of the default.
+XVPID=""
 GAME="$(mktemp -d "${TMPDIR:-/tmp}/cue_testgame.XXXXXX")"
 DATA="$(mktemp -d "${TMPDIR:-/tmp}/cue_testdata.XXXXXX")"
-trap 'rm -rf "$GAME" "$DATA"' EXIT
+trap 'rm -rf "$GAME" "$DATA"; [ -n "$XVPID" ] && kill "$XVPID" 2>/dev/null' EXIT
 cp -r "$ROOT/test_game/." "$GAME/"
 cp -r "${RENPY_CUE_DIR:-$ROOT/tests/fixtures/data}/." "$DATA/"
 # Dirty fixture sources (prior runs leave data/backups/video residue) must not
@@ -127,9 +128,15 @@ rm -f "$GAME/errors.txt" "$GAME/traceback.txt"
 rm -f "$GAME/game/renpy_cue/debug.log"
 
 # --- Wire in the mod. ---
+# Copy cue_lib instead of symlinking it: the engine compiles .rpy -> .rpyc
+# next to the source, so a symlink would write compiles into the shared source
+# tree (stale rpyc masks source edits; concurrent engines corrupt each other's
+# rpyc). A per-run copy keeps every compile isolated in the temp game dir.
 MOD="$GAME/game/renpy_cue"
 mkdir -p "$MOD"
-[ -e "$MOD/cue_lib" ] || ln -s "$ROOT/cue_lib" "$MOD/cue_lib"
+rm -rf "$MOD/cue_lib"
+cp -r "$ROOT/cue_lib" "$MOD/cue_lib"
+find "$MOD/cue_lib" -name '*.rpyc' -delete
 
 # Point saves + persistent at the per-run game/saves dir.  Without --savedir,
 # save_directory sends persistent to the user-data dir (~/.renpy/...), which
@@ -167,17 +174,122 @@ if [ "$DSL" = "legacy" ]; then
     if [ -z "$NAMES" ]; then
         NAMES=$(grep '^testcase ' "$TEMPLATES/testcases_legacy.rpy" | sed 's/^testcase //; s/:.*//')
     fi
+    [ -n "$NAMES" ] || { echo "[cue] no legacy testcases found" >&2; exit 2; }
 
-    rc=0
-    for name in $NAMES; do
-        echo "[cue] running testcase: $name"
-        rm -f "$MOD/debug.log"
-        if ! timeout "$CUE_ENGINE_TIMEOUT" $RUN_PREFIX "$LAUNCHER" --savedir "$SAVEDIR" "$GAME" test "$name"; then
-            echo "[cue] testcase FAILED: $name" >&2
-            if [ -f "$MOD/debug.log" ]; then
-                echo "[cue] renpy_cue/debug.log:" >&2
-                cat "$MOD/debug.log" >&2
+    # --- Parallel workers ----------------------------------------------------
+    # Each worker runs a slice of the suite in its own isolated GAME/DATA/saves
+    # tree (concurrent engine processes can't share mutable state) against one
+    # shared Xvfb display instead of a fresh server per boot. Workers=1 is the
+    # old sequential behavior. CUE_LEGACY_WORKERS overrides the default.
+    WORKERS="${CUE_LEGACY_WORKERS:-4}"
+    case "$WORKERS" in
+        *[!0-9]*|0) WORKERS=4 ;;
+    esac
+    [ "$WORKERS" -gt 8 ] && WORKERS=8
+
+    # Shared Xvfb for parallel local runs. CI already wraps the invocation in
+    # xvfb-run (DISPLAY inherited); workers=1 keeps the per-boot xvfb-run.
+    if [ "$WORKERS" -gt 1 ] && [ "$HEADLESS" = "1" ] && [ -z "${CI:-}" ]; then
+        if command -v Xvfb >/dev/null 2>&1; then
+            export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-dummy}"
+            _d=99
+            while [ -e "/tmp/.X${_d}-lock" ]; do
+                _d=$((_d + 1))
+                if [ "$_d" -ge 150 ]; then
+                    echo "[cue] no free Xvfb display in 99-149" >&2
+                    exit 2
+                fi
+            done
+            Xvfb ":$((_d))" -screen 0 1280x800x24 >/dev/null 2>&1 &
+            XVPID=$!
+            export DISPLAY=":$((_d))"
+            # Xvfb creates its lock/socket asynchronously -- wait for it so the
+            # first engine's SDL connect doesn't race the server startup.
+            _t=0
+            while [ ! -e "/tmp/.X${_d}-lock" ]; do
+                if ! kill -0 "$XVPID" 2>/dev/null; then
+                    echo "[cue] Xvfb failed to start on :$((_d))" >&2
+                    exit 2
+                fi
+                _t=$((_t + 1))
+                [ "$_t" -ge 10 ] && break
+                sleep 1
+            done
+            RUN_PREFIX=""
+            echo "[cue] legacy: ${WORKERS} workers on shared Xvfb :$((_d))"
+        else
+            echo "[cue] parallel legacy needs Xvfb (install xvfb) -- running sequential" >&2
+            WORKERS=1
+        fi
+    fi
+
+    # One isolated tree + one slice of the suite per worker. Runs in a subshell
+    # (backgrounded), so its globals/traps don't touch the parent.
+    _run_legacy_worker() {
+        _w="$1"
+        _slice="$2"
+        _run="$3"
+        WGAME="$(mktemp -d "${TMPDIR:-/tmp}/cue_legacy_${_w}.XXXXXX")"
+        WDATA="$(mktemp -d "${TMPDIR:-/tmp}/cue_legdata_${_w}.XXXXXX")"
+        trap 'rm -rf "$WGAME" "$WDATA"' EXIT
+        # Seed from the main path's already-prepared /tmp trees: cue_lib is a
+        # real copy there, and /tmp avoids the concurrent-read race on the slow
+        # Windows-mounted source FS that intermittently corrupts .rpy parses.
+        cp -r "$GAME/." "$WGAME/"
+        cp -r "$DATA/." "$WDATA/"
+        # Dirty fixture sources (prior runs leave data/backups/video residue) must
+        # not seed the run; CueDatabase.open() recreates these at init.
+        rm -rf "$WDATA/data" "$WDATA/backups" "$WDATA/video"
+        rm -rf "$WGAME/game/saves"
+        export RENPY_CUE_DIR="$WDATA"
+        cp "$TEMPLATES/testcases_legacy.rpy" "$WGAME/game/testcases.rpy"
+        rm -f "$WGAME/game"/*.rpyc
+        # The mod's debug log appends -- a fresh run must start empty.
+        WMODE="$WGAME/game/renpy_cue"
+        mkdir -p "$WMODE"
+        rm -f "$WMODE/debug.log"
+        # cue_lib arrives via the "$GAME" copy (a real dir, rpyc already cleared);
+        # just in case the source was polluted, drop any stray compiles.
+        find "$WMODE/cue_lib" -name '*.rpyc' -delete 2>/dev/null || true
+        WSAVEDIR="$WGAME/game/saves"
+        rc=0
+        for _name in $_slice; do
+            echo "[cue] running testcase: $_name (worker $_w)"
+            rm -f "$WMODE/debug.log"
+            if ! timeout "$CUE_ENGINE_TIMEOUT" $_run "$LAUNCHER" --savedir "$WSAVEDIR" "$WGAME" test "$_name"; then
+                echo "[cue] worker $_w testcase FAILED: $_name" >&2
+                if [ -f "$WMODE/debug.log" ]; then
+                    echo "[cue] worker $_w renpy_cue/debug.log:" >&2
+                    cat "$WMODE/debug.log" >&2
+                fi
+                rc=1
             fi
+        done
+        return "$rc"
+    }
+
+    # Round-robin the names across workers: each worker's slice keeps suite order
+    # internally, and the boot-heavy cases overlap across workers.
+    rc=0
+    _pids=""
+    w=1
+    while [ "$w" -le "$WORKERS" ]; do
+        _slice=""
+        _i=0
+        for name in $NAMES; do
+            _i=$((_i + 1))
+            if [ $((_i % WORKERS)) -eq $((w - 1)) ]; then
+                _slice="$_slice $name"
+            fi
+        done
+        if [ -n "$_slice" ]; then
+            _run_legacy_worker "$w" "$_slice" "$RUN_PREFIX" &
+            _pids="$_pids $!"
+        fi
+        w=$((w + 1))
+    done
+    for _p in $_pids; do
+        if ! wait "$_p"; then
             rc=1
         fi
     done
