@@ -41,7 +41,7 @@ class CueVideoEditorState(object):
     """Editing state for a single video file."""
     def __init__(self, vpath):
         self.vpath = vpath
-        self.factor_text = "1.00"
+        self.factor_text = "1.1"
         self.last_error = ""
 
 
@@ -331,7 +331,11 @@ class CueVideoEditor(object):
             _cue_log("EDITOR-FACTOR: parse failed for '{}'".format(self.factor_text))
             factor = 1.0
         factor = max(self.SPEED_MIN, min(self.SPEED_MAX, factor))
-        if abs(factor - 1.0) < 0.05 and self.encode_mode != self.MODE_INTERPOLATE:
+        # Match the {:.1f} filename/label granularity so the encoded speed
+        # equals the speed parsed back from the file name (1.08 -> 1.1x).
+        factor = float("{:.1f}".format(factor))
+        self.factor_text = "{:.1f}".format(factor)
+        if factor == 1.0:
             self.last_error = "Speed is already 1.00x."
             return
         self.create(factor)
@@ -386,6 +390,7 @@ class CueVideoEditor(object):
             _cue_log("EDITOR-FACTOR: parse failed for '{}'".format(self.factor_text))
             factor = 1.0
         factor = max(self.SPEED_MIN, min(self.SPEED_MAX, factor))
+        factor = float("{:.1f}".format(factor))
         self.create(factor)
 
     @_cue_ui_refresh

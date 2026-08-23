@@ -929,7 +929,9 @@ testcase click_create_tab_opens_editor:
     pause 2.0
     $ renpy.show("cuevid")
     pause 1.0
-    $ _ok = not _cue.video_editor.active
+    # The click below is what selects Create; assert the tab starts inactive
+    # without carrying store state across the click (a rollback wipes it).
+    $ if _cue.video_editor.active: renpy.quit(status=1)
     # Real mouse click on the Video VFX "Create" tab. Regression: the marker
     # timeline's MOUSEBUTTONUP handler once raised IgnoreEvent() on every
     # release (even over sibling buttons), which swallowed the button's
@@ -940,8 +942,7 @@ testcase click_create_tab_opens_editor:
     $ _pos = _testfocus.find_position(_focus, (None, None))
     $ _testmouse.click_mouse(1, _pos[0], _pos[1])
     pause 0.5
-    $ _ok = _ok and _cue.video_editor.active
-    $ if not _ok: renpy.quit(status=1)
+    $ if not _cue.video_editor.active: renpy.quit(status=1)
     $ renpy.quit()
 
 testcase video_queue_error_msg_substitute_guard:

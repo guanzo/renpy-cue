@@ -45,6 +45,7 @@ CUE_ICON_MAP = {
     "chevron-right": ("chevron-right-solid.png", False),
     "chevron-up": ("chevron-up-solid.png", False),
     "circle": ("circle-solid.png", False),
+    "circle-check": ("circle-check-solid.png", False),
     "circle-outline": ("circle-regular.png", False),
     "circle-question": ("circle-question-regular.png", False),
     "circle-xmark": ("circle-xmark-solid.png", False),

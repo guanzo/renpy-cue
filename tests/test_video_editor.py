@@ -980,7 +980,7 @@ def test_swap_job_failure_retries(ve, tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_editor_factor_text_dummy(ve):
-    assert ve.factor_text == "1.00"  # no current -> dummy state
+    assert ve.factor_text == "1.1"  # no current -> dummy state, default 1.1x
 
 
 def test_editor_factor_text_roundtrip(ve):
@@ -1238,6 +1238,31 @@ def test_editor_prepare_create_success(ve, tmp_path, fthread):
     assert job.encode_mode == CUE_VE_MODE_INTERPOLATE  # editor default
 
 
+def test_editor_prepare_create_normalizes_factor(ve, tmp_path, fthread):
+    # A typed sub-decimal factor rounds to tenths so the encoded speed
+    # matches the {:.1f}x filename label (1.08 -> 1.1x, not a 1.08x encode
+    # stored as "1.1x").
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve._ready = True
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.factor_text = "1.08"
+    ve.prepare_create()
+    assert len(ve.job_queue.jobs) == 1
+    assert ve.job_queue.jobs[0].factor == 1.1
+    assert ve.factor_text == "1.1"
+
+
+def test_editor_prepare_create_subdecimal_rounds_to_one(ve, tmp_path):
+    # 1.04 rounds to 1.0, which the Create guard rejects.
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve._ready = True
+    ve._current = ve._ensure_state("movies/scene.webm")
+    ve.factor_text = "1.04"
+    ve.prepare_create()
+    assert ve.last_error == "Speed is already 1.00x."
+    assert len(ve.job_queue.jobs) == 0
+
+
 def test_editor_create_no_fs(ve):
     ve._vid_manager._vpath = ""
     ve._current = ve._ensure_state("movies/scene.webm")
@@ -1346,14 +1371,15 @@ def test_editor_warm_tools_error(ve, monkeypatch):
     assert ve._warm_cache_error == "encoders unavailable"
 
 
-def test_editor_prepare_create_bad_factor(ve, tmp_path, fthread):
+def test_editor_prepare_create_bad_factor(ve, tmp_path):
+    # A non-numeric factor falls back to 1.0, which the Create guard rejects.
     write_file(tmp_path / "movies" / "scene.webm", b"v")
     ve._ready = True
     ve._current = ve._ensure_state("movies/scene.webm")
     ve.factor_text = "abc"
     ve.prepare_create()
-    assert len(ve.job_queue.jobs) == 1
-    assert ve.job_queue.jobs[0].factor == 1.0
+    assert ve.last_error == "Speed is already 1.00x."
+    assert len(ve.job_queue.jobs) == 0
 
 
 def test_poll_extract_prereq_error_after_extract(ve, tmp_path, monkeypatch):

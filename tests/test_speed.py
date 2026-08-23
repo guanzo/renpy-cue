@@ -14,6 +14,7 @@ import types
 
 import pytest
 
+import renpy
 import renpy.config as _config
 import renpy.audio.music as _music_mock
 import renpy.audio.audio as _audio_mock
@@ -614,6 +615,19 @@ def test_tick_wrap_around_resets_step(env):
     _set_movie(env, env.base_fs, pos=0.05)  # wrapped: elapsed dropped
     env.seq.tick()
     assert env.seq._step_index == 0
+
+
+def test_tick_restarts_interaction_on_step_change(env, monkeypatch):
+    calls = []
+    monkeypatch.setattr(renpy, "restart_interaction", lambda *a, **k: calls.append(1))
+    variants = _started_seq(env)  # start() restarts too; zero the counter
+    calls[:] = []
+    _set_movie(env, env.base_fs)
+    env.seq.tick()               # same file again -> no step change, no restart
+    assert calls == []
+    _set_movie(env, variants[1.5])
+    env.seq.tick()               # identity change -> step 0->1 -> restart
+    assert calls == [1]
 
 
 def test_tick_noop_when_inactive(env):

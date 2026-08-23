@@ -68,7 +68,6 @@ screen cue_keybinds():
 
                 hbox:
                     spacing 8
-                    xsize 150
                     use cue_txt_button(
                         _label,
                         Function(_cue_keybind_start, _kb["id"]),

@@ -587,8 +587,6 @@ class CueTriggerEngine(object):
             ts_key = "{}@{:.3f}#{}".format(vid_key, t, count)
 
             if ts_key in self.played_video_keys:
-                if ts_key not in self._vid_skip_logged:
-                    self._vid_skip_logged.add(ts_key)
                 continue
 
             if not _cue_marker_reached(t, effective_elapsed, prev_eff, marker_tolerance):

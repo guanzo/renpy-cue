@@ -911,6 +911,10 @@ class CueVidSpeedSequence(object):
                     else:
                         self._step_index = new_index
             self.play_count += 1
+            if self._step_index != _old_step:
+                # A new speed is current; refresh screens so `$`-computed
+                # readouts (intensity level, current-speed highlight) follow.
+                renpy.restart_interaction()
 
             # _cue_log(
             #     "VQ-PLAY #{} step={}->{} wrap={} file={}".format(
