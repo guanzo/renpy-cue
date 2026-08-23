@@ -203,6 +203,41 @@ def test_video_level_empty_pools_is_none(cue_env):
 
 
 # ==========================================================================
+# video_active -- lightweight "intensity is live" predicate (UI indicator)
+# ==========================================================================
+
+def test_video_active_hooked_two_variants_is_true(cue_env):
+    m = _two_level(cue_env)
+    assert m.video_active([["soft/"]], [0.7, 1.0, 1.3]) is True
+    # Any hooked pool qualifies, like video_level's first-hook scan.
+    assert m.video_active([["plain.ogg"], ["hard/"]], [0.7, 1.0, 1.3]) is True
+
+
+def test_video_active_toggle_off_is_false(cue_env):
+    m = _two_level(cue_env)
+    flags = CueIntensityFlags(enabled=False)
+    assert m.video_active([["soft/"]], [0.7, 1.0, 1.3], flags) is False
+
+
+def test_video_active_fewer_than_two_variants_is_false(cue_env):
+    m = _two_level(cue_env)
+    assert m.video_active([["soft/"]], [1.0]) is False
+    assert m.video_active([["soft/"]], []) is False
+    assert m.video_active([["soft/"]], None) is False
+
+
+def test_video_active_unhooked_pool_is_false(cue_env):
+    m = _two_level(cue_env)
+    assert m.video_active([["plain.ogg"]], [0.7, 1.0, 1.3]) is False
+    assert m.video_active([[]], [0.7, 1.0, 1.3]) is False
+
+
+def test_video_active_no_pools_is_false(cue_env):
+    m = _two_level(cue_env)
+    assert m.video_active([], [0.7, 1.0, 1.3]) is False
+
+
+# ==========================================================================
 # Per-video toggles (slice 4) -- CueIntensityFlags + flags_from_entry
 # ==========================================================================
 

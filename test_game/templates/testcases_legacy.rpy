@@ -746,6 +746,33 @@ testcase video_sfx_timeline_seeded:
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
+testcase video_marker_timeline_drag_survives_restart:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ renpy.show("cuevid")
+    pause 1.0
+    # Seed a marker so the SFX page renders the draggable timeline.
+    $ _cue.markers.video.add_pool()
+    pause 0.5
+    # The timeline is a class singleton, so drag/hover state set on it must
+    # survive the timer-fired restart_interaction that re-runs the screen
+    # body.  An inline-constructed timeline would be a fresh object after the
+    # restart, wiping the state -- the regression this guards.
+    $ _tl = CueVideoMarkerTimeline.get_timeline()
+    $ _tl._drag_idx = 0
+    $ _tl._drag_on = True
+    $ _tl._tip_text = "Pool 1 (00:01.00)"
+    $ renpy.restart_interaction()
+    pause 0.3
+    $ _tl2 = CueVideoMarkerTimeline.get_timeline()
+    $ _ok = _tl2 is _tl
+    $ _ok = _ok and _tl2._drag_idx == 0
+    $ _ok = _ok and _tl2._drag_on
+    $ _ok = _ok and _tl2._tip_text == "Pool 1 (00:01.00)"
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
 testcase video_multi_edit_fans_out:
     $ _cue.is_overlay_visible = True
     run Jump("start")
@@ -916,11 +943,41 @@ testcase video_speed_variant_created:
             _time.sleep(0.1)
         _base = _cue.speed_resolver.base_path_for(_cue.current_file)
         _variant = _cue.speed_resolver.variant_path(_base, 1.5)
+        # base_path_for returns a game-relative vpath; variant_path(base, 1.0)
+        # resolves it to a real fs path so ffprobe (which runs from the harness
+        # CWD, not gamedir) can open it.
+        _base_fs = _cue.speed_resolver.variant_path(_base, 1.0)
+        _ff = _cue.video_editor._ffmpeg
+        _dur_base = _ff.probe_duration(_base_fs)
+        _dur_var = _ff.probe_duration(_variant)
         _ok = not _queue.processing
         _ok = _ok and bool(_base)
         _ok = _ok and _os.path.exists(_variant)
         _ok = _ok and (1.5 in _cue.speed_resolver.get_available_speeds(_base))
+        # The real encode output is correct: duration scales by 1/factor, and
+        # the default remove_audio=True strips the (present) audio track.
+        _ok = _ok and _dur_base > 0
+        _ok = _ok and abs(_dur_var - _dur_base / 1.5) < 0.3
+        _ok = _ok and _ff.probe_has_audio(_base_fs) is True
+        _ok = _ok and _ff.probe_has_audio(_variant) is False
     $ if not _ok: renpy.quit(status=1)
+    # remove_audio=False keeps the audio track on the next variant.
+    $ _cue.video_editor.remove_audio = False
+    $ _cue.video_editor.create(2.0)
+    python:
+        import os as _os
+        import time as _time
+        _queue = _cue.video_editor.job_queue
+        _deadline = _time.time() + 30.0
+        while _queue.processing and _time.time() < _deadline:
+            _queue.poll()
+            _time.sleep(0.1)
+        _variant2 = _cue.speed_resolver.variant_path(_base, 2.0)
+        _ok2 = not _queue.processing
+        _ok2 = _ok2 and _os.path.exists(_variant2)
+        _ok2 = _ok2 and _cue.video_editor._ffmpeg.probe_has_audio(_variant2) is True
+        _cue.video_editor.remove_audio = True
+    $ if not _ok2: renpy.quit(status=1)
     $ renpy.quit()
 
 testcase click_create_tab_opens_editor:

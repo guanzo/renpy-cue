@@ -264,6 +264,28 @@ def test_probe_fps_divide_by_zero_defaults(ff, patch_popen):
     assert ff.probe_fps("mov.mp4") == 30
 
 
+def test_probe_duration(ff, patch_popen):
+    patch_popen(FakeProc(out_bytes=b"2.000000\n"))
+    assert ff.probe_duration("mov.mp4") == 2.0
+
+
+def test_probe_duration_no_ffprobe_zero(ff, monkeypatch):
+    monkeypatch.setattr(ff, "ffprobe_available", lambda: False)
+    assert ff.probe_duration("mov.mp4") == 0.0
+
+
+def test_probe_duration_bad_output_zero(ff, patch_popen):
+    patch_popen(FakeProc(out_bytes=b"not-a-number\n"))
+    assert ff.probe_duration("mov.mp4") == 0.0
+
+
+def test_probe_duration_timeout_raises(ff, patch_popen, monkeypatch):
+    monkeypatch.setattr(_ffmpeg_mod, "CUE_SUBPROC_TIMEOUT", 0.05)
+    patch_popen(FakeProc(timeout_error=True))
+    with pytest.raises(_ffmpeg_mod.CueSubprocessTimeout):
+        ff.probe_duration("mov.mp4")
+
+
 def test_probe_bitrate_stream(ff, patch_popen):
     patch_popen(FakeProc(out_bytes=b"6000000\n"))
     assert ff.probe_bitrate("mov.mp4") == "6000k"

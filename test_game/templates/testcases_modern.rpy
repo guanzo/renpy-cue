@@ -599,6 +599,30 @@ testcase video_sfx_timeline_seeded:
     assert eval (len(_cue.markers.video.get_markers()) >= 1)
     assert eval (0 <= _cue.markers.video.active_pool < len(_cue.markers.video.get_markers()))
 
+testcase video_marker_timeline_drag_survives_restart:
+    run Jump("start")
+    $ renpy.show("cuevid")
+    pause 1.0
+    # Seed a marker so the SFX page renders the draggable timeline.
+    $ _cue.markers.video.add_pool()
+    pause 0.5
+    # The class-level get_timeline() returns the singleton displayable, so
+    # drag/hover state set on it must survive the timer-fired
+    # restart_interaction that re-runs the screen body.  An inline-constructed
+    # timeline would be a fresh object after the restart, wiping the state --
+    # the regression this guards.
+    $ _tl = CueVideoMarkerTimeline.get_timeline()
+    $ _tl._drag_idx = 0
+    $ _tl._drag_on = True
+    $ _tl._tip_text = "Pool 1 (00:01.00)"
+    $ renpy.restart_interaction()
+    pause 0.3
+    $ _tl2 = CueVideoMarkerTimeline.get_timeline()
+    assert eval (_tl2 is _tl)
+    assert eval (_tl2._drag_idx == 0)
+    assert eval (_tl2._drag_on)
+    assert eval (_tl2._tip_text == "Pool 1 (00:01.00)")
+
 testcase video_multi_edit_fans_out:
     run Jump("start")
     $ renpy.show("cuevid")
@@ -734,10 +758,31 @@ testcase video_speed_variant_created:
     pause 0.1 until eval (not _cue.video_editor.job_queue.processing) timeout 30.0
     $ _base = _cue.speed_resolver.base_path_for(_cue.current_file)
     $ _variant = _cue.speed_resolver.variant_path(_base, 1.5)
+    # base_path_for returns a game-relative vpath; variant_path(base, 1.0)
+    # resolves it to a real fs path so ffprobe (which runs from the harness
+    # CWD, not gamedir) can open it.
+    $ _base_fs = _cue.speed_resolver.variant_path(_base, 1.0)
+    $ _ff = _cue.video_editor._ffmpeg
+    $ _dur_base = _ff.probe_duration(_base_fs)
+    $ _dur_var = _ff.probe_duration(_variant)
     $ import os as _os
     assert eval (_base is not None)
     assert eval (_os.path.exists(_variant))
     assert eval (1.5 in _cue.speed_resolver.get_available_speeds(_base))
+    # The real encode output is correct: duration scales by 1/factor, and the
+    # default remove_audio=True strips the (present) audio track.
+    assert eval (_dur_base > 0)
+    assert eval (abs(_dur_var - _dur_base / 1.5) < 0.3)
+    assert eval (_ff.probe_has_audio(_base_fs) is True)
+    assert eval (_ff.probe_has_audio(_variant) is False)
+    # remove_audio=False keeps the audio track on the next variant.
+    $ _cue.video_editor.remove_audio = False
+    $ _cue.video_editor.create(2.0)
+    pause 0.1 until eval (not _cue.video_editor.job_queue.processing) timeout 30.0
+    $ _variant2 = _cue.speed_resolver.variant_path(_base, 2.0)
+    assert eval (_os.path.exists(_variant2))
+    assert eval (_ff.probe_has_audio(_variant2) is True)
+    $ _cue.video_editor.remove_audio = True
 
 testcase click_create_tab_opens_editor:
     run Jump("start")

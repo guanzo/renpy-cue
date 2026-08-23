@@ -402,6 +402,32 @@ class CueFFmpeg(object):
             _cue_log("FFMPEG-FPS: probe failed for {}, defaulting to 30".format(fspath))
         return 30
 
+    def probe_duration(self, fspath):
+        # type: (str) -> float
+        """Probe a media file's duration in seconds. Returns 0.0 on failure
+        so validation callers fail loudly instead of guessing."""
+        if not self.ffprobe_available():
+            return 0.0
+        try:
+            p = subprocess.Popen(
+                [self._ffprobe_path, "-v", "error",
+                 "-show_entries", "format=duration",
+                 "-of", "default=noprint_wrappers=1:nokey=1",
+                 fspath],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                creationflags=CREATIONFLAGS,
+            )
+            out, _ = _cue_run_proc(p)
+            if isinstance(out, bytes):
+                out = out.decode("utf-8", errors="replace")
+            return float(out.strip())
+        except CueSubprocessTimeout:
+            raise
+        except Exception:
+            _cue_log("FFMPEG-DURATION: probe failed for {}, assuming 0".format(fspath))
+        return 0.0
+
     def probe_bitrate(self, fspath):
         # type: (str) -> Optional[str]
         """Probe the source video bitrate for quality matching.
