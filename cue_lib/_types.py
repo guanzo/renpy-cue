@@ -57,20 +57,32 @@ class VideoPoolDict(TypedDict):
 # Marker entry -- the top-level value in the markers dict
 # =========================================================================
 
+class AutoSpeedDict(TypedDict, total=False):
+    """Nested per-video auto-speed selection (preset + shuffle toggle)."""
+    active_preset: str
+    is_shuffle_mode: bool
+
+
+class IntensityDict(TypedDict, total=False):
+    """Nested per-video intensity toggles; absent keys read as on."""
+    enabled: bool
+    sfx_levels: bool
+    volume: bool
+    frequency: bool
+
+
 class MarkerEntry(TypedDict, total=False):
     """Returned by CueMarkerManager.get()."""
     pools: List[PoolDict]
     volume: float               # entry-level master volume (default 1.0)
     video_file_muted: bool      # video audio track muted
     replay: str                 # replay label
-    speed_pref: float           # per-video speed preference
-    speed_sequence: List[float] # per-video speed sequence
-    speed_mode: str             # "single" or "multi"
+    single_speed_pref: float    # per-video single-mode speed preference
+    multi_speed_sequence: List[float]  # per-video custom multi-mode sequence
+    speed_mode: str             # "single", "multi", or "auto"
     disabled_auto_speeds: List[float]  # speeds toggled off in auto-speed
-    intensity_enabled: bool     # per-video intensity master toggle (default on)
-    intensity_sfx_levels: bool  # sub-toggle: level folder vs the pool's own folders
-    intensity_volume: bool      # sub-toggle: apply the level volume multiplier
-    intensity_frequency: bool   # sub-toggle: apply the level frequency multiplier
+    auto_speed: AutoSpeedDict   # nested auto-speed preset + shuffle selection
+    intensity: IntensityDict    # nested intensity toggles
     music: List[str]            # user-added songs only; default lives in the trigger log.
                                 # My Music files are stored relative to the My Music dir;
                                 # game-music files are stored game-relative.

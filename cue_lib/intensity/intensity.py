@@ -277,11 +277,12 @@ class CueIntensityManager(object):
         pools still resolve -- the toggle lives on the video marker entry)."""
         if entry is None:
             return CueIntensityFlags()
+        flags = entry.get("intensity", {})
         return CueIntensityFlags(
-            enabled=entry.get("intensity_enabled", True),
-            sfx_levels=entry.get("intensity_sfx_levels", True),
-            volume=entry.get("intensity_volume", True),
-            frequency=entry.get("intensity_frequency", True))
+            enabled=flags.get("enabled", True),
+            sfx_levels=flags.get("sfx_levels", True),
+            volume=flags.get("volume", True),
+            frequency=flags.get("frequency", True))
 
     def level_folder(self, name, level):
         # type: (str, int) -> Optional[str]

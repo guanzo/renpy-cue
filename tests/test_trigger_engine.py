@@ -721,7 +721,7 @@ def test_fire_context_no_video_no_scale(cue_env, monkeypatch, play_full):
 def test_tick_loop_master_off_plays_pool_folder(cue_env, monkeypatch, play_full):
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
     store = FakeMarkerStore({
-        "v_scene.ogv": {"pools": [{"files": ["soft/"]}], "intensity_enabled": False},
+        "v_scene.ogv": {"pools": [{"files": ["soft/"]}], "intensity": {"enabled": False}},
         "l_scene.ogv": {"pools": [{"files": ["soft/"], "frequency": CueLoopFrequency.MEDIUM}]}})
     eng = _igroup_engine(cue_env, monkeypatch, store)
     # Master off -> the pool plays its own folder plainly, unscaled.
@@ -732,7 +732,7 @@ def test_tick_loop_master_off_plays_pool_folder(cue_env, monkeypatch, play_full)
 def test_tick_loop_sfx_levels_off_keeps_scaling(cue_env, monkeypatch, play_full):
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
     store = FakeMarkerStore({
-        "v_scene.ogv": {"pools": [{"files": ["soft/"]}], "intensity_sfx_levels": False},
+        "v_scene.ogv": {"pools": [{"files": ["soft/"]}], "intensity": {"sfx_levels": False}},
         "l_scene.ogv": {"pools": [{"files": ["soft/"], "frequency": CueLoopFrequency.MEDIUM}]}})
     eng = _igroup_engine(cue_env, monkeypatch, store)
     # sfx_levels off -> the pool's own folder plays, but the level still
@@ -743,7 +743,7 @@ def test_tick_loop_sfx_levels_off_keeps_scaling(cue_env, monkeypatch, play_full)
 
 def test_tick_video_volume_off_unscaled(cue_env, monkeypatch, play_full):
     store = FakeMarkerStore({"v_scene.ogv": {"pools": [{"files": ["soft/"]}],
-                                              "intensity_volume": False}})
+                                              "intensity": {"volume": False}}})
     markers = FakeMarkers(markers=[{"time": 0.0, "files": ["soft/"]}])
     eng = _igroup_engine(cue_env, monkeypatch, store, markers=markers)
     eng._tick_video("scene.ogv", "movie", 1.3, [0.7, 1.0, 1.3])
@@ -753,7 +753,7 @@ def test_tick_video_volume_off_unscaled(cue_env, monkeypatch, play_full):
 
 def test_fire_context_master_off_unscaled(cue_env, monkeypatch, play_full):
     store = FakeMarkerStore({
-        "v_scene.ogv": {"pools": [{"files": ["soft/"]}], "intensity_enabled": False},
+        "v_scene.ogv": {"pools": [{"files": ["soft/"]}], "intensity": {"enabled": False}},
         "d_scene.ogv__hi": {"pools": [{"files": ["plain.ogg"]}]}})
     eng = _igroup_engine(cue_env, monkeypatch, store)
     # Dialogue one-shot during the video: master off -> no global scale.

@@ -22,7 +22,7 @@ from cue_lib.util import create_vid_key, _cue_log, _cue_speed_label
 
 MYPY = False
 if MYPY:
-    from typing import List
+    from typing import List, Optional
     from cue_lib.marker_store import CueMarkerStore  # pyright: ignore[reportUnusedImport]
     from cue_lib.video.speed import CueVidSpeedResolver, CueVidSpeedSequence  # pyright: ignore[reportUnusedImport]
     from cue_lib.video.video import CueVideoManager  # pyright: ignore[reportUnusedImport]
@@ -196,6 +196,7 @@ class CueAutoSpeedGenerator(object):
         elif preset_name in self.shuffle_pool:
             self.active_preset = preset_name
             self.is_shuffle_mode = False
+            self._save_preset(self._ctx.current_file)
             self._regenerate()
             renpy.restart_interaction()
 
@@ -203,8 +204,40 @@ class CueAutoSpeedGenerator(object):
         """Pick a random preset from the pool and regenerate."""
         self.is_shuffle_mode = True
         self.active_preset = _random.choice(self.shuffle_pool)
+        self._save_preset(self._ctx.current_file)
         self._regenerate()
         renpy.restart_interaction()
+
+    def load_preset(self, tag):
+        # type: (Optional[str]) -> None
+        """Restore a video's stored auto-speed preset from its marker entry.
+
+        Videos with no stored preset reset to the defaults, so switching
+        videos doesn't leak one video's selection into another.  Called when
+        a video enters AUTO mode (start_auto)."""
+        preset = "roller_coaster"
+        shuffle = False
+        if tag and self._store is not None:
+            entry = self._store.get(create_vid_key(tag))
+            if entry is not None:
+                auto = entry.get("auto_speed", {})
+                preset = auto.get("active_preset", preset)
+                shuffle = auto.get("is_shuffle_mode", shuffle)
+        self.active_preset = preset
+        self.is_shuffle_mode = shuffle
+
+    def _save_preset(self, tag):
+        # type: (Optional[str]) -> None
+        """Persist the current preset selection in the video's marker entry."""
+        if not tag or self._store is None:
+            return
+        entry = self._store.get(create_vid_key(tag))
+        if entry is None:
+            return
+        auto = entry.setdefault("auto_speed", {})
+        auto["active_preset"] = self.active_preset
+        auto["is_shuffle_mode"] = self.is_shuffle_mode
+        self._store.save_marker(create_vid_key(tag))
 
     def _get_disabled(self):
         # type: () -> set
@@ -1079,9 +1112,8 @@ class CueAutoSpeedGenerator(object):
 
         self._video_duration = self._vid_manager.get_duration()
         new_seq = self.generate(speeds)
-        entry = self._store._get_or_create_entry(create_vid_key(tag))
-        entry["speed_sequence"] = new_seq
-        self._store.save_marker(create_vid_key(tag))
+        # In-memory only -- never overwrite the stored custom MULTI sequence.
+        self._video_sequence.set_auto_sequence(tag, new_seq)
         self._video_sequence.start(tag)
 
     def on_wrap_around(self):
@@ -1097,10 +1129,10 @@ class CueAutoSpeedGenerator(object):
         # Shuffle mode: pick a new random preset each loop
         if self.is_shuffle_mode:
             self.active_preset = _random.choice(self.shuffle_pool)
+            self._save_preset(tag)
 
         self._video_duration = self._vid_manager.get_duration()
         new_seq = self.generate(speeds)
-        entry = self._store._get_or_create_entry(create_vid_key(tag))
-        entry["speed_sequence"] = new_seq
-        self._store.save_marker(create_vid_key(tag))
+        # In-memory only -- never overwrite the stored custom MULTI sequence.
+        self._video_sequence.set_auto_sequence(tag, new_seq)
         self._video_sequence.start(tag)

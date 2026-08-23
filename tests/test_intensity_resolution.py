@@ -217,10 +217,12 @@ def test_flags_from_entry_defaults_all_on(cue_env):
 def test_flags_from_entry_reads_fields(cue_env):
     m = CueIntensityManager(cue_env.db)
     f = m.flags_from_entry({
-        "intensity_enabled": False,
-        "intensity_sfx_levels": False,
-        "intensity_volume": False,
-        "intensity_frequency": False,
+        "intensity": {
+            "enabled": False,
+            "sfx_levels": False,
+            "volume": False,
+            "frequency": False,
+        },
     })
     assert (f.enabled, f.sfx_levels, f.volume, f.frequency) == (False, False, False, False)
 

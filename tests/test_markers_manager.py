@@ -570,8 +570,8 @@ def test_copy_context_whitelists_entry_keys(mgr):
         "pools": [{"time": 1.0, "files": ["a.ogg"]}],
         "volume": 0.8,
         "video_file_muted": True,
-        "speed_pref": 2.0,
-        "speed_sequence": [2.0, 1.0],
+        "single_speed_pref": 2.0,
+        "multi_speed_sequence": [2.0, 1.0],
         "speed_mode": "manual",
         "disabled_auto_speeds": [1.0],
         "music": {"path": "bgm.ogg"},
@@ -592,7 +592,7 @@ def test_paste_context_drops_infra_keys(mgr):
     mgr._ctx.current_file = "scene.ogv"
     mgr["v_scene.ogv"] = {
         "pools": [{"time": 1.0, "files": ["a.ogg"]}],
-        "speed_pref": 2.0,
+        "single_speed_pref": 2.0,
         "speed_mode": "manual",
         "music": {"path": "bgm.ogg"},
         "replay": "old_replay",
@@ -603,7 +603,7 @@ def test_paste_context_drops_infra_keys(mgr):
     mgr.paste_context()
     pasted = mgr["v_new.ogv"]
     assert set(pasted.keys()) == {"pools"}
-    assert "speed_pref" not in pasted
+    assert "single_speed_pref" not in pasted
     assert "speed_mode" not in pasted
     assert "music" not in pasted
     assert "replay" not in pasted  # not replaying, so no replay stamp

@@ -1163,27 +1163,27 @@ def test_refresh_context_guard_contains_collaborator_error(isolated_cue, capture
 
 def test_toggle_intensity_flag_no_current_file(cue):
     cue.current_file = ""
-    _runtime._cue_toggle_intensity_flag("intensity_enabled")
+    _runtime._cue_toggle_intensity_flag("enabled")
     assert cue.calls == {}
 
 
 def test_toggle_intensity_flag_no_entry_noop(cue):
     cue.current_file = "scene.ogv"
-    _runtime._cue_toggle_intensity_flag("intensity_enabled")
+    _runtime._cue_toggle_intensity_flag("enabled")
     assert "markers.save_marker" not in cue.calls
 
 
 def test_toggle_intensity_flag_toggles_then_back(cue):
     cue.current_file = "scene.ogv"
-    entry = {"intensity_enabled": True}
+    entry = {"intensity": {"enabled": True}}
     cue.markers.get = (
         lambda key, default=None:
             entry if key == "v_scene.ogv" else default)
-    _runtime._cue_toggle_intensity_flag("intensity_enabled")
-    assert entry["intensity_enabled"] is False
+    _runtime._cue_toggle_intensity_flag("enabled")
+    assert entry["intensity"]["enabled"] is False
     assert cue.calls["markers.save_marker"] == [(("v_scene.ogv",), {})]
-    _runtime._cue_toggle_intensity_flag("intensity_enabled")
-    assert entry["intensity_enabled"] is True
+    _runtime._cue_toggle_intensity_flag("enabled")
+    assert entry["intensity"]["enabled"] is True
 
 
 def test_toggle_intensity_flag_absent_defaults_on(cue):
@@ -1193,7 +1193,7 @@ def test_toggle_intensity_flag_absent_defaults_on(cue):
     cue.markers.get = (
         lambda key, default=None:
             entry if key == "v_scene.ogv" else default)
-    _runtime._cue_toggle_intensity_flag("intensity_volume")
+    _runtime._cue_toggle_intensity_flag("volume")
     # The default is on, so the first toggle flips it off.
-    assert entry["intensity_volume"] is False
-    assert "intensity_frequency" not in entry
+    assert entry["intensity"]["volume"] is False
+    assert "frequency" not in entry["intensity"]

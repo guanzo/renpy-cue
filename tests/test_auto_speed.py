@@ -371,7 +371,8 @@ def test_select_preset_persists_sequence(env):
     assert env.gen.active_preset == "build_up"
     assert env.gen.is_shuffle_mode is False
     entry = env.store.get(create_vid_key(env.tag))
-    seq = entry["speed_sequence"]
+    assert entry is None or "multi_speed_sequence" not in entry
+    seq = env.seq.speeds_for(env.tag)
     assert seq
     assert all(s in env.gen.enabled_speeds for s in seq)
 
@@ -390,12 +391,60 @@ def test_shuffle_picks_from_pool(env):
     assert env.gen.active_preset in env.gen.shuffle_pool
 
 
+def test_select_preset_persists_to_entry(env):
+    _auto_env(env)
+    _random.seed(10)
+    env.gen.select_preset("fast_frenzy")
+    entry = env.store.get(create_vid_key(env.tag))
+    assert entry["auto_speed"]["active_preset"] == "fast_frenzy"
+    assert entry["auto_speed"].get("is_shuffle_mode", False) is False
+
+
+def test_shuffle_persists_to_entry(env):
+    _auto_env(env)
+    _random.seed(11)
+    env.gen.shuffle()
+    entry = env.store.get(create_vid_key(env.tag))
+    assert entry["auto_speed"]["is_shuffle_mode"] is True
+    assert entry["auto_speed"]["active_preset"] == env.gen.active_preset
+
+
+def test_load_preset_restores_stored_selection(env):
+    _auto_env(env)
+    entry = env.store.get(create_vid_key(env.tag))
+    entry.setdefault("auto_speed", {})["active_preset"] = "slow_groove"
+    entry.setdefault("auto_speed", {})["is_shuffle_mode"] = True
+    env.store.save_marker(create_vid_key(env.tag))
+    env.gen.active_preset = "roller_coaster"  # stale from another video
+    env.gen.load_preset(env.tag)
+    assert env.gen.active_preset == "slow_groove"
+    assert env.gen.is_shuffle_mode is True
+
+
+def test_load_preset_defaults_for_unset_video(env):
+    _auto_env(env)
+    env.gen.active_preset = "tease"
+    env.gen.load_preset(env.tag)  # this video has no stored preset
+    assert env.gen.active_preset == "roller_coaster"
+    assert env.gen.is_shuffle_mode is False
+
+
+def test_start_auto_restores_stored_preset(env):
+    _auto_env(env)
+    entry = env.store.get(create_vid_key(env.tag))
+    entry.setdefault("auto_speed", {})["active_preset"] = "cool_down"
+    env.store.save_marker(create_vid_key(env.tag))
+    env.gen.active_preset = "roller_coaster"
+    env.seq.start_auto(env.tag)
+    assert env.gen.active_preset == "cool_down"
+
+
 def test_regenerate_noop_when_not_auto(env):
     _movie_env(env)
     _variants(env, [1.5, 2.0, 2.5, 3.0])
     env.gen.select_preset("build_up")  # mode is SINGLE -> no sequence written
     entry = env.store.get(create_vid_key(env.tag))
-    assert entry is None or "speed_sequence" not in entry
+    assert entry is None or "multi_speed_sequence" not in entry
 
 
 def test_on_wrap_around_regenerates(env):
@@ -403,7 +452,8 @@ def test_on_wrap_around_regenerates(env):
     _random.seed(12)
     env.gen.on_wrap_around()
     entry = env.store.get(create_vid_key(env.tag))
-    assert entry["speed_sequence"]
+    assert entry is None or "multi_speed_sequence" not in entry
+    assert env.seq.speeds_for(env.tag)
     assert env.seq.active_tag == env.tag
 
 
@@ -428,9 +478,9 @@ def test_on_wrap_around_respects_disabled_speeds(env):
     env.gen.toggle_speed(1.5)  # disable 1.5 (5 variants -> allowed)
     _random.seed(14)
     env.gen.on_wrap_around()
-    entry = env.store.get(create_vid_key(env.tag))
-    assert 1.5 not in entry["speed_sequence"]
-    assert all(s in env.gen.enabled_speeds for s in entry["speed_sequence"])
+    seq = env.seq.speeds_for(env.tag)
+    assert 1.5 not in seq
+    assert all(s in env.gen.enabled_speeds for s in seq)
 
 
 # ==========================================================================

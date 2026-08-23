@@ -247,22 +247,22 @@ screen cue_video_vfx():
                         $ _mapping = _cue.intensity.variant_levels(_hook_group, _variants)
                         # --- Per-video toggles ---
                         use cue_checkbox(_flags.enabled, "Intensity",
-                            Function(_cue_toggle_intensity_flag, "intensity_enabled"),
+                            Function(_cue_toggle_intensity_flag, "enabled"),
                             tt_on=("Intensity on: SFX resolve to the intensity group's "
                                 "level as playback speed changes."),
                             tt_off=("Intensity off: this video's pools play exactly as "
                                 "before, ignoring intensity groups."))
                         use cue_checkbox(_flags.sfx_levels, "Use level folders",
-                            Function(_cue_toggle_intensity_flag, "intensity_sfx_levels"),
+                            Function(_cue_toggle_intensity_flag, "sfx_levels"),
                             tt_on=("Each level plays its folder from the intensity group."),
                             tt_off=("The level still drives volume and frequency, but "
                                 "pools play their own files instead of the level folder."))
                         use cue_checkbox(_flags.volume, "Volume scaling",
-                            Function(_cue_toggle_intensity_flag, "intensity_volume"),
+                            Function(_cue_toggle_intensity_flag, "volume"),
                             tt_on=("Volume scales up with the active intensity level."),
                             tt_off=("All levels play at the pool's own volume."))
                         use cue_checkbox(_flags.frequency, "Frequency scaling",
-                            Function(_cue_toggle_intensity_flag, "intensity_frequency"),
+                            Function(_cue_toggle_intensity_flag, "frequency"),
                             tt_on=("Frequency scales with the active intensity level."),
                             tt_off=("All levels play at the pool's own frequency."))
                         # --- Status readout ---

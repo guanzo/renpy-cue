@@ -480,6 +480,21 @@ class CueMarkerStore(object):
             if preset.get("speed_mode") == "sequence":
                 preset["speed_mode"] = "multi"
 
+    def _migrate_marker_keys(self):
+        # type: () -> None
+        """Rename marker keys that predate the single/multi split.
+
+        speed_pref/speed_sequence are migrated because their values matter
+        (single-mode speed, custom multi sequence).  The auto_speed and
+        intensity fields were flattened into the entry; their nested readers
+        default when absent, so old flat values are dropped without migration.
+        """
+        for entry in self._data.values():
+            if "speed_pref" in entry and "single_speed_pref" not in entry:
+                entry["single_speed_pref"] = entry.pop("speed_pref")
+            if "speed_sequence" in entry and "multi_speed_sequence" not in entry:
+                entry["multi_speed_sequence"] = entry.pop("speed_sequence")
+
     def _migrate_video_timestamps_to_pools(self):
         # type: () -> Tuple[int, int]
         entries_changed = 0
@@ -664,4 +679,5 @@ class CueMarkerStore(object):
         self._normalize_all()
         self._migrate_speed_mode_rename()
         self._migrate_legacy_exclusive()
+        self._migrate_marker_keys()
 

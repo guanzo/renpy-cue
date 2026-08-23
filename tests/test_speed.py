@@ -73,6 +73,9 @@ class FakeAutoSpeed(object):
     def on_wrap_around(self):
         self.wrap_calls += 1
 
+    def load_preset(self, tag):
+        pass
+
 
 @pytest.fixture(autouse=True)
 def _clean_state(monkeypatch):
@@ -222,7 +225,7 @@ def test_speed_pref_set_and_read(env):
     assert env.resolver._get_speed_pref(env.tag) == 1.5
     assert env.resolver.speed_for(env.tag) == 1.5
     entry = env.store.get(create_vid_key(env.tag))
-    assert entry["speed_pref"] == 1.5
+    assert entry["single_speed_pref"] == 1.5
 
 
 def test_speed_pref_empty_tag_noop(env):
@@ -319,7 +322,7 @@ def test_sequence_append_speed_persists(env):
     env.ctx.current_file = env.tag
     env.seq.append_speed(1.5)
     assert env.seq.speeds_for(env.tag) == [1.5]
-    assert env.store.get(create_vid_key(env.tag))["speed_sequence"] == [1.5]
+    assert env.store.get(create_vid_key(env.tag))["multi_speed_sequence"] == [1.5]
 
 
 def test_sequence_append_triggers_start_at_min_variants(env):
@@ -369,7 +372,7 @@ def test_sequence_remove_at_empty_clears_key(env):
     env.seq.append_speed(1.0)
     env.seq.remove_at(0)
     entry = env.store.get(create_vid_key(env.tag))
-    assert "speed_sequence" not in entry
+    assert "multi_speed_sequence" not in entry
     assert env.seq.speeds_for(env.tag) is None
 
 
@@ -559,7 +562,7 @@ def test_tick_auto_wrap_calls_on_wrap_around(env):
     variants = _write_variants(env, [1.5])
     entry = env.store._get_or_create_entry(create_vid_key(env.tag))
     entry["speed_mode"] = CueSpeedMode.AUTO
-    entry["speed_sequence"] = [1.0, 1.5]
+    env.seq.set_auto_sequence(env.tag, [1.0, 1.5])  # in-memory, not stored
     _set_movie(env, env.base_fs)
     env.seq.start(env.tag)
     _set_movie(env, env.base_fs)
@@ -588,16 +591,41 @@ def test_start_auto_unbound_falls_back_to_start(env):
     assert env.seq.active_tag == env.tag
 
 
-def test_start_auto_generates_and_saves_sequence(env):
+def test_start_auto_generates_in_memory_not_store(env):
     fake = FakeAutoSpeed([0.5, 1.0, 1.5, 2.0], [1.0, 1.5])
     env.seq.bind(env.resolver, fake)
     env.ctx.current_file = env.tag
     env.resolver.paths[env.tag] = env.base_fs
     _write_variants(env, [1.5])
+    entry = env.store._get_or_create_entry(create_vid_key(env.tag))
+    entry["speed_mode"] = CueSpeedMode.AUTO
     env.seq.start_auto(env.tag)
     entry = env.store.get(create_vid_key(env.tag))
-    assert entry["speed_sequence"] == [1.0, 1.5]
+    assert entry is None or "multi_speed_sequence" not in entry
+    assert env.seq.speeds_for(env.tag) == [1.0, 1.5]
     assert env.seq.active_tag == env.tag
+
+
+def test_auto_mode_does_not_clobber_stored_multi_sequence(env):
+    fake = FakeAutoSpeed([0.5, 1.0, 1.5, 2.0], [1.0, 1.5])
+    env.seq.bind(env.resolver, fake)
+    env.ctx.current_file = env.tag
+    env.resolver.paths[env.tag] = env.base_fs
+    _write_variants(env, [1.5])
+    # User's custom MULTI sequence, persisted in the marker entry.
+    entry = env.store._get_or_create_entry(create_vid_key(env.tag))
+    entry["multi_speed_sequence"] = [0.5, 2.0, 1.0]
+    entry["speed_mode"] = CueSpeedMode.MULTI
+    env.store.save_marker(create_vid_key(env.tag))
+    # Switching to AUTO must not overwrite the stored custom sequence.
+    env.seq.set_mode(CueSpeedMode.AUTO, env.tag)
+    entry = env.store.get(create_vid_key(env.tag))
+    assert entry["speed_mode"] == CueSpeedMode.AUTO
+    assert entry["multi_speed_sequence"] == [0.5, 2.0, 1.0]
+    # AUTO plays from memory; back in MULTI the custom sequence returns.
+    assert env.seq.speeds_for(env.tag) == [1.0, 1.5]
+    env.seq.set_mode(CueSpeedMode.MULTI, env.tag)
+    assert env.seq.speeds_for(env.tag) == [0.5, 2.0, 1.0]
 
 
 def test_start_auto_insufficient_variants_noop(env):
@@ -670,7 +698,7 @@ def test_set_speed_non_seamless_persists_pref(env):
     _seamless_env(env)
     env.resolver.set_speed(1.5)
     entry = env.store.get(create_vid_key(env.tag))
-    assert entry["speed_pref"] == 1.5
+    assert entry["single_speed_pref"] == 1.5
     assert env.resolver._pending_speed is None
 
 
@@ -679,7 +707,7 @@ def test_set_speed_not_movie_noop(env):
     env.ctx.top_layer_type = "image"
     env.resolver.set_speed(1.5)
     entry = env.store.get(create_vid_key(env.tag))
-    assert "speed_pref" not in entry
+    assert "single_speed_pref" not in entry
 
 
 def test_resolve_commits_pending_when_transitioned(env):
@@ -691,7 +719,7 @@ def test_resolve_commits_pending_when_transitioned(env):
     movie, _ = env.resolver.resolve(0, 0, env.tag, env.base_fs, _make_orig(env.base_fs))
     assert env.resolver._pending_speed is None
     assert env.resolver._pre_pending_speed is None
-    assert env.store.get(create_vid_key(env.tag))["speed_pref"] == 1.5
+    assert env.store.get(create_vid_key(env.tag))["single_speed_pref"] == 1.5
     assert movie is env.resolver.children.get(env.tag)
     assert env.toast.toast_duration == CUE_TOAST_DURATION_SEAMLESS
 
@@ -705,20 +733,20 @@ def test_resolve_pending_not_yet_transitioned(env):
     assert env.resolver._pending_speed == 1.5
     assert movie is env.resolver.children.get(env.tag)
     entry = env.store.get(create_vid_key(env.tag))
-    assert entry is None or "speed_pref" not in entry
+    assert entry is None or "single_speed_pref" not in entry
 
 
 def test_resolve_non_seamless_returns_distinct_movies(env):
     _seamless_env(env)
     entry = env.store._get_or_create_entry(create_vid_key(env.tag))
-    entry["speed_pref"] = 1.5
+    entry["single_speed_pref"] = 1.5
     m1 = env.resolver.resolve(0, 0, env.tag, env.base_fs, _make_orig(env.base_fs))[0]
     m1_again = env.resolver.resolve(0, 0, env.tag, env.base_fs, _make_orig(env.base_fs))[0]
     assert m1 is m1_again
     assert m1.play == env.resolver.variant_path(env.base_fs, 1.5)
 
     _write(env.resolver.variant_path(env.base_fs, 2.0))
-    entry["speed_pref"] = 2.0
+    entry["single_speed_pref"] = 2.0
     m2 = env.resolver.resolve(0, 0, env.tag, env.base_fs, _make_orig(env.base_fs))[0]
     m2_again = env.resolver.resolve(0, 0, env.tag, env.base_fs, _make_orig(env.base_fs))[0]
     assert m2 is m2_again
@@ -867,12 +895,12 @@ def test_delete_variant_prunes_sequence(env):
     env.seq.append_speed(1.0)
     env.seq.append_speed(1.5)  # active_tag set, seq [1.0, 1.5]
     env.resolver.delete_variant(env.base_fs, 1.5)
-    assert env.store.get(create_vid_key(env.tag))["speed_sequence"] == [1.0]
+    assert env.store.get(create_vid_key(env.tag))["multi_speed_sequence"] == [1.0]
 
 
 def test_delete_variant_clears_cached_child(env):
     _seamless_env(env)
-    env.store._get_or_create_entry(create_vid_key(env.tag))["speed_pref"] = 1.5
+    env.store._get_or_create_entry(create_vid_key(env.tag))["single_speed_pref"] = 1.5
     env.resolver.resolve(0, 0, env.tag, env.base_fs, _make_orig(env.base_fs))
     assert (env.tag, 1.5) in env.resolver.children
     env.resolver.delete_variant(env.base_fs, 1.5)
@@ -1093,7 +1121,7 @@ def test_resolve_non_seamless_missing_variant_uses_stable(env):
     variants = _seamless_env(env)
     os.remove(variants[1.5])
     entry = env.store._get_or_create_entry(create_vid_key(env.tag))
-    entry["speed_pref"] = 1.5
+    entry["single_speed_pref"] = 1.5
     movie, _ = env.resolver.resolve(0, 0, env.tag, env.base_fs, _make_orig(env.base_fs))
     assert movie is env.resolver.children.get(env.tag)
     assert movie.play == env.base_fs
@@ -1260,7 +1288,7 @@ def test_sequence_move_no_entry_noop(env):
 def test_sequence_move_no_seq_noop(env):
     env.ctx.current_file = env.tag
     entry = env.store._get_or_create_entry(create_vid_key(env.tag))
-    assert "speed_sequence" not in entry
+    assert "multi_speed_sequence" not in entry
     env.seq.move(0, 1)
 
 
@@ -1377,10 +1405,11 @@ def test_sequence_handle_auto_starts_auto(env):
     _write_variants(env, [1.5])
     entry = env.store._get_or_create_entry(create_vid_key(env.tag))
     entry["speed_mode"] = CueSpeedMode.AUTO
-    entry["speed_sequence"] = [1.0, 1.5]
+    # No stored sequence -- AUTO generates into memory on handle.
     env.seq.cancel()
     env.seq.handle(env.tag)
     assert env.seq.active_tag == env.tag
+    assert env.seq.speeds_for(env.tag) == [1.0, 1.5]
 
 
 def test_sequence_handle_stop_failure(env, monkeypatch):
@@ -1434,9 +1463,9 @@ def test_debug_verify_step_guards(env):
     env.seq._debug_verify_step(env.base_fs)       # no active_tag
     env.ctx.current_file = env.tag
     env.seq.active_tag = env.tag
-    env.seq._debug_verify_step(env.base_fs)       # no speed_sequence
+    env.seq._debug_verify_step(env.base_fs)       # no multi_speed_sequence
     entry = env.store._get_or_create_entry(create_vid_key(env.tag))
-    entry["speed_sequence"] = [1.0, 1.5]
+    entry["multi_speed_sequence"] = [1.0, 1.5]
     env.seq._speed_resolver = None
     env.seq._debug_verify_step(env.base_fs)       # resolver None
     env.seq._speed_resolver = env.resolver
@@ -1585,7 +1614,7 @@ def test_prune_deleted_speed_removes_last(env):
     env.ctx.current_file = env.tag
     env.seq.append_speed(1.5)
     assert env.resolver._prune_deleted_speed_from_sequence(1.5) is True
-    assert "speed_sequence" not in env.store.get(create_vid_key(env.tag))
+    assert "multi_speed_sequence" not in env.store.get(create_vid_key(env.tag))
 
 
 def test_delete_variant_channel_stop_failure(env, monkeypatch):

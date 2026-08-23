@@ -77,16 +77,16 @@ class CueVidSpeedResolver(object):
             return CUE_DEFAULT_VIDEO_SPEED
         def _read(entry):
             # type: (MarkerEntry) -> float
-            return entry.get("speed_pref", CUE_DEFAULT_VIDEO_SPEED)
+            return entry.get("single_speed_pref", CUE_DEFAULT_VIDEO_SPEED)
         entry = self._store.get(create_vid_key(tag))
-        if entry is not None and "speed_pref" in entry:
+        if entry is not None and "single_speed_pref" in entry:
             return _read(entry)
         best = CUE_DEFAULT_VIDEO_SPEED
         best_len = -1
         for key in self.paths:
             if key.startswith(tag + " ") and len(key) > best_len:
                 e = self._store.get(create_vid_key(key))
-                if e is not None and "speed_pref" in e:
+                if e is not None and "single_speed_pref" in e:
                     best = _read(e)
                     best_len = len(key)
         return best
@@ -96,7 +96,7 @@ class CueVidSpeedResolver(object):
         if not tag:
             return
         entry = self._store._get_or_create_entry(create_vid_key(tag))
-        entry["speed_pref"] = speed
+        entry["single_speed_pref"] = speed
         self._store.save_marker(create_vid_key(tag))
 
     def speed_for(self, tag):
@@ -121,11 +121,12 @@ class CueVidSpeedResolver(object):
         # type: (str) -> Optional[List[float]]
         """Distinct speeds the current mode plays, for intensity banding.
 
-        MULTI/AUTO both drive playback through the stored speed_sequence, so
-        its distinct values are the variant set -- an O(1) read that avoids
-        re-scanning the video directory (auto_speed.enabled_speeds lists the
-        dir every call).  SINGLE-mode videos have no variants -> None (no
-        intensity)."""
+        MULTI/AUTO both drive playback through speeds_for() -- the stored
+        custom sequence for MULTI, the in-memory generated sequence for
+        AUTO -- so its distinct values are the variant set, an O(1) read
+        that avoids re-scanning the video directory
+        (auto_speed.enabled_speeds lists the dir every call).  SINGLE-mode
+        videos have no variants -> None (no intensity)."""
         mode = self._video_sequence.get_mode(tag)
         if mode in (CueSpeedMode.MULTI, CueSpeedMode.AUTO):
             seq = self._video_sequence.speeds_for(tag)
@@ -477,7 +478,7 @@ class CueVidSpeedResolver(object):
 
     def _prune_deleted_speed_from_sequence(self, speed):
         # type: (float) -> bool
-        """Remove `speed` from the current file's speed_sequence.
+        """Remove `speed` from the current file's multi_speed_sequence.
         Returns True if the sequence was modified."""
         tag = self._ctx.current_file
         if not tag:
@@ -485,16 +486,16 @@ class CueVidSpeedResolver(object):
         entry = self._store.get(create_vid_key(tag))
         if entry is None:
             return False
-        seq = entry.get("speed_sequence")
+        seq = entry.get("multi_speed_sequence")
         if not seq:
             return False
         new_seq = [s for s in seq if s != speed]
         if len(new_seq) == len(seq):
             return False
         if new_seq:
-            entry["speed_sequence"] = new_seq
+            entry["multi_speed_sequence"] = new_seq
         else:
-            entry.pop("speed_sequence", None)
+            entry.pop("multi_speed_sequence", None)
         if self._video_sequence.active_tag:
             self._video_sequence.start(self._video_sequence.active_tag)
         return True
@@ -565,6 +566,9 @@ class CueVidSpeedSequence(object):
         self.last_elapsed = 0.0
         self.play_count = 0
         self._step_index = -1
+        # Generated AUTO sequences live here only, never in the stored
+        # multi_speed_sequence (which holds the user's custom MULTI sequence).
+        self._auto_sequences = {}
 
     def bind(self, speed_resolver, auto_speed):
         # type: (CueVidSpeedResolver, CueAutoSpeedGenerator) -> None
@@ -576,13 +580,32 @@ class CueVidSpeedSequence(object):
         # type: (str) -> Optional[List[float]]
         if not tag:
             return None
+        # AUTO generation is in-memory only; the stored multi_speed_sequence is
+        # the custom MULTI sequence, which AUTO must never read or overwrite.
+        if self.get_mode(tag) == CueSpeedMode.AUTO:
+            seq = self._auto_sequences.get(tag)
+            if seq:
+                return seq
+            return None
         entry = self._store.get(create_vid_key(tag))
         if entry is None:
             return None
-        seq = entry.get("speed_sequence")
+        seq = entry.get("multi_speed_sequence")
         if not seq:
             return None
         return seq
+
+    def set_auto_sequence(self, tag, seq):
+        # type: (str, List[float]) -> None
+        """Remember a generated AUTO sequence in memory only.
+
+        Never write AUTO sequences to the stored multi_speed_sequence, or
+        switching MULTI -> AUTO would clobber the user's custom sequence.
+        In-memory means they reset on quit, which is fine -- AUTO
+        regenerates on every entry."""
+        if not tag or not seq:
+            return
+        self._auto_sequences[tag] = list(seq)
 
     def current_step_index(self):
         # type: () -> int
@@ -655,7 +678,7 @@ class CueVidSpeedSequence(object):
         entry = self._get_entry(tag)
         if entry is None:
             return
-        seq = entry.setdefault("speed_sequence", [])
+        seq = entry.setdefault("multi_speed_sequence", [])
         seq.append(speed)
         _cue_log("VQ-APPEND tag={} speed={} seq={}".format(tag, speed, seq))
         if len(seq) >= CUE_MULTI_SPEED_MIN_VARIANTS:
@@ -671,12 +694,12 @@ class CueVidSpeedSequence(object):
         entry = self._store.get(create_vid_key(tag))
         if entry is None:
             return
-        seq = entry.get("speed_sequence")
+        seq = entry.get("multi_speed_sequence")
         if not seq or not (0 <= index < len(seq)):
             return
         seq.pop(index)
         if not seq:
-            entry.pop("speed_sequence", None)
+            entry.pop("multi_speed_sequence", None)
         self._store.save_marker(create_vid_key(tag))
         if self.active_tag == tag:
             self.start(tag)
@@ -691,7 +714,7 @@ class CueVidSpeedSequence(object):
         entry = self._store.get(create_vid_key(tag))
         if entry is None:
             return
-        seq = entry.get("speed_sequence")
+        seq = entry.get("multi_speed_sequence")
         if not seq:
             return
         new_index = index + delta
@@ -711,8 +734,8 @@ class CueVidSpeedSequence(object):
         if not tag:
             return
         entry = self._store.get(create_vid_key(tag))
-        if entry is not None and "speed_sequence" in entry:
-            del entry["speed_sequence"]
+        if entry is not None and "multi_speed_sequence" in entry:
+            del entry["multi_speed_sequence"]
             self._store.save_marker(create_vid_key(tag))
         self.cancel()
         renpy.restart_interaction()
@@ -809,22 +832,26 @@ class CueVidSpeedSequence(object):
         # type: (str) -> None
         old_tag = self.active_tag
         mode = self.get_mode(tag)
-        speeds = self.speeds_for(tag)
-        if speeds and mode in (CueSpeedMode.MULTI, CueSpeedMode.AUTO):
+        if mode == CueSpeedMode.AUTO:
+            # AUTO keeps no stored sequence (it's in-memory), so the
+            # speeds gate can't decide whether to start -- start_auto has
+            # its own variant guard and handles a no-op internally.
             if not old_tag or old_tag != tag:
-                if mode == CueSpeedMode.AUTO:
-                    self.start_auto(tag)
-                else:
+                self.start_auto(tag)
+        else:
+            speeds = self.speeds_for(tag)
+            if speeds and mode == CueSpeedMode.MULTI:
+                if not old_tag or old_tag != tag:
                     self.start(tag)
-        elif old_tag:
-            self.active_tag = None
-            if self._ctx.top_layer_type != 'movie':
-                ch = self._vid_manager.channel
-                if ch:
-                    try:
-                        _music.stop(channel=ch, fadeout=0)
-                    except Exception:
-                        _cue_log("SPEED-HANDLE: stop failed on {}".format(ch))
+            elif old_tag:
+                self.active_tag = None
+                if self._ctx.top_layer_type != 'movie':
+                    ch = self._vid_manager.channel
+                    if ch:
+                        try:
+                            _music.stop(channel=ch, fadeout=0)
+                        except Exception:
+                            _cue_log("SPEED-HANDLE: stop failed on {}".format(ch))
 
     def cancel(self):
         # type: () -> None
@@ -863,11 +890,11 @@ class CueVidSpeedSequence(object):
                         self._step_index = new_index
             self.play_count += 1
 
-            _cue_log(
-                "VQ-PLAY #{} step={}->{} wrap={} file={}".format(
-                    self.play_count, _old_step, self._step_index,
-                    1 if is_wrap_around else 0,
-                    os.path.basename(now_playing) if now_playing else "-"))
+            # _cue_log(
+            #     "VQ-PLAY #{} step={}->{} wrap={} file={}".format(
+            #         self.play_count, _old_step, self._step_index,
+            #         1 if is_wrap_around else 0,
+            #         os.path.basename(now_playing) if now_playing else "-"))
             
         self._debug_verify_step(now_playing)
         self.last_playing = now_playing
@@ -882,6 +909,9 @@ class CueVidSpeedSequence(object):
         if self._speed_resolver is None:
             return
 
+        # The preset is stored per-video in the marker entry; restore it now
+        # so generation and the UI highlight reflect this video's selection.
+        self._auto_speed.load_preset(tag)
         base_path = self._speed_resolver.base_path_for(tag)
         if not base_path:
             return
@@ -892,9 +922,7 @@ class CueVidSpeedSequence(object):
             return
 
         new_seq = self._auto_speed.generate(available)
-        entry = self._store._get_or_create_entry(create_vid_key(tag))
-        entry["speed_sequence"] = new_seq
-        self._store.save_marker(create_vid_key(tag))
+        self.set_auto_sequence(tag, new_seq)
         self.start(tag)
 
     def _debug_verify_step(self, now_playing):
