@@ -136,6 +136,19 @@ class CueVideoEditQueue(object):
         # type: () -> list[CueVideoJob]
         return self._jobs
 
+    @property
+    def has_pending(self):
+        # type: () -> bool
+        """True when poll() has work: a running job or queued jobs to start.
+        The runtime driver gates poll() on this, so a restored-from-persistent
+        queue (QUEUED job, no current) still gets kick-started."""
+        if self._current is not None:
+            return True
+        for j in self._jobs:
+            if j.status == CueJobStatus.QUEUED:
+                return True
+        return False
+
     def enqueue(self, job):
         # type: (CueVideoJob) -> None
         self._jobs.append(job)

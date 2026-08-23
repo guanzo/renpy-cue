@@ -400,7 +400,7 @@ def _cue_tick_trigger_impl():
         _cue.volume.flush_pending_saves()
         _cue_logger.flush()
 
-        if _cue.video_editor.processing:
+        if _cue.video_editor.job_queue.has_pending:
             _cue.video_editor.job_queue.poll()
 
         # Background .rpa extraction completes here (not gated on processing:

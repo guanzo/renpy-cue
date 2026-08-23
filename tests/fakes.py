@@ -508,11 +508,14 @@ def make_runtime_cue(root="", audio_dir=""):
         ),
     )
 
-    # video_editor -- processing flag gates job_queue.poll
+    # video_editor -- job_queue.has_pending gates job_queue.poll
     cue.video_editor = types.SimpleNamespace(
         MODE_INTERPOLATE=0,
         processing=False,
-        job_queue=types.SimpleNamespace(poll=_rec("video_editor.job_queue", "poll")),
+        job_queue=types.SimpleNamespace(
+            has_pending=False,
+            poll=_rec("video_editor.job_queue", "poll"),
+        ),
         refresh=_rec("video_editor", "refresh"),
         poll_extract=_rec("video_editor", "poll_extract"),
     )

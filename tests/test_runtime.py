@@ -820,13 +820,22 @@ def test_tick_fast_lane_skips_slow_work(cue, monkeypatch):
     assert "sfx_manager.maybe_rebuild" not in cue.calls
 
 
-def test_tick_processing_polls_job_queue(cue, monkeypatch):
+def test_tick_pending_polls_job_queue(cue, monkeypatch):
     cue.current_file = None
-    cue.video_editor.processing = True
+    cue.video_editor.job_queue.has_pending = True
     monkeypatch.setattr(_runtime._time, "time", lambda: 1.0)
     _runtime._cue_slow_tick_last = 0.0
     _runtime._cue_tick_trigger()
     assert cue.calls["video_editor.job_queue.poll"] == [((), {})]
+
+
+def test_tick_no_pending_skips_job_queue_poll(cue, monkeypatch):
+    cue.current_file = None
+    cue.video_editor.job_queue.has_pending = False
+    monkeypatch.setattr(_runtime._time, "time", lambda: 1.0)
+    _runtime._cue_slow_tick_last = 0.0
+    _runtime._cue_tick_trigger()
+    assert "video_editor.job_queue.poll" not in cue.calls
     assert cue.calls["trigger.tick"] == [((None, ""), {})]
 
 

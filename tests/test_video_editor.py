@@ -832,6 +832,25 @@ def test_load_from_persistent_restores(ve, tmp_path, monkeypatch):
     assert ve.job_queue._next_job_id == 6
 
 
+def test_loaded_job_reports_pending(ve, tmp_path, monkeypatch):
+    """A job restored from persistent sits QUEUED with no current job.  The
+    runtime driver polls the queue only when it reports pending work, so a
+    restored queue must report pending or the job never starts."""
+    write_file(tmp_path / "in.webm")
+    monkeypatch.setattr(persistent, "_cue_jobs", [{
+        "job_id": 5,
+        "vpath": "movies/scene.webm",
+        "fspath_in": str(tmp_path / "in.webm"),
+        "fspath_tmp": str(tmp_path / "tmp.webm"),
+        "factor": 3.0,
+        "encode_mode": 0,
+        "fspath_out": str(tmp_path / "out.webm"),
+        "remove_audio": False,
+    }])
+    ve.job_queue.load_from_persistent()
+    assert ve.job_queue.has_pending is True
+
+
 def test_load_skips_existing_output(ve, tmp_path, monkeypatch):
     write_file(tmp_path / "in.webm")
     write_file(tmp_path / "out.webm")
