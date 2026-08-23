@@ -29,10 +29,11 @@ jobs:
       RENPY_CUE_DIR: ${{ github.workspace }}/tests/fixtures/data
       # Headless runner: no audio device. The testcases play no audio.
       SDL_AUDIODRIVER: dummy
-      # The legacy leg parallelizes testcases across workers (default 4); this
-      # runner has 2 vCPUs, so cap it to avoid over-subscription. The modern
-      # leg is single-process and ignores this.
-      CUE_LEGACY_WORKERS: 2
+      # Serial by default: 7.4.10 drops posted test-mouse clicks under
+      # sustained multi-engine Xvfb contention (click_create flakes in
+      # parallel), so the legacy leg runs sequentially. The modern leg is
+      # single-process and ignores this.
+      CUE_LEGACY_WORKERS: 1
     steps:
       - uses: actions/checkout@v4
 

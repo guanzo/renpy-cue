@@ -670,10 +670,10 @@ def test_tick_loop_level_change_restarts_timer(cue_env, monkeypatch, play_full):
     assert pst["ilevel"] == 1
     assert pst["ready_at"] == 105.0
     # Level changes to 2 -- pending fire dropped, timer restarts with the new
-    # level's scaled delay (get_delay 2.1 / freq_mult 2.0 -> 1.05).
+    # level's scaled delay (get_delay 2.1 / freq_mult 1.5 -> 1.4).
     eng._tick_loop(100.0, 2, "scene.ogg", 1.3, [0.7, 1.0, 1.3])
     assert pst["ilevel"] == 2
-    assert pst["ready_at"] == 101.05
+    assert pst["ready_at"] == 101.4
 
 
 def test_tick_video_hooked_uses_level_folder(cue_env, monkeypatch, play_full):

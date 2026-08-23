@@ -197,7 +197,7 @@ screen cue_video_vfx_intensity(_has_speeds):
     if not _has_speeds or not _has_group:
         etext ("Intensity ties a video's SFX to the video's playback speed. "
             "As speed changes, the pool plays SFX from the appropriate \"level\" folder in "
-            "its intensity group, while also scaling volume and Loop SFX frequency to fit the moment.")
+            "its intensity group, while also scaling volume and Loop SFX interval to fit the moment.")
         etext "How to set up:"
         vbox:
             spacing 2
@@ -236,74 +236,82 @@ screen cue_video_vfx_intensity(_has_speeds):
                 _pools_files, _cur_speed, _variants, flags=_flags)
             $ _mapping = _cue.intensity.variant_levels(_hook_group, _variants)
 
-            # --- Per-video toggles ---
-            use cue_checkbox(_flags.enabled, "Intensity Mode",
-                Function(_cue_toggle_intensity_flag, "enabled"),
-                tt_on=("Intensity on: SFX resolve to the intensity group's "
-                    "level as playback speed changes."),
-                tt_off=("Intensity off: this video's pools play exactly as "
-                    "before, ignoring intensity groups."))
+            hbox:
+                spacing 30
+                vbox:
+                    use cue_checkbox(_flags.enabled, "Intensity Mode",
+                        Function(_cue_toggle_intensity_flag, "enabled"),
+                        tt_on=("Intensity on: SFX resolve to the intensity group's "
+                            "level as playback speed changes."),
+                        tt_off=("Intensity off: this video's pools play exactly as "
+                            "before, ignoring intensity groups."))
+                    vbox:
+                        spacing 4
+                        xoffset 8
+                        use cue_checkbox(_flags.sfx_levels, "Swap SFX by level",
+                            Function(_cue_toggle_intensity_flag, "sfx_levels"),
+                            enabled=_flags.enabled,
+                            tt_on=("On: each level plays its own folder, instead of the pool's normal files."),
+                            tt_off=("Off: pools play their own files."))
+                        use cue_checkbox(_flags.volume, "Scale Volume",
+                            Function(_cue_toggle_intensity_flag, "volume"),
+                            enabled=_flags.enabled,
+                            tt_on=("On: volume scales with intensity, "
+                                "up to +%.0f%%." % ((CUE_INTENSITY_VOLUME_MAX - 1.0) * 100.0)),
+                            tt_off=("Off: volume is not scaled."))
+                        use cue_checkbox(_flags.frequency, "Scale Loop SFX Interval",
+                            Function(_cue_toggle_intensity_flag, "frequency"),
+                            enabled=_flags.enabled,
+                            tt_on=("On: Loop SFX interval scales with intensity, "
+                                "up to +%.0f%% faster." % ((CUE_INTENSITY_FREQ_MAX - 1.0) * 100.0)),
+                            tt_off=("Off: Loop SFX interval is not scaled."))
 
-            # Sub-options only apply while Intensity is on: indent them under
-            # it and disable them when it's off.
-            vbox:
-                spacing 4
-                xoffset 8
-                use cue_checkbox(_flags.sfx_levels, "Swap SFX by level",
-                    Function(_cue_toggle_intensity_flag, "sfx_levels"),
-                    enabled=_flags.enabled,
-                    tt_on=("On: each level plays its own folder from the "
-                        "intensity group, instead of the pool's normal files."),
-                    tt_off=("Off: pools keep playing their own files. Speed "
-                        "still drives volume/frequency scaling below, just not "
-                        "which files play."))
-                use cue_checkbox(_flags.volume, "Volume scaling",
-                    Function(_cue_toggle_intensity_flag, "volume"),
-                    enabled=_flags.enabled,
-                    tt_on=("On: volume scales up with the active intensity level."),
-                    tt_off=("Off: all levels play at the pool's own volume."))
-                use cue_checkbox(_flags.frequency, "Frequency scaling",
-                    Function(_cue_toggle_intensity_flag, "frequency"),
-                    enabled=_flags.enabled,
-                    tt_on=("On: frequency scales with the active intensity level."),
-                    tt_off=("Off: all levels play at the pool's own frequency."))
-
-            # --- Status readout ---
-            if _res is not None:
-                $ _intensity_status = (_res.group + " at " + _cue_speed_label(_cur_speed)
-                    + " -> Level " + str(_res.level)
-                    + " (" + (_res.folder or "(no folder)") + ")"
-                    + "  vol x%.2f  freq x%.2f" % (_res.volume_mult, _res.freq_mult))
-                etext _intensity_status
-            else:
-                etext "Intensity is off for this video." color _cue_color_text_muted
-            
-            # --- Mapping inspector ---
-            null height 4
-            etext "Mapping:" size 14 bold True
-            $ _rows = {}
-            for _sp, _lvl in _mapping:
-                $ _rows.setdefault(_lvl, []).append(_sp)
-            for _lvl in sorted(_rows):
-                $ _row_folder = _cue.intensity.level_folder(_hook_group, _lvl) or "(no folder)"
-                if _res is not None and _lvl == _res.level:
-                    hbox:
-                        spacing 5
-                        for _sp in _rows[_lvl]:
-                            if _sp == _cur_speed:
-                                etext _cue_speed_label(_sp) color _cue_color_dark_yellow bold True
+                vbox:
+                    if _res is not None:
+                        etext "Intensity Group: " + _res.group
+                        etext "Current Speed: " + _cue_speed_label(_cur_speed)
+                    else:
+                        etext "Intensity is off for this video." color _cue_color_text_muted
+                    
+                    $ _rows = {}
+                    for _sp, _lvl in _mapping:
+                        $ _rows.setdefault(_lvl, []).append(_sp)
+                    vbox:
+                        spacing 2
+                        # Header row fixes the column widths the data rows reuse.
+                        hbox:
+                            spacing 5
+                            etext "Speed Range" color _cue_color_text_muted minwidth 100
+                            etext "Level" color _cue_color_text_muted minwidth 40
+                            etext "Folder" color _cue_color_text_muted
+                            
+                        for _lvl in sorted(_rows):
+                            $ _row_speeds = sorted(_rows[_lvl])
+                            $ _row_lo = _cue_speed_label(_row_speeds[0])
+                            $ _row_hi = _cue_speed_label(_row_speeds[-1])
+                            $ _row_range = _row_lo if len(_row_speeds) == 1 else _row_lo + " - " + _row_hi
+                            $ _row_speed_tt = ", ".join(_cue_speed_label(_sp) for _sp in _row_speeds)
+                            $ _row_folder = _cue.intensity.level_folder(_hook_group, _lvl)
+                            if _row_folder:
+                                $ _row_leaf = _row_folder.rstrip("/").split("/")[-1] or _row_folder
                             else:
-                                etext _cue_speed_label(_sp)
-                        etext "Level " + str(_lvl) + " (" + _row_folder + ")" color _cue_color_active
-                else:
-                    hbox:
-                        spacing 5
-                        for _sp in _rows[_lvl]:
-                            if _sp == _cur_speed:
-                                etext _cue_speed_label(_sp) color _cue_color_dark_yellow bold True
-                            else:
-                                etext _cue_speed_label(_sp)
-                        etext "Level " + str(_lvl) + " (" + _row_folder + ")"
+                                $ _row_leaf = "(no folder)"
+                            $ _is_active_row = (_res is not None and _lvl == _res.level)
+                            hbox:
+                                spacing 5
+                                button:
+                                    style "empty"
+                                    action NullAction()
+                                    tooltip _row_speed_tt
+                                    etext _row_range minwidth 100
+                                etext str(_lvl) minwidth 40
+                                button:
+                                    style "empty"
+                                    action NullAction()
+                                    tooltip _row_folder
+                                    etext _row_leaf
+                                if _is_active_row:
+                                    use cue_icon("caret-left", icon_color=_cue_color_green, size=14, fade=False, yoffset=1)
 
 
 screen cue_video_vfx_create(_avail, _has_speeds):

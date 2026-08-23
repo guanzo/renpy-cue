@@ -46,7 +46,7 @@ def test_level_ramp_single_level_is_identity():
 
 def test_level_ramp_two_levels_ends_at_max():
     assert _level_ramp(2, CUE_INTENSITY_VOLUME_MAX) == [1.0, 1.25]
-    assert _level_ramp(2, CUE_INTENSITY_FREQ_MAX) == [1.0, 2.0]
+    assert _level_ramp(2, CUE_INTENSITY_FREQ_MAX) == [1.0, 1.5]
 
 
 def test_level_ramp_three_levels_linear():
@@ -145,7 +145,7 @@ def test_add_folder_ramps(cue_env, imgr):
     data = imgr.get_igroup("Impacts")
     assert data["folders"] == ["sfx/soft/", "sfx/hard/"]
     assert data["volume_multipliers"] == [1.0, 1.25]
-    assert data["frequency_multipliers"] == [1.0, 2.0]
+    assert data["frequency_multipliers"] == [1.0, 1.5]
 
 
 def test_add_folder_dedupes(cue_env, imgr):
@@ -169,7 +169,7 @@ def test_remove_level_renumbers(cue_env, imgr):
     data = imgr.get_igroup("Impacts")
     assert data["folders"] == ["b/", "c/"]
     assert data["volume_multipliers"] == [1.0, 1.25]
-    assert data["frequency_multipliers"] == [1.0, 2.0]
+    assert data["frequency_multipliers"] == [1.0, 1.5]
 
 
 def test_remove_level_out_of_range_noop(cue_env, imgr):

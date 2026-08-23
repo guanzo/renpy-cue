@@ -140,7 +140,7 @@ CUE_INTENSITY_PRESET_TYPE = "intensity"
 # Ramp ceilings for per-level intensity multipliers.  Volume stays within
 # [pool level, +25%]; frequency scales delay as base_delay / multiplier.
 CUE_INTENSITY_VOLUME_MAX = 1.25
-CUE_INTENSITY_FREQ_MAX = 2.0
+CUE_INTENSITY_FREQ_MAX = 1.5
 
 # Clamp for intensity-scaled loop delay (seconds): base_delay / level_mult
 # stays in this window.

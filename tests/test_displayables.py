@@ -202,16 +202,34 @@ def test_vtl_event_unhandled_button_noop(vtl):
 # CueVideoMarkerTimeline
 # ==========================================================================
 
-def _make_mtl(monkeypatch, markers_list, dur=10.0, speed=1.0, selected=None):
+def _make_mtl(monkeypatch, markers_list, dur=10.0, speed=1.0, selected=None,
+              current_file="", intensity_on=False):
     selected = set() if selected is None else selected
     video = types.SimpleNamespace(get_selected=lambda: selected,
                                   selected=selected,
                                   finalize_drag=lambda: None)
-    markers = types.SimpleNamespace(video=video)
-    speed_resolver = types.SimpleNamespace(get_current_speed=lambda: speed)
+    markers = types.SimpleNamespace(
+        video=video,
+        get=(lambda key, default: ({"pools": []} if current_file else default)))
+    speed_resolver = types.SimpleNamespace(
+        get_current_speed=lambda: speed,
+        banding_speeds=lambda tag: [0.7, 1.0, 1.3])
     repeater = types.SimpleNamespace(compute_preview_times=lambda: [])
+
+    def _fake_flags(entry):
+        return types.SimpleNamespace(enabled=True, sfx_levels=True,
+                                     volume=True, frequency=True)
+
+    def _fake_pool_active(files, variants, flags):
+        # A trailing-slash folder ref is the intensity hook, gated on the
+        # per-video master switch (the real predicate is tested separately).
+        return intensity_on and any(f.endswith("/") for f in (files or []))
+
+    intensity = types.SimpleNamespace(flags_from_entry=_fake_flags,
+                                      is_pool_intensity_active=_fake_pool_active)
     cue = types.SimpleNamespace(markers=markers, speed_resolver=speed_resolver,
-                                repeater=repeater)
+                                repeater=repeater, current_file=current_file,
+                                intensity=intensity)
     monkeypatch.setattr(_displ, "_cue", cue)
 
     calls = {"set_time": [], "set_active_index": [], "finalize": 0}
@@ -437,6 +455,64 @@ def test_mtl_render_publishes_tip_anchored_during_drag(monkeypatch):
     # t=0 -> tab center at local x = PAD_X.
     assert CueVideoMarkerTimeline._marker_tip_x == 10 + env.tl.PAD_X
     assert CueVideoMarkerTimeline._marker_tip_y == 20 + (env.tl.TRACK_H - 2 + env.tl.TAB_H)
+
+
+def test_mtl_render_intensity_border_on_hooked_marker(monkeypatch):
+    # Marker 1's pool is hooked to an intensity folder; marker 2's isn't.
+    env = _make_mtl(monkeypatch,
+                    [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}],
+                    current_file="clip.webm", intensity_on=True)
+    r = env.tl.render(200, 60, 0.0, 0.0)
+    border_ops = [op for op in r.canvas().ops
+                  if op[0] == "rect" and op[1] == env.tl.INTENSITY_BORDER]
+    assert len(border_ops) == 1
+    # The border is a strip flush under the tab's bottom edge, spanning the
+    # tab width.  (Exact thickness is a live visual tweak -- not pinned here.)
+    x, y, w, h = border_ops[0][2]
+    assert y == env.tl.TRACK_H - 2 + env.tl.TAB_H
+    assert w == env.tl.TAB_W
+    assert h >= 1
+
+
+def test_mtl_render_intensity_no_border_when_off(monkeypatch):
+    env = _make_mtl(monkeypatch,
+                    [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}],
+                    current_file="clip.webm", intensity_on=False)
+    r = env.tl.render(200, 60, 0.0, 0.0)
+    colors = [op[1] for op in r.canvas().ops if op[0] == "rect"]
+    assert env.tl.INTENSITY_BORDER not in colors
+
+
+def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
+    env = _make_mtl(monkeypatch,
+                    [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}],
+                    current_file="clip.webm", intensity_on=True)
+    env.tl._tip_text = "Pool 1 (0:00)"
+    env.tl._hover_idx = 0
+    env.tl.render(200, 60, 0.0, 0.0)
+    tip = CueVideoMarkerTimeline._marker_tip_text
+    assert tip.startswith("Pool 1 (0:00)")
+    assert env.tl.INTENSITY_NOTE in tip  # appended, not replacing the base text
+
+
+def test_mtl_render_intensity_tooltip_no_note_unhooked(monkeypatch):
+    env = _make_mtl(monkeypatch,
+                    [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}],
+                    current_file="clip.webm", intensity_on=True)
+    env.tl._tip_text = "Pool 2 (0:05)"
+    env.tl._hover_idx = 1
+    env.tl.render(200, 60, 0.0, 0.0)
+    assert CueVideoMarkerTimeline._marker_tip_text == "Pool 2 (0:05)"
+
+
+def test_mtl_render_intensity_tooltip_no_note_when_off(monkeypatch):
+    env = _make_mtl(monkeypatch,
+                    [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}],
+                    current_file="clip.webm", intensity_on=False)
+    env.tl._tip_text = "Pool 1 (0:00)"
+    env.tl._hover_idx = 0
+    env.tl.render(200, 60, 0.0, 0.0)
+    assert CueVideoMarkerTimeline._marker_tip_text == "Pool 1 (0:00)"
 
 
 def test_mtl_event_mousemotion_hover_sets_tip(monkeypatch):

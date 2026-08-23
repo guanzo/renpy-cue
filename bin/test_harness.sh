@@ -179,11 +179,14 @@ if [ "$DSL" = "legacy" ]; then
     # --- Parallel workers ----------------------------------------------------
     # Each worker runs a slice of the suite in its own isolated GAME/DATA/saves
     # tree (concurrent engine processes can't share mutable state) against one
-    # shared Xvfb display instead of a fresh server per boot. Workers=1 is the
-    # old sequential behavior. CUE_LEGACY_WORKERS overrides the default.
-    WORKERS="${CUE_LEGACY_WORKERS:-4}"
+    # shared Xvfb display. Sequential (1) is the default: 7.4.10 drops posted
+    # test-mouse clicks under sustained multi-engine Xvfb contention, so the
+    # click_create_tab_opens_editor testcase flakes in parallel (instrumented:
+    # 27/27 clicks posted, none reached the button) but is deterministic serial.
+    # CUE_LEGACY_WORKERS overrides the default for machines that handle it.
+    WORKERS="${CUE_LEGACY_WORKERS:-1}"
     case "$WORKERS" in
-        *[!0-9]*|0) WORKERS=4 ;;
+        *[!0-9]*|0) WORKERS=1 ;;
     esac
     [ "$WORKERS" -gt 8 ] && WORKERS=8
 

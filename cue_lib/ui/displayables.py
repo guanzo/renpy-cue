@@ -414,7 +414,8 @@ class CueVideoMarkerTimeline(Displayable):
             txt = Txt(str(i + 1), style="cue_button_text", color="#ffffff")
             tr = renpy.render(txt, self.TAB_W, self.TAB_H, st, at)
             tw, _ = tr.get_size()
-            r.blit(tr, (bx_pos + (self.TAB_W - tw) // 2, by_pos))
+            # +1: nudge the digit right so its ink reads optically centered in the tab.
+            r.blit(tr, (bx_pos + (self.TAB_W - tw) // 2 + 1, by_pos))
 
         # Preview marker overlay
         preview_times = _cue.repeater.compute_preview_times() if dur > 0.0 else []

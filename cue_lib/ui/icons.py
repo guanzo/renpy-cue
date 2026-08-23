@@ -39,6 +39,7 @@ CUE_ICON_SIZE = 12
 # horizontally ("redo" is the mirrored "undo" hook arrow).
 CUE_ICON_MAP = {
     "caret-down": ("caret-down-solid.png", False),
+    "caret-left": ("caret-left-solid.png", False),
     "caret-right": ("caret-right-solid.png", False),
     "chevron-down": ("chevron-down-solid.png", False),
     "chevron-left": ("chevron-left-solid.png", False),

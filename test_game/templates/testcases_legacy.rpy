@@ -162,6 +162,49 @@ init -10 python:
             and not _cue.importer.is_scanning
         )
 
+    # Under parallel load the overlay reflows asynchronously (movie detection
+    # -> restart_interaction), so a click can land on a layout that just moved.
+    # _cue_test_create_click_until_active() retries the click (rate-limited,
+    # re-finding the button each attempt) until the tab switch lands or its own
+    # deadline passes.  Used with _cue_test_wait_until_true so the retries run
+    # on the engine's own frame cadence, not wall-clock.
+    #
+    # The deadline lives on the function object, NOT the store: this testcase's
+    # movie+click interactions can roll back mid-wait, and rollback restores the
+    # store to the pre-testcase snapshot (wiping any deadline set by a `$` line),
+    # which NameErrors on the next `until` eval.  Function attributes survive
+    # rollback (the store only shallow-copies the function reference).
+    _test_click_last = [0.0]
+
+    def _cue_test_create_click_until_active():
+        if _cue_test_create_click_until_active._deadline == 0.0:
+            _cue_test_create_click_until_active._deadline = _test_time.time() + 8.0
+        if _cue.video_editor.active:
+            return True
+        if _test_time.time() >= _cue_test_create_click_until_active._deadline:
+            return True
+        if _test_time.time() - _test_click_last[0] < 0.3:
+            return False
+        _test_click_last[0] = _test_time.time()
+        import renpy.test.testfocus as _testfocus
+        import renpy.test.testmouse as _testmouse
+        try:
+            _f = _testfocus.find_focus("Create")
+        except Exception:
+            # A stale widget from a mid-teardown screen can throw on _tts_all();
+            # skip this attempt rather than crashing the testcase.
+            return False
+        if _f is None:
+            return False
+        try:
+            _pos = _testfocus.find_position(_f, (None, None))
+            _testmouse.click_mouse(1, _pos[0], _pos[1])
+        except Exception:
+            pass
+        return False
+
+    _cue_test_create_click_until_active._deadline = 0.0
+
 testcase overlay_shows_on_start:
     $ _cue.is_overlay_visible = True
     run Jump("start")
@@ -755,21 +798,21 @@ testcase video_marker_timeline_drag_survives_restart:
     # Seed a marker so the SFX page renders the draggable timeline.
     $ _cue.markers.video.add_pool()
     pause 0.5
-    # The timeline is a class singleton, so drag/hover state set on it must
-    # survive the timer-fired restart_interaction that re-runs the screen
-    # body.  An inline-constructed timeline would be a fresh object after the
-    # restart, wiping the state -- the regression this guards.
+    # The timeline is a class singleton, so drag state set on it must survive
+    # the timer-fired restart_interaction that re-runs the screen body.  An
+    # inline-constructed timeline would be a fresh object after the restart,
+    # wiping the state -- the regression this guards.  _tip_text is not
+    # asserted: it is hover-mutable by design, so a hover event during the
+    # pause legitimately recomputes it.
     $ _tl = CueVideoMarkerTimeline.get_timeline()
     $ _tl._drag_idx = 0
     $ _tl._drag_on = True
-    $ _tl._tip_text = "Pool 1 (00:01.00)"
     $ renpy.restart_interaction()
     pause 0.3
     $ _tl2 = CueVideoMarkerTimeline.get_timeline()
     $ _ok = _tl2 is _tl
     $ _ok = _ok and _tl2._drag_idx == 0
     $ _ok = _ok and _tl2._drag_on
-    $ _ok = _ok and _tl2._tip_text == "Pool 1 (00:01.00)"
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
@@ -989,16 +1032,23 @@ testcase click_create_tab_opens_editor:
     # The click below is what selects Create; assert the tab starts inactive
     # without carrying store state across the click (a rollback wipes it).
     $ if _cue.video_editor.active: renpy.quit(status=1)
-    # Real mouse click on the Video VFX "Create" tab. Regression: the marker
+    # Real mouse click on the Video VFX "Create" tab.  Regression: the marker
     # timeline's MOUSEBUTTONUP handler once raised IgnoreEvent() on every
     # release (even over sibling buttons), which swallowed the button's
     # release globally and made the whole Video VFX tab unclickable.
-    $ import renpy.test.testfocus as _testfocus
-    $ import renpy.test.testmouse as _testmouse
-    $ _focus = _testfocus.find_focus("Create")
-    $ _pos = _testfocus.find_position(_focus, (None, None))
-    $ _testmouse.click_mouse(1, _pos[0], _pos[1])
-    pause 0.5
+    #
+    # Under parallel load the overlay reflows asynchronously (movie detection
+    # -> restart_interaction), so the focus rect can go stale between
+    # find_focus and the engine processing the click.  The wait-until below
+    # retries the click on the engine's own frame cadence (rate-limited,
+    # re-finding the button each attempt) until the tab switch lands or the
+    # predicate's own deadline passes.  A persistent timeline swallow fails
+    # every attempt, so the regression this test guards is still caught.
+    #
+    # No store variable is read across the pause boundary: the deadline is
+    # predicate-owned (seeded on first poll) and the action deadline is a
+    # rollback-proof sentinel, so a mid-wait rollback cannot wipe it.
+    pause 0.5 until run _cue_test_wait_until_true(_cue_test_create_click_until_active, 1e18)
     $ if not _cue.video_editor.active: renpy.quit(status=1)
     $ renpy.quit()
 

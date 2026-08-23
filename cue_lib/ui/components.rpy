@@ -176,7 +176,7 @@ transform cue_icon_fade:
         linear 0.1 alpha 0.5
 
 screen cue_icon(label, action=NullAction(), tt=None, icon_color=None, size=12,
-                on_hover=None, on_unhover=None, fade=True):
+                on_hover=None, on_unhover=None, fade=True, yoffset=0):
     style_group "cue"
 
     $ _icon = _cue.icons.displayable_for(label, icon_color, size)
@@ -184,6 +184,7 @@ screen cue_icon(label, action=NullAction(), tt=None, icon_color=None, size=12,
         style "empty"
         xalign 0.5
         yalign 0.5
+        yoffset yoffset
         padding (0, 0)
         background None
         hover_background None

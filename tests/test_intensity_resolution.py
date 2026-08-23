@@ -85,13 +85,13 @@ def test_level_folder_out_of_range_is_none(cue_env):
 def test_level_multipliers_ramp(cue_env):
     m = _two_level(cue_env)
     assert m.level_multipliers("Impacts", 1) == (1.0, 1.0)
-    assert m.level_multipliers("Impacts", 2) == (1.25, 2.0)
+    assert m.level_multipliers("Impacts", 2) == (1.25, 1.5)
 
 
 def test_level_multipliers_clamps_out_of_range(cue_env):
     m = _two_level(cue_env)
     assert m.level_multipliers("Impacts", 0) == (1.0, 1.0)
-    assert m.level_multipliers("Impacts", 99) == (1.25, 2.0)
+    assert m.level_multipliers("Impacts", 99) == (1.25, 1.5)
 
 
 def test_level_multipliers_missing_group_identity(cue_env):
@@ -138,11 +138,11 @@ def test_resolve_intensity_bands_speed_to_level(cue_env):
 
 def test_resolve_intensity_volume_mult_is_clamped(cue_env):
     m = _two_level(cue_env)
-    # Level 2 ramps to the volume max (1.25) and freq max (2.0).
+    # Level 2 ramps to the volume max (1.25) and freq max (1.5).
     r = m.resolve_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], _populated)
     assert r is not None
     assert r.volume_mult == 1.25
-    assert r.freq_mult == 2.0
+    assert r.freq_mult == 1.5
 
 
 def test_resolve_intensity_empty_level_folder_silent(cue_env):
@@ -203,38 +203,33 @@ def test_video_level_empty_pools_is_none(cue_env):
 
 
 # ==========================================================================
-# video_active -- lightweight "intensity is live" predicate (UI indicator)
+# is_pool_intensity_active -- per-pool "intensity is live" predicate
 # ==========================================================================
 
-def test_video_active_hooked_two_variants_is_true(cue_env):
+def test_is_pool_intensity_active_hooked_two_variants_is_true(cue_env):
     m = _two_level(cue_env)
-    assert m.video_active([["soft/"]], [0.7, 1.0, 1.3]) is True
-    # Any hooked pool qualifies, like video_level's first-hook scan.
-    assert m.video_active([["plain.ogg"], ["hard/"]], [0.7, 1.0, 1.3]) is True
+    assert m.is_pool_intensity_active(["soft/"], [0.7, 1.0, 1.3]) is True
+    assert m.is_pool_intensity_active(["plain.ogg", "hard/"], [0.7, 1.0, 1.3]) is True
 
 
-def test_video_active_toggle_off_is_false(cue_env):
+def test_is_pool_intensity_active_toggle_off_is_false(cue_env):
     m = _two_level(cue_env)
     flags = CueIntensityFlags(enabled=False)
-    assert m.video_active([["soft/"]], [0.7, 1.0, 1.3], flags) is False
+    assert m.is_pool_intensity_active(["soft/"], [0.7, 1.0, 1.3], flags) is False
 
 
-def test_video_active_fewer_than_two_variants_is_false(cue_env):
+def test_is_pool_intensity_active_fewer_than_two_variants_is_false(cue_env):
     m = _two_level(cue_env)
-    assert m.video_active([["soft/"]], [1.0]) is False
-    assert m.video_active([["soft/"]], []) is False
-    assert m.video_active([["soft/"]], None) is False
+    assert m.is_pool_intensity_active(["soft/"], [1.0]) is False
+    assert m.is_pool_intensity_active(["soft/"], []) is False
+    assert m.is_pool_intensity_active(["soft/"], None) is False
 
 
-def test_video_active_unhooked_pool_is_false(cue_env):
+def test_is_pool_intensity_active_unhooked_files_is_false(cue_env):
     m = _two_level(cue_env)
-    assert m.video_active([["plain.ogg"]], [0.7, 1.0, 1.3]) is False
-    assert m.video_active([[]], [0.7, 1.0, 1.3]) is False
-
-
-def test_video_active_no_pools_is_false(cue_env):
-    m = _two_level(cue_env)
-    assert m.video_active([], [0.7, 1.0, 1.3]) is False
+    assert m.is_pool_intensity_active(["plain.ogg"], [0.7, 1.0, 1.3]) is False
+    assert m.is_pool_intensity_active([], [0.7, 1.0, 1.3]) is False
+    assert m.is_pool_intensity_active(None, [0.7, 1.0, 1.3]) is False
 
 
 # ==========================================================================
@@ -276,7 +271,7 @@ def test_resolve_intensity_volume_off_zeroes_volume_only(cue_env):
     assert r.level == 2
     assert r.folder == "hard/"
     assert r.volume_mult == 1.0      # toggle off
-    assert r.freq_mult == 2.0        # still on
+    assert r.freq_mult == 1.5        # still on
 
 
 def test_resolve_intensity_frequency_off_zeroes_freq_only(cue_env):
@@ -299,7 +294,7 @@ def test_resolve_intensity_sfx_levels_off_plays_pool_folder(cue_env):
     assert r.folder == "hard/"       # the level is still computed
     assert r.files == ["soft/"]      # but the pool's own folder plays
     assert r.volume_mult == 1.25
-    assert r.freq_mult == 2.0
+    assert r.freq_mult == 1.5
 
 
 def test_video_level_master_off_is_none(cue_env):
