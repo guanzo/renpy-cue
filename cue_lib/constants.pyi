@@ -8,6 +8,7 @@ CUE_SFX_CHANNEL_COUNT: Final = 16
 CUE_DEFAULT_VIDEO_SPEED: Final = 1.0
 CUE_AUTO_SPEED_MIN_VARIANTS: Final = 4
 CUE_AUTO_SPEED_IDEAL_VARIANTS: Final = 8
+CUE_INTENSITY_IDEAL_LEVELS: Final = 3
 CUE_SFX_LIBRARY_HEADER: Final = "SFX Library"
 CUE_HELP_SHIFT_SKIP_DELETE: Final = "\nShift+Click to skip delete confirmation"
 CUE_AUDIO_EXTS: Final = (".ogg", ".mp3", ".wav", ".opus")

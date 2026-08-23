@@ -52,7 +52,7 @@ screen cue_video_sfx():
                     tt="Repeat selected markers at regular intervals across the video")
                 use cue_icon("circle-question",
                     tt=("• Markers and marker groups are draggable.\n\n"
-                    + "• (Shift + Click) or (Alt + Click) to create a marker group.\n\n"
+                    + "• (Shift + Click) or (Alt + Click) to select a marker group.\n\n"
                     + "• (Alt + Shift + Click) selects every marker that continues "
                     + "the interval between the active marker and the clicked marker.\n\n"
                     + "• Use \"Repeat Markers\" to copy selected markers at an interval.\n\n"

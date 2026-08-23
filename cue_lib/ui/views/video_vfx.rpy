@@ -159,7 +159,7 @@ screen cue_video_vfx():
                         "Procedurally generates speed rhythms with a certain theme. "
                         "Each playthrough of a rhythm is slightly different. "
                         "Minimum number of speeds is [CUE_AUTO_SPEED_MIN_VARIANTS], recommended is "
-                        "[CUE_AUTO_SPEED_IDEAL_VARIANTS]. The more the better."
+                        "[CUE_AUTO_SPEED_IDEAL_VARIANTS]+. The more the better."
                     )
                     text _auto_help
 
@@ -215,16 +215,25 @@ screen cue_video_vfx():
         # --- Intensity tab ---
         if _cue.video_editor.tab == CueVideoEditorTab.INTENSITY:
             if not _has_speeds:
-                etext "Intensity requires speed variants. Generate them in the Create tab."
+                etext ("Intensity ties a video pool's SFX to the video's playback speed. "
+                    "As speed changes, the pool plays SFX from the appropriate \"level\" folder in "
+                    "its intensity group, while also scaling volume and Loop SFX frequency to fit the moment.")
+                etext "How to set up:"
+                text ("1. Generate at least one speed variant in the Create tab.\n"
+                    "(Recommend [CUE_AUTO_SPEED_IDEAL_VARIANTS]+ variants)")
+                text ("2. Create an intensity group in the SFX Library and add it to a video pool.\n"
+                    "(Recommend ~[CUE_INTENSITY_IDEAL_LEVELS] levels)")
             else:
                 $ _vid_key = _cue_create_vid_key(_cue.current_file) if _cue.current_file else ""
                 $ _vid_entry = _cue.markers.get(_vid_key, {})
-                $ _vid_entries = _cue.markers._resolve_video_pools(_vid_entry) if _vid_entry else []
-                $ _pools_files = [p.get("files", []) for p in _vid_entries] if _vid_entries else []
+                $ _vid_entries = (_cue.markers._resolve_video_pools(_vid_entry)
+                    if _vid_entry else [])
+                $ _pools_files = ([p.get("files", []) for p in _vid_entries]
+                    if _vid_entries else [])
                 $ _hook_group = _cue.intensity.video_hook(_pools_files)
                 if _hook_group is None:
-                    etext ("No intensity group hooked to this video's pools. "
-                        "Add an intensity group folder to a pool in the SFX Library.")
+                    etext ("No intensity group attached to this video's pools. "
+                        "Add an intensity group folder to a video pool in the SFX Library.")
                 else:
                     $ _variants = _cue.speed_resolver.active_speeds(_cue.current_file)
                     if _variants is None or len(_variants) < 2:

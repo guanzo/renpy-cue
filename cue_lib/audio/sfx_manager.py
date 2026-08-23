@@ -165,7 +165,7 @@ class CueSfxManager(object):
                 _music.play(full_path, channel=target_ch, loop=False)
                 _music.set_volume(volume, delay=0, channel=target_ch)
 
-            _cue_log("PLAY-SFX file={} src={} ch={} jitter={} vol={:.2f}".format(
+            _cue_log("PLAY-SFX file={} src={} ch={} jitter={:.2f} vol={:.2f}".format(
                 filename.rsplit("/", 1)[-1], source, target_ch, jitter, volume))
 
             return target_ch

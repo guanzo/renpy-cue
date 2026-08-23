@@ -102,6 +102,7 @@ CUE_AUTO_SPEED_MIN_VARIANTS = 4
 # Ideal speed variants for rich auto-speed rhythm generation.
 CUE_AUTO_SPEED_IDEAL_VARIANTS = 8
 
+CUE_INTENSITY_IDEAL_LEVELS = 3
 # SFX Library section header.  A constant because the toggle-SFX hotkey in
 # cue_runtime_driver references the same string from a second location.
 CUE_SFX_LIBRARY_HEADER = "SFX Library"

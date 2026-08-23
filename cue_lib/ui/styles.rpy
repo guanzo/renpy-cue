@@ -41,7 +41,7 @@ define _cue_color_red_hover = "#885555"
 define _cue_color_error = "#ff6666"
 
 # --- Controls ---
-define _cue_color_bar_active = "#446688"
+define _cue_color_bar_active = "#3a5269"
 
 define _cue_overlay_panel_width = 500
 define _cue_btn_height = 16

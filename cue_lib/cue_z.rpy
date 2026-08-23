@@ -60,6 +60,7 @@ init -999 python:
         CueExportFileTypes,
         CUE_DEBUG, CUE_SFX_CHANNEL_COUNT,
         CUE_DEFAULT_VIDEO_SPEED,
+        CUE_INTENSITY_IDEAL_LEVELS,
         CUE_SFX_LIBRARY_HEADER, CUE_AUDIO_EXTS,
         CUE_HELP_SHIFT_SKIP_DELETE,
         CUE_MANUAL_BACKUP_NAME,
@@ -110,7 +111,8 @@ init -999 python:
 
     from cue_lib.markers import (
         _cue_load_scalars_from_persistent,
-        _cue_markers_send, _cue_target_assign_tt,
+        _cue_markers_send, _cue_send_folder_to_video, _cue_send_folder_to_video_tt,
+        _cue_target_assign_tt,
     )
 
     from cue_lib.ui.dialogs import (

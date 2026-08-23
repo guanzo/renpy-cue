@@ -704,12 +704,22 @@ def _cue_markers_send(kind, ref, record=True):
         _cue.sfx.library.set_add_to_pool_warning(err)
 
 
-def _cue_target_assign_tt():
-    # type: () -> str
-    """Tooltip for the [+] assign button, reflecting the resolved target
-    context and whether that context already has an active pool."""
+def _cue_send_folder_to_video(folder_path):
+    # type: (str) -> None
+    """Store bridge for the intensity-group [V] button: send a folder to the
+    active video marker's pool, ignoring the target-context selector.  A folder
+    add rejected by the one-group-per-pool guardrail shows the notice under the
+    target bar (same surfacing as _cue_markers_send)."""
+    err = _cue.markers.video.send_folder(folder_path)
+    if err:
+        _cue.sfx.library.set_add_to_pool_warning(err)
+
+
+def _cue_assign_tt(ctx_id):
+    # type: (str) -> str
+    """Shared [+]-assign tooltip for one context id (video or image): Click
+    adds to the active pool, Shift+Click creates a new pool and adds."""
     mgr = _cue.markers
-    ctx_id = mgr.resolve_target_context()
     if not mgr.target_is_available(ctx_id):
         return "No video or image on screen right now"
     label = ctx_id.title()
@@ -717,3 +727,17 @@ def _cue_target_assign_tt():
         return ("Click: Add to {} active pool\nShift+Click: Create new {} pool and add"
                 .format(label, label))
     return "Create {} pool and add".format(label)
+
+
+def _cue_target_assign_tt():
+    # type: () -> str
+    """Tooltip for the [+] assign button, reflecting the resolved target
+    context and whether that context already has an active pool."""
+    return _cue_assign_tt(_cue.markers.resolve_target_context())
+
+
+def _cue_send_folder_to_video_tt():
+    # type: () -> str
+    """Tooltip for the intensity-group [V] button: same as the [+]
+    button when video is targeted, always pinned to the video marker."""
+    return _cue_assign_tt(CueContextType.VIDEO)

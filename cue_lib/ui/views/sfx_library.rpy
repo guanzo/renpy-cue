@@ -343,6 +343,10 @@ screen cue_intensity_groups_list(igroup_names, search_query=""):
                "folder order is the level order.") style "cue_help"
 
     $ _searching = bool(search_query.strip())
+    # [V] sends the level folder to the active video marker's pool, ignoring
+    # the target-context selector above.  Video context must be on screen.
+    $ _vid_ok = _cue.markers.target_is_available(CueContextType.VIDEO)
+    $ _v_tt = _cue_send_folder_to_video_tt()
     for _gname in igroup_names:
         $ _gdata = _cue.intensity.get_igroup(_gname)
         $ _g_folders = _cue_filter_igroup_folders(_gname, search_query)
@@ -367,7 +371,7 @@ screen cue_intensity_groups_list(igroup_names, search_query=""):
             # filtered view -- hide them (and the level label) while searching.
             if not _searching and not _g_folders:
                 etext "  No levels yet. Click the group's folder button to add files." style "cue_help"
-                etext "  Add up to ~3 levels for the best experience." style "cue_help"
+                text "  Add up to ~[CUE_INTENSITY_IDEAL_LEVELS] levels for the best experience." style "cue_help"
                 null height 2
             for _idx in range(len(_g_folders)):
                 $ _folder = _g_folders[_idx]
@@ -384,8 +388,14 @@ screen cue_intensity_groups_list(igroup_names, search_query=""):
                         use cue_icon_btn("chevron-down",
                             Function(_cue.intensity.move_level, _gname, _idx, 1),
                             "Move level down", enabled=(_idx < len(_g_folders) - 1))
-                        etext "Level {}:".format(_idx + 1) color _cue_color_text_accent size 11
-                        null width 1
+                    use cue_icon_btn("play",
+                        Function(_cue.sfx.preview_folder, _folder),
+                        "Play random file from folder")
+                    use cue_icon_btn("V",
+                        Function(_cue_send_folder_to_video, _folder),
+                        _v_tt, enabled=_vid_ok)
+                    etext "Level {}:".format(_idx + 1) color _cue_color_text_accent size 11
+                    null width 1
                     etext _folder color _cue_color_text_accent size 11
 
 

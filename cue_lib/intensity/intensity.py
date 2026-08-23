@@ -266,7 +266,7 @@ class CueIntensityManager(object):
         existing = self.pool_group(pool_files)
         if existing is not None and existing != new_group:
             return ("That folder is in Intensity Group '{}', but this pool "
-                    "is already hooked to '{}'. A pool can only contain one intensity group."
+                    "is already attached to '{}'. A pool can only contain one intensity group."
                     ).format(new_group, existing)
         return None
 
