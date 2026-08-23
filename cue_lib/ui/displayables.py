@@ -8,12 +8,13 @@ from renpy.text.text import Text as Txt
 from renpy.display.core import Displayable, IgnoreEvent
 
 from cue_lib.state import _cue
-from cue_lib.util import _cue_escape_text, _cue_format_time
+from cue_lib.util import _cue_escape_text, _cue_format_time, create_vid_key
 
 MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional, Tuple
     from cue_lib._types import VideoPoolDict
+    from cue_lib.intensity.intensity import CueIntensityFlags  # pyright: ignore[reportUnusedImport]
 
 
 # ---------------------------------------------------------------------------
@@ -230,6 +231,12 @@ class CueVideoMarkerTimeline(Displayable):
     SEL_BG = "#446688"
     SEL_LINE = "#5588cc"
 
+    # Intensity-live marker indicator: a 2px bottom border under the tab and a
+    # tooltip note.  Hot orange reads as "escalating" against the tab's
+    # green/blue/purple states.
+    INTENSITY_BORDER = "#ff8800"
+    INTENSITY_NOTE = "Intensity mode active"
+
     def __init__(self, get_markers, get_active_index, set_active_index, set_time, get_dur, **kw):
         super(CueVideoMarkerTimeline, self).__init__(**kw)
         self.get_markers = get_markers
@@ -317,6 +324,14 @@ class CueVideoMarkerTimeline(Displayable):
         # type: () -> set
         return _cue.markers.video.get_selected()
 
+    def _is_intensity_marker(self, marker, flags, variants):
+        # type: (VideoPoolDict, CueIntensityFlags, Optional[List[float]]) -> bool
+        """True when this marker's own pool plays intensity levels: the
+        video's intensity toggle is on, it has 2+ speed variants, and the
+        pool's folder list is hooked to an intensity group."""
+        return _cue.intensity.is_pool_intensity_active(
+            marker.get("files", []), variants, flags)
+
     def _hit_test(self, markers, dur, w, x, y):
         # type: (List[VideoPoolDict], float, int, int, int) -> int
         if dur <= 0.0:
@@ -343,6 +358,18 @@ class CueVideoMarkerTimeline(Displayable):
         sel = self._get_selected()
         speed = _cue.speed_resolver.get_current_speed()
         is_scaled = speed != 1.0
+
+        # Per-video intensity inputs, shared by every marker tab (the hook is
+        # per-pool, checked in the loop).  banding_speeds is cached, so this
+        # stays cheap on the 0.05s redraw.
+        intensity_flags = None
+        intensity_variants = None
+        tag = _cue.current_file
+        if tag:
+            entry = _cue.markers.get(create_vid_key(tag), {})
+            if entry:
+                intensity_flags = _cue.intensity.flags_from_entry(entry)
+                intensity_variants = _cue.speed_resolver.banding_speeds(tag)
 
         for i, m in enumerate(markers):
             t = m.get("time", 0.0)
@@ -380,6 +407,9 @@ class CueVideoMarkerTimeline(Displayable):
             bx_pos = px - self.TAB_W // 2
             by_pos = self.TRACK_H - 2
             c.rect(bg, (bx_pos, by_pos, self.TAB_W, self.TAB_H))
+            if (intensity_flags is not None
+                    and self._is_intensity_marker(m, intensity_flags, intensity_variants)):
+                c.rect(self.INTENSITY_BORDER, (bx_pos, by_pos + self.TAB_H, self.TAB_W, 1))
 
             txt = Txt(str(i + 1), style="cue_button_text", color="#ffffff")
             tr = renpy.render(txt, self.TAB_W, self.TAB_H, st, at)
@@ -387,10 +417,8 @@ class CueVideoMarkerTimeline(Displayable):
             r.blit(tr, (bx_pos + (self.TAB_W - tw) // 2, by_pos))
 
         # Preview marker overlay
-        if dur > 0.0:
-            preview_times = _cue.repeater.compute_preview_times()
-        else:
-            preview_times = []
+        preview_times = _cue.repeater.compute_preview_times() if dur > 0.0 else []
+
         for ptime in preview_times:
             ppx = self._time_to_x(ptime, dur, inner_w)
             c.rect("#5c7a8c", (ppx - 1, 0, 2, self.TRACK_H + self.LINE_H))
@@ -403,10 +431,15 @@ class CueVideoMarkerTimeline(Displayable):
             r.blit(ptr, (pbx + (self.TAB_W - ptw) // 2, pby))
 
         if self._tip_text:
-            CueVideoMarkerTimeline._marker_tip_text = self._tip_text
+            tip = self._tip_text
+            tip_idx = self._hover_idx if self._hover_idx >= 0 else self._drag_idx
+            if (intensity_flags is not None and 0 <= tip_idx < len(markers)
+                    and self._is_intensity_marker(
+                        markers[tip_idx], intensity_flags, intensity_variants)):
+                tip += "\n[" + self.INTENSITY_NOTE + "]"
+            CueVideoMarkerTimeline._marker_tip_text = tip
             # Anchor to the hovered/dragged marker tab, not the cursor, so the
             # tip doesn't drift as the mouse moves within the tab.
-            tip_idx = self._hover_idx if self._hover_idx >= 0 else self._drag_idx
             if 0 <= tip_idx < len(markers):
                 px = self._time_to_x(markers[tip_idx].get("time", 0.0), dur, inner_w)
                 CueVideoMarkerTimeline._marker_tip_x = self._screen_x + px
@@ -499,6 +532,12 @@ class CueVideoMarkerTimeline(Displayable):
             return None
 
         elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+            # Fresh gesture: a down never inherits a previous (possibly
+            # lost-up) arm.  Scaled, outside-box, and empty clicks all clear
+            # here for free; the marker path re-arms below.
+            self._drag_idx = -1
+            self._drag_on = False
+            self._reset_drag_state()
             if is_scaled:
                 return None
 

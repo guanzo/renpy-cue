@@ -393,6 +393,20 @@ class CueIntensityManager(object):
                 return hook[0]
         return None
 
+    def is_pool_intensity_active(self, files, variants, flags=None):
+        # type: (Optional[List[str]], Optional[List[float]], Optional[CueIntensityFlags]) -> bool
+        """True when intensity is live for one pool: the per-video toggle is
+        on, the video has 2+ distinct speed variants, and this pool's own
+        folder list is hooked to an intensity group.  Per-pool -- a marker
+        tab indicates only when its own pool plays intensity levels.  Lighter
+        than resolve_intensity -- no level resolution, no file listing -- for
+        per-frame UI indicators."""
+        if flags is not None and not flags.enabled:
+            return False
+        if not variants or len(variants) < 2:
+            return False
+        return self.resolve_hook(files) is not None
+
     def variant_levels(self, group_name, variants):
         # type: (str, List[float]) -> Optional[List[Tuple[float, int]]]
         """[(speed, level)] band map for the mapping inspector: the same

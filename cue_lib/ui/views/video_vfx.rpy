@@ -235,35 +235,49 @@ screen cue_video_vfx_intensity(_has_speeds):
             $ _res = _cue.intensity.video_level(
                 _pools_files, _cur_speed, _variants, flags=_flags)
             $ _mapping = _cue.intensity.variant_levels(_hook_group, _variants)
+
             # --- Per-video toggles ---
-            use cue_checkbox(_flags.enabled, "Intensity",
+            use cue_checkbox(_flags.enabled, "Intensity Mode",
                 Function(_cue_toggle_intensity_flag, "enabled"),
                 tt_on=("Intensity on: SFX resolve to the intensity group's "
                     "level as playback speed changes."),
                 tt_off=("Intensity off: this video's pools play exactly as "
                     "before, ignoring intensity groups."))
-            use cue_checkbox(_flags.sfx_levels, "Use level folders",
-                Function(_cue_toggle_intensity_flag, "sfx_levels"),
-                tt_on=("Each level plays its folder from the intensity group."),
-                tt_off=("The level still drives volume and frequency, but "
-                    "pools play their own files instead of the level folder."))
-            use cue_checkbox(_flags.volume, "Volume scaling",
-                Function(_cue_toggle_intensity_flag, "volume"),
-                tt_on=("Volume scales up with the active intensity level."),
-                tt_off=("All levels play at the pool's own volume."))
-            use cue_checkbox(_flags.frequency, "Frequency scaling",
-                Function(_cue_toggle_intensity_flag, "frequency"),
-                tt_on=("Frequency scales with the active intensity level."),
-                tt_off=("All levels play at the pool's own frequency."))
+
+            # Sub-options only apply while Intensity is on: indent them under
+            # it and disable them when it's off.
+            vbox:
+                spacing 4
+                xoffset 8
+                use cue_checkbox(_flags.sfx_levels, "Swap SFX by level",
+                    Function(_cue_toggle_intensity_flag, "sfx_levels"),
+                    enabled=_flags.enabled,
+                    tt_on=("On: each level plays its own folder from the "
+                        "intensity group, instead of the pool's normal files."),
+                    tt_off=("Off: pools keep playing their own files. Speed "
+                        "still drives volume/frequency scaling below, just not "
+                        "which files play."))
+                use cue_checkbox(_flags.volume, "Volume scaling",
+                    Function(_cue_toggle_intensity_flag, "volume"),
+                    enabled=_flags.enabled,
+                    tt_on=("On: volume scales up with the active intensity level."),
+                    tt_off=("Off: all levels play at the pool's own volume."))
+                use cue_checkbox(_flags.frequency, "Frequency scaling",
+                    Function(_cue_toggle_intensity_flag, "frequency"),
+                    enabled=_flags.enabled,
+                    tt_on=("On: frequency scales with the active intensity level."),
+                    tt_off=("Off: all levels play at the pool's own frequency."))
+
             # --- Status readout ---
             if _res is not None:
-                $ _res_line = (_res.group + " at " + _cue_speed_label(_cur_speed)
+                $ _intensity_status = (_res.group + " at " + _cue_speed_label(_cur_speed)
                     + " -> Level " + str(_res.level)
                     + " (" + (_res.folder or "(no folder)") + ")"
                     + "  vol x%.2f  freq x%.2f" % (_res.volume_mult, _res.freq_mult))
-                etext _res_line
+                etext _intensity_status
             else:
                 etext "Intensity is off for this video." color _cue_color_text_muted
+            
             # --- Mapping inspector ---
             null height 4
             etext "Mapping:" size 14 bold True

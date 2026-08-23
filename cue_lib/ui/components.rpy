@@ -753,10 +753,14 @@ screen cue_checkbox(checked, label, action, tt_on=None, tt_off=None,
                 hover_background off_hover
             if tt_off or tt_on:
                 tooltip (tt_on if tt_off is None else tt_off)
-        hbox:
-            spacing 5
-            add _icon yalign 0.5 yoffset 1
-            etext label color _cue_color_text_white
+        transform:
+            # Dim the whole row when disabled. alpha is a transform property,
+            # so it has to wrap the content rather than sit on the text/add.
+            alpha (0.35 if not enabled else 1.0)
+            hbox:
+                spacing 5
+                add _icon yalign 0.5 yoffset 1
+                etext label color _cue_color_text_white
 
 # Radio button: solid circle icon tinted with the active color when
 # selected, outline circle when not.

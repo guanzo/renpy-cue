@@ -28,6 +28,8 @@ class CueVideoMarkerTimeline(Displayable):
     PAD_X: int
     SEL_BG: str
     SEL_LINE: str
+    INTENSITY_BORDER: str
+    INTENSITY_NOTE: str
 
     def __init__(
         self,
