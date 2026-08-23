@@ -240,11 +240,12 @@ class CueTriggerEngine(object):
         now = _time.time()
 
         # Speed + variant set, computed once per tick for intensity banding.
-        # variants is None for single-speed videos (no intensity).  The video
-        # level resolution doubles as the global volume scale applied to SFX
-        # that fire during the video but aren't themselves hooked to a group.
+        # variants is None for videos with fewer than 2 speed variants (no
+        # intensity).  The video level resolution doubles as the global
+        # volume scale applied to SFX that fire during the video but aren't
+        # themselves hooked to a group.
         speed = self._speed_resolver.get_current_speed()
-        variants = self._speed_resolver.active_speeds(current_file)
+        variants = self._speed_resolver.banding_speeds(current_file)
         self._vid_intensity = self._vid_intensity_resolution(current_file, speed, variants)
 
         self._tick_loop(now, tick, current_file, speed, variants)
@@ -308,7 +309,7 @@ class CueTriggerEngine(object):
             vres = self._vid_intensity_resolution(
                 _cue.ctx.current_file,
                 self._speed_resolver.get_current_speed(),
-                self._speed_resolver.active_speeds(_cue.ctx.current_file))
+                self._speed_resolver.banding_speeds(_cue.ctx.current_file))
             if vres is not None:
                 vid_scale = vres.volume_mult
 
@@ -508,82 +509,15 @@ class CueTriggerEngine(object):
             return
 
         elapsed = self._vid_manager.get_elapsed()
-        marker_tolerance = 0.08
 
         # Autoscale: markers are stored at 1x reference time, so convert
         # variant elapsed to reference time when speed != 1.0.
         effective_elapsed = elapsed * speed
 
-        # Global volume scale for markers not hooked to an intensity group.
-        vid_scale = self._vid_intensity.volume_mult if self._vid_intensity is not None else 1.0
-
-        # Previous tick's effective position for cross-between-ticks detection.
-        # Initialized to -1.0 so markers at time 0 trigger on the first tick
-        # via:  prev_eff(-1) < mt(0) <= eff(0).
-        prev_eff = self._prev_eff_elapsed
-
-        # Video markers
-        if current_file:
-            vid_key = create_vid_key(current_file)
-            markers = self._markers_ctx().video.get_markers()
-            vid_entry = self._store.get(vid_key)
-
-            # Tack preview markers onto the list -- they're already pool dicts
-            # shaped like real video markers (time/files/volume).
-            _preview_count = 0
-            if self._repeater.dialog_visible and self._repeater.preview_sfx_enabled:
-                preview_pools = self._repeater.compute_preview_pools()
-                markers.extend(preview_pools)
-                _preview_count = len(preview_pools)
-
-            if markers:
-                # Per-video toggles from this video's marker entry.
-                flags = _cue.intensity.flags_from_entry(vid_entry)
-                # Per-time counter so same-time markers get unique stable keys.
-                # Keyed by time instead of list index -- adding/removing markers
-                # at other timestamps doesn't invalidate already-fired keys.
-                time_counts = {}
-                for idx, pool_entry in enumerate(markers):
-                    is_preview = idx >= len(markers) - _preview_count
-                    if is_preview:
-                        entry = {"pools": [pool_entry]}
-                        pool_index = 0
-                    else:
-                        entry = vid_entry
-                        pool_index = idx
-
-                    t = pool_entry["time"]
-                    count = time_counts.setdefault(t, 0) + 1
-                    time_counts[t] = count
-                    ts_key = "{}@{:.3f}#{}".format(vid_key, t, count)
-
-                    if ts_key in self.played_video_keys:
-                        continue
-
-                    if "time" not in pool_entry:
-                        if not is_preview:
-                            _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(pool_entry))
-                        continue
-
-                    if _cue_marker_reached(pool_entry["time"], effective_elapsed, prev_eff, marker_tolerance):
-                        resolved = self._store.resolve_pool(pool_entry)
-                        res = _cue.intensity.resolve_intensity(resolved.files, speed, variants, flags=flags)
-                        if res is not None:
-                            files = res.files
-                            vol_mult = res.volume_mult
-                        else:
-                            files = None
-                            vol_mult = vid_scale
-                        f = _cue.sfx.play_pool(entry, vid_key, pool_entry, pool_index, avoid_repeats=False, files=files, volume_mult=vol_mult)  # pyright: ignore[reportArgumentType]
-                        if f:
-                            # Track as its own kind so exclusive cut-ins spare
-                            # it.  Overwrites any stale entry on the reused
-                            # channel (dlg loops etc.), which is what makes the
-                            # immunity deterministic.
-                            self._track_excl_channel(f, CUE_EXCL_KIND_VIDEO, current_file, None, False)
-                            self.played_video_keys.add(ts_key)
-
-        # Detect video restart -- two cases clear the dedup set:
+        # Detect video restart BEFORE firing.  Clearing after firing is one
+        # tick too late for a marker at t=0: on the wrap tick its key is still
+        # in the dedup set (skipped), and by the next tick the position has
+        # already passed the tolerance window (missed entirely).
         #   1) last_elapsed == 0: video manager was just reset (new channel
         #      or fresh playback, e.g. after editing the multi-speed queue).
         #   2) elapsed < last_elapsed: playback looped/restarted (Ren'Py
@@ -597,6 +531,81 @@ class CueTriggerEngine(object):
             self.played_video_keys.clear()
             self._prev_eff_elapsed = -1.0
 
+        if current_file:
+            self._fire_video_markers(
+                current_file, effective_elapsed, self._prev_eff_elapsed, speed, variants)
+
         self._vid_manager.last_elapsed = elapsed
         # Store for next tick's cross-between-ticks detection
         self._prev_eff_elapsed = effective_elapsed
+
+    def _fire_video_markers(self, current_file, effective_elapsed, prev_eff, speed, variants):
+        # type: (str, float, float, float, Optional[List[float]]) -> None
+        """Fire SFX for this video's markers passed since the last tick.
+
+        Preview markers from the repeat dialog ride along as extra pools.
+        Skips markers already fired (played_video_keys) and pools missing a
+        time (logged, not crashed).  The dedup set and prev_eff bookkeeping
+        live in _tick_video."""
+        vid_key = create_vid_key(current_file)
+        markers = self._markers_ctx().video.get_markers()
+        vid_entry = self._store.get(vid_key)
+
+        # Tack preview markers onto the list -- they're already pool dicts
+        # shaped like real video markers (time/files/volume).
+        preview_count = 0
+        if self._repeater.dialog_visible and self._repeater.preview_sfx_enabled:
+            preview_pools = self._repeater.compute_preview_pools()
+            markers.extend(preview_pools)
+            preview_count = len(preview_pools)
+
+        if not markers:
+            return
+
+        flags = _cue.intensity.flags_from_entry(vid_entry)
+        # Global volume scale for markers not hooked to an intensity group.
+        vid_scale = self._vid_intensity.volume_mult if self._vid_intensity is not None else 1.0
+        # Per-time counter so same-time markers get unique stable keys.  Keyed
+        # by time instead of list index -- adding/removing markers at other
+        # timestamps doesn't invalidate already-fired keys.
+        time_counts = {}
+        marker_tolerance = 0.08
+
+        for idx, pool_entry in enumerate(markers):
+            is_preview = idx >= len(markers) - preview_count
+            entry = {"pools": [pool_entry]} if is_preview else vid_entry
+            pool_index = 0 if is_preview else idx
+
+            if "time" not in pool_entry:
+                if not is_preview:
+                    _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(pool_entry))
+                continue
+
+            t = pool_entry["time"]
+            count = time_counts.setdefault(t, 0) + 1
+            time_counts[t] = count
+            ts_key = "{}@{:.3f}#{}".format(vid_key, t, count)
+
+            if ts_key in self.played_video_keys:
+                if ts_key not in self._vid_skip_logged:
+                    self._vid_skip_logged.add(ts_key)
+                continue
+
+            if not _cue_marker_reached(t, effective_elapsed, prev_eff, marker_tolerance):
+                continue
+
+            resolved = self._store.resolve_pool(pool_entry)
+            res = _cue.intensity.resolve_intensity(resolved.files, speed, variants, flags=flags)
+            if res is not None:
+                files = res.files
+                vol_mult = res.volume_mult
+            else:
+                files = None
+                vol_mult = vid_scale
+            f = _cue.sfx.play_pool(entry, vid_key, pool_entry, pool_index, avoid_repeats=False, files=files, volume_mult=vol_mult)  # pyright: ignore[reportArgumentType]
+            if f:
+                # Track as its own kind so exclusive cut-ins spare it.
+                # Overwrites any stale entry on the reused channel (dlg loops
+                # etc.), which is what makes the immunity deterministic.
+                self._track_excl_channel(f, CUE_EXCL_KIND_VIDEO, current_file, None, False)
+                self.played_video_keys.add(ts_key)

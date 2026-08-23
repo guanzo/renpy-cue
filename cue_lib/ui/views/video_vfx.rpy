@@ -235,12 +235,12 @@ screen cue_video_vfx():
                     etext ("No intensity group attached to this video's pools. "
                         "Add an intensity group folder to a video pool in the SFX Library.")
                 else:
-                    $ _variants = _cue.speed_resolver.active_speeds(_cue.current_file)
+                    $ _variants = _cue.speed_resolver.banding_speeds(_cue.current_file)
                     if _variants is None or len(_variants) < 2:
-                        etext ("Intensity needs 2+ speeds in the current mode. "
-                            "Switch to Multi Speed or Auto Speed in the Speed tab.")
+                        etext ("Intensity needs 2+ speed variants for this video. "
+                            "Add them in the Speed tab.")
                     else:
-                        $ _cur_speed = _cue.speed_resolver.speed_for(_cue.current_file)
+                        $ _cur_speed = _cue.speed_resolver.get_current_speed()
                         $ _flags = _cue.intensity.flags_from_entry(_vid_entry)
                         $ _res = _cue.intensity.video_level(
                             _pools_files, _cur_speed, _variants, flags=_flags)

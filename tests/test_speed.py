@@ -309,6 +309,74 @@ def test_get_available_speeds_only_default_when_empty(env):
 
 
 # ==========================================================================
+# Resolver -- banding_speeds (intensity variant source)
+# ==========================================================================
+
+
+def test_banding_speeds_returns_all_on_disk_variants_any_mode(env):
+    env.resolver.paths[env.tag] = env.base_fs
+    _write_variants(env, [1.5, 2.0])
+    # The stored MULTI sequence only visits a subset of the variants.
+    entry = env.store._get_or_create_entry(create_vid_key(env.tag))
+    entry["speed_mode"] = CueSpeedMode.MULTI
+    entry["multi_speed_sequence"] = [1.0, 1.5]
+    # Banding ignores the active subset -- a fixed absolute variant set.
+    assert env.resolver.banding_speeds(env.tag) == [1.0, 1.5, 2.0]
+
+
+def test_banding_speeds_none_when_single_variant(env):
+    env.resolver.paths[env.tag] = env.base_fs
+    _write(env.base_fs)  # only 1.0 on disk
+    assert env.resolver.banding_speeds(env.tag) is None
+
+
+def test_banding_speeds_none_without_base_path(env):
+    assert env.resolver.banding_speeds("") is None
+
+
+def test_banding_speeds_falls_back_to_sequence_without_video_path(env):
+    # Image-only tag (no video path): the stored sequence is the only
+    # variant source, so intensity still resolves for image-based pools.
+    entry = env.store._get_or_create_entry(create_vid_key(env.tag))
+    entry["speed_mode"] = CueSpeedMode.MULTI
+    entry["multi_speed_sequence"] = [0.7, 1.0, 1.3]
+    assert env.resolver.banding_speeds(env.tag) == [0.7, 1.0, 1.3]
+
+
+def test_banding_speeds_fallback_none_without_sequence(env):
+    # No video path and no stored sequence -> no intensity.
+    assert env.resolver.banding_speeds(env.tag) is None
+
+
+def test_banding_speeds_caches_dir_scan_until_invalidated(env):
+    env.resolver.paths[env.tag] = env.base_fs
+    _write_variants(env, [1.5])
+    assert env.resolver.banding_speeds(env.tag) == [1.0, 1.5]
+    # A new variant appears on disk; the cache is stale until invalidated.
+    _write(env.resolver.variant_path(env.base_fs, 2.0))
+    assert env.resolver.banding_speeds(env.tag) == [1.0, 1.5]
+    env.resolver.invalidate_speed_cache()
+    assert env.resolver.banding_speeds(env.tag) == [1.0, 1.5, 2.0]
+
+
+def test_banding_speeds_cache_cleared_on_invalidate(env):
+    env.resolver.paths[env.tag] = env.base_fs
+    _write_variants(env, [1.5])
+    env.resolver.banding_speeds(env.tag)
+    _write(env.resolver.variant_path(env.base_fs, 2.0))
+    env.resolver.invalidate(env.tag)
+    assert env.resolver.banding_speeds(env.tag) == [1.0, 1.5, 2.0]
+
+
+def test_banding_speeds_cache_cleared_on_delete(env):
+    env.resolver.paths[env.tag] = env.base_fs
+    _write_variants(env, [1.5])
+    assert env.resolver.banding_speeds(env.tag) == [1.0, 1.5]
+    env.resolver.delete_variant(env.base_fs, 1.5)
+    assert env.resolver.banding_speeds(env.tag) is None
+
+
+# ==========================================================================
 # Sequence -- state machine
 # ==========================================================================
 

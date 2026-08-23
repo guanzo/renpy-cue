@@ -9,6 +9,7 @@ bin/install_to_game.bat
 .claude/*
 !.claude/skills/
 .local
+.env
 .venv/
 .coverage
 .pytest_cache/

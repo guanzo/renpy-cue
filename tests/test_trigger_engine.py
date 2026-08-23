@@ -578,16 +578,38 @@ def test_tick_video_restart_clears_played(play_stub):
     assert len(play_stub) == 1
     assert "v_scene.ogv@0.000#1" in eng.played_video_keys
 
-    # restart tick: backward jump detected AFTER the marker loop, so the
-    # already-played key is skipped this tick, then the dedup set clears.
+    # restart tick: the backward jump clears the dedup set BEFORE the marker
+    # loop, so the time-0 marker fires again on this same tick.
     vid.last_elapsed = 5.0
     vid._elapsed = 0.05
     eng._tick_video("scene.ogv", "movie", 1.0, None)
-    assert len(play_stub) == 1  # not re-fired on the restart tick itself
+    assert len(play_stub) == 2
+    assert "v_scene.ogv@0.000#1" in eng.played_video_keys
 
-    # next tick: the cleared set lets the time-0 marker fire again.
+    # next tick: steady playback, marker already fired this round -> no re-fire.
     vid.last_elapsed = 0.05
     vid._elapsed = 0.05
+    eng._tick_video("scene.ogv", "movie", 1.0, None)
+    assert len(play_stub) == 2
+    assert "v_scene.ogv@0.000#1" in eng.played_video_keys
+
+
+def test_tick_video_wrap_to_coarse_position_still_fires_time_zero(play_stub):
+    store = FakeMarkerStore({"v_scene.ogv": {"pools": []}})
+    vid = FakeVidManager(elapsed=0.05)
+    vid.last_elapsed = 0.05
+    markers = FakeMarkers(markers=[{"time": 0.0, "files": ["a.ogg"]}])
+    eng = make_engine(store=store, vid=vid, markers=markers)
+    eng._tick_video("scene.ogv", "movie", 1.0, None)
+    assert len(play_stub) == 1
+
+    # Wrap detected, but the first get_pos() of the new loop lands at 0.5s --
+    # past the tolerance window.  The time-0 marker still fires: the cleared
+    # round resets prev_eff to -1.0, so the cross check catches it.  Before the
+    # reorder this was dropped for the whole round (skipped on the wrap tick,
+    # outside the window on the next tick).
+    vid.last_elapsed = 5.0
+    vid._elapsed = 0.5
     eng._tick_video("scene.ogv", "movie", 1.0, None)
     assert len(play_stub) == 2
     assert "v_scene.ogv@0.000#1" in eng.played_video_keys

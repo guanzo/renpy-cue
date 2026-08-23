@@ -481,6 +481,9 @@ class CueVideoEditQueue(object):
         elif job._swap_ok:
             job.status = CueJobStatus.DONE
             state.last_error = ""
+            # The new variant file now exists; drop the cached available-speed
+            # list so intensity bands pick it up on the next resolve.
+            self._editor._speed_resolver.invalidate_speed_cache()
             _cue_log("Variant: generated {:.1f}x at {} (job_id={})".format(
                 job.factor, os.path.basename(out), job.job_id))
         else:

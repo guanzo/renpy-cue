@@ -67,6 +67,9 @@ class CueVidSpeedResolver(object):
         self._paths = paths
         self.paths = {}
         self.children = {}
+        # Cached get_available_speeds per base path: intensity banding reads
+        # the variant set every tick, and a dir scan per tick is too costly.
+        self._speed_cache = {}
         self.seamless_transition = False
         self._pending_speed = None
         self._pre_pending_speed = None
@@ -117,22 +120,33 @@ class CueVidSpeedResolver(object):
                     return speeds[si]
         return self.speed_for(tag)
 
-    def active_speeds(self, tag):
+    def banding_speeds(self, tag):
         # type: (str) -> Optional[List[float]]
-        """Distinct speeds the current mode plays, for intensity banding.
+        """The speed variant set for intensity banding.
 
-        MULTI/AUTO both drive playback through speeds_for() -- the stored
-        custom sequence for MULTI, the in-memory generated sequence for
-        AUTO -- so its distinct values are the variant set, an O(1) read
-        that avoids re-scanning the video directory
-        (auto_speed.enabled_speeds lists the dir every call).  SINGLE-mode
-        videos have no variants -> None (no intensity)."""
-        mode = self._video_sequence.get_mode(tag)
-        if mode in (CueSpeedMode.MULTI, CueSpeedMode.AUTO):
-            seq = self._video_sequence.speeds_for(tag)
-            if seq:
-                return sorted(set(seq))
+        Videos band on all on-disk variants -- mode-independent (SINGLE
+        included) so a given speed maps to the same intensity level in every
+        speed sequence.  Cached per base path -- get_available_speeds lists
+        the video dir -- and cleared on variant create/delete and sequence
+        (re)start.  None when the video has fewer than 2 distinct variants
+        (no intensity)."""
+        base = self.base_path_for(tag)
+        if base:
+            if base not in self._speed_cache:
+                self._speed_cache[base] = self.get_available_speeds(base)
+            avail = self._speed_cache[base]
+            if len(avail) < 2:
+                return None
+            return avail
+        seq = self._video_sequence.speeds_for(tag)
+        if seq:
+            return sorted(set(seq))
         return None
+
+    def invalidate_speed_cache(self):
+        # type: () -> None
+        """Drop cached available-speed lists (variant create/delete, restart)."""
+        self._speed_cache = {}
 
     def base_path_for(self, tag):
         # type: (str) -> Optional[str]
@@ -230,6 +244,7 @@ class CueVidSpeedResolver(object):
                        if k == tag or (isinstance(k, tuple) and k[0] == tag)]
         for k in keys_to_pop:
             self.children.pop(k, None)
+        self.invalidate_speed_cache()
 
     def _movie_for(self, tag, base_path, orig_movie):
         # type: (str, str, Movie) -> Movie
@@ -505,6 +520,7 @@ class CueVidSpeedResolver(object):
         if speed == CUE_DEFAULT_VIDEO_SPEED:
             return
         vpath = self.variant_path(base_path, speed)
+
         try:
             for _ch_name in _aaudio.channels:
                 _playing = _music.get_playing(channel=_ch_name)
@@ -516,18 +532,21 @@ class CueVidSpeedResolver(object):
                             loop=True, fadeout=0, synchro_start=True)
         except Exception:
             _cue_log("DELETE-VARIANT: channel stop failed for {}".format(vpath))
+
         for tag, base in self.paths.items():
             if base == base_path:
                 cur = self._get_speed_pref(tag)
                 if cur == speed:
                     self._set_speed_pref(tag, CUE_DEFAULT_VIDEO_SPEED)
         tag = self._ctx.current_file
+
         if tag:
             cur = self._get_speed_pref(tag)
             if cur == speed:
                 self._set_speed_pref(tag, CUE_DEFAULT_VIDEO_SPEED)
         fspath = vpath  # already absolute from variant_path()
         deleted = False
+
         for _attempt in range(3):
             try:
                 if os.path.exists(fspath):
@@ -540,6 +559,8 @@ class CueVidSpeedResolver(object):
         if not deleted:
             _cue_log("DELETE-VARIANT: all attempts failed to remove {}".format(fspath))
             return
+
+        self.invalidate_speed_cache()
         for tag, base in self.paths.items():
             if base == base_path:
                 self.children.pop((tag, speed), None)
@@ -547,6 +568,7 @@ class CueVidSpeedResolver(object):
             tag = self._ctx.current_file
             if tag:
                 self._store.save_marker(create_vid_key(tag))
+
         _cue_log("DELETE-VARIANT: removed {} (speed={:.1f}x)".format(vpath, speed))
         renpy.restart_interaction()
 

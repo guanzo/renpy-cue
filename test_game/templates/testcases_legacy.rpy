@@ -71,6 +71,28 @@ init 1000 python:
             _shutil.rmtree(_ad + _name, ignore_errors=True)
         _cue.sfx.library.scan()
 
+    def _cue_intensity_variants():
+        # Write on-disk speed variants for the harness cuevid movie so
+        # banding_speeds (which reads the video dir, not the stored
+        # sequence) sees the full set.  Removed by _cue_intensity_variant_cleanup.
+        import os as _os
+        _vd = _cue.paths.video_dir
+        if not _os.path.isdir(_vd):
+            _os.makedirs(_vd)
+        for _sp in (0.7, 1.3):
+            with open(_os.path.join(_vd, "cuevideo_cue{:.1f}x.webm".format(_sp)), "wb") as _f:
+                _f.write(b"x")
+        _cue.speed_resolver.paths["cuevid"] = "cuevideo.webm"
+        _cue.speed_resolver.invalidate_speed_cache()
+
+    def _cue_intensity_variant_cleanup():
+        import os as _os
+        _vd = _cue.paths.video_dir
+        for _sp in (0.7, 1.3):
+            _p = _os.path.join(_vd, "cuevideo_cue{:.1f}x.webm".format(_sp))
+            if _os.path.exists(_p):
+                _os.remove(_p)
+
     def _cue_intensity_toggle_folders():
         # Like _cue_intensity_folders, but soft/ also gets a second file so
         # fires FROM soft/ are recorded in last_played (a single-file list
@@ -386,7 +408,7 @@ testcase intensity_loop_fire_path:
     # An image tag can't start a speed sequence (no video path), so current
     # speed falls through to speed_pref = 1.0 -> Level 2 (hard/).
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_sequence"] = [0.7, 1.0, 1.3]
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["multi_speed_sequence"] = [0.7, 1.0, 1.3]
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
     $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"files": ["soft/"], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
     $ renpy.show("cueimg_a")
@@ -418,9 +440,9 @@ testcase intensity_toggle_master_off:
     # gate can resolve; a time-less pool never fires as a video marker.
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["pools"] = [{"files": ["soft/"], "volume": 1.0}]
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_sequence"] = [0.7, 1.0, 1.3]
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["multi_speed_sequence"] = [0.7, 1.0, 1.3]
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["intensity_enabled"] = False
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["intensity"] = {"enabled": False}
     $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"files": ["soft/"], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
     $ renpy.show("cueimg_a")
     $ _test_wait_deadline = _test_time.time() + 10.0
@@ -450,9 +472,9 @@ testcase intensity_toggle_sfx_levels_off:
     run Function(_cue.intensity.add_folder, "Toggle Test", "hard/")
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["pools"] = [{"files": ["soft/"], "volume": 1.0}]
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_sequence"] = [0.7, 1.0, 1.3]
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["multi_speed_sequence"] = [0.7, 1.0, 1.3]
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["intensity_sfx_levels"] = False
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["intensity"] = {"sfx_levels": False}
     $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"files": ["soft/"], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
     $ renpy.show("cueimg_a")
     $ _test_wait_deadline = _test_time.time() + 10.0
@@ -482,10 +504,11 @@ testcase intensity_tab_view:
     run Function(_cue.intensity.add_folder, "Tab Test", "hard/")
     $ renpy.show("cuevid")
     pause 1.0
+    $ _cue_intensity_variants()
     $ _vidk = _cue_create_vid_key(_cue.current_file)
     $ _cue.markers._get_or_create_entry(_vidk)["pools"] = [{"files": ["soft/"], "volume": 1.0}]
     $ _cue.markers._get_or_create_entry(_vidk)["speed_mode"] = CueSpeedMode.MULTI
-    $ _cue.markers._get_or_create_entry(_vidk)["speed_sequence"] = [0.7, 1.0, 1.3]
+    $ _cue.markers._get_or_create_entry(_vidk)["multi_speed_sequence"] = [0.7, 1.0, 1.3]
     $ _cue.markers._get_or_create_entry(_vidk)["speed_pref"] = 1.0
     # Open the SFX page with the Intensity tab; render the inspector.
     run Function(_cue_set_page, CuePage.SFX)
@@ -499,7 +522,7 @@ testcase intensity_tab_view:
     $ _vid_entries = _cue.markers._resolve_video_pools(_vid_entry)
     $ _pools_files = [p["files"] for p in _vid_entries]
     $ _ok = _ok and _cue.intensity.video_hook(_pools_files) == "Tab Test"
-    $ _variants = _cue.speed_resolver.active_speeds(_cue.current_file)
+    $ _variants = _cue.speed_resolver.banding_speeds(_cue.current_file)
     $ _ok = _ok and _variants == [0.7, 1.0, 1.3]
     $ _mapping = _cue.intensity.variant_levels("Tab Test", _variants)
     $ _ok = _ok and _mapping == [(0.7, 1), (1.0, 2), (1.3, 2)]
@@ -507,12 +530,21 @@ testcase intensity_tab_view:
     $ _res = _cue.intensity.video_level(_pools_files, _cur, _variants)
     $ _ok = _ok and _res is not None and _res.level == 2 and _res.folder == "hard/"
     # Screen write path: toggling a flag persists and the live resolution honors it.
-    run Function(_cue_toggle_intensity_flag, "intensity_enabled")
+    run Function(_cue_toggle_intensity_flag, "enabled")
     $ _entry = _cue.markers.get(_vidk, {})
     $ _flags = _cue.intensity.flags_from_entry(_entry)
-    $ _ok = _ok and _entry.get("intensity_enabled", True) is False
+    $ _ok = _ok and _entry.get("intensity", {}).get("enabled", True) is False
     $ _ok = _ok and _cue.intensity.video_level(_pools_files, _cur, _variants, flags=_flags) is None
-    run Function(_cue_toggle_intensity_flag, "intensity_enabled")
+    run Function(_cue_toggle_intensity_flag, "enabled")
+    # SINGLE mode is intensity-capable: the variant set is mode-independent.
+    $ _entry["speed_mode"] = CueSpeedMode.SINGLE
+    $ _cue.markers.save_marker(_vidk)
+    $ _variants = _cue.speed_resolver.banding_speeds(_cue.current_file)
+    $ _ok = _ok and _variants == [0.7, 1.0, 1.3]
+    $ _single_res = _cue.intensity.video_level(_pools_files, 1.0, _variants)
+    $ _ok = _ok and _single_res is not None and _single_res.level == 2
+    $ _entry["speed_mode"] = CueSpeedMode.MULTI
+    $ _cue.markers.save_marker(_vidk)
     # Tab switching round-trips between all three views.
     run Function(_cue.video_editor.show_tab, CueVideoEditorTab.SPEED)
     $ _ok = _ok and _cue.video_editor.tab == CueVideoEditorTab.SPEED
@@ -522,6 +554,7 @@ testcase intensity_tab_view:
     $ _cue.markers.pop(_vidk, None)
     run Function(_cue.intensity.delete_igroup, "Tab Test")
     $ _cue_intensity_cleanup()
+    $ _cue_intensity_variant_cleanup()
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
