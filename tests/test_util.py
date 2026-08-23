@@ -416,6 +416,18 @@ def test_resolve_files_skips_disabled_direct(monkeypatch):
     assert _cue_resolve_files(["music/a.ogg"]) == []
 
 
+def test_resolve_files_nested_folder_prefix(monkeypatch):
+    # A folder ref expands every nested descendant but not a sibling path that
+    # merely shares the prefix up to the slash ("music.ogg" < "music/...").
+    monkeypatch.setattr(_cue, "sfx",
+                        SimpleNamespace(library=SimpleNamespace(
+                            files=["music.ogg", "music/a.ogg", "music/sub/b.ogg",
+                                   "music/sub/deep/c.ogg", "sfx/boom.ogg"],
+                            disabled_files=set())))
+    assert _cue_resolve_files(["music/"]) == [
+        "music/a.ogg", "music/sub/b.ogg", "music/sub/deep/c.ogg"]
+
+
 def test_pick_file_empty_returns_none(monkeypatch):
     monkeypatch.setattr(_util._cue, "trigger", SimpleNamespace(last_played=[]))
     assert _cue_pick_file([]) is None

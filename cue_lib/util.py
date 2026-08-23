@@ -3,6 +3,7 @@
 # Key helpers, persistent unwrap, audio scanning, time formatting,
 # debug logging, file resolution, displayable name helpers.
 
+import bisect as _bisect
 import os
 import random as _random
 import functools as _functools
@@ -638,14 +639,22 @@ def _cue_resolve_files(files):
     # type: (List[str]) -> List[str]
     """Resolve a files list: expand folder refs (trailing '/') to matching
     available files, skip disabled files, pass through direct references."""
+    library = _cue.sfx.library
+    all_files = library.files
+    disabled = library.disabled_files
     result = []
     for item in files:
         if item.endswith("/"):
-            # Folder reference -- expand to all matching available files
-            for f in _cue.sfx.library.files:
-                if f.startswith(item) and f not in _cue.sfx.library.disabled_files and f not in result:
+            # Folder reference -- the library list is sorted, so every file
+            # under the folder is one contiguous slice; bisect finds its start.
+            lo = _bisect.bisect_left(all_files, item)
+            for i in range(lo, len(all_files)):
+                f = all_files[i]
+                if not f.startswith(item):
+                    break
+                if f not in disabled and f not in result:
                     result.append(f)
-        elif item not in _cue.sfx.library.disabled_files and item not in result:
+        elif item not in disabled and item not in result:
             result.append(item)
     return result
 
