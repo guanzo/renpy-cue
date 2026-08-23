@@ -626,14 +626,15 @@ class CueMarkerManager(object):
         return self.target_context
 
     def send_target(self, kind, ref, record=True):
-        # type: (str, object, bool) -> None
+        # type: (str, object, bool) -> Optional[str]
         """Send a library row to the resolved target context's active pool.
         *kind* is the send_* suffix: "file" (ref = file index), "folder"
         (ref = path), "preset" (ref = preset name).  Shift+Click new-pool
-        behavior is handled inside the context's send_* methods."""
+        behavior is handled inside the context's send_* methods.  Returns a
+        guardrail error string when a folder add is rejected, else None."""
         ctx_id = self.resolve_target_context()
         ctx = getattr(self, ctx_id)
-        getattr(ctx, "send_" + kind)(ref, record=record)
+        return getattr(ctx, "send_" + kind)(ref, record=record)
 
     def target_active_label(self):
         # type: () -> str
@@ -695,8 +696,12 @@ def _cue_markers_send(kind, ref, record=True):
     # type: (str, object, bool) -> None
     """Store bridge for the SFX library [+] button: dispatch *ref* (file
     index / folder path / preset name) to the resolved target context's
-    active pool.  Reads _cue at call time so screens can Function()-call it."""
-    _cue.markers.send_target(kind, ref, record=record)
+    active pool.  Reads _cue at call time so screens can Function()-call it.
+    A folder add rejected by the one-group-per-pool guardrail shows the
+    notice under the target bar."""
+    err = _cue.markers.send_target(kind, ref, record=record)
+    if err:
+        _cue.sfx.library.set_add_to_pool_warning(err)
 
 
 def _cue_target_assign_tt():

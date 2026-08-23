@@ -31,6 +31,8 @@ screen cue_sfx_library(_is_video):
                 "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS))
         else:
             use cue_target_context()
+            if _cue.sfx.library.add_to_pool_warning:
+                etext _cue.sfx.library.add_to_pool_warning color _cue_color_error size 11
             null height 1
             use cue_search_bar("_cue.sfx.library.search_query", _cue.sfx.library)
             use cue_sfx_library_content(_is_video)
@@ -333,9 +335,12 @@ screen cue_intensity_group_row(igroup_names, searching, search_query=""):
 screen cue_intensity_groups_list(igroup_names, search_query=""):
     style_group "cue"
 
+    $ _indent = " "
+
     if not igroup_names:
-        etext "No intensity groups yet. New Group to create one." style "cue_help"
-        etext "An intensity group is a soft-to-hard folder list; folder order is the level order." style "cue_help"
+        etext _indent + "No intensity groups yet." style "cue_help"
+        etext (_indent + "An intensity group is a soft-to-hard folder list; "
+               "folder order is the level order.") style "cue_help"
 
     $ _searching = bool(search_query.strip())
     for _gname in igroup_names:
@@ -345,13 +350,13 @@ screen cue_intensity_groups_list(igroup_names, search_query=""):
         $ _in_add = (_cue.sfx.library.igroup_add_target == _gname)
         hbox:
             spacing 2
-            etext " "  # indent under Intensity Groups/
+            etext _indent
             use cue_icon_btn("xmark", Function(_cue_confirm_delete_igroup, _gname),
                 "Delete intensity group" + CUE_HELP_SHIFT_SKIP_DELETE)
             use cue_icon_btn(("folder-open" if _in_add else "folder-plus"),
                 Function(_cue.sfx.library.toggle_igroup_add_mode, _gname),
                 ("Click again to stop adding folders" if _in_add
-                 else "Add folders from the tree to this group"),
+                 else "Add folders to this group"),
                 bg=(_cue_color_selected_alt if _in_add else None))
             use cue_txt_button(_gname, Function(_cue.sfx.library.toggle_igroup_expand, _gname))
 
@@ -368,7 +373,7 @@ screen cue_intensity_groups_list(igroup_names, search_query=""):
                 $ _folder = _g_folders[_idx]
                 hbox:
                     spacing 2
-                    etext "    "
+                    etext _indent * 2
                     if not _searching:
                         use cue_icon_btn("xmark",
                             Function(_cue.intensity.remove_level, _gname, _idx),

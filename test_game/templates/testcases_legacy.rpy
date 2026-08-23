@@ -31,6 +31,9 @@ init 1000 python:
         _cue.trigger.excl_channels.clear()
         _cue.trigger._prev_eff_elapsed = -1.0
         _cue.current_file = ""
+        # Empty scene leaves top_layer_type stale; clear it so the target
+        # fallback doesn't point at a movie that isn't on screen.
+        _cue.top_layer_type = ""
         _cue.current_dialogue = ""
         _cue.prev_dialogue = ""
         _cue.ctx._shake_just_happened = False
@@ -308,11 +311,13 @@ testcase intensity_groups_crud:
     $ _ok = _ok and _cue.intensity.add_folder("Test Impacts", "Sub/") is not None
     run Function(_cue.sfx.library.toggle_igroup_add_mode, "Test Impacts")
     $ _ok = _ok and _cue.sfx.library.igroup_add_target is None
-    # Block + group rows compile and render on the SFX page.
+    # Block + group rows compile and render on the SFX page.  Entering add
+    # mode auto-expanded the group, so it starts expanded here.
     run Function(_cue.sfx.library.toggle_igroups_expand)
     $ _ok = _ok and _cue.sfx.library.igroups_expanded
-    run Function(_cue.sfx.library.toggle_igroup_expand, "Test Impacts")
     $ _ok = _ok and _cue.sfx.library.expanded_igroups.get("Test Impacts", False)
+    run Function(_cue.sfx.library.toggle_igroup_expand, "Test Impacts")
+    $ _ok = _ok and _cue.sfx.library.expanded_igroups.get("Test Impacts", False) is False
     run Function(_cue_set_page, CuePage.SFX)
     pause 0.5
     # Add-mode branches render: folder-open icon + tree + becomes an adder.
@@ -464,6 +469,100 @@ testcase intensity_toggle_sfx_levels_off:
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
+testcase intensity_tab_view:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _cue_test_reset()
+    # Video VFX Intensity tab: tri-state view switch, hook + mapping from the
+    # live video, and the screen's flag-toggle write path.
+    $ _cue_intensity_folders()
+    run Function(_cue.intensity.create_igroup, "Tab Test")
+    run Function(_cue.intensity.add_folder, "Tab Test", "soft/")
+    run Function(_cue.intensity.add_folder, "Tab Test", "hard/")
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _vidk = _cue_create_vid_key(_cue.current_file)
+    $ _cue.markers._get_or_create_entry(_vidk)["pools"] = [{"files": ["soft/"], "volume": 1.0}]
+    $ _cue.markers._get_or_create_entry(_vidk)["speed_mode"] = CueSpeedMode.MULTI
+    $ _cue.markers._get_or_create_entry(_vidk)["speed_sequence"] = [0.7, 1.0, 1.3]
+    $ _cue.markers._get_or_create_entry(_vidk)["speed_pref"] = 1.0
+    # Open the SFX page with the Intensity tab; render the inspector.
+    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.video_editor.show_tab, CueVideoEditorTab.INTENSITY)
+    $ renpy.restart_interaction()
+    pause 0.5
+    $ _ok = _cue.video_editor.tab == CueVideoEditorTab.INTENSITY
+    $ _ok = _ok and not _cue.video_editor.active
+    # The inspector resolves the hook group + live mapping from the video.
+    $ _vid_entry = _cue.markers.get(_vidk, {})
+    $ _vid_entries = _cue.markers._resolve_video_pools(_vid_entry)
+    $ _pools_files = [p["files"] for p in _vid_entries]
+    $ _ok = _ok and _cue.intensity.video_hook(_pools_files) == "Tab Test"
+    $ _variants = _cue.speed_resolver.active_speeds(_cue.current_file)
+    $ _ok = _ok and _variants == [0.7, 1.0, 1.3]
+    $ _mapping = _cue.intensity.variant_levels("Tab Test", _variants)
+    $ _ok = _ok and _mapping == [(0.7, 1), (1.0, 2), (1.3, 2)]
+    $ _cur = _cue.speed_resolver.speed_for(_cue.current_file)
+    $ _res = _cue.intensity.video_level(_pools_files, _cur, _variants)
+    $ _ok = _ok and _res is not None and _res.level == 2 and _res.folder == "hard/"
+    # Screen write path: toggling a flag persists and the live resolution honors it.
+    run Function(_cue_toggle_intensity_flag, "intensity_enabled")
+    $ _entry = _cue.markers.get(_vidk, {})
+    $ _flags = _cue.intensity.flags_from_entry(_entry)
+    $ _ok = _ok and _entry.get("intensity_enabled", True) is False
+    $ _ok = _ok and _cue.intensity.video_level(_pools_files, _cur, _variants, flags=_flags) is None
+    run Function(_cue_toggle_intensity_flag, "intensity_enabled")
+    # Tab switching round-trips between all three views.
+    run Function(_cue.video_editor.show_tab, CueVideoEditorTab.SPEED)
+    $ _ok = _ok and _cue.video_editor.tab == CueVideoEditorTab.SPEED
+    run Function(_cue.video_editor.show_tab, CueVideoEditorTab.CREATE)
+    $ _ok = _ok and _cue.video_editor.tab == CueVideoEditorTab.CREATE
+    run Function(_cue.video_editor.show_tab, CueVideoEditorTab.SPEED)
+    $ _cue.markers.pop(_vidk, None)
+    run Function(_cue.intensity.delete_igroup, "Tab Test")
+    $ _cue_intensity_cleanup()
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase intensity_one_group_per_pool_warning:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _cue_test_reset()
+    # One intensity group per pool: adding a second group's folder is rejected
+    # with a red notice under the target bar (no dialog); the pool is untouched
+    # and any successful add clears the notice.
+    $ _cue_intensity_folders()
+    run Function(_cue.intensity.create_igroup, "Guard A")
+    run Function(_cue.intensity.add_folder, "Guard A", "soft/")
+    run Function(_cue.intensity.add_folder, "Guard A", "empty/")
+    run Function(_cue.intensity.create_igroup, "Guard B")
+    run Function(_cue.intensity.add_folder, "Guard B", "hard/")
+    # Image on screen -> [+] resolves to the image context (video unavailable).
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    $ _ok = _cue.current_file == "cueimg_a"
+    $ _cue.markers._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["soft/"], "volume": 1.0}]
+    # Guard B's folder rejected: warning names both groups, pool unchanged.
+    run Function(_cue_markers_send, "folder", "hard/")
+    $ _ok = _ok and _cue.sfx.library.add_to_pool_warning != ""
+    $ _ok = _ok and "Guard B" in _cue.sfx.library.add_to_pool_warning
+    $ _ok = _ok and "Guard A" in _cue.sfx.library.add_to_pool_warning
+    $ _files = _cue.markers._get_or_create_entry("i_cueimg_a")["pools"][0]["files"]
+    $ _ok = _ok and _files == ["soft/"]
+    # Guard A's other folder succeeds and clears the notice.
+    run Function(_cue_markers_send, "folder", "empty/")
+    $ _ok = _ok and _cue.sfx.library.add_to_pool_warning == ""
+    $ _files = _cue.markers._get_or_create_entry("i_cueimg_a")["pools"][0]["files"]
+    $ _ok = _ok and _files == ["soft/", "empty/"]
+    $ _cue.markers.pop("i_cueimg_a", None)
+    run Function(_cue.intensity.delete_igroup, "Guard A")
+    run Function(_cue.intensity.delete_igroup, "Guard B")
+    $ _cue_intensity_cleanup()
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
 testcase sfx_recently_used:
     $ _cue.is_overlay_visible = True
     run Jump("start")
@@ -514,6 +613,9 @@ testcase sfx_target_context:
     pause 2.0
     $ _cue_test_reset()
     run Function(_cue_set_page, CuePage.SFX)
+    # _cue_set_page does not re-render the keybind screen, so settle a frame
+    # before the first key press or it races the SFX hotkey registration.
+    pause 0.5
     $ import pygame_sdl2
     $ import renpy.test.testkey as _testkey
     # Hotkeys select the target context on the SFX page.  No image/movie on
@@ -828,7 +930,7 @@ testcase video_queue_error_msg_substitute_guard:
     # so those brackets were py_eval'd and crashed the whole overlay on every
     # render. Both dynamic text lines are `substitute False` now -- render the
     # queue with a bracketed error (and bracketed filename) to prove it.
-    $ _cue.video_editor.open_editor()
+    $ _cue.video_editor.show_tab(CueVideoEditorTab.CREATE)
     $ _job = _cue.video_editor.job_queue.jobs[-1]
     $ _job.status = CueJobStatus.ERROR
     $ _job.vpath = "videos/[bracket] scene.mp4"
@@ -836,7 +938,7 @@ testcase video_queue_error_msg_substitute_guard:
     $ renpy.restart_interaction()
     pause 0.5
     $ _ok = _job.error_msg == "[Errno 2] No such file or directory: 'ffmpeg'"
-    $ _cue.video_editor.close_editor()
+    $ _cue.video_editor.show_tab(CueVideoEditorTab.SPEED)
     $ renpy.restart_interaction()
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
@@ -1018,11 +1120,14 @@ testcase music_play_pause_toggle:
     run Jump("start")
     pause 2.0
     $ import renpy.audio.music as _music
+    # Play the committed silent fixture, then render the Music page's live
+    # play/pause button.  The fixture is 1s long, so check now_playing within
+    # that window (a longer wait would watch it finish and drain the channel).
     run Function(_cue.music.library.preview, "My Music/song_001.ogg")
-    pause 2.0
+    pause 0.5
     $ _ok = _cue.music.now_playing() is not None
     run Function(_cue_set_page, CuePage.MUSIC)
-    pause 2.0
+    pause 0.5
     $ _ok = _ok and _music.get_pause(channel="music") == False
     run Function(_cue.music.toggle_pause)
     $ _ok = _ok and _music.get_pause(channel="music") == True

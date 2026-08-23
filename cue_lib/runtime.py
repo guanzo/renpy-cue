@@ -79,6 +79,22 @@ def _cue_toggle_video_mute():
         _music.set_volume(0.0 if video_file_muted else 1.0, delay=0, channel=ch)
     renpy.restart_interaction()
 
+def _cue_toggle_intensity_flag(flag_key):
+    # type: (str) -> None
+    """Toggle one per-video intensity flag (intensity_enabled,
+    intensity_sfx_levels, intensity_volume, intensity_frequency).  Absent
+    fields read as on, so the first toggle turns the flag off."""
+    if not _cue.current_file:
+        return
+    vid_key = create_vid_key(_cue.current_file)
+    entry = _cue.markers.get(vid_key, {})
+    if not entry:
+        return
+    entry[flag_key] = not entry.get(flag_key, True)
+    _cue.markers.save_marker(vid_key)
+    renpy.restart_interaction()
+
+
 def _cue_show_overlay():
     # type: () -> None
     _cue.is_overlay_visible = True
@@ -138,9 +154,6 @@ def _cue_hide_overlay():
 
 def _cue_refresh_context():
     # type: () -> None
-    # Runs on every interaction start.  Guard the whole body so one malformed
-    # marker or an unexpected None logs and continues instead of wedging the
-    # callback chain every frame (mirrors _cue_get_top_layer).
     try:
         _cue_refresh_context_impl()
     except Exception as exc:

@@ -879,25 +879,6 @@ def test_preview_folder_empty(cue, sfx_mgr, monkeypatch):
     assert played == []
 
 
-def test_preview_video_preset_aggregates_pools(cue, sfx_mgr, monkeypatch):
-    cue.markers.get_video_preset = lambda name: {
-        "pools": [{"files": ["a.ogg"]}, {"files": ["b.ogg", "c.ogg"]}]}
-    cue.sfx.library.files = ["a.ogg", "b.ogg", "c.ogg"]
-    played = []
-    monkeypatch.setattr(_sfx_manager._random, "choice", lambda files: files[1])
-    monkeypatch.setattr(sfx_mgr, "preview_sfx", lambda f: played.append(f))
-    sfx_mgr.preview_video_preset("p")
-    assert played == ["b.ogg"]
-
-
-def test_preview_video_preset_missing(cue, sfx_mgr, monkeypatch):
-    cue.markers.get_video_preset = lambda name: None
-    played = []
-    monkeypatch.setattr(sfx_mgr, "preview_sfx", lambda f: played.append(f))
-    sfx_mgr.preview_video_preset("p")
-    assert played == []
-
-
 def test_preview_video_pool_picks_from_pool(cue, sfx_mgr, monkeypatch):
     cue.markers.get_video_preset = lambda name: {
         "pools": [{"files": ["a.ogg"]}, {"files": ["b.ogg", "c.ogg"]}]}
@@ -1174,3 +1155,45 @@ def test_refresh_context_guard_contains_collaborator_error(isolated_cue, capture
     _cue_refresh_context()  # capture_display raises -> must not propagate
 
     assert any(c[0].startswith("REFRESH-CTX-ERR") for c in captured_log)
+
+
+# ==========================================================================
+# _cue_toggle_intensity_flag -- per-video intensity toggle persistence
+# ==========================================================================
+
+def test_toggle_intensity_flag_no_current_file(cue):
+    cue.current_file = ""
+    _runtime._cue_toggle_intensity_flag("intensity_enabled")
+    assert cue.calls == {}
+
+
+def test_toggle_intensity_flag_no_entry_noop(cue):
+    cue.current_file = "scene.ogv"
+    _runtime._cue_toggle_intensity_flag("intensity_enabled")
+    assert "markers.save_marker" not in cue.calls
+
+
+def test_toggle_intensity_flag_toggles_then_back(cue):
+    cue.current_file = "scene.ogv"
+    entry = {"intensity_enabled": True}
+    cue.markers.get = (
+        lambda key, default=None:
+            entry if key == "v_scene.ogv" else default)
+    _runtime._cue_toggle_intensity_flag("intensity_enabled")
+    assert entry["intensity_enabled"] is False
+    assert cue.calls["markers.save_marker"] == [(("v_scene.ogv",), {})]
+    _runtime._cue_toggle_intensity_flag("intensity_enabled")
+    assert entry["intensity_enabled"] is True
+
+
+def test_toggle_intensity_flag_absent_defaults_on(cue):
+    cue.current_file = "scene.ogv"
+    # A real video entry; the flag field itself is absent (reads as on).
+    entry = {"volume": 1.0}
+    cue.markers.get = (
+        lambda key, default=None:
+            entry if key == "v_scene.ogv" else default)
+    _runtime._cue_toggle_intensity_flag("intensity_volume")
+    # The default is on, so the first toggle flips it off.
+    assert entry["intensity_volume"] is False
+    assert "intensity_frequency" not in entry

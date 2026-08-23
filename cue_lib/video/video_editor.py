@@ -30,6 +30,13 @@ if MYPY:
     from cue_lib.state import CueContext  # pyright: ignore[reportUnusedImport]
 
 
+class CueVideoEditorTab(object):
+    """Video VFX section tabs.  `tab` on the editor is one of these."""
+    SPEED = "speed"
+    INTENSITY = "intensity"
+    CREATE = "create"
+
+
 class CueVideoEditorState(object):
     """Editing state for a single video file."""
     def __init__(self, vpath):
@@ -68,12 +75,12 @@ class CueVideoEditor(object):
         self._ctx = ctx
         self._states = {}
         self._current = None
-        self.active = False
+        self._current_has_audio = None  # type: Optional[bool]
+        self.tab = CueVideoEditorTab.SPEED
         self._ready = False
         self._warm_cache_error = ""
         self.encode_mode = CUE_VE_MODE_INTERPOLATE
         self.remove_audio = True
-        self._current_has_audio = None  # type: Optional[bool]
         self.job_queue = CueVideoEditQueue(self)
         # Background .rpa extraction state.  The worker thread only writes the
         # ok/msg/done fields; poll_extract() finalizes them on the main thread.
@@ -83,6 +90,18 @@ class CueVideoEditor(object):
     def processing(self):
         # type: () -> bool
         return self.job_queue.processing
+
+    @property
+    def active(self):
+        # type: () -> bool
+        """True only while the Create editor tab is shown.  Derived from the
+        tab selector so Speed and Intensity are both "inactive"."""
+        return self.tab == CueVideoEditorTab.CREATE
+
+    @active.setter
+    def active(self, value):
+        # type: (bool) -> None
+        self.tab = CueVideoEditorTab.CREATE if value else CueVideoEditorTab.SPEED
 
     def _get_state(self):
         # type: () -> Optional[CueVideoEditorState]
@@ -253,10 +272,19 @@ class CueVideoEditor(object):
             self._warm_cache_error = str(e)
         self._ready = True
 
-    def open_editor(self):
-        # type: () -> None
-        self.active = True
-        self.refresh()
+    def show_tab(self, tab):
+        # type: (str) -> None
+        """Switch the Video VFX section to *tab* (a CueVideoEditorTab).
+        CREATE reloads the current video's editing state; SPEED drops the
+        create editor's transient state; INTENSITY reads live from the
+        video."""
+        self.tab = tab
+        if tab == CueVideoEditorTab.CREATE:
+            self.refresh()
+            return
+        if tab == CueVideoEditorTab.SPEED:
+            self._current = None
+        renpy.restart_interaction()
 
     def get_factor(self):
         # type: () -> float
@@ -279,12 +307,6 @@ class CueVideoEditor(object):
         # type: () -> None
         self.remove_audio = not self.remove_audio
         persistent._cue["remove_audio"] = self.remove_audio
-        renpy.restart_interaction()
-
-    def close_editor(self):
-        # type: () -> None
-        self.active = False
-        self._current = None
         renpy.restart_interaction()
 
     @_cue_ui_refresh

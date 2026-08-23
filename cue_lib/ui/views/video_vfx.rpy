@@ -62,13 +62,15 @@ screen cue_video_vfx():
         # --- Tab buttons ---
         hbox:
             spacing 5
-            use cue_tab_btn("Speed", not _cue.video_editor.active,
-                Function(_cue.video_editor.close_editor))
-            use cue_tab_btn("Create", _cue.video_editor.active,
-                Function(_cue.video_editor.open_editor))
+            use cue_tab_btn("Speed", (_cue.video_editor.tab == CueVideoEditorTab.SPEED),
+                Function(_cue.video_editor.show_tab, CueVideoEditorTab.SPEED))
+            use cue_tab_btn("Intensity", (_cue.video_editor.tab == CueVideoEditorTab.INTENSITY),
+                Function(_cue.video_editor.show_tab, CueVideoEditorTab.INTENSITY))
+            use cue_tab_btn("Create", (_cue.video_editor.tab == CueVideoEditorTab.CREATE),
+                Function(_cue.video_editor.show_tab, CueVideoEditorTab.CREATE))
 
         # --- Speed tab ---
-        if not _cue.video_editor.active:
+        if _cue.video_editor.tab == CueVideoEditorTab.SPEED:
             if _has_speeds:
                 # --- Speed / Multi Speed / Auto Speed tabs ---
                 $ _seq = _cue.video_sequence.speeds_for(_cue.current_file)
@@ -210,8 +212,88 @@ screen cue_video_vfx():
             else:
                 etext "No speed variants available. Generate them in the Create tab."
 
+        # --- Intensity tab ---
+        if _cue.video_editor.tab == CueVideoEditorTab.INTENSITY:
+            if not _has_speeds:
+                etext "Intensity requires speed variants. Generate them in the Create tab."
+            else:
+                $ _vid_key = _cue_create_vid_key(_cue.current_file) if _cue.current_file else ""
+                $ _vid_entry = _cue.markers.get(_vid_key, {})
+                $ _vid_entries = _cue.markers._resolve_video_pools(_vid_entry) if _vid_entry else []
+                $ _pools_files = [p.get("files", []) for p in _vid_entries] if _vid_entries else []
+                $ _hook_group = _cue.intensity.video_hook(_pools_files)
+                if _hook_group is None:
+                    etext ("No intensity group hooked to this video's pools. "
+                        "Add an intensity group folder to a pool in the SFX Library.")
+                else:
+                    $ _variants = _cue.speed_resolver.active_speeds(_cue.current_file)
+                    if _variants is None or len(_variants) < 2:
+                        etext ("Intensity needs 2+ speeds in the current mode. "
+                            "Switch to Multi Speed or Auto Speed in the Speed tab.")
+                    else:
+                        $ _cur_speed = _cue.speed_resolver.speed_for(_cue.current_file)
+                        $ _flags = _cue.intensity.flags_from_entry(_vid_entry)
+                        $ _res = _cue.intensity.video_level(
+                            _pools_files, _cur_speed, _variants, flags=_flags)
+                        $ _mapping = _cue.intensity.variant_levels(_hook_group, _variants)
+                        # --- Per-video toggles ---
+                        use cue_checkbox(_flags.enabled, "Intensity",
+                            Function(_cue_toggle_intensity_flag, "intensity_enabled"),
+                            tt_on=("Intensity on: SFX resolve to the intensity group's "
+                                "level as playback speed changes."),
+                            tt_off=("Intensity off: this video's pools play exactly as "
+                                "before, ignoring intensity groups."))
+                        use cue_checkbox(_flags.sfx_levels, "Use level folders",
+                            Function(_cue_toggle_intensity_flag, "intensity_sfx_levels"),
+                            tt_on=("Each level plays its folder from the intensity group."),
+                            tt_off=("The level still drives volume and frequency, but "
+                                "pools play their own files instead of the level folder."))
+                        use cue_checkbox(_flags.volume, "Volume scaling",
+                            Function(_cue_toggle_intensity_flag, "intensity_volume"),
+                            tt_on=("Volume scales up with the active intensity level."),
+                            tt_off=("All levels play at the pool's own volume."))
+                        use cue_checkbox(_flags.frequency, "Frequency scaling",
+                            Function(_cue_toggle_intensity_flag, "intensity_frequency"),
+                            tt_on=("Frequency scales with the active intensity level."),
+                            tt_off=("All levels play at the pool's own frequency."))
+                        # --- Status readout ---
+                        if _res is not None:
+                            $ _res_line = (_res.group + " at " + _cue_speed_label(_cur_speed)
+                                + " -> Level " + str(_res.level)
+                                + " (" + (_res.folder or "(no folder)") + ")"
+                                + "  vol x%.2f  freq x%.2f" % (_res.volume_mult, _res.freq_mult))
+                            etext _res_line
+                        else:
+                            etext "Intensity is off for this video." color _cue_color_text_muted
+                        # --- Mapping inspector ---
+                        null height 4
+                        etext "Mapping:" size 14 bold True
+                        $ _rows = {}
+                        for _sp, _lvl in _mapping:
+                            $ _rows.setdefault(_lvl, []).append(_sp)
+                        for _lvl in sorted(_rows):
+                            $ _row_folder = _cue.intensity.level_folder(_hook_group, _lvl) or "(no folder)"
+                            if _res is not None and _lvl == _res.level:
+                                hbox:
+                                    spacing 5
+                                    for _sp in _rows[_lvl]:
+                                        if _sp == _cur_speed:
+                                            etext _cue_speed_label(_sp) color _cue_color_dark_yellow bold True
+                                        else:
+                                            etext _cue_speed_label(_sp)
+                                    etext "Level " + str(_lvl) + " (" + _row_folder + ")" color _cue_color_active
+                            else:
+                                hbox:
+                                    spacing 5
+                                    for _sp in _rows[_lvl]:
+                                        if _sp == _cur_speed:
+                                            etext _cue_speed_label(_sp) color _cue_color_dark_yellow bold True
+                                        else:
+                                            etext _cue_speed_label(_sp)
+                                    etext "Level " + str(_lvl) + " (" + _row_folder + ")"
+
         # --- Create tab ---
-        if _cue.video_editor.active:
+        if _cue.video_editor.tab == CueVideoEditorTab.CREATE:
             $ _ved = _cue.video_editor
             vbox:
                 spacing 5

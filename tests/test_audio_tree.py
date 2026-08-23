@@ -538,15 +538,22 @@ def test_sfx_igroup_add_mode_toggle_single_target(sfx):
     assert sfx.igroup_add_target is None
     sfx.toggle_igroup_add_mode("Impacts")
     assert sfx.igroup_add_target == "Impacts"
-    # Toggling the active group exits add-folder mode.
+    # Entering add mode expands the group's level rows so appends land
+    # visibly.
+    assert sfx.expanded_igroups.get("Impacts") is True
+    # Toggling the active group exits add-folder mode but keeps the row
+    # expanded -- the manual collapse state is untouched.
     sfx.toggle_igroup_add_mode("Impacts")
     assert sfx.igroup_add_target is None
+    assert sfx.expanded_igroups.get("Impacts") is True
 
 
 def test_sfx_igroup_add_mode_switches_group(sfx):
     sfx.toggle_igroup_add_mode("A")
     sfx.toggle_igroup_add_mode("B")
     assert sfx.igroup_add_target == "B"   # only one group at a time
+    assert sfx.expanded_igroups.get("A") is True
+    assert sfx.expanded_igroups.get("B") is True
 
 
 def test_sfx_igroup_add_folder_wired(sfx):

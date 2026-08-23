@@ -101,6 +101,7 @@ init -999 python:
         _cue_preview_music_preset,
         _cue_set_page,
         _cue_toggle_video_mute,
+        _cue_toggle_intensity_flag,
     )
 
     from cue_lib.video.speed import (
@@ -159,6 +160,9 @@ init -999 python:
     from cue_lib.video.video_edit_queue import (
         CUE_VE_MODE_NORMAL, CUE_VE_MODE_INTERPOLATE, CUE_VE_MODE_FAST_PREVIEW,
         CueJobStatus,
+    )
+    from cue_lib.video.video_editor import (
+        CueVideoEditorTab,
     )
 
 

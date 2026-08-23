@@ -193,4 +193,4 @@ screen cue_video_sfx():
         else:
             null height 5
             etext ("Only the original video (1.0x) can be edited. Speed variants auto create "
-                + "markers based on the 1.0x config. Switch back to 1.0x to edit markers.")
+                + "markers based on the 1.0x config.")

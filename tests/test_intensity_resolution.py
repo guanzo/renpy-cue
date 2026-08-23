@@ -337,3 +337,74 @@ def test_volume_mult_matches_resolution_baked_scale(cue_env):
     assert r is not None
     _, vm = m.level_multipliers("Impacts", r.level)
     assert r.volume_mult == _cue_intensity_volume_mult(vm)
+
+
+# ==========================================================================
+# video_hook -- the igroup of a video's first hooked pool, matching
+# video_level's scan order (used by the Intensity inspector regardless of
+# whether the master toggle is on).
+# ==========================================================================
+
+def test_video_hook_first_hooked_pool(cue_env):
+    m = _two_level(cue_env)
+    pools = [["unrelated/"], ["soft/"], ["hard/"]]
+    assert m.video_hook(pools) == "Impacts"
+
+
+def test_video_hook_no_hook_is_none(cue_env):
+    m = _two_level(cue_env)
+    assert m.video_hook([["unrelated/"], ["other/"]]) is None
+
+
+def test_video_hook_empty_pools_is_none(cue_env):
+    m = _two_level(cue_env)
+    assert m.video_hook([]) is None
+
+
+def test_video_hook_direct_files_no_hook(cue_env):
+    m = _two_level(cue_env)
+    assert m.video_hook([["sfx_001.ogg", "sfx_002.ogg"]]) is None
+
+
+# ==========================================================================
+# variant_levels -- (speed, level) band map for the mapping inspector
+# ==========================================================================
+
+def test_variant_levels_even_two_bands(cue_env):
+    m = _two_level(cue_env)
+    assert m.variant_levels("Impacts", [0.6, 0.7, 0.8, 0.9, 1.0, 1.1]) == [
+        (0.6, 1), (0.7, 1), (0.8, 1), (0.9, 2), (1.0, 2), (1.1, 2)]
+
+
+def test_variant_levels_even_three_bands(cue_env):
+    m = _two_level(cue_env)
+    assert m.create_igroup("Three") is None
+    assert m.add_folder("Three", "soft/") is None
+    assert m.add_folder("Three", "hard/") is None
+    assert m.add_folder("Three", "empty/") is None
+    assert m.variant_levels("Three", [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4]) == [
+        (0.6, 1), (0.7, 1), (0.8, 1), (0.9, 2), (1.0, 2), (1.1, 2),
+        (1.2, 3), (1.3, 3), (1.4, 3)]
+
+
+def test_variant_levels_unsorted_input_sorted(cue_env):
+    m = _two_level(cue_env)
+    assert m.variant_levels("Impacts", [1.1, 0.6, 0.9]) == [
+        (0.6, 1), (0.9, 2), (1.1, 2)]
+
+
+def test_variant_levels_single_folder_none(cue_env):
+    m = CueIntensityManager(cue_env.db)
+    assert m.create_igroup("One") is None
+    assert m.add_folder("One", "soft/") is None
+    assert m.variant_levels("One", [0.7, 1.0, 1.3]) is None
+
+
+def test_variant_levels_missing_group_none(cue_env):
+    m = _two_level(cue_env)
+    assert m.variant_levels("Nope", [0.7, 1.0]) is None
+
+
+def test_variant_levels_no_variants_none(cue_env):
+    m = _two_level(cue_env)
+    assert m.variant_levels("Impacts", []) is None

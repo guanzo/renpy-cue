@@ -276,6 +276,9 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         self.expanded_igroups = {}        # group_name -> bool
         self.igroup_add_target = None     # igroup in add-folder mode (None = none)
         self._intensity = None            # late-bound CueIntensityManager (cue_z.rpy)
+        # Guardrail notice shown under the target bar; "" = none.  Set on a
+        # rejected folder add, cleared by any successful pool add.
+        self.add_to_pool_warning = ""
 
         # File disable
         self.disabled_files = set()       # full_path strings
@@ -409,11 +412,13 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # type: (str) -> None
         """Toggle add-folder mode for one igroup.  Only one group can be in
         add mode at a time: enabling a group while another is active switches
-        the target; toggling the active group exits."""
+        the target; toggling the active group exits.  Entering add mode
+        expands the group's level rows so appends land visibly."""
         if self.igroup_add_target == group_name:
             self.igroup_add_target = None
         else:
             self.igroup_add_target = group_name
+            self.expanded_igroups[group_name] = True
 
     def igroup_add_folder(self, group_name, folder_path):
         # type: (str, str) -> None
@@ -425,6 +430,16 @@ class CueSfxLibraryTree(CueAudioTreeManager):
             self.igroup_add_target = None
             return
         self._intensity.add_folder(group_name, folder_path)
+
+    def set_add_to_pool_warning(self, message):
+        # type: (str) -> None
+        """Show the one-group-per-pool guardrail notice under the target bar.
+        Overwrites any prior notice; a successful add clears it."""
+        self.add_to_pool_warning = message
+
+    def clear_add_to_pool_warning(self):
+        # type: () -> None
+        self.add_to_pool_warning = ""
 
     def toggle_overlay_mode(self):
         # type: () -> None

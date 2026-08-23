@@ -265,8 +265,8 @@ class CueIntensityManager(object):
             return None
         existing = self.pool_group(pool_files)
         if existing is not None and existing != new_group:
-            return ("That folder belongs to Intensity Group '{}', but this pool "
-                    "is already hooked to '{}'. One intensity group per pool."
+            return ("That folder is in Intensity Group '{}', but this pool "
+                    "is already hooked to '{}'. A pool can only contain one intensity group."
                     ).format(new_group, existing)
         return None
 
@@ -379,6 +379,35 @@ class CueIntensityManager(object):
             if res is not None:
                 return res
         return None
+
+    def video_hook(self, pools_files):
+        # type: (List[List[str]]) -> Optional[str]
+        """The igroup of a video's first hooked pool, matching video_level's
+        scan order.  None when no pool is hooked.  Unlike video_level this
+        ignores the per-video toggles, so the inspector can name the group
+        even while the master switch is off."""
+        for files in pools_files:
+            hook = self.resolve_hook(files)
+            if hook is not None:
+                return hook[0]
+        return None
+
+    def variant_levels(self, group_name, variants):
+        # type: (str, List[float]) -> Optional[List[Tuple[float, int]]]
+        """[(speed, level)] band map for the mapping inspector: the same
+        banding resolve_intensity applies, without needing a current speed.
+        None when the group is missing, has fewer than 2 folders, or there
+        are no variants (no intensity)."""
+        if not variants:
+            return None
+        data = self.get_igroup(group_name)
+        if data is None:
+            return None
+        n = len(data.get("folders", []))
+        if n < 2:
+            return None
+        speeds, levels = _cue_band_speeds(list(variants), n)
+        return list(zip(speeds, levels))
 
     # ------------------------------------------------------------------
     # Writes

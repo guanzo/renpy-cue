@@ -33,6 +33,7 @@ from cue_lib.video.video_edit_queue import (
 from cue_lib.video.video_editor import (
     CueVideoEditor,
     CueVideoEditorState,
+    CueVideoEditorTab,
 )
 
 from tests.fakes import (
@@ -1115,17 +1116,17 @@ def test_editor_extract_write_failure(ve, tmp_path, monkeypatch):
     assert "Failed to write extracted file" in msg
 
 
-def test_editor_open_editor_warm_thread(ve, fthread):
+def test_editor_show_create_tab_warm_thread(ve, fthread):
     ve._ffmpeg = FakeFFmpeg(cache=-1)
-    ve.open_editor()
+    ve.show_tab(CueVideoEditorTab.CREATE)
     assert ve.active is True
     assert ve._current is not None
     assert ve._ready is False  # warm check still running
 
 
-def test_editor_open_editor_ready(ve):
+def test_editor_show_create_tab_ready(ve):
     ve._ffmpeg = FakeFFmpeg(cache=0)
-    ve.open_editor()
+    ve.show_tab(CueVideoEditorTab.CREATE)
     assert ve.active is True
     assert ve._ready is True
 
@@ -1149,10 +1150,10 @@ def test_editor_refresh_no_video(ve):
     assert ve._current_has_audio is None
 
 
-def test_editor_close_editor(ve):
+def test_editor_show_speed_tab(ve):
     ve._current = ve._ensure_state("movies/scene.webm")
     ve.active = True
-    ve.close_editor()
+    ve.show_tab(CueVideoEditorTab.SPEED)
     assert ve.active is False
     assert ve._current is None
 
@@ -1816,3 +1817,39 @@ def test_extract_from_rpa_write_error_cleans_partial(ve, monkeypatch):
     assert status == "error"
     fpath = os.path.join(_config.gamedir, "movies", "scene.webm")
     assert not os.path.exists(fpath)
+
+
+# ==========================================================================
+# Video VFX tab view -- tri-state tab selector (Speed / Intensity / Create).
+# `active` stays derived: only the Create editor is "active".
+# ==========================================================================
+
+def test_editor_tab_defaults_to_speed(ve):
+    assert ve.tab == "speed"
+    assert ve.active is False
+
+
+def test_editor_show_create_tab_activates(ve):
+    ve.show_tab(CueVideoEditorTab.CREATE)
+    assert ve.tab == "create"
+    assert ve.active is True
+
+
+def test_editor_show_intensity_selects_tab(ve):
+    ve.show_tab(CueVideoEditorTab.INTENSITY)
+    assert ve.tab == "intensity"
+    assert ve.active is False
+
+
+def test_editor_active_setter_sets_tab(ve):
+    ve.active = True
+    assert ve.tab == "create"
+    ve.active = False
+    assert ve.tab == "speed"
+
+
+def test_editor_show_speed_tab_from_intensity(ve):
+    ve.show_tab(CueVideoEditorTab.INTENSITY)
+    ve.show_tab(CueVideoEditorTab.SPEED)
+    assert ve.tab == "speed"
+    assert ve.active is False

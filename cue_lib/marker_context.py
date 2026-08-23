@@ -77,6 +77,7 @@ class CueMarkerContext(object):
         if _cue_shift_held():
             self.add_pool()
         self.add_file(file_index)
+        self._clear_add_to_pool_warning()
         # Record on attempt (send_* is the "user asked for this" seam); a
         # disabled or out-of-range file still counts as an attempt, but one
         # we cannot resolve to a path does not.  record=False is passed by
@@ -85,18 +86,25 @@ class CueMarkerContext(object):
             self._record_use("file", self._mgr._sfx_manager.library.files[file_index])
 
     def send_folder(self, folder_path, record=True):
-        # type: (str, bool) -> None
+        # type: (str, bool) -> Optional[str]
+        """Send a folder to the active pool.  Returns the guardrail error
+        string when the add is rejected; a rejected add is not recorded as a
+        recent use."""
         if _cue_shift_held():
             self.add_pool()
-        self.add_folder(folder_path)
-        if record:
-            self._record_use("folder", folder_path.rstrip("/") + "/")
+        err = self.add_folder(folder_path)
+        if err is None:
+            self._clear_add_to_pool_warning()
+            if record:
+                self._record_use("folder", folder_path.rstrip("/") + "/")
+        return err
 
     def send_preset(self, preset_name, record=True):
         # type: (str, bool) -> None
         if _cue_shift_held():
             self.add_pool()
         self.apply_preset(preset_name)
+        self._clear_add_to_pool_warning()
         if record:
             self._record_use("preset", preset_name)
 
@@ -105,6 +113,13 @@ class CueMarkerContext(object):
         recent = self._mgr._sfx_manager.library._recent
         if recent is not None:
             recent.record(kind, ref)
+
+    def _clear_add_to_pool_warning(self):
+        # type: () -> None
+        """Dismiss the add-to-pool guardrail notice after a successful add."""
+        library = self._mgr._sfx_manager.library
+        if getattr(library, "clear_add_to_pool_warning", None) is not None:
+            library.clear_add_to_pool_warning()
 
     def remove_file(self, pool_index, file_index):
         # type: (int, int) -> None
@@ -242,15 +257,24 @@ class CueMarkerContext(object):
         self._mgr._stamp_preset(key, preset_name, self.get_active_index())
 
     def add_folder(self, folder_path):
-        # type: (str) -> None
+        # type: (str) -> Optional[str]
+        """Add a folder ref to the active pool.  Returns an error string when
+        the folder belongs to a different intensity group than the pool (one
+        group per pool), else None."""
         key = self._key()
         folder_ref = folder_path.rstrip("/") + "/"
         self._mgr._detach_pool(key, self.get_active_index())
         pool = self._mgr._ensure_pool(key, self.get_active_index())
         files = pool.setdefault("files", [])
+        intensity = getattr(self._mgr._sfx_manager.library, "_intensity", None)
+        if intensity is not None:
+            err = intensity.check_add_folder(files, folder_ref)
+            if err is not None:
+                return err
         if folder_ref not in files:
             files.append(folder_ref)
         self._mgr._db_save_marker(key)
+        return None
 
 
 # =========================================================================
@@ -421,23 +445,39 @@ class CueVideoContext(CueMarkerContext):
         self._mgr._db_save_marker(vid_key)
 
     def add_folder(self, folder_path):
-        # type: (str) -> None
+        # type: (str) -> Optional[str]
+        """Add a folder ref to the target video pool(s).  Returns an error
+        string when any target pool is hooked to a different intensity group
+        (one group per pool), else None."""
         if not self._mgr._ctx.current_file:
-            return
+            return None
         folder_ref = folder_path.rstrip("/") + "/"
         vid_key = self._key()
         entry = self._mgr._get_or_create_entry(vid_key)
         pools = entry["pools"]
+        intensity = getattr(self._mgr._sfx_manager.library, "_intensity", None)
         if len(self.selected) > 1:
-            for idx in sorted(self.selected):
+            targets = [idx for idx in sorted(self.selected) if 0 <= idx < len(pools)]
+            if intensity is not None:
+                for idx in targets:
+                    err = intensity.check_add_folder(pools[idx].get("files", []), folder_ref)
+                    if err is not None:
+                        return err
+            for idx in targets:
                 self._add_file(vid_key, folder_ref, idx)
         elif pools and 0 <= self.active_pool < len(pools):
+            if intensity is not None:
+                err = intensity.check_add_folder(
+                    pools[self.active_pool].get("files", []), folder_ref)
+                if err is not None:
+                    return err
             self._add_file(vid_key, folder_ref, self.active_pool)
         else:
             elapsed = self._mgr._vid_manager.get_elapsed()
             self._append_pool(entry, pools,
                 {"time": elapsed, "files": [folder_ref]})
         self._mgr._db_save_marker(vid_key)
+        return None
 
     def clear(self):
         # type: () -> None
