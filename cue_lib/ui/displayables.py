@@ -452,8 +452,6 @@ class CueVideoMarkerTimeline(Displayable):
                         sign = "+" if offset >= 0 else "-"
                         self._tip_text += "\nOffset from Pool {}: {}{}".format(
                             ref_idx + 1, sign, _cue_format_time(abs(offset)))
-                if is_scaled:
-                    self._tip_text += "\n[Auto-scaled from 1.0x.\nEdit markers on the 1.0x speed.]"
                 self._tip_x = x
                 self._tip_y = y
                 self._hover_idx = hit_idx

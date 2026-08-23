@@ -69,7 +69,7 @@ screen cue_video_sfx():
                 xfill True
                 ysize 18
                 add CueVideoTimeline()
-                
+
         # Video marker tabs + active pool
         $ _vid_key = _cue_create_vid_key(_cue.current_file) if _cue.current_file else ""
         $ _vid_entry = _cue.markers.get(_vid_key, {})
@@ -192,5 +192,5 @@ screen cue_video_sfx():
                     "or add to the active pool.")
         else:
             null height 5
-            etext ("Only the original video (1.0x) can be edited. Speed variants inherit "
-                + "the 1.0x configuration. Switch back to 1.0x to edit markers.")
+            etext ("Only the original video (1.0x) can be edited. Speed variants auto create "
+                + "markers based on the 1.0x config. Switch back to 1.0x to edit markers.")
