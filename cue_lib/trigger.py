@@ -46,6 +46,13 @@ CUE_EXCL_KIND_LOOP = "loop"
 CUE_EXCL_KIND_ONESHOT = "oneshot"
 CUE_EXCL_KIND_VIDEO = "video"
 
+# Max lead (seconds) to fire a video marker before its time.  Lead is half the
+# measured per-tick position advance, which centers deltas around 0 instead of
+# always firing a tick late.  The cap allows full centering even at high speed
+# with coarse get_pos() steps (~43ms audio-buffer chunks * 1.6x ~= 69ms) while
+# bounding how early a marker can fire after a reset or dropped frame.
+CUE_MARKER_LEAD_MAX = 0.04
+
 
 def _cue_loop_still_playing(channels):
     # type: (List[str]) -> bool
@@ -77,8 +84,23 @@ def _cue_pick_deduped(files, picked, max_tries=3):
         tries += 1
 
 
-def _cue_marker_reached(mt, effective_elapsed, prev_eff, marker_tolerance):
-    # type: (float, float, float, float) -> bool
+def _cue_marker_lead(effective_elapsed, prev_eff):
+    # type: (float, float) -> float
+    """Seconds to fire a video marker early: half the per-tick position
+    advance, clamped to CUE_MARKER_LEAD_MAX.  Zero when the advance is unknown
+    (prev_eff < 0 reset sentinel) or playback is stalled (advance ~= 0)."""
+    if prev_eff < 0.0:
+        return 0.0
+    lead = 0.5 * (effective_elapsed - prev_eff)
+    if lead < 0.0:
+        return 0.0
+    if lead > CUE_MARKER_LEAD_MAX:
+        return CUE_MARKER_LEAD_MAX
+    return lead
+
+
+def _cue_marker_reached(mt, effective_elapsed, prev_eff, marker_tolerance, lead=0.0):
+    # type: (float, float, float, float, float) -> bool
     """True if a marker at time mt was reached or crossed since the last tick.
 
     Two complementary checks so markers aren't missed when playback position
@@ -87,12 +109,18 @@ def _cue_marker_reached(mt, effective_elapsed, prev_eff, marker_tolerance):
 
       1. Forward window:  mt <= eff < mt + tolerance    (stationary / first tick)
       2. Cross check:     prev_eff < mt <= eff           (jumped past marker)
+
+    lead > 0 targets mt - lead instead of mt, firing the marker up to `lead`
+    seconds EARLY to compensate the frame-bound tick cadence (deltas center on
+    0 instead of always landing late).  lead=0 reproduces the late-fire
+    behavior.
     """
-    # Forward window: current position is within tolerance past the marker
-    if mt <= effective_elapsed < mt + marker_tolerance:
+    target = mt - lead
+    # Forward window: current position is within tolerance of the target
+    if target <= effective_elapsed < mt + marker_tolerance:
         return True
-    # Cross check: we jumped past the marker since the last tick
-    if prev_eff < mt <= effective_elapsed:
+    # Cross check: we jumped past the target since the last tick
+    if prev_eff < target <= effective_elapsed:
         return True
     return False
 
@@ -586,6 +614,9 @@ class CueTriggerEngine(object):
         # timestamps doesn't invalidate already-fired keys.
         time_counts = {}
         marker_tolerance = 0.08
+        # Lead compensation: fire up to half a tick's position advance before
+        # each marker so deltas center on 0 instead of always landing late.
+        marker_lead = _cue_marker_lead(effective_elapsed, prev_eff)
 
         for idx, pool_entry in enumerate(markers):
             is_preview = idx >= len(markers) - preview_count
@@ -605,7 +636,7 @@ class CueTriggerEngine(object):
             if ts_key in self.played_video_keys:
                 continue
 
-            if not _cue_marker_reached(t, effective_elapsed, prev_eff, marker_tolerance):
+            if not _cue_marker_reached(t, effective_elapsed, prev_eff, marker_tolerance, marker_lead):
                 continue
 
             resolved = self._store.resolve_pool(pool_entry)
