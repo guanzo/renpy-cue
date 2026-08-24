@@ -411,6 +411,8 @@ screen cue_file_tree():
     # An active igroup add-folder target turns the tree's + into a level
     # adder for that group (one group at a time).
     $ _igroup_target = _cue.sfx.library.igroup_add_target
+    # {audio_dir-prefixed path: reason} for WAVs the converter can't make playable.
+    $ _unplayable = _cue.sfx.unplayable_files()
 
     for item in _cue.sfx.library.visible_tree:
         hbox:
@@ -448,3 +450,9 @@ screen cue_file_tree():
                     _tgt_tt, enabled=_tgt_ok)
                 null width 1
                 etext item["name"] color _cue_color_text_accent
+                $ _bad_reason = _unplayable.get(_cue.paths.audio_dir + item["full_path"], "")
+                if _bad_reason:
+                    use cue_icon(
+                        "triangle-exclamation",
+                        tt=("Invalid file: " + _bad_reason),
+                        icon_color=_cue_color_warn)

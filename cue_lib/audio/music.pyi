@@ -1,11 +1,12 @@
 # Type stub for cue_lib.audio.music
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from cue_lib._types import DefaultMusicTrigger
 from cue_lib.audio.recent import CueRecentManager
 from cue_lib.audio.user_music import CueUserMusic
 from cue_lib.audio.game_music import CueGameMusic
 from cue_lib.audio.music_tree import CueCombinedMusicTree
+from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.state import CueContext
 from cue_lib.db import CueDatabase
@@ -33,6 +34,7 @@ class CueMusicManager:
     _ctx: CueContext
     _db: CueDatabase
     _paths: CuePaths
+    _wav_playable: CueWavPlayable
 
     def __init__(
         self,
@@ -41,6 +43,9 @@ class CueMusicManager:
         db: CueDatabase,
         paths: CuePaths) -> None: ...
     def install(self) -> None: ...
+    def _playable_file(self, path: str) -> str: ...
+    def _convert_filename(self, fn: Union[str, List[str]]) -> Any: ...
+    def _convert_play_file(self, args: tuple, kwargs: dict) -> tuple: ...
     def play_untracked(self, full_path: str, volume: float = 1.0) -> None: ...
     def now_playing(self) -> Optional[str]: ...
     @property

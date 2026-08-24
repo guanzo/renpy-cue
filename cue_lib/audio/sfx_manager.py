@@ -115,6 +115,12 @@ class CueSfxManager(object):
         self._warm_thread.daemon = True
         self._warm_thread.start()
 
+    def unplayable_files(self):
+        # type: () -> Dict[str, str]
+        """{path: reason} for WAVs SDL_mixer can't play, for a warning glyph in
+        the SFX Library.  Keys are audio_dir-prefixed full paths."""
+        return self._wav_playable.unplayable()
+
     # ------------------------------------------------------------------
     # Playback
     # ------------------------------------------------------------------

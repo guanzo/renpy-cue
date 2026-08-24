@@ -199,9 +199,12 @@ class CueWavPlayable(object):
 
         NATIVE for 8/16-bit int; CONVERT for any PCM int wider than 16-bit (the
         top 2 bytes/sample survive as a 16-bit value) and 32-bit float; UNPLAYABLE
-        for compressed codecs, corrupt or misnamed files, with a short reason.
+        for compressed codecs, corrupt or misnamed WAVs, with a short reason.
         Reads the real format tag because wave gives the same sampwidth for int and
-        float and refuses to open float at all."""
+        float and refuses to open float at all.  Non-WAV containers (ogg/mp3/opus)
+        are left alone -- the codec decodes those, so they are not our concern."""
+        if self._wav_magic(path) is False:
+            return CUE_WAV_PLAYABLE_NATIVE, ""
         meta = self._read_wav(path)
         if meta is None:
             return CUE_WAV_PLAYABLE_UNPLAYABLE, "not a valid WAV"
@@ -227,6 +230,23 @@ class CueWavPlayable(object):
         if tag == 7:
             return "mu-law"
         return "unsupported format tag {}".format(tag)
+
+    def _wav_magic(self, path):
+        # type: (str) -> Optional[bool]
+        """True if path is a WAV container (RIFF....WAVE), False if it is not
+        (ogg/mp3/opus or a non-audio file), None if it can't be opened.  Lets
+        classification ignore non-WAV files instead of flagging them."""
+        try:
+            f = open(path, "rb")
+            try:
+                head = f.read(12)
+            finally:
+                f.close()
+        except Exception:
+            return None
+        if len(head) < 12:
+            return False
+        return head[0:4] == b"RIFF" and head[8:12] == b"WAVE"
 
     def _read_wav(self, path):
         # type: (str) -> Optional[dict]

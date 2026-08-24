@@ -10,6 +10,7 @@ import renpy.audio.music as _music
 from cue_lib.state import _cue
 from cue_lib.audio.user_music import CueUserMusic
 from cue_lib.audio.game_music import CueGameMusic
+from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.audio.music_tree import CueCombinedMusicTree
 from cue_lib.constants import (
     CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_GAME_TAG, CUE_MUSIC_PREFIX,
@@ -56,6 +57,7 @@ class CueMusicManager(object):
         self._ctx = ctx
         self._db = db
         self._paths = paths
+        self._wav_playable = CueWavPlayable()
         self._is_installed = False
         self.last_event = None  # type: Optional[Dict[str, Any]]
         # replay_label -> [DefaultMusicTrigger, ...]  (mirror)
@@ -104,6 +106,49 @@ class CueMusicManager(object):
         self.load_triggers()
         self.load_presets()
 
+    def _playable_file(self, path):
+        # type: (str) -> str
+        """Route a user My Music WAV through the width converter.
+
+        Game files (game-relative, archive paths) and non-WAV containers come
+        back unchanged: only WAVs under the user music dir can have SDL_mixer's
+        width problem, and only those are the user's to fix.  The converter
+        passes non-WAV through untouched on its own, but this gate also keeps
+        game/archive paths out of it entirely."""
+
+        if not path.lower().endswith(".wav"):
+            return path
+        if not path.startswith(self._paths.music_dir):
+            return path
+        return self._wav_playable.ensure_playable(path)
+
+    def _convert_filename(self, fn):
+        # type: (Any) -> Any
+        """Gate a play() filename through the width converter.
+
+        Ren'Py's music.play accepts a single path or a list of paths it tries
+        in order (the movie channel, via movie_cutscene -> movie_start, passes a
+        list).  A bare path is routed directly; a list is mapped per element, so
+        every user WAV in the list is rerouted but game/non-WAV paths stay."""
+        if hasattr(fn, "lower"):
+            return self._playable_file(fn)
+        return [self._playable_file(p) for p in fn]
+
+    def _convert_play_file(self, args, kwargs):
+        # type: (tuple, dict) -> tuple
+        """Convert a play call's filename (args[0] or ``filenames`` kwarg) to
+        its playable copy, if it is a user WAV.  Game and non-WAV filenames are
+        untouched.  Returns fresh (args, kwargs) for playback; the caller records
+        the original (unconverted) args/kwargs first, so a recorded trigger keeps
+        the user path rather than a temp cache path."""
+        if "filenames" in kwargs:
+            new = dict(kwargs)
+            new["filenames"] = self._convert_filename(new["filenames"])
+            return args, new
+        if args:
+            return (self._convert_filename(args[0]),) + tuple(args[1:]), kwargs
+        return args, kwargs
+
     def play_untracked(self, full_path, volume=1.0):
         # type: (str, float) -> None
         """Play a file on the music channel without recording a trigger.
@@ -114,6 +159,7 @@ class CueMusicManager(object):
         on the default music channel replaces whatever music is currently
         playing, which is the desired preview behavior.
         """
+        full_path = self._playable_file(full_path)
         if _cue._has_relative_volume:
             self._original_music_play(
                 full_path, channel=CUE_DEFAULT_MUSIC_CHANNEL,
@@ -196,10 +242,12 @@ class CueMusicManager(object):
                     kwargs["filenames"] = override
                 elif args:
                     args = (override,) + tuple(args[1:])
-                return self._original_music_play(*args, **kwargs)
+                play_args, play_kwargs = self._convert_play_file(args, kwargs)
+                return self._original_music_play(*play_args, **play_kwargs)
 
         self._record("play", args, kwargs, channel_offset=1)
-        return self._original_music_play(*args, **kwargs)
+        play_args, play_kwargs = self._convert_play_file(args, kwargs)
+        return self._original_music_play(*play_args, **play_kwargs)
 
     def _on_queue(self, *args, **kwargs):
         # type: (Any, Any) -> Any
@@ -773,7 +821,7 @@ class CueMusicManager(object):
         pool = self.music_pool_for(key)
         if pool:
             self._original_music_play(
-                random.choice(pool),
+                self._playable_file(random.choice(pool)),
                 channel=CUE_DEFAULT_MUSIC_CHANNEL,
                 loop=True)
 

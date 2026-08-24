@@ -246,10 +246,24 @@ def test_unplayable_adpcm_reports_reason(tmp_path):
     assert w.unplayable() == {src: "ADPCM"}
 
 
-def test_unplayable_misnamed_feature_and_reason_prefix(tmp_path, monkeypatch):
-    """A valid-WAV-but-compressed/misnamed file passes through and is tracked."""
-    src = str(tmp_path / "in.txt")
-    _write(src, b"hello")
+def test_nonwav_passthrough_silent(tmp_path, monkeypatch):
+    """Non-WAV containers (ogg/mp3/opus) are left alone -- no warning, no log."""
+    src = str(tmp_path / "in.ogg")
+    _write(src, b"OggS" + b"\x00" * 20)
+
+    w = CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    logged = []
+    monkeypatch.setattr("cue_lib.audio.wav_playable._cue_log", lambda msg: logged.append(msg))
+
+    assert w.ensure_playable(src) == src  # passthrough, not our problem
+    assert w.unplayable() == {}           # nothing flagged
+    assert not any("unplayable" in m for m in logged)
+
+
+def test_corrupt_wav_reports_not_valid(tmp_path, monkeypatch):
+    """A file with a WAV container but a broken header is flagged, not silent."""
+    src = str(tmp_path / "broken.wav")
+    _write(src, b"RIFF" + struct.pack("<I", 4) + b"WAVE")  # RIFF/WAVE magic, no fmt/data
 
     w = CueWavPlayable(temp_root=str(tmp_path / "cache"))
     logged = []

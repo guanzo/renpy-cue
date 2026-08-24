@@ -8,7 +8,9 @@
 # interception is asserted on real channel state.
 
 import os
+import struct
 import types
+import wave
 
 import pytest
 
@@ -17,6 +19,7 @@ import renpy.audio.music as _music_mock
 import renpy.store as _store
 
 import cue_lib.audio.music as _music_mod
+from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.constants import (
     CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_PREFIX, CUE_MY_MUSIC_FOLDER,
 )
@@ -24,6 +27,17 @@ from cue_lib.audio.music import (
     CUE_DEFAULT_MUSIC_CHANNEL, CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG,
     _SUPPRESS_MUSIC, CueMusicManager,
 )
+
+
+def _wav24(src, data_bytes):
+    """Write a minimal 24-bit PCM WAV (the SDL_mixer silent case)."""
+    fmt = struct.pack("<HHIIHH", 1, 1, 48000, 48000 * 3, 3, 24)
+    rs = 4 + 8 + len(fmt) + 8 + len(data_bytes)
+    blob = (b"RIFF" + struct.pack("<I", rs) + b"WAVE"
+            + b"fmt " + struct.pack("<I", len(fmt)) + fmt
+            + b"data" + struct.pack("<I", len(data_bytes)) + data_bytes)
+    with open(src, "wb") as f:
+        f.write(blob)
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.state import CueContext
 from tests.fakes import FakeRecent
@@ -104,6 +118,75 @@ def test_play_untracked_absolute_volume(mgr, monkeypatch):
     mgr.install()
     mgr.play_untracked("music/song.ogg", volume=0.5)
     assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["volume"] == 0.5
+
+
+def test_playable_file_user_wav_converts(mgr, tmp_path):
+    cache = CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    mgr._wav_playable = cache
+    os.makedirs(mgr._paths.music_dir, exist_ok=True)
+    path = mgr._paths.music_dir + "song.wav"
+    _wav24(path, bytes([0x01, 0x02, 0x03, 0xFF, 0xFE, 0x7F]))
+    out = mgr._playable_file(path)
+    assert out != path  # routed to a cached 16-bit copy, not played raw
+    w = wave.open(out, "rb")
+    try:
+        assert (w.getsampwidth(), w.getframerate()) == (2, 48000)
+    finally:
+        w.close()
+
+
+def test_playable_file_nonwav_passthrough(mgr):
+    path = mgr._paths.music_dir + "song.ogg"
+    assert mgr._playable_file(path) == path  # not a WAV -> left alone
+
+
+def test_playable_file_game_wav_untouched(mgr):
+    assert mgr._playable_file("bgm/x.wav") == "bgm/x.wav"  # game-relative
+
+
+def test_convert_play_file_keeps_game_and_nonwav(mgr):
+    play_args, play_kwargs = mgr._convert_play_file((), {"filenames": "bgm/x.ogg"})
+    assert play_kwargs["filenames"] == "bgm/x.ogg"
+    play_args, play_kwargs = mgr._convert_play_file(("bgm/x.wav",), {})
+    assert play_args[0] == "bgm/x.wav"
+
+
+def test_convert_play_file_user_wav(mgr, tmp_path):
+    cache = CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    mgr._wav_playable = cache
+    os.makedirs(mgr._paths.music_dir, exist_ok=True)
+    path = mgr._paths.music_dir + "song.wav"
+    _wav24(path, bytes([0x01, 0x02, 0x03]))
+    play_args, _ = mgr._convert_play_file((path, CUE_DEFAULT_MUSIC_CHANNEL), {})
+    assert play_args[0] != path
+
+
+def test_convert_play_file_list_filenames_movie(mgr):
+    """movie_cutscene -> music.play passes a list of filenames (movie channel).
+    Non-WAV game paths must pass through unchanged, not crash on `.lower()`."""
+    play_args, play_kwargs = mgr._convert_play_file(
+        (["gui/pinkcake_video.webm"],), {"channel": "movie"})
+    assert play_args[0] == ["gui/pinkcake_video.webm"]
+    assert play_kwargs["channel"] == "movie"
+
+
+def test_convert_play_file_list_user_wav_maps_each(mgr, tmp_path):
+    """A list of filenames is mapped per-element: each user WAV is rerouted to
+    its cached 16-bit copy, game paths stay untouched."""
+    cache = CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    mgr._wav_playable = cache
+    os.makedirs(mgr._paths.music_dir, exist_ok=True)
+    user = mgr._paths.music_dir + "song.wav"
+    _wav24(user, bytes([0x01, 0x02, 0x03]))
+    play_args, _ = mgr._convert_play_file(([user, "bgm/x.wav"],), {})
+    assert play_args[0][0] != user  # mapped to a cached 16-bit copy
+    assert play_args[0][1] == "bgm/x.wav"  # game path left alone
+
+
+def test_convert_play_file_list_filenames_kwarg(mgr):
+    """The `filenames` kwarg may also be a list; each element is gated."""
+    play_args, play_kwargs = mgr._convert_play_file((), {"filenames": ["bgm/x.ogg", "bgm/y.mp3"]})
+    assert play_kwargs["filenames"] == ["bgm/x.ogg", "bgm/y.mp3"]
 
 
 def test_now_playing_strips_root(mgr):
