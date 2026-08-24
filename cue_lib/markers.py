@@ -721,15 +721,40 @@ def _cue_markers_send(kind, ref, record=True):
         _cue.sfx.library.set_add_to_pool_warning(err)
 
 
-def _cue_send_folder_to_video(folder_path):
-    # type: (str) -> None
-    """Store bridge for the intensity-group [V] button: send a folder to the
-    active video marker's pool, ignoring the target-context selector.  A folder
-    add rejected by the one-group-per-pool guardrail shows the notice under the
-    target bar (same surfacing as _cue_markers_send)."""
-    err = _cue.markers.video.send_folder(folder_path)
-    if err:
-        _cue.sfx.library.set_add_to_pool_warning(err)
+def _cue_send_level_to_target(group, ilevel_id):
+    # type: (str, int) -> None
+    """Store bridge for the intensity-level [+] button: set igroup/ilevel_id
+    on the resolved target context's active pool, clearing its files (the pool
+    now fires from the active level).  Image/dialogue pools are one-shot and
+    can't hold an intensity hook -- a no-op there (the screen also disables
+    the button)."""
+    ctx_id = _cue.markers.resolve_target_context()
+    if ctx_id == CueContextType.IMAGE or ctx_id == CueContextType.DIALOGUE:
+        return
+    ctx = getattr(_cue.markers, ctx_id)
+    key = ctx._key()
+    if not key:
+        return
+    pool = _cue.markers._ensure_pool(key, ctx.get_active_index())
+    if ctx_id == CueContextType.VIDEO and "time" not in pool:
+        pool["time"] = _cue.markers._vid_manager.get_elapsed()
+    pool["igroup"] = group
+    pool["ilevel_id"] = ilevel_id
+    pool["files"] = []
+    _cue.markers._db_save_marker(key)
+
+
+def _cue_send_level_to_target_tt():
+    # type: () -> str
+    """Tooltip for the intensity-level [+] hook button: sets the resolved
+    target's active pool to this level.  Image/dialogue can't hold an
+    intensity hook, so the button is disabled there."""
+    ctx_id = _cue.markers.resolve_target_context()
+    if ctx_id == CueContextType.VIDEO:
+        return "Hook this level to the Video pool.\nThe pool fires from the active level's files."
+    if ctx_id == CueContextType.LOOP:
+        return "Hook this level to the Loop pool.\nThe pool fires from the active level's files."
+    return "Select the Video or Loop target to hook this level."
 
 
 def _cue_assign_tt(ctx_id):
@@ -750,10 +775,3 @@ def _cue_target_assign_tt():
     """Tooltip for the [+] assign button, reflecting the resolved target
     context and whether that context already has an active pool."""
     return _cue_assign_tt(_cue.markers.resolve_target_context())
-
-
-def _cue_send_folder_to_video_tt():
-    # type: () -> str
-    """Tooltip for the intensity-group [V] button: same as the [+]
-    button when video is targeted, always pinned to the video marker."""
-    return _cue_assign_tt(CueContextType.VIDEO)

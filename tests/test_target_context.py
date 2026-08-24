@@ -9,6 +9,7 @@ from cue_lib.constants import CueContextType
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.markers import CueMarkerManager
 from cue_lib.state import CueContext
+from cue_lib.util import create_dlg_key, create_img_key, create_vid_key
 
 from tests.fakes import FakeRecent, FakeSfxManager, FakeVidManager
 
@@ -205,3 +206,75 @@ def test_target_active_label_video_time(mgr):
     _set_video(mgr)
     mgr.send_target("file", 0)
     assert mgr.target_active_label() == "Pool 1 @ 00:00.00"
+
+
+# --- _cue_send_level_to_target (intensity level hook) ---
+
+
+def _hook_target(mgr, ctx_id, monkeypatch):
+    import cue_lib.markers as _markers
+
+    mgr.set_target_context(ctx_id)
+    monkeypatch.setattr(_markers._cue, "markers", mgr)
+    return _markers
+
+
+def test_send_level_to_video_sets_hook(mgr, monkeypatch):
+    _set_video(mgr)
+    _markers = _hook_target(mgr, CueContextType.VIDEO, monkeypatch)
+    _markers._cue_send_level_to_target("Impacts", 2)
+    pool = mgr.video.get_active_pool()
+    assert pool["igroup"] == "Impacts"
+    assert pool["ilevel_id"] == 2
+    assert pool["files"] == []
+
+
+def test_send_level_to_video_stamps_time(mgr, monkeypatch):
+    _set_video(mgr)
+    _markers = _hook_target(mgr, CueContextType.VIDEO, monkeypatch)
+    _markers._cue_send_level_to_target("Impacts", 1)
+    pool = mgr.video.get_active_pool()
+    assert "time" in pool
+    assert mgr.video._key() == create_vid_key("video.mp4")
+
+
+def test_send_level_to_loop_sets_hook(mgr, monkeypatch):
+    _set_menu(mgr)
+    _markers = _hook_target(mgr, CueContextType.LOOP, monkeypatch)
+    _markers._cue_send_level_to_target("Impacts", 1)
+    pool = mgr.loop.get_active_pool()
+    assert pool["igroup"] == "Impacts"
+    assert pool["ilevel_id"] == 1
+
+
+def test_send_level_noop_for_image_target(mgr, monkeypatch):
+    _set_image(mgr)
+    _markers = _hook_target(mgr, CueContextType.IMAGE, monkeypatch)
+    _markers._cue_send_level_to_target("Impacts", 1)
+    assert mgr.get(create_img_key("img.png")) is None
+
+
+def test_send_level_noop_for_dialogue_target(mgr, monkeypatch):
+    _set_video(mgr)
+    mgr._ctx.current_dialogue = "a line"
+    _markers = _hook_target(mgr, CueContextType.DIALOGUE, monkeypatch)
+    _markers._cue_send_level_to_target("Impacts", 1)
+    assert mgr.get(create_dlg_key(("video.mp4", "a line"))) is None
+
+
+def test_send_level_noop_when_video_has_no_key(mgr, monkeypatch):
+    # Video context with no current file -> empty _key() -> no-op, no entry.
+    _set_menu(mgr)
+    _markers = _hook_target(mgr, CueContextType.VIDEO, monkeypatch)
+    _markers._cue_send_level_to_target("Impacts", 1)
+    assert mgr.video._key() == ""
+    assert mgr._data == {}
+
+
+def test_send_level_tt_disabled_for_image(mgr, monkeypatch):
+    import cue_lib.markers as _markers
+
+    _set_image(mgr)
+    mgr.set_target_context(CueContextType.IMAGE)
+    monkeypatch.setattr(_markers._cue, "markers", mgr)
+    assert "Video or Loop" in _markers._cue_send_level_to_target_tt()

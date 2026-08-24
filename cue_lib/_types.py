@@ -37,6 +37,7 @@ class PoolDict(TypedDict, total=False):
 
     files: List[str]
     volume: float
+    time: float  # video pools only
     frequency: int  # loop pools only
     trigger_on_shake: bool  # image pools only
     exclusive: ExclusiveDict  # nested exclusive config; legacy saves held a bool

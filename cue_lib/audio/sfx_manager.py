@@ -41,6 +41,7 @@ if MYPY:
     from typing import Any, Dict, List, Optional, Set  # pyright: ignore[reportUnusedImport]
     from cue_lib._types import MarkerEntry, PoolDict  # pyright: ignore[reportUnusedImport]
     from cue_lib.db import CueDatabase  # pyright: ignore[reportUnusedImport]
+    from cue_lib.intensity.intensity import CueIntensityManager  # pyright: ignore[reportUnusedImport]
     from cue_lib.markers import CueMarkerManager  # pyright: ignore[reportUnusedImport]
     from cue_lib.paths import CuePaths  # pyright: ignore[reportUnusedImport]
     from cue_lib.state import CueContext  # pyright: ignore[reportUnusedImport]
@@ -271,6 +272,20 @@ class CueSfxManager(object):
             f = _random.choice(files)
             self.preview_sfx(f, volume=volume)
 
+    def preview_level(self, group_name, ilevel_id):
+        # type: (str, int) -> None
+        """Preview a random file from an intensity level."""
+        library = self.library
+        if library._intensity is None:
+            return
+        files = library._intensity.level_files_by_id(group_name, ilevel_id)
+        if not files:
+            return
+        resolved = _cue_resolve_files(files)
+        if resolved:
+            f = _random.choice(resolved)
+            self.preview_sfx(f)
+
     def preview_video_pool(self, preset_name, pool_index):
         # type: (str, int) -> None
         """Preview a random file from one pool of a video preset."""
@@ -339,12 +354,15 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         self.expanded_video_presets = {}  # preset_name -> bool
         self.expanded_video_pools = {}  # preset_name -> {pool_index: bool}
 
-        # Intensity group block: expand/collapse + per-group expand, plus the
-        # active add-folder target (one igroup at a time).
+        # Intensity group block: expand/collapse + per-group expand, the active
+        # add-files target (one (group, level) pair at a time), and per-level
+        # expand/collapse for a level's file rows.
         self.igroups_expanded = False
         self.expanded_igroups = {}  # group_name -> bool
-        self.igroup_add_target = None  # igroup in add-folder mode (None = none)
-        self._intensity = None  # late-bound CueIntensityManager (cue_z.rpy)
+        self.ilevel_add_target = None  # (group_name, ilevel_id) in add-files mode (None = none)
+        self.expanded_ilevels = {}  # group_name -> set of ilevel_id
+        self._intensity = None  # type: Optional[CueIntensityManager]
+        # late-bound CueIntensityManager (cue_z.rpy)
         # Guardrail notice shown under the target bar; "" = none.  Set on a
         # rejected folder add, cleared by any successful pool add.
         self.add_to_pool_warning = ""
@@ -479,30 +497,84 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         else:
             self.expanded_igroups[group_name] = True
 
-    def toggle_igroup_add_mode(self, group_name):
+    def add_level(self, group_name):
         # type: (str) -> None
-        """Toggle add-folder mode for one igroup.  Only one group can be in
-        add mode at a time: enabling a group while another is active switches
-        the target; toggling the active group exits.  Entering add mode
-        expands the group's level rows so appends land visibly."""
-        if self.igroup_add_target == group_name:
-            self.igroup_add_target = None
-        else:
-            self.igroup_add_target = group_name
-            self.expanded_igroups[group_name] = True
-
-    def igroup_add_folder(self, group_name, folder_path):
-        # type: (str, str) -> None
-        """Add a tree folder to an intensity group.  The level-targeting UI is
-        reworked in Task 6; for now this only clears a stale target whose group
-        was deleted (the old add_folder call is gone)."""
+        """Store bridge for the [+ Level] button: create an empty level and
+        auto-expand it (so the add-files toggle lands visibly)."""
         if self._intensity is None:
             return
-        if self._intensity.get_igroup(group_name) is None:
-            self.igroup_add_target = None
+        new_id = self._intensity.add_level(group_name)
+        if new_id is not None:
+            self.expanded_igroups[group_name] = True
+            self.expanded_ilevels.setdefault(group_name, set()).add(new_id)
+
+    def toggle_ilevel_add_mode(self, group_name, ilevel_id):
+        # type: (str, int) -> None
+        """Toggle add-files mode for one (group, level) pair.  Only one level
+        can be in add mode at a time; toggling the active level exits.  Entering
+        add mode expands the group and the level's file rows so appends land
+        visibly."""
+        target = (group_name, ilevel_id)
+        if self.ilevel_add_target == target:
+            self.ilevel_add_target = None
+        else:
+            self.ilevel_add_target = target
+            self.expanded_igroups[group_name] = True
+            self.expanded_ilevels.setdefault(group_name, set()).add(ilevel_id)
+
+    def toggle_ilevel_expand(self, group_name, ilevel_id):
+        # type: (str, int) -> None
+        """Toggle expand/collapse for a single level's file rows."""
+        expanded = self.expanded_ilevels.setdefault(group_name, set())
+        if ilevel_id in expanded:
+            expanded.discard(ilevel_id)
+        else:
+            expanded.add(ilevel_id)
+
+    def _ilevel_target_valid(self, group_name, ilevel_id):
+        # type: (str, int) -> bool
+        """True when the (group, level) add target still exists; clears a stale
+        target whose group was deleted."""
+        data = self._intensity.get_igroup(group_name) if self._intensity is not None else None
+        if data is None:
+            self.ilevel_add_target = None
+            return False
+        for level in data.get("levels", []):
+            if level.get("id") == ilevel_id:
+                return True
+        return False
+
+    def ilevel_add_file(self, group_name, ilevel_id, file_ref):
+        # type: (str, int, str) -> None
+        """Add a tree file to a level's files (add-files mode)."""
+        if not self._ilevel_target_valid(group_name, ilevel_id):
             return
-        # Task 6: delegate to add_level + add_level_file once the tree
-        # targets a specific (group, level) pair.
+        intensity = self._intensity
+        if intensity is None:
+            return
+        intensity.add_level_file(group_name, ilevel_id, file_ref)
+
+    def ilevel_add_folder(self, group_name, ilevel_id, folder_path):
+        # type: (str, int, str) -> None
+        """Add a tree folder ref to a level's files (add-files mode)."""
+        if not self._ilevel_target_valid(group_name, ilevel_id):
+            return
+        intensity = self._intensity
+        if intensity is None:
+            return
+        folder_ref = folder_path.rstrip("/") + "/"
+        intensity.add_level_file(group_name, ilevel_id, folder_ref)
+
+    def level_has_file(self, group_name, ilevel_id, file_ref):
+        # type: (str, int, str) -> bool
+        """True when *file_ref* is already in the level's files (used to disable
+        a duplicate add in the tree)."""
+        if self._intensity is None:
+            return False
+        files = self._intensity.level_files_by_id(group_name, ilevel_id)
+        if files is None:
+            return False
+        return file_ref in files
 
     def set_add_to_pool_warning(self, message):
         # type: (str) -> None

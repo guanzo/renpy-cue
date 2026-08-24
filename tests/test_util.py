@@ -1060,7 +1060,10 @@ def test_filter_igroup_folders_no_query_all(monkeypatch):
             get_igroup=lambda n: {"levels": [{"id": 1, "files": ["moans/soft"]}, {"id": 2, "files": ["gasps/light"]}]}
         ),
     )
-    assert _util._cue_filter_igroup_folders("Build", "") == ["moans/soft", "gasps/light"]
+    assert _util._cue_filter_igroup_folders("Build", "") == [
+        {"id": 1, "files": ["moans/soft"]},
+        {"id": 2, "files": ["gasps/light"]},
+    ]
 
 
 def test_filter_igroup_folders_name_match_keeps_all(monkeypatch):
@@ -1071,7 +1074,10 @@ def test_filter_igroup_folders_name_match_keeps_all(monkeypatch):
             get_igroup=lambda n: {"levels": [{"id": 1, "files": ["moans/soft"]}, {"id": 2, "files": ["gasps/light"]}]}
         ),
     )
-    assert _util._cue_filter_igroup_folders("Build", "build") == ["moans/soft", "gasps/light"]
+    assert _util._cue_filter_igroup_folders("Build", "build") == [
+        {"id": 1, "files": ["moans/soft"]},
+        {"id": 2, "files": ["gasps/light"]},
+    ]
 
 
 def test_filter_igroup_folders_content_match_keeps_matches(monkeypatch):
@@ -1082,7 +1088,28 @@ def test_filter_igroup_folders_content_match_keeps_matches(monkeypatch):
             get_igroup=lambda n: {"levels": [{"id": 1, "files": ["moans/soft"]}, {"id": 2, "files": ["gasps/light"]}]}
         ),
     )
-    assert _util._cue_filter_igroup_folders("Build", "gasps") == ["gasps/light"]
+    assert _util._cue_filter_igroup_folders("Build", "gasps") == [{"id": 2, "files": ["gasps/light"]}]
+
+
+def test_filter_igroup_folders_content_match_keeps_per_level_files(monkeypatch):
+    # A content-matched level keeps only the files that matched, and a level
+    # with no matching files drops out of the result entirely.
+    monkeypatch.setattr(
+        _cue,
+        "intensity",
+        SimpleNamespace(
+            get_igroup=lambda n: {
+                "levels": [
+                    {"id": 1, "files": ["moans/soft", "gasps/deep"]},
+                    {"id": 2, "files": ["gasps/light", "pants/heavy"]},
+                ]
+            }
+        ),
+    )
+    assert _util._cue_filter_igroup_folders("Build", "gasps") == [
+        {"id": 1, "files": ["gasps/deep"]},
+        {"id": 2, "files": ["gasps/light"]},
+    ]
 
 
 # ---------------------------------------------------------------------------

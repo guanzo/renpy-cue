@@ -7,6 +7,7 @@
 
 import copy
 import os
+import random as _random
 import types
 
 import pytest
@@ -405,7 +406,8 @@ def test_sfx_init_state(sfx):
     assert sfx.expanded_video_presets == {}
     assert sfx.expanded_video_pools == {}
     assert sfx.disabled_files == set()
-    assert sfx.igroup_add_target is None
+    assert sfx.ilevel_add_target is None
+    assert sfx.expanded_ilevels == {}
     assert sfx.is_sidebar_mode is False
     assert sfx.sidebar_width == CUE_SIDEBAR_DEFAULT_WIDTH
 
@@ -544,48 +546,115 @@ def test_sfx_set_sidebar_width_clamps(sfx):
     assert sfx.sidebar_width == mid
 
 
-def test_sfx_igroup_add_mode_toggle_single_target(sfx):
-    assert sfx.igroup_add_target is None
-    sfx.toggle_igroup_add_mode("Impacts")
-    assert sfx.igroup_add_target == "Impacts"
-    # Entering add mode expands the group's level rows so appends land
-    # visibly.
+def test_sfx_ilevel_add_mode_toggle_single_target(sfx):
+    assert sfx.ilevel_add_target is None
+    sfx.toggle_ilevel_add_mode("Impacts", 1)
+    assert sfx.ilevel_add_target == ("Impacts", 1)
+    # Entering add mode expands the group and the level's file rows so
+    # appends land visibly.
     assert sfx.expanded_igroups.get("Impacts") is True
-    # Toggling the active group exits add-folder mode but keeps the row
+    assert 1 in sfx.expanded_ilevels.get("Impacts", set())
+    # Toggling the active level exits add-files mode but keeps the rows
     # expanded -- the manual collapse state is untouched.
-    sfx.toggle_igroup_add_mode("Impacts")
-    assert sfx.igroup_add_target is None
+    sfx.toggle_ilevel_add_mode("Impacts", 1)
+    assert sfx.ilevel_add_target is None
     assert sfx.expanded_igroups.get("Impacts") is True
 
 
-def test_sfx_igroup_add_mode_switches_group(sfx):
-    sfx.toggle_igroup_add_mode("A")
-    sfx.toggle_igroup_add_mode("B")
-    assert sfx.igroup_add_target == "B"  # only one group at a time
-    assert sfx.expanded_igroups.get("A") is True
-    assert sfx.expanded_igroups.get("B") is True
+def test_sfx_ilevel_add_mode_switches_level(sfx):
+    sfx.toggle_ilevel_add_mode("Impacts", 1)
+    sfx.toggle_ilevel_add_mode("Impacts", 2)
+    assert sfx.ilevel_add_target == ("Impacts", 2)  # only one level at a time
+    assert 1 in sfx.expanded_ilevels.get("Impacts", set())
+    assert 2 in sfx.expanded_ilevels.get("Impacts", set())
 
 
-def test_sfx_igroup_add_folder_wired_is_noop(sfx):
-    # Task 6 reworks the level-targeting UI; the current body does nothing
-    # beyond clearing stale targets.
+def test_sfx_ilevel_add_file_calls_intensity(sfx):
     calls = []
-    sfx._intensity = types.SimpleNamespace(get_igroup=lambda g: {"levels": []})
-    sfx.igroup_add_folder("Impacts", "soft/")
-    assert calls == []
-    # No-op before the manager is wired.
-    sfx._intensity = None
-    sfx.igroup_add_folder("Impacts", "hard/")
-    assert calls == []
+    sfx._intensity = types.SimpleNamespace(
+        get_igroup=lambda g: {"levels": [{"id": 1}, {"id": 2}]},
+        add_level_file=lambda g, lid, ref: calls.append((g, lid, ref)),
+    )
+    sfx.ilevel_add_file("Impacts", 2, "soft/a.ogg")
+    assert calls == [("Impacts", 2, "soft/a.ogg")]
 
 
-def test_sfx_igroup_add_folder_clears_stale_target(sfx):
+def test_sfx_ilevel_add_folder_normalizes_ref(sfx):
+    calls = []
+    sfx._intensity = types.SimpleNamespace(
+        get_igroup=lambda g: {"levels": [{"id": 1}]}, add_level_file=lambda g, lid, ref: calls.append((g, lid, ref))
+    )
+    sfx.ilevel_add_folder("Impacts", 1, "soft")
+    assert calls == [("Impacts", 1, "soft/")]
+
+
+def test_sfx_ilevel_add_clears_stale_group_target(sfx):
     # Deleting the active add-target group leaves a stale target; the next
     # add clears it instead of failing against a deleted group.
     sfx._intensity = types.SimpleNamespace(get_igroup=lambda g: None)
-    sfx.igroup_add_target = "Gone"
-    sfx.igroup_add_folder("Gone", "soft/")
-    assert sfx.igroup_add_target is None
+    sfx.ilevel_add_target = ("Gone", 1)
+    sfx.ilevel_add_file("Gone", 1, "soft/")
+    assert sfx.ilevel_add_target is None
+
+
+def test_sfx_ilevel_add_file_noop_before_wired(sfx):
+    sfx._intensity = None
+    sfx.ilevel_add_file("Impacts", 1, "soft/")
+    assert sfx.ilevel_add_target is None
+
+
+def test_sfx_add_level_records_id_for_autoexpand(sfx):
+    sfx._intensity = types.SimpleNamespace(add_level=lambda g: 3)
+    sfx.add_level("Impacts")
+    assert sfx.expanded_igroups.get("Impacts") is True
+    assert 3 in sfx.expanded_ilevels.get("Impacts", set())
+
+
+def test_sfx_add_level_missing_group_no_record(sfx):
+    sfx._intensity = types.SimpleNamespace(add_level=lambda g: None)
+    sfx.add_level("Impacts")
+    assert "Impacts" not in sfx.expanded_igroups
+    assert "Impacts" not in sfx.expanded_ilevels
+
+
+def test_sfx_toggle_ilevel_expand(sfx):
+    sfx.toggle_ilevel_expand("Impacts", 1)
+    assert 1 in sfx.expanded_ilevels.get("Impacts", set())
+    sfx.toggle_ilevel_expand("Impacts", 1)
+    assert 1 not in sfx.expanded_ilevels.get("Impacts", set())
+
+
+def test_sfx_level_has_file(sfx):
+    sfx._intensity = types.SimpleNamespace(level_files_by_id=lambda g, lid: ["soft/", "a.ogg"])
+    assert sfx.level_has_file("Impacts", 1, "soft/") is True
+    assert sfx.level_has_file("Impacts", 1, "nope.ogg") is False
+    sfx._intensity = None
+    assert sfx.level_has_file("Impacts", 1, "soft/") is False
+
+
+def test_sfx_preview_level_plays_random_resolved(monkeypatch):
+    from cue_lib.audio.sfx_manager import CueSfxManager
+
+    mgr = CueSfxManager(
+        types.SimpleNamespace(audio_dir=""), FakeDb(), types.SimpleNamespace(), types.SimpleNamespace(), False
+    )
+    mgr.library._intensity = types.SimpleNamespace(level_files_by_id=lambda g, lid: ["soft/", "a.ogg"])
+    # _cue_resolve_files reads _cue.sfx.library.files; stub the module _cue.
+    fake = types.SimpleNamespace(
+        sfx=types.SimpleNamespace(library=types.SimpleNamespace(files=["a.ogg", "soft/a.ogg"], disabled_files=set()))
+    )
+    monkeypatch.setattr(_util, "_cue", fake)
+    picked = []
+    monkeypatch.setattr(_random, "choice", lambda files: picked.append(files) or files[0])
+    previewed = []
+    monkeypatch.setattr(mgr, "preview_sfx", lambda f, volume=1.0: previewed.append(f))
+    mgr.preview_level("Impacts", 1)
+    assert picked == [["soft/a.ogg", "a.ogg"]]
+    assert previewed == ["soft/a.ogg"]
+    # Empty level previews nothing.
+    mgr.library._intensity = types.SimpleNamespace(level_files_by_id=lambda g, lid: [])
+    mgr.preview_level("Impacts", 1)
+    assert previewed == ["soft/a.ogg"]
 
 
 # ---------------------------------------------------------------------------

@@ -330,13 +330,12 @@ screen cue_intensity_group_row(igroup_names, searching, search_query=""):
 
             use cue_intensity_groups_list(igroup_names, search_query)
 # Intensity group rows, shown when the Intensity Groups/ block is expanded.
-# Each igroup row expands to its ordered level rows (folder order = level
-# order).  The folder-plus button toggles add-folder mode for that group (one
-# group at a time); while active, a tree folder's + adds it directly.  The
-# other group folders (B, C...) are never added to pools here -- usage is the
-# pool-side hook, handled in the Video SFX inspector.
+# Each igroup row expands to its ordered level rows.  A level is a pool of
+# files with a stable id; the level row hooks it to a pool via [+] (video/loop
+# targets only), and the folder-plus button toggles add-files mode for that
+# level (one level at a time) -- while active, a tree row's + adds it directly.
 # search_query: active search term; level rows are filtered to the matching
-# folders (content-matched groups show only what matched).
+# files (content-matched groups show only what matched).
 screen cue_intensity_groups_list(igroup_names, search_query=""):
     style_group "cue"
 
@@ -344,42 +343,50 @@ screen cue_intensity_groups_list(igroup_names, search_query=""):
 
     if not igroup_names:
         etext _indent + "No intensity groups yet." style "cue_help"
-        etext (_indent + "An intensity group is a soft-to-hard folder list; "
-               "folder order is the level order.") style "cue_help"
+        etext (_indent + "An intensity group is a soft-to-hard level list; "
+               "each level is a pool of files.") style "cue_help"
 
     $ _searching = bool(search_query.strip())
-    # [V] sends the level folder to the active video marker's pool, ignoring
-    # the target-context selector above.  Video context must be on screen.
-    $ _vid_ok = _cue.markers.target_is_available(CueContextType.VIDEO)
-    $ _v_tt = _cue_send_folder_to_video_tt()
+    # The level [+] hooks a pool to a level; only video/loop pools can hold an
+    # intensity hook (image/dialogue are one-shot).
+    $ _tgt_ctx = _cue.markers.resolve_target_context()
+    $ _lv_hook_ok = (_tgt_ctx == CueContextType.VIDEO or _tgt_ctx == CueContextType.LOOP)
+    $ _lv_hook_ok = _lv_hook_ok and _cue.markers.target_is_available(_tgt_ctx)
+    $ _lv_tt = _cue_send_level_to_target_tt()
     for _gname in igroup_names:
         $ _gdata = _cue.intensity.get_igroup(_gname)
-        $ _g_folders = _cue_filter_igroup_folders(_gname, search_query)
+        $ _g_levels = _cue_filter_igroup_folders(_gname, search_query)
         $ _g_expanded = _cue.sfx.library.expanded_igroups.get(_gname, False)
-        $ _in_add = (_cue.sfx.library.igroup_add_target == _gname)
         hbox:
             spacing 2
             etext _indent
             use cue_icon_btn("xmark", Function(_cue_confirm_delete_igroup, _gname),
                 "Delete intensity group" + CUE_HELP_SHIFT_SKIP_DELETE)
-            use cue_icon_btn(("folder-open" if _in_add else "folder-plus"),
-                Function(_cue.sfx.library.toggle_igroup_add_mode, _gname),
-                ("Click again to stop adding folders" if _in_add
-                 else "Add folders to this group"),
-                bg=(_cue_color_selected_alt if _in_add else None))
             use cue_txt_button(_gname, Function(_cue.sfx.library.toggle_igroup_expand, _gname))
 
         # Level rows auto-show during a search (like the tree) so a
         # content-matched group reveals what matched without a click.
         if _g_expanded or _searching:
-            # The level buttons are index-based and must not run on the
-            # filtered view -- hide them (and the level label) while searching.
-            if not _searching and not _g_folders:
-                etext "  No levels yet. Click the group's folder button to add files." style "cue_help"
+            # The level edit buttons are index-based and must not run on the
+            # filtered view -- hide them while searching.
+            if not _searching:
+                hbox:
+                    spacing 2
+                    etext _indent * 2
+                    use cue_txt_button("+ Level", Function(_cue.sfx.library.add_level, _gname),
+                        tt="Add a new level to this group.")
+
+            if not _searching and not _g_levels:
+                etext "  No levels yet. Click + Level to add one." style "cue_help"
                 text "  Add up to ~[CUE_INTENSITY_IDEAL_LEVELS] levels for the best experience." style "cue_help"
                 null height 2
-            for _idx in range(len(_g_folders)):
-                $ _folder = _g_folders[_idx]
+
+            for _idx in range(len(_g_levels)):
+                $ _lv = _g_levels[_idx]
+                $ _lv_id = _lv["id"]
+                $ _lv_files = _lv["files"]
+                $ _lv_expanded = _lv_id in _cue.sfx.library.expanded_ilevels.get(_gname, set())
+                $ _in_add = (_cue.sfx.library.ilevel_add_target == (_gname, _lv_id))
                 hbox:
                     spacing 2
                     etext _indent * 2
@@ -392,16 +399,39 @@ screen cue_intensity_groups_list(igroup_names, search_query=""):
                             "Move level up", enabled=(_idx > 0))
                         use cue_icon_btn("chevron-down",
                             Function(_cue.intensity.move_level, _gname, _idx, 1),
-                            "Move level down", enabled=(_idx < len(_g_folders) - 1))
+                            "Move level down", enabled=(_idx < len(_g_levels) - 1))
                     use cue_icon_btn("play",
-                        Function(_cue.sfx.preview_folder, _folder),
-                        "Play random file from folder")
-                    use cue_icon_btn("v",
-                        Function(_cue_send_folder_to_video, _folder),
-                        _v_tt, enabled=_vid_ok)
-                    etext "Level {}:".format(_idx + 1) color _cue_color_text_accent size 11
-                    null width 1
-                    etext _folder color _cue_color_text_accent size 11
+                        Function(_cue.sfx.preview_level, _gname, _lv_id),
+                        "Play a random file from this level")
+                    use cue_icon_btn(("folder-open" if _in_add else "folder-plus"),
+                        Function(_cue.sfx.library.toggle_ilevel_add_mode, _gname, _lv_id),
+                        ("Click again to stop adding files" if _in_add
+                         else "Add files to this level"),
+                        bg=(_cue_color_selected_alt if _in_add else None))
+                    use cue_icon_btn("plus",
+                        Function(_cue_send_level_to_target, _gname, _lv_id),
+                        _lv_tt, enabled=_lv_hook_ok)
+                    use cue_txt_button(
+                        "Level {}:".format(_idx + 1),
+                        Function(_cue.sfx.library.toggle_ilevel_expand, _gname, _lv_id),
+                        tt="Click to show or hide this level's files")
+                    etext "{} file(s)".format(len(_lv_files)) color _cue_color_text_muted size 11
+
+                if _lv_expanded or _searching:
+                    if not _lv_files:
+                        etext (_indent * 3) + "Click the folder icon to add files" style "cue_help"
+                    for _file in _lv_files:
+                        hbox:
+                            spacing 2
+                            etext _indent * 3
+                            use cue_icon_btn("xmark",
+                                Function(_cue.intensity.remove_level_file, _gname, _lv_id, _file),
+                                "Remove file from level")
+                            use cue_icon_btn("play",
+                                Function(_cue.sfx.preview_sfx, _file),
+                                "Preview file")
+                            null width 1
+                            etext _file color _cue_color_text_accent size 11
 
 
 # Folder/file rows for the current audio tree.
@@ -412,9 +442,9 @@ screen cue_file_tree():
 
     $ _tgt_ok = _cue.markers.target_is_available(_cue.markers.resolve_target_context())
     $ _tgt_tt = _cue_target_assign_tt()
-    # An active igroup add-folder target turns the tree's + into a level
-    # adder for that group (one group at a time).
-    $ _igroup_target = _cue.sfx.library.igroup_add_target
+    # An active level add-files target turns the tree's + into a level-file
+    # adder for that (group, level) pair (one level at a time).
+    $ _ilevel_target = _cue.sfx.library.ilevel_add_target
     # {audio_dir-prefixed path: reason} for WAVs the converter can't make playable.
     $ _unplayable = _cue.sfx.unplayable_files()
 
@@ -430,13 +460,12 @@ screen cue_file_tree():
                         "play",
                         Function(_cue.sfx.preview_folder, item["full_path"]),
                         "Play random file from folder")
-                    if _igroup_target is not None:
-                        $ _tgt_data = _cue.intensity.get_igroup(_igroup_target)
-                        $ _tgt_folders = _tgt_data.get("folders", []) if _tgt_data else []
-                        $ _is_dup = item["full_path"] in _tgt_folders
+                    if _ilevel_target is not None:
+                        $ _tgt_group, _tgt_lv_id = _ilevel_target
+                        $ _is_dup = _cue.sfx.library.level_has_file(_tgt_group, _tgt_lv_id, item["full_path"])
                         use cue_icon_btn("plus",
-                            Function(_cue.sfx.library.igroup_add_folder, _igroup_target, item["full_path"]),
-                            "Add this folder to the {} intensity group.".format(_igroup_target),
+                            Function(_cue.sfx.library.ilevel_add_folder, _tgt_group, _tgt_lv_id, item["full_path"]),
+                            "Add this folder to Level {} of {}.".format(_tgt_lv_id, _tgt_group),
                             enabled=(not _is_dup),
                             bg=(_cue_color_selected_alt if not _is_dup else None))
                     else:
@@ -448,10 +477,19 @@ screen cue_file_tree():
             else:
                 # Play preview
                 use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, item["full_path"]), "Preview audio")
-                use cue_icon_btn(
-                    "plus",
-                    Function(_cue_markers_send, "file", item["index"]),
-                    _tgt_tt, enabled=_tgt_ok)
+                if _ilevel_target is not None:
+                    $ _tgt_group, _tgt_lv_id = _ilevel_target
+                    $ _is_dup = _cue.sfx.library.level_has_file(_tgt_group, _tgt_lv_id, item["full_path"])
+                    use cue_icon_btn("plus",
+                        Function(_cue.sfx.library.ilevel_add_file, _tgt_group, _tgt_lv_id, item["full_path"]),
+                        "Add this file to Level {} of {}.".format(_tgt_lv_id, _tgt_group),
+                        enabled=(not _is_dup),
+                        bg=(_cue_color_selected_alt if not _is_dup else None))
+                else:
+                    use cue_icon_btn(
+                        "plus",
+                        Function(_cue_markers_send, "file", item["index"]),
+                        _tgt_tt, enabled=_tgt_ok)
                 null width 1
                 etext item["name"] color _cue_color_text_accent
                 $ _bad_reason = _unplayable.get(_cue.paths.audio_dir + item["full_path"], "")

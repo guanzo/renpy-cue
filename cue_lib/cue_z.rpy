@@ -114,7 +114,8 @@ init -999 python:
 
     from cue_lib.markers import (
         _cue_load_scalars_from_persistent,
-        _cue_markers_send, _cue_send_folder_to_video, _cue_send_folder_to_video_tt,
+        _cue_markers_send,
+        _cue_send_level_to_target, _cue_send_level_to_target_tt,
         _cue_target_assign_tt,
     )
 
