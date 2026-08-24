@@ -176,7 +176,7 @@ transform cue_icon_fade:
         linear 0.1 alpha 0.5
 
 screen cue_icon(label, action=NullAction(), tt=None, icon_color=None, size=12,
-                on_hover=None, on_unhover=None, fade=True, yoffset=0):
+                on_hover=None, on_unhover=None, fade=True, yoffset=1):
     style_group "cue"
 
     $ _icon = _cue.icons.displayable_for(label, icon_color, size)
@@ -203,7 +203,8 @@ screen cue_icon(label, action=NullAction(), tt=None, icon_color=None, size=12,
 # Base text button: all textbuttons should use this so style/typography
 # live in one place. Pass bg/tooltip/sensitive/xsize/ysize to override.
 screen cue_txt_button(label, action, bg=None, hover_bg=None, tt=None,
-                    sensitive=True, xsize=0, ysize=0, xminimum=0):
+                    sensitive=True, xsize=0, ysize=0, xminimum=0,
+                    hovered=None, unhovered=None):
     style_group "cue"
 
     textbutton _cue_escape_text(label):
@@ -215,6 +216,10 @@ screen cue_txt_button(label, action, bg=None, hover_bg=None, tt=None,
             hover_background hover_bg
         if tt is not None:
             tooltip tt
+        if hovered is not None:
+            hovered hovered
+        if unhovered is not None:
+            unhovered unhovered
         if xsize is not None and xsize > 0:
             xsize xsize
         if xminimum is not None and xminimum > 0:

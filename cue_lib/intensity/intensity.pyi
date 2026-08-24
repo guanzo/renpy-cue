@@ -67,6 +67,12 @@ class CueIntensityManager:
         variants: Optional[List[float]],
         is_populated: Optional[Callable[[str], bool]] = None,
         flags: Optional[CueIntensityFlags] = None) -> Optional[CueIntensityResolution]: ...
+    def current_level(
+        self,
+        pools_files: List[List[str]],
+        current_speed: float,
+        variants: Optional[List[float]],
+        flags: Optional[CueIntensityFlags] = None) -> Optional[Tuple[int, int]]: ...
     def video_hook(self, pools_files: List[List[str]]) -> Optional[str]: ...
     def is_pool_intensity_active(
         self,

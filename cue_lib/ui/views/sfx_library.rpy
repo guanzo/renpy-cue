@@ -102,6 +102,7 @@ screen cue_sfx_library_content(_is_video):
         vscrollbar_unscrollable "hide"
         vbox:
             spacing 2
+            xfill True
             $ _recent = _cue.sfx.library._recent
             $ _recent_entries = _recent.entries() if _recent is not None else []
             if _searching:
@@ -158,45 +159,65 @@ screen cue_recent_list(entries):
 
     $ _tgt_ok = _cue.markers.target_is_available(_cue.markers.resolve_target_context())
     $ _tgt_tt = _cue_target_assign_tt()
+    # Row key of the entry currently hovered; drives the play-button reveal.
+    default _hovered_path = None
 
     if not entries:
         etext "Files you add to pools show up here."  style "cue_help"
     for _re in entries:
-        hbox:
-            spacing 2
-            etext " "  # indent under Recently Used/
-            if _re["type"] == "file":
-                $ _re_idx = _cue.sfx.library._file_index.get(_re["ref"], -1)
-                $ _re_ok = _re_idx >= 0
-                use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, _re["ref"]), "Preview audio")
-                use cue_icon_btn(
-                    "plus",
-                    Function(_cue_markers_send, "file", _re_idx, False),
-                    _tgt_tt, enabled=(_tgt_ok and _re_ok))
-                null width 1
-                etext _re["ref"] color _cue_color_text_accent
-            elif _re["type"] == "folder":
-                use cue_icon_btn(
-                    "play",
-                    Function(_cue.sfx.preview_folder, _re["ref"]),
-                    "Play random file from folder")
-                use cue_icon_btn(
-                    "plus",
-                    Function(_cue_markers_send, "folder", _re["ref"], False),
-                    _tgt_tt, enabled=_tgt_ok)
-                null width 1
-                etext _re["ref"] color _cue_color_text_accent
-            else:  # preset
-                use cue_icon_btn(
-                    "play",
-                    Function(_cue.sfx.preview_preset, _re["ref"]),
-                    "Play random file from preset")
-                use cue_icon_btn(
-                    "plus",
-                    Function(_cue_markers_send, "preset", _re["ref"], False),
-                    _tgt_tt, enabled=_tgt_ok)
-                null width 1
-                etext _re["ref"] color _cue_color_text_accent
+        # Type-prefixed so a folder and a preset sharing a ref don't collide.
+        $ _re_key = "{}:{}".format(_re["type"], _re["ref"])
+        # One focusable button per row: hovering anywhere reveals the play icon.
+        button:
+            style "empty"
+            xfill True
+            action NullAction()
+            hovered SetLocalVariable("_hovered_path", _re_key)
+            unhovered SetLocalVariable("_hovered_path", None)
+            hbox:
+                spacing 2
+                etext " "  # indent under Recently Used/
+                if _re["type"] == "file":
+                    $ _re_idx = _cue.sfx.library._file_index.get(_re["ref"], -1)
+                    $ _re_ok = _re_idx >= 0
+                    use cue_icon_btn(
+                        "plus",
+                        Function(_cue_markers_send, "file", _re_idx, False),
+                        _tgt_tt, enabled=(_tgt_ok and _re_ok))
+                    etext _re["ref"] color _cue_color_text_accent
+                    if _hovered_path == _re_key:
+                        use cue_icon(
+                            "play",
+                            Function(_cue.sfx.preview_sfx, _re["ref"]),
+                            "Preview audio",
+                            on_hover=SetLocalVariable("_hovered_path", _re_key),
+                            on_unhover=SetLocalVariable("_hovered_path", None))
+                elif _re["type"] == "folder":
+                    use cue_icon_btn(
+                        "plus",
+                        Function(_cue_markers_send, "folder", _re["ref"], False),
+                        _tgt_tt, enabled=_tgt_ok)
+                    etext _re["ref"] color _cue_color_text_accent
+                    if _hovered_path == _re_key:
+                        use cue_icon(
+                            "play",
+                            Function(_cue.sfx.preview_folder, _re["ref"]),
+                            "Play random file from folder",
+                            on_hover=SetLocalVariable("_hovered_path", _re_key),
+                            on_unhover=SetLocalVariable("_hovered_path", None))
+                else:  # preset
+                    use cue_icon_btn(
+                        "plus",
+                        Function(_cue_markers_send, "preset", _re["ref"], False),
+                        _tgt_tt, enabled=_tgt_ok)
+                    etext _re["ref"] color _cue_color_text_accent
+                    if _hovered_path == _re_key:
+                        use cue_icon(
+                            "play",
+                            Function(_cue.sfx.preview_preset, _re["ref"]),
+                            "Play random file from preset",
+                            on_hover=SetLocalVariable("_hovered_path", _re_key),
+                            on_unhover=SetLocalVariable("_hovered_path", None))
 
 
 # Audio preset rows, shown when the Presets folder is expanded.
@@ -211,39 +232,66 @@ screen cue_audio_presets_list(name_filter=None, search_query=""):
     $ _searching = bool(search_query.strip())
     $ _tgt_ok = _cue.markers.target_is_available(_cue.markers.resolve_target_context())
     $ _tgt_tt = _cue_target_assign_tt()
+    # Row key of the entry currently hovered; drives the play-button reveal.
+    default _hovered_path = None
     for _pname in _names:
         $ _pdata = _cue.markers.get_preset(_pname)
         $ _p_expanded = _cue.sfx.library.expanded_presets.get(_pname, False)
         $ _p_files = _cue_filter_preset_files(_pname, search_query)
-        hbox:
-            spacing 2
-            etext " "  # indent under Presets/
-            use cue_icon_btn("xmark", Function(_cue_confirm_delete_preset, _pname),
-                "Delete preset" + CUE_HELP_SHIFT_SKIP_DELETE)
-            use cue_icon_btn(
-                "play",
-                Function(_cue.sfx.preview_preset, _pname),
-                "Play random file from preset")
-            use cue_icon_btn(
-                "plus",
-                Function(_cue_markers_send, "preset", _pname),
-                _tgt_tt, enabled=_tgt_ok)
-            use cue_txt_button(_pname, Function(_cue.sfx.library.toggle_preset_expand, _pname))
+        button:
+            style "empty"
+            xfill True
+            action Function(_cue.sfx.library.toggle_preset_expand, _pname)
+            hovered SetLocalVariable("_hovered_path", _pname)
+            unhovered SetLocalVariable("_hovered_path", None)
+            hbox:
+                spacing 2
+                etext " "  # indent under Presets/
+                use cue_icon_btn("xmark", Function(_cue_confirm_delete_preset, _pname),
+                    "Delete preset" + CUE_HELP_SHIFT_SKIP_DELETE)
+                use cue_icon_btn(
+                    "plus",
+                    Function(_cue_markers_send, "preset", _pname),
+                    _tgt_tt, enabled=_tgt_ok)
+                use cue_txt_button(
+                    _pname,
+                    Function(_cue.sfx.library.toggle_preset_expand, _pname),
+                    hovered=SetLocalVariable("_hovered_path", _pname),
+                    unhovered=SetLocalVariable("_hovered_path", None))
+                if _hovered_path == _pname:
+                    use cue_icon(
+                        "play",
+                        Function(_cue.sfx.preview_preset, _pname),
+                        "Play random file from preset",
+                        on_hover=SetLocalVariable("_hovered_path", _pname),
+                        on_unhover=SetLocalVariable("_hovered_path", None))
 
         # File rows auto-show during a search (like the tree) so a
         # content-matched preset reveals what matched without a click.
         if _p_expanded or _searching:
             for _child in _p_files:
-                hbox:
-                    spacing 2
-                    etext "  "
-                    use cue_icon_btn(
-                        "xmark",
-                        Function(_cue.markers.preset_remove_file, _pname, _child),
-                        "Remove file from preset")
-                    use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, _child), "Preview file")
-                    null width 1
-                    etext _child color _cue_color_text_accent size 11
+                $ _child_key = "{}:{}".format(_pname, _child)
+                button:
+                    style "empty"
+                    xfill True
+                    action NullAction()
+                    hovered SetLocalVariable("_hovered_path", _child_key)
+                    unhovered SetLocalVariable("_hovered_path", None)
+                    hbox:
+                        spacing 2
+                        etext "  "
+                        use cue_icon_btn(
+                            "xmark",
+                            Function(_cue.markers.preset_remove_file, _pname, _child),
+                            "Remove file from preset")
+                        etext _child color _cue_color_text_accent size 11
+                        if _hovered_path == _child_key:
+                            use cue_icon(
+                                "play",
+                                Function(_cue.sfx.preview_sfx, _child),
+                                "Preview file",
+                                on_hover=SetLocalVariable("_hovered_path", _child_key),
+                                on_unhover=SetLocalVariable("_hovered_path", None))
 
 
 # Video preset rows, shown when the Video Presets folder is expanded.
@@ -253,6 +301,8 @@ screen cue_video_presets_list(_is_video, name_filter=None):
     style_group "cue"
 
     $ _names = name_filter if name_filter is not None else _cue.markers.list_video_presets()
+    # Row key of the entry currently hovered; drives the play-button reveal.
+    default _hovered_path = None
     for _vpname in _names:
         $ _vpdata = _cue.markers.get_video_preset(_vpname)
         $ _vp_expanded = _cue.sfx.library.expanded_video_presets.get(_vpname, False)
@@ -279,33 +329,57 @@ screen cue_video_presets_list(_is_video, name_filter=None):
                 $ _pool_label = _cue_format_time(_pool.get("time", 0))
                 $ _pool_expanded = _vp_pools_state.get(_pool_index, False)
                 $ _pool_files = _cue_resolve_files(_pool.get("files", []))
-                hbox:
-                    spacing 2
-                    etext "  "
-                    use cue_icon_btn(
-                        "xmark",
-                        Function(_cue_confirm_remove_video_preset_pool, _vpname, _pool_index),
-                        "Remove this pool from the video preset" + CUE_HELP_SHIFT_SKIP_DELETE)
-                    use cue_icon_btn(
-                        "play",
-                        Function(_cue.sfx.preview_video_pool, _vpname, _pool_index),
-                        "Play random file from this pool")
-                    use cue_txt_button(
-                        _pool_label,
-                        Function(_cue.sfx.library.toggle_video_pool_expand, _vpname, _pool_index))
+                $ _pool_key = "{}:{}".format(_vpname, _pool_index)
+                button:
+                    style "empty"
+                    xfill True
+                    action Function(_cue.sfx.library.toggle_video_pool_expand, _vpname, _pool_index)
+                    hovered SetLocalVariable("_hovered_path", _pool_key)
+                    unhovered SetLocalVariable("_hovered_path", None)
+                    hbox:
+                        spacing 2
+                        etext "  "
+                        use cue_icon_btn(
+                            "xmark",
+                            Function(_cue_confirm_remove_video_preset_pool, _vpname, _pool_index),
+                            "Remove this pool from the video preset" + CUE_HELP_SHIFT_SKIP_DELETE)
+                        use cue_txt_button(
+                            _pool_label,
+                            Function(_cue.sfx.library.toggle_video_pool_expand, _vpname, _pool_index),
+                            hovered=SetLocalVariable("_hovered_path", _pool_key),
+                            unhovered=SetLocalVariable("_hovered_path", None))
+                        if _hovered_path == _pool_key:
+                            use cue_icon(
+                                "play",
+                                Function(_cue.sfx.preview_video_pool, _vpname, _pool_index),
+                                "Play random file from this pool",
+                                on_hover=SetLocalVariable("_hovered_path", _pool_key),
+                                on_unhover=SetLocalVariable("_hovered_path", None))
 
                 if _pool_expanded:
                     for _child in _pool_files:
-                        hbox:
-                            spacing 2
-                            etext "    "
-                            use cue_icon_btn(
-                                "xmark",
-                                Function(_cue.markers.remove_video_preset_pool_file, _vpname, _pool_index, _child),
-                                "Remove file from pool")
-                            use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, _child), "Preview file")
-                            null width 1
-                            etext _child color _cue_color_text_accent size 11
+                        $ _child_key = "{}:{}:{}".format(_vpname, _pool_index, _child)
+                        button:
+                            style "empty"
+                            xfill True
+                            action NullAction()
+                            hovered SetLocalVariable("_hovered_path", _child_key)
+                            unhovered SetLocalVariable("_hovered_path", None)
+                            hbox:
+                                spacing 2
+                                etext "    "
+                                use cue_icon_btn(
+                                    "xmark",
+                                    Function(_cue.markers.remove_video_preset_pool_file, _vpname, _pool_index, _child),
+                                    "Remove file from pool")
+                                etext _child color _cue_color_text_accent size 11
+                                if _hovered_path == _child_key:
+                                    use cue_icon(
+                                        "play",
+                                        Function(_cue.sfx.preview_sfx, _child),
+                                        "Preview file",
+                                        on_hover=SetLocalVariable("_hovered_path", _child_key),
+                                        on_unhover=SetLocalVariable("_hovered_path", None))
 
 screen cue_intensity_group_row(igroup_names, searching, search_query=""):
     # The parent (cue_sfx_library_content) filters igroup names by the search
@@ -347,6 +421,8 @@ screen cue_intensity_groups_list(igroup_names, search_query=""):
     # the target-context selector above.  Video context must be on screen.
     $ _vid_ok = _cue.markers.target_is_available(CueContextType.VIDEO)
     $ _v_tt = _cue_send_folder_to_video_tt()
+    # Row key of the entry currently hovered; drives the play-button reveal.
+    default _hovered_path = None
     for _gname in igroup_names:
         $ _gdata = _cue.intensity.get_igroup(_gname)
         $ _g_folders = _cue_filter_igroup_folders(_gname, search_query)
@@ -375,33 +451,47 @@ screen cue_intensity_groups_list(igroup_names, search_query=""):
                 null height 2
             for _idx in range(len(_g_folders)):
                 $ _folder = _g_folders[_idx]
-                hbox:
-                    spacing 2
-                    etext _indent * 2
-                    if not _searching:
-                        use cue_icon_btn("xmark",
-                            Function(_cue.intensity.remove_level, _gname, _idx),
-                            "Remove this level")
-                        use cue_icon_btn("chevron-up",
-                            Function(_cue.intensity.move_level, _gname, _idx, -1),
-                            "Move level up", enabled=(_idx > 0))
-                        use cue_icon_btn("chevron-down",
-                            Function(_cue.intensity.move_level, _gname, _idx, 1),
-                            "Move level down", enabled=(_idx < len(_g_folders) - 1))
-                    use cue_icon_btn("play",
-                        Function(_cue.sfx.preview_folder, _folder),
-                        "Play random file from folder")
-                    use cue_icon_btn("V",
-                        Function(_cue_send_folder_to_video, _folder),
-                        _v_tt, enabled=_vid_ok)
-                    etext "Level {}:".format(_idx + 1) color _cue_color_text_accent size 11
-                    null width 1
-                    etext _folder color _cue_color_text_accent size 11
+                $ _level_key = "{}:{}".format(_gname, _idx)
+                button:
+                    style "empty"
+                    xfill True
+                    action NullAction()
+                    hovered SetLocalVariable("_hovered_path", _level_key)
+                    unhovered SetLocalVariable("_hovered_path", None)
+                    hbox:
+                        spacing 2
+                        etext _indent * 2
+                        if not _searching:
+                            use cue_icon_btn("xmark",
+                                Function(_cue.intensity.remove_level, _gname, _idx),
+                                "Remove this level")
+                            use cue_icon_btn("chevron-up",
+                                Function(_cue.intensity.move_level, _gname, _idx, -1),
+                                "Move level up", enabled=(_idx > 0))
+                            use cue_icon_btn("chevron-down",
+                                Function(_cue.intensity.move_level, _gname, _idx, 1),
+                                "Move level down", enabled=(_idx < len(_g_folders) - 1))
+                        use cue_icon_btn("V",
+                            Function(_cue_send_folder_to_video, _folder),
+                            _v_tt, enabled=_vid_ok)
+                        etext "Level {}:".format(_idx + 1) color _cue_color_text_accent size 11
+                        null width 1
+                        etext _folder color _cue_color_text_accent size 11
+                        if _hovered_path == _level_key:
+                            use cue_icon(
+                                "play",
+                                Function(_cue.sfx.preview_folder, _folder),
+                                "Play random file from folder",
+                                on_hover=SetLocalVariable("_hovered_path", _level_key),
+                                on_unhover=SetLocalVariable("_hovered_path", None))
 
 
 # Folder/file rows for the current audio tree.
 # [+] sends the row to the resolved target context's active pool (see
 # cue_target_context).  Shift+Click on [+] creates a new pool first.
+# Each row is one focusable button (xfill, transparent): hovering anywhere in
+# it -- the name or the blank space to the right -- reveals the play icon, a
+# bare cue_icon just to the right of the name.  Folder rows toggle on click.
 screen cue_file_tree():
     style_group "cue"
 
@@ -410,40 +500,64 @@ screen cue_file_tree():
     # An active igroup add-folder target turns the tree's + into a level
     # adder for that group (one group at a time).
     $ _igroup_target = _cue.sfx.library.igroup_add_target
+    # full_path of the row currently hovered; drives the play-button reveal.
+    default _hovered_path = None
 
     for item in _cue.sfx.library.visible_tree:
-        hbox:
-            spacing 2
-            # Indent
-            if item["depth"] > 0:
-                etext " " * item["depth"]
+        # One focusable button per row: hovering anywhere in the row --
+        # including the blank space to the right -- reveals the play icon.
+        button:
+            style "empty"
+            xfill True
             if item["type"] == "folder":
-                if item["has_files"]:
-                    use cue_icon_btn(
-                        "play",
-                        Function(_cue.sfx.preview_folder, item["full_path"]),
-                        "Play random file from folder")
-                    if _igroup_target is not None:
-                        $ _tgt_data = _cue.intensity.get_igroup(_igroup_target)
-                        $ _tgt_folders = _tgt_data.get("folders", []) if _tgt_data else []
-                        $ _is_dup = item["full_path"] in _tgt_folders
-                        use cue_icon_btn("plus",
-                            Function(_cue.sfx.library.igroup_add_folder, _igroup_target, item["full_path"]),
-                            "Add this folder to the {} intensity group.".format(_igroup_target),
-                            enabled=(not _is_dup),
-                            bg=(_cue_color_selected_alt if not _is_dup else None))
-                    else:
-                        use cue_icon_btn(
-                            "plus",
-                            Function(_cue_markers_send, "folder", item["full_path"]),
-                            _tgt_tt, enabled=_tgt_ok)
-                use cue_txt_button(item["name"], Function(_cue.sfx.library.toggle_folder, item["full_path"]))
+                action Function(_cue.sfx.library.toggle_folder, item["full_path"])
             else:
-                # Play preview
-                use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, item["full_path"]), "Preview audio")
-                use cue_icon_btn(
-                    "plus",
-                    Function(_cue_markers_send, "file", item["index"]),
-                    _tgt_tt, enabled=_tgt_ok)
-                null width 1
-                etext item["name"] color _cue_color_text_accent
+                action NullAction()
+            hovered SetLocalVariable("_hovered_path", item["full_path"])
+            unhovered SetLocalVariable("_hovered_path", None)
+            hbox:
+                spacing 2
+                # Indent
+                if item["depth"] > 0:
+                    etext " " * item["depth"]
+                if item["type"] == "folder":
+                    if item["has_files"]:
+                        if _igroup_target is not None:
+                            $ _tgt_data = _cue.intensity.get_igroup(_igroup_target)
+                            $ _tgt_folders = _tgt_data.get("folders", []) if _tgt_data else []
+                            $ _is_dup = item["full_path"] in _tgt_folders
+                            use cue_icon_btn("plus",
+                                Function(_cue.sfx.library.igroup_add_folder, _igroup_target, item["full_path"]),
+                                "Add this folder to the {} intensity group.".format(_igroup_target),
+                                enabled=(not _is_dup),
+                                bg=(_cue_color_selected_alt if not _is_dup else None))
+                        else:
+                            use cue_icon_btn(
+                                "plus",
+                                Function(_cue_markers_send, "folder", item["full_path"]),
+                                _tgt_tt, enabled=_tgt_ok)
+                    use cue_txt_button(
+                        item["name"],
+                        Function(_cue.sfx.library.toggle_folder, item["full_path"]),
+                        hovered=SetLocalVariable("_hovered_path", item["full_path"]),
+                        unhovered=SetLocalVariable("_hovered_path", None))
+                    if _hovered_path == item["full_path"]:
+                        use cue_icon(
+                            "play",
+                            Function(_cue.sfx.preview_folder, item["full_path"]),
+                            "Play random file from folder",
+                            on_hover=SetLocalVariable("_hovered_path", item["full_path"]),
+                            on_unhover=SetLocalVariable("_hovered_path", None))
+                else:
+                    use cue_icon_btn(
+                        "plus",
+                        Function(_cue_markers_send, "file", item["index"]),
+                        _tgt_tt, enabled=_tgt_ok)
+                    etext item["name"] color _cue_color_text_accent
+                    if _hovered_path == item["full_path"]:
+                        use cue_icon(
+                            "play",
+                            Function(_cue.sfx.preview_sfx, item["full_path"]),
+                            "Preview audio",
+                            on_hover=SetLocalVariable("_hovered_path", item["full_path"]),
+                            on_unhover=SetLocalVariable("_hovered_path", None))

@@ -1,5 +1,5 @@
 # Type stub for cue_lib.util
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 from renpy.display.video import Movie
 
 # Key helpers
@@ -51,6 +51,10 @@ def _cue_parse_time(time_str: Optional[str]) -> Optional[float]: ...
 def _cue_log(msg: str) -> None: ...
 
 # File resolution
+def _cue_expand_folder_ref(
+    files_list: List[str],
+    folder_ref: str,
+    disabled: Optional[Set[str]] = None) -> List[str]: ...
 def _cue_resolve_files(files: List[str]) -> List[str]: ...
 def _cue_pick_file(files: List[str], avoid_repeats: bool = True) -> Optional[str]: ...
 

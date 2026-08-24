@@ -25,6 +25,7 @@ from cue_lib.util import (
     _cue_build_tree,
     _cue_clamp_time,
     _cue_escape_text,
+    _cue_expand_folder_ref,
     _cue_format_time,
     _cue_get_movie_play,
     _cue_is_screenshake,
@@ -426,6 +427,22 @@ def test_resolve_files_nested_folder_prefix(monkeypatch):
                             disabled_files=set())))
     assert _cue_resolve_files(["music/"]) == [
         "music/a.ogg", "music/sub/b.ogg", "music/sub/deep/c.ogg"]
+
+
+def test_expand_folder_ref_prefix_boundary():
+    # "b.ogg" shares the "b" prefix but not "b/" -- it must not match.
+    files = ["b.ogg", "b/one.ogg", "b/sub/two.ogg"]
+    assert _cue_expand_folder_ref(files, "b/") == ["b/one.ogg", "b/sub/two.ogg"]
+
+
+def test_expand_folder_ref_skips_disabled():
+    files = ["b/one.ogg", "b/two.ogg", "b/three.ogg"]
+    assert _cue_expand_folder_ref(files, "b/", disabled=set(["b/two.ogg"])) == [
+        "b/one.ogg", "b/three.ogg"]
+
+
+def test_expand_folder_ref_no_match():
+    assert _cue_expand_folder_ref(["a/x.ogg", "c/y.ogg"], "b/") == []
 
 
 def test_pick_file_empty_returns_none(monkeypatch):

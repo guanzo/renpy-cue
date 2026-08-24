@@ -20,7 +20,7 @@ from renpy.store import Function
 
 MYPY = False
 if MYPY:
-    from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+    from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
     from renpy.display.video import Movie
 
 
@@ -635,6 +635,24 @@ def _cue_log(msg):
 # File Resolution & Random Picking
 # --------------------------------------------------------------------------
 
+def _cue_expand_folder_ref(files_list, folder_ref, disabled=None):
+    # type: (List[str], str, Optional[Set[str]]) -> List[str]
+    """Files under `folder_ref` in the sorted `files_list`, skipping `disabled`.
+
+    The list is sorted, so every matching file is one contiguous slice; bisect
+    finds its start."""
+    result = []
+    lo = _bisect.bisect_left(files_list, folder_ref)
+    for i in range(lo, len(files_list)):
+        f = files_list[i]
+        if not f.startswith(folder_ref):
+            break
+        if disabled is not None and f in disabled:
+            continue
+        result.append(f)
+    return result
+
+
 def _cue_resolve_files(files):
     # type: (List[str]) -> List[str]
     """Resolve a files list: expand folder refs (trailing '/') to matching
@@ -645,14 +663,8 @@ def _cue_resolve_files(files):
     result = []
     for item in files:
         if item.endswith("/"):
-            # Folder reference -- the library list is sorted, so every file
-            # under the folder is one contiguous slice; bisect finds its start.
-            lo = _bisect.bisect_left(all_files, item)
-            for i in range(lo, len(all_files)):
-                f = all_files[i]
-                if not f.startswith(item):
-                    break
-                if f not in disabled and f not in result:
+            for f in _cue_expand_folder_ref(all_files, item, disabled):
+                if f not in result:
                     result.append(f)
         elif item not in disabled and item not in result:
             result.append(item)

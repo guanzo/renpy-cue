@@ -16,8 +16,8 @@ from cue_lib.constants import (
     CUE_MUSIC_USER_TAG, CUE_MY_MUSIC_FOLDER,
 )
 from cue_lib.util import (
-    _cue_log, _cue_shift_held, _cue_strip_key_prefix, _cue_ui_refresh,
-    create_img_key, create_vid_key,
+    _cue_expand_folder_ref, _cue_log, _cue_shift_held, _cue_strip_key_prefix,
+    _cue_ui_refresh, create_img_key, create_vid_key,
 )
 
 MYPY = False
@@ -467,8 +467,8 @@ class CueMusicManager(object):
             # Legacy untagged ref -- ambiguous, match both caches.
             sources = [self.user_music.files, self.game_music.files]
         for files in sources:
-            for f in files:
-                if f.startswith(ref) and f not in result:
+            for f in _cue_expand_folder_ref(files, ref):
+                if f not in result:
                     result.append(f)
 
     def _split_ref_tag(self, ref):

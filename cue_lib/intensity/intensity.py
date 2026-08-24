@@ -381,6 +381,37 @@ class CueIntensityManager(object):
                 return res
         return None
 
+    def current_level(self, pools_files, current_speed, variants, flags=None):
+        # type: (List[List[str]], float, Optional[List[float]], Optional[CueIntensityFlags]) -> Optional[Tuple[int, int]]
+        """(level, total) for the video's active intensity at `current_speed`.
+
+        Mirrors video_level's scan order (first hooked pool wins) but stops at
+        the band map -- no folder or file resolution -- so per-frame UI reads
+        the level cheaply.  None when intensity isn't live for the video
+        (master off, no hook, <2 variants, or an empty group)."""
+        if flags is not None and not flags.enabled:
+            return None
+        if not variants:
+            return None
+        for files in pools_files:
+            hook = self.resolve_hook(files)
+            if hook is None:
+                continue
+            name, _level_idx = hook
+            data = self.get_igroup(name)
+            if data is None:
+                continue
+            n = len(data.get("folders", []))
+            if n == 0:
+                continue
+            key = (tuple(sorted(set(variants))), n)
+            if key not in self._band_cache:
+                self._band_cache[key] = _cue_band_speeds(variants, n)
+            speeds, levels = self._band_cache[key]
+            level = _cue_resolve_level(current_speed, speeds, levels)
+            return (level, n)
+        return None
+
     def video_hook(self, pools_files):
         # type: (List[List[str]]) -> Optional[str]
         """The igroup of a video's first hooked pool, matching video_level's

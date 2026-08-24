@@ -2,6 +2,7 @@
 # Creator-Defined Displayables for the Cue overlay.
 # CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline, CueTooltip, CueVideoMarkerTooltip.
 
+import colorsys
 import pygame
 import renpy
 from renpy.text.text import Text as Txt
@@ -16,6 +17,12 @@ if MYPY:
     from cue_lib._types import VideoPoolDict
     from cue_lib.intensity.intensity import CueIntensityFlags  # pyright: ignore[reportUnusedImport]
 
+
+# Intensity line gradient endpoints: Level 1 (softest) is a cool blue,
+# Level N (hardest) a hot red.  Interpolated along the HSL hue path so
+# mid levels sweep through green/yellow/orange.
+CUE_INTENSITY_COLOR_LOW = "#f2c14e"
+CUE_INTENSITY_COLOR_HIGH = "#ff1f1f"
 
 # ---------------------------------------------------------------------------
 # Key-capture helpers for the rebindable keybinds system
@@ -759,6 +766,33 @@ class CueVideoMarkerTooltip(Displayable):
         return _cue_render_tooltip(text, anchor, st, at)
 
 
+def _cue_intensity_color(level, total, low=CUE_INTENSITY_COLOR_LOW, high=CUE_INTENSITY_COLOR_HIGH):
+    # type: (int, int, str, str) -> str
+    """Hex color for a 1-based intensity `level` out of `total` levels,
+    interpolated along the HSL hue path from soft (low) to hard (high)."""
+    if total <= 1 or level >= total:
+        return high
+    if level <= 1:
+        return low
+    t = (level - 1) / float(total - 1)
+
+    def _hex_to_hls(hex_color):
+        hex_color = hex_color.lstrip("#")
+        r = int(hex_color[0:2], 16) / 255.0
+        g = int(hex_color[2:4], 16) / 255.0
+        b = int(hex_color[4:6], 16) / 255.0
+        return colorsys.rgb_to_hls(r, g, b)
+
+    h1, l1, s1 = _hex_to_hls(low)
+    h2, l2, s2 = _hex_to_hls(high)
+    r, g, b = colorsys.hls_to_rgb(
+        h1 + (h2 - h1) * t,
+        l1 + (l2 - l1) * t,
+        s1 + (s2 - s1) * t)
+    return "#{:02x}{:02x}{:02x}".format(
+        int(round(r * 255)), int(round(g * 255)), int(round(b * 255)))
+
+
 class CueAutoSpeedChart(Displayable):
     """Line chart that visualizes a speed sequence with a progress dot.
 
@@ -834,16 +868,44 @@ class CueAutoSpeedChart(Displayable):
             renpy.redraw(self, self.interval)
             return r
 
+        # Per-video intensity inputs + per-step levels.  Each played segment is
+        # colored by its own step's level, so earlier segments keep their color
+        # as playback advances.  current_level stops at the band map (no file
+        # listing), so this stays cheap on the 0.1s redraw.
+        intensity_total = 0
+        step_levels = None
+        if tag:
+            entry = _cue.markers.get(create_vid_key(tag), {})
+            if entry:
+                intensity_flags = _cue.intensity.flags_from_entry(entry)
+                intensity_variants = _cue.speed_resolver.banding_speeds(tag)
+                if intensity_variants:
+                    intensity_pools = [p.get("files", [])
+                                       for p in _cue.markers._resolve_video_pools(entry)]
+                    step_levels = []
+                    for sp in speeds:
+                        lvl = _cue.intensity.current_level(
+                            intensity_pools, sp, intensity_variants, intensity_flags)
+                        if lvl is None:
+                            step_levels.append(0)
+                        else:
+                            step_levels.append(lvl[0])
+                            intensity_total = lvl[1]
+
         canvas = r.canvas()
 
         # --- Dim line: full sequence ---
         for i in range(len(points) - 1):
             canvas.line(self.COLOR_DIM, points[i], points[i + 1], self.LINE_W)
 
-        # --- Bright line: played portion ---
+        # --- Bright line: played portion, one color per step's level ---
         if current_idx > 0:
             for i in range(min(current_idx, len(points) - 1)):
-                canvas.line(self.COLOR_BRIGHT, points[i], points[i + 1], self.LINE_W)
+                if step_levels is not None and step_levels[i]:
+                    color = _cue_intensity_color(step_levels[i], intensity_total)
+                else:
+                    color = self.COLOR_BRIGHT
+                canvas.line(color, points[i], points[i + 1], self.LINE_W)
 
         # --- Progress dot ---
         cx = cy = 0
@@ -871,9 +933,13 @@ class CueAutoSpeedChart(Displayable):
         # --- Current speed below the dot ---
         if 0 <= current_idx < len(speeds):
             cur_sp = speeds[current_idx]
-            cur_w = Txt(_fmt(cur_sp), style="cue_text", size=12,
+            cur_label = _fmt(cur_sp)
+            if step_levels is not None and step_levels[current_idx]:
+                cur_label += " (lvl {})".format(step_levels[current_idx])
+            cur_w = Txt(cur_label, style="cue_text", size=12,
                         color="#ffaa00", italic=False, substitute=False)
-            cur_r = renpy.render(cur_w, 60, 16, st, at)
+            # Wide enough that the "(lvl N)" suffix stays on one line.
+            cur_r = renpy.render(cur_w, 200, 16, st, at)
             cw, _ch = cur_r.get_size()
             r.blit(cur_r, (cx - cw // 2, height - 14))
 
@@ -897,6 +963,8 @@ class CueAutoSpeedChart(Displayable):
             if nearest_idx >= 0:
                 sp = speeds[nearest_idx]
                 tip_text = "{:.1f}x  step {}/{}".format(sp, nearest_idx + 1, len(speeds))
+                if step_levels is not None and step_levels[nearest_idx]:
+                    tip_text += "  (lvl {})".format(step_levels[nearest_idx])
                 tip_widget = Txt(tip_text, style="cue_text", size=10,
                                   color="#cccccc", italic=False, substitute=False)
                 tip_render = renpy.render(tip_widget, 200, 50, st, at)

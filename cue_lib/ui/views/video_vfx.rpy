@@ -311,7 +311,10 @@ screen cue_video_vfx_intensity(_has_speeds):
                                     tooltip _row_folder
                                     etext _row_leaf
                                 if _is_active_row:
-                                    use cue_icon("caret-left", icon_color=_cue_color_green, size=14, fade=False, yoffset=1)
+                                    use cue_icon("caret-left", 
+                                        icon_color=_cue_color_green,
+                                        size=14, 
+                                        fade=False)
 
 
 screen cue_video_vfx_create(_avail, _has_speeds):

@@ -203,6 +203,45 @@ def test_video_level_empty_pools_is_none(cue_env):
 
 
 # ==========================================================================
+# current_level -- (level, total) without file resolution
+# ==========================================================================
+
+def test_current_level_unhooked_is_none(cue_env):
+    m = _two_level(cue_env)
+    assert m.current_level([["plain.ogg"]], 1.0, [0.7, 1.0, 1.3]) is None
+
+
+def test_current_level_no_variants_is_none(cue_env):
+    m = _two_level(cue_env)
+    assert m.current_level([["soft/"]], 1.0, []) is None
+    assert m.current_level([["soft/"]], 1.0, None) is None
+
+
+def test_current_level_master_off_is_none(cue_env):
+    m = _two_level(cue_env)
+    flags = CueIntensityFlags(enabled=False)
+    assert m.current_level([["soft/"]], 1.3, [0.7, 1.0, 1.3], flags) is None
+
+
+def test_current_level_bands_speed_to_level(cue_env):
+    m = _two_level(cue_env)
+    # 2 levels over [0.7, 1.0, 1.3]: 0.7 -> L1 (soft), 1.0/1.3 -> L2 (hard).
+    assert m.current_level([["soft/"]], 0.7, [0.7, 1.0, 1.3]) == (1, 2)
+    assert m.current_level([["soft/"]], 1.3, [0.7, 1.0, 1.3]) == (2, 2)
+
+
+def test_current_level_first_hooked_pool_wins(cue_env):
+    m = _two_level(cue_env)
+    pools = [["plain.ogg"], ["hard/"]]
+    assert m.current_level(pools, 1.3, [0.7, 1.0, 1.3]) == (2, 2)
+
+
+def test_current_level_empty_pools_is_none(cue_env):
+    m = _two_level(cue_env)
+    assert m.current_level([], 1.0, [0.7, 1.0, 1.3]) is None
+
+
+# ==========================================================================
 # is_pool_intensity_active -- per-pool "intensity is live" predicate
 # ==========================================================================
 

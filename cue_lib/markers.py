@@ -25,7 +25,7 @@ from cue_lib.copy_paste import copy_context as _copy_context, paste_context as _
 from cue_lib.marker_store import CueMarkerStore, ResolvedPool, ResolvedExclusive as ResolvedExclusive
 from cue_lib.state import _cue
 from cue_lib.util import (
-    _cue_format_time, _cue_log, create_vid_key,
+    _cue_expand_folder_ref, _cue_format_time, _cue_log, create_vid_key,
 )
 
 MYPY = False
@@ -185,10 +185,8 @@ class CueMarkerManager(object):
             return
         for fi, f in enumerate(files):
             if f.endswith("/") and file_path.startswith(f):
-                resolved = []
-                for rf in self._sfx_manager.library.files:
-                    if rf.startswith(f) and rf not in self._sfx_manager.library.disabled_files and rf not in resolved:
-                        resolved.append(rf)
+                resolved = _cue_expand_folder_ref(
+                    self._sfx_manager.library.files, f, self._sfx_manager.library.disabled_files)
                 if file_path in resolved:
                     resolved.remove(file_path)
                 files[fi:fi + 1] = resolved
@@ -383,10 +381,8 @@ class CueMarkerManager(object):
         folder_ref = files[file_index]
         if not folder_ref.endswith("/"):
             return
-        resolved = []
-        for f in self._sfx_manager.library.files:
-            if f.startswith(folder_ref) and f not in self._sfx_manager.library.disabled_files and f not in resolved:
-                resolved.append(f)
+        resolved = _cue_expand_folder_ref(
+            self._sfx_manager.library.files, folder_ref, self._sfx_manager.library.disabled_files)
         if child_file in resolved:
             resolved.remove(child_file)
         files[file_index:file_index + 1] = resolved

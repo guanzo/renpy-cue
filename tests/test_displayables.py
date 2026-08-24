@@ -20,6 +20,9 @@ from cue_lib.ui.displayables import (
     CueVideoTimeline,
     _cue_build_key_code_map,
     _cue_keysym_from_event,
+    _cue_intensity_color,
+    CUE_INTENSITY_COLOR_LOW,
+    CUE_INTENSITY_COLOR_HIGH,
 )
 from renpy.display.core import IgnoreEvent
 
@@ -969,10 +972,60 @@ def chart(monkeypatch):
         speeds_for=lambda tag: [1.0, 2.0, 3.0],
         current_step_index=lambda: 1,
     )
-    cue = types.SimpleNamespace(current_file="v.ogv", video_sequence=seq)
+    # No marker entry -> no intensity inputs; the chart renders uncolored.
+    markers = types.SimpleNamespace(get=lambda key, default: default)
+    cue = types.SimpleNamespace(current_file="v.ogv", video_sequence=seq,
+                                markers=markers)
     monkeypatch.setattr(_displ, "_cue", cue)
     monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (500, 500))
     return types.SimpleNamespace(cue=cue, seq=seq, chart=CueAutoSpeedChart())
+
+
+@pytest.fixture
+def intensity_chart(monkeypatch):
+    """Chart wired to a video whose pool is hooked to a 2-level group."""
+    seq = types.SimpleNamespace(
+        speeds_for=lambda tag: [1.0, 2.0, 3.0],
+        current_step_index=lambda: 1,
+    )
+    markers = types.SimpleNamespace(
+        get=lambda key, default: {"pools": [{"files": ["soft/"]}]},
+        _resolve_video_pools=lambda entry: entry.get("pools", []),
+    )
+    speed_resolver = types.SimpleNamespace(
+        banding_speeds=lambda tag: [0.7, 1.0, 1.3],
+        get_current_speed=lambda: 1.3,
+    )
+
+    def _flags(entry):
+        return types.SimpleNamespace(enabled=True, sfx_levels=True,
+                                     volume=True, frequency=True)
+
+    def _current_level(pools_files, speed, variants, flags=None):
+        # 2 levels: the slowest variant is L1, everything else L2.
+        return (1, 2) if speed < 0.85 else (2, 2)
+
+    intensity = types.SimpleNamespace(flags_from_entry=_flags,
+                                      current_level=_current_level)
+    cue = types.SimpleNamespace(current_file="v.ogv", video_sequence=seq,
+                                markers=markers, speed_resolver=speed_resolver,
+                                intensity=intensity)
+    monkeypatch.setattr(_displ, "_cue", cue)
+    monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (500, 500))
+    return types.SimpleNamespace(cue=cue, chart=CueAutoSpeedChart())
+
+
+def _capture_txt(monkeypatch):
+    """Record the text of every Txt() the chart creates during a render."""
+    texts = []
+    real_txt = _displ.Txt
+
+    def _recording_txt(text, *args, **kwargs):
+        texts.append(text)
+        return real_txt(text, *args, **kwargs)
+
+    monkeypatch.setattr(_displ, "Txt", _recording_txt)
+    return texts
 
 
 def test_chart_render_too_small(chart):
@@ -1037,6 +1090,79 @@ def test_chart_event_mousemotion(monkeypatch, chart):
     assert chart.chart.event(ev, 40, 30, 0.0) is None
     assert chart.chart._screen_x == 260
     assert chart.chart._screen_y == 220
+
+
+# ==========================================================================
+# _cue_intensity_color -- level -> hex along the HSL hue path
+# ==========================================================================
+
+def test_intensity_color_endpoints():
+    assert _cue_intensity_color(1, 3) == CUE_INTENSITY_COLOR_LOW
+    assert _cue_intensity_color(3, 3) == CUE_INTENSITY_COLOR_HIGH
+    assert _cue_intensity_color(1, 1) == CUE_INTENSITY_COLOR_HIGH
+
+
+def test_intensity_color_clamps_out_of_range():
+    assert _cue_intensity_color(0, 3) == CUE_INTENSITY_COLOR_LOW
+    assert _cue_intensity_color(9, 3) == CUE_INTENSITY_COLOR_HIGH
+
+
+def test_intensity_color_midpoint_is_hex():
+    mid = _cue_intensity_color(2, 3)
+    assert mid != CUE_INTENSITY_COLOR_LOW
+    assert mid != CUE_INTENSITY_COLOR_HIGH
+    assert len(mid) == 7 and mid.startswith("#")
+
+
+# ==========================================================================
+# CueAutoSpeedChart -- intensity coloring + level labels
+# ==========================================================================
+
+def test_chart_render_intensity_colors_bright_line(intensity_chart):
+    r = intensity_chart.chart.render(200, 100, 0.0, 0.0)
+    lines = [op for op in r.canvas().ops if op[0] == "line"]
+    dim = [op for op in lines if op[1] == CueAutoSpeedChart.COLOR_DIM]
+    bright = [op for op in lines if op[1] != CueAutoSpeedChart.COLOR_DIM]
+    assert len(dim) == 2
+    # Played portion uses the level color (current speed 1.3 -> L2 of 2 -> high).
+    assert bright and all(op[1] == _cue_intensity_color(2, 2) for op in bright)
+
+
+def test_chart_render_intensity_per_segment_colors(monkeypatch, intensity_chart):
+    # Each played segment keeps its own step's level color instead of one
+    # uniform color -- earlier segments persist as the playhead advances.
+    intensity_chart.cue.video_sequence = types.SimpleNamespace(
+        speeds_for=lambda tag: [0.7, 1.0, 1.3],
+        current_step_index=lambda: 2,
+    )
+    r = intensity_chart.chart.render(200, 100, 0.0, 0.0)
+    bright = [op for op in r.canvas().ops
+              if op[0] == "line" and op[1] != CueAutoSpeedChart.COLOR_DIM]
+    # Segment 0 (0.7 -> L1) is low; segment 1 (1.0 -> L2) is high.
+    assert [op[1] for op in bright] == [
+        _cue_intensity_color(1, 2), _cue_intensity_color(2, 2)]
+
+
+def test_chart_render_intensity_label(monkeypatch, intensity_chart):
+    texts = _capture_txt(monkeypatch)
+    intensity_chart.chart.render(200, 100, 0.0, 0.0)
+    assert "2.0x (lvl 2)" in texts
+
+
+def test_chart_render_intensity_tooltip(monkeypatch, intensity_chart):
+    monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (35, 82))
+    texts = _capture_txt(monkeypatch)
+    intensity_chart.chart.render(200, 100, 0.0, 0.0)
+    # Hovered step 1 (speed 1.0 -> L2); tooltip appends the level.
+    assert any("step 1/3" in t and "(lvl 2)" in t for t in texts)
+
+
+def test_chart_render_no_intensity_keeps_white(chart):
+    # The non-intensity chart's played portion stays COLOR_BRIGHT.
+    r = chart.chart.render(200, 100, 0.0, 0.0)
+    bright = [op for op in r.canvas().ops
+              if op[0] == "line" and op[1] == CueAutoSpeedChart.COLOR_BRIGHT]
+    assert bright
 
 
 # ==========================================================================
