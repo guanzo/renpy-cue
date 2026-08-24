@@ -421,15 +421,21 @@ screen cue_intensity_groups_list(igroup_names, search_query=""):
                     if not _lv_files:
                         etext (_indent * 3) + "Click the folder icon to add files" style "cue_help"
                     for _file in _lv_files:
+                        $ _is_folder = _file.endswith("/")
                         hbox:
                             spacing 2
                             etext _indent * 3
                             use cue_icon_btn("xmark",
                                 Function(_cue.intensity.remove_level_file, _gname, _lv_id, _file),
                                 "Remove file from level")
-                            use cue_icon_btn("play",
-                                Function(_cue.sfx.preview_sfx, _file),
-                                "Preview file")
+                            if _is_folder:
+                                use cue_icon_btn("play",
+                                    Function(_cue.sfx.preview_folder, _file),
+                                    "Play random file from folder")
+                            else:
+                                use cue_icon_btn("play",
+                                    Function(_cue.sfx.preview_sfx, _file),
+                                    "Preview audio")
                             null width 1
                             etext _file color _cue_color_text_accent size 11
 
