@@ -125,8 +125,20 @@ class CueSfxManager(object):
     # Playback
     # ------------------------------------------------------------------
 
-    def play_pool(self, entry, key, pool, pool_index, file=None, avoid_repeats=True, files=None, volume_mult=None):
-        # type: (Optional[MarkerEntry], str, PoolDict, int, Optional[str], bool, Optional[List[str]], Optional[float]) -> Optional[str]
+    def play_pool(
+        self,
+        entry,
+        key,
+        pool,
+        pool_index,
+        file=None,
+        avoid_repeats=True,
+        files=None,
+        volume_mult=None,
+        marker_time=None,
+        marker_elapsed=None,
+        marker_delta=None):
+        # type: (Optional[MarkerEntry], str, PoolDict, int, Optional[str], bool, Optional[List[str]], Optional[float], Optional[float], Optional[float], Optional[float]) -> Optional[str]
         """Play one sound from a pool.  The single fire choke point for all
         trigger paths.
 
@@ -144,10 +156,16 @@ class CueSfxManager(object):
         vol = self._volume.get_effective(entry, key, pool_index=pool_index)
         if volume_mult is not None:
             vol = vol * volume_mult
-        return self.play_sfx(f, key, volume=vol)
+        return self.play_sfx(
+            f,
+            key,
+            volume=vol,
+            marker_time=marker_time,
+            marker_elapsed=marker_elapsed,
+            marker_delta=marker_delta)
 
-    def play_sfx(self, filename, source="", volume=1.0):
-        # type: (str, str, float) -> Optional[str]
+    def play_sfx(self, filename, source="", volume=1.0, marker_time=None, marker_elapsed=None, marker_delta=None):
+        # type: (str, str, float, Optional[float], Optional[float], Optional[float]) -> Optional[str]
 
         # Apply +-10% volume jitter for natural variation
         MAX_JITTER = 0.1
@@ -200,8 +218,14 @@ class CueSfxManager(object):
                 _music.play(full_path, channel=target_ch, loop=False)
                 _music.set_volume(volume, delay=0, channel=target_ch)
 
-            _cue_log("PLAY-SFX file={} src={} ch={} jitter={:.2f} vol={:.2f}".format(
-                filename.rsplit("/", 1)[-1], source, target_ch, jitter, volume))
+            log = "PLAY-SFX file={} src={} ch={} jitter={:.2f} vol={:.2f}".format(
+                filename.rsplit("/", 1)[-1], source, target_ch, jitter, volume)
+            if marker_time is not None:
+                # Trigger accuracy: marker timestamp vs. actual media position at
+                # fire.  delta is reference-time error (positive = fired late).
+                log += " mt={:.3f} elapsed={:.3f} delta={:+.3f}".format(
+                    marker_time, marker_elapsed, marker_delta)
+            _cue_log(log)
 
             return target_ch
         except Exception as e:

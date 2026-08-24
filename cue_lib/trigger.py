@@ -533,20 +533,22 @@ class CueTriggerEngine(object):
 
         if current_file:
             self._fire_video_markers(
-                current_file, effective_elapsed, self._prev_eff_elapsed, speed, variants)
+                current_file, effective_elapsed, self._prev_eff_elapsed, elapsed, speed, variants)
 
         self._vid_manager.last_elapsed = elapsed
         # Store for next tick's cross-between-ticks detection
         self._prev_eff_elapsed = effective_elapsed
 
-    def _fire_video_markers(self, current_file, effective_elapsed, prev_eff, speed, variants):
-        # type: (str, float, float, float, Optional[List[float]]) -> None
+    def _fire_video_markers(self, current_file, effective_elapsed, prev_eff, elapsed, speed, variants):
+        # type: (str, float, float, float, float, Optional[List[float]]) -> None
         """Fire SFX for this video's markers passed since the last tick.
 
         Preview markers from the repeat dialog ride along as extra pools.
         Skips markers already fired (played_video_keys) and pools missing a
         time (logged, not crashed).  The dedup set and prev_eff bookkeeping
-        live in _tick_video."""
+        live in _tick_video.  elapsed is the raw media position at this tick
+        (effective_elapsed = elapsed * speed), passed through so the
+        PLAY-SFX log can report trigger accuracy."""
         vid_key = create_vid_key(current_file)
         markers = self._markers_ctx().video.get_markers()
         vid_entry = self._store.get(vid_key)
@@ -600,7 +602,17 @@ class CueTriggerEngine(object):
             else:
                 files = None
                 vol_mult = vid_scale
-            f = _cue.sfx.play_pool(entry, vid_key, pool_entry, pool_index, avoid_repeats=False, files=files, volume_mult=vol_mult)  # pyright: ignore[reportArgumentType]
+            f = _cue.sfx.play_pool(
+                entry,  # pyright: ignore[reportArgumentType]
+                vid_key,
+                pool_entry,
+                pool_index,
+                avoid_repeats=False,
+                files=files,
+                volume_mult=vol_mult,
+                marker_time=t,
+                marker_elapsed=elapsed,
+                marker_delta=effective_elapsed - t)
             if f:
                 # Track as its own kind so exclusive cut-ins spare it.
                 # Overwrites any stale entry on the reused channel (dlg loops

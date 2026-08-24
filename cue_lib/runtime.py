@@ -306,32 +306,6 @@ def _cue_refresh_channel(displayable=None):
     try:
         old_ch = _cue.vid_manager.channel
 
-        def _apply_channel(ch_name, ch_obj=None):
-            # type: (str, Any) -> None
-            fps = 30
-            if ch_obj is not None:
-                for attr in ('framerate', 'fps', 'frame_rate'):
-                    try:
-                        val = getattr(ch_obj, attr, None)  # type: Any
-                        if callable(val):
-                            val = val()
-                        if val is not None and val > 0:
-                            fps = int(round(val))
-                            break
-                    except Exception:
-                        _cue_log("APPLY-CHANNEL: attr {} probe failed".format(attr))
-            if old_ch != ch_name:
-                _cue.vid_manager.reset(ch_name)
-                _cue.vid_manager.set_fps(fps)
-                _cue.video_editor.refresh()
-
-            # Re-apply video mute state from marker data
-            if _cue.current_file:
-                vid_key = create_vid_key(_cue.current_file)
-                entry = _cue.markers.get(vid_key, {}) 
-                if entry and entry.get("video_file_muted", False):
-                    _music.set_volume(0.0, delay=0, channel=ch_name)
-
         candidates = []
         try:
             for ch_name in _aaudio.channels:
@@ -356,16 +330,42 @@ def _cue_refresh_channel(displayable=None):
                 if target_path:
                     for ch_name, ch_obj, path in candidates:
                         if path == target_path or _cue.speed_resolver.is_variant_of(path, target_path):
-                            _apply_channel(ch_name, ch_obj)
+                            _cue_apply_channel(ch_name, ch_obj, old_ch)
                             return
                 _cue.vid_manager.channel = None
             else:
                 ch_name, ch_obj, _ = candidates[0]
-                _apply_channel(ch_name, ch_obj)
+                _cue_apply_channel(ch_name, ch_obj, old_ch)
         else:
             _cue.vid_manager.channel = None
     finally:
         _cue.vid_manager.refreshing = False
+
+def _cue_apply_channel(ch_name, ch_obj, old_ch):
+    # type: (str, Any, Optional[str]) -> None
+    fps = 30
+    if ch_obj is not None:
+        for attr in ('framerate', 'fps', 'frame_rate'):
+            try:
+                val = getattr(ch_obj, attr, None)  # type: Any
+                if callable(val):
+                    val = val()
+                if val is not None and val > 0:
+                    fps = int(round(val))
+                    break
+            except Exception:
+                _cue_log("APPLY-CHANNEL: attr {} probe failed".format(attr))
+    if old_ch != ch_name:
+        _cue.vid_manager.reset(ch_name)
+        _cue.vid_manager.set_fps(fps)
+        _cue.video_editor.refresh()
+
+    # Re-apply video mute state from marker data
+    if _cue.current_file:
+        vid_key = create_vid_key(_cue.current_file)
+        entry = _cue.markers.get(vid_key, {})
+        if entry and entry.get("video_file_muted", False):
+            _music.set_volume(0.0, delay=0, channel=ch_name)
 
 
 # --------------------------------------------------------------------------

@@ -555,7 +555,7 @@ def test_play_pool_file_override(cue, sfx_mgr, monkeypatch):
     cue.sfx.library.files = ["a.ogg", "b.ogg"]
     played = []
     monkeypatch.setattr(sfx_mgr, "play_sfx",
-                        lambda f, key, volume=1.0:
+                        lambda f, key, volume=1.0, **kwargs:
                             played.append((f, key, volume)) or "cue_1")
     cue.volume.get_effective = lambda entry, key, pool_index: 0.5
     ch = sfx_mgr.play_pool(None, "i_scene.ogv", {}, 0, file="b.ogg")
@@ -568,7 +568,7 @@ def test_play_pool_picks_file(cue, sfx_mgr, monkeypatch):
         lambda pool: types.SimpleNamespace(files=["a.ogg"]))
     played = []
     monkeypatch.setattr(sfx_mgr, "play_sfx",
-                        lambda f, key, volume=1.0: played.append(f) or "cue_1")
+                        lambda f, key, volume=1.0, **kwargs: played.append(f) or "cue_1")
     sfx_mgr.play_pool(None, "i_scene.ogv", {}, 0)
     assert played == ["a.ogg"]
 

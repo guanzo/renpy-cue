@@ -75,7 +75,14 @@ class CueSfxManager(object):
     def _markers_ctx(self) -> CueMarkerManager: ...
     def warm_cache(self) -> None: ...
     def unplayable_files(self) -> Dict[str, str]: ...
-    def play_sfx(self, filename: str, source: str = "", volume: float = 1.0) -> Optional[str]: ...
+    def play_sfx(
+        self,
+        filename: str,
+        source: str = "",
+        volume: float = 1.0,
+        marker_time: Optional[float] = None,
+        marker_elapsed: Optional[float] = None,
+        marker_delta: Optional[float] = None) -> Optional[str]: ...
     def preview_sfx(self, filename: str, volume: float = 1.0) -> None: ...
     def play_pool(
         self,
@@ -86,7 +93,10 @@ class CueSfxManager(object):
         file: Optional[str] = None,
         avoid_repeats: bool = True,
         files: Optional[List[str]] = None,
-        volume_mult: Optional[float] = None) -> Optional[str]: ...
+        volume_mult: Optional[float] = None,
+        marker_time: Optional[float] = None,
+        marker_elapsed: Optional[float] = None,
+        marker_delta: Optional[float] = None) -> Optional[str]: ...
     def fade_out(
         self,
         exclude_channels: Optional[List[str]] = None,
