@@ -40,7 +40,20 @@ class PoolDict(TypedDict, total=False):
     frequency: int  # loop pools only
     trigger_on_shake: bool  # image pools only
     exclusive: ExclusiveDict  # nested exclusive config; legacy saves held a bool
+    igroup: str  # intensity group name (hook)
+    ilevel_id: int  # stable id of the pinned level (fallback content)
     preset: str  # preset-backed pools (written, replaced on detach)
+
+
+class LevelDict(TypedDict, total=False):
+    """One intensity-group level: a pool of folders/files, plus a stable id.
+
+    ``id`` is a monotonic per-group identity that survives reorder/insert.
+    ``files`` are folder refs (trailing ``/``) and direct file entries, the
+    same shape as a marker pool's ``files``."""
+
+    id: int
+    files: List[str]
 
 
 class VideoPoolDict(TypedDict):
