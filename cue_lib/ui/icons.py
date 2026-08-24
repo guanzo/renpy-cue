@@ -82,6 +82,7 @@ CUE_ICON_MAP = {
     "trash-can": ("trash-can-solid.png", False),
     "triangle-exclamation": ("triangle-exclamation-solid.png", False),
     "undo": ("reply-solid.png", False),
+    "v": ("v-solid.png", False),
     "volume": ("volume-solid.png", False),
     "volume-xmark": ("volume-xmark-solid.png", False),
     "window-maximize": ("window-maximize-solid.png", False),
