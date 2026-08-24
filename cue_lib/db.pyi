@@ -1,4 +1,4 @@
-from typing import Any, Dict, Final, Optional, Tuple
+from typing import Any, Dict, Final, List, Optional, Tuple
 
 from cue_lib.backup import CueBackupManager
 from cue_lib.paths import CuePaths
@@ -31,5 +31,5 @@ class CueDatabase(object):
     def set_auto_backups(self, enabled: bool) -> None: ...
     def load_default_music_triggers(self) -> Dict[str, Any]: ...
     def update_default_music_triggers(
-        self, replay_id: str, key_before: str, path: str, key_after: Optional[str] = None
+        self, replay_id: str, key_before: str, paths: List[str], key_after: Optional[str] = None
     ) -> None: ...

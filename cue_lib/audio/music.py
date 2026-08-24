@@ -70,7 +70,7 @@ class CueMusicManager(object):
         self.last_event = None  # type: Optional[Dict[str, Any]]
         # replay_label -> [DefaultMusicTrigger, ...]  (mirror)
         self._triggers = {}  # type: Dict[str, List[DefaultMusicTrigger]]
-        # The play awaiting key_after: {"replay_id", "key_before", "filepath"}.
+        # The play awaiting key_after: {"replay_id", "key_before", "filepaths"}.
         self._pending = None  # type: Optional[Dict[str, Any]]
         # Marker key of the trigger selected in the Music page (the
         # target for "+" adds).  None = nothing selected.
@@ -347,13 +347,16 @@ class CueMusicManager(object):
         """
         if not in_replay or renpy.in_rollback():
             return
+        # The full scripted list -- a `play music [a, b]` cycle keeps both
+        # files so a default override can reproduce the cycle.
         if isinstance(filenames, (list, tuple)):
             if not filenames:
                 return
-            filenames = filenames[0]
-
-        path = str(filenames).replace("\\", "/")
-        if not path or not self._ctx.current_file:
+            paths = [str(f).replace("\\", "/") for f in filenames]
+        else:
+            paths = [str(filenames).replace("\\", "/")]
+        paths = [p for p in paths if p]
+        if not paths or not self._ctx.current_file:
             return
         key_before = self._current_scene_key()
         if not key_before:
@@ -362,13 +365,22 @@ class CueMusicManager(object):
         items = self._triggers.setdefault(in_replay, [])
         for item in items:
             if item["key_before"] == key_before:
-                item["filepath"] = path
+                # Union, not replace: a `play A` then `queue [B, C]` in the
+                # same scene accumulates every scripted track, and the queue's
+                # list may omit the base track A.  Order-preserving, deduped.
+                existing = item.get("filepaths") or []
+                merged = []
+                for p in existing + paths:
+                    if p not in merged:
+                        merged.append(p)
+                item["filepaths"] = merged
+                paths = merged
                 break
         else:
-            items.append({"key_before": key_before, "filepath": path})
+            items.append({"key_before": key_before, "filepaths": list(paths)})
 
-        self._pending = {"replay_id": in_replay, "key_before": key_before, "filepath": path}
-        self._db.update_default_music_triggers(in_replay, key_before, path)
+        self._pending = {"replay_id": in_replay, "key_before": key_before, "filepaths": list(paths)}
+        self._db.update_default_music_triggers(in_replay, key_before, list(paths))
 
     def capture_display(self):
         # type: () -> None
@@ -395,7 +407,7 @@ class CueMusicManager(object):
                 item["key_after"] = key_after
                 break
         self._db.update_default_music_triggers(
-            pending["replay_id"], pending["key_before"], pending["filepath"], key_after
+            pending["replay_id"], pending["key_before"], pending["filepaths"], key_after
         )
 
     # ------------------------------------------------------------------
@@ -469,11 +481,11 @@ class CueMusicManager(object):
         return key
 
     def default_path_for(self, key):
-        # type: (str) -> Optional[str]
-        """Filepath of the recorded default music for a scene key, or None."""
+        # type: (str) -> Optional[List[str]]
+        """Scripted default file list for a scene key, or None."""
         for trig in self._triggers.get(renpy.store._in_replay or "", []):
             if trig.get("key_after") == key or trig.get("key_before") == key:
-                return trig.get("filepath")
+                return trig.get("filepaths")
         return None
 
     def _default_trigger_by_key_before(self, key_before):
@@ -576,10 +588,10 @@ class CueMusicManager(object):
         (unless disabled) plus the user-added custom songs, each resolved to
         a playable path.  Customization applies globally, across replays."""
         entry = self._store.get(scene_key)
-        default_path = self.default_path_for(scene_key)
+        default_paths = self.default_path_for(scene_key)
         pool = []
-        if default_path and not (entry and entry.get("music_default_disabled")):
-            pool.append(default_path)
+        if default_paths and not (entry and entry.get("music_default_disabled")):
+            pool.extend(default_paths)
         if entry:
             customs = entry.get("music")
             if customs:
@@ -759,7 +771,7 @@ class CueMusicManager(object):
                     "key": key,
                     "label": _cue_strip_key_prefix(key),
                     "is_default": True,
-                    "default_path": trig.get("filepath"),
+                    "default_paths": trig.get("filepaths") or [],
                     "default_enabled": not entry.get("music_default_disabled", False),
                     "songs": entry.get("music") or [],
                     "selected": key == self.selected_key,
@@ -783,7 +795,7 @@ class CueMusicManager(object):
                     "key": key,
                     "label": _cue_strip_key_prefix(key),
                     "is_default": False,
-                    "default_path": None,
+                    "default_paths": [],
                     "default_enabled": False,
                     "songs": entry.get("music") or [],
                     "selected": key == self.selected_key,

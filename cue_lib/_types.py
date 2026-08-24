@@ -107,14 +107,17 @@ class MarkerEntry(TypedDict, total=False):
 
 class DefaultMusicTrigger(TypedDict):
     """One recorded default-music trigger: the scene key anchoring the
-    replay's `play music` statement and the file that scripted it.
+    replay's `play music` statement and the files it scripted.
 
     ``key_before`` is the scene visible at the play call (the deterministic
     anchor); ``key_after`` is the settled scene, captured once the scene
-    batch lands (absent until then).  Either can match a scene key."""
+    batch lands (absent until then).  Either can match a scene key.
+
+    ``filepaths`` holds the full scripted list -- a `play music [a, b]`
+    cycle keeps both files, so a default override can reproduce the cycle."""
 
     key_before: str
-    filepath: str
+    filepaths: List[str]
     key_after: NotRequired[str]
 
 

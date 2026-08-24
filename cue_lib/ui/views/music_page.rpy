@@ -189,20 +189,25 @@ screen trigger_list(triggers):
                                 "Save songs as a preset",
                                 on_hover=SetLocalVariable("_hovered_key", trigger["key"]),
                                 on_unhover=SetLocalVariable("_hovered_key", None))
-                if trigger["is_default"]:
-                    $ _default_path = trigger["default_path"] or ""
-                    $ _default_display = (_cue.music.default_display_path(_default_path)
-                                          if _default_path else "")
+                if trigger["is_default"] and trigger["default_paths"]:
                     hbox:
                         spacing 6
                         use cue_icon_btn(
                             ("volume" if trigger["default_enabled"] else "volume-xmark"),
                             Function(_cue.music.toggle_default, trigger["key"]),
-                            "Toggle default song")
+                            "Toggle default songs")
                         if trigger["default_enabled"]:
-                            etext "Default: {}".format(_default_display)
+                            etext "Default music:" style "cue_help"
                         else:
-                            etext "Default: {} (Disabled)".format(_default_display) color _cue_color_text_muted
+                            etext "Default music: (Disabled)" style "cue_help" color _cue_color_text_muted
+                    for _dpath in trigger["default_paths"]:
+                        $ _dpath_display = _cue.music.default_display_path(_dpath)
+                        hbox:
+                            xoffset 22
+                            if trigger["default_enabled"]:
+                                etext _dpath_display
+                            else:
+                                etext _dpath_display color _cue_color_text_muted
                 if trigger["songs"]:
                     for _idx, _song in enumerate(trigger["songs"]):
                         if _song.endswith("/"):

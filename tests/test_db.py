@@ -291,7 +291,7 @@ def test_load_markers_ignores_music_trigger_files(db):
     dpath = db.paths.music_trigger_dir
     os.makedirs(dpath)
     with open(os.path.join(dpath, "r1.json"), "w") as _f:
-        _f.write('[{"key_before": "v_a", "filepath": "music/x.ogg"}]')
+        _f.write('[{"key_before": "v_a", "filepaths": ["music/x.ogg"]}]')
     assert db.load_markers() == {}
 
 
@@ -304,8 +304,8 @@ def test_load_markers_ignores_non_marker_json(db):
 
 
 def test_default_music_triggers_round_trip(db):
-    db.update_default_music_triggers("r1", "v_a", "music/x.ogg")
-    assert db.load_default_music_triggers() == {"r1": [{"key_before": "v_a", "filepath": "music/x.ogg"}]}
+    db.update_default_music_triggers("r1", "v_a", ["music/x.ogg"])
+    assert db.load_default_music_triggers() == {"r1": [{"key_before": "v_a", "filepaths": ["music/x.ogg"]}]}
     # Stored one file per replay under music_triggers/, not at the marker
     # dir root or in a music/ subdir.
     fpath = os.path.join(db.paths.music_trigger_dir, "r1.json")
@@ -315,11 +315,11 @@ def test_default_music_triggers_round_trip(db):
 
 
 def test_update_default_music_triggers_updates_in_place(db):
-    db.update_default_music_triggers("r1", "v_a", "music/x.ogg")
-    db.update_default_music_triggers("r1", "v_a", "music/y.ogg")
-    db.update_default_music_triggers("r1", "v_b", "music/z.ogg")
+    db.update_default_music_triggers("r1", "v_a", ["music/x.ogg"])
+    db.update_default_music_triggers("r1", "v_a", ["music/y.ogg"])
+    db.update_default_music_triggers("r1", "v_b", ["music/z.ogg"])
     assert db.load_default_music_triggers() == {
-        "r1": [{"key_before": "v_a", "filepath": "music/y.ogg"}, {"key_before": "v_b", "filepath": "music/z.ogg"}]
+        "r1": [{"key_before": "v_a", "filepaths": ["music/y.ogg"]}, {"key_before": "v_b", "filepaths": ["music/z.ogg"]}]
     }
     # One file per replay; an unrelated replay has no file.
     assert os.path.isfile(os.path.join(db.paths.music_trigger_dir, "r1.json"))
@@ -327,10 +327,10 @@ def test_update_default_music_triggers_updates_in_place(db):
 
 
 def test_update_default_music_triggers_sets_key_after_in_place(db):
-    db.update_default_music_triggers("r1", "v_a", "music/x.ogg")
-    db.update_default_music_triggers("r1", "v_a", "music/y.ogg", key_after="v_settled")
+    db.update_default_music_triggers("r1", "v_a", ["music/x.ogg"])
+    db.update_default_music_triggers("r1", "v_a", ["music/y.ogg"], key_after="v_settled")
     assert db.load_default_music_triggers() == {
-        "r1": [{"key_before": "v_a", "filepath": "music/y.ogg", "key_after": "v_settled"}]
+        "r1": [{"key_before": "v_a", "filepaths": ["music/y.ogg"], "key_after": "v_settled"}]
     }
 
 
@@ -340,8 +340,23 @@ def test_load_skips_corrupt_trigger_file(db):
     with open(os.path.join(dpath, "bad.json"), "w") as _f:
         _f.write("{not json")
     with open(os.path.join(dpath, "ok.json"), "w") as _f:
-        _f.write('[{"key_before": "v_a", "filepath": "music/x.ogg"}]')
-    assert db.load_default_music_triggers() == {"ok": [{"key_before": "v_a", "filepath": "music/x.ogg"}]}
+        _f.write('[{"key_before": "v_a", "filepaths": ["music/x.ogg"]}]')
+    assert db.load_default_music_triggers() == {"ok": [{"key_before": "v_a", "filepaths": ["music/x.ogg"]}]}
+
+
+def test_load_migrates_legacy_filepath(db):
+    # Pre-schema-change files store a single song under "filepath"; load must
+    # normalise them to the "filepaths" list without touching new entries.
+    dpath = db.paths.music_trigger_dir
+    os.makedirs(dpath)
+    with open(os.path.join(dpath, "legacy.json"), "w") as _f:
+        _f.write('[{"key_before": "v_a", "filepath": "music/old.ogg"}]')
+    with open(os.path.join(dpath, "new.json"), "w") as _f:
+        _f.write('[{"key_before": "v_b", "filepaths": ["music/a.ogg", "music/b.ogg"]}]')
+    assert db.load_default_music_triggers() == {
+        "legacy": [{"key_before": "v_a", "filepaths": ["music/old.ogg"]}],
+        "new": [{"key_before": "v_b", "filepaths": ["music/a.ogg", "music/b.ogg"]}],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -426,4 +441,4 @@ def test_update_default_music_triggers_logs_write_error(db, monkeypatch):
 
     monkeypatch.setattr("cue_lib.db._atomic_json_write", _boom)
 
-    db.update_default_music_triggers("r1", "v_a", "music/x.ogg")  # must not raise
+    db.update_default_music_triggers("r1", "v_a", ["music/x.ogg"])  # must not raise

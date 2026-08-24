@@ -304,7 +304,7 @@ def test_on_play_replay_override_filepath(mgr, monkeypatch):
     mgr.install()
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "music/default.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["music/default.ogg"]}]
     mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_USER_TAG + "custom.ogg"], "music_default_disabled": True}
     _music_mock.play("scripted.ogg", channel=CUE_DEFAULT_MUSIC_CHANNEL)
     assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == mgr._paths.music_dir + "custom.ogg"
@@ -314,7 +314,7 @@ def test_on_play_replay_override_args_form(mgr, monkeypatch):
     mgr.install()
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "music/default.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["music/default.ogg"]}]
     mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_USER_TAG + "custom.ogg"], "music_default_disabled": True}
     _music_mock.play("scripted.ogg", CUE_DEFAULT_MUSIC_CHANNEL)
     assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == mgr._paths.music_dir + "custom.ogg"
@@ -324,7 +324,7 @@ def test_on_play_replay_override_filenames_kwarg(mgr, monkeypatch):
     mgr.install()
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "music/default.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["music/default.ogg"]}]
     mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_USER_TAG + "custom.ogg"], "music_default_disabled": True}
     _music_mock.play(filenames="scripted.ogg", channel=CUE_DEFAULT_MUSIC_CHANNEL)
     assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == mgr._paths.music_dir + "custom.ogg"
@@ -334,7 +334,7 @@ def test_on_play_replay_override_suppress(mgr, monkeypatch):
     mgr.install()
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "music/default.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["music/default.ogg"]}]
     mgr._store["i_scene.ogv"] = {"music": [], "music_default_disabled": True}
     assert _music_mock.play("scripted.ogg", channel=CUE_DEFAULT_MUSIC_CHANNEL) is None
     assert _music_mock.get_playing(CUE_DEFAULT_MUSIC_CHANNEL) is None
@@ -435,10 +435,11 @@ def test_record_default_trigger_skips_rollback(mgr, monkeypatch):
     assert mgr._triggers == {}
 
 
-def test_record_default_trigger_unwraps_list(mgr):
+def test_record_default_trigger_keeps_full_list(mgr):
     _set_scene(mgr, "scene.ogv", "image")
     mgr._record_default_trigger(["music/a.ogg", "music/b.ogg"], "replay1")
-    assert mgr._triggers["replay1"][0]["filepath"] == "music/a.ogg"
+    assert mgr._triggers["replay1"][0]["filepaths"] == ["music/a.ogg", "music/b.ogg"]
+    assert mgr._pending["filepaths"] == ["music/a.ogg", "music/b.ogg"]
 
 
 def test_record_default_trigger_empty_list(mgr):
@@ -455,16 +456,25 @@ def test_record_default_trigger_skips_no_scene(mgr):
 def test_record_default_trigger_appends_new(mgr):
     _set_scene(mgr, "scene.ogv", "image")
     mgr._record_default_trigger("music/a.ogg", "replay1")
-    assert mgr._triggers["replay1"] == [{"key_before": "i_scene.ogv", "filepath": "music/a.ogg"}]
-    assert mgr._pending == {"replay_id": "replay1", "key_before": "i_scene.ogv", "filepath": "music/a.ogg"}
+    assert mgr._triggers["replay1"] == [{"key_before": "i_scene.ogv", "filepaths": ["music/a.ogg"]}]
+    assert mgr._pending == {"replay_id": "replay1", "key_before": "i_scene.ogv", "filepaths": ["music/a.ogg"]}
 
 
 def test_record_default_trigger_updates_existing(mgr):
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "old.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["old.ogg"]}]
     mgr._record_default_trigger("music/a.ogg", "replay1")
-    assert mgr._triggers["replay1"][0]["filepath"] == "music/a.ogg"
+    # Union, not replace: a later music call in the same scene adds tracks.
+    assert mgr._triggers["replay1"][0]["filepaths"] == ["old.ogg", "music/a.ogg"]
     assert len(mgr._triggers["replay1"]) == 1
+
+
+def test_record_default_trigger_unions_play_then_queue(mgr):
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._record_default_trigger("music/a.ogg", "replay1")  # play music A
+    mgr._record_default_trigger(["music/b.ogg", "music/a.ogg"], "replay1")  # queue [B, A]
+    assert mgr._triggers["replay1"][0]["filepaths"] == ["music/a.ogg", "music/b.ogg"]
+    assert mgr._pending["filepaths"] == ["music/a.ogg", "music/b.ogg"]
 
 
 def test_capture_display_no_pending(mgr):
@@ -474,14 +484,14 @@ def test_capture_display_no_pending(mgr):
 
 def test_capture_display_rollback_skips(mgr, monkeypatch):
     monkeypatch.setattr(_renpy, "in_rollback", lambda: True)
-    mgr._pending = {"replay_id": "replay1", "key_before": "i_old.ogv", "filepath": "m.ogg"}
+    mgr._pending = {"replay_id": "replay1", "key_before": "i_old.ogv", "filepaths": ["m.ogg"]}
     mgr.capture_display()
     assert mgr._pending is not None  # untouched
 
 
 def test_capture_display_replay_mismatch(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay2")
-    mgr._pending = {"replay_id": "replay1", "key_before": "i_old.ogv", "filepath": "m.ogg"}
+    mgr._pending = {"replay_id": "replay1", "key_before": "i_old.ogv", "filepaths": ["m.ogg"]}
     mgr.capture_display()
     assert mgr._pending is None
 
@@ -489,7 +499,7 @@ def test_capture_display_replay_mismatch(mgr, monkeypatch):
 def test_capture_display_no_scene_change(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._pending = {"replay_id": "replay1", "key_before": "i_scene.ogv", "filepath": "m.ogg"}
+    mgr._pending = {"replay_id": "replay1", "key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}
     mgr.capture_display()
     assert mgr._pending is None
     assert "i_scene.ogv" not in mgr._triggers  # nothing to annotate
@@ -498,8 +508,8 @@ def test_capture_display_no_scene_change(mgr, monkeypatch):
 def test_capture_display_records_key_after(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "new.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_old.ogv", "filepath": "m.ogg"}]
-    mgr._pending = {"replay_id": "replay1", "key_before": "i_old.ogv", "filepath": "m.ogg"}
+    mgr._triggers["replay1"] = [{"key_before": "i_old.ogv", "filepaths": ["m.ogg"]}]
+    mgr._pending = {"replay_id": "replay1", "key_before": "i_old.ogv", "filepaths": ["m.ogg"]}
     mgr.capture_display()
     assert mgr._pending is None
     assert mgr._triggers["replay1"][0]["key_after"] == "i_new.ogv"
@@ -508,8 +518,8 @@ def test_capture_display_records_key_after(mgr, monkeypatch):
 def test_capture_display_no_matching_trigger(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "new.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_other.ogv", "filepath": "m.ogg"}]
-    mgr._pending = {"replay_id": "replay1", "key_before": "i_old.ogv", "filepath": "m.ogg"}
+    mgr._triggers["replay1"] = [{"key_before": "i_other.ogv", "filepaths": ["m.ogg"]}]
+    mgr._pending = {"replay_id": "replay1", "key_before": "i_old.ogv", "filepaths": ["m.ogg"]}
     mgr.capture_display()
     assert mgr._pending is None
     assert "key_after" not in mgr._triggers["replay1"][0]
@@ -522,7 +532,10 @@ def test_capture_display_no_matching_trigger(mgr, monkeypatch):
 
 def test_triggers_for_sorted(mgr):
     mgr._triggers = {
-        "replay1": [{"key_before": "i_b.ogv", "filepath": "b.ogg"}, {"key_before": "i_a.ogv", "filepath": "a.ogg"}]
+        "replay1": [
+            {"key_before": "i_b.ogv", "filepaths": ["b.ogg"]},
+            {"key_before": "i_a.ogv", "filepaths": ["a.ogg"]},
+        ]
     }
     assert [t["key_before"] for t in mgr.triggers_for("replay1")] == ["i_a.ogv", "i_b.ogv"]
 
@@ -551,7 +564,7 @@ def test_current_scene_has_trigger_falsy_key(mgr):
 
 def test_current_scene_has_trigger_default(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
-    mgr._triggers["replay1"] = [{"key_before": "i_a.ogv", "key_after": "i_b.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_a.ogv", "key_after": "i_b.ogv", "filepaths": ["m.ogg"]}]
     assert mgr._current_scene_has_trigger("i_a.ogv") is True
     assert mgr._current_scene_has_trigger("i_b.ogv") is True
 
@@ -571,7 +584,7 @@ def test_current_scene_has_trigger_other_replay(mgr, monkeypatch):
 def test_resolve_selection_auto_selects_scene_trigger(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     assert mgr._resolve_selection() == "i_scene.ogv"
     assert mgr.selected_key == "i_scene.ogv"
 
@@ -611,8 +624,8 @@ def test_create_scene_trigger_creates_entry(mgr):
 
 def test_default_path_for_found(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
-    mgr._triggers["replay1"] = [{"key_after": "i_a.ogv", "filepath": "m.ogg"}]
-    assert mgr.default_path_for("i_a.ogv") == "m.ogg"
+    mgr._triggers["replay1"] = [{"key_after": "i_a.ogv", "filepaths": ["m.ogg"]}]
+    assert mgr.default_path_for("i_a.ogv") == ["m.ogg"]
 
 
 def test_default_path_for_none(mgr, monkeypatch):
@@ -622,7 +635,7 @@ def test_default_path_for_none(mgr, monkeypatch):
 
 def test_default_trigger_by_key_before(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
-    trig = {"key_before": "i_a.ogv", "filepath": "m.ogg"}
+    trig = {"key_before": "i_a.ogv", "filepaths": ["m.ogg"]}
     mgr._triggers["replay1"] = [trig]
     assert mgr._default_trigger_by_key_before("i_a.ogv") is trig
     assert mgr._default_trigger_by_key_before("i_b.ogv") is None
@@ -630,7 +643,7 @@ def test_default_trigger_by_key_before(mgr, monkeypatch):
 
 def test_is_default_trigger_scene(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
-    mgr._triggers["replay1"] = [{"key_before": "i_a.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_a.ogv", "filepaths": ["m.ogg"]}]
     assert mgr._is_default_trigger_scene("i_a.ogv") is True
     assert mgr._is_default_trigger_scene("i_b.ogv") is False
 
@@ -704,14 +717,21 @@ def test_resolve_music_path_legacy_disk_missing(mgr):
 
 def test_music_pool_for_default_plus_custom(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
-    mgr._triggers["replay1"] = [{"key_after": "i_a.ogv", "filepath": "music/default.ogg"}]
+    mgr._triggers["replay1"] = [{"key_after": "i_a.ogv", "filepaths": ["music/default.ogg"]}]
     mgr._store["i_a.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "music/custom.ogg"]}
     assert mgr.music_pool_for("i_a.ogv") == ["music/default.ogg", "music/custom.ogg"]
 
 
+def test_music_pool_for_default_cycle_flattens(mgr, monkeypatch):
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    mgr._triggers["replay1"] = [{"key_after": "i_a.ogv", "filepaths": ["music/a.ogg", "music/b.ogg", "music/c.ogg"]}]
+    mgr._store["i_a.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "music/custom.ogg"]}
+    assert mgr.music_pool_for("i_a.ogv") == ["music/a.ogg", "music/b.ogg", "music/c.ogg", "music/custom.ogg"]
+
+
 def test_music_pool_for_default_disabled(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
-    mgr._triggers["replay1"] = [{"key_after": "i_a.ogv", "filepath": "music/default.ogg"}]
+    mgr._triggers["replay1"] = [{"key_after": "i_a.ogv", "filepaths": ["music/default.ogg"]}]
     mgr._store["i_a.ogv"] = {"music": [], "music_default_disabled": True}
     assert mgr.music_pool_for("i_a.ogv") == []
 
@@ -728,7 +748,7 @@ def test_music_pool_for_empty(mgr, monkeypatch):
 def test_add_user_song_to_trigger(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "music/default.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["music/default.ogg"]}]
     mgr.add_user_song_to_trigger("music/song.ogg")
     assert mgr._store.get("i_scene.ogv")["music"] == [CUE_MUSIC_USER_TAG + "music/song.ogg"]
 
@@ -736,7 +756,7 @@ def test_add_user_song_to_trigger(mgr, monkeypatch):
 def test_add_game_song_to_trigger(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     mgr.add_game_song_to_trigger("music/bgm.ogg")
     assert mgr._store.get("i_scene.ogv")["music"] == [CUE_MUSIC_GAME_TAG + "music/bgm.ogg"]
 
@@ -744,7 +764,7 @@ def test_add_game_song_to_trigger(mgr, monkeypatch):
 def test_add_game_folder_to_trigger(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     mgr.add_game_folder_to_trigger("music/sub")
     assert mgr._store.get("i_scene.ogv")["music"] == [CUE_MUSIC_GAME_TAG + "music/sub/"]
 
@@ -752,7 +772,7 @@ def test_add_game_folder_to_trigger(mgr, monkeypatch):
 def test_add_user_folder_to_trigger(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     mgr.add_user_folder_to_trigger("music/sub")
     assert mgr._store.get("i_scene.ogv")["music"] == [CUE_MUSIC_USER_TAG + "music/sub/"]
 
@@ -774,7 +794,7 @@ def test_add_ref_to_trigger_no_selection_creates_scene_trigger(mgr, monkeypatch)
 def test_add_ref_to_trigger_no_duplicate(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     mgr.add_user_song_to_trigger("music/song.ogg")
     mgr.add_user_song_to_trigger("music/song.ogg")
     assert mgr._store.get("i_scene.ogv")["music"] == [CUE_MUSIC_USER_TAG + "music/song.ogg"]
@@ -796,7 +816,7 @@ def _wire_recent(mgr):
 def test_add_user_song_records_recent(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     recent = _wire_recent(mgr)
     mgr.add_user_song_to_trigger("music/song.ogg")
     assert recent.calls == [("file", CUE_MUSIC_USER_TAG + "music/song.ogg")]
@@ -805,7 +825,7 @@ def test_add_user_song_records_recent(mgr, monkeypatch):
 def test_add_game_song_records_recent(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     recent = _wire_recent(mgr)
     mgr.add_game_song_to_trigger("bgm/x.ogg")
     assert recent.calls == [("file", CUE_MUSIC_GAME_TAG + "bgm/x.ogg")]
@@ -814,7 +834,7 @@ def test_add_game_song_records_recent(mgr, monkeypatch):
 def test_add_folder_records_normalized_ref(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     recent = _wire_recent(mgr)
     mgr.add_user_folder_to_trigger("music/sub")
     assert recent.calls == [("folder", CUE_MUSIC_USER_TAG + "music/sub/")]
@@ -830,7 +850,7 @@ def test_add_ref_no_selection_still_records(mgr):
 def test_add_without_recent_is_noop(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     # _recent stays None (the default) -- the add still lands.
     mgr.add_user_song_to_trigger("music/song.ogg")
     assert mgr._store.get("i_scene.ogv")["music"] == [CUE_MUSIC_USER_TAG + "music/song.ogg"]
@@ -839,7 +859,7 @@ def test_add_without_recent_is_noop(mgr, monkeypatch):
 def test_add_user_song_record_false_skips_recent(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     recent = _wire_recent(mgr)
     mgr.add_user_song_to_trigger("music/song.ogg", record=False)
     assert recent.calls == []
@@ -848,7 +868,7 @@ def test_add_user_song_record_false_skips_recent(mgr, monkeypatch):
 def test_add_game_song_record_false_skips_recent(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     recent = _wire_recent(mgr)
     mgr.add_game_song_to_trigger("bgm/x.ogg", record=False)
     assert recent.calls == []
@@ -857,7 +877,7 @@ def test_add_game_song_record_false_skips_recent(mgr, monkeypatch):
 def test_add_folder_record_false_skips_recent(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     recent = _wire_recent(mgr)
     mgr.add_user_folder_to_trigger("music/sub", record=False)
     assert recent.calls == []
@@ -966,7 +986,7 @@ def _default_trigger_scene(mgr, monkeypatch, scene="scene.ogv", filepath="music/
     """Scene on screen with a recorded default trigger (auto-selected)."""
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, scene, "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": filepath}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": [filepath]}]
     mgr._resolve_selection()
     assert mgr.selected_key == "i_scene.ogv"
 
@@ -1112,15 +1132,15 @@ def test_delete_trigger_missing_entry(mgr):
 def test_triggers_default_deduped(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     mgr._triggers["replay1"] = [
-        {"key_before": "i_a.ogv", "key_after": "i_b.ogv", "filepath": "m.ogg"},
-        {"key_before": "i_b.ogv", "filepath": "n.ogg"},
+        {"key_before": "i_a.ogv", "key_after": "i_b.ogv", "filepaths": ["m.ogg"]},
+        {"key_before": "i_b.ogv", "filepaths": ["n.ogg"]},
     ]
     mgr._store["i_b.ogv"] = {"music": ["u:x.ogg"], "music_default_disabled": True}
     trigs = mgr.triggers()
     assert [t["key"] for t in trigs] == ["i_b.ogv"]  # key_after then key_before
     t = trigs[0]
     assert t["is_default"] is True
-    assert t["default_path"] == "m.ogg"
+    assert t["default_paths"] == ["m.ogg"]
     assert t["default_enabled"] is False
     assert t["songs"] == ["u:x.ogg"]
 
@@ -1169,7 +1189,7 @@ def test_pick_for_override_no_trigger(mgr, monkeypatch):
 def test_pick_for_override_untouched_without_pool(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     assert mgr._pick_for_override() is None  # entry absent -> untouched
 
 
@@ -1178,7 +1198,7 @@ def test_pick_for_override_pool_choice(mgr, monkeypatch):
     fake_rand = types.SimpleNamespace(choice=lambda pool: pool[-1])
     monkeypatch.setattr(_music_mod, "random", fake_rand)
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "a.ogg", CUE_MUSIC_GAME_TAG + "b.ogg"]}
     assert mgr._pick_for_override() == "b.ogg"
 
@@ -1186,7 +1206,7 @@ def test_pick_for_override_pool_choice(mgr, monkeypatch):
 def test_pick_for_override_suppress(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     mgr._store["i_scene.ogv"] = {"music": [], "music_default_disabled": True}
     assert mgr._pick_for_override() is _SUPPRESS_MUSIC
 
@@ -1220,7 +1240,7 @@ def test_play_custom_music_skips_default_trigger_scene(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     mgr.install()
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepath": "m.ogg"}]
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "music/c.ogg"]}
     mgr.play_custom_music()
     assert CUE_DEFAULT_MUSIC_CHANNEL not in _music_mock._registry

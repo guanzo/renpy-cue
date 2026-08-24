@@ -365,13 +365,23 @@ class CueDatabase(object):
     # ------------------------------------------------------------------
     # Default music triggers -- per-replay log of the original game's music
     # ------------------------------------------------------------------
-    # Shape: {replay_label: [ {"key_before": ..., "filepath": ...,
+    # Shape: {replay_label: [ {"key_before": ..., "filepaths": [...],
     # "key_after": ...}, ... ]}.  key_before = scene at the play call
     # (deterministic trigger); key_after = settled scene the user sees.
     # Stored one file per replay under markers/{game_id}/music_triggers/,
     # each file holding that replay's bare trigger list.  The subdir is not
     # a direct .json child of the marker dir, so load_markers() never sweeps
-    # it up as a marker.
+    # it up as a marker.  Pre-rename files carry a single "filepath" str;
+    # load normalises them to the "filepaths" list.
+
+    def _migrate_music_trigger_items(self, items):
+        # type: (List[Any]) -> List[Any]
+        """Normalise legacy trigger entries (single "filepath" str) to the
+        current "filepaths" list shape, in place."""
+        for item in items:
+            if "filepaths" not in item and "filepath" in item:
+                item["filepaths"] = [item.pop("filepath")]
+        return items
 
     def load_default_music_triggers(self):
         # type: () -> Dict[str, Any]
@@ -398,11 +408,11 @@ class CueDatabase(object):
             if not isinstance(items, list):
                 _cue_log("MUSIC-TRIGGERS: skipped non-list file {}".format(name))
                 continue
-            result[replay_id] = items
+            result[replay_id] = self._migrate_music_trigger_items(items)
         return result
 
-    def update_default_music_triggers(self, replay_id, key_before, path, key_after=None):
-        # type: (str, str, str, Optional[str]) -> None
+    def update_default_music_triggers(self, replay_id, key_before, paths, key_after=None):
+        # type: (str, str, List[str], Optional[str]) -> None
         """Record one default music trigger for a replay.
 
         One entry per scene (key_before) per replay: re-read that replay's
@@ -410,9 +420,11 @@ class CueDatabase(object):
         resave -- a write touches only its own file, so unrelated replays
         are never clobbered by a stale in-memory copy.
 
-        `key_before` is the scene on screen at the `play music` call (the
-        deterministic trigger); `key_after` is the settled scene the user
-        sees, captured once the scene batch lands (None until then).
+        `paths` is the full scripted file list (a `play music [a, b]` cycle
+        keeps both files).  `key_before` is the scene on screen at the
+        `play music` call (the deterministic trigger); `key_after` is the
+        settled scene the user sees, captured once the scene batch lands
+        (None until then).
         """
         fpath = self.paths.music_trigger_path(replay_id)
         items = []
@@ -424,15 +436,16 @@ class CueDatabase(object):
                 _cue_log("MUSIC-TRIGGERS: load failed for {}".format(fpath))
         if not isinstance(items, list):
             items = []
+        self._migrate_music_trigger_items(items)
         for item in items:
             if item.get("key_before") == key_before:
                 item["key_before"] = key_before
-                item["filepath"] = path
+                item["filepaths"] = paths
                 if key_after is not None:
                     item["key_after"] = key_after
                 break
         else:
-            entry = {"key_before": key_before, "filepath": path}
+            entry = {"key_before": key_before, "filepaths": paths}
             if key_after is not None:
                 entry["key_after"] = key_after
             items.append(entry)
