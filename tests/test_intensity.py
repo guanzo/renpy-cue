@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
-# Tests for cue_lib.intensity -- the intensity group registry (slice 0).
+# Tests for cue_lib.intensity -- the intensity group registry.
 # Igroups are shared presets: one JSON per igroup under data/presets/intensity/,
-# persisted via the db's preset store.  Folder order = level order; each level
-# carries ramp-default volume/frequency multipliers (UI editing deferred to the
-# per-video inspector).
+# persisted via the db's preset store.  A group is an ordered list of levels;
+# each level is a pool of folders/files with a stable id.  Level order = 1..N.
 
 import json
 import os
@@ -68,9 +67,8 @@ def test_create_empty_igroup(cue_env, imgr):
     assert imgr.list_igroups() == ["Impacts"]
     data = imgr.get_igroup("Impacts")
     assert data is not None
-    assert data["folders"] == []
-    assert data["volume_multipliers"] == []
-    assert data["frequency_multipliers"] == []
+    assert data["levels"] == []
+    assert data["next_ilevel_id"] == 1
     # One JSON per igroup, named {safe}_{sha1:8}.json, _key injected inside.
     files = _igroup_files(cue_env)
     assert len(files) == 1
@@ -98,13 +96,14 @@ def test_get_missing_igroup_returns_none(cue_env, imgr):
 
 def test_rename_igroup_moves_file(cue_env, imgr):
     imgr.create_igroup("Impacts")
-    imgr.add_folder("Impacts", "Sub/")
+    assert imgr.add_level("Impacts") == 1
+    assert imgr.add_level_file("Impacts", 1, "Sub/") is None
     assert imgr.rename_igroup("Impacts", "Hits") is None
     assert imgr.list_igroups() == ["Hits"]
     assert imgr.get_igroup("Impacts") is None
     data = imgr.get_igroup("Hits")
     assert data is not None
-    assert data["folders"] == ["Sub/"]
+    assert data["levels"][0]["files"] == ["Sub/"]
     files = _igroup_files(cue_env)
     assert len(files) == 1
     assert files[0].startswith("Hits_")
@@ -133,69 +132,117 @@ def test_delete_igroup(cue_env, imgr):
 
 
 # ==========================================================================
-# level editing -- folder list is the level list
+# level editing -- stable ids on an ordered level list
 # ==========================================================================
 
 
-def test_add_folder_ramps(cue_env, imgr):
+def test_add_level_assigns_stable_ids(cue_env, imgr):
     imgr.create_igroup("Impacts")
-    assert imgr.add_folder("Impacts", "sfx/soft/") is None
-    assert imgr.add_folder("Impacts", "sfx/hard/") is None
+    assert imgr.add_level("Impacts") == 1
+    assert imgr.add_level("Impacts") == 2
     data = imgr.get_igroup("Impacts")
-    assert data["folders"] == ["sfx/soft/", "sfx/hard/"]
-    assert data["volume_multipliers"] == [1.0, 1.25]
-    assert data["frequency_multipliers"] == [1.0, 1.5]
+    assert [lv["id"] for lv in data["levels"]] == [1, 2]
+    assert data["next_ilevel_id"] == 3
 
 
-def test_add_folder_dedupes(cue_env, imgr):
+def test_add_level_missing_igroup_returns_none(cue_env, imgr):
+    assert imgr.add_level("nope") is None
+
+
+def test_add_level_file_appends_and_dedupes(cue_env, imgr):
     imgr.create_igroup("Impacts")
-    imgr.add_folder("Impacts", "sfx/soft/")
-    err = imgr.add_folder("Impacts", "sfx/soft/")
+    imgr.add_level("Impacts")
+    assert imgr.add_level_file("Impacts", 1, "soft/") is None
+    assert imgr.add_level_file("Impacts", 1, "soft/a.ogg") is None
+    err = imgr.add_level_file("Impacts", 1, "soft/")
     assert err is not None
-    assert len(imgr.get_igroup("Impacts")["folders"]) == 1
+    assert imgr.get_igroup("Impacts")["levels"][0]["files"] == ["soft/", "soft/a.ogg"]
 
 
-def test_add_folder_missing_igroup(cue_env, imgr):
-    err = imgr.add_folder("nope", "sfx/soft/")
-    assert err is not None
-
-
-def test_remove_level_renumbers(cue_env, imgr):
+def test_add_level_file_missing_group_or_level_errors(cue_env, imgr):
     imgr.create_igroup("Impacts")
-    for folder in ["a/", "b/", "c/"]:
-        imgr.add_folder("Impacts", folder)
+    assert imgr.add_level_file("nope", 1, "soft/") is not None
+    assert imgr.add_level_file("Impacts", 1, "soft/") is not None  # no level yet
+    imgr.add_level("Impacts")
+    assert imgr.add_level_file("Impacts", 99, "soft/") is not None
+
+
+def test_remove_level_file(cue_env, imgr):
+    imgr.create_igroup("Impacts")
+    imgr.add_level("Impacts")
+    imgr.add_level_file("Impacts", 1, "soft/")
+    imgr.remove_level_file("Impacts", 1, "soft/")
+    assert imgr.get_igroup("Impacts")["levels"][0]["files"] == []
+
+
+def test_remove_level_keeps_ids(cue_env, imgr):
+    imgr.create_igroup("Impacts")
+    imgr.add_level("Impacts")  # id 1
+    imgr.add_level("Impacts")  # id 2
     imgr.remove_level("Impacts", 0)
-    data = imgr.get_igroup("Impacts")
-    assert data["folders"] == ["b/", "c/"]
-    assert data["volume_multipliers"] == [1.0, 1.25]
-    assert data["frequency_multipliers"] == [1.0, 1.5]
+    assert [lv["id"] for lv in imgr.get_igroup("Impacts")["levels"]] == [2]
 
 
 def test_remove_level_out_of_range_noop(cue_env, imgr):
     imgr.create_igroup("Impacts")
-    imgr.add_folder("Impacts", "a/")
+    imgr.add_level("Impacts")
     imgr.remove_level("Impacts", 5)  # must not raise
-    assert imgr.get_igroup("Impacts")["folders"] == ["a/"]
+    assert len(imgr.get_igroup("Impacts")["levels"]) == 1
 
 
-def test_move_level(cue_env, imgr):
+def test_move_level_preserves_ids(cue_env, imgr):
     imgr.create_igroup("Impacts")
-    for folder in ["a/", "b/", "c/"]:
-        imgr.add_folder("Impacts", folder)
+    imgr.add_level("Impacts")  # id 1
+    imgr.add_level("Impacts")  # id 2
     imgr.move_level("Impacts", 0, 1)
-    assert imgr.get_igroup("Impacts")["folders"] == ["b/", "a/", "c/"]
+    assert [lv["id"] for lv in imgr.get_igroup("Impacts")["levels"]] == [2, 1]
 
 
 def test_move_level_clamped(cue_env, imgr):
     imgr.create_igroup("Impacts")
-    for folder in ["a/", "b/"]:
-        imgr.add_folder("Impacts", folder)
+    imgr.add_level("Impacts")
+    imgr.add_level("Impacts")
     imgr.move_level("Impacts", 0, -1)  # can't move above top; must not raise
-    assert imgr.get_igroup("Impacts")["folders"] == ["a/", "b/"]
+    assert [lv["id"] for lv in imgr.get_igroup("Impacts")["levels"]] == [1, 2]
 
 
 def test_move_level_missing_igroup_noop(cue_env, imgr):
     imgr.move_level("nope", 0, 1)  # must not raise
+
+
+# ==========================================================================
+# level reads -- files by position/id + derived ramp multipliers
+# ==========================================================================
+
+
+def test_level_multipliers_derived_from_ramp(cue_env, imgr):
+    imgr.create_igroup("Impacts")
+    imgr.add_level("Impacts")
+    imgr.add_level("Impacts")
+    assert imgr.level_multipliers("Impacts", 1) == (1.0, 1.0)
+    assert imgr.level_multipliers("Impacts", 2) == (1.25, 1.5)
+
+
+def test_level_files_by_id_dangling_falls_back_to_level_one(cue_env, imgr):
+    imgr.create_igroup("Impacts")
+    imgr.add_level("Impacts")
+    imgr.add_level_file("Impacts", 1, "soft/")
+    imgr.add_level("Impacts")
+    imgr.add_level_file("Impacts", 2, "hard/")
+    assert imgr.level_files_by_id("Impacts", 99) == ["soft/"]  # dangling -> level 1
+    assert imgr.level_files_by_id("Impacts", 2) == ["hard/"]
+
+
+def test_level_files_by_index(cue_env, imgr):
+    imgr.create_igroup("Impacts")
+    imgr.add_level("Impacts")
+    imgr.add_level_file("Impacts", 1, "soft/")
+    imgr.add_level("Impacts")
+    imgr.add_level_file("Impacts", 2, "hard/")
+    assert imgr.level_files("Impacts", 1) == ["soft/"]
+    assert imgr.level_files("Impacts", 2) == ["hard/"]
+    assert imgr.level_files("Impacts", 3) is None
+    assert imgr.level_files("nope", 1) is None
 
 
 # ==========================================================================
@@ -206,10 +253,11 @@ def test_move_level_missing_igroup_noop(cue_env, imgr):
 def test_igroups_survive_manager_rebuild(cue_env):
     m1 = CueIntensityManager(cue_env.db)
     m1.create_igroup("Impacts")
-    m1.add_folder("Impacts", "a/")
+    m1.add_level("Impacts")
+    m1.add_level_file("Impacts", 1, "a/")
     m2 = CueIntensityManager(cue_env.db)  # fresh manager, same db
     assert m2.list_igroups() == ["Impacts"]
-    assert m2.get_igroup("Impacts")["folders"] == ["a/"]
+    assert m2.get_igroup("Impacts")["levels"][0]["files"] == ["a/"]
 
 
 def test_database_intensity_preset_type(cue_env):

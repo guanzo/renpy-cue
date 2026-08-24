@@ -216,10 +216,10 @@ def _make_mtl(monkeypatch, markers_list, dur=10.0, speed=1.0, selected=None, cur
     def _fake_flags(entry):
         return types.SimpleNamespace(enabled=True, sfx_levels=True, volume=True, frequency=True)
 
-    def _fake_pool_active(files, variants, flags):
-        # A trailing-slash folder ref is the intensity hook, gated on the
-        # per-video master switch (the real predicate is tested separately).
-        return intensity_on and any(f.endswith("/") for f in (files or []))
+    def _fake_pool_active(igroup, variants, flags):
+        # A non-None igroup is the intensity hook, gated on the per-video
+        # master switch (the real predicate is tested separately).
+        return intensity_on and bool(igroup)
 
     intensity = types.SimpleNamespace(flags_from_entry=_fake_flags, is_pool_intensity_active=_fake_pool_active)
     cue = types.SimpleNamespace(
@@ -457,7 +457,7 @@ def test_mtl_render_publishes_tip_anchored_during_drag(monkeypatch):
 def test_mtl_render_intensity_border_on_hooked_marker(monkeypatch):
     # Marker 1's pool is hooked to an intensity folder; marker 2's isn't.
     env = _make_mtl(
-        monkeypatch, [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}], current_file="clip.webm", intensity_on=True
+        monkeypatch, [{"time": 0.0, "igroup": "Impacts"}, {"time": 5.0}], current_file="clip.webm", intensity_on=True
     )
     r = env.tl.render(200, 60, 0.0, 0.0)
     border_ops = [op for op in r.canvas().ops if op[0] == "rect" and op[1] == env.tl.INTENSITY_BORDER]
@@ -472,7 +472,7 @@ def test_mtl_render_intensity_border_on_hooked_marker(monkeypatch):
 
 def test_mtl_render_intensity_no_border_when_off(monkeypatch):
     env = _make_mtl(
-        monkeypatch, [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}], current_file="clip.webm", intensity_on=False
+        monkeypatch, [{"time": 0.0, "igroup": "Impacts"}, {"time": 5.0}], current_file="clip.webm", intensity_on=False
     )
     r = env.tl.render(200, 60, 0.0, 0.0)
     colors = [op[1] for op in r.canvas().ops if op[0] == "rect"]
@@ -481,7 +481,7 @@ def test_mtl_render_intensity_no_border_when_off(monkeypatch):
 
 def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
     env = _make_mtl(
-        monkeypatch, [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}], current_file="clip.webm", intensity_on=True
+        monkeypatch, [{"time": 0.0, "igroup": "Impacts"}, {"time": 5.0}], current_file="clip.webm", intensity_on=True
     )
     env.tl._tip_text = "Pool 1 (0:00)"
     env.tl._hover_idx = 0
@@ -493,7 +493,7 @@ def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
 
 def test_mtl_render_intensity_tooltip_no_note_unhooked(monkeypatch):
     env = _make_mtl(
-        monkeypatch, [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}], current_file="clip.webm", intensity_on=True
+        monkeypatch, [{"time": 0.0, "igroup": "Impacts"}, {"time": 5.0}], current_file="clip.webm", intensity_on=True
     )
     env.tl._tip_text = "Pool 2 (0:05)"
     env.tl._hover_idx = 1
@@ -503,7 +503,7 @@ def test_mtl_render_intensity_tooltip_no_note_unhooked(monkeypatch):
 
 def test_mtl_render_intensity_tooltip_no_note_when_off(monkeypatch):
     env = _make_mtl(
-        monkeypatch, [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}], current_file="clip.webm", intensity_on=False
+        monkeypatch, [{"time": 0.0, "igroup": "Impacts"}, {"time": 5.0}], current_file="clip.webm", intensity_on=False
     )
     env.tl._tip_text = "Pool 1 (0:00)"
     env.tl._hover_idx = 0
@@ -1149,7 +1149,7 @@ def intensity_chart(monkeypatch):
     """Chart wired to a video whose pool is hooked to a 2-level group."""
     seq = types.SimpleNamespace(speeds_for=lambda tag: [1.0, 2.0, 3.0], current_step_index=lambda: 1)
     markers = types.SimpleNamespace(
-        get=lambda key, default: {"pools": [{"files": ["soft/"]}]},
+        get=lambda key, default: {"pools": [{"igroup": "Impacts", "ilevel_id": 1}]},
         _resolve_video_pools=lambda entry: entry.get("pools", []),
     )
     speed_resolver = types.SimpleNamespace(banding_speeds=lambda tag: [0.7, 1.0, 1.3], get_current_speed=lambda: 1.3)
@@ -1157,7 +1157,7 @@ def intensity_chart(monkeypatch):
     def _flags(entry):
         return types.SimpleNamespace(enabled=True, sfx_levels=True, volume=True, frequency=True)
 
-    def _current_level(pools_files, speed, variants, flags=None):
+    def _current_level(pool_hooks, speed, variants, flags=None):
         # 2 levels: the slowest variant is L1, everything else L2.
         return (1, 2) if speed < 0.85 else (2, 2)
 

@@ -566,23 +566,23 @@ def test_sfx_igroup_add_mode_switches_group(sfx):
     assert sfx.expanded_igroups.get("B") is True
 
 
-def test_sfx_igroup_add_folder_wired(sfx):
+def test_sfx_igroup_add_folder_wired_is_noop(sfx):
+    # Task 6 reworks the level-targeting UI; the current body does nothing
+    # beyond clearing stale targets.
     calls = []
-    sfx._intensity = types.SimpleNamespace(
-        get_igroup=lambda g: {"folders": []}, add_folder=lambda g, f: calls.append((g, f))
-    )
+    sfx._intensity = types.SimpleNamespace(get_igroup=lambda g: {"levels": []})
     sfx.igroup_add_folder("Impacts", "soft/")
-    assert calls == [("Impacts", "soft/")]
+    assert calls == []
     # No-op before the manager is wired.
     sfx._intensity = None
     sfx.igroup_add_folder("Impacts", "hard/")
-    assert calls == [("Impacts", "soft/")]
+    assert calls == []
 
 
 def test_sfx_igroup_add_folder_clears_stale_target(sfx):
     # Deleting the active add-target group leaves a stale target; the next
     # add clears it instead of failing against a deleted group.
-    sfx._intensity = types.SimpleNamespace(get_igroup=lambda g: None, add_folder=lambda g, f: None)
+    sfx._intensity = types.SimpleNamespace(get_igroup=lambda g: None)
     sfx.igroup_add_target = "Gone"
     sfx.igroup_add_folder("Gone", "soft/")
     assert sfx.igroup_add_target is None

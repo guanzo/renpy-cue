@@ -189,9 +189,9 @@ screen cue_video_vfx_intensity(_has_speeds):
     $ _vid_entry = _cue.markers.get(_vid_key, {})
     $ _vid_entries = (_cue.markers._resolve_video_pools(_vid_entry)
         if _vid_entry else [])
-    $ _pools_files = ([p.get("files", []) for p in _vid_entries]
+    $ _pool_hooks = ([(p.get("igroup"), p.get("ilevel_id")) for p in _vid_entries]
         if _vid_entries else [])
-    $ _hook_group = _cue.intensity.video_hook(_pools_files)
+    $ _hook_group = _cue.intensity.video_hook(_pool_hooks)
     $ _has_group = _hook_group is not None
 
     if not _has_speeds or not _has_group:
@@ -233,7 +233,7 @@ screen cue_video_vfx_intensity(_has_speeds):
             $ _cur_speed = _cue.speed_resolver.get_current_speed()
             $ _flags = _cue.intensity.flags_from_entry(_vid_entry)
             $ _res = _cue.intensity.resolve_video_intensity(
-                _pools_files, _cur_speed, _variants, flags=_flags)
+                _pool_hooks, _cur_speed, _variants, flags=_flags)
             $ _mapping = _cue.intensity.variant_levels(_hook_group, _variants)
 
             hbox:
@@ -283,19 +283,19 @@ screen cue_video_vfx_intensity(_has_speeds):
                             spacing 5
                             etext "Speed Range" color _cue_color_text_muted minwidth 100
                             etext "Level" color _cue_color_text_muted minwidth 40
-                            etext "Folder" color _cue_color_text_muted
-                            
+                            etext "Files" color _cue_color_text_muted
+
                         for _lvl in sorted(_rows):
                             $ _row_speeds = sorted(_rows[_lvl])
                             $ _row_lo = _cue_speed_label(_row_speeds[0])
                             $ _row_hi = _cue_speed_label(_row_speeds[-1])
                             $ _row_range = _row_lo if len(_row_speeds) == 1 else _row_lo + " - " + _row_hi
                             $ _row_speed_tt = ", ".join(_cue_speed_label(_sp) for _sp in _row_speeds)
-                            $ _row_folder = _cue.intensity.level_folder(_hook_group, _lvl)
-                            if _row_folder:
-                                $ _row_leaf = _row_folder.rstrip("/").split("/")[-1] or _row_folder
+                            $ _row_files = _cue.intensity.level_files(_hook_group, _lvl)
+                            if _row_files:
+                                $ _row_leaf = ", ".join(_rf.rstrip("/").split("/")[-1] or _rf for _rf in _row_files)
                             else:
-                                $ _row_leaf = "(no folder)"
+                                $ _row_leaf = "(no files)"
                             $ _is_active_row = (_res is not None and _lvl == _res.level)
                             hbox:
                                 spacing 5
@@ -308,7 +308,7 @@ screen cue_video_vfx_intensity(_has_speeds):
                                 button:
                                     style "empty"
                                     action NullAction()
-                                    tooltip _row_folder
+                                    tooltip ", ".join(_row_files or [])
                                     etext _row_leaf
                                 if _is_active_row:
                                     use cue_icon("caret-left", 

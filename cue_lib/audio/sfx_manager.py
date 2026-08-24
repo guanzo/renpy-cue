@@ -493,14 +493,16 @@ class CueSfxLibraryTree(CueAudioTreeManager):
 
     def igroup_add_folder(self, group_name, folder_path):
         # type: (str, str) -> None
-        """Add a tree folder as the group's next level.  No-op before the
-        manager is wired; clears a stale target whose group was deleted."""
+        """Add a tree folder to an intensity group.  The level-targeting UI is
+        reworked in Task 6; for now this only clears a stale target whose group
+        was deleted (the old add_folder call is gone)."""
         if self._intensity is None:
             return
         if self._intensity.get_igroup(group_name) is None:
             self.igroup_add_target = None
             return
-        self._intensity.add_folder(group_name, folder_path)
+        # Task 6: delegate to add_level + add_level_file once the tree
+        # targets a specific (group, level) pair.
 
     def set_add_to_pool_warning(self, message):
         # type: (str) -> None

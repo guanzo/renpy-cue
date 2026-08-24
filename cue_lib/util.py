@@ -453,13 +453,16 @@ def _cue_preset_search_matches(name, query):
 def _cue_igroup_search_matches(name, query):
     # type: (str, str) -> bool
     """True when a search keeps an intensity group: the name matches, or any
-    level folder inside the group matches."""
+    level file inside the group matches."""
     if _cue_query_matches(name, query):
         return True
     data = _cue.intensity.get_igroup(name)
     if not data:
         return False
-    return _cue_matches_any(query, data.get("folders", []))
+    files = []
+    for level in data.get("levels", []):
+        files.extend(level.get("files", []))
+    return _cue_matches_any(query, files)
 
 
 def _cue_filter_preset_files(name, query):
@@ -479,13 +482,15 @@ def _cue_filter_preset_files(name, query):
 
 def _cue_filter_igroup_folders(name, query):
     # type: (str, str) -> List[str]
-    """Level folders to display for an intensity group under a search query,
+    """Level files to display for an intensity group under a search query,
     applying the same semantics as _cue_filter_preset_files."""
     data = _cue.intensity.get_igroup(name)
-    folders = data.get("folders", []) if data else []
+    files = []
+    for level in data.get("levels", []) if data else []:
+        files.extend(level.get("files", []))
     if not query.strip() or _cue_query_matches(name, query):
-        return folders
-    return [f for f in folders if _cue_query_matches(f, query)]
+        return files
+    return [f for f in files if _cue_query_matches(f, query)]
 
 
 # --------------------------------------------------------------------------

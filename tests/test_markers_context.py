@@ -1067,71 +1067,63 @@ def test_video_send_preset_record_false_skips_record():
 
 
 # ---------------------------------------------------------------------------
-# One intensity group per pool -- add_folder guardrail wiring
+# add_folder -- folder adds are always allowed (the intensity group hook is
+# set explicitly, not inferred from folder membership)
 # ---------------------------------------------------------------------------
 
 
-def _guardrail_mgr(cue_env):
+def _intensity_mgr(cue_env):
     """FakeManager wired to a real intensity manager holding two groups."""
     mgr = FakeManager({"i_file": {"pools": [{"files": [], "volume": 1.0}]}}, current_file="v")
     mgr._sfx_manager.library._intensity = CueIntensityManager(cue_env.db)
     intensity = mgr._sfx_manager.library._intensity
     assert intensity.create_igroup("Impacts") is None
-    assert intensity.add_folder("Impacts", "soft/") is None
+    assert intensity.add_level("Impacts") == 1
+    assert intensity.add_level_file("Impacts", 1, "soft/") is None
     assert intensity.create_igroup("Mouth") is None
-    assert intensity.add_folder("Mouth", "lip/") is None
+    assert intensity.add_level("Mouth") == 1
+    assert intensity.add_level_file("Mouth", 1, "lip/") is None
     return mgr
 
 
-def test_image_add_folder_rejects_second_group(cue_env):
-    mgr = _guardrail_mgr(cue_env)
-    ctx = ImageCtx(mgr)
-    ctx.add_folder("soft/")  # hook the pool to Impacts
-    err = ctx.add_folder("lip/")  # Mouth folder -> rejected
-    assert err is not None
-    assert "Mouth" in err and "Impacts" in err
-    assert mgr.get("i_file")["pools"][0]["files"] == ["soft/"]
-
-
-def test_image_add_folder_allows_same_group(cue_env):
-    mgr = _guardrail_mgr(cue_env)
-    ctx = ImageCtx(mgr)
-    ctx.add_folder("soft/")
-    assert ctx.add_folder("soft/") is None  # duplicate collapses
-    assert ctx.add_folder("lip/") is not None  # second group still rejected
-
-
-def test_image_add_folder_skips_guardrail_when_unwired():
+def test_image_add_folder_appends_ref_when_unwired():
     mgr = FakeManager({"i_file": {"pools": [{"files": [], "volume": 1.0}]}})
-    # library._intensity stays None -- no manager, no guardrail.
+    # library._intensity stays None -- no manager, folder add just appends.
     ImageCtx(mgr).add_folder("lip/")
     assert mgr.get("i_file")["pools"][0]["files"] == ["lip/"]
 
 
-def test_video_add_folder_rejects_second_group(cue_env):
-    mgr = _guardrail_mgr(cue_env)
+def test_image_add_folder_appends_across_groups(cue_env):
+    # A pool may hold folders from any group -- the one-group-per-pool
+    # guardrail is gone.
+    mgr = _intensity_mgr(cue_env)
+    ctx = ImageCtx(mgr)
+    assert ctx.add_folder("soft/") is None
+    assert ctx.add_folder("lip/") is None  # second group now allowed
+    assert mgr.get("i_file")["pools"][0]["files"] == ["soft/", "lip/"]
+
+
+def test_video_add_folder_appends_across_groups(cue_env):
+    mgr = _intensity_mgr(cue_env)
     ctx = VideoCtx(mgr)
-    ctx.add_folder("soft/")
-    err = ctx.add_folder("lip/")
-    assert err is not None
-    assert "Mouth" in err and "Impacts" in err
-    assert mgr.get("v_key")["pools"][0]["files"] == ["soft/"]
+    assert ctx.add_folder("soft/") is None
+    assert ctx.add_folder("lip/") is None
+    assert mgr.get("v_key")["pools"][0]["files"] == ["soft/", "lip/"]
 
 
-def test_send_folder_propagates_error_and_clears_warning_on_success(cue_env):
-    mgr = _guardrail_mgr(cue_env)
+def test_send_folder_clears_warning_on_success(cue_env):
+    mgr = _intensity_mgr(cue_env)
     cleared = []
     mgr._sfx_manager.library.clear_add_to_pool_warning = lambda: cleared.append(True)
     ctx = ImageCtx(mgr)
     assert ctx.send_folder("soft/") is None
     assert cleared == [True]  # success clears the notice
-    err = ctx.send_folder("lip/")
-    assert err is not None
-    assert cleared == [True]  # rejection does not clear it
+    assert ctx.send_folder("lip/") is None  # always allowed now
+    assert cleared == [True, True]
 
 
 def test_send_file_clears_add_to_pool_warning(cue_env):
-    mgr = _guardrail_mgr(cue_env)
+    mgr = _intensity_mgr(cue_env)
     mgr._sfx_manager.files = ["sfx/a.ogg"]
     cleared = []
     mgr._sfx_manager.library.clear_add_to_pool_warning = lambda: cleared.append(True)

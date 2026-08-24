@@ -257,19 +257,14 @@ class CueMarkerContext(object):
 
     def add_folder(self, folder_path):
         # type: (str) -> Optional[str]
-        """Add a folder ref to the active pool.  Returns an error string when
-        the folder belongs to a different intensity group than the pool (one
-        group per pool), else None."""
+        """Add a folder ref to the active pool.  Returns None (folder adds are
+        always allowed; a pool's intensity group is now set explicitly, not
+        inferred from folder membership)."""
         key = self._key()
         folder_ref = folder_path.rstrip("/") + "/"
         self._mgr._detach_pool(key, self.get_active_index())
         pool = self._mgr._ensure_pool(key, self.get_active_index())
         files = pool.setdefault("files", [])
-        intensity = getattr(self._mgr._sfx_manager.library, "_intensity", None)
-        if intensity is not None:
-            err = intensity.check_add_folder(files, folder_ref)
-            if err is not None:
-                return err
         if folder_ref not in files:
             files.append(folder_ref)
         self._mgr._db_save_marker(key)
@@ -447,30 +442,20 @@ class CueVideoContext(CueMarkerContext):
 
     def add_folder(self, folder_path):
         # type: (str) -> Optional[str]
-        """Add a folder ref to the target video pool(s).  Returns an error
-        string when any target pool is hooked to a different intensity group
-        (one group per pool), else None."""
+        """Add a folder ref to the target video pool(s).  Returns None (folder
+        adds are always allowed; a pool's intensity group is now set explicitly,
+        not inferred from folder membership)."""
         if not self._mgr._ctx.current_file:
             return None
         folder_ref = folder_path.rstrip("/") + "/"
         vid_key = self._key()
         entry = self._mgr._get_or_create_entry(vid_key)
         pools = entry["pools"]
-        intensity = getattr(self._mgr._sfx_manager.library, "_intensity", None)
         if len(self.selected) > 1:
             targets = [idx for idx in sorted(self.selected) if 0 <= idx < len(pools)]
-            if intensity is not None:
-                for idx in targets:
-                    err = intensity.check_add_folder(pools[idx].get("files", []), folder_ref)
-                    if err is not None:
-                        return err
             for idx in targets:
                 self._add_file(vid_key, folder_ref, idx)
         elif pools and 0 <= self.active_pool < len(pools):
-            if intensity is not None:
-                err = intensity.check_add_folder(pools[self.active_pool].get("files", []), folder_ref)
-                if err is not None:
-                    return err
             self._add_file(vid_key, folder_ref, self.active_pool)
         else:
             elapsed = self._mgr._vid_manager.get_elapsed()

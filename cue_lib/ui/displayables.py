@@ -491,7 +491,7 @@ class CueVideoMarkerTimeline(Displayable):
         """True when this marker's own pool plays intensity levels: the
         video's intensity toggle is on, it has 2+ speed variants, and the
         pool's folder list is hooked to an intensity group."""
-        return _cue.intensity.is_pool_intensity_active(marker.get("files", []), variants, flags)
+        return _cue.intensity.is_pool_intensity_active(marker.get("igroup"), variants, flags)
 
     def _hit_test(self, markers, dur, w, x, y):
         # type: (List[VideoPoolDict], float, int, int, int) -> int
@@ -1033,7 +1033,9 @@ class CueAutoSpeedChart(Displayable):
                 intensity_flags = _cue.intensity.flags_from_entry(entry)
                 intensity_variants = _cue.speed_resolver.banding_speeds(tag)
                 if intensity_variants:
-                    intensity_pools = [p.get("files", []) for p in _cue.markers._resolve_video_pools(entry)]
+                    intensity_pools = [
+                        (p.get("igroup"), p.get("ilevel_id")) for p in _cue.markers._resolve_video_pools(entry)
+                    ]
                     step_levels = []
                     for sp in speeds:
                         lvl = _cue.intensity.current_level(intensity_pools, sp, intensity_variants, intensity_flags)

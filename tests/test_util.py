@@ -990,19 +990,25 @@ def test_preset_search_matches_missing_preset(monkeypatch):
 
 
 def test_igroup_search_matches_by_name(monkeypatch):
-    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(get_igroup=lambda n: {"folders": []}))
+    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(get_igroup=lambda n: {"levels": []}))
     assert _util._cue_igroup_search_matches("Soft", "soft")
 
 
-def test_igroup_search_matches_by_folder_content(monkeypatch):
+def test_igroup_search_matches_by_level_content(monkeypatch):
     monkeypatch.setattr(
-        _cue, "intensity", SimpleNamespace(get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]})
+        _cue,
+        "intensity",
+        SimpleNamespace(
+            get_igroup=lambda n: {"levels": [{"id": 1, "files": ["moans/soft"]}, {"id": 2, "files": ["gasps/light"]}]}
+        ),
     )
     assert _util._cue_igroup_search_matches("Build", "gasps")
 
 
 def test_igroup_search_matches_nothing(monkeypatch):
-    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(get_igroup=lambda n: {"folders": ["moans/soft"]}))
+    monkeypatch.setattr(
+        _cue, "intensity", SimpleNamespace(get_igroup=lambda n: {"levels": [{"id": 1, "files": ["moans/soft"]}]})
+    )
     assert not _util._cue_igroup_search_matches("Build", "zzz")
 
 
@@ -1048,21 +1054,33 @@ def test_filter_preset_files_folder_ref_resolves_then_filters(monkeypatch):
 
 def test_filter_igroup_folders_no_query_all(monkeypatch):
     monkeypatch.setattr(
-        _cue, "intensity", SimpleNamespace(get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]})
+        _cue,
+        "intensity",
+        SimpleNamespace(
+            get_igroup=lambda n: {"levels": [{"id": 1, "files": ["moans/soft"]}, {"id": 2, "files": ["gasps/light"]}]}
+        ),
     )
     assert _util._cue_filter_igroup_folders("Build", "") == ["moans/soft", "gasps/light"]
 
 
 def test_filter_igroup_folders_name_match_keeps_all(monkeypatch):
     monkeypatch.setattr(
-        _cue, "intensity", SimpleNamespace(get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]})
+        _cue,
+        "intensity",
+        SimpleNamespace(
+            get_igroup=lambda n: {"levels": [{"id": 1, "files": ["moans/soft"]}, {"id": 2, "files": ["gasps/light"]}]}
+        ),
     )
     assert _util._cue_filter_igroup_folders("Build", "build") == ["moans/soft", "gasps/light"]
 
 
 def test_filter_igroup_folders_content_match_keeps_matches(monkeypatch):
     monkeypatch.setattr(
-        _cue, "intensity", SimpleNamespace(get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]})
+        _cue,
+        "intensity",
+        SimpleNamespace(
+            get_igroup=lambda n: {"levels": [{"id": 1, "files": ["moans/soft"]}, {"id": 2, "files": ["gasps/light"]}]}
+        ),
     )
     assert _util._cue_filter_igroup_folders("Build", "gasps") == ["gasps/light"]
 

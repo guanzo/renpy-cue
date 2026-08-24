@@ -156,17 +156,22 @@ class FakeExclusive(object):
 
 class FakeResolvedPool(object):
     """Resolved-pool stand-in carrying every attribute consumers read:
-    volume (volume.py), files/frequency/trigger_on_shake/exclusive (trigger.py).
+    volume (volume.py), files/frequency/trigger_on_shake/exclusive/igroup/
+    ilevel_id (trigger.py, intensity resolution).
 
     resolve_pool defaults mirror the real store: volume 1.0 (identity),
     frequency CueLoopFrequency.MEDIUM, exclusive a default FakeExclusive."""
 
-    def __init__(self, files=None, volume=1.0, frequency=1, trigger_on_shake=False, exclusive=None):
+    def __init__(
+        self, files=None, volume=1.0, frequency=1, trigger_on_shake=False, exclusive=None, igroup=None, ilevel_id=None
+    ):
         self.files = files if files is not None else []
         self.volume = volume
         self.frequency = frequency
         self.trigger_on_shake = trigger_on_shake
         self.exclusive = exclusive if exclusive is not None else FakeExclusive()
+        self.igroup = igroup
+        self.ilevel_id = ilevel_id
 
 
 class FakeMarkerStore(object):
@@ -202,6 +207,8 @@ class FakeMarkerStore(object):
             exclusive=FakeExclusive(
                 start=excl.get("start", 0), hold=excl.get("hold", False), group=excl.get("group", 0)
             ),
+            igroup=pool.get("igroup"),
+            ilevel_id=pool.get("ilevel_id"),
         )
 
 

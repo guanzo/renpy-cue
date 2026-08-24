@@ -313,12 +313,13 @@ class CueTriggerEngine(object):
         flags = _cue.intensity.flags_from_entry(entry)
         if not flags.enabled:
             return None
-        pools_files = []
+        pool_hooks = []
         for p in entry.get("pools", []):
-            pools_files.append(self._store.resolve_pool(p).files)
-        if not pools_files:
+            rp = self._store.resolve_pool(p)
+            pool_hooks.append((rp.igroup, rp.ilevel_id))
+        if not pool_hooks:
             return None
-        return _cue.intensity.resolve_video_intensity(pools_files, speed, variants, flags=flags)
+        return _cue.intensity.resolve_video_intensity(pool_hooks, speed, variants, flags=flags)
 
     def _loop_delay(self, frequency, res):
         # type: (int, Optional[CueIntensityResolution]) -> float
@@ -430,20 +431,30 @@ class CueTriggerEngine(object):
         if entry is None:
             return
         pools = entry.get("pools", [])
-        # Collect frequencies from resolved pools with files, default 1
+
+        # Per-video toggles read from the current video's marker entry.
+        flags = _cue.intensity.flags_from_entry(self._store.get(create_vid_key(current_file)) if current_file else None)
+
+        # Collect frequencies from resolved pools, default 1.  A pool that is
+        # hooked to an intensity group has no own files -- its level resolution
+        # supplies them, so resolve it here to decide whether it can fire.
         freqs = []
         for p in pools:
             resolved = self._store.resolve_pool(p)
-            if resolved.files:
+            if resolved.igroup is not None:
+                res = _cue.intensity.resolve_pool_intensity(
+                    resolved.igroup, resolved.ilevel_id, speed, variants, flags=flags
+                )
+                has_files = res is not None and bool(res.files)
+            else:
+                has_files = bool(resolved.files)
+            if has_files:
                 freqs.append(resolved.frequency)
         if not freqs:
             return
 
         # Global volume scale for pools not hooked to an intensity group.
         vid_scale = self._vid_intensity.volume_mult if self._vid_intensity is not None else 1.0
-
-        # Per-video toggles read from the current video's marker entry.
-        flags = _cue.intensity.flags_from_entry(self._store.get(create_vid_key(current_file)) if current_file else None)
 
         # Init per-pool states under the loop key
         if loop_key not in self.loop_states:
@@ -453,7 +464,9 @@ class CueTriggerEngine(object):
         picked = []
         for pi, pool in enumerate(pools):
             resolved = self._store.resolve_pool(pool)
-            res = _cue.intensity.resolve_pool_intensity(resolved.files, speed, variants, flags=flags)
+            res = _cue.intensity.resolve_pool_intensity(
+                resolved.igroup, resolved.ilevel_id, speed, variants, flags=flags
+            )
             if res is not None:
                 files = res.files
                 vol_mult = res.volume_mult
@@ -660,7 +673,9 @@ class CueTriggerEngine(object):
                 continue
 
             resolved = self._store.resolve_pool(pool_entry)
-            res = _cue.intensity.resolve_pool_intensity(resolved.files, speed, variants, flags=flags)
+            res = _cue.intensity.resolve_pool_intensity(
+                resolved.igroup, resolved.ilevel_id, speed, variants, flags=flags
+            )
             if res is not None:
                 files = res.files
                 vol_mult = res.volume_mult

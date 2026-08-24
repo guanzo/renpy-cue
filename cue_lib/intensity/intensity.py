@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-# cue_lib/intensity/intensity.py -- intensity group registry (slice 0).
+# cue_lib/intensity/intensity.py -- intensity group registry.
 #
-# An intensity group (igroup) is a named, ordered folder list.  Folder order =
-# level order: the first folder is Level 1 (softest), the last is Level N
-# (hardest).  Each level carries a volume multiplier and a frequency
-# multiplier, defaulting to a linear ramp (Level 1 = 1.0 -> Level N = max
-# within the clamps).  Level editing is slice 0; multiplier editing lands with
-# the per-video inspector.
+# An intensity group (igroup) is a named, ordered level list.  Each level is a
+# pool of folder/file refs with a stable id; level order = 1..N (1 = softest,
+# N = hardest).  Volume and frequency multipliers derive from a linear ramp
+# over the level count (Level 1 = 1.0 -> Level N = max within the clamps).
+# A pool hooks an igroup by storing the group name + the pinned level id;
+# speed banding then picks the active level per frame.
 #
 # Igroups are shared presets -- one JSON per igroup under data/presets/
 # intensity/ via the db's preset store (save/delete/atomic write/_key
@@ -62,14 +62,13 @@ class CueIntensityFlags(object):
 class CueIntensityResolution(object):
     """Result of resolving a pool against an intensity group.
 
-    Carries the active level, its folder, the resolved folder files (empty =
-    silence), and the volume/frequency multipliers applied at fire time."""
+    Carries the active level, the resolved level files (empty = silence), and
+    the volume/frequency multipliers applied at fire time."""
 
-    def __init__(self, group, level, folder, volume_mult, freq_mult, files=None):
-        # type: (str, int, Optional[str], float, float, Optional[List[str]]) -> None
+    def __init__(self, group, level, volume_mult, freq_mult, files=None):
+        # type: (str, int, float, float, Optional[List[str]]) -> None
         self.group = group
         self.level = level
-        self.folder = folder
         self.volume_mult = volume_mult
         self.freq_mult = freq_mult
         self.files = files if files is not None else []
@@ -78,7 +77,7 @@ class CueIntensityResolution(object):
 class CueIntensityManager(object):
     """Registry + persistence for intensity groups.
 
-    Create/rename/delete igroups and add/remove/reorder their folders.  Reads
+    Create/rename/delete igroups and add/remove/reorder their levels.  Reads
     go through an in-memory registry (write-invalidated, mirroring the marker
     store's preset cache); every write also lands one JSON file on disk under
     data/presets/intensity/ so the files are the durable source of truth."""
@@ -87,7 +86,6 @@ class CueIntensityManager(object):
         # type: (CueDatabase) -> None
         self._db = db
         self._igroups = None  # type: Optional[Dict[str, Any]]
-        self._folder_index_cache = None  # type: Optional[Dict[str, Any]]
         self._band_cache = {}  # type: Dict[Any, Any]
 
     # ------------------------------------------------------------------
@@ -104,7 +102,6 @@ class CueIntensityManager(object):
     def _invalidate(self):
         # type: () -> None
         self._igroups = None
-        self._folder_index_cache = None
         self._band_cache = {}
 
     def list_igroups(self):
@@ -129,7 +126,7 @@ class CueIntensityManager(object):
             return "Intensity group name can't be empty."
         if self.get_igroup(name) is not None:
             return "An intensity group named '{}' already exists.".format(name)
-        data = {"folders": [], "volume_multipliers": [], "frequency_multipliers": []}
+        data = {"levels": [], "next_ilevel_id": 1}
         self._save(name, data)
         return None
 
@@ -156,112 +153,125 @@ class CueIntensityManager(object):
         self._invalidate()
 
     # ------------------------------------------------------------------
-    # Level editing -- the folder list IS the level list
+    # Level editing -- the level list IS the pool list
     # ------------------------------------------------------------------
 
-    def add_folder(self, name, folder_path):
-        # type: (str, str) -> Optional[str]
-        """Append a folder as the igroup's next (highest) level.
+    def _new_ilevel_id(self, data):
+        # type: (Dict[str, Any]) -> int
+        next_id = data.get("next_ilevel_id", 1)
+        data["next_ilevel_id"] = next_id + 1
+        return next_id
 
-        Returns an error string, or None on success."""
+    def add_level(self, name):
+        # type: (str) -> Optional[int]
+        data = self.get_igroup(name)
+        if data is None:
+            return None
+        levels = list(data.get("levels", []))
+        new_id = self._new_ilevel_id(data)
+        levels.append({"id": new_id, "files": []})
+        data["levels"] = levels
+        self._save(name, data)
+        return new_id
+
+    def _find_level(self, data, ilevel_id):
+        # type: (Dict[str, Any], int) -> Optional[Dict[str, Any]]
+        for level in data.get("levels", []):
+            if level.get("id") == ilevel_id:
+                return level
+        return None
+
+    def add_level_file(self, name, ilevel_id, file_ref):
+        # type: (str, int, str) -> Optional[str]
         data = self.get_igroup(name)
         if data is None:
             return "No intensity group named '{}'.".format(name)
-        folders = list(data.get("folders", []))
-        if folder_path in folders:
-            return "'{}' is already a level in this intensity group.".format(folder_path)
-        folders.append(folder_path)
-        self._save_with_ramp(name, folders)
+        level = self._find_level(data, ilevel_id)
+        if level is None:
+            return "No level '{}' in '{}'.".format(ilevel_id, name)
+        files = level.setdefault("files", [])
+        if file_ref in files:
+            return "'{}' is already in this level.".format(file_ref)
+        files.append(file_ref)
+        self._save(name, data)
         return None
+
+    def remove_level_file(self, name, ilevel_id, file_ref):
+        # type: (str, int, str) -> None
+        data = self.get_igroup(name)
+        if data is None:
+            return
+        level = self._find_level(data, ilevel_id)
+        if level is None:
+            return
+        files = level.get("files", [])
+        if file_ref in files:
+            files.remove(file_ref)
+            self._save(name, data)
 
     def remove_level(self, name, index):
         # type: (str, int) -> None
         data = self.get_igroup(name)
         if data is None:
             return
-        folders = list(data.get("folders", []))
-        if 0 <= index < len(folders):
-            del folders[index]
-            self._save_with_ramp(name, folders)
+        levels = list(data.get("levels", []))
+        if 0 <= index < len(levels):
+            del levels[index]
+            data["levels"] = levels
+            self._save(name, data)
 
     def move_level(self, name, index, delta):
         # type: (str, int, int) -> None
         data = self.get_igroup(name)
         if data is None:
             return
-        folders = list(data.get("folders", []))
+        levels = list(data.get("levels", []))
         new_index = index + delta
-        if 0 <= index < len(folders) and 0 <= new_index < len(folders):
-            folders[index], folders[new_index] = folders[new_index], folders[index]
-            self._save_with_ramp(name, folders)
+        if 0 <= index < len(levels) and 0 <= new_index < len(levels):
+            levels[index], levels[new_index] = levels[new_index], levels[index]
+            data["levels"] = levels
+            self._save(name, data)
 
-    # ------------------------------------------------------------------
-    # Resolution -- hook detection + speed -> level chain (slice 3)
-    # ------------------------------------------------------------------
-
-    def _folder_index(self):
-        # type: () -> Dict[str, Any]
-        """Folder -> (igroup_name, level_index) registry, built lazily and
-        write-invalidated.  Folder order = level order, so the position in the
-        folders list is the level index (0-based).  A folder registered in
-        several igroups resolves to the first group alphabetically."""
-        if self._folder_index_cache is None:
-            index = {}
-            for name in self.list_igroups():
-                data = self.get_igroup(name)
-                if data is None:
-                    continue
-                folders = data.get("folders", [])
-                for li, folder in enumerate(folders):
-                    if folder not in index:
-                        index[folder] = (name, li)
-            self._folder_index_cache = index
-        return self._folder_index_cache
-
-    def resolve_hook(self, files):
-        # type: (Optional[List[str]]) -> Optional[Tuple[str, int]]
-        """The first folder ref in `files` registered in some igroup, as
-        (igroup_name, level_index), or None if the pool isn't hooked.
-
-        Only trailing-slash folder refs count -- direct file entries are not
-        intensity hooks."""
-        for item in files or []:
-            if not item.endswith("/"):
-                continue
-            hit = self._folder_index().get(item)
-            if hit is not None:
-                return hit
-        return None
-
-    def group_for_folder(self, folder):
-        # type: (str) -> Optional[str]
-        """The group a folder belongs to, or None when it's untagged."""
-        hit = self._folder_index().get(folder)
-        return hit[0] if hit is not None else None
-
-    def pool_group(self, files):
-        # type: (Optional[List[str]]) -> Optional[str]
-        """The group a pool is hooked to, or None when no folder in the pool
-        is registered in any group."""
-        hook = self.resolve_hook(files)
-        return hook[0] if hook is not None else None
-
-    def check_add_folder(self, pool_files, folder):
-        # type: (Optional[List[str]], str) -> Optional[str]
-        """Error string when adding ``folder`` to a pool whose existing
-        folders already hook a different group (one intensity group per pool).
-        None when the add is allowed -- untagged folders, and extra folders
-        of the already-hooked group (they collapse to one hook)."""
-        new_group = self.group_for_folder(folder)
-        if new_group is None:
+    def level_files(self, name, level_index):
+        # type: (str, int) -> Optional[List[str]]
+        data = self.get_igroup(name)
+        if data is None:
             return None
-        existing = self.pool_group(pool_files)
-        if existing is not None and existing != new_group:
-            return (
-                "That folder is in Intensity Group '{}', but this pool "
-                "is already attached to '{}'. A pool can only contain one intensity group."
-            ).format(new_group, existing)
+        levels = data.get("levels", [])
+        idx = level_index - 1
+        if not (0 <= idx < len(levels)):
+            return None
+        return levels[idx].get("files", [])
+
+    def level_files_by_id(self, name, ilevel_id):
+        # type: (str, int) -> Optional[List[str]]
+        data = self.get_igroup(name)
+        if data is None:
+            return None
+        levels = data.get("levels", [])
+        level = self._find_level(data, ilevel_id)
+        if level is not None:
+            return level.get("files", [])
+        if levels:
+            return levels[0].get("files", [])
         return None
+
+    def level_multipliers(self, name, level_index):
+        # type: (str, int) -> Tuple[float, float]
+        data = self.get_igroup(name)
+        if data is None:
+            return (1.0, 1.0)
+        count = len(data.get("levels", []))
+        if count == 0:
+            return (1.0, 1.0)
+        idx = max(0, min(level_index - 1, count - 1))
+        vm = _level_ramp(count, CUE_INTENSITY_VOLUME_MAX)[idx]
+        fm = _level_ramp(count, CUE_INTENSITY_FREQ_MAX)[idx]
+        return (vm, fm)
+
+    # ------------------------------------------------------------------
+    # Resolution -- speed -> level chain (slice 3)
+    # ------------------------------------------------------------------
 
     def flags_from_entry(self, entry):
         # type: (Optional[MarkerEntry]) -> CueIntensityFlags
@@ -278,172 +288,100 @@ class CueIntensityManager(object):
             frequency=flags.get("frequency", True),
         )
 
-    def level_folder(self, name, level):
-        # type: (str, int) -> Optional[str]
-        """The folder for a 1-based level, or None if the level is out of
-        range.  No downward fallback: an empty folder means silence."""
-        data = self.get_igroup(name)
+    def resolve_pool_intensity(self, igroup, ilevel_id, current_speed, variants, flags=None, resolve_files=None):
+        # type: (Optional[str], Optional[int], float, Optional[List[float]], Optional[CueIntensityFlags], Optional[Callable[[List[str]], List[str]]]) -> Optional[CueIntensityResolution]
+        if igroup is None:
+            return None
+        data = self.get_igroup(igroup)
         if data is None:
             return None
-        folders = data.get("folders", [])
-        idx = level - 1
-        if not (0 <= idx < len(folders)):
+        levels = data.get("levels", [])
+        if not levels:
             return None
-        return folders[idx]
-
-    def level_multipliers(self, name, level):
-        # type: (str, int) -> Tuple[float, float]
-        """(volume_mult, freq_mult) for a 1-based level.  Out-of-range levels
-        clamp to the nearest valid level; missing data reads as identity."""
-        data = self.get_igroup(name)
-        if data is None:
-            return (1.0, 1.0)
-        v = data.get("volume_multipliers", [])
-        f = data.get("frequency_multipliers", [])
-        if not v:
-            return (1.0, 1.0)
-        idx = max(0, min(level - 1, len(v) - 1))
-        vm = v[idx]
-        fm = f[idx] if idx < len(f) else 1.0
-        return (vm, fm)
-
-    def resolve_pool_intensity(self, files, current_speed, variants, is_populated=None, flags=None):
-        # type: (Optional[List[str]], float, List[float], Optional[Callable[[str], bool]], Optional[CueIntensityFlags]) -> Optional[CueIntensityResolution]
-        """Full speed -> level chain for a pool.
-
-        Returns None when the pool isn't hooked, the video has no speed
-        variants (single-speed), or intensity is toggled off for the video.
-        Otherwise bands the variants into as many levels as the group has
-        folders, resolves the active level for the current speed, and carries
-        the level's folder + multipliers.
-
-        ``is_populated`` is an injectable (folder) -> bool that tests use to
-        stand in for the SFX library; when None, real folder resolution via
-        ``_cue_resolve_files`` decides (empty folder -> no files -> silence).
-
-        ``flags`` carries the per-video toggles; None means all on (slice 3
-        behavior).  volume/frequency off zero their multipliers; sfx_levels
-        off plays the pool's own listed folders instead of the level folder
-        while the active level still drives volume/frequency."""
-        if flags is not None and not flags.enabled:
-            return None
-        hook = self.resolve_hook(files)
-        if hook is None or not variants:
-            return None
-        name, _level_idx = hook
-        data = self.get_igroup(name)
-        if data is None:
-            return None
-        level_count = len(data.get("folders", []))
-        if level_count == 0:
-            return None
-        key = (tuple(sorted(set(variants))), level_count)
-        if key not in self._band_cache:
-            self._band_cache[key] = _cue_band_speeds(variants, level_count)
-        speeds, levels = self._band_cache[key]
-        level = _cue_resolve_level(current_speed, speeds, levels)
-        folder = self.level_folder(name, level)
-        vm, fm = self.level_multipliers(name, level)
+        if resolve_files is None:
+            resolve_files = _cue_resolve_files
+        count = len(levels)
+        can_band = (flags is None or flags.enabled) and bool(variants)
+        swap = can_band and (flags is None or flags.sfx_levels)
+        if can_band and variants is not None:
+            key = (tuple(sorted(set(variants))), count)
+            if key not in self._band_cache:
+                self._band_cache[key] = _cue_band_speeds(variants, count)
+            speeds, band_levels = self._band_cache[key]
+            level = _cue_resolve_level(current_speed, speeds, band_levels)
+        else:
+            level = 1
+        if swap:
+            files = self.level_files(igroup, level)
+        else:
+            files = self.level_files_by_id(igroup, ilevel_id or 0)
+        if files is None:
+            files = []
+        vm, fm = self.level_multipliers(igroup, level)
         if flags is not None:
-            if not flags.volume:
-                vm = 1.0
-            if not flags.frequency:
-                fm = 1.0
-        res = CueIntensityResolution(name, level, folder, _cue_intensity_volume_mult(vm), fm)
-        if flags is not None and not flags.sfx_levels:
-            # The hook folder plays as a plain folder -- the pool's own list.
-            if is_populated is not None:
-                res.files = [f for f in files or [] if is_populated(f)]
+            if not flags.enabled:
+                vm, fm = 1.0, 1.0
             else:
-                res.files = _cue_resolve_files(files or [])
-        elif folder is not None:
-            if is_populated is not None:
-                res.files = [folder] if is_populated(folder) else []
-            else:
-                res.files = _cue_resolve_files([folder])
-        return res
+                if not flags.volume:
+                    vm = 1.0
+                if not flags.frequency:
+                    fm = 1.0
+        return CueIntensityResolution(igroup, level, _cue_intensity_volume_mult(vm), fm, resolve_files(files))
 
-    def resolve_video_intensity(self, pools_files, current_speed, variants, is_populated=None, flags=None):
-        # type: (List[List[str]], float, List[float], Optional[Callable[[str], bool]], Optional[CueIntensityFlags]) -> Optional[CueIntensityResolution]
-        """Resolve a video's active intensity from its first hooked pool.
-
-        The result's volume_mult is the global volume scale applied to SFX
-        that fire during the video but aren't themselves hooked to a group."""
-        for files in pools_files:
-            res = self.resolve_pool_intensity(files, current_speed, variants, is_populated, flags)
+    def resolve_video_intensity(self, pool_hooks, current_speed, variants, flags=None, resolve_files=None):
+        # type: (List[Tuple[Optional[str], Optional[int]]], float, Optional[List[float]], Optional[CueIntensityFlags], Optional[Callable[[List[str]], List[str]]]) -> Optional[CueIntensityResolution]
+        for igroup, ilevel_id in pool_hooks:
+            res = self.resolve_pool_intensity(igroup, ilevel_id, current_speed, variants, flags, resolve_files)
             if res is not None:
                 return res
         return None
 
-    def current_level(self, pools_files, current_speed, variants, flags=None):
-        # type: (List[List[str]], float, Optional[List[float]], Optional[CueIntensityFlags]) -> Optional[Tuple[int, int]]
-        """(level, total) for the video's active intensity at `current_speed`.
-
-        Mirrors resolve_video_intensity's scan order (first hooked pool wins) but stops at
-        the band map -- no folder or file resolution -- so per-frame UI reads
-        the level cheaply.  None when intensity isn't live for the video
-        (master off, no hook, <2 variants, or an empty group)."""
+    def current_level(self, pool_hooks, current_speed, variants, flags=None):
+        # type: (List[Tuple[Optional[str], Optional[int]]], float, Optional[List[float]], Optional[CueIntensityFlags]) -> Optional[Tuple[int, int]]
         if flags is not None and not flags.enabled:
             return None
         if not variants:
             return None
-        for files in pools_files:
-            hook = self.resolve_hook(files)
-            if hook is None:
+        for igroup, _ilevel_id in pool_hooks:
+            if not igroup:
                 continue
-            name, _level_idx = hook
-            data = self.get_igroup(name)
+            data = self.get_igroup(igroup)
             if data is None:
                 continue
-            level_count = len(data.get("folders", []))
-            if level_count == 0:
+            count = len(data.get("levels", []))
+            if count == 0:
                 continue
-            key = (tuple(sorted(set(variants))), level_count)
+            key = (tuple(sorted(set(variants))), count)
             if key not in self._band_cache:
-                self._band_cache[key] = _cue_band_speeds(variants, level_count)
-            speeds, levels = self._band_cache[key]
-            level = _cue_resolve_level(current_speed, speeds, levels)
-            return (level, level_count)
+                self._band_cache[key] = _cue_band_speeds(variants, count)
+            speeds, band_levels = self._band_cache[key]
+            level = _cue_resolve_level(current_speed, speeds, band_levels)
+            return (level, count)
         return None
 
-    def video_hook(self, pools_files):
-        # type: (List[List[str]]) -> Optional[str]
-        """The igroup of a video's first hooked pool, matching resolve_video_intensity's
-        scan order.  None when no pool is hooked.  Unlike resolve_video_intensity this
-        ignores the per-video toggles, so the inspector can name the group
-        even while the master switch is off."""
-        for files in pools_files:
-            hook = self.resolve_hook(files)
-            if hook is not None:
-                return hook[0]
+    def video_hook(self, pool_hooks):
+        # type: (List[Tuple[Optional[str], Optional[int]]]) -> Optional[str]
+        for igroup, _ilevel_id in pool_hooks:
+            if igroup:
+                return igroup
         return None
 
-    def is_pool_intensity_active(self, files, variants, flags=None):
-        # type: (Optional[List[str]], Optional[List[float]], Optional[CueIntensityFlags]) -> bool
-        """True when intensity is live for one pool: the per-video toggle is
-        on, the video has 2+ distinct speed variants, and this pool's own
-        folder list is hooked to an intensity group.  Per-pool -- a marker
-        tab indicates only when its own pool plays intensity levels.  Lighter
-        than resolve_pool_intensity -- no level resolution, no file listing -- for
-        per-frame UI indicators."""
+    def is_pool_intensity_active(self, igroup, variants, flags=None):
+        # type: (Optional[str], Optional[List[float]], Optional[CueIntensityFlags]) -> bool
         if flags is not None and not flags.enabled:
             return False
         if not variants or len(variants) < 2:
             return False
-        return self.resolve_hook(files) is not None
+        return bool(igroup)
 
     def variant_levels(self, group_name, variants):
         # type: (str, List[float]) -> Optional[List[Tuple[float, int]]]
-        """[(speed, level)] band map for the mapping inspector: the same
-        banding resolve_pool_intensity applies, without needing a current speed.
-        None when the group is missing, has fewer than 2 folders, or there
-        are no variants (no intensity)."""
         if not variants:
             return None
         data = self.get_igroup(group_name)
         if data is None:
             return None
-        level_count = len(data.get("folders", []))
+        level_count = len(data.get("levels", []))
         if level_count < 2:
             return None
         speeds, levels = _cue_band_speeds(list(variants), level_count)
@@ -457,12 +395,3 @@ class CueIntensityManager(object):
         # type: (str, Dict[str, Any]) -> None
         self._db.save_preset(CUE_INTENSITY_PRESET_TYPE, name, data)
         self._invalidate()
-
-    def _save_with_ramp(self, name, folders):
-        # type: (str, List[str]) -> None
-        data = {
-            "folders": folders,
-            "volume_multipliers": _level_ramp(len(folders), CUE_INTENSITY_VOLUME_MAX),
-            "frequency_multipliers": _level_ramp(len(folders), CUE_INTENSITY_FREQ_MAX),
-        }
-        self._save(name, data)
