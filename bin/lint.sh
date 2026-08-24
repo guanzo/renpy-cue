@@ -67,6 +67,14 @@ sys.exit(1 if lines else 0)
 fi
 
 # --- 2. ruff format ---
+# ruff is a poetry dependency and the venv is not auto-activated (no direnv;
+# the poetry venv is cache-path locally, in-project only in CI), so a bare
+# `ruff` may not resolve in a non-interactive shell. Fall back to the poetry
+# venv's bin exactly like ci.yml does. No-op when ruff is already on PATH.
+if ! command -v ruff >/dev/null 2>&1 && command -v poetry >/dev/null 2>&1; then
+    VENV_BIN="$(poetry env info -p 2>/dev/null)/bin"
+    [ -x "$VENV_BIN/ruff" ] && export PATH="$VENV_BIN:$PATH"
+fi
 # The deterministic formatter (config in pyproject.toml: line-length=120,
 # quote-style=preserve). Ruff parses .py/.pyi only; .rpy is covered by check
 # 3's awk pass and the manual wrap rules.
