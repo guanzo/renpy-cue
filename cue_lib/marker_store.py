@@ -688,3 +688,38 @@ class CueMarkerStore(object):
         self._migrate_speed_mode_rename()
         self._migrate_legacy_exclusive()
         self._migrate_marker_keys()
+
+
+def _cue_migrate_intensity_hooks(store, igroups):
+    # type: (CueMarkerStore, Dict[str, Any]) -> int
+    """One-time: convert legacy folder-hooked pools to igroup/ilevel_id.
+
+    A legacy hooked pool holds a folder ref (trailing ``/``) in its
+    ``files``; the old folder-scan machinery expanded it into the group's
+    level content.  The level IS now the pool: set ``igroup``/``ilevel_id``
+    and clear ``files``.  Returns the number of pools rewritten.  Idempotent
+    -- a rewritten pool has empty ``files``, so a re-run finds no folder-hooks
+    and changes nothing."""
+    folder_map = {}
+    for name, data in sorted(igroups.items()):
+        for level in data.get("levels", []):
+            for f in level.get("files", []):
+                if f.endswith("/") and f not in folder_map:
+                    folder_map[f] = (name, level.get("id"))
+    migrated = 0
+    for entry in list(store._data.values()):
+        for pool in entry.get("pools", []):
+            files = pool.get("files")
+            if not files:
+                continue
+            for f in files:
+                if f in folder_map:
+                    group, ilevel_id = folder_map[f]
+                    pool["igroup"] = group
+                    pool["ilevel_id"] = ilevel_id
+                    pool["files"] = []
+                    migrated += 1
+                    break
+    if migrated:
+        _cue_log("MIGRATE-INTENSITY-HOOKS pools={}".format(migrated))
+    return migrated

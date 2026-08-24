@@ -264,3 +264,42 @@ def test_database_intensity_preset_type(cue_env):
     assert cue_env.db._preset_dir(CUE_INTENSITY_PRESET_TYPE) == cue_env.paths.intensity_preset_dir
     # db.open() created the dir.
     assert os.path.isdir(cue_env.paths.intensity_preset_dir)
+
+
+def test_load_migrates_legacy_folders_to_levels(cue_env):
+    # Hand-write the old igroup shape (folders + multiplier arrays) at the db's
+    # canonical preset path, then load through a fresh manager.
+    legacy = {
+        "_key": "Legacy",
+        "folders": ["soft/", "hard/"],
+        "volume_multipliers": [1.0, 1.25],
+        "frequency_multipliers": [1.0, 1.5],
+    }
+    fpath = cue_env.db._preset_path(CUE_INTENSITY_PRESET_TYPE, "Legacy")
+    with open(fpath, "w") as f:
+        json.dump(legacy, f)
+
+    m = CueIntensityManager(cue_env.db)
+    data = m.get_igroup("Legacy")
+    assert data is not None
+    assert data["levels"] == [{"id": 1, "files": ["soft/"]}, {"id": 2, "files": ["hard/"]}]
+    assert data["next_ilevel_id"] == 3
+    assert "folders" not in data
+    assert "volume_multipliers" not in data
+    assert "frequency_multipliers" not in data
+
+    # The migration back-writes to disk, so a fresh manager reads the new shape.
+    m2 = CueIntensityManager(cue_env.db)
+    data2 = m2.get_igroup("Legacy")
+    assert data2 is not None
+    assert "folders" not in data2
+    assert data2["levels"] == [{"id": 1, "files": ["soft/"]}, {"id": 2, "files": ["hard/"]}]
+
+
+def test_load_leaves_new_shape_untouched(cue_env):
+    m = CueIntensityManager(cue_env.db)
+    m.create_igroup("Impacts")
+    m.add_level("Impacts")
+    m.add_level_file("Impacts", 1, "soft/")
+    data = m.get_igroup("Impacts")
+    assert data["levels"] == [{"id": 1, "files": ["soft/"]}]

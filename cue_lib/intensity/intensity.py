@@ -94,9 +94,24 @@ class CueIntensityManager(object):
 
     def _load(self):
         # type: () -> Dict[str, Any]
-        """The registry, loaded from the db's preset store on first use."""
+        """The registry, loaded from the db's preset store on first use.
+
+        One-time migration from the legacy ``folders`` shape: a folder list
+        becomes the level list (sequential ids, one folder per level) and the
+        two multiplier arrays are dropped (the ramp is now derived).  The
+        back-write persists the migrated shape so the migration doesn't rerun."""
         if self._igroups is None:
-            self._igroups = self._db.load_intensity_presets()
+            loaded = self._db.load_intensity_presets()
+            for name, data in loaded.items():
+                if "levels" not in data and "folders" in data:
+                    folders = data.get("folders", [])
+                    data["levels"] = [{"id": i + 1, "files": [f]} for i, f in enumerate(folders)]
+                    data["next_ilevel_id"] = len(folders) + 1
+                    data.pop("folders", None)
+                    data.pop("volume_multipliers", None)
+                    data.pop("frequency_multipliers", None)
+                    self._db.save_preset(CUE_INTENSITY_PRESET_TYPE, name, data)
+            self._igroups = loaded
         return self._igroups
 
     def _invalidate(self):

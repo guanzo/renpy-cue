@@ -177,7 +177,7 @@ init -900 python:
     # not at module level) to avoid circular refs — every manager module
     # does "from cue_lib.state import _cue", so state.py itself must not
     # import them.
-    from cue_lib.marker_store import CueMarkerStore
+    from cue_lib.marker_store import CueMarkerStore, _cue_migrate_intensity_hooks
     from cue_lib.markers import CueMarkerManager
     from cue_lib.undo import CueUndoManager
     from cue_lib.trigger import CueTriggerEngine
@@ -455,6 +455,11 @@ init 999 python:
         """Hydrate the freshly-wired managers from persistent/shared config and
         prime the SFX/music libraries.  Runs once, right after callbacks."""
         _cue_full_reload()
+        # One-time migration: _load() runs the igroup folders->levels migration
+        # (and back-writes it); then rewrite any legacy folder-hooked marker
+        # pools to explicit igroup/ilevel_id.  Idempotent -- hooked pools have
+        # empty files after migration, so a re-run changes nothing.
+        _cue_migrate_intensity_hooks(_cue.marker_store, _cue.intensity._load())
         _cue.video_editor.job_queue.load_from_persistent()
         _cue.speed_resolver.wrap_all_movies()
         _cue.music.install()

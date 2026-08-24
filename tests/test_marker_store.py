@@ -13,7 +13,7 @@ import os
 import pytest
 
 from cue_lib.constants import CUE_VOLUME_DEFAULT, CueLoopFrequency
-from cue_lib.marker_store import CueMarkerStore
+from cue_lib.marker_store import CueMarkerStore, _cue_migrate_intensity_hooks
 
 
 @pytest.fixture
@@ -312,6 +312,56 @@ def test_migrate_video_timestamps_to_pools(store):
     assert "timestamps" not in store._data["v_a"]
     assert "timestamps" in store._data["i_b"]
     assert store._video_presets["VP"]["pools"] == [{"time": 3.0}]
+
+
+# ---------------------------------------------------------------------------
+# Intensity hook migration (legacy folder-hook -> igroup/ilevel_id)
+# ---------------------------------------------------------------------------
+
+
+def _impacts_igroups():
+    return {"Impacts": {"levels": [{"id": 1, "files": ["soft/"]}, {"id": 2, "files": ["hard/"]}], "next_ilevel_id": 3}}
+
+
+def test_migrate_intensity_hooks_rewrites_legacy_pool(store):
+    store._data["v_a"] = {"pools": [{"files": ["soft/"]}]}
+    count = _cue_migrate_intensity_hooks(store, _impacts_igroups())
+    assert count == 1
+    pool = store._data["v_a"]["pools"][0]
+    assert pool["igroup"] == "Impacts"
+    assert pool["ilevel_id"] == 1
+    assert pool["files"] == []
+
+
+def test_migrate_intensity_hooks_first_matching_folder_wins(store):
+    # Mixed pool: the first folder ref present in an igroup wins; other
+    # content is dropped (the hooked pool's content is now the level).
+    store._data["v_a"] = {"pools": [{"files": ["a.ogg", "hard/", "soft/"]}]}
+    count = _cue_migrate_intensity_hooks(store, _impacts_igroups())
+    assert count == 1
+    pool = store._data["v_a"]["pools"][0]
+    assert pool["igroup"] == "Impacts"
+    assert pool["ilevel_id"] == 2
+    assert pool["files"] == []
+
+
+def test_migrate_intensity_hooks_leaves_unhooked_pools_untouched(store):
+    store._data["v_a"] = {"pools": [{"files": ["plain.ogg"]}]}
+    store._data["l_b"] = {"pools": [{"files": []}]}
+    assert _cue_migrate_intensity_hooks(store, _impacts_igroups()) == 0
+    assert store._data["v_a"]["pools"][0]["files"] == ["plain.ogg"]
+    assert "igroup" not in store._data["v_a"]["pools"][0]
+
+
+def test_migrate_intensity_hooks_idempotent(store):
+    store._data["v_a"] = {"pools": [{"files": ["soft/"]}]}
+    _cue_migrate_intensity_hooks(store, _impacts_igroups())
+    # A re-run finds no folder-hooks (files are empty) and changes nothing.
+    assert _cue_migrate_intensity_hooks(store, _impacts_igroups()) == 0
+    pool = store._data["v_a"]["pools"][0]
+    assert pool["igroup"] == "Impacts"
+    assert pool["ilevel_id"] == 1
+    assert pool["files"] == []
 
 
 # ---------------------------------------------------------------------------
