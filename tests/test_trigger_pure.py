@@ -5,6 +5,8 @@
 # touch no _cue / renpy state, so they run headlessly. _cue_pick_file is
 # monkeypatched to make the dedupe draws deterministic.
 
+import pytest
+
 import cue_lib.trigger as _trigger
 
 
@@ -83,3 +85,45 @@ def test_marker_reached_past_window_and_not_crossed():
 
 def test_marker_reached_way_before():
     assert not _trigger._cue_marker_reached(5.0, 0.5, 0.0, 0.08)
+
+
+# ---------------------------------------------------------------------------
+# Lead compensation (fire before the marker to center deltas on 0)
+# ---------------------------------------------------------------------------
+
+
+def test_marker_reached_lead_fires_early():
+    # lead=0.04 fires at mt - lead even though eff < mt
+    assert _trigger._cue_marker_reached(5.0, 4.96, 4.8, 0.08, 0.04)
+
+
+def test_marker_reached_lead_zero_needs_marker():
+    # lead=0 reproduces the late-fire behavior: eff must reach mt
+    assert not _trigger._cue_marker_reached(5.0, 4.96, 4.8, 0.08, 0.0)
+
+
+def test_marker_reached_lead_before_target_no_fire():
+    # eff below the lead-adjusted target -- too early
+    assert not _trigger._cue_marker_reached(5.0, 4.90, 4.8, 0.08, 0.04)
+
+
+def test_marker_reached_lead_cross_check():
+    # jumped from below to above the lead target in one tick
+    assert _trigger._cue_marker_reached(5.0, 5.2, 4.9, 0.08, 0.04)
+
+
+def test_marker_lead_half_advance():
+    assert _trigger._cue_marker_lead(5.04, 5.0) == pytest.approx(0.02)
+
+
+def test_marker_lead_reset_sentinel_zero():
+    # prev_eff = -1.0 sentinel: advance unknown, no lead
+    assert _trigger._cue_marker_lead(0.05, -1.0) == 0.0
+
+
+def test_marker_lead_paused_zero():
+    assert _trigger._cue_marker_lead(5.0, 5.0) == 0.0
+
+
+def test_marker_lead_clamps_max():
+    assert _trigger._cue_marker_lead(5.2, 5.0) == _trigger.CUE_MARKER_LEAD_MAX
