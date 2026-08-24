@@ -167,6 +167,24 @@ def _cue_hide_overlay():
     renpy.hide_screen("cue_sfx_sidebar", layer="cue_layer")
 
 
+def _cue_sidebar_resize_dragged(drags, event, x, y, st, at):
+    # type: (list, str, int, int, float, float) -> None
+    """Resize the SFX sidebar by dragging its game-facing right edge."""
+    if event not in ("start", "update", "end"):
+        return
+    d = drags[0]
+    # Store globals defined by overlay init blocks that run after this module
+    # imports -- resolve them at call time.
+    _zoom = getattr(renpy.store, "_cue_overlay_zoom")
+    _panel = getattr(renpy.store, "_cue_overlay_panel_width")
+
+    new_w = int(d.x * _zoom()) - _panel
+    _cue.sfx.library.set_sidebar_width(new_w)
+    if event == "end":
+        _cue.sfx.library.persist_sidebar_state()
+    renpy.restart_interaction()
+
+
 # --------------------------------------------------------------------------
 # Context Detection
 # --------------------------------------------------------------------------

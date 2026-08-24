@@ -182,6 +182,16 @@ screen cue_sfx_sidebar():
             background _cue_color_bg_overlay
             use cue_sfx_library(_is_video)
 
+            # Resize handle: drag the game-facing right edge to change width.
+            draggroup:
+                drag:
+                    drag_name "cue_sidebar_resize"
+                    xalign 1.0
+                    xsize 8
+                    ysize int(renpy.config.screen_height / _z)
+                    dragged _cue_sidebar_resize_dragged
+                    add Solid(_cue_color_divider) xalign 0.5 xsize 2 ysize int(renpy.config.screen_height / _z)
+
 screen cue_header_toolbar():
     style_group "cue"
 

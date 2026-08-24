@@ -115,6 +115,15 @@ init 1000 python:
     def _cue_intensity_soft_fired():
         return _cue_played_from("soft/")
 
+    class _CueFakeDrag(object):
+        def __init__(self, _x):
+            self.x = _x
+
+    def _cue_test_fake_drag(x):
+        # Minimal stand-in for a Ren'Py drag; the sidebar resize callback
+        # reads .x from it. Lets the harness exercise the drag width math.
+        return _CueFakeDrag(x)
+
     # The video_seamless testcase re-enables it itself.
     _cue.speed_resolver.seamless_transition = False
 
@@ -1381,4 +1390,28 @@ testcase sfx_sidebar_with_confirm_dialog:
     $ _ok = _ok and (renpy.get_screen("cue_sfx_sidebar", layer="cue_layer") is not None)
     $ if not _ok: renpy.quit(status=1)
     run Function(_cue.dialogs.confirm.hide)
+    $ renpy.quit()
+
+testcase sfx_sidebar_resize:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 0.5
+    run Function(_cue.sfx.library.toggle_sidebar_mode)
+    pause 0.5
+    $ _ok = renpy.get_screen("cue_sfx_sidebar", layer="cue_layer") is not None
+    $ _ok = _ok and callable(_cue_sidebar_resize_dragged)
+    $ if not _ok: renpy.quit(status=1)
+    # Clamps to the max ratio at the top end...
+    run Function(_cue.sfx.library.set_sidebar_width, 99999)
+    $ _ok = _cue.sfx.library.sidebar_width == int(renpy.config.screen_width * 0.5)
+    $ if not _ok: renpy.quit(status=1)
+    # ...and to the sidebar minimum at the bottom end.
+    run Function(_cue.sfx.library.set_sidebar_width, 1)
+    $ _ok = _cue.sfx.library.sidebar_width == CUE_SIDEBAR_MIN_WIDTH
+    $ if not _ok: renpy.quit(status=1)
+    # The drag callback resolves the store globals at call time and derives
+    # the width from the handle's logical x.
+    run Function(_cue_sidebar_resize_dragged, [_cue_test_fake_drag(800)], "update", 0, 0, 0, 0)
+    $ _ok = _cue.sfx.library.sidebar_width == int(800 * _cue_overlay_zoom()) - _cue_overlay_panel_width
+    $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()

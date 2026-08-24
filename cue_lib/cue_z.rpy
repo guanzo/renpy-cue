@@ -65,7 +65,7 @@ init -999 python:
         CUE_SFX_LIBRARY_HEADER, CUE_AUDIO_EXTS,
         CUE_HELP_SHIFT_SKIP_DELETE,
         CUE_MANUAL_BACKUP_NAME,
-        CUE_SIDEBAR_ZORDER, CUE_DIALOG_ZORDER,
+        CUE_SIDEBAR_ZORDER, CUE_DIALOG_ZORDER, CUE_SIDEBAR_MIN_WIDTH,
         CUE_IMPORT_CATEGORY_ORDER, CUE_IMPORT_CATEGORY_LABELS,
     )
     from cue_lib.util import (
@@ -105,6 +105,7 @@ init -999 python:
         _cue_set_page,
         _cue_toggle_video_mute,
         _cue_toggle_intensity_flag,
+        _cue_sidebar_resize_dragged,
     )
 
     from cue_lib.video.speed import (
