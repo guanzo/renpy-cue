@@ -1358,3 +1358,14 @@ testcase pages_render_data:
     run Function(_cue.music.delete_preset, "Render Music Preset")
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
+
+testcase sfx_sidebar_mode_renders:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 0.5
+    run Function(_cue.sfx.library.toggle_sidebar_mode)
+    pause 0.5
+    $ _ok = renpy.get_screen("cue_sfx_sidebar", layer="cue_layer") is not None
+    $ _ok = _ok and (_cue.sfx.library.is_sidebar_mode is True)
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()

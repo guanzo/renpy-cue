@@ -166,6 +166,11 @@ CUE_SIDEBAR_MAX_WIDTH_RATIO = 0.5  # max width = 50% of screen width
 CUE_PERSIST_SIDEBAR_MODE = "sfx_sidebar_mode"
 CUE_PERSIST_SIDEBAR_WIDTH = "sfx_sidebar_width"
 
+# Z-order within cue_layer: sidebar sits below the mod's dialogs and the
+# overlay so dialogs always paint on top of the sidebar.
+CUE_SIDEBAR_ZORDER = 8000
+CUE_DIALOG_ZORDER = 9000
+
 # Keymap names for rebindable cue hotkeys (registered in config.keymap).
 CUE_KEYMAP_TOGGLE_OVERLAY = "cue_toggle_overlay"
 CUE_KEYMAP_QUIT_RELAUNCH = "cue_quit_relaunch"

@@ -65,6 +65,7 @@ init -999 python:
         CUE_SFX_LIBRARY_HEADER, CUE_AUDIO_EXTS,
         CUE_HELP_SHIFT_SKIP_DELETE,
         CUE_MANUAL_BACKUP_NAME,
+        CUE_SIDEBAR_ZORDER, CUE_DIALOG_ZORDER,
         CUE_IMPORT_CATEGORY_ORDER, CUE_IMPORT_CATEGORY_LABELS,
     )
     from cue_lib.util import (
@@ -426,6 +427,12 @@ init 999 python:
                 renpy.show_screen("cue_overlay", _layer="cue_layer")
             elif not _cue.is_overlay_visible and renpy.get_screen("cue_overlay", layer="cue_layer"):
                 renpy.hide_screen("cue_overlay", layer="cue_layer")
+            # Sidebar follows the overlay: keep the (possibly empty) screen in
+            # sync with the NoRollback flag the same way cue_overlay is.
+            if _cue.is_overlay_visible and not renpy.get_screen("cue_sfx_sidebar", layer="cue_layer"):
+                renpy.show_screen("cue_sfx_sidebar", _layer="cue_layer")
+            elif not _cue.is_overlay_visible and renpy.get_screen("cue_sfx_sidebar", layer="cue_layer"):
+                renpy.hide_screen("cue_sfx_sidebar", layer="cue_layer")
 
             _cue_refresh_context()
 

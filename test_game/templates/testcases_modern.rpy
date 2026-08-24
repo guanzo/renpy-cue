@@ -1069,3 +1069,20 @@ testcase zz_tmp_mapping_shot:
     run Function(_cue.intensity.delete_igroup, "Tab Test")
     $ _cue_intensity_cleanup()
     $ _cue_intensity_variant_cleanup()
+
+testcase sfx_sidebar_mode_renders:
+    run Jump("start")
+    run Function(_cue.sfx.library.toggle_sidebar_mode)
+    run Jump("start")
+    assert screen "cue_sfx_sidebar" layer "cue_layer"
+    assert eval (_cue.sfx.library.is_sidebar_mode is True)
+    run Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
+    run Jump("start")
+    # Collapsed while in sidebar mode: the sidebar screen stays shown but its
+    # content (and the toolbar visibility button) disappear -- render must not
+    # error.
+    assert eval (_cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False))
+    run Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
+    # Restore state so later testcases render the in-overlay SFX section.
+    run Function(_cue.sfx.library.toggle_sidebar_mode)
+    run Jump("start")

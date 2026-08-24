@@ -154,30 +154,33 @@ screen cue_overlay_content():
             else:
                 use cue_settings_page()
 
-        # SFX Library sidebar mode: entire section floats at bottom
-        if _cue.overlay_active_page == CuePage.SFX and _cue.sfx.library.is_sidebar_mode:
-            $ _sfx_collapsed = _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
-            $ _sfx_z = _cue_overlay_zoom()
-            $ _sfx_full_h = int(renpy.config.screen_height / _sfx_z)
-            $ _sfx_40pct = int(_sfx_full_h * 0.4)
-            $ _sfx_90pct = int(_sfx_full_h * 0.8)
-            $ _sfx_800px = int(_cue_overlay_panel_width / _sfx_z)
-            $ _sfx_h = max(_sfx_40pct, min(_sfx_800px, _sfx_90pct))
-            frame:
-                background None
-                padding (0, 0)
-                xfill True
-                yalign 1.0
-                if not _sfx_collapsed:
-                    ysize _sfx_h
-                vbox:
-                    spacing 0
-                    xfill True
-                    fixed:
-                        xfill True
-                        ysize 4
-                        add Solid(_cue_color_bg_overlay)
-                    use cue_sfx_library(_is_video)
+# =============================================================================
+# SUB-SCREEN: SFX sidebar -- full-height column pinned to the overlay panel's
+# right edge.  Renders only while sidebar mode is on and the SFX Library
+# section is expanded; otherwise the screen stays mounted but empty.
+# =============================================================================
+
+screen cue_sfx_sidebar():
+    style_group "cue"
+
+    zorder CUE_SIDEBAR_ZORDER
+
+    # Same video-context derivation as cue_overlay_content.
+    $ _is_video = _cue.top_layer_type == 'movie'
+
+    if _cue.sfx.library.is_sidebar_mode and not _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False):
+        $ _z = _cue_overlay_zoom()
+        button:
+            style "empty"
+            at Transform(zoom=_z)
+            action NullAction()
+            xalign 0.0
+            yalign 0.0
+            xpos int(_cue_overlay_panel_width / _z)
+            xsize int(_cue.sfx.library.sidebar_width / _z)
+            ysize int(renpy.config.screen_height / _z)
+            background _cue_color_bg_overlay
+            use cue_sfx_library(_is_video)
 
 screen cue_header_toolbar():
     style_group "cue"
@@ -211,7 +214,18 @@ screen cue_header_toolbar():
             use cue_icon_btn("gear", Function(_cue_set_page, CuePage.SETTINGS), "Settings",
                 bg=_settings_bg)
 
-                
+            # Sidebar visibility toggle: same collapse flag as Shift+S, shown
+            # only while sidebar mode is on.  The sidebar-flip icon may not be
+            # registered yet -- cue_icon_btn falls back to text.
+            if _cue.sfx.library.is_sidebar_mode:
+                use cue_v_divider()
+                use cue_icon_btn(
+                    "sidebar-flip",
+                    Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER),
+                    "Toggle the SFX sidebar visibility ({}).".format(
+                        _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_LIBRARY)))
+
+
         hbox:
             xalign 1.0
             spacing 2
