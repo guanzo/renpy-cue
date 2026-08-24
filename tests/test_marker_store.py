@@ -154,6 +154,19 @@ def test_resolve_pool_uses_defaults(store):
     assert r.exclusive.group == 0
 
 
+def test_resolve_pool_surfaces_intensity_hook(store):
+    pool = {"files": [], "igroup": "Impacts", "ilevel_id": 2}
+    resolved = store.resolve_pool(pool)
+    assert resolved.igroup == "Impacts"
+    assert resolved.ilevel_id == 2
+
+
+def test_resolve_pool_unhooked_has_none(store):
+    resolved = store.resolve_pool({"files": ["a.ogg"]})
+    assert resolved.igroup is None
+    assert resolved.ilevel_id is None
+
+
 def test_resolve_video_pools_resolves_preset_pools(store):
     store.create_preset("Growl", {"files": ["a.ogg"]})
     entry = {"pools": [{"time": 1.0, "preset": "Growl"}, {"time": 2.0, "files": ["b.ogg"]}]}

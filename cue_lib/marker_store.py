@@ -49,12 +49,15 @@ class ResolvedExclusive(object):
 class ResolvedPool(object):
     """Immutable snapshot of a resolved pool."""
 
-    def __init__(self, files, volume, frequency, trigger_on_shake, exclusive=None):
+    def __init__(self, files, volume, frequency, trigger_on_shake, exclusive=None, igroup=None, ilevel_id=None):
+        # type: (List[str], float, int, bool, Optional[Any], Optional[str], Optional[int]) -> None
         self.files = files
         self.volume = volume
         self.frequency = frequency
         self.trigger_on_shake = trigger_on_shake
         self.exclusive = exclusive if exclusive is not None else ResolvedExclusive()
+        self.igroup = igroup
+        self.ilevel_id = ilevel_id
 
 
 class CueMarkerStore(object):
@@ -211,7 +214,9 @@ class CueMarkerStore(object):
         frequency = pool.get("frequency", defaults.get("frequency", CueLoopFrequency.MEDIUM))
         trigger_on_shake = pool.get("trigger_on_shake", defaults.get("trigger_on_shake", False))
         exclusive = self._resolve_exclusive(pool, defaults)
-        return ResolvedPool(list(files), volume, frequency, trigger_on_shake, exclusive)
+        igroup = pool.get("igroup", defaults.get("igroup"))
+        ilevel_id = pool.get("ilevel_id", defaults.get("ilevel_id"))
+        return ResolvedPool(list(files), volume, frequency, trigger_on_shake, exclusive, igroup, ilevel_id)
 
     @staticmethod
     def _resolve_exclusive(pool, defaults):

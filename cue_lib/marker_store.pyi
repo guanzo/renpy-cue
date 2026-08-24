@@ -26,6 +26,8 @@ class ResolvedPool:
     frequency: int
     trigger_on_shake: bool
     exclusive: ResolvedExclusive
+    igroup: Optional[str]
+    ilevel_id: Optional[int]
     def __init__(
         self,
         files: List[str],
@@ -33,6 +35,8 @@ class ResolvedPool:
         frequency: int,
         trigger_on_shake: bool,
         exclusive: Optional[ResolvedExclusive] = None,
+        igroup: Optional[str] = None,
+        ilevel_id: Optional[int] = None,
     ) -> None: ...
 
 # =========================================================================
