@@ -1086,3 +1086,17 @@ testcase sfx_sidebar_mode_renders:
     # Restore state so later testcases render the in-overlay SFX section.
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     run Jump("start")
+
+testcase sfx_sidebar_with_confirm_dialog:
+    run Jump("start")
+    run Function(_cue.sfx.library.toggle_sidebar_mode)
+    run Function(_cue.dialogs.confirm.show, "Really?", _cue.dialogs.confirm.hide)
+    run Jump("start")
+    assert screen "cue_confirm_dialog" layer "cue_layer"
+    assert screen "cue_sfx_sidebar" layer "cue_layer"
+    run Function(_cue.dialogs.confirm.hide)
+    run Jump("start")
+    assert not screen "cue_confirm_dialog" layer "cue_layer"
+    # Restore state so later testcases render the in-overlay SFX section.
+    run Function(_cue.sfx.library.toggle_sidebar_mode)
+    run Jump("start")

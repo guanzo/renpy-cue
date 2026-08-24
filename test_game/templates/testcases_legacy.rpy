@@ -1369,3 +1369,16 @@ testcase sfx_sidebar_mode_renders:
     $ _ok = _ok and (_cue.sfx.library.is_sidebar_mode is True)
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
+
+testcase sfx_sidebar_with_confirm_dialog:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 0.5
+    run Function(_cue.sfx.library.toggle_sidebar_mode)
+    run Function(_cue.dialogs.confirm.show, "Really?", _cue.dialogs.confirm.hide)
+    pause 0.5
+    $ _ok = renpy.get_screen("cue_confirm_dialog", layer="cue_layer") is not None
+    $ _ok = _ok and (renpy.get_screen("cue_sfx_sidebar", layer="cue_layer") is not None)
+    $ if not _ok: renpy.quit(status=1)
+    run Function(_cue.dialogs.confirm.hide)
+    $ renpy.quit()
