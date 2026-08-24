@@ -15,7 +15,9 @@ import pytest
 import renpy.store as _store
 import renpy.audio.music as _music
 
+import cue_lib.constants as _constants
 import cue_lib.trigger as _trigger
+import cue_lib.trigger_debug as _tdmod
 from cue_lib.trigger import (
     CueTriggerEngine,
     CUE_EXCL_KIND_LOOP,
@@ -863,3 +865,243 @@ def test_delay_nonpositive_multiplier_guarded():
     # A malformed (<= 0) multiplier would divide by zero; treat as identity.
     assert _cue_effective_delay(3.0, 0.0) == 3.0
     assert _cue_effective_delay(3.0, -1.0) == 3.0
+
+
+# ---------------------------------------------------------------------------
+# Anomaly detection (TD: late-fire / missed / stall / stuck-gate + cooldown)
+# ---------------------------------------------------------------------------
+
+
+def test_tick_video_reports_play_failed_and_marks_played(sfx_playback, monkeypatch):
+    """A reached marker whose playback fails (play_pool returns None) is
+    reported once as play-failed and marked as fired -- no retry every tick,
+    no mislabel as missed."""
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    store = FakeMarkerStore({"v_scene.ogv": {"pools": []}})
+    markers = FakeMarkers(markers=[{"time": 0.680, "files": []}])
+    vid = FakeVidManager(elapsed=0.5)
+    eng = make_engine(store=store, vid=vid, markers=markers)
+    sfx_playback[0].play_pool = lambda *a, **k: None  # every play attempt fails
+    reports = []
+    eng._td.report = lambda kind, details: reports.append((kind, details))
+
+    eng._tick_video("scene.ogv", "movie", 1.0, None)  # eff=0.5: marker not yet reached
+    assert reports == []
+    assert eng.played_video_keys == set()
+
+    vid._elapsed = 0.82  # crossed 0.680 (+0.14, under late threshold) but play failed
+    eng._tick_video("scene.ogv", "movie", 1.0, None)
+    assert reports and reports[0][0] == "play-failed"
+    assert "mt=0.680" in reports[0][1]
+    assert eng.played_video_keys == {"v_scene.ogv@0.680#1"}  # marked fired
+
+    vid._elapsed = 0.9  # still past the marker; must NOT retry or re-report
+    eng._tick_video("scene.ogv", "movie", 1.0, None)
+    assert len(reports) == 1
+    assert eng.played_video_keys == {"v_scene.ogv@0.680#1"}
+
+
+def test_tick_video_reports_missed_never_reached(play_stub, monkeypatch):
+    """A marker that is past-due and was never reached (position jumped past it
+    before the fire loop could see it) is reported as missed."""
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    store = FakeMarkerStore({"v_scene.ogv": {"pools": []}})
+    markers = FakeMarkers(markers=[{"time": 0.680, "files": ["a.ogg"]}])
+    vid = FakeVidManager(elapsed=1.0)
+    vid.last_elapsed = 0.5  # not a fresh reset -- the stored prev survives
+    eng = make_engine(store=store, vid=vid, markers=markers)
+    eng._prev_eff_elapsed = 0.75  # already past the marker before this tick
+    calls = play_stub
+    reports = []
+    eng._td.report = lambda kind, details: reports.append((kind, details))
+
+    eng._tick_video("scene.ogv", "movie", 1.0, None)  # eff=1.0, prev=0.75: past window, no cross
+    assert calls == []  # never reached, never fired
+    assert reports and reports[0][0] == "missed"
+    assert "mt=[0.68]" in reports[0][1]  # str([0.680]) prints [0.68]
+
+
+def test_tick_video_reports_late_fire(play_stub, monkeypatch):
+    """A marker that fires well past its time is flagged as late.
+
+    mt=0.5 so the lead-compensated target (mt - 0.04 = 0.46) stays positive:
+    the jump 0.3 -> 0.8 crosses it (cross check fires) with delta 0.30, above
+    the 0.15 late threshold."""
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    store = FakeMarkerStore({"v_scene.ogv": {"pools": []}})
+    markers = FakeMarkers(markers=[{"time": 0.5, "files": ["a.ogg"]}])
+    vid = FakeVidManager(elapsed=0.3)
+    eng = make_engine(store=store, vid=vid, markers=markers)
+    reports = []
+    eng._td.report = lambda kind, details: reports.append((kind, details))
+
+    eng._tick_video("scene.ogv", "movie", 1.0, None)  # eff=0.3: marker not yet reached
+    assert reports == []
+
+    vid._elapsed = 0.8  # burst-style late fire
+    eng._tick_video("scene.ogv", "movie", 1.0, None)
+    assert reports and reports[0][0] == "late"
+    assert "delta=[0.3]" in reports[0][1]
+
+
+def test_tick_reports_stall_after_long_gap(monkeypatch):
+    """A >CUE_TD_STALL_GAP gap between ticks while a movie is on top is a
+    stall anomaly (event-pump block / dropped frames)."""
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    store = FakeMarkerStore({"v_scene.ogv": {"pools": []}})
+    eng = make_engine(store=store, vid=FakeVidManager(), markers=FakeMarkers())
+    clock = [100.0]
+    monkeypatch.setattr(_trigger._time, "time", lambda: clock[0])
+    reports = []
+    eng._td.report = lambda kind, details: reports.append((kind, details))
+
+    eng.tick("scene.ogv", "movie")  # first tick seeds the baseline
+    assert reports == []
+
+    clock[0] += 2.0  # 2s gap -- well past the 0.5s stall threshold
+    eng.tick("scene.ogv", "movie")
+    assert reports and reports[0][0] == "stall"
+
+
+def test_tick_reports_stuck_gate_closed(monkeypatch):
+    """A movie on top but no video channel for >CUE_TD_GATE_CLOSED_GAP is a
+    stuck-gate anomaly; reported once per episode, re-armed on re-open."""
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    store = FakeMarkerStore({"v_scene.ogv": {"pools": []}})
+    vid = FakeVidManager(channel=None)
+    eng = make_engine(store=store, vid=vid, markers=FakeMarkers())
+    clock = [100.0]
+    monkeypatch.setattr(_trigger._time, "time", lambda: clock[0])
+    reports = []
+    eng._td.report = lambda kind, details: reports.append((kind, details))
+
+    eng.tick("scene.ogv", "movie")  # starts timing the closed gate
+    assert reports == []
+
+    clock[0] += 0.5  # past CUE_TD_GATE_CLOSED_GAP
+    eng.tick("scene.ogv", "movie")
+    assert reports and reports[0][0] == "gate-closed"
+
+    eng.tick("scene.ogv", "movie")  # still closed: no duplicate
+    assert len(reports) == 1
+
+    vid.channel = "cue_vid"  # gate re-opens: re-arms
+    eng.tick("scene.ogv", "movie")
+    assert len(reports) == 1
+
+    vid.channel = None  # stuck again
+    clock[0] += 0.5
+    eng.tick("scene.ogv", "movie")  # re-arms the timer
+    clock[0] += 0.5
+    eng.tick("scene.ogv", "movie")  # crosses the gap again
+    assert len(reports) == 2
+
+
+def test_td_report_cooldown_limits_snapshots(monkeypatch):
+    """Every anomaly logs a one-liner; trigger-debug.log snapshots are
+    limited to one per cooldown window."""
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    calls = {"log": [], "snap": []}
+    monkeypatch.setattr(_tdmod, "_cue_log", lambda msg: calls["log"].append(msg))
+    monkeypatch.setattr(_tdmod._cue_logger, "snapshot_debug", lambda marker: calls["snap"].append(marker))
+    clock = [100.0]
+    monkeypatch.setattr(_tdmod._time, "time", lambda: clock[0])
+
+    eng = make_engine()
+    eng._td.report("late", "vid=x delta=[1.9]")
+    eng._td.report("late", "vid=x delta=[1.9]")
+    assert len(calls["log"]) == 2  # one-liners always recorded
+    assert len(calls["snap"]) == 1  # second snapshot held by cooldown
+
+    clock[0] += 16.0  # past CUE_TD_COOLDOWN
+    eng._td.report("missed", "vid=y mt=[0.680]")
+    assert len(calls["snap"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# Anomaly detection (TD: play-failed / accuracy summary / beyond-duration /
+# restart-burst)
+# ---------------------------------------------------------------------------
+
+
+def test_td_accuracy_flushed_on_file_change(monkeypatch):
+    """Successful fires accumulate per video; switching videos flushes a
+    mean/p95/late summary for the previous one."""
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    lines = []
+    monkeypatch.setattr(_tdmod, "_cue_log", lambda msg: lines.append(msg))
+    dbg = _tdmod.CueTriggerDebug()
+    dbg.note_fire(1.0, 1.03, "scene.ogv")  # +30ms
+    dbg.note_fire(2.0, 2.10, "scene.ogv")  # +100ms
+    dbg.note_fire(3.0, 3.05, "scene.ogv")  # +50ms
+    dbg.note_fire(0.5, 0.51, "scene2.ogv")  # flushes scene.ogv
+    assert any("TD-ACCURACY vid=scene.ogv fires=3 mean=+60ms p95=+50ms late=0/3" in ln for ln in lines)
+
+
+def test_td_accuracy_flushed_when_layer_drops(monkeypatch):
+    """The accuracy bucket also closes when the movie layer drops -- the fire
+    loop no longer runs, so the flush must come from tick()."""
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    lines = []
+    monkeypatch.setattr(_tdmod, "_cue_log", lambda msg: lines.append(msg))
+    dbg = _tdmod.CueTriggerDebug()
+    dbg.note_fire(1.0, 1.04, "scene.ogv")
+    dbg.tick(50.0, "scene.ogv", "image", "cue_vid")  # movie ended -- flush
+    assert any("TD-ACCURACY vid=scene.ogv fires=1" in ln for ln in lines)
+
+
+def test_td_accuracy_counts_late_over_threshold(monkeypatch):
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    lines = []
+    monkeypatch.setattr(_tdmod, "_cue_log", lambda msg: lines.append(msg))
+    dbg = _tdmod.CueTriggerDebug()
+    dbg.note_fire(1.0, 1.02, "s.ogv")  # +20ms -- not late
+    dbg.note_fire(2.0, 2.30, "s.ogv")  # +300ms -- late
+    dbg.note_fire(3.0, 3.05, "t.ogv")  # flushes s.ogv
+    assert any("vid=s.ogv fires=2" in ln and "late=1/2" in ln for ln in lines)
+
+
+def test_td_late_report_clears_deltas(monkeypatch):
+    """The late anomaly reports once per fire-loop episode, not every tick."""
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    reports = []
+    dbg = _tdmod.CueTriggerDebug()
+    dbg.report = lambda kind, details: reports.append((kind, details))
+    dbg.note_fire(0.5, 0.8, "scene.ogv")  # delta 0.30 -- late
+    dbg.end_fire_loop("scene.ogv", 0.8, set(), [{"time": 0.5, "files": ["a.ogg"]}], 0)
+    assert reports and reports[0][0] == "late"
+    reports.clear()
+    dbg.end_fire_loop("scene.ogv", 0.9, {"v_scene.ogv@0.500#1"}, [{"time": 0.5, "files": ["a.ogg"]}], 0)
+    assert reports == []  # delta already reported; nothing new
+
+
+def test_td_marker_beyond_duration_reported_once(monkeypatch):
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    monkeypatch.setattr(_tdmod._cue, "vid_manager", FakeVidManager(duration=3.0))
+    reports = []
+    dbg = _tdmod.CueTriggerDebug()
+    dbg.report = lambda kind, details: reports.append((kind, details))
+    markers = [{"time": 5.0, "files": ["a.ogg"]}]
+    dbg.end_fire_loop("scene.ogv", 2.0, set(), markers, 0)
+    assert reports and reports[0][0] == "marker-beyond-duration"
+    assert "mt=5.000 dur=3.000" in reports[0][1]
+    dbg.end_fire_loop("scene.ogv", 2.0, set(), markers, 0)
+    assert len(reports) == 1  # deduped per (file, mt)
+
+
+def test_td_restart_burst_reported_once_per_episode(monkeypatch):
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    clock = [100.0]
+    monkeypatch.setattr(_tdmod._time, "time", lambda: clock[0])
+    reports = []
+    dbg = _tdmod.CueTriggerDebug()
+    dbg.report = lambda kind, details: reports.append((kind, details))
+    for _ in range(_tdmod.CUE_TD_RESTART_BURST_N):
+        dbg.note_restart()
+    assert reports and reports[0][0] == "restart-burst"
+    dbg.note_restart()  # still in window: no re-report while armed
+    assert len(reports) == 1
+    clock[0] += _tdmod.CUE_TD_RESTART_WINDOW + 1.0  # window clears; old restarts prune
+    for _ in range(_tdmod.CUE_TD_RESTART_BURST_N):
+        dbg.note_restart()
+    assert len(reports) == 2

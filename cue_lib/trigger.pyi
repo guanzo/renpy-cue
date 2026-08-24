@@ -7,6 +7,7 @@ from cue_lib.video.repeater import CueMarkerRepeater
 from cue_lib.video.speed import CueVidSpeedResolver
 from cue_lib.video.video import CueVideoManager
 from cue_lib.markers import CueMarkerManager
+from cue_lib.trigger_debug import CueTriggerDebug
 
 def _cue_loop_still_playing(channels: List[str]) -> bool: ...
 def _cue_pick_deduped(files: List[str], picked: List[str], max_tries: int = 3) -> Optional[str]: ...
@@ -27,6 +28,7 @@ class CueTriggerEngine:
     _prev_eff_elapsed: float
     _tick_count: int
     _vid_intensity: Optional[CueIntensityResolution]
+    _td: CueTriggerDebug
     _store: CueMarkerStore
     _repeater: CueMarkerRepeater
     _speed_resolver: CueVidSpeedResolver

@@ -453,13 +453,17 @@ def make_runtime_cue(root="", audio_dir=""):
         resolve_pool=lambda pool: types.SimpleNamespace(trigger_on_shake=False),
     )
 
-    # trigger -- mutable state the context/tick drivers read and reset
+    # trigger -- mutable state the context/tick drivers read and reset.
+    # _td mirrors the real engine's CueTriggerDebug seam that the tick driver
+    # pokes after each frame; the debug object itself is CUE_DEBUG-gated, so a
+    # no-op stand-in is enough here.
     cue.trigger = types.SimpleNamespace(
         active=True,
         loop_states={},
         played_video_keys=set(),
         last_played=[],
         _prev_eff_elapsed=-1.0,
+        _td=types.SimpleNamespace(tick_end=lambda t0: None),
         fire_context=_rec("trigger", "fire_context"),
         tick=_rec("trigger", "tick"),
     )

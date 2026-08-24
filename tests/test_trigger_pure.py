@@ -8,6 +8,7 @@
 import pytest
 
 import cue_lib.trigger as _trigger
+import cue_lib.trigger_debug as _tdmod
 
 
 # ---------------------------------------------------------------------------
@@ -127,3 +128,43 @@ def test_marker_lead_paused_zero():
 
 def test_marker_lead_clamps_max():
     assert _trigger._cue_marker_lead(5.2, 5.0) == _trigger.CUE_MARKER_LEAD_MAX
+
+
+# ---------------------------------------------------------------------------
+# _cue_td_missed_times (anomaly detector: markers past-due but never fired)
+# ---------------------------------------------------------------------------
+
+
+def test_td_missed_none_when_all_fired():
+    played = {"v_doggy2@0.010#1", "v_doggy2@0.680#1"}
+    assert _tdmod._cue_td_missed_times([0.010, 0.680], played, 1.0, 0.12) == []
+
+
+def test_td_missed_past_due_unfired():
+    played = {"v_doggy2@0.010#1"}
+    assert _tdmod._cue_td_missed_times([0.010, 0.680], played, 1.0, 0.12) == [0.680]
+
+
+def test_td_missed_not_yet_due():
+    # t above eff - tolerance is still within the fire window, not a miss.
+    assert _tdmod._cue_td_missed_times([0.900], set(), 1.0, 0.12) == []
+
+
+def test_td_missed_at_due_boundary():
+    # t == eff - tolerance is past-due (checked), so absent key is a miss.
+    assert _tdmod._cue_td_missed_times([0.88], set(), 1.0, 0.12) == [0.88]
+
+
+def test_td_missed_multiple_in_order():
+    played = set()
+    assert _tdmod._cue_td_missed_times([0.010, 0.680, 1.360], played, 2.0, 0.12) == [0.010, 0.680, 1.360]
+
+
+def test_td_missed_empty_input():
+    assert _tdmod._cue_td_missed_times([], set(), 1.0, 0.12) == []
+
+
+def test_td_missed_ignores_other_video_keys():
+    # A key for a different video/timing must not satisfy this marker.
+    played = {"v_other@9.999#1"}
+    assert _tdmod._cue_td_missed_times([0.680], played, 1.0, 0.12) == [0.680]

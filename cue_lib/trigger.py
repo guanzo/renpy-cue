@@ -11,6 +11,7 @@ from renpy.store import persistent
 from cue_lib.constants import CUE_INTENSITY_DELAY_MAX, CUE_INTENSITY_DELAY_MIN, CUE_VOLUME_DEFAULT
 from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
+from cue_lib.trigger_debug import CueTriggerDebug
 from cue_lib.util import (
     _cue_log,
     _cue_resolve_files,
@@ -163,6 +164,8 @@ class CueTriggerEngine(object):
         # Per-tick video-level intensity resolution; the global volume scale
         # for non-hooked fires during a video with intensity.
         self._vid_intensity = None  # type: Optional[Any]
+        # Anomaly detection (stall / stuck-gate / late-fire / missed markers).
+        self._td = CueTriggerDebug()
 
     def _markers_ctx(self):
         # type: () -> Any
@@ -269,6 +272,8 @@ class CueTriggerEngine(object):
         self._tick_count += 1
         tick = self._tick_count
         now = _time.time()
+
+        self._td.tick(now, current_file, top_layer_type, self._vid_manager.channel)
 
         # Speed + variant set, computed once per tick for intensity banding.
         # variants is None for videos with fewer than 2 speed variants (no
@@ -573,6 +578,7 @@ class CueTriggerEngine(object):
         if is_fresh_reset or is_backward_jump:
             self.played_video_keys.clear()
             self._prev_eff_elapsed = -1.0
+            self._td.note_restart()
 
         if current_file:
             self._fire_video_markers(current_file, effective_elapsed, self._prev_eff_elapsed, elapsed, speed, variants)
@@ -665,3 +671,13 @@ class CueTriggerEngine(object):
                 # etc.), which is what makes the immunity deterministic.
                 self._track_excl_channel(f, CUE_EXCL_KIND_VIDEO, current_file, None, False)
                 self.played_video_keys.add(ts_key)
+                self._td.note_fire(t, effective_elapsed, current_file)
+            elif not is_preview:
+                # Reached but playback produced nothing (empty intensity
+                # folder / play_sfx exception).  Mark it fired so it doesn't
+                # retry every tick and noisily re-enter the missed check; the
+                # play-failed report carries the accuracy signal.
+                self.played_video_keys.add(ts_key)
+                self._td.note_failed_fire(t, effective_elapsed, current_file)
+
+        self._td.end_fire_loop(current_file, effective_elapsed, self.played_video_keys, markers, preview_count)

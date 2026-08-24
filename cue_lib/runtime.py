@@ -410,6 +410,8 @@ def _cue_tick_trigger():
 
 def _cue_tick_trigger_impl():
     # type: () -> None
+    _t0 = _time.time()
+
     if _cue.current_file is not None:
         top_name, top_type, __ = _cue_get_top_layer()
         if top_name != _cue.current_file or top_type != _cue.top_layer_type:
@@ -422,6 +424,8 @@ def _cue_tick_trigger_impl():
     _cue.vid_manager.poll_autopause()
     _cue.video_sequence.tick()
     _cue.trigger.tick(_cue.current_file, _cue.top_layer_type or "")
+    # Tick cadence + body-cost measurement live in the trigger-debug module.
+    _cue.trigger._td.tick_end(_t0)
 
     # Slow lane: work that doesn't need the 20ms cadence runs at most every
     # 0.25s -- search-bar rebuilds and anything else deferred here.

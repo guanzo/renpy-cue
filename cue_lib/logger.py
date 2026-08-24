@@ -6,6 +6,8 @@
 # call site count is huge); the handful of flush/clear/error callers use
 # _cue_logger directly.
 
+from collections import deque
+
 import os
 import sys as _sys
 import threading as _threading
@@ -25,6 +27,9 @@ if MYPY:
 # Debug / error log filenames, written into the in-game base dir.
 CUE_DEBUG_LOG_FILENAME = "debug.log"
 CUE_ERROR_LOG_FILENAME = "error.log"
+# Anomaly snapshots (trigger-debug.log) append the last N debug lines.
+CUE_TRIGGER_DEBUG_FILENAME = "trigger-debug.log"
+CUE_TRIGGER_SNAPSHOT_LINES = 150
 
 
 class CueLogger(object):
@@ -34,6 +39,9 @@ class CueLogger(object):
         # type: (Any) -> None
         self._buffer = []
         self._lock = lock if lock is not None else _threading.Lock()
+        # Rolling ring of the most recent debug lines, kept regardless of
+        # flush cadence so an anomaly snapshot is always current.
+        self._ring = deque(maxlen=CUE_TRIGGER_SNAPSHOT_LINES)
 
     # --- Debug log (buffered, gated by CUE_DEBUG) ---
 
@@ -47,11 +55,30 @@ class CueLogger(object):
             line = "[{}] {}\n".format(ts, msg)
             with self._lock:
                 self._buffer.append(line)
+                self._ring.append(line)
                 should_flush = len(self._buffer) >= 64
             if should_flush:
                 self.flush()
         except Exception:
             pass  # Never let logging break the game
+
+    def snapshot_debug(self, marker):
+        # type: (str) -> None
+        """Append an anomaly marker + the recent debug-line ring to
+        trigger-debug.log (append-only).  The ring holds the last
+        CUE_TRIGGER_SNAPSHOT_LINES lines as logged, so the snapshot is current
+        even for lines not yet flushed to debug.log."""
+        try:
+            ts = time.strftime("%H:%M:%S") + ".{:03d}".format(int(time.time() * 1000) % 1000)
+            with self._lock:
+                ring = list(self._ring)
+            parts = ["=" * 60 + "\n", "[{}] {}\n".format(ts, marker)]
+            parts.extend(ring)
+            parts.append("\n")
+            with open(self._log_path(CUE_TRIGGER_DEBUG_FILENAME), "a") as f:
+                f.write("".join(parts))
+        except Exception:
+            pass  # Never let snapshotting break the game
 
     def flush(self):
         # type: () -> None

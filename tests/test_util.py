@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import cue_lib.util as _util
 import cue_lib.constants as _constants
+import cue_lib.logger as _logger_mod
 import pygame
 import renpy
 import renpy.atl as _atl
@@ -1278,3 +1279,48 @@ def test_escape_text_brackets_false_braces_only():
 def test_escape_text_non_string_passes_through():
     obj = object()
     assert _cue_escape_text(obj) is obj
+
+
+# ---------------------------------------------------------------------------
+# Anomaly snapshot (trigger-debug.log ring dump)
+# ---------------------------------------------------------------------------
+
+
+def test_snapshot_debug_writes_marker_and_ring(tmp_path, monkeypatch):
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    _cue_log("line one")
+    _cue_log("line two")
+    _cue_logger.snapshot_debug("TD-ANOMALY type=late vid=x delta=[1.9] t=123.00")
+    # Ring is current even without a flush -- no debug.log write required.
+    text = (tmp_path / "renpy_cue" / "trigger-debug.log").read_text()
+    assert "TD-ANOMALY" in text
+    assert "line one" in text
+    assert "line two" in text
+
+
+def test_snapshot_debug_appends_across_calls(tmp_path, monkeypatch):
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    _cue_logger.snapshot_debug("first marker")
+    _cue_logger.snapshot_debug("second marker")
+    text = (tmp_path / "renpy_cue" / "trigger-debug.log").read_text()
+    assert "first marker" in text
+    assert "second marker" in text
+    # Two separate dump blocks (each opens with the 60-char separator), not one overwrite.
+    assert text.count("=" * 60) == 2
+
+
+def test_snapshot_ring_is_bounded(tmp_path, monkeypatch):
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    n = _logger_mod.CUE_TRIGGER_SNAPSHOT_LINES + 10
+    for i in range(n):
+        _cue_log("ring line {}".format(i))
+    _cue_logger.snapshot_debug("marker")
+    text = (tmp_path / "renpy_cue" / "trigger-debug.log").read_text()
+    assert "ring line 0" not in text  # oldest evicted
+    assert "ring line {}".format(n - 1) in text  # newest kept
