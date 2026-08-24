@@ -75,6 +75,7 @@ CUE_ICON_MAP = {
     "redo": ("reply-solid.png", True),
     "rotate-left": ("rotate-left-solid.png", False),
     "rotate-right": ("rotate-right-solid.png", False),
+    "sidebar-flip": ("sidebar-flip-regular.png", False),
     "sliders": ("sliders-solid.png", False),
     "square": ("square-regular.png", False),
     "square-check": ("square-check-solid.png", False),
