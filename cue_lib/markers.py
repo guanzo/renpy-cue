@@ -16,6 +16,9 @@ from renpy.store import persistent
 
 from cue_lib.constants import (
     CUE_VOLUME_DEFAULT,
+    CUE_PERSIST_SIDEBAR_MODE,
+    CUE_PERSIST_SIDEBAR_WIDTH,
+    CUE_SIDEBAR_DEFAULT_WIDTH,
     CueExclusiveStart as CueExclusiveStart,
     CueLoopFrequency as CueLoopFrequency,
     CueContextType,
@@ -697,6 +700,13 @@ def _cue_load_scalars_from_persistent():
     _cue.video_editor.remove_audio = True if _ra is None else bool(_ra)
     _st = _cue_dict.get("seamless_transition")
     _cue.speed_resolver.seamless_transition = False if _st is None else bool(_st)
+    _sfm = _cue_dict.get(CUE_PERSIST_SIDEBAR_MODE)
+    _cue.sfx.library.is_sidebar_mode = False if _sfm is None else bool(_sfm)
+    _sw = _cue_dict.get(CUE_PERSIST_SIDEBAR_WIDTH)
+    if isinstance(_sw, int):
+        _cue.sfx.library.set_sidebar_width(_sw)
+    else:
+        _cue.sfx.library.sidebar_width = CUE_SIDEBAR_DEFAULT_WIDTH
 
 
 def _cue_markers_send(kind, ref, record=True):

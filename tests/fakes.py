@@ -4,6 +4,8 @@ import time
 import types
 from typing import Optional
 
+from cue_lib.constants import CUE_SIDEBAR_DEFAULT_WIDTH
+
 # Shared test doubles for cue_lib managers.
 #
 # The marker context classes receive their data manager through the
@@ -307,18 +309,24 @@ class FakeSfxManager(object):
         self.library = types.SimpleNamespace(
             files=files if files is not None else [],
             disabled_files=disabled_files if disabled_files is not None else set(),
+            is_sidebar_mode=False,
+            sidebar_width=CUE_SIDEBAR_DEFAULT_WIDTH,
             _recent=None,  # type: Optional[FakeRecent]  # set by recording tests
             scan_calls=0,
             rebuild_calls=0,
         )
         self.library.scan = self._scan
         self.library.maybe_rebuild = self._maybe_rebuild
+        self.library.set_sidebar_width = self._set_sidebar_width
 
     def _scan(self):
         self.library.scan_calls += 1
 
     def _maybe_rebuild(self):
         self.library.rebuild_calls += 1
+
+    def _set_sidebar_width(self, width):
+        self.library.sidebar_width = width
 
     def warm_cache(self):
         """No-op: the real manager pre-generates 24->16 cache on a thread."""

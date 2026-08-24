@@ -12,9 +12,18 @@ import threading
 import renpy
 import renpy.audio.music as _music
 
+from renpy.store import persistent
+
 from cue_lib.audio.audio_tree import CueAudioTreeManager
 from cue_lib.audio.wav_playable import CueWavPlayable
-from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
+from cue_lib.constants import (
+    CUE_SFX_CHANNEL_COUNT,
+    CUE_SIDEBAR_DEFAULT_WIDTH,
+    CUE_SIDEBAR_MIN_WIDTH,
+    CUE_SIDEBAR_MAX_WIDTH_RATIO,
+    CUE_PERSIST_SIDEBAR_MODE,
+    CUE_PERSIST_SIDEBAR_WIDTH,
+)
 from cue_lib.util import (
     _cue_log,
     _cue_resolve_files,
@@ -347,6 +356,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # Sidebar mode: SFX Library renders as a right-side sidebar (mode on)
         # or as a section frame inside the overlay page (mode off).
         self.is_sidebar_mode = False
+        self.sidebar_width = CUE_SIDEBAR_DEFAULT_WIDTH
 
     # ------------------------------------------------------------------
     # Scanning
@@ -507,4 +517,19 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # type: () -> None
         """Toggle sidebar mode for the SFX Library section."""
         self.is_sidebar_mode = not self.is_sidebar_mode
+        self.persist_sidebar_state()
         renpy.restart_interaction()
+
+    def persist_sidebar_state(self):
+        # type: () -> None
+        """Persist sidebar mode + width to per-game persistent."""
+        if persistent._cue is None:
+            persistent._cue = {}
+        persistent._cue[CUE_PERSIST_SIDEBAR_MODE] = self.is_sidebar_mode
+        persistent._cue[CUE_PERSIST_SIDEBAR_WIDTH] = self.sidebar_width
+
+    def set_sidebar_width(self, width):
+        # type: (int) -> None
+        """Clamp and store the sidebar width (logical px, pre-zoom)."""
+        max_w = int(renpy.config.screen_width * CUE_SIDEBAR_MAX_WIDTH_RATIO)
+        self.sidebar_width = max(CUE_SIDEBAR_MIN_WIDTH, min(width, max_w))

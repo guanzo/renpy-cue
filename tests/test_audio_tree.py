@@ -3,7 +3,7 @@
 # helper (util.py), CueAudioTreeManager (scan, tree walk, search cap,
 # debounced rebuild), CueUserMusic / CueGameMusic (scan sources), and
 # CueSfxLibraryTree (file enable toggle, preset/folder expand state, pool-ref
-# rows, overlay mode).
+# rows, sidebar mode).
 
 import copy
 import os
@@ -11,7 +11,10 @@ import types
 
 import pytest
 
+import renpy
 import renpy as _renpy
+
+from renpy.store import persistent
 
 import cue_lib.audio.audio_tree as _tree
 import cue_lib.audio.game_music as _game
@@ -21,6 +24,12 @@ from cue_lib.audio.audio_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
 from cue_lib.audio.game_music import CueGameMusic
 from cue_lib.audio.sfx_manager import CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name
 from cue_lib.audio.user_music import CueUserMusic
+from cue_lib.constants import (
+    CUE_PERSIST_SIDEBAR_MODE,
+    CUE_SIDEBAR_DEFAULT_WIDTH,
+    CUE_SIDEBAR_MIN_WIDTH,
+    CUE_SIDEBAR_MAX_WIDTH_RATIO,
+)
 from cue_lib.util import _cue_build_tree, _cue_filter_tree
 
 from tests.fakes import FakeDb
@@ -398,6 +407,7 @@ def test_sfx_init_state(sfx):
     assert sfx.disabled_files == set()
     assert sfx.igroup_add_target is None
     assert sfx.is_sidebar_mode is False
+    assert sfx.sidebar_width == CUE_SIDEBAR_DEFAULT_WIDTH
 
 
 def test_sfx_discover_walks_audio_dir(sfx, tmp_path):
@@ -510,14 +520,26 @@ def test_sfx_toggle_video_pool_expand_per_pool(sfx):
     assert sfx.expanded_video_pools["v"] == {0: True, 1: True}
 
 
-def test_sfx_toggle_sidebar_mode_restarts(sfx, monkeypatch):
+def test_sfx_toggle_sidebar_mode_persists(sfx, monkeypatch):
     rec = []
+    persistent._cue = {}
     monkeypatch.setattr(_renpy, "restart_interaction", lambda: rec.append(1))
     sfx.toggle_sidebar_mode()
     assert sfx.is_sidebar_mode is True
+    assert persistent._cue[CUE_PERSIST_SIDEBAR_MODE] is True
     sfx.toggle_sidebar_mode()
     assert sfx.is_sidebar_mode is False
+    assert persistent._cue[CUE_PERSIST_SIDEBAR_MODE] is False
     assert rec == [1, 1]
+
+
+def test_sfx_set_sidebar_width_clamps(sfx):
+    sfx.set_sidebar_width(50)
+    assert sfx.sidebar_width == CUE_SIDEBAR_MIN_WIDTH
+    sfx.set_sidebar_width(5000)
+    assert sfx.sidebar_width == int(renpy.config.screen_width * CUE_SIDEBAR_MAX_WIDTH_RATIO)
+    sfx.set_sidebar_width(400)
+    assert sfx.sidebar_width == 400
 
 
 def test_sfx_igroup_add_mode_toggle_single_target(sfx):

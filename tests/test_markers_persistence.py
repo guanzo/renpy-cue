@@ -26,7 +26,7 @@ import cue_lib.backup as _backup
 import cue_lib.markers as _markers
 import cue_lib.runtime as _runtime
 from cue_lib.backup import zip_shared_tree
-from cue_lib.constants import CUE_MANUAL_BACKUP_NAME
+from cue_lib.constants import CUE_MANUAL_BACKUP_NAME, CUE_SIDEBAR_DEFAULT_WIDTH
 from cue_lib.paths import CUE_BACKUP_DIR
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.markers import CueMarkerManager
@@ -370,6 +370,22 @@ def test_load_scalars_none_values_fall_back_to_defaults():
     assert cue.video_editor.encode_mode == 0
     assert cue.video_editor.remove_audio is True
     assert cue.speed_resolver.seamless_transition is False
+
+
+def test_load_scalars_loads_sidebar_state():
+    _store.persistent._cue = {"sfx_sidebar_mode": True, "sfx_sidebar_width": 400}
+    _markers._cue_load_scalars_from_persistent()
+    cue = _markers._cue
+    assert cue.sfx.library.is_sidebar_mode is True
+    assert cue.sfx.library.sidebar_width == 400
+
+
+def test_load_scalars_sidebar_absent_falls_back():
+    _store.persistent._cue = {}
+    _markers._cue_load_scalars_from_persistent()
+    cue = _markers._cue
+    assert cue.sfx.library.is_sidebar_mode is False
+    assert cue.sfx.library.sidebar_width == CUE_SIDEBAR_DEFAULT_WIDTH
 
 
 # ==========================================================================

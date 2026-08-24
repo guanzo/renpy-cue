@@ -23,6 +23,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
     expanded_video_pools: Dict[str, Dict[int, bool]]
     disabled_files: Set[str]
     is_sidebar_mode: bool
+    sidebar_width: int
     igroups_expanded: bool
     expanded_igroups: Dict[str, bool]
     igroup_add_target: Optional[str]
@@ -47,6 +48,8 @@ class CueSfxLibraryTree(CueAudioTreeManager):
     def set_add_to_pool_warning(self, message: str) -> None: ...
     def clear_add_to_pool_warning(self) -> None: ...
     def toggle_sidebar_mode(self) -> None: ...
+    def persist_sidebar_state(self) -> None: ...
+    def set_sidebar_width(self, width: int) -> None: ...
 
 class CueSfxManager(object):
     library: CueSfxLibraryTree

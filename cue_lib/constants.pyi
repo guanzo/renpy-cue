@@ -25,6 +25,12 @@ CUE_INTENSITY_FREQ_MAX: Final = 1.5
 CUE_INTENSITY_DELAY_MIN: Final = 0.2
 CUE_INTENSITY_DELAY_MAX: Final = 6.0
 
+CUE_SIDEBAR_DEFAULT_WIDTH: Final = 320
+CUE_SIDEBAR_MIN_WIDTH: Final = 200
+CUE_SIDEBAR_MAX_WIDTH_RATIO: Final = 0.5
+CUE_PERSIST_SIDEBAR_MODE: Final = "sfx_sidebar_mode"
+CUE_PERSIST_SIDEBAR_WIDTH: Final = "sfx_sidebar_width"
+
 CUE_KEYMAP_TOGGLE_OVERLAY: Final = "cue_toggle_overlay"
 CUE_KEYMAP_QUIT_RELAUNCH: Final = "cue_quit_relaunch"
 CUE_KEYMAP_COPY_CONTEXT: Final = "cue_copy_context"
