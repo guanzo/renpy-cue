@@ -104,6 +104,7 @@ def _cue_show_overlay():
         _cue.sfx.library.scan()
     if not _cue.music.user_music.files:
         _cue.music.user_music.scan()
+    _cue.sfx.warm_cache()
 
     _cue_refresh_context()
     _cue.music.library.maybe_rebuild()
@@ -134,6 +135,7 @@ def _cue_full_reload():
     _cue.sfx.library.scan()
     _cue.music.user_music.scan()
     _cue.music.game_music.scan()
+    _cue.sfx.warm_cache()
     _cue.sfx.library._recent.load()  # pyright: ignore[reportOptionalMemberAccess]
     _cue.music._recent.load()
 

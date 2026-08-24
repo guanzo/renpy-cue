@@ -8,10 +8,12 @@
 # Instantiated once at _cue.sfx, lives on the NoRollback _cue object.
 
 import random as _random
+import threading
 import renpy
 import renpy.audio.music as _music
 
 from cue_lib.audio.audio_tree import CueAudioTreeManager
+from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
 from cue_lib.util import (
     _cue_log, _cue_resolve_files, _cue_pick_file,
@@ -64,10 +66,12 @@ class CueSfxManager(object):
         self._ctx = ctx
         self._supports_relative_volume = supports_relative_volume
         self._markers = None  # type: Optional[CueMarkerManager]
+        self._wav_playable = CueWavPlayable()
 
         # SFX playback state
         self._next_sfx_channel = 0     # round-robin fallback when all channels are busy
         self._preview_channel = None   # channel currently playing a preview
+        self._warm_thread = None       # background wide->16 cache warm, if running
 
     def bind_markers(self, markers):
         # type: (CueMarkerManager) -> None
@@ -85,6 +89,31 @@ class CueSfxManager(object):
         if self._markers is None:
             raise RuntimeError("CueSfxManager markers not bound (bind_markers never called)")
         return self._markers
+
+    def warm_cache(self):
+        # type: () -> None
+        """Pre-generate 16-bit copies for discovered SFX on a background thread.
+
+        Used so the first play of a 24-bit file doesn't convert on the UI thread.
+        The converter makes no Ren'Py API calls, so a daemon thread is safe.  A
+        no-op while a warm is already running (an overlay reload would otherwise
+        spawn one each time)."""
+        if self._warm_thread is not None and self._warm_thread.is_alive():
+            return
+        rel_paths = list(self.library.files)
+        paths = self._paths
+        wav_playable = self._wav_playable
+
+        def _run():
+            for rel in rel_paths:
+                try:
+                    wav_playable.refresh(paths.audio_dir + rel)
+                except Exception:
+                    pass
+
+        self._warm_thread = threading.Thread(target=_run)
+        self._warm_thread.daemon = True
+        self._warm_thread.start()
 
     # ------------------------------------------------------------------
     # Playback
@@ -119,7 +148,7 @@ class CueSfxManager(object):
         jitter = _random.uniform(1.0 - MAX_JITTER, 1.0 + MAX_JITTER)
         volume = volume * jitter
 
-        full_path = self._paths.audio_dir + filename
+        full_path = self._wav_playable.ensure_playable(self._paths.audio_dir + filename)
 
         target_ch = None
         for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):

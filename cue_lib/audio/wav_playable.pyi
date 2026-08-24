@@ -1,0 +1,13 @@
+# Type stub for cue_lib.audio.wav_playable
+from typing import Dict, Optional
+
+CUE_WAV_PLAYABLE_SUBDIR: str
+CUE_WAV_PLAYABLE_NATIVE: str
+CUE_WAV_PLAYABLE_CONVERT: str
+CUE_WAV_PLAYABLE_UNPLAYABLE: str
+
+class CueWavPlayable:
+    def __init__(self, temp_root: Optional[str] = ...) -> None: ...
+    def ensure_playable(self, path: str) -> str: ...
+    def refresh(self, path: str) -> str: ...
+    def unplayable(self) -> Dict[str, str]: ...
