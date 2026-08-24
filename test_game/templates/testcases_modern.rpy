@@ -283,21 +283,21 @@ testcase intensity_resolves_level_folders:
     run Function(_cue.intensity.add_folder, "Resolve Test", "hard/")
     run Function(_cue.intensity.add_folder, "Resolve Test", "empty/")
     # A pool hooked to soft/ (Level 1) resolves up to the active level's folder.
-    $ _r1 = _cue.intensity.resolve_intensity(["soft/"], 0.7, [0.7, 1.0, 1.3])
+    $ _r1 = _cue.intensity.resolve_pool_intensity(["soft/"], 0.7, [0.7, 1.0, 1.3])
     assert eval (_r1 is not None)
     assert eval (_r1.level == 1 and _r1.folder == "soft/")
     assert eval (_r1.files == ["soft/sfx_001.ogg"])
     assert eval (_r1.volume_mult == 1.0)
-    $ _r2 = _cue.intensity.resolve_intensity(["soft/"], 1.0, [0.7, 1.0, 1.3])
+    $ _r2 = _cue.intensity.resolve_pool_intensity(["soft/"], 1.0, [0.7, 1.0, 1.3])
     assert eval (_r2.level == 2 and _r2.folder == "hard/")
     assert eval (_r2.files == ["hard/sfx_001.ogg", "hard/sfx_002.ogg"])
     assert eval (_r2.volume_mult == 1.125)
     # Fastest speed -> Level 3; its folder is empty, so silence (no fallback).
-    $ _r3 = _cue.intensity.resolve_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3])
+    $ _r3 = _cue.intensity.resolve_pool_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3])
     assert eval (_r3.level == 3 and _r3.folder == "empty/")
     assert eval (_r3.files == [])
     # A pool not hooked to any group resolves to nothing.
-    assert eval (_cue.intensity.resolve_intensity(["sfx_001.ogg"], 1.0, [0.7, 1.0, 1.3]) is None)
+    assert eval (_cue.intensity.resolve_pool_intensity(["sfx_001.ogg"], 1.0, [0.7, 1.0, 1.3]) is None)
     run Function(_cue.intensity.delete_igroup, "Resolve Test")
     $ _cue_intensity_cleanup()
 
@@ -413,20 +413,20 @@ testcase intensity_tab_view:
     $ _mapping = _cue.intensity.variant_levels("Tab Test", _variants)
     assert eval (_mapping == [(0.7, 1), (1.0, 2), (1.3, 2)])
     $ _cur = _cue.speed_resolver.speed_for(_cue.current_file)
-    $ _res = _cue.intensity.video_level(_pools_files, _cur, _variants)
+    $ _res = _cue.intensity.resolve_video_intensity(_pools_files, _cur, _variants)
     assert eval (_res is not None and _res.level == 2 and _res.folder == "hard/")
     # Screen write path: toggling a flag persists and the live resolution honors it.
     run Function(_cue_toggle_intensity_flag, "enabled")
     $ _entry = _cue.markers.get(_vidk, {})
     $ _flags = _cue.intensity.flags_from_entry(_entry)
     assert eval (_entry.get("intensity", {}).get("enabled", True) is False)
-    assert eval (_cue.intensity.video_level(_pools_files, _cur, _variants, flags=_flags) is None)
+    assert eval (_cue.intensity.resolve_video_intensity(_pools_files, _cur, _variants, flags=_flags) is None)
     run Function(_cue_toggle_intensity_flag, "enabled")
     # SINGLE mode is intensity-capable: the variant set is mode-independent.
     $ _entry["speed_mode"] = CueSpeedMode.SINGLE
     $ _cue.markers.save_marker(_vidk)
     assert eval (_cue.speed_resolver.banding_speeds(_cue.current_file) == [0.7, 1.0, 1.3])
-    $ _single_res = _cue.intensity.video_level(_pools_files, 1.0, _variants)
+    $ _single_res = _cue.intensity.resolve_video_intensity(_pools_files, 1.0, _variants)
     assert eval (_single_res is not None and _single_res.level == 2)
     $ _entry["speed_mode"] = CueSpeedMode.MULTI
     $ _cue.markers.save_marker(_vidk)

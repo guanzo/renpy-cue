@@ -42,7 +42,7 @@ def _level_ramp(count, max_value):
 def _cue_intensity_volume_mult(level_mult):
     # type: (float) -> float
     """Clamp a level multiplier to [1.0, CUE_INTENSITY_VOLUME_MAX] so intensity
-    never lowers the pool's volume.  resolve_intensity bakes the clamp into the
+    never lowers the pool's volume.  resolve_pool_intensity bakes the clamp into the
     resolution's volume_mult; the fire path composes it with the pool volume in
     play_pool."""
     return min(CUE_INTENSITY_VOLUME_MAX, max(1.0, level_mult))
@@ -313,7 +313,7 @@ class CueIntensityManager(object):
         fm = f[idx] if idx < len(f) else 1.0
         return (vm, fm)
 
-    def resolve_intensity(self, files, current_speed, variants, is_populated=None, flags=None):
+    def resolve_pool_intensity(self, files, current_speed, variants, is_populated=None, flags=None):
         # type: (Optional[List[str]], float, List[float], Optional[Callable[[str], bool]], Optional[CueIntensityFlags]) -> Optional[CueIntensityResolution]
         """Full speed -> level chain for a pool.
 
@@ -340,12 +340,12 @@ class CueIntensityManager(object):
         data = self.get_igroup(name)
         if data is None:
             return None
-        n = len(data.get("folders", []))
-        if n == 0:
+        level_count = len(data.get("folders", []))
+        if level_count == 0:
             return None
-        key = (tuple(sorted(set(variants))), n)
+        key = (tuple(sorted(set(variants))), level_count)
         if key not in self._band_cache:
-            self._band_cache[key] = _cue_band_speeds(variants, n)
+            self._band_cache[key] = _cue_band_speeds(variants, level_count)
         speeds, levels = self._band_cache[key]
         level = _cue_resolve_level(current_speed, speeds, levels)
         folder = self.level_folder(name, level)
@@ -369,14 +369,14 @@ class CueIntensityManager(object):
                 res.files = _cue_resolve_files([folder])
         return res
 
-    def video_level(self, pools_files, current_speed, variants, is_populated=None, flags=None):
+    def resolve_video_intensity(self, pools_files, current_speed, variants, is_populated=None, flags=None):
         # type: (List[List[str]], float, List[float], Optional[Callable[[str], bool]], Optional[CueIntensityFlags]) -> Optional[CueIntensityResolution]
         """Resolve a video's active intensity from its first hooked pool.
 
         The result's volume_mult is the global volume scale applied to SFX
         that fire during the video but aren't themselves hooked to a group."""
         for files in pools_files:
-            res = self.resolve_intensity(files, current_speed, variants, is_populated, flags)
+            res = self.resolve_pool_intensity(files, current_speed, variants, is_populated, flags)
             if res is not None:
                 return res
         return None
@@ -385,7 +385,7 @@ class CueIntensityManager(object):
         # type: (List[List[str]], float, Optional[List[float]], Optional[CueIntensityFlags]) -> Optional[Tuple[int, int]]
         """(level, total) for the video's active intensity at `current_speed`.
 
-        Mirrors video_level's scan order (first hooked pool wins) but stops at
+        Mirrors resolve_video_intensity's scan order (first hooked pool wins) but stops at
         the band map -- no folder or file resolution -- so per-frame UI reads
         the level cheaply.  None when intensity isn't live for the video
         (master off, no hook, <2 variants, or an empty group)."""
@@ -401,21 +401,21 @@ class CueIntensityManager(object):
             data = self.get_igroup(name)
             if data is None:
                 continue
-            n = len(data.get("folders", []))
-            if n == 0:
+            level_count = len(data.get("folders", []))
+            if level_count == 0:
                 continue
-            key = (tuple(sorted(set(variants))), n)
+            key = (tuple(sorted(set(variants))), level_count)
             if key not in self._band_cache:
-                self._band_cache[key] = _cue_band_speeds(variants, n)
+                self._band_cache[key] = _cue_band_speeds(variants, level_count)
             speeds, levels = self._band_cache[key]
             level = _cue_resolve_level(current_speed, speeds, levels)
-            return (level, n)
+            return (level, level_count)
         return None
 
     def video_hook(self, pools_files):
         # type: (List[List[str]]) -> Optional[str]
-        """The igroup of a video's first hooked pool, matching video_level's
-        scan order.  None when no pool is hooked.  Unlike video_level this
+        """The igroup of a video's first hooked pool, matching resolve_video_intensity's
+        scan order.  None when no pool is hooked.  Unlike resolve_video_intensity this
         ignores the per-video toggles, so the inspector can name the group
         even while the master switch is off."""
         for files in pools_files:
@@ -430,7 +430,7 @@ class CueIntensityManager(object):
         on, the video has 2+ distinct speed variants, and this pool's own
         folder list is hooked to an intensity group.  Per-pool -- a marker
         tab indicates only when its own pool plays intensity levels.  Lighter
-        than resolve_intensity -- no level resolution, no file listing -- for
+        than resolve_pool_intensity -- no level resolution, no file listing -- for
         per-frame UI indicators."""
         if flags is not None and not flags.enabled:
             return False
@@ -441,7 +441,7 @@ class CueIntensityManager(object):
     def variant_levels(self, group_name, variants):
         # type: (str, List[float]) -> Optional[List[Tuple[float, int]]]
         """[(speed, level)] band map for the mapping inspector: the same
-        banding resolve_intensity applies, without needing a current speed.
+        banding resolve_pool_intensity applies, without needing a current speed.
         None when the group is missing, has fewer than 2 folders, or there
         are no variants (no intensity)."""
         if not variants:
@@ -449,10 +449,10 @@ class CueIntensityManager(object):
         data = self.get_igroup(group_name)
         if data is None:
             return None
-        n = len(data.get("folders", []))
-        if n < 2:
+        level_count = len(data.get("folders", []))
+        if level_count < 2:
             return None
-        speeds, levels = _cue_band_speeds(list(variants), n)
+        speeds, levels = _cue_band_speeds(list(variants), level_count)
         return list(zip(speeds, levels))
 
     # ------------------------------------------------------------------

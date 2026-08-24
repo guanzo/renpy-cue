@@ -272,7 +272,7 @@ class CueTriggerEngine(object):
             pools_files.append(self._store.resolve_pool(p).files)
         if not pools_files:
             return None
-        return _cue.intensity.video_level(pools_files, speed, variants, flags=flags)
+        return _cue.intensity.resolve_video_intensity(pools_files, speed, variants, flags=flags)
 
     def _loop_delay(self, frequency, res):
         # type: (int, Optional[CueIntensityResolution]) -> float
@@ -406,7 +406,7 @@ class CueTriggerEngine(object):
         picked = []
         for pi, pool in enumerate(pools):
             resolved = self._store.resolve_pool(pool)
-            res = _cue.intensity.resolve_intensity(resolved.files, speed, variants, flags=flags)
+            res = _cue.intensity.resolve_pool_intensity(resolved.files, speed, variants, flags=flags)
             if res is not None:
                 files = res.files
                 vol_mult = res.volume_mult
@@ -593,7 +593,7 @@ class CueTriggerEngine(object):
                 continue
 
             resolved = self._store.resolve_pool(pool_entry)
-            res = _cue.intensity.resolve_intensity(resolved.files, speed, variants, flags=flags)
+            res = _cue.intensity.resolve_pool_intensity(resolved.files, speed, variants, flags=flags)
             if res is not None:
                 files = res.files
                 vol_mult = res.volume_mult

@@ -40,8 +40,8 @@ def _no_intensity(monkeypatch):
     this with a real manager."""
     from cue_lib.intensity import CueIntensityFlags
     stub = types.SimpleNamespace(
-        resolve_intensity=lambda *a, **k: None,
-        video_level=lambda *a, **k: None,
+        resolve_pool_intensity=lambda *a, **k: None,
+        resolve_video_intensity=lambda *a, **k: None,
         flags_from_entry=lambda *a, **k: CueIntensityFlags(),
     )
     monkeypatch.setattr(_trigger._cue, "intensity", stub)

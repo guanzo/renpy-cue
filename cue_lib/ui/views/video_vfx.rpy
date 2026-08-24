@@ -232,7 +232,7 @@ screen cue_video_vfx_intensity(_has_speeds):
         else:
             $ _cur_speed = _cue.speed_resolver.get_current_speed()
             $ _flags = _cue.intensity.flags_from_entry(_vid_entry)
-            $ _res = _cue.intensity.video_level(
+            $ _res = _cue.intensity.resolve_video_intensity(
                 _pools_files, _cur_speed, _variants, flags=_flags)
             $ _mapping = _cue.intensity.variant_levels(_hook_group, _variants)
 

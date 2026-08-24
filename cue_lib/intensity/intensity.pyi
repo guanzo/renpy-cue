@@ -53,14 +53,14 @@ class CueIntensityManager:
     def flags_from_entry(self, entry: Optional[MarkerEntry]) -> CueIntensityFlags: ...
     def level_folder(self, name: str, level: int) -> Optional[str]: ...
     def level_multipliers(self, name: str, level: int) -> Tuple[float, float]: ...
-    def resolve_intensity(
+    def resolve_pool_intensity(
         self,
         files: Optional[List[str]],
         current_speed: float,
         variants: Optional[List[float]],
         is_populated: Optional[Callable[[str], bool]] = None,
         flags: Optional[CueIntensityFlags] = None) -> Optional[CueIntensityResolution]: ...
-    def video_level(
+    def resolve_video_intensity(
         self,
         pools_files: List[List[str]],
         current_speed: float,

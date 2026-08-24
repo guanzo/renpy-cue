@@ -106,51 +106,51 @@ def test_level_multipliers_empty_igroup_identity(cue_env):
 
 
 # ==========================================================================
-# resolve_intensity -- full speed -> level -> folder chain
+# resolve_pool_intensity -- full speed -> level -> folder chain
 # ==========================================================================
 
-def test_resolve_intensity_unhooked_is_none(cue_env):
+def test_resolve_pool_intensity_unhooked_is_none(cue_env):
     m = _two_level(cue_env)
-    assert m.resolve_intensity(["plain.ogg"], 1.0, [1.0], _populated) is None
+    assert m.resolve_pool_intensity(["plain.ogg"], 1.0, [1.0], _populated) is None
 
 
-def test_resolve_intensity_no_variants_is_none(cue_env):
+def test_resolve_pool_intensity_no_variants_is_none(cue_env):
     m = _two_level(cue_env)
-    assert m.resolve_intensity(["soft/"], 1.0, [], _populated) is None
+    assert m.resolve_pool_intensity(["soft/"], 1.0, [], _populated) is None
 
 
-def test_resolve_intensity_bands_speed_to_level(cue_env):
+def test_resolve_pool_intensity_bands_speed_to_level(cue_env):
     m = _two_level(cue_env)
     # 2 levels over [0.7, 1.0, 1.3]: 0.7 -> L1 (soft), 1.0/1.3 -> L2 (hard).
-    r = m.resolve_intensity(["soft/"], 0.7, [0.7, 1.0, 1.3], _populated)
+    r = m.resolve_pool_intensity(["soft/"], 0.7, [0.7, 1.0, 1.3], _populated)
     assert r is not None
     assert r.group == "Impacts"
     assert r.level == 1
     assert r.folder == "soft/"
     assert r.files == ["soft/"]
 
-    r = m.resolve_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], _populated)
+    r = m.resolve_pool_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], _populated)
     assert r is not None
     assert r.level == 2
     assert r.folder == "hard/"
     assert r.files == ["hard/"]
 
 
-def test_resolve_intensity_volume_mult_is_clamped(cue_env):
+def test_resolve_pool_intensity_volume_mult_is_clamped(cue_env):
     m = _two_level(cue_env)
     # Level 2 ramps to the volume max (1.25) and freq max (1.5).
-    r = m.resolve_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], _populated)
+    r = m.resolve_pool_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], _populated)
     assert r is not None
     assert r.volume_mult == 1.25
     assert r.freq_mult == 1.5
 
 
-def test_resolve_intensity_empty_level_folder_silent(cue_env):
+def test_resolve_pool_intensity_empty_level_folder_silent(cue_env):
     m = _two_level(cue_env)
     def pop(folder):
         return folder == "soft/"  # hard/ is empty
     # Fast band lands on L2 -> hard/ empty -> no files (silence).
-    r = m.resolve_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], pop)
+    r = m.resolve_pool_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], pop)
     assert r is not None
     assert r.folder == "hard/"
     assert r.files == []
@@ -158,11 +158,11 @@ def test_resolve_intensity_empty_level_folder_silent(cue_env):
     assert r.volume_mult == 1.25
 
 
-def test_resolve_intensity_single_variant_single_level(cue_env):
+def test_resolve_pool_intensity_single_variant_single_level(cue_env):
     m = CueIntensityManager(cue_env.db)
     m.create_igroup("Solo")
     m.add_folder("Solo", "only/")
-    r = m.resolve_intensity(["only/"], 1.0, [1.0], _populated)
+    r = m.resolve_pool_intensity(["only/"], 1.0, [1.0], _populated)
     assert r is not None
     assert r.level == 1
     assert r.folder == "only/"
@@ -170,36 +170,36 @@ def test_resolve_intensity_single_variant_single_level(cue_env):
     assert r.freq_mult == 1.0
 
 
-def test_resolve_intensity_same_variants_consistent(cue_env):
+def test_resolve_pool_intensity_same_variants_consistent(cue_env):
     m = _two_level(cue_env)
-    a = m.resolve_intensity(["soft/"], 0.7, [0.7, 1.0, 1.3], _populated)
-    b = m.resolve_intensity(["soft/"], 0.7, [0.7, 1.0, 1.3], _populated)
+    a = m.resolve_pool_intensity(["soft/"], 0.7, [0.7, 1.0, 1.3], _populated)
+    b = m.resolve_pool_intensity(["soft/"], 0.7, [0.7, 1.0, 1.3], _populated)
     assert a is not None and b is not None
     assert (a.level, a.folder, a.volume_mult) == (b.level, b.folder, b.volume_mult)
 
 
 # ==========================================================================
-# video_level -- global scale for a video's first hooked pool
+# resolve_video_intensity -- global scale for a video's first hooked pool
 # ==========================================================================
 
-def test_video_level_uses_first_hooked_pool(cue_env):
+def test_resolve_video_intensity_uses_first_hooked_pool(cue_env):
     m = _two_level(cue_env)
     pools = [["plain.ogg"], ["soft/"], ["soft/", "hard/"]]
-    r = m.video_level(pools, 1.3, [0.7, 1.0, 1.3], _populated)
+    r = m.resolve_video_intensity(pools, 1.3, [0.7, 1.0, 1.3], _populated)
     assert r is not None
     assert r.group == "Impacts"
     assert r.level == 2
     assert r.volume_mult == 1.25
 
 
-def test_video_level_no_hooked_pool_is_none(cue_env):
+def test_resolve_video_intensity_no_hooked_pool_is_none(cue_env):
     m = _two_level(cue_env)
-    assert m.video_level([["plain.ogg"], ["other.ogg"]], 1.0, [1.0], _populated) is None
+    assert m.resolve_video_intensity([["plain.ogg"], ["other.ogg"]], 1.0, [1.0], _populated) is None
 
 
-def test_video_level_empty_pools_is_none(cue_env):
+def test_resolve_video_intensity_empty_pools_is_none(cue_env):
     m = _two_level(cue_env)
-    assert m.video_level([], 1.0, [1.0, 1.3], _populated) is None
+    assert m.resolve_video_intensity([], 1.0, [1.0, 1.3], _populated) is None
 
 
 # ==========================================================================
@@ -296,16 +296,16 @@ def test_flags_from_entry_reads_fields(cue_env):
     assert (f.enabled, f.sfx_levels, f.volume, f.frequency) == (False, False, False, False)
 
 
-def test_resolve_intensity_master_off_is_none(cue_env):
+def test_resolve_pool_intensity_master_off_is_none(cue_env):
     m = _two_level(cue_env)
     flags = CueIntensityFlags(enabled=False)
-    assert m.resolve_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], _populated, flags) is None
+    assert m.resolve_pool_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], _populated, flags) is None
 
 
-def test_resolve_intensity_volume_off_zeroes_volume_only(cue_env):
+def test_resolve_pool_intensity_volume_off_zeroes_volume_only(cue_env):
     m = _two_level(cue_env)
     flags = CueIntensityFlags(volume=False)
-    r = m.resolve_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], _populated, flags)
+    r = m.resolve_pool_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], _populated, flags)
     assert r is not None
     assert r.level == 2
     assert r.folder == "hard/"
@@ -313,21 +313,21 @@ def test_resolve_intensity_volume_off_zeroes_volume_only(cue_env):
     assert r.freq_mult == 1.5        # still on
 
 
-def test_resolve_intensity_frequency_off_zeroes_freq_only(cue_env):
+def test_resolve_pool_intensity_frequency_off_zeroes_freq_only(cue_env):
     m = _two_level(cue_env)
     flags = CueIntensityFlags(frequency=False)
-    r = m.resolve_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], _populated, flags)
+    r = m.resolve_pool_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], _populated, flags)
     assert r is not None
     assert r.folder == "hard/"
     assert r.volume_mult == 1.25
     assert r.freq_mult == 1.0
 
 
-def test_resolve_intensity_sfx_levels_off_plays_pool_folder(cue_env):
+def test_resolve_pool_intensity_sfx_levels_off_plays_pool_folder(cue_env):
     m = _two_level(cue_env)
     flags = CueIntensityFlags(sfx_levels=False)
     # The pool's own folder (soft/) plays while the level still drives scaling.
-    r = m.resolve_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], _populated, flags)
+    r = m.resolve_pool_intensity(["soft/"], 1.3, [0.7, 1.0, 1.3], _populated, flags)
     assert r is not None
     assert r.level == 2
     assert r.folder == "hard/"       # the level is still computed
@@ -336,10 +336,10 @@ def test_resolve_intensity_sfx_levels_off_plays_pool_folder(cue_env):
     assert r.freq_mult == 1.5
 
 
-def test_video_level_master_off_is_none(cue_env):
+def test_resolve_video_intensity_master_off_is_none(cue_env):
     m = _two_level(cue_env)
     flags = CueIntensityFlags(enabled=False)
-    assert m.video_level([["soft/"]], 1.3, [0.7, 1.0, 1.3], _populated, flags) is None
+    assert m.resolve_video_intensity([["soft/"]], 1.3, [0.7, 1.0, 1.3], _populated, flags) is None
 
 
 # ==========================================================================
@@ -400,11 +400,11 @@ def test_volume_mult_floor_never_lowers():
 
 
 def test_volume_mult_matches_resolution_baked_scale(cue_env):
-    # resolve_intensity bakes clamp(vm) into the resolution's volume_mult;
+    # resolve_pool_intensity bakes clamp(vm) into the resolution's volume_mult;
     # the fire path multiplies it into the pool volume.  The clamp function
     # must produce exactly the baked value.
     m = _two_level(cue_env)
-    r = m.resolve_intensity(["soft/", "hard/"], 1.3, [0.7, 1.0, 1.3], is_populated=_populated)
+    r = m.resolve_pool_intensity(["soft/", "hard/"], 1.3, [0.7, 1.0, 1.3], is_populated=_populated)
     assert r is not None
     _, vm = m.level_multipliers("Impacts", r.level)
     assert r.volume_mult == _cue_intensity_volume_mult(vm)
@@ -412,7 +412,7 @@ def test_volume_mult_matches_resolution_baked_scale(cue_env):
 
 # ==========================================================================
 # video_hook -- the igroup of a video's first hooked pool, matching
-# video_level's scan order (used by the Intensity inspector regardless of
+# resolve_video_intensity's scan order (used by the Intensity inspector regardless of
 # whether the master toggle is on).
 # ==========================================================================
 

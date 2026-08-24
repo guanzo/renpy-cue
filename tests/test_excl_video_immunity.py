@@ -54,8 +54,8 @@ def _identity_resolve_files(monkeypatch):
 def _no_intensity(cue, monkeypatch):
     """Stub _cue.intensity so no pool hooks (matches test_trigger_engine)."""
     stub = types.SimpleNamespace(
-        resolve_intensity=lambda *a, **k: None,
-        video_level=lambda *a, **k: None,
+        resolve_pool_intensity=lambda *a, **k: None,
+        resolve_video_intensity=lambda *a, **k: None,
         flags_from_entry=lambda *a, **k: None,
     )
     monkeypatch.setattr(cue, "intensity", stub)
