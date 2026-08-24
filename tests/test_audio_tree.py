@@ -397,7 +397,7 @@ def test_sfx_init_state(sfx):
     assert sfx.expanded_video_pools == {}
     assert sfx.disabled_files == set()
     assert sfx.igroup_add_target is None
-    assert sfx.overlay_mode is False
+    assert sfx.is_sidebar_mode is False
 
 
 def test_sfx_discover_walks_audio_dir(sfx, tmp_path):
@@ -510,13 +510,13 @@ def test_sfx_toggle_video_pool_expand_per_pool(sfx):
     assert sfx.expanded_video_pools["v"] == {0: True, 1: True}
 
 
-def test_sfx_toggle_overlay_mode_restarts(sfx, monkeypatch):
+def test_sfx_toggle_sidebar_mode_restarts(sfx, monkeypatch):
     rec = []
     monkeypatch.setattr(_renpy, "restart_interaction", lambda: rec.append(1))
-    sfx.toggle_overlay_mode()
-    assert sfx.overlay_mode is True
-    sfx.toggle_overlay_mode()
-    assert sfx.overlay_mode is False
+    sfx.toggle_sidebar_mode()
+    assert sfx.is_sidebar_mode is True
+    sfx.toggle_sidebar_mode()
+    assert sfx.is_sidebar_mode is False
     assert rec == [1, 1]
 
 

@@ -6,14 +6,18 @@
 screen cue_sfx_library(_is_video):
     style_group "cue"
 
-    $ _overlay_mode = _cue.sfx.library.overlay_mode
-    $ _ov_tt = "Overlay Mode: When enabled, this section will float on top when expanded.\n\n"
-    $ _ov_tt = _ov_tt + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_OVERLAY) + " to toggle overlay mode.\n"
-    $ _ov_tt = _ov_tt + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_LIBRARY) + " to toggle expansion."
+    $ _sidebar_mode = _cue.sfx.library.is_sidebar_mode
+    $ _ov_tt = "Sidebar Mode: When enabled, this section floats to the right as a sidebar.\n\n"
+    $ _ov_tt = _ov_tt + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_SIDEBAR) + " to toggle sidebar mode.\n"
+    $ _ov_tt = _ov_tt + _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_LIBRARY)
+    if _sidebar_mode:
+        $ _ov_tt = _ov_tt + " to toggle sidebar visibility."
+    else:
+        $ _ov_tt = _ov_tt + " to toggle expansion."
 
     $ _icons = [{
-        "name": "window-maximize" if _overlay_mode else "window-restore",
-        "action": Function(_cue.sfx.library.toggle_overlay_mode),
+        "name": "window-maximize" if _sidebar_mode else "window-restore",
+        "action": Function(_cue.sfx.library.toggle_sidebar_mode),
         "tt": _ov_tt
     }]
 

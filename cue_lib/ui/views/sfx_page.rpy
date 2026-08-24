@@ -72,6 +72,6 @@ screen cue_sfx_page():
                 Function(_cue.markers.loop.set_frequency, CueLoopFrequency.FASTEST),
                 tt="~0.2s between plays")
 
-    # Audio file browser (in-flow, only when overlay mode is OFF)
-    if not _cue.sfx.library.overlay_mode:
+    # Audio file browser (in-flow, only when sidebar mode is OFF)
+    if not _cue.sfx.library.is_sidebar_mode:
         use cue_sfx_library(_is_video)

@@ -34,7 +34,7 @@ screen cue_runtime_keybinds():
         key CUE_KEYMAP_QUIT_RELAUNCH action Function(renpy.quit, relaunch=True)
 
     if _cue.is_overlay_visible:
-        key CUE_KEYMAP_TOGGLE_SFX_OVERLAY action Function(_cue.sfx.library.toggle_overlay_mode)
+        key CUE_KEYMAP_TOGGLE_SFX_SIDEBAR action Function(_cue.sfx.library.toggle_sidebar_mode)
         key CUE_KEYMAP_PAGE_SFX action Function(_cue_set_page, CuePage.SFX)
         key CUE_KEYMAP_PAGE_MUSIC action Function(_cue_set_page, CuePage.MUSIC)
         key CUE_KEYMAP_PAGE_IMPORT action Function(_cue_set_page, CuePage.IMPORT)
@@ -126,7 +126,7 @@ screen cue_overlay_content():
     style_group "cue"
 
     # SFX context flags -- same derivation as cue_sfx_page. Needed by the
-    # floating SFX library below (overlay mode), which doesn't run sfx_page.
+    # floating SFX library below (sidebar mode), which doesn't run sfx_page.
     $ _is_video = _cue.top_layer_type == 'movie'
 
     fixed:
@@ -154,8 +154,8 @@ screen cue_overlay_content():
             else:
                 use cue_settings_page()
 
-        # SFX Library overlay mode: entire section floats at bottom
-        if _cue.overlay_active_page == CuePage.SFX and _cue.sfx.library.overlay_mode:
+        # SFX Library sidebar mode: entire section floats at bottom
+        if _cue.overlay_active_page == CuePage.SFX and _cue.sfx.library.is_sidebar_mode:
             $ _sfx_collapsed = _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
             $ _sfx_z = _cue_overlay_zoom()
             $ _sfx_full_h = int(renpy.config.screen_height / _sfx_z)

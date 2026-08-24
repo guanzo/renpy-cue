@@ -28,7 +28,7 @@ from cue_lib.constants import (
     CUE_KEYMAP_SPEED_UP,
     CUE_KEYMAP_SPEED_DOWN,
     CUE_KEYMAP_TOGGLE_SFX_LIBRARY,
-    CUE_KEYMAP_TOGGLE_SFX_OVERLAY,
+    CUE_KEYMAP_TOGGLE_SFX_SIDEBAR,
     CUE_KEYMAP_PAGE_SFX,
     CUE_KEYMAP_PAGE_MUSIC,
     CUE_KEYMAP_PAGE_IMPORT,
@@ -169,10 +169,10 @@ class CueKeybindsManager(object):
                 "desc": "Collapse or expand the SFX Library section",
             },
             {
-                "id": CUE_KEYMAP_TOGGLE_SFX_OVERLAY,
+                "id": CUE_KEYMAP_TOGGLE_SFX_SIDEBAR,
                 "default": "alt_K_a",
-                "label": "Toggle SFX Overlay",
-                "desc": "Toggle SFX Library overlay mode",
+                "label": "Toggle SFX Sidebar",
+                "desc": "Toggle SFX Library sidebar mode",
             },
             # noshift: a bare K_1..K_4 also matches Shift+1..4 in Ren'Py
             # (plain keys only exclude alt/ctrl/meta), so without it the

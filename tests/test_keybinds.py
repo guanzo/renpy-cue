@@ -17,7 +17,7 @@ from cue_lib.keybinds import CUE_SHARED_KEY_KEYBINDS, CueKeybindsManager
 from cue_lib.constants import (
     CUE_KEYMAP_TOGGLE_OVERLAY,
     CUE_KEYMAP_TOGGLE_SFX_ACTIVE,
-    CUE_KEYMAP_TOGGLE_SFX_OVERLAY,
+    CUE_KEYMAP_TOGGLE_SFX_SIDEBAR,
     CUE_KEYMAP_PAGE_SFX,
     CUE_KEYMAP_PAGE_MUSIC,
     CUE_KEYMAP_PAGE_IMPORT,
@@ -176,7 +176,7 @@ def test_setup_registers_defaults(mgr):
     mgr.setup()
     assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_OVERLAY] == ["K_BACKQUOTE"]
     assert renpy.config.keymap[CUE_KEYMAP_QUIT_RELAUNCH] == ["K_F5"]
-    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_OVERLAY] == ["alt_K_a"]
+    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_SIDEBAR] == ["alt_K_a"]
     assert renpy.config.keymap[CUE_KEYMAP_PAGE_SFX] == ["alt_K_1"]
     assert renpy.config.keymap[CUE_KEYMAP_PAGE_MUSIC] == ["alt_K_2"]
     assert renpy.config.keymap[CUE_KEYMAP_PAGE_IMPORT] == ["alt_K_3"]

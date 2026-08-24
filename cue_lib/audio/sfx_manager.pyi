@@ -22,7 +22,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
     expanded_video_presets: Dict[str, bool]
     expanded_video_pools: Dict[str, Dict[int, bool]]
     disabled_files: Set[str]
-    overlay_mode: bool
+    is_sidebar_mode: bool
     igroups_expanded: bool
     expanded_igroups: Dict[str, bool]
     igroup_add_target: Optional[str]
@@ -46,7 +46,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
     def igroup_add_folder(self, group_name: str, folder_path: str) -> None: ...
     def set_add_to_pool_warning(self, message: str) -> None: ...
     def clear_add_to_pool_warning(self) -> None: ...
-    def toggle_overlay_mode(self) -> None: ...
+    def toggle_sidebar_mode(self) -> None: ...
 
 class CueSfxManager(object):
     library: CueSfxLibraryTree

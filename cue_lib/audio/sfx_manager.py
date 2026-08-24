@@ -344,8 +344,9 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # File disable
         self.disabled_files = set()  # full_path strings
 
-        # Overlay mode: SFX Library section floats at 50% height
-        self.overlay_mode = False
+        # Sidebar mode: SFX Library renders as a right-side sidebar (mode on)
+        # or as a section frame inside the overlay page (mode off).
+        self.is_sidebar_mode = False
 
     # ------------------------------------------------------------------
     # Scanning
@@ -449,7 +450,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
             pools[pool_index] = True
 
     # ------------------------------------------------------------------
-    # Toggle: overlay mode
+    # Toggle: sidebar mode
     # ------------------------------------------------------------------
 
     # ------------------------------------------------------------------
@@ -502,11 +503,8 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # type: () -> None
         self.add_to_pool_warning = ""
 
-    def toggle_overlay_mode(self):
+    def toggle_sidebar_mode(self):
         # type: () -> None
-        """Toggle overlay mode for the SFX Library section.
-        Enabling overlay mode collapses the section if expanded.
-        Exiting overlay mode expands the section if collapsed."""
-        self.overlay_mode = not self.overlay_mode
-
+        """Toggle sidebar mode for the SFX Library section."""
+        self.is_sidebar_mode = not self.is_sidebar_mode
         renpy.restart_interaction()
