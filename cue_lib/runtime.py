@@ -10,6 +10,7 @@ import time as _time
 
 from cue_lib.constants import CuePage
 from cue_lib.logger import _cue_logger
+from cue_lib.marker_store import _cue_migrate_intensity_hooks
 from cue_lib.markers import _cue_load_scalars_from_persistent
 from cue_lib.state import _cue
 from cue_lib.ui.displayables import CueVideoMarkerTimeline
@@ -136,6 +137,12 @@ def _cue_full_reload():
     Ends with a context refresh so the trigger drivers resolve pools against
     the freshly loaded data."""
     _cue.markers.load_persistent()
+    # One-time migration: rewrite any legacy folder-hooked pools the freshly
+    # loaded markers contain to explicit igroup/ilevel_id.  Idempotent --
+    # hooked pools have empty files after migration, so a re-run is a no-op.
+    # Runs on every reload (boot, import activate/deactivate, post-restore)
+    # so a mid-session reload can never persist the legacy form.
+    _cue_migrate_intensity_hooks(_cue.marker_store, _cue.intensity._load())
     _cue_load_scalars_from_persistent()
     _cue.markers.reload_presets()
     _cue.music.reload_presets()

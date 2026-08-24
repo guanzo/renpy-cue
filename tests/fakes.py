@@ -541,6 +541,12 @@ def make_runtime_cue(root="", audio_dir=""):
     # undo -- _cue_full_reload re-seeds the undo baseline on every reload
     cue.undo = types.SimpleNamespace(reset=_rec("undo", "reset"))
 
+    # marker_store/intensity -- _cue_full_reload runs the one-time folder-hook
+    # migration on every reload; the fake defaults are an empty no-op so tests
+    # not exercising the migration still pass.
+    cue.marker_store = types.SimpleNamespace(_data={})
+    cue.intensity = types.SimpleNamespace(_load=lambda: {})
+
     # db -- shared-config surface read/written by _cue_load_scalars_from_persistent
     cue.db = types.SimpleNamespace(load_shared_config=lambda: {}, save_shared_config=_rec("db", "save_shared_config"))
 

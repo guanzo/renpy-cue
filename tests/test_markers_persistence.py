@@ -96,6 +96,11 @@ def _make_fake_cue():
         trigger=FakeTrigger(),
         video_editor=FakeVideoEditor(),
         speed_resolver=types.SimpleNamespace(seamless_transition=False),
+        # _cue_full_reload runs the one-time folder-hook migration on every
+        # reload; these no-op defaults keep the restore tests focused on the
+        # reload plumbing.
+        marker_store=types.SimpleNamespace(_data={}),
+        intensity=types.SimpleNamespace(_load=lambda: {}),
         markers=None,
     )
 
