@@ -17,7 +17,7 @@ import time
 try:
     import ssl as _ssl
 except ImportError:
-    _ssl = None   # pre-2.7.9 Python; the HTTPS handler just uses defaults
+    _ssl = None  # pre-2.7.9 Python; the HTTPS handler just uses defaults
 
 try:
     from urllib2 import (  # pyright: ignore[reportMissingImports]
@@ -43,23 +43,19 @@ except ImportError:
     from urllib.parse import urljoin as _urljoin, unquote as _url_unquote, urlparse as _urlparse
 
 from cue_lib.importer_io import _cue_sanitize_filename
-from cue_lib.util import (
-    _cue_format_size,
-    _cue_log,
-    _cue_replace_file,
-    _to_str,
-)
+from cue_lib.util import _cue_format_size, _cue_log, _cue_replace_file, _to_str
 
 MYPY = False
 if MYPY:
     from typing import Any, List, Optional, Tuple
+
     # Re-assert the py3 urllib types for pyright: the runtime shim's urllib2
     # branch (py2 only) leaves these Unknown to the checker.
     from urllib.request import HTTPRedirectHandler as _HTTPRedirectHandler
     from urllib.request import HTTPSHandler as _HTTPSHandler
 
 
-CUE_URL_CONNECT_TIMEOUT = 30   # per-operation socket timeout (connect + block)
+CUE_URL_CONNECT_TIMEOUT = 30  # per-operation socket timeout (connect + block)
 CUE_URL_CHUNK_SIZE = 65536
 CUE_URL_MAX_REDIRECTS = 5
 _CUE_REDIRECT_CODES = (301, 302, 303, 307, 308)
@@ -67,9 +63,9 @@ _CUE_REDIRECT_CODES = (301, 302, 303, 307, 308)
 # CDNs (Discord's attachments host, etc.) reject urllib's default
 # "Python-urllib" user agent with a 403, so every request carries a regular
 # browser UA.
-CUE_URL_USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                      "AppleWebKit/537.36 (KHTML, like Gecko) "
-                      "Chrome/120.0.0.0 Safari/537.36")
+CUE_URL_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
 
 
 def _cue_find_cacert():
@@ -77,6 +73,7 @@ def _cue_find_cacert():
     """Path to a usable CA bundle (certifi's), or None when unavailable."""
     try:
         import certifi as _certifi  # pyright: ignore[reportMissingImports]  # optional runtime dep, not in the lint venv
+
         return _certifi.where()
     except ImportError:
         return None
@@ -102,11 +99,13 @@ def _cue_https_context():
 
 class _CueUrlError(Exception):
     """A user-facing download failure (policy, HTTP status, transport)."""
+
     pass
 
 
 class _CueUrlCancel(Exception):
     """Internal: the cancel flag was set mid-stream."""
+
     pass
 
 
@@ -153,9 +152,9 @@ def _cue_is_private_ip(ip):
     low = str(ip).lower()
     if low == "::1" or low == "0:0:0:0:0:0:0:1":
         return True
-    if low.startswith("fc") or low.startswith("fd"):   # fc00::/7
+    if low.startswith("fc") or low.startswith("fd"):  # fc00::/7
         return True
-    if low.startswith(("fe8", "fe9", "fea", "feb")):   # fe80::/10
+    if low.startswith(("fe8", "fe9", "fea", "feb")):  # fe80::/10
         return True
     parts = low.split(".")
     if len(parts) != 4:
@@ -192,17 +191,17 @@ class CueUrlImporter(object):
     def __init__(self, importer, fetcher=None):
         # type: (Any, Any) -> None
         self._importer = importer
-        self._fetcher = fetcher     # injectable for tests: fetcher(url, timeout)
-        self.url = u""
+        self._fetcher = fetcher  # injectable for tests: fetcher(url, timeout)
+        self.url = ""
         self.is_downloading = False
         self.cancel_requested = False
         self.download_done = 0
-        self.download_total = None   # type: Optional[int]
+        self.download_total = None  # type: Optional[int]
         self.download_started = 0.0
         self.download_label = ""
         self.download_error = ""
         self.download_status = ""
-        self._thread = None   # type: Any
+        self._thread = None  # type: Any
 
     # ------------------------------------------------------------------
     # screen-facing API
@@ -215,7 +214,7 @@ class CueUrlImporter(object):
 
     def clear_url(self):
         # type: () -> None
-        self.url = u""
+        self.url = ""
         self.download_error = ""
         self.download_status = ""
 
@@ -387,16 +386,14 @@ class CueUrlImporter(object):
         resp = None
         try:
             final_url, resp = self._resolve_redirects(url)
-            final_name = self._dedupe_name(
-                imports_dir, self._name_from_url(final_url))
+            final_name = self._dedupe_name(imports_dir, self._name_from_url(final_url))
             tmp_path = os.path.join(imports_dir, final_name + ".tmp")
             self._write_body(resp, tmp_path)
             resp.close()
             resp = None
             _cue_replace_file(tmp_path, os.path.join(imports_dir, final_name))
-            self.download_status = "Downloaded {}. ({})".format(
-                final_name, _cue_format_size(self.download_done))
-            self.url = u""
+            self.download_status = "Downloaded {}. ({})".format(final_name, _cue_format_size(self.download_done))
+            self.url = ""
             self._importer.scan()
         except _CueUrlCancel:
             self.download_status = "Cancelled."

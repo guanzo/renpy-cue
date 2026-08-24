@@ -11,10 +11,7 @@
 import os
 import sys
 
-from cue_lib.constants import (
-    CUE_MANUAL_BACKUP_NAME,
-    CUE_SHARED_CONFIG_FILENAME,
-)
+from cue_lib.constants import CUE_MANUAL_BACKUP_NAME, CUE_SHARED_CONFIG_FILENAME
 
 MYPY = False
 if MYPY:
@@ -110,19 +107,16 @@ class CuePaths(object):
         # type: () -> str
         """Platform-standard default for the shared data directory.
 
-          Windows : %APPDATA%/renpy_cue
-          macOS   : ~/Library/Application Support/renpy_cue
-          Linux   : $XDG_DATA_HOME/renpy_cue or ~/.local/share/renpy_cue
+        Windows : %APPDATA%/renpy_cue
+        macOS   : ~/Library/Application Support/renpy_cue
+        Linux   : $XDG_DATA_HOME/renpy_cue or ~/.local/share/renpy_cue
         """
         if sys.platform == "win32":
             base = os.environ.get("APPDATA", "")
         elif sys.platform == "darwin":
             base = os.path.expanduser("~/Library/Application Support")
         else:
-            base = os.environ.get(
-                "XDG_DATA_HOME",
-                os.path.expanduser("~/.local/share"),
-            )
+            base = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
         return os.path.normpath(os.path.join(base, CUE_MOD_DIRNAME)).replace("\\", "/")
 
     @classmethod

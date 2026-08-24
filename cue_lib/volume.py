@@ -114,8 +114,7 @@ class CueVolumeManager(object):
     def adjust_master(self, marker_key, delta):
         # type: (str, float) -> None
         """Adjust master volume by delta (reads raw master, not effective)."""
-        self.set_master(marker_key,
-            self.get_master(marker_key) + delta)
+        self.set_master(marker_key, self.get_master(marker_key) + delta)
 
     # --- Effective volume (master x target) ---
 
@@ -139,4 +138,3 @@ class CueVolumeManager(object):
                 resolved = self._store.resolve_pool(pools[0])
                 return max(self.VOL_MIN, min(self.VOL_MAX, master * resolved.volume))
         return master
-

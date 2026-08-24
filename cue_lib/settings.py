@@ -23,8 +23,8 @@ class CueSettings(object):
     settings screens."""
 
     def __init__(self):
-        self.setup_dir_text = ""      # text bound to the Shared Dir input
-        self.shared_dir_error = ""    # error line under the Shared Dir input
+        self.setup_dir_text = ""  # text bound to the Shared Dir input
+        self.shared_dir_error = ""  # error line under the Shared Dir input
         self.shared_dir_success = ""  # success line under the Shared Dir input
 
     def prepare_for_page(self):
@@ -74,5 +74,4 @@ class CueSettings(object):
 
         self.shared_dir_error = ""
         self.setup_dir_text = path
-        self.shared_dir_success = ("Success. If you have any data in the old dir, "
-                                   "move it to the new dir and relaunch.")
+        self.shared_dir_success = "Success. If you have any data in the old dir, move it to the new dir and relaunch."

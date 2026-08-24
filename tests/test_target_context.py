@@ -24,6 +24,7 @@ def mgr(cue_env):
 
 # --- scene-state helpers: the same flags the SFX page derives ---
 
+
 def _set_video(mgr):
     mgr._ctx.top_layer_type = "movie"
     mgr._ctx.current_file = "video.mp4"
@@ -44,6 +45,7 @@ def _set_menu(mgr):
 
 # --- set_target_context ---
 
+
 def test_default_target_is_video(mgr):
     assert mgr.target_context == CueContextType.VIDEO
 
@@ -63,6 +65,7 @@ def test_set_target_context_rejects_invalid(mgr):
 
 
 # --- resolve_target_context (mutating fallback) ---
+
 
 def test_resolve_keeps_selected_when_available(mgr):
     _set_video(mgr)
@@ -116,6 +119,7 @@ def test_resolve_menu_state_keeps_selection(mgr):
 
 # --- target_is_available ---
 
+
 def test_target_is_available(mgr):
     _set_video(mgr)
     assert mgr.target_is_available(CueContextType.VIDEO)
@@ -133,6 +137,7 @@ def test_target_is_available(mgr):
 
 
 # --- send_target dispatch ---
+
 
 def test_send_target_file_dispatch(mgr):
     _set_image(mgr)
@@ -175,6 +180,7 @@ def test_send_target_record_flag(mgr):
 
 
 # --- target_active_label (context bar second line) ---
+
 
 def test_target_active_label_no_pool(mgr):
     _set_image(mgr)

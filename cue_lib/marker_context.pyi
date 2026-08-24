@@ -18,7 +18,6 @@ from cue_lib._types import MarkerEntry, PoolDict, VideoPoolDict
 from cue_lib.constants import CueLoopFrequency
 from cue_lib.markers import CueMarkerManager
 
-
 # =========================================================================
 # Context classes
 # =========================================================================
@@ -104,6 +103,5 @@ class CueLoopContext(CueMarkerContext):
     def add_pool(self) -> None: ...
     def clear(self) -> None: ...
     def set_frequency(self, freq: int) -> None: ...
-
     @staticmethod
     def get_delay(frequency: int = CueLoopFrequency.MEDIUM) -> float: ...

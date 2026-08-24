@@ -6,20 +6,11 @@ CUE_SUBPROC_TIMEOUT: Final = 10.0
 CUE_KILL_WAIT_TIMEOUT: Final = 5.0
 CUE_MAX_INTERP_FPS: Final = 60
 
-
 class CueSubprocessTimeout(Exception): ...
-
 
 def _cue_run_proc(p: Any, timeout: Optional[float] = ...) -> Tuple[bytes, bytes]: ...
 def _cue_wait_proc(p: Any, timeout: Optional[float] = ...) -> Optional[int]: ...
-
-
-def _cue_probe_job(
-    ffmpeg: CueFFmpeg,
-    job: Any,
-    dur_ms: int,
-    base_dir: str,
-) -> None: ...
+def _cue_probe_job(ffmpeg: CueFFmpeg, job: Any, dur_ms: int, base_dir: str) -> None: ...
 
 class CueFFmpeg:
     VIDEO_ENCODERS: Dict[str, List[str]]
@@ -37,10 +28,8 @@ class CueFFmpeg:
     def probe_fps(self, fspath: str) -> int: ...
     def probe_duration(self, fspath: str) -> float: ...
     def probe_bitrate(self, fspath: str) -> Optional[str]: ...
-
     @staticmethod
     def build_atempo(speed: float) -> List[str]: ...
-
     def build_ffmpeg_cmds(
         self,
         fspath: str,

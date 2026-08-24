@@ -43,6 +43,7 @@ def vol(store, ctx):
 # get -- raw stored volume for entry or pool target
 # ---------------------------------------------------------------------------
 
+
 def test_get_none_entry_returns_default(vol):
     assert vol.get(None) == CUE_VOLUME_DEFAULT
 
@@ -79,6 +80,7 @@ def test_get_pool_uses_resolved_volume(vol):
 # ---------------------------------------------------------------------------
 # write -- clamp + persist at entry or pool level
 # ---------------------------------------------------------------------------
+
 
 def test_write_entry_level(vol, store):
     store._data["k"] = make_entry()
@@ -121,6 +123,7 @@ def test_write_missing_entry_is_noop(vol, store):
 # adjust -- get current then write current + delta
 # ---------------------------------------------------------------------------
 
+
 def test_adjust_entry(vol, store):
     store._data["k"] = make_entry(volume=1.0)
     vol.adjust("k", 0.5)
@@ -160,6 +163,7 @@ def test_adjust_missing_entry_is_noop(vol, store):
 # get_master / set_master / adjust_master
 # ---------------------------------------------------------------------------
 
+
 def test_get_master_default(vol, store):
     assert vol.get_master("k") == CUE_VOLUME_DEFAULT
 
@@ -196,6 +200,7 @@ def test_adjust_master(vol, store):
 # ---------------------------------------------------------------------------
 # get_effective -- master x target, clamped
 # ---------------------------------------------------------------------------
+
 
 def test_effective_none_entry_returns_default(vol):
     assert vol.get_effective(None) == CUE_VOLUME_DEFAULT
@@ -239,6 +244,7 @@ def test_effective_negative_clamps_at_min(vol):
 # ---------------------------------------------------------------------------
 # marker_queue_save / flush_pending_saves -- deferred save queue
 # ---------------------------------------------------------------------------
+
 
 def test_flush_saves_queued_keys_once(store, ctx):
     injected = CueVolumeManager(ctx, store)

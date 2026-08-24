@@ -41,14 +41,14 @@ class Cue(_renpy_python.NoRollback):
         self.initialized = False
         self.is_overlay_visible = False
         self.overlay_active_page = CuePage.SFX
-        self.collapsed_sections = {}       # section_name -> bool (cue_section_frame)
-        self.ctx = CueContext()          # per-frame scene state (current_file, dialogue, top layer)
-        self.editing_input = ""            # dotted path of the text input in edit mode (cue_text_input)
+        self.collapsed_sections = {}  # section_name -> bool (cue_section_frame)
+        self.ctx = CueContext()  # per-frame scene state (current_file, dialogue, top layer)
+        self.editing_input = ""  # dotted path of the text input in edit mode (cue_text_input)
 
         # --- Manager slots (wired by cue_z.rpy init -900) ---
         self.db = None
         self.intensity = None
-        self.backups = None   # CueBackupManager, injected into db at init -900
+        self.backups = None  # CueBackupManager, injected into db at init -900
         self.markers = None
         self.undo = None
         self.trigger = None
@@ -62,7 +62,7 @@ class Cue(_renpy_python.NoRollback):
         self.speed_toast = None
         self.auto_speed = None
         self.sfx = None
-        self.settings = None          # CueSettings
+        self.settings = None  # CueSettings
         self.dialogs = CueDialogs()  # dialog managers (wired by cue_z.rpy init -900)
         self.keybinds = None
         self.icons = None

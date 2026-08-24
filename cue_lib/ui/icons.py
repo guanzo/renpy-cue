@@ -17,6 +17,7 @@
 import renpy
 
 from cue_lib.util import _cue_log
+
 # Tinting uses the classic im.MatrixColor operator, which ships with every
 # Ren'Py 7.4+ (the `matrixcolor` Transform property only arrived in 7.5).
 from renpy.display.im import MatrixColor, matrix
@@ -135,10 +136,6 @@ class CueIconManager(object):
             # im.MatrixColor maps white -> color (black stays black);
             # colorize's args are reversed vs ColorizeMatrix (black, white).
             _source = MatrixColor(_path, matrix.colorize("#000000", color))
-        displayable = Transform(
-            _source,
-            zoom=size / float(CUE_ICON_SRC_SIZE),
-            xzoom=-1.0 if _mirrored else 1.0,
-        )
+        displayable = Transform(_source, zoom=size / float(CUE_ICON_SRC_SIZE), xzoom=-1.0 if _mirrored else 1.0)
         self._displayables[cache_key] = displayable
         return displayable

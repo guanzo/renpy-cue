@@ -4,6 +4,7 @@
 
 import os
 
+
 # Debug flag from the RENPY_CUE_DEBUG env var; read at import, so set it
 # before the game launches.
 def _cue_env_flag(name, default=False):
@@ -16,34 +17,39 @@ def _cue_env_flag(name, default=False):
         return default
     return val in ("1", "true", "yes", "on")
 
+
 class CueExclusiveStart(object):
     """Exclusive 'start' behavior values (exclusive.start)."""
-    PLAY = 0   # start immediately, overlapping whatever is playing
-    FADE = 1   # cross-fade out non-group SFX, then play
-    WAIT = 2   # wait until no non-group SFX is playing (loops only)
+
+    PLAY = 0  # start immediately, overlapping whatever is playing
+    FADE = 1  # cross-fade out non-group SFX, then play
+    WAIT = 2  # wait until no non-group SFX is playing (loops only)
 
 
 class CueLoopFrequency(object):
     """Loop SFX interval presets. Values match CueLoopContext.get_delay()."""
-    SLOWEST = 4   # ~6.3s
-    SLOW = 0      # ~3.8s
-    MEDIUM = 1    # ~2.1s
-    FAST = 2      # ~0.6s
-    FASTEST = 3   # ~0.2s
+
+    SLOWEST = 4  # ~6.3s
+    SLOW = 0  # ~3.8s
+    MEDIUM = 1  # ~2.1s
+    FAST = 2  # ~0.6s
+    FASTEST = 3  # ~0.2s
 
 
 class CuePage(object):
     """Overlay sidebar page tabs."""
-    SFX = 0       # SFX editor (markers / library)
-    MUSIC = 1     # Music page
+
+    SFX = 0  # SFX editor (markers / library)
+    MUSIC = 1  # Music page
     SETTINGS = 2  # Settings page
-    IMPORT = 3    # Import / Export page
+    IMPORT = 3  # Import / Export page
 
 
 class CueImportCategory(object):
     """Import/export categories; each maps to a shared-root path prefix via
     _cue_import_category (the single source of that mapping).  UNKNOWN catches
     paths outside the 5 categories."""
+
     MARKERS = 0
     SFX = 1
     MUSIC = 2
@@ -54,26 +60,30 @@ class CueImportCategory(object):
 
 class CueExportScope(object):
     """What the export button packs: whole game, or selected replays."""
+
     ALL_REPLAYS = 0
     SPECIFIC_REPLAYS = 1
 
 
 class CueExportFileTypes(object):
     """Export file-type filter: everything, or only the checked categories."""
+
     ALL = 0
     SPECIFIC = 1
 
 
 class CueImportMatch(object):
     """game_id match levels between an import and the current game."""
-    AUTO = 0       # exact -- no user action needed
-    CONFIRM = 1    # heuristic -- surface as a guess the user confirms
-    MISMATCH = 2   # no match -- manual remap required
+
+    AUTO = 0  # exact -- no user action needed
+    CONFIRM = 1  # heuristic -- surface as a guess the user confirms
+    MISMATCH = 2  # no match -- manual remap required
 
 
 class CueContextType(object):
     """SFX library target contexts for the [+] assign button.  Values are the
     CueMarkerManager attribute names, so dispatch is getattr(manager, ctx_id)."""
+
     VIDEO = "video"
     IMAGE = "image"
     DIALOGUE = "dialogue"
@@ -148,26 +158,26 @@ CUE_INTENSITY_DELAY_MIN = 0.2
 CUE_INTENSITY_DELAY_MAX = 6.0
 
 # Keymap names for rebindable cue hotkeys (registered in config.keymap).
-CUE_KEYMAP_TOGGLE_OVERLAY     = "cue_toggle_overlay"
-CUE_KEYMAP_QUIT_RELAUNCH      = "cue_quit_relaunch"
-CUE_KEYMAP_COPY_CONTEXT       = "cue_copy_context"
-CUE_KEYMAP_PASTE_CONTEXT      = "cue_paste_context"
-CUE_KEYMAP_TOGGLE_SFX_ACTIVE  = "cue_toggle_sfx_active"
-CUE_KEYMAP_PAUSE              = "cue_pause"
-CUE_KEYMAP_UNDO               = "cue_undo"
-CUE_KEYMAP_REDO               = "cue_redo"
-CUE_KEYMAP_SPEED_UP           = "cue_speed_up"
-CUE_KEYMAP_SPEED_DOWN         = "cue_speed_down"
+CUE_KEYMAP_TOGGLE_OVERLAY = "cue_toggle_overlay"
+CUE_KEYMAP_QUIT_RELAUNCH = "cue_quit_relaunch"
+CUE_KEYMAP_COPY_CONTEXT = "cue_copy_context"
+CUE_KEYMAP_PASTE_CONTEXT = "cue_paste_context"
+CUE_KEYMAP_TOGGLE_SFX_ACTIVE = "cue_toggle_sfx_active"
+CUE_KEYMAP_PAUSE = "cue_pause"
+CUE_KEYMAP_UNDO = "cue_undo"
+CUE_KEYMAP_REDO = "cue_redo"
+CUE_KEYMAP_SPEED_UP = "cue_speed_up"
+CUE_KEYMAP_SPEED_DOWN = "cue_speed_down"
 CUE_KEYMAP_TOGGLE_SFX_LIBRARY = "cue_toggle_sfx_library"
 CUE_KEYMAP_TOGGLE_SFX_OVERLAY = "cue_toggle_sfx_overlay"
-CUE_KEYMAP_PAGE_SFX           = "cue_page_sfx"
-CUE_KEYMAP_PAGE_MUSIC         = "cue_page_music"
-CUE_KEYMAP_PAGE_IMPORT        = "cue_page_import"
-CUE_KEYMAP_PAGE_SETTINGS      = "cue_page_settings"
-CUE_KEYMAP_TARGET_VIDEO       = "cue_target_video"
-CUE_KEYMAP_TARGET_IMAGE       = "cue_target_image"
-CUE_KEYMAP_TARGET_DIALOGUE    = "cue_target_dialogue"
-CUE_KEYMAP_TARGET_LOOP        = "cue_target_loop"
+CUE_KEYMAP_PAGE_SFX = "cue_page_sfx"
+CUE_KEYMAP_PAGE_MUSIC = "cue_page_music"
+CUE_KEYMAP_PAGE_IMPORT = "cue_page_import"
+CUE_KEYMAP_PAGE_SETTINGS = "cue_page_settings"
+CUE_KEYMAP_TARGET_VIDEO = "cue_target_video"
+CUE_KEYMAP_TARGET_IMAGE = "cue_target_image"
+CUE_KEYMAP_TARGET_DIALOGUE = "cue_target_dialogue"
+CUE_KEYMAP_TARGET_LOOP = "cue_target_loop"
 
 # Shared-config JSON at {shared}/data/cue_config.json (disabled_files, keybinds).
 CUE_SHARED_CONFIG_FILENAME = "cue_config.json"

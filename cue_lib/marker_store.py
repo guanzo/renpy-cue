@@ -17,16 +17,16 @@ import copy as _copy
 import renpy
 
 from cue_lib.constants import CUE_VOLUME_DEFAULT, CueExclusiveStart, CueLoopFrequency
-from cue_lib.util import (
-    _cue_log,
-    is_vid_key, is_loop_key,
-)
+from cue_lib.util import _cue_log, is_vid_key, is_loop_key
 
 MYPY = False
 if MYPY:
     from typing import Any, Callable, Dict, ItemsView, KeysView, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
     from cue_lib._types import (
-        MarkerEntry, PoolDict, VideoPoolDict, VideoPreset,  # pyright: ignore[reportUnusedImport]
+        MarkerEntry,
+        PoolDict,
+        VideoPoolDict,
+        VideoPreset,  # pyright: ignore[reportUnusedImport]
     )
     from cue_lib.db import CueDatabase  # pyright: ignore[reportUnusedImport]
     from cue_lib.paths import CuePaths  # pyright: ignore[reportUnusedImport]
@@ -34,6 +34,7 @@ if MYPY:
 
 class ResolvedExclusive(object):
     """Resolved exclusive config snapshot. group 0 = Off."""
+
     def __init__(self, group=0, start=CueExclusiveStart.PLAY, hold=False):
         self.group = group
         self.start = start
@@ -47,6 +48,7 @@ class ResolvedExclusive(object):
 
 class ResolvedPool(object):
     """Immutable snapshot of a resolved pool."""
+
     def __init__(self, files, volume, frequency, trigger_on_shake, exclusive=None):
         self.files = files
         self.volume = volume
@@ -128,8 +130,11 @@ class CueMarkerStore(object):
         self._presets[name] = _copy.deepcopy(pool_dict)
         self._session_created.add(("audio", name))
         self._db_save_preset(name)
-        _cue_log("CREATE-PRESET name={} files={} vol={:.1f}".format(
-            name, len(pool_dict.get("files", [])), pool_dict.get("volume", CUE_VOLUME_DEFAULT)))
+        _cue_log(
+            "CREATE-PRESET name={} files={} vol={:.1f}".format(
+                name, len(pool_dict.get("files", [])), pool_dict.get("volume", CUE_VOLUME_DEFAULT)
+            )
+        )
 
     def delete_preset(self, name):
         # type: (str) -> None
@@ -161,11 +166,13 @@ class CueMarkerStore(object):
         clean = []
         for pool in pools:
             if pool.get("time") is not None:
-                clean.append({
-                    "time": pool["time"],
-                    "files": list(pool.get("files", [])),
-                    "volume": pool.get("volume", CUE_VOLUME_DEFAULT),
-                })
+                clean.append(
+                    {
+                        "time": pool["time"],
+                        "files": list(pool.get("files", [])),
+                        "volume": pool.get("volume", CUE_VOLUME_DEFAULT),
+                    }
+                )
         if not clean:
             return
         clean.sort(key=lambda e: e["time"])
@@ -176,8 +183,7 @@ class CueMarkerStore(object):
         }
         self._session_created.add(("video", name))
         self._db_save_video_preset(name)
-        _cue_log("CREATE-VIDEO-PRESET name={} markers={} dur={:.1f}".format(
-            name, len(clean), source_dur))
+        _cue_log("CREATE-VIDEO-PRESET name={} markers={} dur={:.1f}".format(name, len(clean), source_dur))
 
     def delete_video_preset(self, name):
         # type: (str) -> None
@@ -219,7 +225,8 @@ class CueMarkerStore(object):
         return ResolvedExclusive(
             excl.get("group", base.get("group", 0)),
             excl.get("start", base.get("start", CueExclusiveStart.PLAY)),
-            excl.get("hold", base.get("hold", False)))
+            excl.get("hold", base.get("hold", False)),
+        )
 
     # -- entry / pool mutators --
 
@@ -245,10 +252,7 @@ class CueMarkerStore(object):
         entry = self._get_or_create_entry(marker_key)
         pools = entry["pools"]
         if not pools:
-            pools.append({
-                "files": [],
-                "volume": CUE_VOLUME_DEFAULT,
-            })
+            pools.append({"files": [], "volume": CUE_VOLUME_DEFAULT})
         if pool_index < 0:
             pool_index = 0
         if pool_index >= len(pools):
@@ -299,8 +303,7 @@ class CueMarkerStore(object):
             pools.append({"files": [], "volume": CUE_VOLUME_DEFAULT})
         pools[pool_index] = {"preset": preset_name}
         self._db_save_marker(marker_key)
-        _cue_log("STAMP-PRESET key={} pi={} preset={}".format(
-            marker_key, pool_index, preset_name))
+        _cue_log("STAMP-PRESET key={} pi={} preset={}".format(marker_key, pool_index, preset_name))
 
     def _detach_pool(self, marker_key, pool_index):
         # type: (str, int) -> bool
@@ -328,8 +331,9 @@ class CueMarkerStore(object):
         if "exclusive" in preset or "exclusive" in pool:
             pool["exclusive"] = r.exclusive.to_dict()
         self._db_save_marker(marker_key)
-        _cue_log("DETACH-POOL key={} pi={} preset={} files={}".format(
-            marker_key, pool_index, preset_name, len(r.files)))
+        _cue_log(
+            "DETACH-POOL key={} pi={} preset={} files={}".format(marker_key, pool_index, preset_name, len(r.files))
+        )
         return True
 
     def _resolve_video_pools(self, entry):
@@ -514,8 +518,7 @@ class CueMarkerStore(object):
                     del preset["timestamps"]
                 presets_changed += 1
         if entries_changed or presets_changed:
-            _cue_log("MIGRATE-VIDEO-POOLS entries={} presets={}".format(
-                entries_changed, presets_changed))
+            _cue_log("MIGRATE-VIDEO-POOLS entries={} presets={}".format(entries_changed, presets_changed))
         return entries_changed, presets_changed
 
     # -- persistence --
@@ -680,4 +683,3 @@ class CueMarkerStore(object):
         self._migrate_speed_mode_rename()
         self._migrate_legacy_exclusive()
         self._migrate_marker_keys()
-

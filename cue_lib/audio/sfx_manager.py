@@ -16,9 +16,15 @@ from cue_lib.audio.audio_tree import CueAudioTreeManager
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
 from cue_lib.util import (
-    _cue_log, _cue_resolve_files, _cue_pick_file,
-    is_vid_key, is_img_key, is_dlg_key,
-    get_key_file, get_key_dialogue, create_dlg_key
+    _cue_log,
+    _cue_resolve_files,
+    _cue_pick_file,
+    is_vid_key,
+    is_img_key,
+    is_dlg_key,
+    get_key_file,
+    get_key_dialogue,
+    create_dlg_key,
 )
 
 MYPY = False
@@ -69,9 +75,9 @@ class CueSfxManager(object):
         self._wav_playable = CueWavPlayable()
 
         # SFX playback state
-        self._next_sfx_channel = 0     # round-robin fallback when all channels are busy
-        self._preview_channel = None   # channel currently playing a preview
-        self._warm_thread = None       # background wide->16 cache warm, if running
+        self._next_sfx_channel = 0  # round-robin fallback when all channels are busy
+        self._preview_channel = None  # channel currently playing a preview
+        self._warm_thread = None  # background wide->16 cache warm, if running
 
     def bind_markers(self, markers):
         # type: (CueMarkerManager) -> None
@@ -137,7 +143,8 @@ class CueSfxManager(object):
         volume_mult=None,
         marker_time=None,
         marker_elapsed=None,
-        marker_delta=None):
+        marker_delta=None,
+    ):
         # type: (Optional[MarkerEntry], str, PoolDict, int, Optional[str], bool, Optional[List[str]], Optional[float], Optional[float], Optional[float], Optional[float]) -> Optional[str]
         """Play one sound from a pool.  The single fire choke point for all
         trigger paths.
@@ -157,12 +164,8 @@ class CueSfxManager(object):
         if volume_mult is not None:
             vol = vol * volume_mult
         return self.play_sfx(
-            f,
-            key,
-            volume=vol,
-            marker_time=marker_time,
-            marker_elapsed=marker_elapsed,
-            marker_delta=marker_delta)
+            f, key, volume=vol, marker_time=marker_time, marker_elapsed=marker_elapsed, marker_delta=marker_delta
+        )
 
     def play_sfx(self, filename, source="", volume=1.0, marker_time=None, marker_elapsed=None, marker_delta=None):
         # type: (str, str, float, Optional[float], Optional[float], Optional[float]) -> Optional[str]
@@ -206,11 +209,10 @@ class CueSfxManager(object):
                 cur_dlg = self._ctx.current_dialogue
                 if expected_img != curr_file or expected_dlg != cur_dlg:
                     warn = "expected_dlg={} actual_dlg={}".format(
-                        create_dlg_key((expected_img, expected_dlg)), 
-                        create_dlg_key((curr_file, cur_dlg)))
+                        create_dlg_key((expected_img, expected_dlg)), create_dlg_key((curr_file, cur_dlg))
+                    )
             if warn:
-                _cue_log("WARN CTX-MISMATCH file={} src={} {}".format(
-                    filename.rsplit("/", 1)[-1], source, warn))
+                _cue_log("WARN CTX-MISMATCH file={} src={} {}".format(filename.rsplit("/", 1)[-1], source, warn))
 
             if self._supports_relative_volume:
                 _music.play(full_path, channel=target_ch, loop=False, relative_volume=volume)
@@ -219,12 +221,12 @@ class CueSfxManager(object):
                 _music.set_volume(volume, delay=0, channel=target_ch)
 
             log = "PLAY-SFX file={} src={} ch={} jitter={:.2f} vol={:.2f}".format(
-                filename.rsplit("/", 1)[-1], source, target_ch, jitter, volume)
+                filename.rsplit("/", 1)[-1], source, target_ch, jitter, volume
+            )
             if marker_time is not None:
                 # Trigger accuracy: marker timestamp vs. actual media position at
                 # fire.  delta is reference-time error (positive = fired late).
-                log += " mt={:.3f} elapsed={:.3f} delta={:+.3f}".format(
-                    marker_time, marker_elapsed, marker_delta)
+                log += " mt={:.3f} elapsed={:.3f} delta={:+.3f}".format(marker_time, marker_elapsed, marker_delta)
             _cue_log(log)
 
             return target_ch
@@ -318,29 +320,29 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         self._db = db
 
         # Pool file-list folder refs
-        self.expanded_file_refs = {}      # folder_ref -> bool (pool file lists)
+        self.expanded_file_refs = {}  # folder_ref -> bool (pool file lists)
 
         # Presets expand/collapse
         self.presets_expanded = False
-        self.expanded_presets = {}        # preset_name -> bool
+        self.expanded_presets = {}  # preset_name -> bool
 
         # Video presets expand/collapse
         self.video_presets_expanded = False
         self.expanded_video_presets = {}  # preset_name -> bool
-        self.expanded_video_pools = {}    # preset_name -> {pool_index: bool}
+        self.expanded_video_pools = {}  # preset_name -> {pool_index: bool}
 
         # Intensity group block: expand/collapse + per-group expand, plus the
         # active add-folder target (one igroup at a time).
         self.igroups_expanded = False
-        self.expanded_igroups = {}        # group_name -> bool
-        self.igroup_add_target = None     # igroup in add-folder mode (None = none)
-        self._intensity = None            # late-bound CueIntensityManager (cue_z.rpy)
+        self.expanded_igroups = {}  # group_name -> bool
+        self.igroup_add_target = None  # igroup in add-folder mode (None = none)
+        self._intensity = None  # late-bound CueIntensityManager (cue_z.rpy)
         # Guardrail notice shown under the target bar; "" = none.  Set on a
         # rejected folder add, cleared by any successful pool add.
         self.add_to_pool_warning = ""
 
         # File disable
-        self.disabled_files = set()       # full_path strings
+        self.disabled_files = set()  # full_path strings
 
         # Overlay mode: SFX Library section floats at 50% height
         self.overlay_mode = False

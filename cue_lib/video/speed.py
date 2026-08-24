@@ -20,7 +20,9 @@ from renpy.display.image import images as _display_images
 from cue_lib.constants import CUE_DEFAULT_VIDEO_SPEED, CUE_AUTO_SPEED_MIN_VARIANTS
 from cue_lib.state import _cue
 from cue_lib.util import (
-    _cue_log, _cue_unwrap_displayable, _cue_get_movie_play,
+    _cue_log,
+    _cue_unwrap_displayable,
+    _cue_get_movie_play,
     _cue_atl_child_displayables,
     create_vid_key,
 )
@@ -78,9 +80,11 @@ class CueVidSpeedResolver(object):
         # type: (str) -> float
         if not tag:
             return CUE_DEFAULT_VIDEO_SPEED
+
         def _read(entry):
             # type: (MarkerEntry) -> float
             return entry.get("single_speed_pref", CUE_DEFAULT_VIDEO_SPEED)
+
         entry = self._store.get(create_vid_key(tag))
         if entry is not None and "single_speed_pref" in entry:
             return _read(entry)
@@ -212,11 +216,8 @@ class CueVidSpeedResolver(object):
             ch = self._vid_manager.channel
             if ch and new_variant:
                 try:
-                    _music.queue(
-                        new_variant, channel=ch,
-                        loop=True, clear_queue=True)
-                    _cue_log("VQ-SEAMLESS queue={} last_req={} new={}".format(
-                        new_variant, last_requested, speed))
+                    _music.queue(new_variant, channel=ch, loop=True, clear_queue=True)
+                    _cue_log("VQ-SEAMLESS queue={} last_req={} new={}".format(new_variant, last_requested, speed))
                 except Exception:
                     _cue_log("SET-SPEED: queue failed for {}".format(new_variant))
         else:
@@ -240,8 +241,7 @@ class CueVidSpeedResolver(object):
 
     def invalidate(self, tag):
         # type: (str) -> None
-        keys_to_pop = [k for k in self.children
-                       if k == tag or (isinstance(k, tuple) and k[0] == tag)]
+        keys_to_pop = [k for k in self.children if k == tag or (isinstance(k, tuple) and k[0] == tag)]
         for k in keys_to_pop:
             self.children.pop(k, None)
         self.invalidate_speed_cache()
@@ -278,9 +278,7 @@ class CueVidSpeedResolver(object):
         seq = self._video_sequence
         if seq is not None:
             active = seq.active_tag
-            if active and (tag == active or
-                           active.startswith(tag + " ") or
-                           tag.startswith(active + " ")):
+            if active and (tag == active or active.startswith(tag + " ") or tag.startswith(active + " ")):
                 queue_paths = seq.paths_for(active)
                 if queue_paths:
                     cached = self.children.get((tag, "__queue__"), None)
@@ -303,18 +301,18 @@ class CueVidSpeedResolver(object):
             except Exception:
                 _cue_log("SPEED-RESOLVE: get_playing failed")
                 now_playing = None
-            transitioned = (now_playing and pending_variant
-                and os.path.normpath(now_playing) == os.path.normpath(pending_variant))
+            transitioned = (
+                now_playing and pending_variant and os.path.normpath(now_playing) == os.path.normpath(pending_variant)
+            )
 
             if transitioned:
-                _cue_log("VQ-SEAMLESS complete tag={} speed={}".format(
-                    tag, self._pending_speed))
+                _cue_log("VQ-SEAMLESS complete tag={} speed={}".format(tag, self._pending_speed))
                 self._set_speed_pref(tag, self._pending_speed)
                 self._pending_speed = None
                 self._pre_pending_speed = None
                 self._speed_toast.show(tag, duration=CUE_TOAST_DURATION_SEAMLESS)
                 renpy.restart_interaction()
-                
+
             # Always return the stable Movie during seamless pending --
             # the channel is being driven by music.queue(), not by the
             # Movie's play parameter.
@@ -328,7 +326,7 @@ class CueVidSpeedResolver(object):
             speed = self._get_speed_pref(tag)
             if speed == CUE_DEFAULT_VIDEO_SPEED:
                 return self._movie_for(tag, base_path, orig_movie), None
-            
+
             cache_key = (tag, speed)
             cached = self.children.get(cache_key, None)
 
@@ -338,7 +336,7 @@ class CueVidSpeedResolver(object):
 
             if not os.path.exists(variant):
                 return self._movie_for(tag, base_path, orig_movie), None
-            
+
             kwargs = _cue_capture_kwargs(orig_movie)
             kwargs["play"] = variant
             child = Movie(**kwargs)
@@ -402,8 +400,11 @@ class CueVidSpeedResolver(object):
                         _atl_count += 1
                     break
         _elapsed = _time.time() - _start
-        _cue_log("DynamicDisplayable resolver wrapping done: {} movies (+{} atl) in {:.3f}s".format(
-            _count, _atl_count, _elapsed))
+        _cue_log(
+            "DynamicDisplayable resolver wrapping done: {} movies (+{} atl) in {:.3f}s".format(
+                _count, _atl_count, _elapsed
+            )
+        )
 
     # Variant path utilities
     _VARIANT_PREFIX = "_cue"
@@ -411,8 +412,7 @@ class CueVidSpeedResolver(object):
     @staticmethod
     def _suffix_variant(speed, ext):
         # type: (float, str) -> str
-        return "{cue}{speed:.1f}x{ext}".format(
-            cue=CueVidSpeedResolver._VARIANT_PREFIX, speed=speed, ext=ext)
+        return "{cue}{speed:.1f}x{ext}".format(cue=CueVidSpeedResolver._VARIANT_PREFIX, speed=speed, ext=ext)
 
     @staticmethod
     def _parse_variant_speed(filename, base_no_ext, ext):
@@ -421,7 +421,7 @@ class CueVidSpeedResolver(object):
         suffix = "x" + ext
         if not (filename.startswith(prefix) and filename.endswith(suffix)):
             return None
-        middle = filename[len(prefix):-len(suffix)]
+        middle = filename[len(prefix) : -len(suffix)]
         try:
             return float(middle)
         except ValueError:
@@ -527,9 +527,7 @@ class CueVidSpeedResolver(object):
                 if _playing:
                     _playing_fs = os.path.join(_config.gamedir, _playing)
                     if os.path.normpath(_playing_fs) == os.path.normpath(vpath):
-                        _music.play(
-                            base_path, channel=_ch_name,
-                            loop=True, fadeout=0, synchro_start=True)
+                        _music.play(base_path, channel=_ch_name, loop=True, fadeout=0, synchro_start=True)
         except Exception:
             _cue_log("DELETE-VARIANT: channel stop failed for {}".format(vpath))
 
@@ -845,9 +843,8 @@ class CueVidSpeedSequence(object):
             self.last_playing = now
             self.last_elapsed = 0.0
 
-        _cue_log("VQ-START tag={} paths=[{}]".format(
-            tag, "][".join(os.path.basename(p) for p in paths)))
-        
+        _cue_log("VQ-START tag={} paths=[{}]".format(tag, "][".join(os.path.basename(p) for p in paths)))
+
         renpy.restart_interaction()
 
     def handle(self, tag):
@@ -893,7 +890,7 @@ class CueVidSpeedSequence(object):
             now_elapsed = 0.0
 
         is_wrap_around = now_playing and now_elapsed < 0.2 and self.last_elapsed - now_elapsed > 0.2
-        is_new_play = (now_playing != self.last_playing or is_wrap_around)
+        is_new_play = now_playing != self.last_playing or is_wrap_around
         if is_new_play:
             _old_step = self._step_index
             if self.play_count > 0:
@@ -901,9 +898,11 @@ class CueVidSpeedSequence(object):
                 if seq:
                     new_index = (self._step_index + 1) % len(seq)
                     # AUTO mode: wrap-around triggers regeneration
-                    if (self.get_mode(self.active_tag) == CueSpeedMode.AUTO
-                            and new_index == 0
-                            and self._auto_speed is not None):
+                    if (
+                        self.get_mode(self.active_tag) == CueSpeedMode.AUTO
+                        and new_index == 0
+                        and self._auto_speed is not None
+                    ):
                         self._auto_speed.on_wrap_around()
                         # on_wrap_around() calls start() which resets all
                         # tick state -- bail out so we don't overwrite it
@@ -921,7 +920,7 @@ class CueVidSpeedSequence(object):
             #         self.play_count, _old_step, self._step_index,
             #         1 if is_wrap_around else 0,
             #         os.path.basename(now_playing) if now_playing else "-"))
-            
+
         self._debug_verify_step(now_playing)
         self.last_playing = now_playing
         self.last_elapsed = now_elapsed
@@ -941,9 +940,9 @@ class CueVidSpeedSequence(object):
         base_path = self._speed_resolver.base_path_for(tag)
         if not base_path:
             return
-        
+
         available = self._auto_speed.enabled_speeds
-        
+
         if len(available) < CUE_AUTO_SPEED_MIN_VARIANTS:
             return
 
@@ -969,10 +968,10 @@ class CueVidSpeedSequence(object):
         _base = self._speed_resolver.base_path_for(_tag)
         if not _base:
             return
-        
+
         _now_name = os.path.basename(now_playing)
         _matches = []
-        
+
         for _i, _sp in enumerate(_seq):
             _vp = self._speed_resolver.variant_path(_base, _sp)
             if os.path.basename(_vp) == _now_name:
@@ -980,18 +979,18 @@ class CueVidSpeedSequence(object):
 
         if not _matches:
             return
-        
+
         if str(self._step_index) in _matches:
             return
-        
+
         # Rate-limit: one log per (step, file) pair
         _key = "{}|{}".format(self._step_index, _now_name)
         if getattr(self, '_last_desync_key', None) == _key:
             return
         self._last_desync_key = _key
         _cue_log(
-            "VQ-DESYNC step={} playing_matches=[{}] file={}".format(
-                self._step_index, ",".join(_matches), _now_name))
+            "VQ-DESYNC step={} playing_matches=[{}] file={}".format(self._step_index, ",".join(_matches), _now_name)
+        )
 
 
 class CueSpeedToast(object):
@@ -1007,11 +1006,11 @@ class CueSpeedToast(object):
         base_path = resolver.base_path_for(tag)
         if not base_path:
             return
-        
+
         speeds = resolver.get_available_speeds(base_path)
         if len(speeds) <= 1:
             return
-        
+
         renpy.hide_screen("cue_speed_toast", layer="cue_layer")
         self.toast_speeds = speeds
         self.toast_tag = tag
@@ -1029,10 +1028,12 @@ class CueSpeedToast(object):
 # Module-level wrappers (must be module-level for DynamicDisplayable pickling)
 # ==========================================================================
 
+
 class CueDynamicDisplayable(DynamicDisplayable):
     """Marker subclass for the speed wrappers we register.  wrap_all_movies()
     skips only these, letting the game's own DynamicDisplayables (whose
     rendered child may be a Movie) through the unwrap path."""
+
 
 def _cue_resolver(st, at, tag, base_path, orig_movie):
     # type: (float, float, str, str, Movie) -> Tuple[Any, Any]
@@ -1084,6 +1085,7 @@ def _cue_capture_kwargs(movie):
 # Create tab delete actions
 # ==========================================================================
 
+
 def _cue_create_select_speed(speed):
     # type: (float) -> None
     # Select a created speed for deletion. Clicking the selected speed
@@ -1096,12 +1098,14 @@ def _cue_create_select_speed(speed):
         _cue._create_delete_speed = (_cue.current_file, speed)
     renpy.restart_interaction()
 
+
 def _cue_create_delete_sel():
     # type: () -> Optional[float]
     sel = getattr(_cue, '_create_delete_speed', None)
     if sel is None or sel[0] != _cue.current_file:
         return None
     return sel[1]
+
 
 def _cue_create_delete_speed():
     # type: () -> None

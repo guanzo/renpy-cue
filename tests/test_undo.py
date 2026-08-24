@@ -56,8 +56,7 @@ class FakeStore(object):
         self.save_count += 1
 
     def delete_removed_files(self, old_marker_keys, old_presets, old_video_presets, old_session_created):
-        self.deleted.append(
-            (set(old_marker_keys), old_presets, old_video_presets, set(old_session_created)))
+        self.deleted.append((set(old_marker_keys), old_presets, old_video_presets, set(old_session_created)))
 
 
 @pytest.fixture
@@ -74,6 +73,7 @@ def undo(store):
 # Initial state
 # ---------------------------------------------------------------------------
 
+
 def test_initial_state_has_no_undo_or_redo(undo):
     assert not undo.can_undo()
     assert not undo.can_redo()
@@ -87,6 +87,7 @@ def test_capture_without_seed_does_not_create_entry(undo):
 # ---------------------------------------------------------------------------
 # Seed + capture + undo + redo
 # ---------------------------------------------------------------------------
+
 
 def test_seed_then_capture_enables_undo(undo, store):
     undo.seed()
@@ -180,6 +181,7 @@ def test_multiple_undo_steps_walk_back_history(undo, store, monkeypatch):
 # Dedupe window
 # ---------------------------------------------------------------------------
 
+
 def test_rapid_captures_share_an_undo_slot(undo, store, monkeypatch):
     class Clock(object):
         def __init__(self):
@@ -234,6 +236,7 @@ def test_captures_outside_window_create_separate_slots(undo, store, monkeypatch)
 # ---------------------------------------------------------------------------
 # MAX_UNDO trimming
 # ---------------------------------------------------------------------------
+
 
 def test_undo_stack_is_capped_at_max_undo(undo, store, monkeypatch):
     class Clock(object):
@@ -317,6 +320,7 @@ def test_redo_trims_undo_overflow(undo, store, monkeypatch):
 # _clamp_ui branches
 # ---------------------------------------------------------------------------
 
+
 def test_clamp_ui_clamps_all_targets(undo, store):
     undo._ctx.current_file = "movies/x.webm"
     undo._ctx.current_dialogue = "hi"
@@ -327,8 +331,8 @@ def test_clamp_ui_clamps_all_targets(undo, store):
     undo._markers.dialogue.active_pool = 5
     undo._markers.video.active_pool = 5
     undo._clamp_ui()
-    assert undo._markers.image.active_pool == 1     # min(5, 2 - 1)
+    assert undo._markers.image.active_pool == 1  # min(5, 2 - 1)
     assert undo._markers.dialogue.active_pool == 0  # min(5, 1 - 1)
-    assert undo._markers.video.active_pool == 2     # min(5, 3 - 1)
+    assert undo._markers.video.active_pool == 2  # min(5, 3 - 1)
     assert undo._markers.video.selected == set()
     assert undo._markers.video.sync_text_calls == 1

@@ -31,6 +31,7 @@ CUE_VE_MODE_FAST_PREVIEW = 2
 class CueJobStatus(object):
     """String-valued job lifecycle states. Values are title-cased so they
     can be returned directly from CueVideoJob.status_text()."""
+
     QUEUED = "Queued"
     ANALYZING = "Analyzing"
     ENCODING = "Encoding"
@@ -41,8 +42,8 @@ class CueJobStatus(object):
 
 class CueVideoJob(object):
     """One ffmpeg encode job in the queue."""
-    def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, encode_mode,
-                 fspath_out=None, remove_audio=True):
+
+    def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, encode_mode, fspath_out=None, remove_audio=True):
         self.job_id = job_id
         self.vpath = vpath
         self.fspath_in = fspath_in
@@ -67,7 +68,7 @@ class CueVideoJob(object):
         self._needs_swap = False
         # Staging fields: set by probe thread, consumed by main-thread poll()
         self._launched = False
-        self._cmds = []             # type: list
+        self._cmds = []  # type: list
         self._pass_idx = 0
         self._num_passes = 0
         self._log_path = ""
@@ -197,13 +198,15 @@ class CueVideoEditQueue(object):
             _cue_log("EDITOR-START: get_duration failed")
 
         t = threading.Thread(
-            target=_cue_probe_job,
-            args=(self._editor._ffmpeg, job, dur_ms, self._editor._paths.in_game_base_dir),
+            target=_cue_probe_job, args=(self._editor._ffmpeg, job, dur_ms, self._editor._paths.in_game_base_dir)
         )
         t.daemon = True
         t.start()
-        _cue_log("Speed worker probing: job_id={}, factor={:.1f}, file={}".format(
-            job.job_id, job.factor, os.path.basename(job.fspath_in)))
+        _cue_log(
+            "Speed worker probing: job_id={}, factor={:.1f}, file={}".format(
+                job.job_id, job.factor, os.path.basename(job.fspath_in)
+            )
+        )
         renpy.restart_interaction()
 
     # ==================================================================
@@ -220,23 +223,19 @@ class CueVideoEditQueue(object):
         job._pass_idx += 1
         job.status = CueJobStatus.ENCODING
         job.progress = 0.0
-        job._progress_offset = 0   # ffmpeg truncates progress file per pass
+        job._progress_offset = 0  # ffmpeg truncates progress file per pass
         job.proc = None
         logf = None
         try:
             # Truncate on first pass, append on subsequent passes
             _mode = "wb" if job._pass_idx == 1 else "ab"
             logf = open(job._log_path, _mode)
-            _header = "--- pass {} ---\ncmd: {}\n".format(
-                job._pass_idx, " ".join(cmd))
+            _header = "--- pass {} ---\ncmd: {}\n".format(job._pass_idx, " ".join(cmd))
             if not isinstance(_header, bytes):
                 _header = _header.encode("utf-8")
             logf.write(_header)
             logf.flush()
-            job.proc = subprocess.Popen(
-                cmd, stdout=logf, stderr=subprocess.STDOUT,
-                creationflags=CREATIONFLAGS,
-            )
+            job.proc = subprocess.Popen(cmd, stdout=logf, stderr=subprocess.STDOUT, creationflags=CREATIONFLAGS)
         except Exception as e:
             if job.cancelled:
                 job._done = True
@@ -385,7 +384,7 @@ class CueVideoEditQueue(object):
 
         # ---- 3. Cancellation requested while encoding ----
         if job.cancelled:
-            self._kill_proc(job)       # no-op if proc is None (between passes)
+            self._kill_proc(job)  # no-op if proc is None (between passes)
             job._done = True
             renpy.restart_interaction()
             return
@@ -399,16 +398,15 @@ class CueVideoEditQueue(object):
         # ---- 5. Current pass exited ----
         if proc is not None:
             rc = proc.returncode
-            job.proc = None             # reaped; _kill_proc must not see it
+            job.proc = None  # reaped; _kill_proc must not see it
             self._append_pass_footer(job, rc)
             if rc != 0:
                 job.error_msg = self._error_tail(job, rc)
-                _cue_log("ffmpeg FAILED pass {} rc={}: {}".format(
-                    job._pass_idx, rc, job.error_msg))
+                _cue_log("ffmpeg FAILED pass {} rc={}: {}".format(job._pass_idx, rc, job.error_msg))
                 job._done = True
                 renpy.restart_interaction()
                 return
-            if job._cmds:               # 2-pass: launch the next pass
+            if job._cmds:  # 2-pass: launch the next pass
                 self._launch_pass(job)
                 renpy.restart_interaction()
                 return
@@ -497,15 +495,14 @@ class CueVideoEditQueue(object):
             # The new variant file now exists; drop the cached available-speed
             # list so intensity bands pick it up on the next resolve.
             self._editor._speed_resolver.invalidate_speed_cache()
-            _cue_log("Variant: generated {:.1f}x at {} (job_id={})".format(
-                job.factor, os.path.basename(out), job.job_id))
+            _cue_log(
+                "Variant: generated {:.1f}x at {} (job_id={})".format(job.factor, os.path.basename(out), job.job_id)
+            )
         else:
-            state.last_error = ("The game still has this video file open. "
-                "Advance past this video scene, then try again.")
+            state.last_error = "The game still has this video file open. Advance past this video scene, then try again."
             job.status = CueJobStatus.ERROR
             job.error_msg = job._swap_error_msg or "File locked.  Retry later"
-            _cue_log("Variant: swap FAILED -- {} (job_id={})".format(
-                job._swap_error_msg or "file locked", job.job_id))
+            _cue_log("Variant: swap FAILED -- {} (job_id={})".format(job._swap_error_msg or "file locked", job.job_id))
 
     def retry(self, job_id):
         # type: (int) -> None
@@ -613,31 +610,35 @@ class CueVideoEditQueue(object):
             # Collect queued jobs
             for j in self._jobs:
                 if j.status in (CueJobStatus.QUEUED,):
-                    serialized.append({
-                        "job_id": j.job_id,
-                        "vpath": j.vpath,
-                        "fspath_in": j.fspath_in,
-                        "fspath_tmp": j.fspath_tmp,
-                        "factor": j.factor,
-                        "encode_mode": j.encode_mode,
-                        "fspath_out": j.fspath_out,
-                        "passlog": j.passlog,
-                        "remove_audio": j.remove_audio,
-                    })
+                    serialized.append(
+                        {
+                            "job_id": j.job_id,
+                            "vpath": j.vpath,
+                            "fspath_in": j.fspath_in,
+                            "fspath_tmp": j.fspath_tmp,
+                            "factor": j.factor,
+                            "encode_mode": j.encode_mode,
+                            "fspath_out": j.fspath_out,
+                            "passlog": j.passlog,
+                            "remove_audio": j.remove_audio,
+                        }
+                    )
             # Include current (in-progress) job
             cur = self._current
             if cur is not None and cur.status in (CueJobStatus.ANALYZING, CueJobStatus.ENCODING):
-                serialized.append({
-                    "job_id": cur.job_id,
-                    "vpath": cur.vpath,
-                    "fspath_in": cur.fspath_in,
-                    "fspath_tmp": cur.fspath_tmp,
-                    "factor": cur.factor,
-                    "encode_mode": cur.encode_mode,
-                    "fspath_out": cur.fspath_out,
-                    "passlog": cur.passlog,
-                    "remove_audio": cur.remove_audio,
-                })
+                serialized.append(
+                    {
+                        "job_id": cur.job_id,
+                        "vpath": cur.vpath,
+                        "fspath_in": cur.fspath_in,
+                        "fspath_tmp": cur.fspath_tmp,
+                        "factor": cur.factor,
+                        "encode_mode": cur.encode_mode,
+                        "fspath_out": cur.fspath_out,
+                        "passlog": cur.passlog,
+                        "remove_audio": cur.remove_audio,
+                    }
+                )
             if serialized:
                 persistent._cue_jobs = serialized
             else:
@@ -682,8 +683,11 @@ class CueVideoEditQueue(object):
 
                 # Input file gone?
                 if not os.path.exists(fspath_in):
-                    _cue_log("LOAD-JOBS: skipping job_id={} -- input file missing: {}".format(
-                        job_id, os.path.basename(fspath_in)))
+                    _cue_log(
+                        "LOAD-JOBS: skipping job_id={} -- input file missing: {}".format(
+                            job_id, os.path.basename(fspath_in)
+                        )
+                    )
                     if fspath_tmp and os.path.exists(fspath_tmp):
                         try:
                             os.remove(fspath_tmp)
@@ -754,6 +758,7 @@ class CueVideoEditQueue(object):
 # Module-level so threading.Thread can reference it by name.  Only writes
 # job._swap_* fields; poll() finalizes status and runs side effects on the
 # main thread.  Pure Python + OS calls -- never blocks the main thread.
+
 
 def _cue_swap_job(job):
     # type: (CueVideoJob) -> None

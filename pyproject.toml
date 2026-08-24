@@ -13,6 +13,24 @@ packages = [{ include = "cue_lib" }]
 pytest = "^9.0"
 coverage = "^7.0"
 pyright = "^1.1"
+ruff = "^0.16.4"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.format]
+# Preserve the project's single-quote style; do not normalize quotes.
+quote-style = "preserve"
+# Don't let a source trailing comma force one-per-line expansion. This does
+# NOT stop ruff from ADDING a trailing comma to a width-split def -- that is
+# py3-only syntax (a comma after *args/**kwargs breaks Python 2.7 / Ren'Py
+# 7.x), so such defs are wrapped in `# fmt: off` / `# fmt: on` and hand-
+# written without the comma. bin/lint.sh check 4 catches new ones.
+skip-magic-trailing-comma = true
+
+[tool.ruff.lint.isort]
+# Match skip-magic-trailing-comma; silences ruff's incompatibility warning.
+split-on-trailing-comma = false
 
 [build-system]
 requires = ["poetry-core>=2.0.0"]

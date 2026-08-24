@@ -121,9 +121,17 @@ def env(tmp_path, monkeypatch):
     _state._cue.speed_resolver = resolver
     try:
         yield types.SimpleNamespace(
-            ctx=ctx, paths=paths, db=db, store=store, vid=vid,
-            seq=seq, toast=toast, resolver=resolver,
-            video_dir=video_dir, base_fs=base_fs, tag=tag,
+            ctx=ctx,
+            paths=paths,
+            db=db,
+            store=store,
+            vid=vid,
+            seq=seq,
+            toast=toast,
+            resolver=resolver,
+            video_dir=video_dir,
+            base_fs=base_fs,
+            tag=tag,
             music=_music_mock,
         )
     finally:
@@ -257,10 +265,10 @@ def test_get_current_speed_reflects_active_sequence_step(env):
     env.vid.channel = "movie"
     _set_movie(env, env.base_fs)
     env.seq.append_speed(1.0)
-    env.seq.append_speed(1.5)   # start() sees base already playing -> forced first play
-    env.seq.tick()              # first play registered (play_count 1), step stays 0
+    env.seq.append_speed(1.5)  # start() sees base already playing -> forced first play
+    env.seq.tick()  # first play registered (play_count 1), step stays 0
     _set_movie(env, variants[1.5])
-    env.seq.tick()              # identity change -> step 1
+    env.seq.tick()  # identity change -> step 1
     assert env.seq.active_tag == env.tag
     assert env.seq._step_index == 1
     assert env.resolver.get_current_speed() == 1.5
@@ -609,9 +617,9 @@ def test_tick_advances_step_on_identity_change(env):
 def test_tick_wrap_around_resets_step(env):
     variants = _started_seq(env)
     _set_movie(env, env.base_fs)
-    env.seq.tick()               # step 0
+    env.seq.tick()  # step 0
     _set_movie(env, variants[1.5])
-    env.seq.tick()               # step 1
+    env.seq.tick()  # step 1
     _set_movie(env, env.base_fs, pos=0.05)  # wrapped: elapsed dropped
     env.seq.tick()
     assert env.seq._step_index == 0
@@ -623,10 +631,10 @@ def test_tick_restarts_interaction_on_step_change(env, monkeypatch):
     variants = _started_seq(env)  # start() restarts too; zero the counter
     calls[:] = []
     _set_movie(env, env.base_fs)
-    env.seq.tick()               # same file again -> no step change, no restart
+    env.seq.tick()  # same file again -> no step change, no restart
     assert calls == []
     _set_movie(env, variants[1.5])
-    env.seq.tick()               # identity change -> step 0->1 -> restart
+    env.seq.tick()  # identity change -> step 0->1 -> restart
     assert calls == [1]
 
 
@@ -648,11 +656,11 @@ def test_tick_auto_wrap_calls_on_wrap_around(env):
     _set_movie(env, env.base_fs)
     env.seq.start(env.tag)
     _set_movie(env, env.base_fs)
-    env.seq.tick()               # step 0, play_count 1
+    env.seq.tick()  # step 0, play_count 1
     _set_movie(env, variants[1.5])
-    env.seq.tick()               # step 1
+    env.seq.tick()  # step 1
     _set_movie(env, env.base_fs, pos=0.05)
-    env.seq.tick()               # AUTO wrap -> on_wrap_around
+    env.seq.tick()  # AUTO wrap -> on_wrap_around
     assert fake.wrap_calls == 1
     assert env.seq._step_index == 1  # tick returned before advancing
 
@@ -1153,6 +1161,7 @@ def test_set_speed_seamless_queue_failure_logs(env, monkeypatch):
 
     def _boom(*a, **k):
         raise RuntimeError("boom")
+
     monkeypatch.setattr(env.music, "queue", _boom)
     env.resolver.set_speed(1.5)
     assert env.resolver._pending_speed == 1.5
@@ -1193,6 +1202,7 @@ def test_resolve_seamless_get_playing_failure(env, monkeypatch):
 
     def _boom(*a, **k):
         raise RuntimeError("boom")
+
     monkeypatch.setattr(env.music, "get_playing", _boom)
     movie, _ = env.resolver.resolve(0, 0, env.tag, env.base_fs, _make_orig(env.base_fs))
     assert movie is env.resolver.children.get(env.tag)
@@ -1254,9 +1264,7 @@ def test_wrap_all_movies_first_pass(env, monkeypatch):
         _display_images[("noplay",)] = Movie(play="", channel="movie")
         _display_images[("obj",)] = types.SimpleNamespace()
         _display_images[("dd",)] = DynamicDisplayable(lambda *a: None)
-        monkeypatch.setattr(
-            _renpy, "image",
-            lambda name, d, **k: _display_images.__setitem__(name, d))
+        monkeypatch.setattr(_renpy, "image", lambda name, d, **k: _display_images.__setitem__(name, d))
         env.resolver.wrap_all_movies()
         assert env.resolver.paths[env.tag] == env.base_fs
         assert isinstance(_display_images[("scene",)], DynamicDisplayable)
@@ -1279,9 +1287,7 @@ def test_wrap_all_movies_game_dynamic_displayable_movie_child(env, monkeypatch):
         dd = DynamicDisplayable(lambda *a: None)
         dd.child = _reg_movie(env)  # simulates an already-rendered DD child
         _display_images[("dyn",)] = dd
-        monkeypatch.setattr(
-            _renpy, "image",
-            lambda name, d, **k: _display_images.__setitem__(name, d))
+        monkeypatch.setattr(_renpy, "image", lambda name, d, **k: _display_images.__setitem__(name, d))
         env.resolver.wrap_all_movies()
         assert env.resolver.paths["dyn"] == env.base_fs
     finally:
@@ -1295,11 +1301,9 @@ def test_wrap_all_movies_atl_pass(env):
     try:
         _display_images[("scene",)] = _reg_movie(env)
         # First child unnamed -> continue; second is a bare tag string.
-        _display_images[("bg", "strtag")] = _atl_entry(
-            [_child(types.SimpleNamespace()), _child("scene")])
+        _display_images[("bg", "strtag")] = _atl_entry([_child(types.SimpleNamespace()), _child("scene")])
         _display_images[("bg", "movtag")] = _atl_entry([_child(_reg_movie(env))])
-        _display_images[("bg", "tuptag")] = _atl_entry(
-            [_child(types.SimpleNamespace(name=("scene",)))])
+        _display_images[("bg", "tuptag")] = _atl_entry([_child(types.SimpleNamespace(name=("scene",)))])
         env.resolver.wrap_all_movies()
         assert env.resolver.paths["bg strtag"] == env.base_fs
         assert env.resolver.paths["bg movtag"] == env.base_fs
@@ -1456,6 +1460,7 @@ def test_sequence_start_get_playing_failure(env, monkeypatch):
 
     def _boom(*a, **k):
         raise RuntimeError("boom")
+
     monkeypatch.setattr(env.music, "get_playing", _boom)
     env.seq.start(env.tag)
     assert env.seq.active_tag == env.tag
@@ -1472,6 +1477,7 @@ def test_sequence_tick_playback_query_failure(env, monkeypatch):
 
     def _boom(*a, **k):
         raise RuntimeError("boom")
+
     monkeypatch.setattr(env.music, "get_playing", _boom)
     env.seq.tick()
     assert any("playback query failed" in m for m in logs)
@@ -1511,6 +1517,7 @@ def test_sequence_handle_stop_failure(env, monkeypatch):
 
     def _boom(*a, **k):
         raise RuntimeError("boom")
+
     monkeypatch.setattr(env.music, "stop", _boom)
     env.seq.handle(env.tag)
     assert env.seq.active_tag is None
@@ -1541,17 +1548,17 @@ def test_start_auto_too_few_enabled_speeds(env):
 
 
 def test_debug_verify_step_guards(env):
-    env.seq._debug_verify_step(None)              # now_playing None
-    env.seq._debug_verify_step(env.base_fs)       # no active_tag
+    env.seq._debug_verify_step(None)  # now_playing None
+    env.seq._debug_verify_step(env.base_fs)  # no active_tag
     env.ctx.current_file = env.tag
     env.seq.active_tag = env.tag
-    env.seq._debug_verify_step(env.base_fs)       # no multi_speed_sequence
+    env.seq._debug_verify_step(env.base_fs)  # no multi_speed_sequence
     entry = env.store._get_or_create_entry(create_vid_key(env.tag))
     entry["multi_speed_sequence"] = [1.0, 1.5]
     env.seq._speed_resolver = None
-    env.seq._debug_verify_step(env.base_fs)       # resolver None
+    env.seq._debug_verify_step(env.base_fs)  # resolver None
     env.seq._speed_resolver = env.resolver
-    env.seq._debug_verify_step(env.base_fs)       # no base_path
+    env.seq._debug_verify_step(env.base_fs)  # no base_path
 
 
 def test_debug_verify_step_no_matches(env):
@@ -1596,11 +1603,8 @@ def test_seamless_play_callback_exception(env, monkeypatch):
     from cue_lib.video import speed as _speed
 
     calls = []
-    monkeypatch.setattr(
-        _speed, "_default_play_callback", lambda old, new: calls.append((old, new)))
-    monkeypatch.setattr(
-        env.music, "get_playing",
-        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(_speed, "_default_play_callback", lambda old, new: calls.append((old, new)))
+    monkeypatch.setattr(env.music, "get_playing", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
     new = types.SimpleNamespace(channel="movie", _play=env.base_fs)
     _speed._cue_seamless_play_callback(None, new)
     assert calls == [(None, new)]
@@ -1674,8 +1678,7 @@ def test_get_available_speeds_listdir_failure(env, monkeypatch):
 
     logs = []
     monkeypatch.setattr(_speed, "_cue_log", lambda m: logs.append(m))
-    monkeypatch.setattr(
-        os, "listdir", lambda d: (_ for _ in ()).throw(OSError("nope")))
+    monkeypatch.setattr(os, "listdir", lambda d: (_ for _ in ()).throw(OSError("nope")))
     assert env.resolver.get_available_speeds(env.base_fs) == [CUE_DEFAULT_VIDEO_SPEED]
     assert any("os.listdir failed" in m for m in logs)
 
@@ -1710,6 +1713,7 @@ def test_delete_variant_channel_stop_failure(env, monkeypatch):
 
     def _boom(*a, **k):
         raise RuntimeError("boom")
+
     monkeypatch.setattr(env.music, "get_playing", _boom)
     env.resolver.delete_variant(env.base_fs, 1.5)
     assert any("channel stop failed" in m for m in logs)
@@ -1733,6 +1737,7 @@ def test_delete_variant_remove_retries_then_succeeds(env, monkeypatch):
         if len(attempt) < 3:
             raise OSError("busy")
         real_remove(p)
+
     monkeypatch.setattr(os, "remove", _flaky)
     env.resolver.delete_variant(env.base_fs, 1.5)
     assert len(attempt) == 3
@@ -1748,6 +1753,7 @@ def test_delete_variant_remove_all_failed_logs(env, monkeypatch):
 
     def _boom(p):
         raise OSError("perm denied")
+
     monkeypatch.setattr(os, "remove", _boom)
     env.resolver.delete_variant(env.base_fs, 1.5)
     assert any("all attempts failed" in m for m in logs)

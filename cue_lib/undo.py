@@ -40,11 +40,11 @@ class CueUndoManager(object):
         # the manager is wired after undo (it depends on trigger, which is
         # constructed later) -- so this stays None in cue_z.rpy.
         self._markers = markers
-        self._undo = []          # list of {"markers","presets","video_presets"}
-        self._redo = []           # redo stack, same shape
-        self._last_ts = 0.0       # time of last capture (for dedupe)
-        self._previous = None     # state BEFORE the current mutation
-        self._recording = True    # False while _restore() re-persists
+        self._undo = []  # list of {"markers","presets","video_presets"}
+        self._redo = []  # redo stack, same shape
+        self._last_ts = 0.0  # time of last capture (for dedupe)
+        self._previous = None  # state BEFORE the current mutation
+        self._recording = True  # False while _restore() re-persists
 
     # -- snapshot helpers --
 
@@ -85,7 +85,7 @@ class CueUndoManager(object):
             # Restore just re-persisted -- re-enable and skip.
             self._recording = True
             return
-        snap = self._snapshot()          # post-mutation state
+        snap = self._snapshot()  # post-mutation state
         now = _time.time()
         if self._previous is not None:
             # Push pre-mutation state to undo stack.  Rapid saves within the
@@ -97,7 +97,7 @@ class CueUndoManager(object):
                 self._undo.append(self._previous)
                 if len(self._undo) > self.MAX_UNDO:
                     self._undo.pop(0)
-            self._redo = []   # new action invalidates redo
+            self._redo = []  # new action invalidates redo
             self._last_ts = now
         self._previous = snap  # this becomes pre-state for next mutation
 

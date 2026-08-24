@@ -8,16 +8,17 @@ import renpy.audio.music as _music
 
 from renpy.store import persistent
 
-from cue_lib.constants import (
-    CUE_INTENSITY_DELAY_MAX,
-    CUE_INTENSITY_DELAY_MIN,
-    CUE_VOLUME_DEFAULT,
-)
+from cue_lib.constants import CUE_INTENSITY_DELAY_MAX, CUE_INTENSITY_DELAY_MIN, CUE_VOLUME_DEFAULT
 from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
 from cue_lib.util import (
-    _cue_log, _cue_resolve_files, _cue_pick_file,
-    create_loop_key, create_vid_key, get_key_file, is_dlg_key,
+    _cue_log,
+    _cue_resolve_files,
+    _cue_pick_file,
+    create_loop_key,
+    create_vid_key,
+    get_key_file,
+    is_dlg_key,
 )
 
 MYPY = False
@@ -183,8 +184,11 @@ class CueTriggerEngine(object):
     def _excl_group_channels(self, kind, scene, line):
         # type: (str, Optional[str], Optional[str]) -> List[str]
         """Channels in this domain that share self's group."""
-        return [ch for ch, info in self.excl_channels.items()
-                if info.get("kind") == kind and self._excl_same_group(info, kind, scene, line)]
+        return [
+            ch
+            for ch, info in self.excl_channels.items()
+            if info.get("kind") == kind and self._excl_same_group(info, kind, scene, line)
+        ]
 
     def _excl_kind_channels(self, kind):
         # type: (str) -> List[str]
@@ -224,8 +228,7 @@ class CueTriggerEngine(object):
         # type: (Optional[str], str, Optional[str], Optional[str], bool) -> None
         """Record a playing SFX's domain, group identity, and hold state."""
         if channel:
-            self.excl_channels[channel] = {
-                "kind": kind, "scene": scene, "line": line, "hold": hold}
+            self.excl_channels[channel] = {"kind": kind, "scene": scene, "line": line, "hold": hold}
 
     # -- tick entry point --
 
@@ -309,7 +312,8 @@ class CueTriggerEngine(object):
             vres = self._vid_intensity_resolution(
                 _cue.ctx.current_file,
                 self._speed_resolver.get_current_speed(),
-                self._speed_resolver.banding_speeds(_cue.ctx.current_file))
+                self._speed_resolver.banding_speeds(_cue.ctx.current_file),
+            )
             if vres is not None:
                 vid_scale = vres.volume_mult
 
@@ -325,8 +329,7 @@ class CueTriggerEngine(object):
             vol = entry.get("volume", CUE_VOLUME_DEFAULT)
             total = sum(len(self._store.resolve_pool(p).files) for p in pools)
 
-            _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(
-                key, len(pools), total, vol))
+            _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(key, len(pools), total, vol))
 
             # Group identity: scene (file) + line (dialogue key, or None for
             # image/shake). Same scene AND (either is non-dialogue OR same
@@ -349,8 +352,9 @@ class CueTriggerEngine(object):
                     _cue_log("CTX-DROPPED key={} pool={} (held)".format(key, pi))
                     continue
                 # One-shot pools can't defer: "wait" only plays into open air.
-                if (excl.start == CueExclusiveStart.WAIT
-                        and self._excl_outgroup_busy(CUE_EXCL_KIND_ONESHOT, scene, line)):
+                if excl.start == CueExclusiveStart.WAIT and self._excl_outgroup_busy(
+                    CUE_EXCL_KIND_ONESHOT, scene, line
+                ):
                     _cue_log("CTX-DROPPED key={} pool={} (air busy)".format(key, pi))
                     continue
                 file = _cue_pick_deduped(files, picked)
@@ -365,9 +369,10 @@ class CueTriggerEngine(object):
                     faded = _cue.sfx.fade_out(
                         exclude_channels=(
                             self._excl_group_channels(CUE_EXCL_KIND_ONESHOT, scene, line)
-                            + self._excl_kind_channels(CUE_EXCL_KIND_VIDEO)))
-                    _cue_log("CTX-FADE key={} pool={} faded={}".format(
-                        key, pi, faded))
+                            + self._excl_kind_channels(CUE_EXCL_KIND_VIDEO)
+                        )
+                    )
+                    _cue_log("CTX-FADE key={} pool={} faded={}".format(key, pi, faded))
                 ch_used = _cue.sfx.play_pool(entry, key, pool, pi, file=file, volume_mult=vid_scale)
                 self._track_excl_channel(ch_used, CUE_EXCL_KIND_ONESHOT, scene, line, excl.hold)
 
@@ -395,8 +400,7 @@ class CueTriggerEngine(object):
         vid_scale = self._vid_intensity.volume_mult if self._vid_intensity is not None else 1.0
 
         # Per-video toggles read from the current video's marker entry.
-        flags = _cue.intensity.flags_from_entry(
-            self._store.get(create_vid_key(current_file)) if current_file else None)
+        flags = _cue.intensity.flags_from_entry(self._store.get(create_vid_key(current_file)) if current_file else None)
 
         # Init per-pool states under the loop key
         if loop_key not in self.loop_states:
@@ -421,8 +425,13 @@ class CueTriggerEngine(object):
             pst = ps.get(pi)
             if pst is None:
                 init_delay = _random.uniform(0.0, self._loop_delay(resolved.frequency, res))
-                ps[pi] = {"ready_at": now + init_delay, "channels": [], "play_start": 0.0,
-                          "blocked_logged": False, "ilevel": level}
+                ps[pi] = {
+                    "ready_at": now + init_delay,
+                    "channels": [],
+                    "play_start": 0.0,
+                    "blocked_logged": False,
+                    "ilevel": level,
+                }
                 pst = ps[pi]
 
             # If this pool's channels are done playing, reset for next cycle
@@ -431,8 +440,11 @@ class CueTriggerEngine(object):
                 breathing = self._loop_delay(resolved.frequency, res)
                 pst["ready_at"] = now + breathing
                 pst["channels"] = []
-                _cue_log("TICK#{} POOL-DONE  key={} pool={} dur={:.2f}s next_in={:.2f}s".format(
-                    tick, loop_key, pi, dur, breathing))
+                _cue_log(
+                    "TICK#{} POOL-DONE  key={} pool={} dur={:.2f}s next_in={:.2f}s".format(
+                        tick, loop_key, pi, dur, breathing
+                    )
+                )
 
             # Level change: drop a pending/deferred fire and restart the timer
             # with the new level's delay.  A sound still playing is left to
@@ -476,9 +488,9 @@ class CueTriggerEngine(object):
                 # Cut-in: fade out other loops (never image/dialogue SFX).
                 faded = _cue.sfx.fade_out(
                     exclude_channels=self._excl_group_channels(CUE_EXCL_KIND_LOOP, None, None),
-                    only_channels=self._excl_kind_channels(CUE_EXCL_KIND_LOOP))
-                _cue_log("TICK#{} POOL-SWEEP key={} pool={} faded={}".format(
-                    tick, loop_key, pi, faded))
+                    only_channels=self._excl_kind_channels(CUE_EXCL_KIND_LOOP),
+                )
+                _cue_log("TICK#{} POOL-SWEEP key={} pool={} faded={}".format(tick, loop_key, pi, faded))
             ch_used = _cue.sfx.play_pool(entry, loop_key, pool, pi, file=picked_file, volume_mult=vol_mult)
             if ch_used:
                 pst["channels"] = [ch_used]
@@ -486,10 +498,16 @@ class CueTriggerEngine(object):
                 pst["blocked_logged"] = False
                 self._track_excl_channel(ch_used, CUE_EXCL_KIND_LOOP, None, None, excl.hold)
 
-                _cue_log("TICK#{} POOL-PLAY  key={} pool={} ch={} dur={:.2f}s next_in={:.2f}s".format(
-                    tick, loop_key, pi, ch_used,
-                    _music.get_duration(channel=ch_used) or 0.0,
-                    self._loop_delay(resolved.frequency, res)))
+                _cue_log(
+                    "TICK#{} POOL-PLAY  key={} pool={} ch={} dur={:.2f}s next_in={:.2f}s".format(
+                        tick,
+                        loop_key,
+                        pi,
+                        ch_used,
+                        _music.get_duration(channel=ch_used) or 0.0,
+                        self._loop_delay(resolved.frequency, res),
+                    )
+                )
 
     # -- video triggers (v_ keys) --
 
@@ -523,17 +541,13 @@ class CueTriggerEngine(object):
         #   2) elapsed < last_elapsed: playback looped/restarted (Ren'Py
         #      can't seek backwards, so a large backward jump means restart).
         is_fresh_reset = self._vid_manager.last_elapsed == 0
-        is_backward_jump = (
-            self._vid_manager.last_elapsed > 0
-            and elapsed < self._vid_manager.last_elapsed - 0.3
-        )
+        is_backward_jump = self._vid_manager.last_elapsed > 0 and elapsed < self._vid_manager.last_elapsed - 0.3
         if is_fresh_reset or is_backward_jump:
             self.played_video_keys.clear()
             self._prev_eff_elapsed = -1.0
 
         if current_file:
-            self._fire_video_markers(
-                current_file, effective_elapsed, self._prev_eff_elapsed, elapsed, speed, variants)
+            self._fire_video_markers(current_file, effective_elapsed, self._prev_eff_elapsed, elapsed, speed, variants)
 
         self._vid_manager.last_elapsed = elapsed
         # Store for next tick's cross-between-ticks detection
@@ -612,7 +626,8 @@ class CueTriggerEngine(object):
                 volume_mult=vol_mult,
                 marker_time=t,
                 marker_elapsed=elapsed,
-                marker_delta=effective_elapsed - t)
+                marker_delta=effective_elapsed - t,
+            )
             if f:
                 # Track as its own kind so exclusive cut-ins spare it.
                 # Overwrites any stale entry on the reused channel (dlg loops

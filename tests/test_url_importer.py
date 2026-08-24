@@ -17,6 +17,7 @@ from cue_lib.util import _cue_format_duration, _cue_format_size
 # pure formatters
 # ---------------------------------------------------------------------------
 
+
 def test_format_size_units():
     assert _cue_format_size(0) == "0 B"
     assert _cue_format_size(1023) == "1023 B"
@@ -24,7 +25,7 @@ def test_format_size_units():
     assert _cue_format_size(1536) == "1.5 KB"
     assert _cue_format_size(1024 * 1024) == "1.0 MB"
     assert _cue_format_size(int(29.5 * 1024 * 1024)) == "29.5 MB"
-    assert _cue_format_size(1024 ** 3) == "1.0 GB"
+    assert _cue_format_size(1024**3) == "1.0 GB"
     assert _cue_format_size(None) == "0 B"
 
 
@@ -61,6 +62,7 @@ def test_is_private_ip_private():
 # ---------------------------------------------------------------------------
 # manager fixtures
 # ---------------------------------------------------------------------------
+
 
 class _FakeImporter(object):
     def __init__(self, imports_dir):
@@ -126,7 +128,7 @@ class _FakeResponse(object):
     def read(self, size):
         if self._on_read is not None:
             self._on_read(self)
-        chunk = self._body[self._pos:self._pos + size]
+        chunk = self._body[self._pos : self._pos + size]
         self._pos += len(chunk)
         return chunk
 
@@ -141,6 +143,7 @@ def _public_resolver(host):
 
 def _fetcher(responses, default_code=404):
     """responses: url -> _FakeResponse (returned) or Exception (raised)."""
+
     def fetcher(url, timeout):
         if url in responses:
             item = responses[url]
@@ -170,6 +173,7 @@ def _run(url_threads, mgr, url):
 # ---------------------------------------------------------------------------
 # input validation (main thread, before any network)
 # ---------------------------------------------------------------------------
+
 
 def test_import_url_empty_url(tmp_path, url_threads):
     mgr, _imp = _make_mgr(tmp_path)
@@ -220,6 +224,7 @@ def test_check_url_syntax():
 # ---------------------------------------------------------------------------
 # download worker
 # ---------------------------------------------------------------------------
+
 
 def test_download_success(tmp_path, url_threads):
     imports_dir = os.path.join(str(tmp_path), "imports")
@@ -278,8 +283,7 @@ def test_download_404(tmp_path, url_threads):
 def test_connect_failure(tmp_path, url_threads):
     imports_dir = os.path.join(str(tmp_path), "imports")
     importer = _FakeImporter(imports_dir)
-    fetcher = _fetcher({
-        "https://h.com/x.zip": _url._CueUrlError("Could not reach URL: down.")})
+    fetcher = _fetcher({"https://h.com/x.zip": _url._CueUrlError("Could not reach URL: down.")})
     mgr = CueUrlImporter(importer, fetcher=fetcher)
     mgr._resolve = _public_resolver
     _run(url_threads, mgr, "https://h.com/x.zip")
@@ -334,8 +338,7 @@ def test_cancel_deletes_partial(tmp_path, url_threads):
         if state["reads"] == 1:
             mgr.cancel_requested = True
 
-    resp = _FakeResponse(200, {"Content-Length": str(len(body))},
-                         body=body, on_read=_on_read)
+    resp = _FakeResponse(200, {"Content-Length": str(len(body))}, body=body, on_read=_on_read)
     fetcher = _fetcher({"https://h.com/big.zip": resp})
     mgr = CueUrlImporter(importer, fetcher=fetcher)
     mgr._resolve = _public_resolver
@@ -363,6 +366,7 @@ def test_unknown_total(tmp_path, url_threads):
 # ---------------------------------------------------------------------------
 # misc state helpers
 # ---------------------------------------------------------------------------
+
 
 def test_import_url_noop_while_downloading(tmp_path, url_threads):
     mgr, _imp = _make_mgr(tmp_path)
@@ -417,6 +421,7 @@ def test_name_from_url():
 # ---------------------------------------------------------------------------
 # transport (user agent + TLS context)
 # ---------------------------------------------------------------------------
+
 
 def test_opener_sends_browser_user_agent():
     # CDNs (Discord etc.) 403 urllib's default "Python-urllib" UA, so the

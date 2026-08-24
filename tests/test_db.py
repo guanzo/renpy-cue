@@ -8,12 +8,7 @@ import os
 
 import pytest
 
-from cue_lib.db import (
-    CUE_HASH_TRUNC_LEN,
-    CueDatabase,
-    _atomic_json_write,
-    _key_to_filename,
-)
+from cue_lib.db import CUE_HASH_TRUNC_LEN, CueDatabase, _atomic_json_write, _key_to_filename
 from cue_lib.paths import CuePaths
 from cue_lib.util import _to_str
 
@@ -33,6 +28,7 @@ def db(cue_env):
 # ---------------------------------------------------------------------------
 # Key sanitisation
 # ---------------------------------------------------------------------------
+
 
 def test_key_to_filename_marker_key():
     assert _key_to_filename("v_anim_envy_bj3_ep10") == "v_anim_envy_bj3_ep10.json"
@@ -62,6 +58,7 @@ def test_key_to_filename_dialogue_key_without_separator():
 # _to_str (no-op on Python 3, unicode-safe on Python 2)
 # ---------------------------------------------------------------------------
 
+
 def test_to_str_returns_same_objects_on_py3():
     plain = {"a": "x", "b": ["y", 1], "c": {"d": "z"}}
     result = _to_str(plain)
@@ -78,6 +75,7 @@ def test_to_str_scalars_unchanged():
 # ---------------------------------------------------------------------------
 # Lifecycle
 # ---------------------------------------------------------------------------
+
 
 def test_open_creates_directory_structure(tmp_path):
     database = _make_db(str(tmp_path))
@@ -98,6 +96,7 @@ def test_close_marks_closed(db):
 # ---------------------------------------------------------------------------
 # Marker round-trips
 # ---------------------------------------------------------------------------
+
 
 def test_save_and_load_marker_round_trip(db):
     entry = {"pools": [[0.0, 5.0], [10.0, 15.0]], "label": "my marker"}
@@ -158,6 +157,7 @@ def test_load_markers_keys_off_stored_key_field(db):
 # Preset round-trips
 # ---------------------------------------------------------------------------
 
+
 def test_save_and_load_presets_round_trip(db):
     db.save_preset("audio", "My Preset", {"files": ["a.ogg", "b.ogg"]})
     db.save_preset("video", "Vid Preset", {"speed": 1.5})
@@ -191,6 +191,7 @@ def test_preset_name_with_path_separators_is_sanitized(db):
 # Shared config
 # ---------------------------------------------------------------------------
 
+
 def test_load_shared_config_missing_file_returns_empty(db):
     assert db.load_shared_config() == {}
 
@@ -220,9 +221,7 @@ def test_load_shared_config_coerces_to_str(db, monkeypatch):
     import cue_lib.db as _db_module
 
     calls = []
-    monkeypatch.setattr(
-        _db_module, "_to_str", lambda obj: calls.append(obj) or obj
-    )
+    monkeypatch.setattr(_db_module, "_to_str", lambda obj: calls.append(obj) or obj)
     db.load_shared_config()
     assert calls, "load_shared_config must run loaded values through _to_str"
 
@@ -230,6 +229,7 @@ def test_load_shared_config_coerces_to_str(db, monkeypatch):
 # ---------------------------------------------------------------------------
 # Low-level file helpers
 # ---------------------------------------------------------------------------
+
 
 def test_write_entry_does_not_mutate_caller_dict(db):
     entry = {"pools": [[1.0, 2.0]]}
@@ -250,6 +250,7 @@ def test_atomic_write_dump_failure_leaves_no_temp(db):
 
 def test_atomic_write_uses_unique_temp_name_per_call(db, monkeypatch):
     import tempfile
+
     fpath = os.path.join(db.paths.marker_dir, "v_u.json")
     names = []
     real_mkstemp = tempfile.mkstemp
@@ -270,6 +271,7 @@ def test_atomic_write_uses_unique_temp_name_per_call(db, monkeypatch):
 
 def test_atomic_write_two_writes_same_path_last_wins(db):
     import json
+
     fpath = os.path.join(db.paths.marker_dir, "v_seq.json")
     _atomic_json_write(fpath, {"seq": 1})
     _atomic_json_write(fpath, {"seq": 2})
@@ -281,6 +283,7 @@ def test_atomic_write_two_writes_same_path_last_wins(db):
 # Default music triggers -- one file per replay under music_triggers/, never
 # read as markers
 # ---------------------------------------------------------------------------
+
 
 def test_load_markers_ignores_music_trigger_files(db):
     # The music_triggers/ subdir is not a direct .json child of the marker
@@ -302,14 +305,12 @@ def test_load_markers_ignores_non_marker_json(db):
 
 def test_default_music_triggers_round_trip(db):
     db.update_default_music_triggers("r1", "v_a", "music/x.ogg")
-    assert db.load_default_music_triggers() == {
-        "r1": [{"key_before": "v_a", "filepath": "music/x.ogg"}]}
+    assert db.load_default_music_triggers() == {"r1": [{"key_before": "v_a", "filepath": "music/x.ogg"}]}
     # Stored one file per replay under music_triggers/, not at the marker
     # dir root or in a music/ subdir.
     fpath = os.path.join(db.paths.music_trigger_dir, "r1.json")
     assert os.path.isfile(fpath)
-    assert not os.path.isfile(
-        os.path.join(db.paths.marker_dir, "default_music_triggers.json"))
+    assert not os.path.isfile(os.path.join(db.paths.marker_dir, "default_music_triggers.json"))
     assert not os.path.isdir(os.path.join(db.paths.marker_dir, "music"))
 
 
@@ -318,23 +319,19 @@ def test_update_default_music_triggers_updates_in_place(db):
     db.update_default_music_triggers("r1", "v_a", "music/y.ogg")
     db.update_default_music_triggers("r1", "v_b", "music/z.ogg")
     assert db.load_default_music_triggers() == {
-        "r1": [
-            {"key_before": "v_a", "filepath": "music/y.ogg"},
-            {"key_before": "v_b", "filepath": "music/z.ogg"},
-        ]}
+        "r1": [{"key_before": "v_a", "filepath": "music/y.ogg"}, {"key_before": "v_b", "filepath": "music/z.ogg"}]
+    }
     # One file per replay; an unrelated replay has no file.
-    assert os.path.isfile(os.path.join(
-        db.paths.music_trigger_dir, "r1.json"))
-    assert not os.path.isfile(os.path.join(
-        db.paths.music_trigger_dir, "r2.json"))
+    assert os.path.isfile(os.path.join(db.paths.music_trigger_dir, "r1.json"))
+    assert not os.path.isfile(os.path.join(db.paths.music_trigger_dir, "r2.json"))
 
 
 def test_update_default_music_triggers_sets_key_after_in_place(db):
     db.update_default_music_triggers("r1", "v_a", "music/x.ogg")
     db.update_default_music_triggers("r1", "v_a", "music/y.ogg", key_after="v_settled")
     assert db.load_default_music_triggers() == {
-        "r1": [
-            {"key_before": "v_a", "filepath": "music/y.ogg", "key_after": "v_settled"}]}
+        "r1": [{"key_before": "v_a", "filepath": "music/y.ogg", "key_after": "v_settled"}]
+    }
 
 
 def test_load_skips_corrupt_trigger_file(db):
@@ -344,19 +341,20 @@ def test_load_skips_corrupt_trigger_file(db):
         _f.write("{not json")
     with open(os.path.join(dpath, "ok.json"), "w") as _f:
         _f.write('[{"key_before": "v_a", "filepath": "music/x.ogg"}]')
-    assert db.load_default_music_triggers() == {
-        "ok": [{"key_before": "v_a", "filepath": "music/x.ogg"}]}
+    assert db.load_default_music_triggers() == {"ok": [{"key_before": "v_a", "filepath": "music/x.ogg"}]}
 
 
 # ---------------------------------------------------------------------------
 # Error paths -- missing dirs, corrupt files, unwritable stores
 # ---------------------------------------------------------------------------
 
+
 def test_open_propagates_makedirs_error(tmp_path, monkeypatch):
     database = _make_db(str(tmp_path))
 
     def _boom(path):
         raise OSError("no perms")
+
     monkeypatch.setattr(os, "makedirs", _boom)
 
     with pytest.raises(OSError):
@@ -416,6 +414,7 @@ def test_save_shared_config_creates_parent_dir(tmp_path):
 def test_save_shared_config_logs_write_error(db, monkeypatch):
     def _boom(*args, **kwargs):
         raise OSError("disk full")
+
     monkeypatch.setattr("cue_lib.db._atomic_json_write", _boom)
 
     db.save_shared_config({"flag": True})  # must not raise
@@ -424,6 +423,7 @@ def test_save_shared_config_logs_write_error(db, monkeypatch):
 def test_update_default_music_triggers_logs_write_error(db, monkeypatch):
     def _boom(*args, **kwargs):
         raise OSError("disk full")
+
     monkeypatch.setattr("cue_lib.db._atomic_json_write", _boom)
 
     db.update_default_music_triggers("r1", "v_a", "music/x.ogg")  # must not raise

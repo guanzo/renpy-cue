@@ -46,9 +46,9 @@ def ui_cue(monkeypatch):
         apply_video_preset=_rec("apply_video_preset"),
     )
     confirm = CueConfirmDialog()
-    cue = types.SimpleNamespace(markers=markers,
-                                dialogs=types.SimpleNamespace(confirm=confirm),
-                                current_file="", calls=calls)
+    cue = types.SimpleNamespace(
+        markers=markers, dialogs=types.SimpleNamespace(confirm=confirm), current_file="", calls=calls
+    )
     cue.music = types.SimpleNamespace(
         songs_for_trigger=lambda key: [],
         create_preset=_rec("music_create_preset"),
@@ -78,6 +78,7 @@ def screens(monkeypatch):
 # ==========================================================================
 # CuePresetDialog
 # ==========================================================================
+
 
 def test_preset_open_missing_entry_noop(ui_cue, screens):
     d = CuePresetDialog()
@@ -145,6 +146,7 @@ def test_preset_cancel(ui_cue, screens):
 
 
 # -- generalized dialog: music-trigger presets --
+
 
 def test_preset_open_music_empty_songs_noop(ui_cue, screens):
     d = CuePresetDialog()
@@ -225,6 +227,7 @@ def test_preset_commit_sfx_survives_generalization(ui_cue, screens):
 # CueVideoPresetDialog
 # ==========================================================================
 
+
 def test_video_preset_open_no_current_file(ui_cue, screens):
     d = CueVideoPresetDialog()
     d.open()
@@ -269,8 +272,7 @@ def test_video_preset_commit_happy(ui_cue, screens):
     d = CueVideoPresetDialog()
     d.name = "Slow"
     d.commit()
-    assert ui_cue.calls["create_video_preset"] == [
-        (("Slow", {"pools": [{"time": 1.0}]}), {})]
+    assert ui_cue.calls["create_video_preset"] == [(("Slow", {"pools": [{"time": 1.0}]}), {})]
     assert screens[1] == ["cue_save_video_preset_dialog"]
 
 
@@ -283,6 +285,7 @@ def test_video_preset_cancel(ui_cue, screens):
 # ==========================================================================
 # CueConfirmDialog
 # ==========================================================================
+
 
 def test_confirm_show_hide(ui_cue, screens):
     d = CueConfirmDialog()
@@ -319,6 +322,7 @@ def test_confirm_show_or_run_skips_with_shift(ui_cue, screens, monkeypatch):
 # ==========================================================================
 # confirm-delete / apply helpers
 # ==========================================================================
+
 
 def test_confirm_delete_preset(ui_cue, screens):
     _cue_confirm_delete_preset("Foo")
@@ -398,10 +402,18 @@ GAME_ID = "test_game"
 
 def _merge_entry(contents, valid=True, match=CueImportMatch.AUTO, missing=None):
     return {
-        "imp": "pack", "zip": "pack.zip", "name": "My pack", "author": "",
-        "description": "", "game_id": GAME_ID, "contents": contents,
-        "match": match, "match_reason": "", "valid": valid,
-        "missing": missing or [], "error": "",
+        "imp": "pack",
+        "zip": "pack.zip",
+        "name": "My pack",
+        "author": "",
+        "description": "",
+        "game_id": GAME_ID,
+        "contents": contents,
+        "match": match,
+        "match_reason": "",
+        "valid": valid,
+        "missing": missing or [],
+        "error": "",
     }
 
 
@@ -436,18 +448,13 @@ def _write(original_root, rel, content):
 
 def test_merge_open_happy(merge_env, screens):
     imp, _calls, _base = merge_env
-    imp.import_for = lambda imp: _merge_entry([
-        "audio/a.ogg", "audio/b.ogg", "music/m.ogg",
-    ])
+    imp.import_for = lambda imp: _merge_entry(["audio/a.ogg", "audio/b.ogg", "music/m.ogg"])
     d = CueMergeDialog(imp)
 
     d.open("pack")
 
     assert d.imp == "pack"
-    assert d.counts == {
-        CueImportCategory.SFX: 2,
-        CueImportCategory.MUSIC: 1,
-    }
+    assert d.counts == {CueImportCategory.SFX: 2, CueImportCategory.MUSIC: 1}
     assert d.is_checked(CueImportCategory.SFX) is True
     assert d.is_category_enabled(CueImportCategory.SFX) is True
     assert d.is_category_enabled(CueImportCategory.MARKERS) is False
@@ -468,8 +475,7 @@ def test_merge_open_invalid_noop(merge_env, screens):
 
 def test_merge_open_mismatch_noop(merge_env, screens):
     imp, _calls, _base = merge_env
-    imp.import_for = lambda imp: _merge_entry(
-        ["audio/a.ogg"], match=CueImportMatch.MISMATCH)
+    imp.import_for = lambda imp: _merge_entry(["audio/a.ogg"], match=CueImportMatch.MISMATCH)
     d = CueMergeDialog(imp)
 
     d.open("pack")
@@ -494,9 +500,7 @@ def test_merge_toggle(merge_env, screens):
 def test_merge_summary_counts_overwrites(merge_env, screens):
     imp, _calls, original_root = merge_env
     _write(original_root, "audio/a.ogg", "old")
-    imp.import_for = lambda imp: _merge_entry([
-        "audio/a.ogg", "audio/b.ogg", "music/m.ogg",
-    ])
+    imp.import_for = lambda imp: _merge_entry(["audio/a.ogg", "audio/b.ogg", "music/m.ogg"])
     d = CueMergeDialog(imp)
     d.open("pack")
 
@@ -509,8 +513,7 @@ def test_merge_summary_counts_overwrites(merge_env, screens):
 
 def test_merge_summary_notes_missing_files(merge_env, screens):
     imp, _calls, _base = merge_env
-    imp.import_for = lambda imp: _merge_entry(
-        ["audio/a.ogg"], missing=["music/m.ogg", "video/v.mkv"])
+    imp.import_for = lambda imp: _merge_entry(["audio/a.ogg"], missing=["music/m.ogg", "video/v.mkv"])
     d = CueMergeDialog(imp)
     d.open("pack")
 
@@ -534,9 +537,7 @@ def test_merge_summary_no_missing_noise(merge_env, screens):
 
 def test_merge_confirm_records_checked_and_hides(merge_env, screens):
     imp, calls, _base = merge_env
-    imp.import_for = lambda imp: _merge_entry([
-        "audio/a.ogg", "music/m.ogg",
-    ])
+    imp.import_for = lambda imp: _merge_entry(["audio/a.ogg", "music/m.ogg"])
     d = CueMergeDialog(imp)
     d.open("pack")
     d.toggle(CueImportCategory.SFX)

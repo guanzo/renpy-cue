@@ -134,18 +134,6 @@ Screens containing only `use`, `key`, or `timer` statements omit it.
 
 Do not explicitly specify default `cue_*` styles inside a `style_group`. Python-created displayables still need explicit styles.
 
-# Whitespace
-
-Separate logical sections with blank lines.
-
-Do not add blank lines:
-
-* Between a guard and its early return.
-* Between `if` / `elif` / `else`.
-* Inside dict or list literals.
-
-Do not leave long functions as one uninterrupted block of statements.
-
 # Rollback
 
 * `_cue` is a module-level `NoRollback()` instance. Never reassign it; mutate its attributes.
@@ -184,7 +172,7 @@ Rules:
 
 * New `cue_lib/*.py` logic ships with tests.
 * Do not reduce total `cue_lib` coverage without a one-line note.
-* Before committing, `/lint` must print `CLEAN`.
+* Before committing, run `ruff format cue_lib tests` on `.py`/`.pyi`, `/lint` must print `CLEAN`.
 * `python3 -m pytest tests/ -q` must pass.
 
 Harness tests requiring both engine generations belong in both:
@@ -211,7 +199,7 @@ Harness runs are headless by default. Set `RENPY_HEADLESS=0` to show the game wi
 After changing `cue_lib/*.py`:
 
 * Update the corresponding `.pyi` if its public API changed.
-* Run `/lint`, then `/test`, then `/test-harness`.
+* Run `ruff format cue_lib tests` on `.py`/`.pyi`, `/lint`, then `/test`, then `/test-harness`.
 
 After adding a manager:
 

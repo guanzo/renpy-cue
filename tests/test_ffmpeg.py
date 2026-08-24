@@ -41,15 +41,16 @@ def patch_popen(monkeypatch):
 
     def _factory(*procs):
         _queue = [FakeProc(out_bytes=b"", returncode=0)] + list(procs)
-        monkeypatch.setattr(
-            _ffmpeg_mod.subprocess, "Popen", lambda *a, **k: _queue.pop(0))
+        monkeypatch.setattr(_ffmpeg_mod.subprocess, "Popen", lambda *a, **k: _queue.pop(0))
         return _queue
+
     return _factory
 
 
 # ---------------------------------------------------------------------------
 # binary detection
 # ---------------------------------------------------------------------------
+
 
 def test_init_defaults(ff):
     assert ff._ffmpeg_cache == -1
@@ -99,8 +100,7 @@ def test_ffprobe_available_uses_env(ff, monkeypatch):
 
 def test_ffprobe_available_derives_from_ffmpeg_path(ff, monkeypatch):
     ff._ffmpeg_path = "/opt/bin/ffmpeg"
-    monkeypatch.setattr(ff, "_probe_exe",
-                        lambda exe: exe == "/opt/bin/ffprobe")
+    monkeypatch.setattr(ff, "_probe_exe", lambda exe: exe == "/opt/bin/ffprobe")
     assert ff.ffprobe_available() is True
     assert ff._ffprobe_path == "/opt/bin/ffprobe"
 
@@ -161,8 +161,7 @@ FILTERS_OUT = (
 
 
 def test_load_encoders_parses_output(ff, patch_popen):
-    patch_popen(FakeProc(out_bytes=ENCODERS_OUT),
-                FakeProc(out_bytes=FILTERS_OUT))
+    patch_popen(FakeProc(out_bytes=ENCODERS_OUT), FakeProc(out_bytes=FILTERS_OUT))
     ff.load_encoders()
     assert ff._encoder_cache == {"libx264", "aac", "libvpx-vp9", "libvpx"}
     assert ff._has_rubberband is True
@@ -171,8 +170,7 @@ def test_load_encoders_parses_output(ff, patch_popen):
 def test_load_encoders_cached_noop(ff, monkeypatch):
     ff._encoder_cache = {"libx264"}
     called = []
-    monkeypatch.setattr(_ffmpeg_mod.subprocess, "Popen",
-                        lambda *a, **k: called.append(1))
+    monkeypatch.setattr(_ffmpeg_mod.subprocess, "Popen", lambda *a, **k: called.append(1))
     ff.load_encoders()
     assert called == []
     assert ff._encoder_cache == {"libx264"}
@@ -186,30 +184,26 @@ def test_load_encoders_no_ffmpeg(ff, monkeypatch):
 
 def test_load_encoders_probe_failure(ff, monkeypatch):
     monkeypatch.setattr(ff, "ffmpeg_available", lambda: True)
-    monkeypatch.setattr(_ffmpeg_mod.subprocess, "Popen",
-                        lambda *a, **k: (_ for _ in ()).throw(OSError("nope")))
+    monkeypatch.setattr(_ffmpeg_mod.subprocess, "Popen", lambda *a, **k: (_ for _ in ()).throw(OSError("nope")))
     ff.load_encoders()  # must not raise
     assert ff._encoder_cache == set()
 
 
 def test_pick_encoder_video(ff, patch_popen):
-    patch_popen(FakeProc(out_bytes=ENCODERS_OUT),
-                FakeProc(out_bytes=FILTERS_OUT))
+    patch_popen(FakeProc(out_bytes=ENCODERS_OUT), FakeProc(out_bytes=FILTERS_OUT))
     assert ff.pick_encoder("vp9", "video") == "libvpx-vp9"
     assert ff.pick_encoder("vp8", "video") == "libvpx"  # libvpx first for vp8
     assert ff.pick_encoder("h264", "video") == "libx264"
 
 
 def test_pick_encoder_audio(ff, patch_popen):
-    patch_popen(FakeProc(out_bytes=ENCODERS_OUT),
-                FakeProc(out_bytes=FILTERS_OUT))
+    patch_popen(FakeProc(out_bytes=ENCODERS_OUT), FakeProc(out_bytes=FILTERS_OUT))
     assert ff.pick_encoder("aac", "audio") == "aac"
     assert ff.pick_encoder("mp3", "audio") is None  # not in available set
 
 
 def test_pick_encoder_unknown_codec(ff, patch_popen):
-    patch_popen(FakeProc(out_bytes=ENCODERS_OUT),
-                FakeProc(out_bytes=FILTERS_OUT))
+    patch_popen(FakeProc(out_bytes=ENCODERS_OUT), FakeProc(out_bytes=FILTERS_OUT))
     assert ff.pick_encoder("nope", "video") is None
     assert ff.pick_encoder("vp9", "container") is None  # bad category
 
@@ -218,9 +212,9 @@ def test_pick_encoder_unknown_codec(ff, patch_popen):
 # media probing
 # ---------------------------------------------------------------------------
 
+
 def test_probe_codecs(ff, patch_popen):
-    patch_popen(FakeProc(out_bytes=b"h264\n"),
-                FakeProc(out_bytes=b"aac\n"))
+    patch_popen(FakeProc(out_bytes=b"h264\n"), FakeProc(out_bytes=b"aac\n"))
     assert ff.probe_codecs("mov.mp4") == ("h264", "aac")
 
 
@@ -292,14 +286,12 @@ def test_probe_bitrate_stream(ff, patch_popen):
 
 
 def test_probe_bitrate_falls_back_to_format(ff, patch_popen):
-    patch_popen(FakeProc(out_bytes=b"N/A\n"),
-                FakeProc(out_bytes=b"800000\n"))
+    patch_popen(FakeProc(out_bytes=b"N/A\n"), FakeProc(out_bytes=b"800000\n"))
     assert ff.probe_bitrate("mov.mp4") == "800k"
 
 
 def test_probe_bitrate_none(ff, patch_popen):
-    patch_popen(FakeProc(out_bytes=b"N/A\n"),
-                FakeProc(out_bytes=b"N/A\n"))
+    patch_popen(FakeProc(out_bytes=b"N/A\n"), FakeProc(out_bytes=b"N/A\n"))
     assert ff.probe_bitrate("mov.mp4") is None
 
 
@@ -311,6 +303,7 @@ def test_probe_bitrate_no_ffprobe(ff, monkeypatch):
 # ---------------------------------------------------------------------------
 # audio filter builder
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def ff_ready(ff):
@@ -332,13 +325,11 @@ def test_audio_filter_atempo_single(ff_ready):
 
 
 def test_audio_filter_atempo_chained_high(ff_ready):
-    assert ff_ready.build_audio_filter(6.0) == \
-        "atempo=2.0000,atempo=2.0000,atempo=1.5000"
+    assert ff_ready.build_audio_filter(6.0) == "atempo=2.0000,atempo=2.0000,atempo=1.5000"
 
 
 def test_audio_filter_atempo_chained_low(ff_ready):
-    assert ff_ready.build_audio_filter(0.25) == \
-        "atempo=0.5000,atempo=0.5000"
+    assert ff_ready.build_audio_filter(0.25) == "atempo=0.5000,atempo=0.5000"
 
 
 def test_audio_filter_zero_speed_terminates(ff_ready):
@@ -357,9 +348,9 @@ def test_audio_filter_negative_speed_terminates(ff_ready):
 # ffmpeg command builder
 # ---------------------------------------------------------------------------
 
+
 def test_build_single_pass_structure(ff_ready):
-    cmds, passlog = ff_ready.build_ffmpeg_cmds(
-        "in.ogv", "out.ogv", 2.0, "libx264", "aac", True, None)
+    cmds, passlog = ff_ready.build_ffmpeg_cmds("in.ogv", "out.ogv", 2.0, "libx264", "aac", True, None)
     assert passlog is None
     assert len(cmds) == 1
     c = cmds[0]
@@ -383,8 +374,7 @@ def test_build_single_pass_structure(ff_ready):
 
 
 def test_build_single_pass_no_audio(ff_ready):
-    cmds, _ = ff_ready.build_ffmpeg_cmds(
-        "in.ogv", "out.ogv", 2.0, "h264", "aac", False, None)
+    cmds, _ = ff_ready.build_ffmpeg_cmds("in.ogv", "out.ogv", 2.0, "h264", "aac", False, None)
     c = cmds[0]
     assert "-an" in c
     assert "-c:a" not in c
@@ -393,16 +383,14 @@ def test_build_single_pass_no_audio(ff_ready):
 
 
 def test_build_single_pass_no_vcodec(ff_ready):
-    cmds, _ = ff_ready.build_ffmpeg_cmds(
-        "in.ogv", "out.ogv", 2.0, "", "", True, None)
+    cmds, _ = ff_ready.build_ffmpeg_cmds("in.ogv", "out.ogv", 2.0, "", "", True, None)
     c = cmds[0]
     assert "-c:v" not in c
     assert "-c:a" not in c
 
 
 def test_build_single_pass_fast(ff_ready):
-    cmds, _ = ff_ready.build_ffmpeg_cmds(
-        "in.ogv", "out.ogv", 2.0, "libx264", "aac", True, None, fast=True)
+    cmds, _ = ff_ready.build_ffmpeg_cmds("in.ogv", "out.ogv", 2.0, "libx264", "aac", True, None, fast=True)
     c = cmds[0]
     assert c[c.index("-crf") + 1] == "23"
     assert c[c.index("-preset") + 1] == "veryfast"
@@ -410,16 +398,16 @@ def test_build_single_pass_fast(ff_ready):
 
 def test_build_interpolate_adds_minterpolate(ff_ready):
     cmds, _ = ff_ready.build_ffmpeg_cmds(
-        "in.ogv", "out.ogv", 2.0, "h264", "aac", True, None,
-        interpolate=True, source_fps=30)
+        "in.ogv", "out.ogv", 2.0, "h264", "aac", True, None, interpolate=True, source_fps=30
+    )
     fc = cmds[0][cmds[0].index("-filter_complex") + 1]
     assert "minterpolate=fps=60" in fc  # min(CUE_MAX_INTERP_FPS, 30*2)
 
 
 def test_build_interpolate_caps_at_max(ff_ready):
     cmds, _ = ff_ready.build_ffmpeg_cmds(
-        "in.ogv", "out.ogv", 2.0, "h264", "aac", True, None,
-        interpolate=True, source_fps=60)
+        "in.ogv", "out.ogv", 2.0, "h264", "aac", True, None, interpolate=True, source_fps=60
+    )
     fc = cmds[0][cmds[0].index("-filter_complex") + 1]
     assert "minterpolate=fps=60" in fc  # capped, not 120
 
@@ -427,21 +415,19 @@ def test_build_interpolate_caps_at_max(ff_ready):
 def test_build_progress_path_normalized(ff_ready, monkeypatch):
     monkeypatch.setattr(os, "name", "nt")
     cmds, _ = ff_ready.build_ffmpeg_cmds(
-        "in.ogv", "out.ogv", 2.0, "h264", "aac", True, None,
-        progress_path="C:\\game\\prog.txt")
+        "in.ogv", "out.ogv", 2.0, "h264", "aac", True, None, progress_path="C:\\game\\prog.txt"
+    )
     c = cmds[0]
     assert c[c.index("-progress") + 1] == "C:/game/prog.txt"
 
 
 def test_build_progress_pipe_default(ff_ready):
-    cmds, _ = ff_ready.build_ffmpeg_cmds(
-        "in.ogv", "out.ogv", 2.0, "h264", "aac", True, None)
+    cmds, _ = ff_ready.build_ffmpeg_cmds("in.ogv", "out.ogv", 2.0, "h264", "aac", True, None)
     assert cmds[0][cmds[0].index("-progress") + 1] == "pipe:1"
 
 
 def test_build_two_pass_vp9(ff_ready):
-    cmds, passlog = ff_ready.build_ffmpeg_cmds(
-        "in.ogv", "tmp.ogv", 2.0, "libvpx-vp9", "libopus", True, "4000k")
+    cmds, passlog = ff_ready.build_ffmpeg_cmds("in.ogv", "tmp.ogv", 2.0, "libvpx-vp9", "libopus", True, "4000k")
     assert passlog == "tmp.ogv.passlog"
     assert len(cmds) == 2
     p1, p2 = cmds
@@ -464,8 +450,7 @@ def test_build_two_pass_vp9(ff_ready):
 
 
 def test_build_two_pass_no_audio(ff_ready):
-    cmds, _ = ff_ready.build_ffmpeg_cmds(
-        "in.ogv", "tmp.ogv", 2.0, "libvpx", "libopus", False, "4000k")
+    cmds, _ = ff_ready.build_ffmpeg_cmds("in.ogv", "tmp.ogv", 2.0, "libvpx", "libopus", False, "4000k")
     assert len(cmds) == 2
     p2 = cmds[1]
     assert "-an" in p2
@@ -473,16 +458,13 @@ def test_build_two_pass_no_audio(ff_ready):
 
 
 def test_build_two_pass_fast_speed_2(ff_ready):
-    cmds, _ = ff_ready.build_ffmpeg_cmds(
-        "in.ogv", "tmp.ogv", 2.0, "libvpx-vp9", "libopus", True, "4000k",
-        fast=True)
+    cmds, _ = ff_ready.build_ffmpeg_cmds("in.ogv", "tmp.ogv", 2.0, "libvpx-vp9", "libopus", True, "4000k", fast=True)
     p2 = cmds[1]
     assert p2[p2.index("-speed") + 1] == "2"
 
 
 def test_build_vp_without_bitrate_single_pass(ff_ready):
-    cmds, passlog = ff_ready.build_ffmpeg_cmds(
-        "in.ogv", "out.ogv", 2.0, "libvpx-vp9", "libopus", True, None)
+    cmds, passlog = ff_ready.build_ffmpeg_cmds("in.ogv", "out.ogv", 2.0, "libvpx-vp9", "libopus", True, None)
     assert len(cmds) == 1
     assert passlog is None
 
@@ -491,14 +473,19 @@ def test_build_vp_without_bitrate_single_pass(ff_ready):
 # _cue_probe_job
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def job(tmp_path):
     return CueVideoJob(
-        1, "movies/scene.webm",
+        1,
+        "movies/scene.webm",
         fspath_in=str(tmp_path / "in.webm"),
         fspath_tmp=str(tmp_path / "tmp.webm"),
-        factor=2.0, encode_mode=CUE_VE_MODE_NORMAL,
-        fspath_out=str(tmp_path / "out.webm"), remove_audio=False)
+        factor=2.0,
+        encode_mode=CUE_VE_MODE_NORMAL,
+        fspath_out=str(tmp_path / "out.webm"),
+        remove_audio=False,
+    )
 
 
 def test_probe_job_builds_cmds(ff, job, monkeypatch):
@@ -538,9 +525,7 @@ def test_probe_job_probes_and_picks_encoders(ff, job, monkeypatch):
     monkeypatch.setattr(ff, "probe_has_audio", lambda fs: True)
     monkeypatch.setattr(ff, "probe_bitrate", lambda fs: "4000k")
     monkeypatch.setattr(ff, "probe_fps", lambda fs: 30)
-    monkeypatch.setattr(
-        ff, "pick_encoder",
-        lambda c, cat: {"vp9": "libvpx-vp9", "opus": "libopus"}.get(c))
+    monkeypatch.setattr(ff, "pick_encoder", lambda c, cat: {"vp9": "libvpx-vp9", "opus": "libopus"}.get(c))
     _cue_probe_job(ff, job, 1000, "renpy_cue")
     assert len(job._cmds) == 2  # vp9 + bitrate -> 2-pass
     assert job.passlog is not None
@@ -563,9 +548,7 @@ def test_probe_job_resume_pass2(ff, job, monkeypatch):
     monkeypatch.setattr(ff, "probe_has_audio", lambda fs: True)
     monkeypatch.setattr(ff, "probe_bitrate", lambda fs: "4000k")
     monkeypatch.setattr(ff, "probe_fps", lambda fs: 30)
-    monkeypatch.setattr(
-        ff, "pick_encoder",
-        lambda c, cat: {"vp9": "libvpx-vp9", "opus": "libopus"}.get(c))
+    monkeypatch.setattr(ff, "pick_encoder", lambda c, cat: {"vp9": "libvpx-vp9", "opus": "libopus"}.get(c))
     job._resume_pass2 = True
     _cue_probe_job(ff, job, 1000, "renpy_cue")
     # pass1 dropped; only pass2 remains
@@ -573,8 +556,7 @@ def test_probe_job_resume_pass2(ff, job, monkeypatch):
     assert job._cmds[0][job._cmds[0].index("-pass") + 1] == "2"
 
 
-def test_probe_job_resume_pass2_single_pass_cleans_stale(ff, job, monkeypatch,
-                                                         tmp_path):
+def test_probe_job_resume_pass2_single_pass_cleans_stale(ff, job, monkeypatch, tmp_path):
     monkeypatch.setattr(ff, "ffprobe_available", lambda: False)
     passlog = str(tmp_path / "stale.passlog")
     for suffix in ("-0.log", "-1.log"):
@@ -583,9 +565,7 @@ def test_probe_job_resume_pass2_single_pass_cleans_stale(ff, job, monkeypatch,
             f.write("x")
     # Force a single-pass build that still reports a passlog -- the case where
     # the codec choice changed between sessions.
-    monkeypatch.setattr(
-        ff, "build_ffmpeg_cmds",
-        lambda *a, **k: ([["ffmpeg", "-y", "out"]], passlog))
+    monkeypatch.setattr(ff, "build_ffmpeg_cmds", lambda *a, **k: ([["ffmpeg", "-y", "out"]], passlog))
     job._resume_pass2 = True
     _cue_probe_job(ff, job, 1000, "renpy_cue")
     assert not os.path.exists(passlog + "-0.log")
@@ -598,6 +578,7 @@ def test_probe_job_exception_sets_error(ff, job, monkeypatch):
 
     def _boom(*a, **k):
         raise ValueError("boom")
+
     monkeypatch.setattr(ff, "build_ffmpeg_cmds", _boom)
     _cue_probe_job(ff, job, 1000, "renpy_cue")
     assert job._done is True
@@ -611,9 +592,7 @@ def test_probe_job_fast_preview_mode(ff, job, monkeypatch):
     monkeypatch.setattr(ff, "probe_has_audio", lambda fs: True)
     monkeypatch.setattr(ff, "probe_bitrate", lambda fs: None)
     monkeypatch.setattr(ff, "probe_fps", lambda fs: 30)
-    monkeypatch.setattr(
-        ff, "pick_encoder",
-        lambda c, cat: {"h264": "libx264", "aac": "aac"}.get(c))
+    monkeypatch.setattr(ff, "pick_encoder", lambda c, cat: {"h264": "libx264", "aac": "aac"}.get(c))
     job.encode_mode = CUE_VE_MODE_FAST_PREVIEW
     _cue_probe_job(ff, job, 1000, "renpy_cue")
     c = job._cmds[0]
@@ -623,6 +602,7 @@ def test_probe_job_fast_preview_mode(ff, job, monkeypatch):
 # ---------------------------------------------------------------------------
 # subprocess timeout guard
 # ---------------------------------------------------------------------------
+
 
 def test_run_proc_returns_communicate():
     out, _ = _ffmpeg_mod._cue_run_proc(FakeProc(out_bytes=b"x"))
@@ -639,8 +619,7 @@ def test_run_proc_timeout_kills_and_raises():
 def test_probe_exe_timeout_degrades_to_false(monkeypatch):
     # Binary detection: a hung ffmpeg -version is "unavailable", not an error.
     monkeypatch.setattr(_ffmpeg_mod, "CUE_SUBPROC_TIMEOUT", 0.05)
-    monkeypatch.setattr(_ffmpeg_mod.subprocess, "Popen",
-                        lambda *a, **k: FakeProc(timeout_error=True))
+    monkeypatch.setattr(_ffmpeg_mod.subprocess, "Popen", lambda *a, **k: FakeProc(timeout_error=True))
     assert CueFFmpeg()._probe_exe("ffmpeg") is False
 
 
@@ -654,9 +633,7 @@ def test_probe_fps_timeout_raises(ff, patch_popen, monkeypatch):
 
 def test_probe_job_probe_timeout_errors_job(ff, job, monkeypatch):
     monkeypatch.setattr(ff, "ffprobe_available", lambda: True)
-    monkeypatch.setattr(
-        ff, "probe_codecs",
-        lambda fs: (_ for _ in ()).throw(_ffmpeg_mod.CueSubprocessTimeout(10)))
+    monkeypatch.setattr(ff, "probe_codecs", lambda fs: (_ for _ in ()).throw(_ffmpeg_mod.CueSubprocessTimeout(10)))
     _cue_probe_job(ff, job, 1000, "renpy_cue")
     assert job._done is True
     assert "ffmpeg error" in job.error_msg

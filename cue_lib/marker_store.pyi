@@ -1,15 +1,9 @@
 # Type stub for cue_lib.marker_store
 from typing import Any, Callable, Dict, ItemsView, KeysView, List, Optional, Set, Tuple
 
-from cue_lib._types import (
-    MarkerEntry,
-    PoolDict,
-    VideoPoolDict,
-    VideoPreset,
-)
+from cue_lib._types import MarkerEntry, PoolDict, VideoPoolDict, VideoPreset
 from cue_lib.db import CueDatabase
 from cue_lib.paths import CuePaths
-
 
 # =========================================================================
 # Resolve snapshots
@@ -17,6 +11,7 @@ from cue_lib.paths import CuePaths
 
 class ResolvedExclusive:
     """Resolved exclusive config snapshot. group 0 = Off."""
+
     group: int
     start: int
     hold: bool
@@ -25,6 +20,7 @@ class ResolvedExclusive:
 
 class ResolvedPool:
     """Immutable pool snapshot after resolving presets."""
+
     files: List[str]
     volume: float
     frequency: int
@@ -36,8 +32,8 @@ class ResolvedPool:
         volume: float,
         frequency: int,
         trigger_on_shake: bool,
-        exclusive: Optional[ResolvedExclusive] = None) -> None: ...
-
+        exclusive: Optional[ResolvedExclusive] = None,
+    ) -> None: ...
 
 # =========================================================================
 # CueMarkerStore
@@ -53,10 +49,8 @@ class CueMarkerStore:
     _session_created: Set[Tuple[str, str]]
 
     def __init__(
-        self,
-        db: Optional[CueDatabase],
-        paths: CuePaths,
-        on_save: Optional[Callable[[], None]] = None) -> None: ...
+        self, db: Optional[CueDatabase], paths: CuePaths, on_save: Optional[Callable[[], None]] = None
+    ) -> None: ...
 
     # Dict-like surface
     def __getitem__(self, key: str) -> MarkerEntry: ...
@@ -128,5 +122,6 @@ class CueMarkerStore:
         old_marker_keys: Set[str],
         old_presets: Dict[str, Any],
         old_video_presets: Dict[str, Any],
-        old_session_created: Set[Tuple[str, str]]) -> None: ...
+        old_session_created: Set[Tuple[str, str]],
+    ) -> None: ...
     def load_from_db(self) -> None: ...

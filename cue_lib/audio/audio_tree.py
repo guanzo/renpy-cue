@@ -43,16 +43,16 @@ class CueAudioTreeManager(object):
     _auto_expand_roots = False
 
     def __init__(self):
-        self._recent = None         # CueRecentManager, wired after construction
-        self.files = []             # flat sorted relative paths
-        self._file_index = {}       # path -> position in files (rebuilt in scan)
-        self.tree = []              # nested folder/file nodes from _cue_build_tree
-        self.scan_error = ""        # non-empty only when the scan fails
-        self.visible_tree = []      # flat, depth-annotated rows for the screen
+        self._recent = None  # CueRecentManager, wired after construction
+        self.files = []  # flat sorted relative paths
+        self._file_index = {}  # path -> position in files (rebuilt in scan)
+        self.tree = []  # nested folder/file nodes from _cue_build_tree
+        self.scan_error = ""  # non-empty only when the scan fails
+        self.visible_tree = []  # flat, depth-annotated rows for the screen
         self.expanded_folders = {}  # folder_path -> bool
-        self.search_query = ""      # non-empty -> visible_tree is a filtered view
-        self.search_truncated = 0   # rows dropped by the search cap (0 when idle)
-        self._search_applied = ""   # query last rebuilt for (debounce marker)
+        self.search_query = ""  # non-empty -> visible_tree is a filtered view
+        self.search_truncated = 0  # rows dropped by the search cap (0 when idle)
+        self._search_applied = ""  # query last rebuilt for (debounce marker)
         self._has_expanded_roots = False  # one-time root expansion done
 
     # ------------------------------------------------------------------
@@ -199,14 +199,16 @@ class CueAudioTreeManager(object):
             full = prefix + item["name"]
             if item["type"] == "folder":
                 expanded = force_expand or self.expanded_folders.get(full, False)
-                result.append({
-                    "type": "folder",
-                    "name": item["name"],
-                    "full_path": full,
-                    "depth": depth,
-                    "expanded": expanded,
-                    "has_files": item.get("has_files", False),
-                })
+                result.append(
+                    {
+                        "type": "folder",
+                        "name": item["name"],
+                        "full_path": full,
+                        "depth": depth,
+                        "expanded": expanded,
+                        "has_files": item.get("has_files", False),
+                    }
+                )
                 if expanded:
                     self._walk_tree(item.get("children", []), full, depth + 1, result, force_expand)
             else:
@@ -215,12 +217,7 @@ class CueAudioTreeManager(object):
     def _file_node(self, item, full, depth):
         # type: (Dict[str, Any], str, int) -> Dict[str, Any]
         """File row dict for a single file item.  Overridden to add fields."""
-        return {
-            "type": "file",
-            "name": item["name"],
-            "full_path": full,
-            "depth": depth,
-        }
+        return {"type": "file", "name": item["name"], "full_path": full, "depth": depth}
 
     # ------------------------------------------------------------------
     # Toggle: tree folders

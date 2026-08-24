@@ -12,11 +12,7 @@ import os
 import renpy
 import threading
 
-from cue_lib.constants import (
-    CUE_IMPORT_CATEGORY_ORDER,
-    CueExportFileTypes,
-    CueExportScope,
-)
+from cue_lib.constants import CUE_IMPORT_CATEGORY_ORDER, CueExportFileTypes, CueExportScope
 from cue_lib.importer_io import (
     _cue_build_import_zip,
     _cue_enumerate_import_files,
@@ -44,17 +40,17 @@ class CueExportManager(object):
         self.author = ""
         self.description = ""
         self.contents_by_category = {}  # type: Dict[int, List[str]]
-        self.counts = {}                # type: Dict[int, int]
-        self.replays = []               # list of {"label": str, "count": int}
-        self.checked_replays = set()    # type: Set[str]
-        self.current_replay = ""        # the replay the user is in right now
+        self.counts = {}  # type: Dict[int, int]
+        self.replays = []  # list of {"label": str, "count": int}
+        self.checked_replays = set()  # type: Set[str]
+        self.current_replay = ""  # the replay the user is in right now
         self.export_status = ""
         self.export_error = ""
-        self.is_exporting = False       # zip build running on a background thread
-        self.export_fraction = 0.0      # 0..1 progress of the active build
-        self._export_thread = None      # type: Any
-        self.is_refreshing = False      # a background refresh pass is running
-        self._refresh_thread = None     # type: Any
+        self.is_exporting = False  # zip build running on a background thread
+        self.export_fraction = 0.0  # 0..1 progress of the active build
+        self._export_thread = None  # type: Any
+        self.is_refreshing = False  # a background refresh pass is running
+        self._refresh_thread = None  # type: Any
 
     @property
     def is_busy(self):
@@ -64,8 +60,7 @@ class CueExportManager(object):
 
     def exports_dir(self):
         # type: () -> str
-        return os.path.join(
-            self._paths.original_root, "exports").replace("\\", "/")
+        return os.path.join(self._paths.original_root, "exports").replace("\\", "/")
 
     def refresh(self):
         # type: () -> None
@@ -110,16 +105,10 @@ class CueExportManager(object):
         is one cosmetic frame at worst, since the GIL makes each assignment
         atomic.  Replays are seeded checked; a selection made in an earlier
         refresh survives."""
-        contents = _cue_enumerate_import_files(
-            self._paths.original_root, self._paths.game_id)
-        counts = dict(
-            (cat, len(files))
-            for cat, files in contents.items())
-        labels = _cue_replay_labels(
-            self._paths.original_root, self._paths.game_id)
-        replays = [
-            {"replay": label, "marker_count": count}
-            for label, count in labels]
+        contents = _cue_enumerate_import_files(self._paths.original_root, self._paths.game_id)
+        counts = dict((cat, len(files)) for cat, files in contents.items())
+        labels = _cue_replay_labels(self._paths.original_root, self._paths.game_id)
+        replays = [{"replay": label, "marker_count": count} for label, count in labels]
         known = set(self.checked_replays)
         self.contents_by_category = contents
         self.counts = counts
@@ -230,9 +219,8 @@ class CueExportManager(object):
         labels = sorted(self.checked_replays)
         if not labels:
             return []
-        
-        per_cat = _cue_replay_assets(
-            self._paths.original_root, self._paths.game_id, labels)
+
+        per_cat = _cue_replay_assets(self._paths.original_root, self._paths.game_id, labels)
         selected = []
 
         for cat in CUE_IMPORT_CATEGORY_ORDER:
@@ -277,8 +265,7 @@ class CueExportManager(object):
         suffix = 2
 
         while os.path.exists(zip_path):
-            zip_path = os.path.join(
-                exports_dir, "{} ({}).zip".format(safe, suffix))
+            zip_path = os.path.join(exports_dir, "{} ({}).zip".format(safe, suffix))
             suffix += 1
 
         # Snapshot name/author/description so mid-build edits to the form
@@ -289,9 +276,7 @@ class CueExportManager(object):
         self.is_exporting = True
         self.export_fraction = 0.0
 
-        thread = threading.Thread(
-            target=self._build_zip_thread,
-            args=(selected, zip_path, name, author, description))
+        thread = threading.Thread(target=self._build_zip_thread, args=(selected, zip_path, name, author, description))
         thread.daemon = True
         self._export_thread = thread
         thread.start()
@@ -311,7 +296,8 @@ class CueExportManager(object):
                 description,
                 contents,
                 zip_path,
-                progress=self._set_export_progress)
+                progress=self._set_export_progress,
+            )
         except Exception as e:
             self.export_error = "Export failed: {}".format(e)
         else:

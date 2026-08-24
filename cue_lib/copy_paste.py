@@ -8,9 +8,17 @@ import copy as _copy
 import renpy
 
 from cue_lib.util import (
-    _cue_clamp_time, _cue_log,
-    create_img_key, create_vid_key, create_dlg_key, create_loop_key,
-    is_img_key, is_vid_key, is_dlg_key, is_loop_key, get_key_file,
+    _cue_clamp_time,
+    _cue_log,
+    create_img_key,
+    create_vid_key,
+    create_dlg_key,
+    create_loop_key,
+    is_img_key,
+    is_vid_key,
+    is_dlg_key,
+    is_loop_key,
+    get_key_file,
 )
 
 MYPY = False
@@ -35,6 +43,7 @@ def _cue_copy_entry(entry):
             out[key] = _copy.deepcopy(entry[key])  # pyright: ignore[reportGeneralTypeIssues, reportTypedDictNotRequiredAccess]  # union of optional keys into a total=False TypedDict
     return out
 
+
 def copy_context(mgr):
     # type: (CueMarkerManager) -> None
     ctx_file = mgr._ctx.current_file
@@ -50,11 +59,8 @@ def copy_context(mgr):
         entry = mgr._data.get(key)
         if entry:
             copied[key] = _cue_copy_entry(entry)
-    mgr.clipboard = {
-        "markers": copied,
-        "source_file": ctx_file,
-        "source_dialogue": ctx_dlg,
-    }
+    mgr.clipboard = {"markers": copied, "source_file": ctx_file, "source_dialogue": ctx_dlg}
+
 
 def paste_context(mgr):
     # type: (CueMarkerManager) -> None

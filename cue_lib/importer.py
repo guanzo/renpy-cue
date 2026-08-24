@@ -14,10 +14,7 @@ import threading
 
 from renpy.store import Function
 
-from cue_lib.constants import (
-    CUE_IMPORT_MANIFEST_NAME,
-    CueImportMatch,
-)
+from cue_lib.constants import CUE_IMPORT_MANIFEST_NAME, CueImportMatch
 from cue_lib.db import _atomic_json_write
 from cue_lib.importer_io import (
     _cue_extract_import_zip,
@@ -44,8 +41,7 @@ def _imp_file_names(imp_dir):
     result = set()
     for dirpath, _dirs, names in os.walk(imp_dir):
         for name in names:
-            rel = os.path.relpath(
-                os.path.join(dirpath, name), imp_dir).replace("\\", "/")
+            rel = os.path.relpath(os.path.join(dirpath, name), imp_dir).replace("\\", "/")
             result.add(rel)
     return result
 
@@ -92,10 +88,10 @@ def _cue_rewrite_rel(rel, old_gid, new_gid):
     media live under shared, un-namespaced prefixes and are untouched."""
     marker = "data/markers/{}/".format(old_gid)
     if rel.startswith(marker):
-        return "data/markers/{}/{}".format(new_gid, rel[len(marker):])
+        return "data/markers/{}/{}".format(new_gid, rel[len(marker) :])
     video = "video/{}/".format(old_gid)
     if rel.startswith(video):
-        return "video/{}/{}".format(new_gid, rel[len(video):])
+        return "video/{}/{}".format(new_gid, rel[len(video) :])
     return rel
 
 
@@ -118,15 +114,15 @@ class CueImportManager(object):
         self._paths = paths
         self._db = db
         self._refresh_overlay = refresh_overlay
-        self.imports = []          # list of entry dicts (see _build_entry)
+        self.imports = []  # list of entry dicts (see _build_entry)
         self.scan_error = ""
         self.is_active = False
         self.active_import = None  # type: Optional[str]
         self.merge_status = ""
-        self.is_scanning = False    # a background scan pass is running
-        self._scan_thread = None    # type: Any
-        self.is_importing = False   # the worker is extracting right now
-        self.import_label = ""      # zip name currently being extracted
+        self.is_scanning = False  # a background scan pass is running
+        self._scan_thread = None  # type: Any
+        self.is_importing = False  # the worker is extracting right now
+        self.import_label = ""  # zip name currently being extracted
         self.import_fraction = 0.0  # 0..1 progress of the active extraction
         self.expanded_replays = {}  # (section, imp) -> replay list folder open
 
@@ -138,15 +134,13 @@ class CueImportManager(object):
         # type: () -> str
         """Where dropped .zips live -- always under original_root, never the
         active import, so activation can't hide the import folder."""
-        return os.path.join(
-            self._paths.original_root, "imports").replace("\\", "/")
+        return os.path.join(self._paths.original_root, "imports").replace("\\", "/")
 
     def imports_unzip_dir(self):
         # type: () -> str
         """Where dropped zips are extracted into editable working copies --
         imports/ stays archives-only, so the drop zone isn't cluttered."""
-        return os.path.join(
-            self.imports_dir(), "unzipped").replace("\\", "/")
+        return os.path.join(self.imports_dir(), "unzipped").replace("\\", "/")
 
     def _imp_dir(self, imp):
         # type: (str) -> str
@@ -211,7 +205,7 @@ class CueImportManager(object):
         for name in names:
             if not name.endswith(".zip"):
                 continue
-            imp_name = name[:-len(".zip")]
+            imp_name = name[: -len(".zip")]
             imp_dir = self._imp_dir(imp_name)
             zip_path = os.path.join(imports_dir, name)
             if not os.path.isdir(imp_dir):
@@ -223,13 +217,12 @@ class CueImportManager(object):
                 self.import_label = name
                 self.import_fraction = 0.0
                 try:
-                    _cue_extract_import_zip(
-                        zip_path, imp_dir, progress=self._set_import_progress)
+                    _cue_extract_import_zip(zip_path, imp_dir, progress=self._set_import_progress)
                 except Exception as e:
                     _cue_log("IMPORT: failed to extract {}: {}".format(name, e))
-                    imports.append(self._error_entry(
-                        imp_name, name, _zip_mtime(zip_path),
-                        "This import could not be extracted."))
+                    imports.append(
+                        self._error_entry(imp_name, name, _zip_mtime(zip_path), "This import could not be extracted.")
+                    )
                     continue
                 finally:
                     self.is_importing = False
@@ -264,10 +257,8 @@ class CueImportManager(object):
         zip_names = _cue_zip_file_names(zip_path)
         ok, err = _cue_validate_manifest(manifest, zip_names)
         if not ok:
-            return self._error_entry(
-                imp_name, zip_name, _zip_mtime(zip_path), err)
-        match, reason = _cue_import_match(
-            self._paths.game_id, manifest.get("game_id", ""))
+            return self._error_entry(imp_name, zip_name, _zip_mtime(zip_path), err)
+        match, reason = _cue_import_match(self._paths.game_id, manifest.get("game_id", ""))
         return {
             "imp": imp_name,
             "zip": zip_name,
@@ -342,23 +333,23 @@ class CueImportManager(object):
         warnings = []
         if entry["match"] != CueImportMatch.AUTO:
             warnings.append(
-                ("Game ID mismatch.\n"
-                 "Check if it's really the same game, then click Remap.\n\n"
-                 "Current Game ID: {}\n"
-                 "Import Game ID: {}").format(
-                     self._paths.game_id, entry.get("game_id") or ""))
+                (
+                    "Game ID mismatch.\n"
+                    "Check if it's really the same game, then click Remap.\n\n"
+                    "Current Game ID: {}\n"
+                    "Import Game ID: {}"
+                ).format(self._paths.game_id, entry.get("game_id") or "")
+            )
         missing = entry.get("missing") or []
         if missing:
-            warnings.append(
-                "The zip is missing {} file(s) listed in its manifest.".format(len(missing)))
+            warnings.append("The zip is missing {} file(s) listed in its manifest.".format(len(missing)))
         return warnings
 
     def _has_warnings(self, entry):
         # type: (dict) -> bool
         """Whether a valid import needs the warning icon: a non-matching
         game_id or manifest-listed files absent from the zip."""
-        return (entry["match"] != CueImportMatch.AUTO
-                or bool(entry.get("missing")))
+        return entry["match"] != CueImportMatch.AUTO or bool(entry.get("missing"))
 
     # ------------------------------------------------------------------
     # activate / deactivate -- root-swap overlay
@@ -420,8 +411,7 @@ class CueImportManager(object):
         entry = self.import_for(imp)
         if entry is None:
             return False
-        return (entry["valid"]
-                and entry["match"] == CueImportMatch.AUTO)
+        return entry["valid"] and entry["match"] == CueImportMatch.AUTO
 
     def replays_for(self, imp):
         # type: (str) -> List[dict]
@@ -439,8 +429,7 @@ class CueImportManager(object):
         ('row' vs 'banner') keeps the list open in one place independent of
         the other -- the same import can be expanded in the banner while its
         row stays collapsed."""
-        self.expanded_replays[(section, imp)] = not self.is_replays_expanded(
-            section, imp)
+        self.expanded_replays[(section, imp)] = not self.is_replays_expanded(section, imp)
 
     def is_replays_expanded(self, section, imp):
         # type: (str, str) -> bool
@@ -471,30 +460,22 @@ class CueImportManager(object):
             return
         old_gid = entry.get("game_id", "")
         new_gid = self._paths.game_id
-        
+
         if not old_gid or old_gid == new_gid:
             return
         imp_dir = self._imp_dir(imp)
 
         _cue_rename_if_exists(
-            os.path.join(imp_dir, "data", "markers", old_gid),
-            os.path.join(imp_dir, "data", "markers", new_gid))
-        
-        _cue_rename_if_exists(
-            os.path.join(imp_dir, "video", old_gid),
-            os.path.join(imp_dir, "video", new_gid))
+            os.path.join(imp_dir, "data", "markers", old_gid), os.path.join(imp_dir, "data", "markers", new_gid)
+        )
+
+        _cue_rename_if_exists(os.path.join(imp_dir, "video", old_gid), os.path.join(imp_dir, "video", new_gid))
         manifest = _cue_load_manifest(imp_dir)
 
         if isinstance(manifest, dict) and manifest.get("game_id") == old_gid:
             manifest["game_id"] = new_gid
-            manifest["contents"] = [
-                _cue_rewrite_rel(rel, old_gid, new_gid)
-                for rel in (manifest.get("contents") or [])
-            ]
-            _atomic_json_write(
-                os.path.join(imp_dir, CUE_IMPORT_MANIFEST_NAME),
-                manifest,
-                indent=2)
+            manifest["contents"] = [_cue_rewrite_rel(rel, old_gid, new_gid) for rel in (manifest.get("contents") or [])]
+            _atomic_json_write(os.path.join(imp_dir, CUE_IMPORT_MANIFEST_NAME), manifest, indent=2)
         self.scan()
 
     # ------------------------------------------------------------------
@@ -507,8 +488,7 @@ class CueImportManager(object):
         if entry is None:
             return
         _cue.dialogs.confirm.show_or_run(
-            "Delete import '{}'?".format(entry["name"]),
-            Function(self.delete_confirmed, imp),
+            "Delete import '{}'?".format(entry["name"]), Function(self.delete_confirmed, imp)
         )
 
     def delete_confirmed(self, imp):
@@ -562,8 +542,7 @@ class CueImportManager(object):
         if entry is None or not entry["valid"]:
             return
         if entry["match"] != CueImportMatch.AUTO:
-            self.merge_status = ("This import isn't remapped to this game "
-                                 "yet.  Remap it first.")
+            self.merge_status = "This import isn't remapped to this game yet.  Remap it first."
             return
         filtered = _cue_filter_contents(self.folder_files(imp), checked)
         if not filtered:

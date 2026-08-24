@@ -28,6 +28,7 @@ def test_root_and_game_id_props(tmp_path):
 # Active-root swap -- import preview points every serving dir at the package
 # ---------------------------------------------------------------------------
 
+
 def test_original_root_stays_original_while_active_root_swaps(tmp_path):
     root = str(tmp_path / "root")
     imp = str(tmp_path / "root" / "imports" / "imp")
@@ -68,6 +69,7 @@ def test_shared_config_path_never_follows_active_root(tmp_path):
 # platform_shared_dir -- per-OS default
 # ---------------------------------------------------------------------------
 
+
 def test_platform_shared_dir_linux(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)
@@ -102,6 +104,7 @@ def test_platform_shared_dir_darwin(tmp_path, monkeypatch):
 # resolve_root -- pointer file, env override, platform default
 # ---------------------------------------------------------------------------
 
+
 def _patch_platform_dir(tmp_path, monkeypatch, subdir="platform"):
     base = tmp_path / subdir
     base.mkdir(parents=True, exist_ok=True)
@@ -131,6 +134,7 @@ def test_resolve_root_pointer_unreadable_uses_env(tmp_path, monkeypatch):
 
     def _boom(path, mode, *a, **k):
         raise OSError("unreadable pointer")
+
     monkeypatch.setattr("builtins.open", _boom)
     monkeypatch.setenv("RENPY_CUE_DIR", str(tmp_path / "envroot"))
     assert CuePaths.resolve_root() == os.path.normpath(str(tmp_path / "envroot")).replace("\\", "/")
@@ -145,6 +149,7 @@ def test_resolve_root_default(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 # save_root -- pointer persistence + clean reset
 # ---------------------------------------------------------------------------
+
 
 def test_save_root_writes_pointer(tmp_path, monkeypatch):
     base = _patch_platform_dir(tmp_path, monkeypatch)

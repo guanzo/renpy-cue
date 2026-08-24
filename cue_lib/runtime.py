@@ -14,9 +14,12 @@ from cue_lib.markers import _cue_load_scalars_from_persistent
 from cue_lib.state import _cue
 from cue_lib.ui.displayables import CueVideoMarkerTimeline
 from cue_lib.util import (
-    _cue_log, _cue_unwrap_displayable,
+    _cue_log,
+    _cue_unwrap_displayable,
     _cue_get_movie_play,
-    create_img_key, create_vid_key, create_dlg_key,
+    create_img_key,
+    create_vid_key,
+    create_dlg_key,
 )
 
 MYPY = False
@@ -41,12 +44,14 @@ CUE_EXCLUSIVE_FADE = 0.1
 # Visibility
 # --------------------------------------------------------------------------
 
+
 def _cue_toggle_overlay():
     # type: () -> None
     if _cue.is_overlay_visible:
         _cue_hide_overlay()
     else:
         _cue_show_overlay()
+
 
 def _cue_set_page(page):
     # type: (int) -> None
@@ -61,8 +66,9 @@ def _cue_set_page(page):
     elif page == CuePage.IMPORT:
         _cue.importer.scan()
         _cue.exporter.refresh()
-        
+
     _cue.overlay_active_page = page
+
 
 def _cue_toggle_video_mute():
     # type: () -> None
@@ -79,6 +85,7 @@ def _cue_toggle_video_mute():
     if ch:
         _music.set_volume(0.0 if video_file_muted else 1.0, delay=0, channel=ch)
     renpy.restart_interaction()
+
 
 def _cue_toggle_intensity_flag(flag_key):
     # type: (str) -> None
@@ -114,6 +121,7 @@ def _cue_show_overlay():
     renpy.show_screen("cue_overlay", _layer="cue_layer")
     renpy.restart_interaction()
 
+
 def _cue_full_reload():
     # type: () -> None
     """Reload every in-memory layer from the current effective root.
@@ -146,6 +154,7 @@ def _cue_full_reload():
 
     _cue_refresh_context()
 
+
 def _cue_hide_overlay():
     # type: () -> None
     _cue.is_overlay_visible = False
@@ -159,6 +168,7 @@ def _cue_hide_overlay():
 # --------------------------------------------------------------------------
 # Context Detection
 # --------------------------------------------------------------------------
+
 
 def _cue_refresh_context():
     # type: () -> None
@@ -213,8 +223,10 @@ def _cue_refresh_context_impl():
         changed += " ch:{}->{}".format(old_channel, _cue.vid_manager.channel)
 
     if _cue.current_dialogue != _cue.prev_dialogue:
-        changed += " dlg:{}->{}".format(_cue.prev_dialogue[:20] if _cue.prev_dialogue else "(null)",
-            _cue.current_dialogue[:20] if _cue.current_dialogue else "(null)")
+        changed += " dlg:{}->{}".format(
+            _cue.prev_dialogue[:20] if _cue.prev_dialogue else "(null)",
+            _cue.current_dialogue[:20] if _cue.current_dialogue else "(null)",
+        )
         if _cue.current_dialogue:
             dlg_key = create_dlg_key((_cue.current_file, _cue.current_dialogue))
 
@@ -251,15 +263,22 @@ def _cue_log_context():
         ctx_type = "video"
     else:
         ctx_type = "none"
-    _cue_log("CTX-DUMP ctx={} type={} video={} ch={} playing={} dlg=\"{}\"".format(
-        _cue.current_file or "(none)", ctx_type, vname,
-        _cue.vid_manager.channel or "(none)", playing,
-        _cue.current_dialogue[:60] if _cue.current_dialogue else "(none)"))
+    _cue_log(
+        "CTX-DUMP ctx={} type={} video={} ch={} playing={} dlg=\"{}\"".format(
+            _cue.current_file or "(none)",
+            ctx_type,
+            vname,
+            _cue.vid_manager.channel or "(none)",
+            playing,
+            _cue.current_dialogue[:60] if _cue.current_dialogue else "(none)",
+        )
+    )
 
 
 # --------------------------------------------------------------------------
 # Image / Movie Detection (master layer scene list)
 # --------------------------------------------------------------------------
+
 
 def _cue_get_top_layer():
     # type: () -> Tuple[Optional[str], Optional[str], Any]
@@ -278,6 +297,7 @@ def _cue_get_top_layer():
         name = " ".join(entry.name) if entry.name else name
         import renpy.display.video as _video
         import renpy.display.im as _im
+
         if isinstance(d, _video.Movie):
             return name, "movie", d
         if isinstance(d, _im.Image):
@@ -286,8 +306,7 @@ def _cue_get_top_layer():
             dedup_key = (name, d.__class__.__name__)
             if dedup_key not in _cue_logged_unknown_displayables:
                 _cue_logged_unknown_displayables.add(dedup_key)
-                _cue_log("TOP-LAYER-UNKNOWN name={} d_class={}".format(
-                    name, d.__class__.__name__))
+                _cue_log("TOP-LAYER-UNKNOWN name={} d_class={}".format(name, d.__class__.__name__))
         return name, "image", d
     except Exception as exc:
         _cue_logger.log_error("TOP-LAYER-ERR {}".format(repr(exc)))
@@ -297,6 +316,7 @@ def _cue_get_top_layer():
 # --------------------------------------------------------------------------
 # Channel Detection
 # --------------------------------------------------------------------------
+
 
 def _cue_refresh_channel(displayable=None):
     # type: (Any) -> None
@@ -324,6 +344,7 @@ def _cue_refresh_channel(displayable=None):
 
         if candidates:
             import renpy.display.video as _video
+
             if displayable is not None and isinstance(displayable, _video.Movie):
                 _cue_get_movie_play(displayable)
                 target_path = _cue.speed_resolver.base_path_for(_cue.current_file)
@@ -340,6 +361,7 @@ def _cue_refresh_channel(displayable=None):
             _cue.vid_manager.channel = None
     finally:
         _cue.vid_manager.refreshing = False
+
 
 def _cue_apply_channel(ch_name, ch_obj, old_ch):
     # type: (str, Any, Optional[str]) -> None
@@ -372,6 +394,7 @@ def _cue_apply_channel(ch_name, ch_obj, old_ch):
 # SFX Trigger Engine (Tick)
 # --------------------------------------------------------------------------
 
+
 def _cue_tick_trigger():
     # type: () -> None
     # Runs at 50 Hz from a screen timer.  Guard the whole body so a bad edge
@@ -381,6 +404,7 @@ def _cue_tick_trigger():
         _cue_tick_trigger_impl()
     except Exception as exc:
         _cue_logger.log_error("TICK-ERR {}".format(repr(exc)))
+
 
 def _cue_tick_trigger_impl():
     # type: () -> None

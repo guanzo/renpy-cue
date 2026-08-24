@@ -15,9 +15,4 @@
 from cue_lib.intensity import banding
 from cue_lib.intensity import intensity
 
-from cue_lib.intensity.intensity import (
-    CueIntensityFlags,
-    CueIntensityManager,
-    CueIntensityResolution,
-    _level_ramp,
-)
+from cue_lib.intensity.intensity import CueIntensityFlags, CueIntensityManager, CueIntensityResolution, _level_ramp

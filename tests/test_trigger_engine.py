@@ -17,19 +17,21 @@ import renpy.audio.music as _music
 
 import cue_lib.trigger as _trigger
 from cue_lib.trigger import (
-    CueTriggerEngine, CUE_EXCL_KIND_LOOP, CUE_EXCL_KIND_ONESHOT,
-    _cue_effective_delay, _cue_loop_still_playing)
-from cue_lib.constants import (
-    CUE_INTENSITY_DELAY_MAX, CUE_INTENSITY_DELAY_MIN, CueExclusiveStart, CueLoopFrequency)
-
-from tests.fakes import (
-    FakeMarkerStore, FakeMarkers, FakeRepeater, FakeSpeedResolver, FakeVidManager,
+    CueTriggerEngine,
+    CUE_EXCL_KIND_LOOP,
+    CUE_EXCL_KIND_ONESHOT,
+    _cue_effective_delay,
+    _cue_loop_still_playing,
 )
+from cue_lib.constants import CUE_INTENSITY_DELAY_MAX, CUE_INTENSITY_DELAY_MIN, CueExclusiveStart, CueLoopFrequency
+
+from tests.fakes import FakeMarkerStore, FakeMarkers, FakeRepeater, FakeSpeedResolver, FakeVidManager
 
 
 @pytest.fixture(autouse=True)
 def _identity_resolve_files(monkeypatch):
     import cue_lib.intensity.intensity as _intensity
+
     monkeypatch.setattr(_trigger, "_cue_resolve_files", lambda files: list(files))
     monkeypatch.setattr(_intensity, "_cue_resolve_files", lambda files: list(files))
 
@@ -39,6 +41,7 @@ def _no_intensity(monkeypatch):
     """Stub _cue.intensity so no pool ever hooks.  Intensity tests override
     this with a real manager."""
     from cue_lib.intensity import CueIntensityFlags
+
     stub = types.SimpleNamespace(
         resolve_pool_intensity=lambda *a, **k: None,
         resolve_video_intensity=lambda *a, **k: None,
@@ -88,7 +91,8 @@ def make_engine(store=None, repeater=None, speed=None, vid=None, markers=None):
         repeater if repeater is not None else FakeRepeater(),
         speed if speed is not None else FakeSpeedResolver(),
         vid if vid is not None else FakeVidManager(),
-        markers=markers)
+        markers=markers,
+    )
 
 
 def pick(monkeypatch, value="a.ogg"):
@@ -101,14 +105,13 @@ def keep_playing(monkeypatch):
 
 
 def loop_store():
-    return FakeMarkerStore({
-        "l_scene.ogg": {"pools": [
-            {"files": ["a.ogg"], "frequency": CueLoopFrequency.MEDIUM}]}})
+    return FakeMarkerStore({"l_scene.ogg": {"pools": [{"files": ["a.ogg"], "frequency": CueLoopFrequency.MEDIUM}]}})
 
 
 # ---------------------------------------------------------------------------
 # _cue_loop_still_playing (moved here from util.py with the trigger engine)
 # ---------------------------------------------------------------------------
+
 
 def test_loop_still_playing_all_silent(monkeypatch):
     monkeypatch.setattr(_music, "is_playing", lambda channel="music", **k: False)
@@ -118,6 +121,7 @@ def test_loop_still_playing_all_silent(monkeypatch):
 def test_loop_still_playing_one_playing(monkeypatch):
     def _is_playing(channel="music", **k):
         return channel == "b"
+
     monkeypatch.setattr(_music, "is_playing", _is_playing)
     assert _cue_loop_still_playing(["a", "b"]) is True
 
@@ -125,6 +129,7 @@ def test_loop_still_playing_one_playing(monkeypatch):
 def test_loop_still_playing_unknown_channel_skipped(monkeypatch):
     def _is_playing(channel="music", **k):
         raise Exception("unknown channel")
+
     monkeypatch.setattr(_music, "is_playing", _is_playing)
     assert _cue_loop_still_playing(["x"]) is False
 
@@ -132,6 +137,7 @@ def test_loop_still_playing_unknown_channel_skipped(monkeypatch):
 # ---------------------------------------------------------------------------
 # constructor / _markers_ctx
 # ---------------------------------------------------------------------------
+
 
 def test_constructor_defaults():
     eng = make_engine()
@@ -148,10 +154,10 @@ def test_markers_ctx_injected():
 
 def test_markers_ctx_falls_back_to_singleton(monkeypatch):
     from cue_lib.state import _cue
+
     fake = FakeMarkers()
     monkeypatch.setattr(_cue, "markers", fake)
-    eng = CueTriggerEngine(FakeMarkerStore(), FakeRepeater(),
-                           FakeSpeedResolver(), FakeVidManager())
+    eng = CueTriggerEngine(FakeMarkerStore(), FakeRepeater(), FakeSpeedResolver(), FakeVidManager())
     assert eng._markers_ctx() is fake
 
 
@@ -176,6 +182,7 @@ def test_toggle_active_reverse():
 # ---------------------------------------------------------------------------
 # tick
 # ---------------------------------------------------------------------------
+
 
 def test_tick_inactive_is_noop(monkeypatch):
     eng = make_engine()
@@ -202,11 +209,16 @@ def test_tick_dispatches_loop_then_video(monkeypatch):
 # exclusive helpers
 # ---------------------------------------------------------------------------
 
+
 def test_track_excl_channel_stores_info():
     eng = make_engine()
     eng._track_excl_channel("cue_sfx_1", CUE_EXCL_KIND_ONESHOT, "scene.ogg", None, False)
     assert eng.excl_channels["cue_sfx_1"] == {
-        "kind": CUE_EXCL_KIND_ONESHOT, "scene": "scene.ogg", "line": None, "hold": False}
+        "kind": CUE_EXCL_KIND_ONESHOT,
+        "scene": "scene.ogg",
+        "line": None,
+        "hold": False,
+    }
 
 
 def test_track_excl_channel_none_channel_ignored():
@@ -217,8 +229,7 @@ def test_track_excl_channel_none_channel_ignored():
 
 def test_prune_excl_channels_drops_finished():
     eng = make_engine()
-    eng.excl_channels = {"ch1": {"kind": CUE_EXCL_KIND_LOOP},
-                         "ch2": {"kind": CUE_EXCL_KIND_ONESHOT}}
+    eng.excl_channels = {"ch1": {"kind": CUE_EXCL_KIND_LOOP}, "ch2": {"kind": CUE_EXCL_KIND_ONESHOT}}
     eng._prune_excl_channels()  # mock is_playing -> False, so both dropped
     assert eng.excl_channels == {}
 
@@ -273,62 +284,56 @@ def test_excl_group_channels_filters_kind_and_group():
 
 def test_excl_kind_channels():
     eng = make_engine()
-    eng.excl_channels = {"ch1": {"kind": CUE_EXCL_KIND_ONESHOT},
-                         "ch2": {"kind": CUE_EXCL_KIND_LOOP}}
+    eng.excl_channels = {"ch1": {"kind": CUE_EXCL_KIND_ONESHOT}, "ch2": {"kind": CUE_EXCL_KIND_LOOP}}
     assert eng._excl_kind_channels(CUE_EXCL_KIND_LOOP) == ["ch2"]
 
 
 def test_hold_blocked_holding_outgroup(monkeypatch):
     eng = make_engine()
     keep_playing(monkeypatch)
-    eng.excl_channels = {
-        "held": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "other.ogg", "line": None, "hold": True}}
+    eng.excl_channels = {"held": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "other.ogg", "line": None, "hold": True}}
     assert eng._excl_hold_blocked(CUE_EXCL_KIND_ONESHOT, "scene.ogg", None)
 
 
 def test_hold_blocked_same_group_hold_not_blocked(monkeypatch):
     eng = make_engine()
     keep_playing(monkeypatch)
-    eng.excl_channels = {
-        "held": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "scene.ogg", "line": None, "hold": True}}
+    eng.excl_channels = {"held": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "scene.ogg", "line": None, "hold": True}}
     assert not eng._excl_hold_blocked(CUE_EXCL_KIND_ONESHOT, "scene.ogg", None)
 
 
 def test_hold_blocked_other_domain_ignored(monkeypatch):
     eng = make_engine()
     keep_playing(monkeypatch)
-    eng.excl_channels = {
-        "held": {"kind": CUE_EXCL_KIND_LOOP, "scene": "other.ogg", "line": None, "hold": True}}
+    eng.excl_channels = {"held": {"kind": CUE_EXCL_KIND_LOOP, "scene": "other.ogg", "line": None, "hold": True}}
     assert not eng._excl_hold_blocked(CUE_EXCL_KIND_ONESHOT, "scene.ogg", None)
 
 
 def test_hold_blocked_non_hold_ignored(monkeypatch):
     eng = make_engine()
     keep_playing(monkeypatch)
-    eng.excl_channels = {
-        "busy": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "other.ogg", "line": None, "hold": False}}
+    eng.excl_channels = {"busy": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "other.ogg", "line": None, "hold": False}}
     assert not eng._excl_hold_blocked(CUE_EXCL_KIND_ONESHOT, "scene.ogg", None)
 
 
 def test_outgroup_busy_any_outgroup_playing(monkeypatch):
     eng = make_engine()
     keep_playing(monkeypatch)
-    eng.excl_channels = {
-        "ch": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "other.ogg", "line": None, "hold": False}}
+    eng.excl_channels = {"ch": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "other.ogg", "line": None, "hold": False}}
     assert eng._excl_outgroup_busy(CUE_EXCL_KIND_ONESHOT, "scene.ogg", None)
 
 
 def test_outgroup_busy_same_group_clears(monkeypatch):
     eng = make_engine()
     keep_playing(monkeypatch)
-    eng.excl_channels = {
-        "ch": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "scene.ogg", "line": None, "hold": False}}
+    eng.excl_channels = {"ch": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "scene.ogg", "line": None, "hold": False}}
     assert not eng._excl_outgroup_busy(CUE_EXCL_KIND_ONESHOT, "scene.ogg", None)
 
 
 # ---------------------------------------------------------------------------
 # fire_context
 # ---------------------------------------------------------------------------
+
 
 def test_fire_context_inactive_noop():
     eng = make_engine()
@@ -359,8 +364,7 @@ def test_fire_context_plays_pool(monkeypatch, play_stub):
 
 
 def test_fire_context_multipool_dedupes(monkeypatch, play_stub):
-    store = FakeMarkerStore({"i_scene.ogg": {"pools": [
-        {"files": ["a.ogg", "b.ogg"]}, {"files": ["a.ogg", "b.ogg"]}]}})
+    store = FakeMarkerStore({"i_scene.ogg": {"pools": [{"files": ["a.ogg", "b.ogg"]}, {"files": ["a.ogg", "b.ogg"]}]}})
     picks = iter(["a.ogg", "b.ogg"])
     monkeypatch.setattr(_trigger, "_cue_pick_file", lambda files: next(picks))
     eng = make_engine(store=store)
@@ -369,8 +373,7 @@ def test_fire_context_multipool_dedupes(monkeypatch, play_stub):
 
 
 def test_fire_context_deduped_none_skips_pool(monkeypatch, play_stub):
-    store = FakeMarkerStore({"i_scene.ogg": {"pools": [
-        {"files": ["a.ogg"]}, {"files": ["a.ogg"]}]}})
+    store = FakeMarkerStore({"i_scene.ogg": {"pools": [{"files": ["a.ogg"]}, {"files": ["a.ogg"]}]}})
     pick(monkeypatch)  # always "a.ogg" -- second pool can't satisfy dedupe
     eng = make_engine(store=store)
     eng.fire_context("i_scene.ogg")
@@ -378,9 +381,16 @@ def test_fire_context_deduped_none_skips_pool(monkeypatch, play_stub):
 
 
 def test_fire_context_only_shake_pools_filters(monkeypatch, play_stub):
-    store = FakeMarkerStore({"i_scene.ogg": {"pools": [
-        {"files": ["a.ogg"], "trigger_on_shake": True},
-        {"files": ["b.ogg"], "trigger_on_shake": False}]}})
+    store = FakeMarkerStore(
+        {
+            "i_scene.ogg": {
+                "pools": [
+                    {"files": ["a.ogg"], "trigger_on_shake": True},
+                    {"files": ["b.ogg"], "trigger_on_shake": False},
+                ]
+            }
+        }
+    )
     monkeypatch.setattr(_trigger, "_cue_pick_file", lambda files: files[0])
     eng = make_engine(store=store)
     eng.fire_context("i_scene.ogg", only_shake_pools=True)
@@ -388,9 +398,16 @@ def test_fire_context_only_shake_pools_filters(monkeypatch, play_stub):
 
 
 def test_fire_context_all_pools_without_shake_filter(monkeypatch, play_stub):
-    store = FakeMarkerStore({"i_scene.ogg": {"pools": [
-        {"files": ["a.ogg"], "trigger_on_shake": True},
-        {"files": ["b.ogg"], "trigger_on_shake": False}]}})
+    store = FakeMarkerStore(
+        {
+            "i_scene.ogg": {
+                "pools": [
+                    {"files": ["a.ogg"], "trigger_on_shake": True},
+                    {"files": ["b.ogg"], "trigger_on_shake": False},
+                ]
+            }
+        }
+    )
     monkeypatch.setattr(_trigger, "_cue_pick_file", lambda files: files[0])
     eng = make_engine(store=store)
     eng.fire_context("i_scene.ogg")
@@ -408,30 +425,29 @@ def test_fire_context_hold_gate_drops_pool(monkeypatch, play_stub):
     store = FakeMarkerStore({"i_scene.ogg": {"pools": [{"files": ["a.ogg"]}]}})
     eng = make_engine(store=store)
     keep_playing(monkeypatch)
-    eng.excl_channels = {
-        "held": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "other.ogg", "line": None, "hold": True}}
+    eng.excl_channels = {"held": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "other.ogg", "line": None, "hold": True}}
     eng.fire_context("i_scene.ogg")
     assert play_stub == []
 
 
 def test_fire_context_wait_defers_when_air_busy(monkeypatch, play_stub):
-    store = FakeMarkerStore({"i_scene.ogg": {"pools": [
-        {"files": ["a.ogg"], "exclusive": {"start": CueExclusiveStart.WAIT}}]}})
+    store = FakeMarkerStore(
+        {"i_scene.ogg": {"pools": [{"files": ["a.ogg"], "exclusive": {"start": CueExclusiveStart.WAIT}}]}}
+    )
     eng = make_engine(store=store)
     keep_playing(monkeypatch)
-    eng.excl_channels = {
-        "busy": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "other.ogg", "line": None, "hold": False}}
+    eng.excl_channels = {"busy": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "other.ogg", "line": None, "hold": False}}
     eng.fire_context("i_scene.ogg")
     assert play_stub == []
 
 
 def test_fire_context_fade_cuts_outgroup(monkeypatch, play_stub, fade_stub):
-    store = FakeMarkerStore({"i_scene.ogg": {"pools": [
-        {"files": ["a.ogg"], "exclusive": {"start": CueExclusiveStart.FADE}}]}})
+    store = FakeMarkerStore(
+        {"i_scene.ogg": {"pools": [{"files": ["a.ogg"], "exclusive": {"start": CueExclusiveStart.FADE}}]}}
+    )
     eng = make_engine(store=store)
     keep_playing(monkeypatch)
-    eng.excl_channels = {
-        "ch": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "scene.ogg", "line": None, "hold": False}}
+    eng.excl_channels = {"ch": {"kind": CUE_EXCL_KIND_ONESHOT, "scene": "scene.ogg", "line": None, "hold": False}}
     eng.fire_context("i_scene.ogg")
     assert fade_stub[0]["exclude_channels"] == ["ch"]
     assert play_stub == [("i_scene.ogg", 0, "a.ogg")]
@@ -440,6 +456,7 @@ def test_fire_context_fade_cuts_outgroup(monkeypatch, play_stub, fade_stub):
 # ---------------------------------------------------------------------------
 # _tick_loop
 # ---------------------------------------------------------------------------
+
 
 def test_tick_loop_no_entry():
     eng = make_engine(store=FakeMarkerStore({}))
@@ -480,8 +497,7 @@ def test_tick_loop_resets_when_done(monkeypatch, play_stub):
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
     eng = make_engine(store=loop_store(), markers=FakeMarkers())
     ps = eng.loop_states.setdefault("l_scene.ogg", {})
-    ps[0] = {"ready_at": 0.0, "channels": ["cue_sfx_1"], "play_start": 50.0,
-             "blocked_logged": False}
+    ps[0] = {"ready_at": 0.0, "channels": ["cue_sfx_1"], "play_start": 50.0, "blocked_logged": False}
     eng._tick_loop(100.0, 1, "scene.ogg", 1.0, None)
     pst = ps[0]
     assert pst["channels"] == []  # reset for the next cycle
@@ -493,8 +509,7 @@ def test_tick_loop_hold_defers(monkeypatch, play_stub):
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
     keep_playing(monkeypatch)
     eng = make_engine(store=loop_store(), markers=FakeMarkers())
-    eng.excl_channels = {
-        "held": {"kind": CUE_EXCL_KIND_LOOP, "scene": "other.ogg", "line": None, "hold": True}}
+    eng.excl_channels = {"held": {"kind": CUE_EXCL_KIND_LOOP, "scene": "other.ogg", "line": None, "hold": True}}
     eng._tick_loop(100.0, 1, "scene.ogg", 1.0, None)
     pst = eng.loop_states["l_scene.ogg"][0]
     assert pst["ready_at"] == 100.1
@@ -506,12 +521,21 @@ def test_tick_loop_wait_defers(monkeypatch, play_stub):
     pick(monkeypatch)
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
     keep_playing(monkeypatch)
-    store = FakeMarkerStore({"l_scene.ogg": {"pools": [
-        {"files": ["a.ogg"], "frequency": CueLoopFrequency.MEDIUM,
-         "exclusive": {"start": CueExclusiveStart.WAIT}}]}})
+    store = FakeMarkerStore(
+        {
+            "l_scene.ogg": {
+                "pools": [
+                    {
+                        "files": ["a.ogg"],
+                        "frequency": CueLoopFrequency.MEDIUM,
+                        "exclusive": {"start": CueExclusiveStart.WAIT},
+                    }
+                ]
+            }
+        }
+    )
     eng = make_engine(store=store, markers=FakeMarkers())
-    eng.excl_channels = {
-        "busy": {"kind": CUE_EXCL_KIND_LOOP, "scene": "other.ogg", "line": None, "hold": False}}
+    eng.excl_channels = {"busy": {"kind": CUE_EXCL_KIND_LOOP, "scene": "other.ogg", "line": None, "hold": False}}
     eng._tick_loop(100.0, 1, "scene.ogg", 1.0, None)
     pst = eng.loop_states["l_scene.ogg"][0]
     assert pst["ready_at"] == 100.1
@@ -521,6 +545,7 @@ def test_tick_loop_wait_defers(monkeypatch, play_stub):
 # ---------------------------------------------------------------------------
 # _tick_video
 # ---------------------------------------------------------------------------
+
 
 def test_tick_video_no_channel_returns():
     eng = make_engine(vid=FakeVidManager(channel=""))
@@ -561,8 +586,9 @@ def test_tick_video_preview_marker(play_stub):
     store = FakeMarkerStore({"v_scene.ogv": {"pools": []}})
     vid = FakeVidManager(elapsed=0.05)
     vid.last_elapsed = 0.05
-    repeater = FakeRepeater(dialog_visible=True, preview_sfx_enabled=True,
-                            preview_pools=[{"time": 0.0, "files": ["p.ogg"]}])
+    repeater = FakeRepeater(
+        dialog_visible=True, preview_sfx_enabled=True, preview_pools=[{"time": 0.0, "files": ["p.ogg"]}]
+    )
     eng = make_engine(store=store, vid=vid, markers=FakeMarkers(), repeater=repeater)
     eng._tick_video("scene.ogv", "movie", 1.0, None)
     assert play_stub == [("v_scene.ogv", 0, None)]
@@ -619,6 +645,7 @@ def test_tick_video_wrap_to_coarse_position_still_fires_time_zero(play_stub):
 # intensity wiring -- hooked pools + global volume scale (slice 3)
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def play_full(sfx_playback):
     """Record (key, pool_index, file, files, volume_mult) for play_pool calls."""
@@ -632,10 +659,12 @@ def play_full(sfx_playback):
     return calls.play
 
 
-def _igroup_engine(cue_env, monkeypatch, store, speed=1.3, variants=(0.7, 1.0, 1.3),
-                   markers=None, vid=None, repeater=None):
+def _igroup_engine(
+    cue_env, monkeypatch, store, speed=1.3, variants=(0.7, 1.0, 1.3), markers=None, vid=None, repeater=None
+):
     """Engine with a real 2-level "Impacts" igroup (soft/, hard/) wired in."""
     from cue_lib.intensity import CueIntensityManager
+
     m = CueIntensityManager(cue_env.db)
     assert m.create_igroup("Impacts") is None
     assert m.add_folder("Impacts", "soft/") is None
@@ -646,13 +675,13 @@ def _igroup_engine(cue_env, monkeypatch, store, speed=1.3, variants=(0.7, 1.0, 1
         repeater=repeater if repeater is not None else FakeRepeater(),
         speed=FakeSpeedResolver(speed, list(variants)),
         vid=vid if vid is not None else FakeVidManager(),
-        markers=markers if markers is not None else FakeMarkers())
+        markers=markers if markers is not None else FakeMarkers(),
+    )
 
 
 def test_tick_loop_hooked_uses_level_folder(cue_env, monkeypatch, play_full):
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
-    store = FakeMarkerStore({"l_scene.ogg": {"pools": [
-        {"files": ["soft/"], "frequency": CueLoopFrequency.MEDIUM}]}})
+    store = FakeMarkerStore({"l_scene.ogg": {"pools": [{"files": ["soft/"], "frequency": CueLoopFrequency.MEDIUM}]}})
     eng = _igroup_engine(cue_env, monkeypatch, store)
     # 2 levels over [0.7, 1.0, 1.3]: 1.3 -> L2 (hard/), at the level's volume.
     eng._tick_loop(100.0, 1, "scene.ogg", 1.3, [0.7, 1.0, 1.3])
@@ -661,8 +690,7 @@ def test_tick_loop_hooked_uses_level_folder(cue_env, monkeypatch, play_full):
 
 def test_tick_loop_level_change_restarts_timer(cue_env, monkeypatch, play_full):
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 5.0)
-    store = FakeMarkerStore({"l_scene.ogg": {"pools": [
-        {"files": ["soft/"], "frequency": CueLoopFrequency.MEDIUM}]}})
+    store = FakeMarkerStore({"l_scene.ogg": {"pools": [{"files": ["soft/"], "frequency": CueLoopFrequency.MEDIUM}]}})
     eng = _igroup_engine(cue_env, monkeypatch, store)
     # 0.7 -> L1 (soft/), init delay 5.0 -> ready at 105.0, no fire.
     eng._tick_loop(100.0, 1, "scene.ogg", 0.7, [0.7, 1.0, 1.3])
@@ -687,11 +715,13 @@ def test_tick_video_hooked_uses_level_folder(cue_env, monkeypatch, play_full):
 
 def test_tick_video_nonhooked_gets_global_scale(cue_env, monkeypatch, play_full):
     store = FakeMarkerStore({"v_scene.ogv": {"pools": [{"files": ["soft/"]}]}})
-    markers = FakeMarkers(markers=[
-        {"time": 0.0, "files": ["soft/"]},        # hooked -> own resolution
-        {"time": 0.1, "files": ["plain.ogg"]}])   # not hooked -> global scale
-    eng = _igroup_engine(cue_env, monkeypatch, store, markers=markers,
-                         vid=FakeVidManager(elapsed=0.12))
+    markers = FakeMarkers(
+        markers=[
+            {"time": 0.0, "files": ["soft/"]},  # hooked -> own resolution
+            {"time": 0.1, "files": ["plain.ogg"]},
+        ]
+    )  # not hooked -> global scale
+    eng = _igroup_engine(cue_env, monkeypatch, store, markers=markers, vid=FakeVidManager(elapsed=0.12))
     eng.tick("scene.ogv", "movie")
     # Both fire at the video's active level volume (1.25); the hooked marker
     # also fires from the resolved level folder.
@@ -701,9 +731,12 @@ def test_tick_video_nonhooked_gets_global_scale(cue_env, monkeypatch, play_full)
 
 def test_tick_loop_nonhooked_gets_global_scale(cue_env, monkeypatch, play_full):
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
-    store = FakeMarkerStore({
-        "v_scene.ogv": {"pools": [{"files": ["soft/"]}]},
-        "l_scene.ogv": {"pools": [{"files": ["plain.ogg"], "frequency": CueLoopFrequency.MEDIUM}]}})
+    store = FakeMarkerStore(
+        {
+            "v_scene.ogv": {"pools": [{"files": ["soft/"]}]},
+            "l_scene.ogv": {"pools": [{"files": ["plain.ogg"], "frequency": CueLoopFrequency.MEDIUM}]},
+        }
+    )
     eng = _igroup_engine(cue_env, monkeypatch, store)
     eng.tick("scene.ogv", "movie")
     # Non-hooked loop plays its own file at the video's global scale.
@@ -711,9 +744,9 @@ def test_tick_loop_nonhooked_gets_global_scale(cue_env, monkeypatch, play_full):
 
 
 def test_fire_context_gets_global_scale_during_video(cue_env, monkeypatch, play_full):
-    store = FakeMarkerStore({
-        "v_scene.ogv": {"pools": [{"files": ["soft/"]}]},
-        "d_scene.ogv__hi": {"pools": [{"files": ["plain.ogg"]}]}})
+    store = FakeMarkerStore(
+        {"v_scene.ogv": {"pools": [{"files": ["soft/"]}]}, "d_scene.ogv__hi": {"pools": [{"files": ["plain.ogg"]}]}}
+    )
     eng = _igroup_engine(cue_env, monkeypatch, store)
     # Dialogue one-shot firing while the video (with intensity) is current.
     _trigger._cue.ctx.current_file = "scene.ogv"
@@ -740,11 +773,15 @@ def test_fire_context_no_video_no_scale(cue_env, monkeypatch, play_full):
 # per-video toggles (slice 4) -- master / sfx-levels / volume gate the path
 # ==========================================================================
 
+
 def test_tick_loop_master_off_plays_pool_folder(cue_env, monkeypatch, play_full):
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
-    store = FakeMarkerStore({
-        "v_scene.ogv": {"pools": [{"files": ["soft/"]}], "intensity": {"enabled": False}},
-        "l_scene.ogv": {"pools": [{"files": ["soft/"], "frequency": CueLoopFrequency.MEDIUM}]}})
+    store = FakeMarkerStore(
+        {
+            "v_scene.ogv": {"pools": [{"files": ["soft/"]}], "intensity": {"enabled": False}},
+            "l_scene.ogv": {"pools": [{"files": ["soft/"], "frequency": CueLoopFrequency.MEDIUM}]},
+        }
+    )
     eng = _igroup_engine(cue_env, monkeypatch, store)
     # Master off -> the pool plays its own folder plainly, unscaled.
     eng._tick_loop(100.0, 1, "scene.ogv", 1.3, [0.7, 1.0, 1.3])
@@ -753,9 +790,12 @@ def test_tick_loop_master_off_plays_pool_folder(cue_env, monkeypatch, play_full)
 
 def test_tick_loop_sfx_levels_off_keeps_scaling(cue_env, monkeypatch, play_full):
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
-    store = FakeMarkerStore({
-        "v_scene.ogv": {"pools": [{"files": ["soft/"]}], "intensity": {"sfx_levels": False}},
-        "l_scene.ogv": {"pools": [{"files": ["soft/"], "frequency": CueLoopFrequency.MEDIUM}]}})
+    store = FakeMarkerStore(
+        {
+            "v_scene.ogv": {"pools": [{"files": ["soft/"]}], "intensity": {"sfx_levels": False}},
+            "l_scene.ogv": {"pools": [{"files": ["soft/"], "frequency": CueLoopFrequency.MEDIUM}]},
+        }
+    )
     eng = _igroup_engine(cue_env, monkeypatch, store)
     # sfx_levels off -> the pool's own folder plays, but the level still
     # drives volume (1.3 -> L2 -> 1.25).
@@ -764,8 +804,7 @@ def test_tick_loop_sfx_levels_off_keeps_scaling(cue_env, monkeypatch, play_full)
 
 
 def test_tick_video_volume_off_unscaled(cue_env, monkeypatch, play_full):
-    store = FakeMarkerStore({"v_scene.ogv": {"pools": [{"files": ["soft/"]}],
-                                              "intensity": {"volume": False}}})
+    store = FakeMarkerStore({"v_scene.ogv": {"pools": [{"files": ["soft/"]}], "intensity": {"volume": False}}})
     markers = FakeMarkers(markers=[{"time": 0.0, "files": ["soft/"]}])
     eng = _igroup_engine(cue_env, monkeypatch, store, markers=markers)
     eng._tick_video("scene.ogv", "movie", 1.3, [0.7, 1.0, 1.3])
@@ -774,9 +813,12 @@ def test_tick_video_volume_off_unscaled(cue_env, monkeypatch, play_full):
 
 
 def test_fire_context_master_off_unscaled(cue_env, monkeypatch, play_full):
-    store = FakeMarkerStore({
-        "v_scene.ogv": {"pools": [{"files": ["soft/"]}], "intensity": {"enabled": False}},
-        "d_scene.ogv__hi": {"pools": [{"files": ["plain.ogg"]}]}})
+    store = FakeMarkerStore(
+        {
+            "v_scene.ogv": {"pools": [{"files": ["soft/"]}], "intensity": {"enabled": False}},
+            "d_scene.ogv__hi": {"pools": [{"files": ["plain.ogg"]}]},
+        }
+    )
     eng = _igroup_engine(cue_env, monkeypatch, store)
     # Dialogue one-shot during the video: master off -> no global scale.
     _trigger._cue.ctx.current_file = "scene.ogv"
@@ -791,6 +833,7 @@ def test_fire_context_master_off_unscaled(cue_env, monkeypatch, play_full):
 # _cue_effective_delay -- clamp(base_delay / mult, [0.2, 6])
 # (moved here from the collapsed scaling.py; the loop timer is its caller)
 # ==========================================================================
+
 
 def test_delay_level1_identity():
     assert _cue_effective_delay(3.0, 1.0) == 3.0

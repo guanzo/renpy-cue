@@ -6,11 +6,7 @@ import renpy
 from renpy.store import Function
 
 from cue_lib.constants import CueImportMatch
-from cue_lib.importer_io import (
-    _cue_category_counts,
-    _cue_filter_contents,
-    _cue_merge_overwrites,
-)
+from cue_lib.importer_io import _cue_category_counts, _cue_filter_contents, _cue_merge_overwrites
 from cue_lib.state import _cue
 from cue_lib.util import _cue_shift_held, create_vid_key
 
@@ -25,6 +21,7 @@ class CuePresetDialog(object):
     The target discriminates the save: `marker_key`/`pool_idx` names an SFX
     pool, `music_key`/`songs` names a music trigger.  Exactly one is set while
     the popup is open; commit() dispatches on whichever is."""
+
     def __init__(self):
         self.marker_key = None
         self.pool_idx = 0
@@ -92,6 +89,7 @@ class CuePresetDialog(object):
 
 class CueVideoPresetDialog(object):
     """Self-contained state for the Save Video Preset popup."""
+
     def __init__(self):
         self.name = ""
 
@@ -131,6 +129,7 @@ class CueIntensityGroupDialog(object):
     `renaming` holds the group being renamed (None = create).  Errors from
     the intensity manager (empty/duplicate name) are shown inline and the
     popup stays open until a valid commit or cancel."""
+
     def __init__(self):
         self.name = ""
         self.renaming = None
@@ -177,6 +176,7 @@ class CueIntensityGroupDialog(object):
 
 class CueConfirmDialog(object):
     """Reusable confirmation popup matching the overlay UI style."""
+
     def __init__(self):
         self.message = ""
         self.on_confirm = None
@@ -209,6 +209,7 @@ class CueMergeDialog(object):
     State is reset on open; confirm() hands the checked categories to the
     imports manager, which does the copy.  The imports surface is injected so
     the dialog is testable headlessly."""
+
     def __init__(self, imports):
         # type: (Any) -> None
         self._imports = imports
@@ -258,19 +259,19 @@ class CueMergeDialog(object):
         folder = self._imports.folder_files(self.imp)
         checked = [cat for cat in self.checked if self.is_checked(cat)]
         filtered = _cue_filter_contents(folder, checked)
-        self.overwrites = _cue_merge_overwrites(
-            self._imports._paths.original_root, filtered)
+        self.overwrites = _cue_merge_overwrites(self._imports._paths.original_root, filtered)
         text = "Merge {} file(s) into your data.".format(len(filtered))
         if self.overwrites:
             plural = "s" if len(self.overwrites) != 1 else ""
             text += "\n\n{} file{} will be overwritten\n(files are backed up to data_bak).".format(
-                len(self.overwrites), plural)
+                len(self.overwrites), plural
+            )
         entry = self._imports.import_for(self.imp)
         missing = (entry.get("missing") or []) if entry else []
         if missing:
-            text += (
-                "\n\n{} listed file(s) are missing from the zip and won't "
-                "be merged:\n{}").format(len(missing), "\n".join(missing))
+            text += ("\n\n{} listed file(s) are missing from the zip and won't be merged:\n{}").format(
+                len(missing), "\n".join(missing)
+            )
         return text
 
     def cancel(self):
@@ -300,16 +301,16 @@ class CueMergeDialog(object):
 def _cue_confirm_delete_preset(preset_name):
     # type: (str) -> None
     _cue.dialogs.confirm.show_or_run(
-        "Delete preset '{}'?".format(preset_name),
-        Function(_cue.markers.delete_preset, preset_name),
+        "Delete preset '{}'?".format(preset_name), Function(_cue.markers.delete_preset, preset_name)
     )
+
 
 def _cue_confirm_delete_video_preset(preset_name):
     # type: (str) -> None
     _cue.dialogs.confirm.show_or_run(
-        "Delete video preset '{}'?".format(preset_name),
-        Function(_cue.markers.delete_video_preset, preset_name),
+        "Delete video preset '{}'?".format(preset_name), Function(_cue.markers.delete_video_preset, preset_name)
     )
+
 
 def _cue_confirm_remove_video_preset_pool(preset_name, pool_index):
     # type: (str, int) -> None
@@ -318,19 +319,20 @@ def _cue_confirm_remove_video_preset_pool(preset_name, pool_index):
         Function(_cue.markers.remove_video_preset_pool, preset_name, pool_index),
     )
 
+
 def _cue_confirm_delete_igroup(igroup_name):
     # type: (str) -> None
     _cue.dialogs.confirm.show_or_run(
-        "Delete intensity group '{}'?".format(igroup_name),
-        Function(_cue.intensity.delete_igroup, igroup_name),
+        "Delete intensity group '{}'?".format(igroup_name), Function(_cue.intensity.delete_igroup, igroup_name)
     )
+
 
 def _cue_confirm_delete_music_preset(preset_name):
     # type: (str) -> None
     _cue.dialogs.confirm.show_or_run(
-        "Delete music preset '{}'?".format(preset_name),
-        Function(_cue.music.delete_preset, preset_name),
+        "Delete music preset '{}'?".format(preset_name), Function(_cue.music.delete_preset, preset_name)
     )
+
 
 def _cue_maybe_apply_video_preset(preset_name):
     # type: (str) -> None
@@ -339,10 +341,7 @@ def _cue_maybe_apply_video_preset(preset_name):
         preset = _cue.markers.get_video_preset(preset_name)
         total = len(preset.get("pools", [])) if preset else 0
         dur = _cue.vid_manager.get_duration()
-        msg = "{} of {} marker(s) won't fit (video is {:.1f}s). Apply anyway?".format(
-            out_count, total, dur)
-        _cue.dialogs.confirm.show(
-            msg,
-            Function(_cue.markers.apply_video_preset, preset_name))
+        msg = "{} of {} marker(s) won't fit (video is {:.1f}s). Apply anyway?".format(out_count, total, dur)
+        _cue.dialogs.confirm.show(msg, Function(_cue.markers.apply_video_preset, preset_name))
     else:
         _cue.markers.apply_video_preset(preset_name)

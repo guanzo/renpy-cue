@@ -36,9 +36,9 @@ CUE_WAV_PLAYABLE_SUBDIR = "renpy_cue"
 
 # Playback classification: native (plays as-is), convert (rebuilt as 16-bit PCM),
 # or unplayable (reported with a reason -- compressed codec, corrupt, misnamed).
-CUE_WAV_PLAYABLE_NATIVE = "native"         # 8/16-bit PCM int -> passthrough
-CUE_WAV_PLAYABLE_CONVERT = "convert"       # wide int or float -> rebuilt as 16-bit
-CUE_WAV_PLAYABLE_UNPLAYABLE = "unplayable" # we can't make it play -> surfaced
+CUE_WAV_PLAYABLE_NATIVE = "native"  # 8/16-bit PCM int -> passthrough
+CUE_WAV_PLAYABLE_CONVERT = "convert"  # wide int or float -> rebuilt as 16-bit
+CUE_WAV_PLAYABLE_UNPLAYABLE = "unplayable"  # we can't make it play -> surfaced
 
 
 def _byte_str(s):
@@ -65,8 +65,8 @@ class CueWavPlayable(object):
         # type: (Optional[str]) -> None
         self._cache_root = self._make_cache_root(temp_root)
         self._decision = {}  # path -> CUE_WAV_PLAYABLE_* state; read on play (no I/O)
-        self._stamp = {}     # path -> (size, mtime) recorded at last probe/refresh
-        self._reason = {}    # path -> short reason, only for unplayable files
+        self._stamp = {}  # path -> (size, mtime) recorded at last probe/refresh
+        self._reason = {}  # path -> short reason, only for unplayable files
 
     def _make_cache_root(self, temp_root):
         # type: (Optional[str]) -> str
@@ -274,7 +274,7 @@ class CueWavPlayable(object):
                     return None
                 ckid = head[0:4]
                 size = struct.unpack("<I", head[4:8])[0]
-                if size > 0x7fffffff:
+                if size > 0x7FFFFFFF:
                     return None
                 if ckid == b"fmt ":
                     body = f.read(size)
@@ -289,7 +289,8 @@ class CueWavPlayable(object):
                         "channels": struct.unpack("<H", body[2:4])[0],
                         "rate": struct.unpack("<I", body[4:8])[0],
                         "sw": struct.unpack("<H", body[14:16])[0] // 8,
-                        "offset": None, "size": 0,
+                        "offset": None,
+                        "size": 0,
                     }
                 elif ckid == b"data":
                     if meta is None:
@@ -402,6 +403,6 @@ class CueWavPlayable(object):
                 v = -32768
             elif v > 32767:
                 v = 32767
-            out[i * 2] = v & 0xff
-            out[i * 2 + 1] = (v >> 8) & 0xff
+            out[i * 2] = v & 0xFF
+            out[i * 2 + 1] = (v >> 8) & 0xFF
         return out

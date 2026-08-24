@@ -11,9 +11,7 @@ import pytest
 from renpy.store import persistent
 
 from cue_lib.audio.music import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
-from cue_lib.audio.recent import (
-    CUE_RECENT_MAX_ENTRIES, CueRecentManager, _cue_keep_music, _cue_keep_sfx,
-)
+from cue_lib.audio.recent import CUE_RECENT_MAX_ENTRIES, CueRecentManager, _cue_keep_music, _cue_keep_sfx
 
 
 @pytest.fixture(autouse=True)
@@ -29,6 +27,7 @@ def _all_keep(kind, ref):
 # ---------------------------------------------------------------------------
 # record: dedup, MRU order, cap (no auto-expand)
 # ---------------------------------------------------------------------------
+
 
 def test_record_moves_existing_entry_to_front():
     m = CueRecentManager("recent_entries", _all_keep)
@@ -64,6 +63,7 @@ def test_record_does_not_expand_list():
 # expand-state toggles (session-local, never persisted)
 # ---------------------------------------------------------------------------
 
+
 def test_toggle_flips_expanded():
     m = CueRecentManager("recent_entries", _all_keep)
     m.expanded = True
@@ -76,6 +76,7 @@ def test_toggle_flips_expanded():
 # ---------------------------------------------------------------------------
 # persistence
 # ---------------------------------------------------------------------------
+
 
 def test_record_writes_to_persistent():
     m = CueRecentManager("recent_entries", _all_keep)
@@ -107,12 +108,10 @@ def test_load_handles_none_persistent(monkeypatch):
 
 
 def test_load_prunes_stale_entries():
-    m = CueRecentManager("recent_entries",
-                         lambda kind, ref: ref == "keep.ogg")
+    m = CueRecentManager("recent_entries", lambda kind, ref: ref == "keep.ogg")
     m.record("file", "gone.ogg")
     m.record("file", "keep.ogg")
-    m2 = CueRecentManager("recent_entries",
-                          lambda kind, ref: ref == "keep.ogg")
+    m2 = CueRecentManager("recent_entries", lambda kind, ref: ref == "keep.ogg")
     m2.load()
     assert [e["ref"] for e in m2.entries()] == ["keep.ogg"]
     assert m2.expanded is False
@@ -131,9 +130,9 @@ def test_load_collapses_when_all_stale():
 # prune
 # ---------------------------------------------------------------------------
 
+
 def test_prune_drops_stale_entries():
-    m = CueRecentManager("recent_entries",
-                         lambda kind, ref: ref in ("keep.ogg", "sfx/keep/"))
+    m = CueRecentManager("recent_entries", lambda kind, ref: ref in ("keep.ogg", "sfx/keep/"))
     m.record("file", "gone.ogg")
     m.record("file", "keep.ogg")
     m.record("folder", "sfx/keep/")
@@ -153,8 +152,7 @@ def test_prune_empty_when_all_stale_collapses():
 
 
 def test_prune_writes_back_to_persistent():
-    m = CueRecentManager("recent_entries",
-                         lambda kind, ref: ref == "keep.ogg")
+    m = CueRecentManager("recent_entries", lambda kind, ref: ref == "keep.ogg")
     m.record("file", "gone.ogg")
     m.record("file", "keep.ogg")
     m.prune()
@@ -164,6 +162,7 @@ def test_prune_writes_back_to_persistent():
 # ---------------------------------------------------------------------------
 # SFX existence check (_cue_keep_sfx)
 # ---------------------------------------------------------------------------
+
 
 def test_keep_sfx_file_folder_preset():
     files = ["sfx/hit.ogg", "sfx/amb/loop.ogg", "music/track.ogg"]
@@ -181,6 +180,7 @@ def test_keep_sfx_file_folder_preset():
 # ---------------------------------------------------------------------------
 # Music existence check (_cue_keep_music)
 # ---------------------------------------------------------------------------
+
 
 def _music_files(files):
     return type("FakeMusicFiles", (object,), {"files": list(files)})()

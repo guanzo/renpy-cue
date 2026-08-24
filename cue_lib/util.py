@@ -11,9 +11,7 @@ import pygame
 import renpy
 import renpy.atl as _atl
 
-from cue_lib.constants import (
-    CUE_IMG_KEY_PREFIX, CUE_LOOP_KEY_PREFIX, CUE_DLG_KEY_PREFIX, CUE_VID_KEY_PREFIX,
-)
+from cue_lib.constants import CUE_IMG_KEY_PREFIX, CUE_LOOP_KEY_PREFIX, CUE_DLG_KEY_PREFIX, CUE_VID_KEY_PREFIX
 from cue_lib.logger import _cue_logger
 from cue_lib.state import _cue
 from renpy.store import Function
@@ -28,17 +26,20 @@ if MYPY:
 # UI Refresh Decorator
 # --------------------------------------------------------------------------
 
+
 def _cue_ui_refresh(fn):
     # type: (Callable[..., Any]) -> Callable[..., Any]
     """Decorator for screen-action methods. Calls renpy.restart_interaction()
     in a finally block so every return/exception path gets a UI refresh
     automatically -- methods can drop their explicit restart calls."""
+
     def _wrapper(*args, **kwargs):
         # type: (*Any, **Any) -> Any
         try:
             return fn(*args, **kwargs)
         finally:
             renpy.restart_interaction()
+
     return _wrapper
 
 
@@ -46,20 +47,24 @@ def _cue_ui_refresh(fn):
 # Key Utility Functions
 # --------------------------------------------------------------------------
 
+
 def create_img_key(file):
     # type: (str) -> str
     """Build an image trigger key: 'i_<file>'."""
     return CUE_IMG_KEY_PREFIX + file
+
 
 def create_vid_key(file):
     # type: (str) -> str
     """Build a video trigger key: 'v_<file>'."""
     return CUE_VID_KEY_PREFIX + file
 
+
 def create_loop_key(file):
     # type: (str) -> str
     """Build a loop trigger key: 'l_<file>'. file may be '' for global pool."""
     return CUE_LOOP_KEY_PREFIX + file
+
 
 def create_dlg_key(dlg_pair):
     # type: (Tuple[str, str]) -> str
@@ -68,39 +73,44 @@ def create_dlg_key(dlg_pair):
     file, dialogue = dlg_pair
     return CUE_DLG_KEY_PREFIX + file + "__" + dialogue
 
+
 def is_img_key(key):
     # type: (str) -> bool
     """Check if key is an image trigger key."""
     return key.startswith(CUE_IMG_KEY_PREFIX)
+
 
 def is_vid_key(key):
     # type: (str) -> bool
     """Check if key is a video trigger key."""
     return key.startswith(CUE_VID_KEY_PREFIX)
 
+
 def is_dlg_key(key):
     # type: (str) -> bool
     """Check if key is a dialogue trigger key."""
     return key.startswith(CUE_DLG_KEY_PREFIX)
+
 
 def is_loop_key(key):
     # type: (str) -> bool
     """Check if key is a loop trigger key."""
     return key.startswith(CUE_LOOP_KEY_PREFIX)
 
+
 def _cue_strip_key_prefix(key):
     # type: (str) -> str
     """Strip the leading type prefix ('i_', 'v_', 'l_', 'd_') from a trigger key."""
-    for prefix in (CUE_IMG_KEY_PREFIX, CUE_VID_KEY_PREFIX,
-                   CUE_LOOP_KEY_PREFIX, CUE_DLG_KEY_PREFIX):
+    for prefix in (CUE_IMG_KEY_PREFIX, CUE_VID_KEY_PREFIX, CUE_LOOP_KEY_PREFIX, CUE_DLG_KEY_PREFIX):
         if key.startswith(prefix):
-            return key[len(prefix):]
+            return key[len(prefix) :]
     return key
+
 
 def get_key_file(key):
     # type: (str) -> str
     """Strip the 2-char prefix from any key, returning the file portion."""
-    file_part = key[len(CUE_IMG_KEY_PREFIX):]
+    file_part = key[len(CUE_IMG_KEY_PREFIX) :]
     if is_dlg_key(key):
         # Handle both legacy | and current __ separators
         sep = file_part.find("__")
@@ -110,9 +120,10 @@ def get_key_file(key):
             file_part = file_part[:sep]
     return file_part
 
+
 def get_key_dialogue(key):
     # type: (str) -> str
-    file_part = key[len(CUE_DLG_KEY_PREFIX):]
+    file_part = key[len(CUE_DLG_KEY_PREFIX) :]
     # Handle both legacy | and current __ separators
     for sep_str in ("__", "|"):
         parts = file_part.split(sep_str, 1)
@@ -120,15 +131,17 @@ def get_key_dialogue(key):
             return parts[1]
     return ""
 
+
 def get_key_prefix(key):
     # type: (str) -> str
     """Return the 2-char prefix of a key ('i_', 'v_', 'd_', or 'l_')."""
-    return key[:len(CUE_IMG_KEY_PREFIX)]
+    return key[: len(CUE_IMG_KEY_PREFIX)]
 
 
 # --------------------------------------------------------------------------
 # Displayable Helpers
 # --------------------------------------------------------------------------
+
 
 def _cue_unwrap_displayable(name_or_displayable):
     # type: (Union[str, Any]) -> Any
@@ -195,6 +208,7 @@ def _cue_atl_child_displayables(d):
 # Persistent Data Helpers
 # --------------------------------------------------------------------------
 
+
 def _to_str(obj):
     # type: (Any) -> Any
     """Recursively encode unicode keys and values to UTF-8 str (Python 2).
@@ -244,6 +258,7 @@ def _cue_unwrap_persistent(data):
 # Audio File Scanning
 # --------------------------------------------------------------------------
 
+
 def _cue_build_tree(flat_files):
     # type: (List[str]) -> List
     """Build a nested tree of folder/file nodes from a sorted flat list of
@@ -274,13 +289,15 @@ def _cue_build_tree(flat_files):
                 continue
             children = _build(node[name])
             has_direct_files = len(node[name].get("__files__", [])) > 0
-            items.append({
-                "type": "folder",
-                "name": name + "/",
-                "children": children,
-                "expanded": False,
-                "has_files": has_direct_files,
-            })
+            items.append(
+                {
+                    "type": "folder",
+                    "name": name + "/",
+                    "children": children,
+                    "expanded": False,
+                    "has_files": has_direct_files,
+                }
+            )
         # Then files
         for name in sorted(node.get("__files__", [])):
             items.append({"type": "file", "name": name})
@@ -378,13 +395,15 @@ def _cue_filter_tree(tree, query):
                 folder_matches = _matches(full)
                 children = _filter(item.get("children", []), full)
                 if folder_matches or children:
-                    result.append({
-                        "type": "folder",
-                        "name": item["name"],
-                        "children": item.get("children", []) if folder_matches else children,
-                        "expanded": item.get("expanded", False),
-                        "has_files": item.get("has_files", False),
-                    })
+                    result.append(
+                        {
+                            "type": "folder",
+                            "name": item["name"],
+                            "children": item.get("children", []) if folder_matches else children,
+                            "expanded": item.get("expanded", False),
+                            "has_files": item.get("has_files", False),
+                        }
+                    )
         return result
 
     return _filter(tree, "")
@@ -473,12 +492,14 @@ def _cue_filter_igroup_folders(name, query):
 # Utility: Time Formatting
 # --------------------------------------------------------------------------
 
+
 def _cue_clamp_time(t, dur):
     # type: (float, float) -> float
     """Clamp time t to [0, dur], handling dur <= 0."""
     if dur > 0:
         return max(0.0, min(t, dur))
     return max(0.0, t)
+
 
 def _cue_format_time(seconds):
     # type: (Optional[float]) -> str
@@ -497,13 +518,10 @@ def _cue_format_time(seconds):
     if minutes >= 60:
         hours = minutes // 60
         minutes = minutes % 60
-        return "{:02d}:{:02d}:{:02d}.{:02d}".format(
-            hours, minutes, sec_remainder, centiseconds
-        )
+        return "{:02d}:{:02d}:{:02d}.{:02d}".format(hours, minutes, sec_remainder, centiseconds)
     else:
-        return "{:02d}:{:02d}.{:02d}".format(
-            minutes, sec_remainder, centiseconds
-        )
+        return "{:02d}:{:02d}.{:02d}".format(minutes, sec_remainder, centiseconds)
+
 
 def _cue_speed_label(sp):
     # type: (float) -> str
@@ -566,7 +584,6 @@ def _cue_escape_text(s, brackets=True):
     return s
 
 
-
 def _cue_parse_time(time_str):
     # type: (Optional[str]) -> Optional[float]
     """Parse a time string back to float seconds.
@@ -625,6 +642,7 @@ def _cue_parse_time(time_str):
 # straight to _cue_logger (only a handful of callers).
 # --------------------------------------------------------------------------
 
+
 def _cue_log(msg):
     # type: (str) -> None
     """Buffer a debug message; the main-thread slow tick flushes it."""
@@ -634,6 +652,7 @@ def _cue_log(msg):
 # --------------------------------------------------------------------------
 # File Resolution & Random Picking
 # --------------------------------------------------------------------------
+
 
 def _cue_expand_folder_ref(files_list, folder_ref, disabled=None):
     # type: (List[str], str, Optional[Set[str]]) -> List[str]
@@ -670,6 +689,7 @@ def _cue_resolve_files(files):
             result.append(item)
     return result
 
+
 def _cue_pick_file(files, avoid_repeats=True):
     # type: (List[str], bool) -> Optional[str]
     """Pick a random file from a list.
@@ -700,6 +720,7 @@ def _cue_pick_file(files, avoid_repeats=True):
 # File System Helpers
 # --------------------------------------------------------------------------
 
+
 def _cue_replace_file(src, dst):
     # type: (str, str) -> None
     """Rename src over dst, overwriting an existing dst.
@@ -722,6 +743,7 @@ def _cue_replace_file(src, dst):
 # Screen Helpers
 # --------------------------------------------------------------------------
 
+
 def _cue_make_tab_action(fn, args_tuple, pi):
     # type: (Callable[..., None], tuple, int) -> Callable[..., None]
     return Function(fn, *(tuple(args_tuple) + (pi,)))
@@ -736,6 +758,7 @@ def _cue_shift_held():
 # --------------------------------------------------------------------------
 # Displayable Name Helpers
 # --------------------------------------------------------------------------
+
 
 def _cue_top_layer_name(name):
     # type: (Any) -> Optional[str]
@@ -766,6 +789,7 @@ def _cue_top_movie_name(movie):
         return str(play).replace("\\", "/").rsplit("/", 1)[-1]
     return None
 
+
 # _original_play only exists in Ren'Py 8.x; fall back to _play for 7.x
 def _cue_get_movie_play(movie):
     # type: (Movie) -> str
@@ -783,6 +807,7 @@ def _cue_get_movie_play(movie):
 # --------------------------------------------------------------------------
 # Transition Helpers
 # --------------------------------------------------------------------------
+
 
 def _cue_is_screenshake(trans):
     # type: (Any) -> bool
@@ -826,12 +851,14 @@ def _cue_wrap_with_statement(original_with_statement):
     """Build the renpy.with_statement wrapper.  Flags screenshake transitions
     (SFX trigger), then forwards every arg unchanged so a future engine that
     adds kwargs can't break the hook."""
+
     def _wrapped(*args, **kwargs):
         trans = args[0] if args else kwargs.get("trans")
         if trans is not None and _cue_is_screenshake(trans):
             _cue.ctx._shake_just_happened = True
         if original_with_statement is not None:
             return original_with_statement(*args, **kwargs)
+
     return _wrapped
 
 
@@ -841,6 +868,7 @@ def _cue_wrap_config_show(original_config_show):
     (e.g. "scene foo at vpunch, cum1") bypasses with_statement, so at_list is
     scanned here too.  Forwards every arg unchanged -- a future engine adding
     kwargs (transient, munge_name, ...) must not break the hook."""
+
     def _wrapped(*args, **kwargs):
         at_list = kwargs.get("at_list")
         if at_list is None and len(args) >= 2:
@@ -852,4 +880,5 @@ def _cue_wrap_config_show(original_config_show):
                     break
         if original_config_show is not None:
             return original_config_show(*args, **kwargs)
+
     return _wrapped

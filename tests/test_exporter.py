@@ -9,12 +9,7 @@ import pytest
 
 import cue_lib.exporter as _exporter
 
-from cue_lib.constants import (
-    CUE_IMPORT_MANIFEST_NAME,
-    CueExportFileTypes,
-    CueExportScope,
-    CueImportCategory,
-)
+from cue_lib.constants import CUE_IMPORT_MANIFEST_NAME, CueExportFileTypes, CueExportScope, CueImportCategory
 from cue_lib.exporter import CueExportManager
 
 GAME_ID = "test_game"
@@ -91,13 +86,17 @@ def _refresh_and_join(mgr):
 # refresh / counts / enabled
 # ---------------------------------------------------------------------------
 
+
 def test_refresh_counts_and_enabled(cue_env):
-    _seed(cue_env, [
-        ("audio/a.ogg", "a"),
-        ("audio/b.ogg", "b"),
-        ("data/markers/{}/v_a.json".format(GAME_ID), '{}'),
-        ("video/{}/m.mkv".format(GAME_ID), "v"),
-    ])
+    _seed(
+        cue_env,
+        [
+            ("audio/a.ogg", "a"),
+            ("audio/b.ogg", "b"),
+            ("data/markers/{}/v_a.json".format(GAME_ID), '{}'),
+            ("video/{}/m.mkv".format(GAME_ID), "v"),
+        ],
+    )
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
 
@@ -112,8 +111,7 @@ def test_refresh_empty_root_has_no_enabled(cue_env):
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     assert mgr.counts == {}
-    for cat in (CueImportCategory.SFX, CueImportCategory.MARKERS,
-                CueImportCategory.MUSIC):
+    for cat in (CueImportCategory.SFX, CueImportCategory.MARKERS, CueImportCategory.MUSIC):
         assert mgr.is_category_enabled(cat) is False
 
 
@@ -125,6 +123,7 @@ def test_exports_dir_under_original_root(cue_env):
 # ---------------------------------------------------------------------------
 # selection state
 # ---------------------------------------------------------------------------
+
 
 def test_all_categories_checked_by_default(cue_env):
     mgr = CueExportManager(cue_env.paths)
@@ -153,10 +152,7 @@ def test_toggle_category_flips_checked(cue_env):
 
 
 def test_selected_contents_drops_unchecked_and_empty(cue_env):
-    _seed(cue_env, [
-        ("audio/a.ogg", "a"),
-        ("music/m.ogg", "m"),
-    ])
+    _seed(cue_env, [("audio/a.ogg", "a"), ("music/m.ogg", "m")])
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.set_file_types(CueExportFileTypes.SPECIFIC)
@@ -170,26 +166,20 @@ def test_selected_contents_drops_unchecked_and_empty(cue_env):
 
 
 def test_selected_contents_in_category_order(cue_env):
-    _seed(cue_env, [
-        ("audio/a.ogg", "a"),
-        ("data/markers/{}/v_a.json".format(GAME_ID), '{}'),
-    ])
+    _seed(cue_env, [("audio/a.ogg", "a"), ("data/markers/{}/v_a.json".format(GAME_ID), '{}')])
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     sel = mgr.selected_contents()
-    assert sel.index("data/markers/{}/v_a.json".format(GAME_ID)) < \
-        sel.index("audio/a.ogg")
+    assert sel.index("data/markers/{}/v_a.json".format(GAME_ID)) < sel.index("audio/a.ogg")
 
 
 # ---------------------------------------------------------------------------
 # export
 # ---------------------------------------------------------------------------
 
+
 def test_export_writes_sanitized_zip(cue_env):
-    _seed(cue_env, [
-        ("audio/a.ogg", "a"),
-        ("music/m.ogg", "m"),
-    ])
+    _seed(cue_env, [("audio/a.ogg", "a"), ("music/m.ogg", "m")])
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.name = "My Pack"
@@ -201,8 +191,7 @@ def test_export_writes_sanitized_zip(cue_env):
     zip_path = os.path.join(mgr.exports_dir(), "My Pack.zip")
     assert os.path.isfile(zip_path)
     assert mgr.export_error == ""
-    assert mgr.export_status == "Exported to {}.".format(
-        os.path.join(mgr.exports_dir(), "My Pack.zip"))
+    assert mgr.export_status == "Exported to {}.".format(os.path.join(mgr.exports_dir(), "My Pack.zip"))
     with zipfile.ZipFile(zip_path) as zf:
         names = zf.namelist()
         assert CUE_IMPORT_MANIFEST_NAME in names
@@ -268,8 +257,7 @@ def test_export_runs_zip_build_off_thread(cue_env, monkeypatch):
     # Driving the recorded body synchronously reproduces the thread's finish:
     # status lands and the exporting flag clears.
     fake_thread.target(*fake_thread.args)
-    assert mgr.export_status == "Exported to {}.".format(
-        os.path.join(mgr.exports_dir(), "Pack.zip"))
+    assert mgr.export_status == "Exported to {}.".format(os.path.join(mgr.exports_dir(), "Pack.zip"))
     assert mgr.is_exporting is False
 
 
@@ -312,11 +300,16 @@ def test_export_includes_music_trigger_log(cue_env):
     # The per-replay trigger files live in marker_dir/music_triggers/; the
     # exporter walks the whole dir recursively, so they must travel with the
     # markers category.
-    _seed(cue_env, [
-        ("data/markers/{}/v_a.json".format(GAME_ID), '{}'),
-        ("data/markers/{}/music_triggers/replay_r1.json".format(GAME_ID),
-         '[{"key_before": "i_room", "filepath": "m.ogg"}]'),
-    ])
+    _seed(
+        cue_env,
+        [
+            ("data/markers/{}/v_a.json".format(GAME_ID), '{}'),
+            (
+                "data/markers/{}/music_triggers/replay_r1.json".format(GAME_ID),
+                '[{"key_before": "i_room", "filepath": "m.ogg"}]',
+            ),
+        ],
+    )
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.name = "LogPack"
@@ -325,23 +318,25 @@ def test_export_includes_music_trigger_log(cue_env):
 
     with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "LogPack.zip")) as zf:
         names = zf.namelist()
-        assert ("data/markers/{}/music_triggers/replay_r1.json".format(GAME_ID)
-                in names)
+        assert "data/markers/{}/music_triggers/replay_r1.json".format(GAME_ID) in names
 
 
 def test_export_ships_every_category(cue_env):
     # One export carrying all five categories -- presets are the one category
     # the other exporter tests never seed, and no test asserts a single
     # package spanning every category.
-    _seed(cue_env, [
-        ("data/markers/{}/v_a.json".format(GAME_ID), '{}'),
-        ("audio/sfx.ogg", "a"),
-        ("music/song.ogg", "m"),
-        ("video/{}/clip.mkv".format(GAME_ID), "v"),
-        ("data/presets/audio/p.json", "ap"),
-        ("data/presets/video/p.json", "vp"),
-        ("data/presets/music/p.json", "mp"),
-    ])
+    _seed(
+        cue_env,
+        [
+            ("data/markers/{}/v_a.json".format(GAME_ID), '{}'),
+            ("audio/sfx.ogg", "a"),
+            ("music/song.ogg", "m"),
+            ("video/{}/clip.mkv".format(GAME_ID), "v"),
+            ("data/presets/audio/p.json", "ap"),
+            ("data/presets/video/p.json", "vp"),
+            ("data/presets/music/p.json", "mp"),
+        ],
+    )
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.name = "Full"
@@ -352,21 +347,20 @@ def test_export_ships_every_category(cue_env):
 
     with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Full.zip")) as zf:
         names = set(zf.namelist())
-    for rel in ("data/markers/{}/v_a.json".format(GAME_ID),
-                "audio/sfx.ogg",
-                "music/song.ogg",
-                "video/{}/clip.mkv".format(GAME_ID),
-                "data/presets/audio/p.json",
-                "data/presets/video/p.json",
-                "data/presets/music/p.json"):
+    for rel in (
+        "data/markers/{}/v_a.json".format(GAME_ID),
+        "audio/sfx.ogg",
+        "music/song.ogg",
+        "video/{}/clip.mkv".format(GAME_ID),
+        "data/presets/audio/p.json",
+        "data/presets/video/p.json",
+        "data/presets/music/p.json",
+    ):
         assert rel in names
 
 
 def test_export_skips_unchecked(cue_env):
-    _seed(cue_env, [
-        ("audio/a.ogg", "a"),
-        ("music/m.ogg", "m"),
-    ])
+    _seed(cue_env, [("audio/a.ogg", "a"), ("music/m.ogg", "m")])
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.name = "Only music"
@@ -394,15 +388,14 @@ def test_clear_status(cue_env):
 # replay scope -- _cue_replay_labels-driven selection + one-click export
 # ---------------------------------------------------------------------------
 
+
 def test_scope_defaults_to_all_replays(cue_env):
     mgr = CueExportManager(cue_env.paths)
     assert mgr.scope == CueExportScope.ALL_REPLAYS
 
 
 def test_set_scope_switches_content_source(cue_env):
-    _seed(cue_env, [
-        ("audio/a.ogg", "a"),
-    ])
+    _seed(cue_env, [("audio/a.ogg", "a")])
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
@@ -417,10 +410,7 @@ def test_file_types_defaults_to_all(cue_env):
 
 
 def test_all_file_types_ignores_category_checks(cue_env):
-    _seed(cue_env, [
-        ("audio/a.ogg", "a"),
-        ("music/m.ogg", "m"),
-    ])
+    _seed(cue_env, [("audio/a.ogg", "a"), ("music/m.ogg", "m")])
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.toggle_category(CueImportCategory.SFX)
@@ -433,10 +423,7 @@ def test_all_file_types_ignores_category_checks(cue_env):
 
 
 def test_specific_file_types_filters_categories(cue_env):
-    _seed(cue_env, [
-        ("audio/a.ogg", "a"),
-        ("music/m.ogg", "m"),
-    ])
+    _seed(cue_env, [("audio/a.ogg", "a"), ("music/m.ogg", "m")])
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.set_file_types(CueExportFileTypes.SPECIFIC)
@@ -449,10 +436,7 @@ def test_specific_file_types_filters_categories(cue_env):
 
 
 def test_any_unchecked_only_in_specific_mode(cue_env):
-    _seed(cue_env, [
-        ("audio/a.ogg", "a"),
-        ("music/m.ogg", "m"),
-    ])
+    _seed(cue_env, [("audio/a.ogg", "a"), ("music/m.ogg", "m")])
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.toggle_category(CueImportCategory.SFX)
@@ -465,26 +449,23 @@ def test_any_unchecked_only_in_specific_mode(cue_env):
 
 
 def test_refresh_populates_replays_and_seeds_checked(cue_env):
-    _seed(cue_env, [
-        ("data/markers/{}/a.json".format(GAME_ID),
-         '{"replay": "Run 1", "pools": []}'),
-        ("data/markers/{}/b.json".format(GAME_ID),
-         '{"replay": "Run 2", "pools": []}'),
-    ])
+    _seed(
+        cue_env,
+        [
+            ("data/markers/{}/a.json".format(GAME_ID), '{"replay": "Run 1", "pools": []}'),
+            ("data/markers/{}/b.json".format(GAME_ID), '{"replay": "Run 2", "pools": []}'),
+        ],
+    )
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
 
-    assert mgr.replays == [{"replay": "Run 1", "marker_count": 1},
-                           {"replay": "Run 2", "marker_count": 1}]
+    assert mgr.replays == [{"replay": "Run 1", "marker_count": 1}, {"replay": "Run 2", "marker_count": 1}]
     assert mgr.is_replay_checked("Run 1") is True
     assert mgr.is_replay_checked("Run 2") is True
 
 
 def test_toggle_replay_unchecks(cue_env):
-    _seed(cue_env, [
-        ("data/markers/{}/a.json".format(GAME_ID),
-         '{"replay": "Run 1", "pools": []}'),
-    ])
+    _seed(cue_env, [("data/markers/{}/a.json".format(GAME_ID), '{"replay": "Run 1", "pools": []}')])
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.toggle_replay("Run 1")
@@ -493,12 +474,13 @@ def test_toggle_replay_unchecks(cue_env):
 
 
 def test_toggle_all_replays_alternates(cue_env):
-    _seed(cue_env, [
-        ("data/markers/{}/a.json".format(GAME_ID),
-         '{"replay": "Run 1", "pools": []}'),
-        ("data/markers/{}/b.json".format(GAME_ID),
-         '{"replay": "Run 2", "pools": []}'),
-    ])
+    _seed(
+        cue_env,
+        [
+            ("data/markers/{}/a.json".format(GAME_ID), '{"replay": "Run 1", "pools": []}'),
+            ("data/markers/{}/b.json".format(GAME_ID), '{"replay": "Run 2", "pools": []}'),
+        ],
+    )
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)  # all checked by default
 
@@ -515,12 +497,13 @@ def test_toggle_all_replays_alternates(cue_env):
 
 
 def test_toggle_all_replays_from_partial_checks_all(cue_env):
-    _seed(cue_env, [
-        ("data/markers/{}/a.json".format(GAME_ID),
-         '{"replay": "Run 1", "pools": []}'),
-        ("data/markers/{}/b.json".format(GAME_ID),
-         '{"replay": "Run 2", "pools": []}'),
-    ])
+    _seed(
+        cue_env,
+        [
+            ("data/markers/{}/a.json".format(GAME_ID), '{"replay": "Run 1", "pools": []}'),
+            ("data/markers/{}/b.json".format(GAME_ID), '{"replay": "Run 2", "pools": []}'),
+        ],
+    )
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.toggle_replay("Run 2")  # one left unchecked
@@ -532,14 +515,15 @@ def test_toggle_all_replays_from_partial_checks_all(cue_env):
 
 
 def test_replay_scope_contents_is_subset(cue_env):
-    _seed(cue_env, [
-        ("audio/a.ogg", "a"),
-        ("audio/b.ogg", "b"),
-        ("data/markers/{}/r1.json".format(GAME_ID),
-         '{"replay": "Run 1", "pools": [{"files": ["audio/a.ogg"]}]}'),
-        ("data/markers/{}/r2.json".format(GAME_ID),
-         '{"replay": "Run 2", "pools": [{"files": ["audio/b.ogg"]}]}'),
-    ])
+    _seed(
+        cue_env,
+        [
+            ("audio/a.ogg", "a"),
+            ("audio/b.ogg", "b"),
+            ("data/markers/{}/r1.json".format(GAME_ID), '{"replay": "Run 1", "pools": [{"files": ["audio/a.ogg"]}]}'),
+            ("data/markers/{}/r2.json".format(GAME_ID), '{"replay": "Run 2", "pools": [{"files": ["audio/b.ogg"]}]}'),
+        ],
+    )
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
@@ -554,11 +538,13 @@ def test_replay_scope_contents_is_subset(cue_env):
 
 
 def test_replay_contents_respect_file_types(cue_env):
-    _seed(cue_env, [
-        ("audio/a.ogg", "a"),
-        ("data/markers/{}/r1.json".format(GAME_ID),
-         '{"replay": "Run 1", "pools": [{"files": ["audio/a.ogg"]}]}'),
-    ])
+    _seed(
+        cue_env,
+        [
+            ("audio/a.ogg", "a"),
+            ("data/markers/{}/r1.json".format(GAME_ID), '{"replay": "Run 1", "pools": [{"files": ["audio/a.ogg"]}]}'),
+        ],
+    )
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
@@ -577,11 +563,13 @@ def test_replay_contents_respect_file_types(cue_env):
 
 
 def test_export_replay_packs_only_that_replay(cue_env):
-    _seed(cue_env, [
-        ("audio/a.ogg", "a"),
-        ("data/markers/{}/r1.json".format(GAME_ID),
-         '{"replay": "Run 1", "pools": [{"files": ["audio/a.ogg"]}]}'),
-    ])
+    _seed(
+        cue_env,
+        [
+            ("audio/a.ogg", "a"),
+            ("data/markers/{}/r1.json".format(GAME_ID), '{"replay": "Run 1", "pools": [{"files": ["audio/a.ogg"]}]}'),
+        ],
+    )
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
 
@@ -591,8 +579,7 @@ def test_export_replay_packs_only_that_replay(cue_env):
     assert mgr.scope == CueExportScope.SPECIFIC_REPLAYS
     assert mgr.checked_replays == set(["Run 1"])
     assert mgr.name == "Run 1"  # named after the replay when Name is empty
-    assert mgr.export_status == "Exported to {}.".format(
-        os.path.join(mgr.exports_dir(), "Run 1.zip"))
+    assert mgr.export_status == "Exported to {}.".format(os.path.join(mgr.exports_dir(), "Run 1.zip"))
     assert not mgr.export_error
     with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Run 1.zip")) as zf:
         names = set(zf.namelist())
@@ -612,6 +599,7 @@ def test_current_replay_reads_store(cue_env, monkeypatch):
 # ---------------------------------------------------------------------------
 # refresh -- background snapshot swap (mirrors CueImportManager.scan)
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def export_threads(monkeypatch):
@@ -638,10 +626,7 @@ def export_threads(monkeypatch):
 
 
 def test_refresh_defers_disk_work_off_thread(cue_env, export_threads):
-    _seed(cue_env, [
-        ("audio/a.ogg", "a"),
-        ("data/markers/{}/v_a.json".format(GAME_ID), '{}'),
-    ])
+    _seed(cue_env, [("audio/a.ogg", "a"), ("data/markers/{}/v_a.json".format(GAME_ID), '{}')])
     mgr = CueExportManager(cue_env.paths)
 
     mgr.refresh()
@@ -673,8 +658,7 @@ def test_refresh_ignores_reentry_while_running(cue_env, export_threads):
     assert len(_created) == 1
 
 
-def test_refresh_keeps_last_snapshot_on_failure(cue_env, export_threads,
-                                                monkeypatch):
+def test_refresh_keeps_last_snapshot_on_failure(cue_env, export_threads, monkeypatch):
     _seed(cue_env, [("audio/a.ogg", "a")])
     mgr = CueExportManager(cue_env.paths)
     _created, _join = export_threads

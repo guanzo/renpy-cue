@@ -24,10 +24,7 @@ from cue_lib.trigger import CueTriggerEngine
 from cue_lib.constants import CueExclusiveStart
 from cue_lib.audio.sfx_manager import CueSfxManager
 
-from tests.fakes import (
-    FakeMarkerStore, FakeMarkers, FakeRepeater, FakeSpeedResolver, FakeVidManager,
-    make_runtime_cue,
-)
+from tests.fakes import FakeMarkerStore, FakeMarkers, FakeRepeater, FakeSpeedResolver, FakeVidManager, make_runtime_cue
 
 
 @pytest.fixture
@@ -46,6 +43,7 @@ def cue(monkeypatch, tmp_path):
 @pytest.fixture(autouse=True)
 def _identity_resolve_files(monkeypatch):
     import cue_lib.intensity.intensity as _intensity
+
     monkeypatch.setattr(_trigger, "_cue_resolve_files", lambda files: list(files))
     monkeypatch.setattr(_intensity, "_cue_resolve_files", lambda files: list(files))
 
@@ -79,13 +77,12 @@ def real_sfx(cue, monkeypatch):
             frequency=pool.get("frequency", 1),
             trigger_on_shake=pool.get("trigger_on_shake", False),
             exclusive=types.SimpleNamespace(
-                start=excl.get("start", 0),
-                hold=excl.get("hold", False),
-                group=excl.get("group", 0)))
+                start=excl.get("start", 0), hold=excl.get("hold", False), group=excl.get("group", 0)
+            ),
+        )
 
     cue.markers.resolve_pool = _resolve_pool
-    mgr = CueSfxManager(
-        cue.paths, types.SimpleNamespace(), cue.volume, cue.ctx, cue._has_relative_volume)
+    mgr = CueSfxManager(cue.paths, types.SimpleNamespace(), cue.volume, cue.ctx, cue._has_relative_volume)
     mgr.bind_markers(cue.markers)
     cue.sfx = mgr
     return mgr
@@ -113,14 +110,19 @@ def _fire_video_sfx(eng):
 
 def _excl_dlg_engine(store):
     return CueTriggerEngine(
-        store, FakeRepeater(), FakeSpeedResolver(), FakeVidManager(),
-        markers=FakeMarkers(markers=[{"time": 0.0, "files": ["moan.ogg"]}]))
+        store,
+        FakeRepeater(),
+        FakeSpeedResolver(),
+        FakeVidManager(),
+        markers=FakeMarkers(markers=[{"time": 0.0, "files": ["moan.ogg"]}]),
+    )
 
 
 def test_excl_dlg_fade_does_not_cut_video_sfx(cue, real_sfx):
     """Exclusive dlg cut-in must not fade a playing v:-key marker."""
-    store = FakeMarkerStore({"d_scene.ogv__L1": {"pools": [
-        {"files": ["dlg.ogg"], "exclusive": {"start": CueExclusiveStart.FADE}}]}})
+    store = FakeMarkerStore(
+        {"d_scene.ogv__L1": {"pools": [{"files": ["dlg.ogg"], "exclusive": {"start": CueExclusiveStart.FADE}}]}}
+    )
     eng = _excl_dlg_engine(store)
 
     video_ch = _fire_video_sfx(eng)
@@ -128,16 +130,16 @@ def test_excl_dlg_fade_does_not_cut_video_sfx(cue, real_sfx):
 
     eng.fire_context("d_scene.ogv__L1")
 
-    assert _video_still_playing(video_ch), (
-        "exclusive dlg cut-in must not fade a playing v:-key marker")
+    assert _video_still_playing(video_ch), "exclusive dlg cut-in must not fade a playing v:-key marker"
 
 
 def test_excl_dlg_stale_channel_reuse_video_survives(cue, real_sfx):
     """Regression: dlg on a channel -> channel frees -> video claims it ->
     same dlg fires again.  The video must survive (channel reuse can't make a
     stale dlg 'friend' spare or cut it)."""
-    store = FakeMarkerStore({"d_scene.ogv__L1": {"pools": [
-        {"files": ["dlg.ogg"], "exclusive": {"start": CueExclusiveStart.FADE}}]}})
+    store = FakeMarkerStore(
+        {"d_scene.ogv__L1": {"pools": [{"files": ["dlg.ogg"], "exclusive": {"start": CueExclusiveStart.FADE}}]}}
+    )
     eng = _excl_dlg_engine(store)
 
     # First dlg fire claims _cue_1 and tracks it as an exclusive friend.
@@ -157,16 +159,19 @@ def test_excl_dlg_stale_channel_reuse_video_survives(cue, real_sfx):
     # Same dlg fires again -- its fade sweep must spare the video.
     eng.fire_context("d_scene.ogv__L1")
 
-    assert _video_still_playing(video_ch), (
-        "v:-marker must survive the re-fired exclusive dlg")
+    assert _video_still_playing(video_ch), "v:-marker must survive the re-fired exclusive dlg"
 
 
 def test_excl_loop_fade_leaves_video_sfx(cue, real_sfx, monkeypatch):
     """An exclusive loop's cut-in fades only loops -- never video SFX."""
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
-    store = FakeMarkerStore({"l_scene.ogg": {"pools": [
-        {"files": ["loop.ogg"], "frequency": 1,
-         "exclusive": {"start": CueExclusiveStart.FADE}}]}})
+    store = FakeMarkerStore(
+        {
+            "l_scene.ogg": {
+                "pools": [{"files": ["loop.ogg"], "frequency": 1, "exclusive": {"start": CueExclusiveStart.FADE}}]
+            }
+        }
+    )
     eng = _excl_dlg_engine(store)
 
     video_ch = _fire_video_sfx(eng)
@@ -179,11 +184,12 @@ def test_excl_loop_fade_leaves_video_sfx(cue, real_sfx, monkeypatch):
 
 def test_excl_dlg_fade_still_cuts_outgroup_oneshot(cue, real_sfx):
     """Kept behavior: an exclusive dlg cut-in still fades an out-group one-shot."""
-    store = FakeMarkerStore({
-        "d_scene.ogv__L1": {"pools": [
-            {"files": ["dlg.ogg"], "exclusive": {"start": CueExclusiveStart.FADE}}]},
-        "d_scene.ogv__L2": {"pools": [
-            {"files": ["dlg2.ogg"], "exclusive": {"start": CueExclusiveStart.FADE}}]}})
+    store = FakeMarkerStore(
+        {
+            "d_scene.ogv__L1": {"pools": [{"files": ["dlg.ogg"], "exclusive": {"start": CueExclusiveStart.FADE}}]},
+            "d_scene.ogv__L2": {"pools": [{"files": ["dlg2.ogg"], "exclusive": {"start": CueExclusiveStart.FADE}}]},
+        }
+    )
     eng = _excl_dlg_engine(store)
 
     eng.fire_context("d_scene.ogv__L1")
@@ -192,14 +198,14 @@ def test_excl_dlg_fade_still_cuts_outgroup_oneshot(cue, real_sfx):
 
     eng.fire_context("d_scene.ogv__L2")
 
-    assert _channel_playing("dlg.ogg") is None, (
-        "a new exclusive line must still cut the previous one-shot")
+    assert _channel_playing("dlg.ogg") is None, "a new exclusive line must still cut the previous one-shot"
 
 
 def test_excl_dlg_play_does_not_fade_video(cue, real_sfx):
     """Control: exclusive with start=PLAY skips the sweep entirely."""
-    store = FakeMarkerStore({"d_scene.ogv__L1": {"pools": [
-        {"files": ["dlg.ogg"], "exclusive": {"start": CueExclusiveStart.PLAY}}]}})
+    store = FakeMarkerStore(
+        {"d_scene.ogv__L1": {"pools": [{"files": ["dlg.ogg"], "exclusive": {"start": CueExclusiveStart.PLAY}}]}}
+    )
     eng = _excl_dlg_engine(store)
 
     video_ch = _fire_video_sfx(eng)

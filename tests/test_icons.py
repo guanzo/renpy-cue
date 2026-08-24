@@ -8,12 +8,7 @@ import pytest
 import renpy as _renpy
 
 import cue_lib.ui.icons as _icons
-from cue_lib.ui.icons import (
-    CUE_ICON_MAP,
-    CUE_ICON_SIZE,
-    CUE_ICON_SRC_SIZE,
-    CueIconManager,
-)
+from cue_lib.ui.icons import CUE_ICON_MAP, CUE_ICON_SIZE, CUE_ICON_SRC_SIZE, CueIconManager
 
 
 class _RecordingTransform(object):

@@ -42,10 +42,11 @@ def _reset_marker_tip_mailbox():
 # Key-capture helpers
 # ==========================================================================
 
+
 class _FakeConsts(object):
     K_A = 100
     K_B = 200
-    K_LSHIFT = 1073742049   # bare modifier -- must be filtered
+    K_LSHIFT = 1073742049  # bare modifier -- must be filtered
 
 
 def test_build_key_code_map_filters_bare_mods(monkeypatch):
@@ -72,21 +73,17 @@ def test_keysym_from_event_plain():
 
 
 def test_keysym_from_event_with_mods_sorted():
-    ev = types.SimpleNamespace(
-        type=_pygame.KEYDOWN, key=_pygame.K_1,
-        mod=_pygame.KMOD_CTRL | _pygame.KMOD_SHIFT)
+    ev = types.SimpleNamespace(type=_pygame.KEYDOWN, key=_pygame.K_1, mod=_pygame.KMOD_CTRL | _pygame.KMOD_SHIFT)
     assert _cue_keysym_from_event(ev) == "ctrl_shift_K_1"
 
 
 def test_keysym_from_event_alt():
-    ev = types.SimpleNamespace(type=_pygame.KEYDOWN, key=_pygame.K_F5,
-                               mod=_pygame.KMOD_ALT)
+    ev = types.SimpleNamespace(type=_pygame.KEYDOWN, key=_pygame.K_F5, mod=_pygame.KMOD_ALT)
     assert _cue_keysym_from_event(ev) == "alt_K_F5"
 
 
 def test_keysym_from_event_meta():
-    ev = types.SimpleNamespace(type=_pygame.KEYDOWN, key=_pygame.K_F5,
-                               mod=_pygame.KMOD_META)
+    ev = types.SimpleNamespace(type=_pygame.KEYDOWN, key=_pygame.K_F5, mod=_pygame.KMOD_META)
     assert _cue_keysym_from_event(ev) == "meta_K_F5"
 
 
@@ -94,10 +91,10 @@ def test_keysym_from_event_meta():
 # CueSelfUpdatingLabel
 # ==========================================================================
 
+
 def test_self_updating_label_renders_and_redraws(monkeypatch):
     redraws = []
-    monkeypatch.setattr(_renpy, "redraw",
-                        lambda d, when: redraws.append((d, when)))
+    monkeypatch.setattr(_renpy, "redraw", lambda d, when: redraws.append((d, when)))
     label = CueSelfUpdatingLabel(lambda: "hi")
     r = label.render(100, 30, 0.0, 0.0)
     assert r.width == 100
@@ -108,6 +105,7 @@ def test_self_updating_label_renders_and_redraws(monkeypatch):
 # ==========================================================================
 # CueVideoTimeline
 # ==========================================================================
+
 
 @pytest.fixture
 def vtl(monkeypatch):
@@ -122,8 +120,7 @@ def vtl(monkeypatch):
     cue = types.SimpleNamespace(vid_manager=vid)
     monkeypatch.setattr(_displ, "_cue", cue)
     monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (200, 400))
-    return types.SimpleNamespace(cue=cue, vid=vid, seeks=seeks,
-                                 timeline=CueVideoTimeline())
+    return types.SimpleNamespace(cue=cue, vid=vid, seeks=seeks, timeline=CueVideoTimeline())
 
 
 def test_vtl_render_default(vtl):
@@ -205,34 +202,30 @@ def test_vtl_event_unhandled_button_noop(vtl):
 # CueVideoMarkerTimeline
 # ==========================================================================
 
-def _make_mtl(monkeypatch, markers_list, dur=10.0, speed=1.0, selected=None,
-              current_file="", intensity_on=False):
+
+def _make_mtl(monkeypatch, markers_list, dur=10.0, speed=1.0, selected=None, current_file="", intensity_on=False):
     selected = set() if selected is None else selected
-    video = types.SimpleNamespace(get_selected=lambda: selected,
-                                  selected=selected,
-                                  finalize_drag=lambda: None)
-    markers = types.SimpleNamespace(
-        video=video,
-        get=(lambda key, default: ({"pools": []} if current_file else default)))
-    speed_resolver = types.SimpleNamespace(
-        get_current_speed=lambda: speed,
-        banding_speeds=lambda tag: [0.7, 1.0, 1.3])
+    video = types.SimpleNamespace(get_selected=lambda: selected, selected=selected, finalize_drag=lambda: None)
+    markers = types.SimpleNamespace(video=video, get=(lambda key, default: {"pools": []} if current_file else default))
+    speed_resolver = types.SimpleNamespace(get_current_speed=lambda: speed, banding_speeds=lambda tag: [0.7, 1.0, 1.3])
     repeater = types.SimpleNamespace(compute_preview_times=lambda: [])
 
     def _fake_flags(entry):
-        return types.SimpleNamespace(enabled=True, sfx_levels=True,
-                                     volume=True, frequency=True)
+        return types.SimpleNamespace(enabled=True, sfx_levels=True, volume=True, frequency=True)
 
     def _fake_pool_active(files, variants, flags):
         # A trailing-slash folder ref is the intensity hook, gated on the
         # per-video master switch (the real predicate is tested separately).
         return intensity_on and any(f.endswith("/") for f in (files or []))
 
-    intensity = types.SimpleNamespace(flags_from_entry=_fake_flags,
-                                      is_pool_intensity_active=_fake_pool_active)
-    cue = types.SimpleNamespace(markers=markers, speed_resolver=speed_resolver,
-                                repeater=repeater, current_file=current_file,
-                                intensity=intensity)
+    intensity = types.SimpleNamespace(flags_from_entry=_fake_flags, is_pool_intensity_active=_fake_pool_active)
+    cue = types.SimpleNamespace(
+        markers=markers,
+        speed_resolver=speed_resolver,
+        repeater=repeater,
+        current_file=current_file,
+        intensity=intensity,
+    )
     monkeypatch.setattr(_displ, "_cue", cue)
 
     calls = {"set_time": [], "set_active_index": [], "finalize": 0}
@@ -295,8 +288,7 @@ def test_mtl_get_timeline_singleton_wired_to_video_context(monkeypatch):
     cue = types.SimpleNamespace(markers=types.SimpleNamespace(video=video))
     monkeypatch.setattr(_displ, "_cue", cue)
     tl = CueVideoMarkerTimeline.get_timeline()
-    assert tl is CueVideoMarkerTimeline.get_timeline(), \
-        "timeline must be a stable singleton"
+    assert tl is CueVideoMarkerTimeline.get_timeline(), "timeline must be a stable singleton"
     # Wired to the live video context's own methods, so the displayable reads
     # and writes the marker state through it.
     assert tl.get_dur() == 5.0
@@ -330,14 +322,13 @@ def test_mtl_render_basic(monkeypatch):
 
 
 def test_mtl_render_scaled_and_preview(monkeypatch):
-    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}], speed=2.0,
-                    selected={1})
+    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}], speed=2.0, selected={1})
     env.cue.repeater.compute_preview_times = lambda: [2.5]
     r = env.tl.render(200, 60, 0.0, 0.0)
     ops = r.canvas().ops
     colors = [op[1] for op in ops if op[0] == "rect"]
-    assert "#9966aa" in colors   # scaled active color
-    assert "#775588" in colors   # scaled inactive color
+    assert "#9966aa" in colors  # scaled active color
+    assert "#775588" in colors  # scaled inactive color
     # 2 markers + 1 preview marker = 6 rects total.
     assert len(colors) == 6
     # Preview marker "?" text blits.
@@ -348,7 +339,7 @@ def test_mtl_render_with_selection_colors(monkeypatch):
     env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}], selected={1})
     r = env.tl.render(200, 60, 0.0, 0.0)
     colors = [op[1] for op in r.canvas().ops if op[0] == "rect"]
-    assert "#669966" in colors   # active
+    assert "#669966" in colors  # active
     assert env.tl.SEL_BG in colors  # selected tab bg
     assert env.tl.SEL_LINE in colors  # selected tab line
 
@@ -435,7 +426,7 @@ def test_mtl_render_publishes_tip_anchored_to_marker(monkeypatch):
     env.tl._tip_text = "Tip!"
     env.tl._screen_x = 10
     env.tl._screen_y = 20
-    env.tl._tip_x = 30   # would-be cursor position -- must be ignored
+    env.tl._tip_x = 30  # would-be cursor position -- must be ignored
     env.tl._tip_y = 40
     env.tl._hover_idx = 1
     env.tl.render(200, 60, 0.0, 0.0)
@@ -462,12 +453,11 @@ def test_mtl_render_publishes_tip_anchored_during_drag(monkeypatch):
 
 def test_mtl_render_intensity_border_on_hooked_marker(monkeypatch):
     # Marker 1's pool is hooked to an intensity folder; marker 2's isn't.
-    env = _make_mtl(monkeypatch,
-                    [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}],
-                    current_file="clip.webm", intensity_on=True)
+    env = _make_mtl(
+        monkeypatch, [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}], current_file="clip.webm", intensity_on=True
+    )
     r = env.tl.render(200, 60, 0.0, 0.0)
-    border_ops = [op for op in r.canvas().ops
-                  if op[0] == "rect" and op[1] == env.tl.INTENSITY_BORDER]
+    border_ops = [op for op in r.canvas().ops if op[0] == "rect" and op[1] == env.tl.INTENSITY_BORDER]
     assert len(border_ops) == 1
     # The border is a strip flush under the tab's bottom edge, spanning the
     # tab width.  (Exact thickness is a live visual tweak -- not pinned here.)
@@ -478,18 +468,18 @@ def test_mtl_render_intensity_border_on_hooked_marker(monkeypatch):
 
 
 def test_mtl_render_intensity_no_border_when_off(monkeypatch):
-    env = _make_mtl(monkeypatch,
-                    [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}],
-                    current_file="clip.webm", intensity_on=False)
+    env = _make_mtl(
+        monkeypatch, [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}], current_file="clip.webm", intensity_on=False
+    )
     r = env.tl.render(200, 60, 0.0, 0.0)
     colors = [op[1] for op in r.canvas().ops if op[0] == "rect"]
     assert env.tl.INTENSITY_BORDER not in colors
 
 
 def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
-    env = _make_mtl(monkeypatch,
-                    [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}],
-                    current_file="clip.webm", intensity_on=True)
+    env = _make_mtl(
+        monkeypatch, [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}], current_file="clip.webm", intensity_on=True
+    )
     env.tl._tip_text = "Pool 1 (0:00)"
     env.tl._hover_idx = 0
     env.tl.render(200, 60, 0.0, 0.0)
@@ -499,9 +489,9 @@ def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
 
 
 def test_mtl_render_intensity_tooltip_no_note_unhooked(monkeypatch):
-    env = _make_mtl(monkeypatch,
-                    [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}],
-                    current_file="clip.webm", intensity_on=True)
+    env = _make_mtl(
+        monkeypatch, [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}], current_file="clip.webm", intensity_on=True
+    )
     env.tl._tip_text = "Pool 2 (0:05)"
     env.tl._hover_idx = 1
     env.tl.render(200, 60, 0.0, 0.0)
@@ -509,9 +499,9 @@ def test_mtl_render_intensity_tooltip_no_note_unhooked(monkeypatch):
 
 
 def test_mtl_render_intensity_tooltip_no_note_when_off(monkeypatch):
-    env = _make_mtl(monkeypatch,
-                    [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}],
-                    current_file="clip.webm", intensity_on=False)
+    env = _make_mtl(
+        monkeypatch, [{"time": 0.0, "files": ["soft/"]}, {"time": 5.0}], current_file="clip.webm", intensity_on=False
+    )
     env.tl._tip_text = "Pool 1 (0:00)"
     env.tl._hover_idx = 0
     env.tl.render(200, 60, 0.0, 0.0)
@@ -530,8 +520,7 @@ def test_mtl_event_mousemotion_hover_sets_tip(monkeypatch):
 
 
 def test_mtl_event_mousemotion_hover_multiselect_tip(monkeypatch):
-    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}],
-                    selected={0, 1})
+    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}], selected={0, 1})
     env.tl.render(200, 60, 0.0, 0.0)
     ev = types.SimpleNamespace(type=_pygame.MOUSEMOTION)
     env.tl.event(ev, 100, 15, 0.0)
@@ -580,8 +569,7 @@ def test_mtl_event_click_selects_single(monkeypatch):
 
 
 def test_mtl_event_click_empty_clears_selection(monkeypatch):
-    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}],
-                    selected={0, 1})
+    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}], selected={0, 1})
     env.tl.render(200, 60, 0.0, 0.0)
     ev = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
     # x=40 -> inner_x=30 sits between the two marker tabs (no hit) -> clear.
@@ -591,8 +579,7 @@ def test_mtl_event_click_empty_clears_selection(monkeypatch):
 
 
 def test_mtl_event_click_outside_bounds_noop(monkeypatch):
-    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}],
-                    selected={0, 1})
+    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}], selected={0, 1})
     env.tl.render(200, 60, 0.0, 0.0)
     ev = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
     assert env.tl.event(ev, 500, 15, 0.0) is None  # inner_x=490 out of bounds
@@ -610,8 +597,7 @@ def test_mtl_event_click_scaled_noop(monkeypatch):
 def test_mtl_event_alt_click_toggles_selection(monkeypatch):
     env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}])
     env.tl.render(200, 60, 0.0, 0.0)
-    monkeypatch.setattr(_pygame.key, "get_mods",
-                        lambda: _pygame.KMOD_LALT)
+    monkeypatch.setattr(_pygame.key, "get_mods", lambda: _pygame.KMOD_LALT)
     ev = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
     with pytest.raises(IgnoreEvent):
         env.tl.event(ev, 100, 15, 0.0)
@@ -622,11 +608,9 @@ def test_mtl_event_alt_click_toggles_selection(monkeypatch):
 
 
 def test_mtl_event_alt_click_removes_selected(monkeypatch):
-    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}],
-                    selected={1})
+    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}], selected={1})
     env.tl.render(200, 60, 0.0, 0.0)
-    monkeypatch.setattr(_pygame.key, "get_mods",
-                        lambda: _pygame.KMOD_LALT)
+    monkeypatch.setattr(_pygame.key, "get_mods", lambda: _pygame.KMOD_LALT)
     ev = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
     with pytest.raises(IgnoreEvent):
         env.tl.event(ev, 100, 15, 0.0)
@@ -638,8 +622,7 @@ def test_mtl_event_alt_click_removes_selected(monkeypatch):
 def test_mtl_event_shift_click_selects_range(monkeypatch):
     env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}])
     env.tl.render(200, 60, 0.0, 0.0)
-    monkeypatch.setattr(_pygame.key, "get_mods",
-                        lambda: _pygame.KMOD_LSHIFT)
+    monkeypatch.setattr(_pygame.key, "get_mods", lambda: _pygame.KMOD_LSHIFT)
     ev = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
     with pytest.raises(IgnoreEvent):
         env.tl.event(ev, 100, 15, 0.0)
@@ -709,8 +692,7 @@ def test_mtl_event_drag_single_after_threshold(monkeypatch):
 
 
 def test_mtl_event_drag_multi_select_group(monkeypatch):
-    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}],
-                    selected={0, 1})
+    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}], selected={0, 1})
     env.tl.render(200, 60, 0.0, 0.0)
     down = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
     with pytest.raises(IgnoreEvent):
@@ -732,8 +714,7 @@ def test_mtl_event_drag_multi_select_group(monkeypatch):
 
 
 def test_mtl_event_drag_clamps_to_duration(monkeypatch):
-    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}],
-                    selected={0, 1})
+    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}], selected={0, 1})
     env.tl.render(200, 60, 0.0, 0.0)
     down = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
     with pytest.raises(IgnoreEvent):
@@ -747,8 +728,7 @@ def test_mtl_event_drag_clamps_to_duration(monkeypatch):
 
 def test_mtl_event_drag_clamps_to_zero(monkeypatch):
     # Group min is 2.0, so dragging left clamps at marker 0 hitting 0.0.
-    env = _make_mtl(monkeypatch, [{"time": 2.0}, {"time": 5.0}],
-                    selected={0, 1})
+    env = _make_mtl(monkeypatch, [{"time": 2.0}, {"time": 5.0}], selected={0, 1})
     env.tl.render(200, 60, 0.0, 0.0)
     down = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
     with pytest.raises(IgnoreEvent):
@@ -761,8 +741,7 @@ def test_mtl_event_drag_clamps_to_zero(monkeypatch):
 
 
 def test_mtl_event_mouseup_finalizes_drag(monkeypatch):
-    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}],
-                    selected={1})
+    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}], selected={1})
     env.tl.render(200, 60, 0.0, 0.0)
     down = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
     with pytest.raises(IgnoreEvent):
@@ -778,8 +757,7 @@ def test_mtl_event_mouseup_finalizes_drag(monkeypatch):
 
 
 def test_mtl_event_mouseup_click_clears_multiselect(monkeypatch):
-    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}],
-                    selected={0, 1})
+    env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}], selected={0, 1})
     env.tl.render(200, 60, 0.0, 0.0)
     down = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
     with pytest.raises(IgnoreEvent):
@@ -801,6 +779,7 @@ def test_mtl_event_mouseup_no_drag_noop(monkeypatch):
 # ==========================================================================
 # CueTooltip
 # ==========================================================================
+
 
 def test_tooltip_render_basic(monkeypatch):
     monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (500, 400))
@@ -891,6 +870,7 @@ def test_tooltip_focus_clamps_to_right_edge(monkeypatch):
 # CueVideoMarkerTooltip
 # ==========================================================================
 
+
 def test_tooltip_overlay_empty():
     r = CueVideoMarkerTooltip().render(800, 600, 0.0, 0.0)
     assert r.width == 1
@@ -911,7 +891,7 @@ def test_tooltip_overlay_centers_above_tab():
 def test_tooltip_overlay_flips_below_when_no_room_above():
     CueVideoMarkerTimeline._marker_tip_text = "Tip"
     CueVideoMarkerTimeline._marker_tip_x = 500 + CueVideoMarkerTimeline.TAB_W // 2
-    CueVideoMarkerTimeline._marker_tip_y = 60   # tab near the top edge
+    CueVideoMarkerTimeline._marker_tip_y = 60  # tab near the top edge
     r = CueVideoMarkerTooltip().render(800, 600, 0.0, 0.0)
     _, ty = r.blits[0][1]
     assert ty == 60 - CueVideoMarkerTimeline.TAB_H + CueVideoMarkerTimeline.TAB_H + 4
@@ -926,8 +906,7 @@ def test_tooltip_overlay_matches_cue_tooltip_positioning(monkeypatch):
     CueVideoMarkerTimeline._marker_tip_x = anchor[0] + CueVideoMarkerTimeline.TAB_W // 2
     CueVideoMarkerTimeline._marker_tip_y = anchor[1] + CueVideoMarkerTimeline.TAB_H
     ov = CueVideoMarkerTooltip()
-    assert t.render(800, 600, 0.0, 0.0).blits[0][1] == \
-        ov.render(800, 600, 0.0, 0.0).blits[0][1]
+    assert t.render(800, 600, 0.0, 0.0).blits[0][1] == ov.render(800, 600, 0.0, 0.0).blits[0][1]
 
 
 def test_tooltip_overlay_clamps_to_screen():
@@ -946,6 +925,7 @@ def test_tooltip_overlay_clamps_to_screen():
 # ==========================================================================
 # CueAutoSpeedChart
 # ==========================================================================
+
 
 def test_compute_points_less_than_two():
     assert CueAutoSpeedChart._compute_points([], 200, 100) == ([], 0.0, 0.0)
@@ -968,14 +948,10 @@ def test_compute_points_flat_speeds():
 
 @pytest.fixture
 def chart(monkeypatch):
-    seq = types.SimpleNamespace(
-        speeds_for=lambda tag: [1.0, 2.0, 3.0],
-        current_step_index=lambda: 1,
-    )
+    seq = types.SimpleNamespace(speeds_for=lambda tag: [1.0, 2.0, 3.0], current_step_index=lambda: 1)
     # No marker entry -> no intensity inputs; the chart renders uncolored.
     markers = types.SimpleNamespace(get=lambda key, default: default)
-    cue = types.SimpleNamespace(current_file="v.ogv", video_sequence=seq,
-                                markers=markers)
+    cue = types.SimpleNamespace(current_file="v.ogv", video_sequence=seq, markers=markers)
     monkeypatch.setattr(_displ, "_cue", cue)
     monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (500, 500))
     return types.SimpleNamespace(cue=cue, seq=seq, chart=CueAutoSpeedChart())
@@ -984,32 +960,24 @@ def chart(monkeypatch):
 @pytest.fixture
 def intensity_chart(monkeypatch):
     """Chart wired to a video whose pool is hooked to a 2-level group."""
-    seq = types.SimpleNamespace(
-        speeds_for=lambda tag: [1.0, 2.0, 3.0],
-        current_step_index=lambda: 1,
-    )
+    seq = types.SimpleNamespace(speeds_for=lambda tag: [1.0, 2.0, 3.0], current_step_index=lambda: 1)
     markers = types.SimpleNamespace(
         get=lambda key, default: {"pools": [{"files": ["soft/"]}]},
         _resolve_video_pools=lambda entry: entry.get("pools", []),
     )
-    speed_resolver = types.SimpleNamespace(
-        banding_speeds=lambda tag: [0.7, 1.0, 1.3],
-        get_current_speed=lambda: 1.3,
-    )
+    speed_resolver = types.SimpleNamespace(banding_speeds=lambda tag: [0.7, 1.0, 1.3], get_current_speed=lambda: 1.3)
 
     def _flags(entry):
-        return types.SimpleNamespace(enabled=True, sfx_levels=True,
-                                     volume=True, frequency=True)
+        return types.SimpleNamespace(enabled=True, sfx_levels=True, volume=True, frequency=True)
 
     def _current_level(pools_files, speed, variants, flags=None):
         # 2 levels: the slowest variant is L1, everything else L2.
         return (1, 2) if speed < 0.85 else (2, 2)
 
-    intensity = types.SimpleNamespace(flags_from_entry=_flags,
-                                      current_level=_current_level)
-    cue = types.SimpleNamespace(current_file="v.ogv", video_sequence=seq,
-                                markers=markers, speed_resolver=speed_resolver,
-                                intensity=intensity)
+    intensity = types.SimpleNamespace(flags_from_entry=_flags, current_level=_current_level)
+    cue = types.SimpleNamespace(
+        current_file="v.ogv", video_sequence=seq, markers=markers, speed_resolver=speed_resolver, intensity=intensity
+    )
     monkeypatch.setattr(_displ, "_cue", cue)
     monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (500, 500))
     return types.SimpleNamespace(cue=cue, chart=CueAutoSpeedChart())
@@ -1070,8 +1038,7 @@ def test_chart_render_full(monkeypatch, chart):
     assert bright and bright[0][2] == (35, 82) and bright[0][3] == (113, 45)
     # Progress dot at point 1.
     circles = [op for op in ops if op[0] == "circle"]
-    assert circles == [("circle", chart.chart.COLOR_DOT, (113, 45),
-                        chart.chart.DOT_R)]
+    assert circles == [("circle", chart.chart.COLOR_DOT, (113, 45), chart.chart.DOT_R)]
     # Mouse at (500,500) is outside the chart -> no hover tooltip; the 3
     # blits are the min/max y-axis labels and the current-speed label.
     assert len(r.blits) == 3
@@ -1096,6 +1063,7 @@ def test_chart_event_mousemotion(monkeypatch, chart):
 # _cue_intensity_color -- level -> hex along the HSL hue path
 # ==========================================================================
 
+
 def test_intensity_color_endpoints():
     assert _cue_intensity_color(1, 3) == CUE_INTENSITY_COLOR_LOW
     assert _cue_intensity_color(3, 3) == CUE_INTENSITY_COLOR_HIGH
@@ -1118,6 +1086,7 @@ def test_intensity_color_midpoint_is_hex():
 # CueAutoSpeedChart -- intensity coloring + level labels
 # ==========================================================================
 
+
 def test_chart_render_intensity_colors_bright_line(intensity_chart):
     r = intensity_chart.chart.render(200, 100, 0.0, 0.0)
     lines = [op for op in r.canvas().ops if op[0] == "line"]
@@ -1132,15 +1101,12 @@ def test_chart_render_intensity_per_segment_colors(monkeypatch, intensity_chart)
     # Each played segment keeps its own step's level color instead of one
     # uniform color -- earlier segments persist as the playhead advances.
     intensity_chart.cue.video_sequence = types.SimpleNamespace(
-        speeds_for=lambda tag: [0.7, 1.0, 1.3],
-        current_step_index=lambda: 2,
+        speeds_for=lambda tag: [0.7, 1.0, 1.3], current_step_index=lambda: 2
     )
     r = intensity_chart.chart.render(200, 100, 0.0, 0.0)
-    bright = [op for op in r.canvas().ops
-              if op[0] == "line" and op[1] != CueAutoSpeedChart.COLOR_DIM]
+    bright = [op for op in r.canvas().ops if op[0] == "line" and op[1] != CueAutoSpeedChart.COLOR_DIM]
     # Segment 0 (0.7 -> L1) is low; segment 1 (1.0 -> L2) is high.
-    assert [op[1] for op in bright] == [
-        _cue_intensity_color(1, 2), _cue_intensity_color(2, 2)]
+    assert [op[1] for op in bright] == [_cue_intensity_color(1, 2), _cue_intensity_color(2, 2)]
 
 
 def test_chart_render_intensity_label(monkeypatch, intensity_chart):
@@ -1160,14 +1126,14 @@ def test_chart_render_intensity_tooltip(monkeypatch, intensity_chart):
 def test_chart_render_no_intensity_keeps_white(chart):
     # The non-intensity chart's played portion stays COLOR_BRIGHT.
     r = chart.chart.render(200, 100, 0.0, 0.0)
-    bright = [op for op in r.canvas().ops
-              if op[0] == "line" and op[1] == CueAutoSpeedChart.COLOR_BRIGHT]
+    bright = [op for op in r.canvas().ops if op[0] == "line" and op[1] == CueAutoSpeedChart.COLOR_BRIGHT]
     assert bright
 
 
 # ==========================================================================
 # CueKeyCaptureDisplayable
 # ==========================================================================
+
 
 def test_key_capture_render():
     r = CueKeyCaptureDisplayable().render(800, 600, 0.0, 0.0)
@@ -1176,20 +1142,19 @@ def test_key_capture_render():
 
 def test_key_capture_ignores_non_keydown(monkeypatch):
     calls = []
-    monkeypatch.setattr(_displ, "_cue",
-                        types.SimpleNamespace(keybinds=types.SimpleNamespace(
-                            on_captured=lambda k: calls.append(k))))
-    ev = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, key=_pygame.K_F5,
-                               mod=0)
+    monkeypatch.setattr(
+        _displ, "_cue", types.SimpleNamespace(keybinds=types.SimpleNamespace(on_captured=lambda k: calls.append(k)))
+    )
+    ev = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, key=_pygame.K_F5, mod=0)
     assert CueKeyCaptureDisplayable().event(ev, 0, 0, 0.0) is None
     assert calls == []
 
 
 def test_key_capture_forwards_keysym(monkeypatch):
     calls = []
-    monkeypatch.setattr(_displ, "_cue",
-                        types.SimpleNamespace(keybinds=types.SimpleNamespace(
-                            on_captured=lambda k: calls.append(k))))
+    monkeypatch.setattr(
+        _displ, "_cue", types.SimpleNamespace(keybinds=types.SimpleNamespace(on_captured=lambda k: calls.append(k)))
+    )
     kc = CueKeyCaptureDisplayable()
     ev = types.SimpleNamespace(type=_pygame.KEYDOWN, key=_pygame.K_F5, mod=0)
     with pytest.raises(IgnoreEvent):
@@ -1199,9 +1164,9 @@ def test_key_capture_forwards_keysym(monkeypatch):
 
 def test_key_capture_unmapped_key_no_forward(monkeypatch):
     calls = []
-    monkeypatch.setattr(_displ, "_cue",
-                        types.SimpleNamespace(keybinds=types.SimpleNamespace(
-                            on_captured=lambda k: calls.append(k))))
+    monkeypatch.setattr(
+        _displ, "_cue", types.SimpleNamespace(keybinds=types.SimpleNamespace(on_captured=lambda k: calls.append(k)))
+    )
     kc = CueKeyCaptureDisplayable()
     ev = types.SimpleNamespace(type=_pygame.KEYDOWN, key=999, mod=0)
     with pytest.raises(IgnoreEvent):

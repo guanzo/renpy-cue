@@ -101,6 +101,7 @@ def _cue_known_content(path):
 # game_id matching -- three levels, always surfaced as a guess when heuristic
 # --------------------------------------------------------------------------
 
+
 def _cue_digit_strip_normalize(game_id):
     # type: (str) -> str
     """Lower + drop separators + drop trailing digits.  Catches no-hyphen
@@ -138,13 +139,10 @@ def _cue_import_match(game_id, manifest_game_id):
             break
     if common >= 1:
         # Show the original-case prefix so the guess reads like the game name.
-        return (CueImportMatch.CONFIRM,
-                "both share prefix '{}'".format("-".join(raw_a[:common])))
+        return (CueImportMatch.CONFIRM, "both share prefix '{}'".format("-".join(raw_a[:common])))
 
-    if (_cue_digit_strip_normalize(game_id) ==
-            _cue_digit_strip_normalize(manifest_game_id)):
-        return (CueImportMatch.CONFIRM,
-                "the names match once version numbers are dropped")
+    if _cue_digit_strip_normalize(game_id) == _cue_digit_strip_normalize(manifest_game_id):
+        return (CueImportMatch.CONFIRM, "the names match once version numbers are dropped")
 
     return (CueImportMatch.MISMATCH, "no shared identifier")
 
@@ -152,6 +150,7 @@ def _cue_import_match(game_id, manifest_game_id):
 # --------------------------------------------------------------------------
 # contents grouping / filtering
 # --------------------------------------------------------------------------
+
 
 def _cue_group_contents(contents):
     # type: (List[str]) -> Dict[int, List[str]]
@@ -195,8 +194,8 @@ def _cue_filter_contents(contents, checked_categories):
 # manifest build / validate / load
 # --------------------------------------------------------------------------
 
-def _cue_build_manifest(game_id, name, author, description, contents,
-                        replays=None):
+
+def _cue_build_manifest(game_id, name, author, description, contents, replays=None):
     # type: (str, str, str, str, List[str], Optional[List[dict]]) -> dict
     return {
         _CUE_MANIFEST_FORMAT_KEY: CUE_IMPORT_FORMAT_VERSION,
@@ -221,8 +220,7 @@ def _cue_validate_manifest(manifest, zip_names):
     if not isinstance(fmt, int):
         return (False, "This is not a renpy_cue import.")
     if fmt > CUE_IMPORT_FORMAT_VERSION:
-        return (False, "This was made with a newer renpy_cue and can't be "
-                       "imported yet.")
+        return (False, "This was made with a newer renpy_cue and can't be imported yet.")
     if not isinstance(manifest.get("contents"), list):
         return (False, "This is not a renpy_cue import.")
     return (True, "")
@@ -263,9 +261,7 @@ def _cue_zip_file_names(zip_path):
     import as missing files."""
     try:
         with _zipfile.ZipFile(zip_path, "r") as zf:
-            return set(
-                info.filename for info in zf.infolist()
-                if not info.filename.endswith("/"))
+            return set(info.filename for info in zf.infolist() if not info.filename.endswith("/"))
     except Exception:
         return set()
 
@@ -283,6 +279,7 @@ def _cue_sanitize_filename(name):
 # import file enumeration
 # --------------------------------------------------------------------------
 
+
 def _cue_collect_tree(root, src_dir):
     # type: (str, str) -> List[str]
     """All files under src_dir as root-relative arcnames ('/' separated).
@@ -295,8 +292,7 @@ def _cue_collect_tree(root, src_dir):
         base = base.rstrip("/") + "/"
         for dirpath, _dirs, filenames in os.walk(src_dir):
             for name in filenames:
-                rel = os.path.relpath(
-                    os.path.join(dirpath, name), src_dir).replace("\\", "/")
+                rel = os.path.relpath(os.path.join(dirpath, name), src_dir).replace("\\", "/")
                 arcname = base + rel
                 if not _cue_known_content(arcname):
                     continue
@@ -329,6 +325,7 @@ def _cue_enumerate_import_files(root, game_id):
 # --------------------------------------------------------------------------
 # replay-scoped export -- markers for a replay + the files they reference
 # --------------------------------------------------------------------------
+
 
 def _cue_replay_assets(root, game_id, replay_labels):
     # type: (str, str, List[str]) -> Dict[int, List[str]]
@@ -366,8 +363,7 @@ def _cue_replay_assets(root, game_id, replay_labels):
         if name.startswith(CUE_VID_KEY_PREFIX):
             has_video = True
 
-        _cue_add_asset(result, CueImportCategory.MARKERS,
-                       "data/markers/{}/{}".format(game_id, name))
+        _cue_add_asset(result, CueImportCategory.MARKERS, "data/markers/{}/{}".format(game_id, name))
         pools = list(entry.get("pools") or []) + list(entry.get("timestamps") or [])
 
         for pool in pools:
@@ -415,7 +411,7 @@ def _cue_replay_labels(root, game_id):
         if not label:
             continue
         counts[label] = counts.get(label, 0) + 1
-        
+
     return sorted(counts.items())
 
 
@@ -438,8 +434,7 @@ def _cue_manifest_replays(root, game_id, contents):
         if not label:
             continue
         counts[label] = counts.get(label, 0) + 1
-    return [{"replay": label, "marker_count": counts[label]}
-            for label in sorted(counts)]
+    return [{"replay": label, "marker_count": counts[label]} for label in sorted(counts)]
 
 
 def _cue_add_asset(result, cat, rel):
@@ -476,7 +471,7 @@ def _cue_music_rel(song):
     if song.startswith(CUE_MUSIC_GAME_TAG):
         return None
     if song.startswith(CUE_MUSIC_USER_TAG):
-        song = song[len(CUE_MUSIC_USER_TAG):]
+        song = song[len(CUE_MUSIC_USER_TAG) :]
     if song.startswith(CUE_MUSIC_PREFIX):
         return song
     return None
@@ -528,8 +523,8 @@ def _cue_read_json_file(path):
 # zip build / extract
 # --------------------------------------------------------------------------
 
-def _cue_build_import_zip(root, game_id, name, author, description,
-                           contents, zip_path, progress=None):
+
+def _cue_build_import_zip(root, game_id, name, author, description, contents, zip_path, progress=None):
     # type: (str, str, str, str, str, List[str], str, Optional[Any]) -> int
     """Write an import zip at zip_path: manifest.json + each content file
     (arcname = its shared-root-relative path).  Writes a temp file first, then
@@ -537,8 +532,8 @@ def _cue_build_import_zip(root, game_id, name, author, description,
     progress is given, it is called as progress(written_bytes, total_bytes)
     after each file; total is pre-computed over the files that exist."""
     manifest = _cue_build_manifest(
-        game_id, name, author, description, contents,
-        _cue_manifest_replays(root, game_id, contents))
+        game_id, name, author, description, contents, _cue_manifest_replays(root, game_id, contents)
+    )
     tmp_path = zip_path + ".tmp"
     count = 0
     total = 0
@@ -549,8 +544,7 @@ def _cue_build_import_zip(root, game_id, name, author, description,
                 continue
             total += os.path.getsize(src)
     with _zipfile.ZipFile(tmp_path, "w", _zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(CUE_IMPORT_MANIFEST_NAME,
-                    _json.dumps(manifest, sort_keys=True, indent=2))
+        zf.writestr(CUE_IMPORT_MANIFEST_NAME, _json.dumps(manifest, sort_keys=True, indent=2))
         written = 0
         for rel in contents:
             src = _safe_extract_path(root, rel)
@@ -612,6 +606,7 @@ def _cue_extract_import_zip(zip_path, out_dir, progress=None):
 # --------------------------------------------------------------------------
 # merge -- copy selected import files into a live root, data_bak safety net
 # --------------------------------------------------------------------------
+
 
 def _cue_copy_file(src, dst):
     # type: (str, str) -> None

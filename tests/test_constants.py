@@ -54,9 +54,7 @@ def test_keymap_names_are_distinct():
 
 def test_package_category_enum_has_five_categories_plus_unknown():
     cats = constants.CueImportCategory
-    five = [
-        cats.MARKERS, cats.SFX, cats.MUSIC, cats.SPEED_VARIANTS, cats.PRESETS,
-    ]
+    five = [cats.MARKERS, cats.SFX, cats.MUSIC, cats.SPEED_VARIANTS, cats.PRESETS]
     assert len(set(five)) == 5
     assert cats.UNKNOWN not in five
 
@@ -67,9 +65,7 @@ def test_package_category_order_matches_enum_and_excludes_unknown():
     assert len(order) == len(set(order)) == 5
     assert cats.UNKNOWN not in order
     # Every enum category is listed exactly once.
-    assert set(order) == {
-        cats.MARKERS, cats.SFX, cats.MUSIC, cats.SPEED_VARIANTS, cats.PRESETS,
-    }
+    assert set(order) == {cats.MARKERS, cats.SFX, cats.MUSIC, cats.SPEED_VARIANTS, cats.PRESETS}
 
 
 def test_package_category_labels_cover_every_ordered_category():

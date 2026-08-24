@@ -12,6 +12,7 @@ from typing import Optional
 # isolation, so context logic can be tested headlessly without the real
 # CueMarkerManager (which is wired to _cue and Ren'Py).
 
+
 class FakeCtx(object):
     """Minimal _ctx stand-in carrying the seam the video context reads:
     current_file (for the real _key / add_folder guard)."""
@@ -36,8 +37,8 @@ class FakeManager(object):
         self._ctx = FakeCtx(current_file)
         self._sfx_manager = FakeSfxManager()
         self._vid_manager = FakeVidManager()
-        self._presets = {}   # type: dict
-        self.added_files = []    # type: list
+        self._presets = {}  # type: dict
+        self.added_files = []  # type: list
         self.stamped_presets = []  # type: list
 
     def get(self, key, default=None):
@@ -97,7 +98,7 @@ class FakeManager(object):
                 resolved.append(f)
         if child_file in resolved:
             resolved.remove(child_file)
-        files[file_index:file_index + 1] = resolved
+        files[file_index : file_index + 1] = resolved
 
     def resolve_pool(self, pool):
         # type: (dict) -> FakeResolvedPool
@@ -117,8 +118,8 @@ class FakeDb(object):
     """
 
     def __init__(self):
-        self.shared = {}   # type: dict
-        self.saved = []    # type: list
+        self.shared = {}  # type: dict
+        self.saved = []  # type: list
 
     def load_shared_config(self):
         return self.shared
@@ -197,9 +198,9 @@ class FakeMarkerStore(object):
             frequency=pool.get("frequency", 1),
             trigger_on_shake=pool.get("trigger_on_shake", False),
             exclusive=FakeExclusive(
-                start=excl.get("start", 0),
-                hold=excl.get("hold", False),
-                group=excl.get("group", 0)))
+                start=excl.get("start", 0), hold=excl.get("hold", False), group=excl.get("group", 0)
+            ),
+        )
 
 
 class FakeVideoContext(object):
@@ -393,6 +394,7 @@ class FakeUndo(object):
 # runtime / audio driver cue-graph
 # ---------------------------------------------------------------------------
 
+
 def make_runtime_cue(root="", audio_dir=""):
     """Full _cue stand-in for runtime.py and audio-driver tests.
 
@@ -407,8 +409,7 @@ def make_runtime_cue(root="", audio_dir=""):
     from cue_lib.settings import CueSettings
 
     cue = Cue()
-    cue.paths = types.SimpleNamespace(
-        root=root, original_root=root, audio_dir=audio_dir)
+    cue.paths = types.SimpleNamespace(root=root, original_root=root, audio_dir=audio_dir)
     cue.settings = CueSettings()
     cue.calls = {}
     cue.ensured_pools = []
@@ -493,13 +494,10 @@ def make_runtime_cue(root="", audio_dir=""):
     # music -- user_music/game_music subtrees + driver methods
     cue.music = types.SimpleNamespace(
         user_music=types.SimpleNamespace(
-            files=[],
-            scan=_rec("music.user_music", "scan"),
-            maybe_rebuild=_rec("music.user_music", "maybe_rebuild"),
+            files=[], scan=_rec("music.user_music", "scan"), maybe_rebuild=_rec("music.user_music", "maybe_rebuild")
         ),
         game_music=types.SimpleNamespace(
-            scan=_rec("music.game_music", "scan"),
-            maybe_rebuild=_rec("music.game_music", "maybe_rebuild"),
+            scan=_rec("music.game_music", "scan"), maybe_rebuild=_rec("music.game_music", "maybe_rebuild")
         ),
         _recent=types.SimpleNamespace(load=_rec("music._recent", "load")),
         capture_display=_rec("music", "capture_display"),
@@ -508,8 +506,7 @@ def make_runtime_cue(root="", audio_dir=""):
         reload_presets=_rec("music", "reload_presets"),
         _resolve_music_path=lambda filename: filename,
         library=types.SimpleNamespace(
-            rebuild_tree=_rec("music.library", "rebuild_tree"),
-            maybe_rebuild=_rec("music.library", "maybe_rebuild"),
+            rebuild_tree=_rec("music.library", "rebuild_tree"), maybe_rebuild=_rec("music.library", "maybe_rebuild")
         ),
     )
 
@@ -517,10 +514,7 @@ def make_runtime_cue(root="", audio_dir=""):
     cue.video_editor = types.SimpleNamespace(
         MODE_INTERPOLATE=0,
         processing=False,
-        job_queue=types.SimpleNamespace(
-            has_pending=False,
-            poll=_rec("video_editor.job_queue", "poll"),
-        ),
+        job_queue=types.SimpleNamespace(has_pending=False, poll=_rec("video_editor.job_queue", "poll")),
         refresh=_rec("video_editor", "refresh"),
         poll_extract=_rec("video_editor", "poll_extract"),
     )
@@ -529,18 +523,13 @@ def make_runtime_cue(root="", audio_dir=""):
     cue.undo = types.SimpleNamespace(reset=_rec("undo", "reset"))
 
     # db -- shared-config surface read/written by _cue_load_scalars_from_persistent
-    cue.db = types.SimpleNamespace(
-        load_shared_config=lambda: {},
-        save_shared_config=_rec("db", "save_shared_config"),
-    )
+    cue.db = types.SimpleNamespace(load_shared_config=lambda: {}, save_shared_config=_rec("db", "save_shared_config"))
 
     cue.volume = types.SimpleNamespace(
-        get_effective=lambda entry, key, pool_index: 1.0,
-        flush_pending_saves=_rec("volume", "flush_pending_saves"),
+        get_effective=lambda entry, key, pool_index: 1.0, flush_pending_saves=_rec("volume", "flush_pending_saves")
     )
     cue.video_sequence = types.SimpleNamespace(
-        handle=_rec("video_sequence", "handle"),
-        tick=_rec("video_sequence", "tick"),
+        handle=_rec("video_sequence", "handle"), tick=_rec("video_sequence", "tick")
     )
     cue.speed_resolver = types.SimpleNamespace(
         clear_pending=_rec("speed_resolver", "clear_pending"),
@@ -557,6 +546,7 @@ def make_runtime_cue(root="", audio_dir=""):
 # ffmpeg / video-editor doubles
 # ---------------------------------------------------------------------------
 
+
 class FakeProc(object):
     """Fake subprocess.Popen return value for ffmpeg/ffprobe tests.
 
@@ -568,8 +558,7 @@ class FakeProc(object):
     _cue_run_proc hang guard can reap it.
     """
 
-    def __init__(self, out_bytes=b"", returncode=0, poll_result=None,
-                 timeout_error=False):
+    def __init__(self, out_bytes=b"", returncode=0, poll_result=None, timeout_error=False):
         self.out_bytes = out_bytes
         self.returncode = returncode
         self.poll_result = poll_result

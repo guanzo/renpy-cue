@@ -6,12 +6,7 @@ import json as _json
 import os
 
 from cue_lib import importer_io as _imp
-from cue_lib.constants import (
-    CUE_IMPORT_CATEGORY_ORDER,
-    CUE_IMPORT_MANIFEST_NAME,
-    CueImportCategory,
-    CueImportMatch,
-)
+from cue_lib.constants import CUE_IMPORT_CATEGORY_ORDER, CUE_IMPORT_MANIFEST_NAME, CueImportCategory, CueImportMatch
 from cue_lib.importer_io import CUE_IMPORT_FORMAT_VERSION
 
 GAME_ID = "test_game"
@@ -29,13 +24,13 @@ def _write(root, rel, content):
 
 def _write_marker(cue_env, name, entry):
     """Write one marker JSON to the game's marker dir."""
-    _write(cue_env.paths.original_root, "data/markers/{}/{}.json".format(GAME_ID, name),
-           _json.dumps(entry))
+    _write(cue_env.paths.original_root, "data/markers/{}/{}.json".format(GAME_ID, name), _json.dumps(entry))
 
 
 def _preset_rel(preset_name, sub):
     """Rel path of the stored preset file, mirroring db._preset_path naming."""
     import hashlib as _hashlib
+
     safe = preset_name.replace("/", "_").replace("\\", "_")
     digest = _hashlib.sha1(preset_name.encode("utf-8")).hexdigest()[:8]
     return "data/presets/{}/{}_{}.json".format(sub, safe, digest)
@@ -44,6 +39,7 @@ def _preset_rel(preset_name, sub):
 # ---------------------------------------------------------------------------
 # _cue_import_category -- path prefix -> category
 # ---------------------------------------------------------------------------
+
 
 def test_category_maps_each_prefix():
     cats = CueImportCategory
@@ -70,6 +66,7 @@ def test_category_unknown_for_unmapped():
 # _cue_digit_strip_normalize
 # ---------------------------------------------------------------------------
 
+
 def test_digit_strip_normalize():
     assert _imp._cue_digit_strip_normalize("MyGame123") == "mygame"
     assert _imp._cue_digit_strip_normalize("MyGame456") == "mygame"
@@ -81,6 +78,7 @@ def test_digit_strip_normalize():
 # ---------------------------------------------------------------------------
 # _cue_import_match -- three match levels + reasons
 # ---------------------------------------------------------------------------
+
 
 def test_match_raw_equal_is_auto():
     lvl, reason = _imp._cue_import_match("Game-Patreon-123", "Game-Patreon-123")
@@ -119,6 +117,7 @@ def test_match_mismatch():
 # ---------------------------------------------------------------------------
 # contents grouping / counts / empty / filter
 # ---------------------------------------------------------------------------
+
 
 def test_group_contents_groups_by_category():
     contents = ["audio/a.ogg", "music/b.ogg", "data/markers/g1/x.json"]
@@ -159,6 +158,7 @@ def test_filter_contents_drops_unknown_always():
 # manifest build / validate
 # ---------------------------------------------------------------------------
 
+
 def test_build_manifest_shape():
     m = _imp._cue_build_manifest("g1", "My pack", "author", "desc", ["audio/a.ogg"])
     assert m["format_version"] == CUE_IMPORT_FORMAT_VERSION
@@ -170,8 +170,7 @@ def test_build_manifest_shape():
 
 
 def test_build_manifest_truncates_long_fields():
-    m = _imp._cue_build_manifest(
-        "g1", "n" * 100, "a" * 100, "d" * 500, ["audio/a.ogg"])
+    m = _imp._cue_build_manifest("g1", "n" * 100, "a" * 100, "d" * 500, ["audio/a.ogg"])
     assert m["name"] == "n" * 60
     assert m["author"] == "a" * 40
     assert m["description"] == "d" * 300
@@ -179,8 +178,7 @@ def test_build_manifest_truncates_long_fields():
 
 def test_build_manifest_includes_replays():
     replays = [{"replay": "Run 1", "marker_count": 2}]
-    m = _imp._cue_build_manifest(
-        "g1", "", "", "", ["audio/a.ogg"], replays)
+    m = _imp._cue_build_manifest("g1", "", "", "", ["audio/a.ogg"], replays)
     assert m["replays"] == replays
 
 
@@ -225,10 +223,8 @@ def test_validate_manifest_allows_file_not_in_zip():
 
 
 def test_missing_files_lists_absent_paths():
-    m = _imp._cue_build_manifest(
-        "g1", "", "", "", ["audio/a.ogg", "music/m.ogg", "video/v.mkv"])
-    assert _imp._cue_missing_files(m, {"audio/a.ogg", "music/m.ogg"}) == \
-        ["video/v.mkv"]
+    m = _imp._cue_build_manifest("g1", "", "", "", ["audio/a.ogg", "music/m.ogg", "video/v.mkv"])
+    assert _imp._cue_missing_files(m, {"audio/a.ogg", "music/m.ogg"}) == ["video/v.mkv"]
     assert _imp._cue_missing_files(m, set(m["contents"])) == []
     assert _imp._cue_missing_files(None, set()) == []
 
@@ -239,10 +235,7 @@ def test_missing_files_coerces_unicode_and_bytes(monkeypatch):
     non-ASCII filename present in the zip is falsely reported missing."""
     # Simulate Py2's _to_str (a no-op on Py3): decode the bytes side to
     # unicode so the membership compare sees two equal values.
-    monkeypatch.setattr(
-        _imp, "_to_str",
-        lambda obj: obj.decode("utf-8") if isinstance(obj, bytes) else obj,
-    )
+    monkeypatch.setattr(_imp, "_to_str", lambda obj: obj.decode("utf-8") if isinstance(obj, bytes) else obj)
     m = _imp._cue_build_manifest("g1", "", "", "", ["music/café.ogg"])
     zip_names = [b"music/caf\xc3\xa9.ogg"]  # Py2 str bytes, not Py3 .encode()
     assert _imp._cue_missing_files(m, zip_names) == []
@@ -259,12 +252,8 @@ def test_manifest_replays_counts_by_field(cue_env):
         "data/markers/{}/c.json".format(GAME_ID),
         "data/markers/{}/d.json".format(GAME_ID),
     ]
-    replays = _imp._cue_manifest_replays(
-        cue_env.paths.original_root, GAME_ID, contents)
-    assert replays == [
-        {"replay": "Run 1", "marker_count": 2},
-        {"replay": "Run 2", "marker_count": 1},
-    ]
+    replays = _imp._cue_manifest_replays(cue_env.paths.original_root, GAME_ID, contents)
+    assert replays == [{"replay": "Run 1", "marker_count": 2}, {"replay": "Run 2", "marker_count": 1}]
 
 
 def test_manifest_replays_only_counts_packed_files(cue_env):
@@ -273,8 +262,7 @@ def test_manifest_replays_only_counts_packed_files(cue_env):
     _write_marker(cue_env, "a", {"replay": "Run 1", "pools": []})
     _write_marker(cue_env, "b", {"replay": "Run 2", "pools": []})
     contents = ["data/markers/{}/a.json".format(GAME_ID)]
-    replays = _imp._cue_manifest_replays(
-        cue_env.paths.original_root, GAME_ID, contents)
+    replays = _imp._cue_manifest_replays(cue_env.paths.original_root, GAME_ID, contents)
     assert replays == [{"replay": "Run 1", "marker_count": 1}]
 
 
@@ -284,14 +272,14 @@ def test_manifest_replays_ignores_unreadable_marker(cue_env):
         "data/markers/{}/a.json".format(GAME_ID),
         "data/markers/{}/broken.json".format(GAME_ID),  # not on disk
     ]
-    replays = _imp._cue_manifest_replays(
-        cue_env.paths.original_root, GAME_ID, contents)
+    replays = _imp._cue_manifest_replays(cue_env.paths.original_root, GAME_ID, contents)
     assert replays == [{"replay": "Run 1", "marker_count": 1}]
 
 
 # ---------------------------------------------------------------------------
 # filename sanitization
 # ---------------------------------------------------------------------------
+
 
 def test_sanitize_filename():
     assert _imp._cue_sanitize_filename("My Pack") == "My Pack"
@@ -304,6 +292,7 @@ def test_sanitize_filename():
 # ---------------------------------------------------------------------------
 # _cue_replay_labels / _cue_replay_assets -- replay-scoped export content
 # ---------------------------------------------------------------------------
+
 
 def test_replay_labels_counts_per_replay(cue_env):
     _write_marker(cue_env, "a", {"replay": "Run 1", "pools": []})
@@ -322,23 +311,19 @@ def test_replay_assets_picks_markers_for_selected_labels(cue_env):
 
     assets = _imp._cue_replay_assets(cue_env.paths.original_root, GAME_ID, ["Run 1"])
 
-    assert assets == {CueImportCategory.MARKERS: [
-        "data/markers/{}/a.json".format(GAME_ID)]}
+    assert assets == {CueImportCategory.MARKERS: ["data/markers/{}/a.json".format(GAME_ID)]}
 
 
 def test_replay_assets_follows_sfx_pool_refs_and_expands_folders(cue_env):
     _write(cue_env.paths.original_root, "audio/g1/boom.ogg", "b")
     _write(cue_env.paths.original_root, "audio/g1/folder/hit.ogg", "h")
-    _write_marker(cue_env, "a", {
-        "replay": "Run 1",
-        "pools": [{"files": ["audio/g1/boom.ogg"]},
-                  {"files": ["audio/g1/folder/"]}],
-    })
+    _write_marker(
+        cue_env, "a", {"replay": "Run 1", "pools": [{"files": ["audio/g1/boom.ogg"]}, {"files": ["audio/g1/folder/"]}]}
+    )
 
     assets = _imp._cue_replay_assets(cue_env.paths.original_root, GAME_ID, ["Run 1"])
 
-    assert assets[CueImportCategory.SFX] == [
-        "audio/g1/boom.ogg", "audio/g1/folder/hit.ogg"]
+    assert assets[CueImportCategory.SFX] == ["audio/g1/boom.ogg", "audio/g1/folder/hit.ogg"]
 
 
 def test_audio_rel_prefixes_relative_refs():
@@ -365,15 +350,11 @@ def test_replay_assets_resolves_audio_relative_pool_refs(cue_env):
     # expand against the shared tree.
     _write(cue_env.paths.original_root, "audio/g1/s.ogg", "s")
     _write(cue_env.paths.original_root, "audio/g1/boom.ogg", "b")
-    _write_marker(cue_env, "a", {
-        "replay": "Run 1",
-        "pools": [{"files": ["g1/s.ogg", "g1/"]}],
-    })
+    _write_marker(cue_env, "a", {"replay": "Run 1", "pools": [{"files": ["g1/s.ogg", "g1/"]}]})
 
     assets = _imp._cue_replay_assets(cue_env.paths.original_root, GAME_ID, ["Run 1"])
 
-    assert assets[CueImportCategory.SFX] == [
-        "audio/g1/s.ogg", "audio/g1/boom.ogg"]
+    assert assets[CueImportCategory.SFX] == ["audio/g1/s.ogg", "audio/g1/boom.ogg"]
 
 
 def test_replay_assets_music_refs_are_source_tagged(cue_env):
@@ -381,11 +362,11 @@ def test_replay_assets_music_refs_are_source_tagged(cue_env):
     # tagged or a bare game-relative path -- the recipient has their own.
     _write(cue_env.paths.original_root, "music/Folder/song.ogg", "m")
     _write(cue_env.paths.original_root, "music/Folder/other.ogg", "o")
-    _write_marker(cue_env, "a", {
-        "replay": "Run 1",
-        "music": ["u:music/Folder/song.ogg", "g:music/Folder/other.ogg",
-                  "game/bgm.ogg"],
-    })
+    _write_marker(
+        cue_env,
+        "a",
+        {"replay": "Run 1", "music": ["u:music/Folder/song.ogg", "g:music/Folder/other.ogg", "game/bgm.ogg"]},
+    )
 
     assets = _imp._cue_replay_assets(cue_env.paths.original_root, GAME_ID, ["Run 1"])
 
@@ -396,10 +377,7 @@ def test_replay_assets_music_refs_are_source_tagged(cue_env):
 
 def test_replay_assets_expands_tagged_my_music_folder_ref(cue_env):
     _write(cue_env.paths.original_root, "music/Folder/song.ogg", "m")
-    _write_marker(cue_env, "a", {
-        "replay": "Run 1",
-        "music": ["u:music/Folder/"],
-    })
+    _write_marker(cue_env, "a", {"replay": "Run 1", "music": ["u:music/Folder/"]})
 
     assets = _imp._cue_replay_assets(cue_env.paths.original_root, GAME_ID, ["Run 1"])
 
@@ -408,10 +386,7 @@ def test_replay_assets_expands_tagged_my_music_folder_ref(cue_env):
 
 def test_replay_assets_treats_timestamps_like_pools(cue_env):
     _write(cue_env.paths.original_root, "audio/g1/boom.ogg", "b")
-    _write_marker(cue_env, "a", {
-        "replay": "Run 1",
-        "timestamps": [{"files": ["audio/g1/boom.ogg"]}],
-    })
+    _write_marker(cue_env, "a", {"replay": "Run 1", "timestamps": [{"files": ["audio/g1/boom.ogg"]}]})
 
     assets = _imp._cue_replay_assets(cue_env.paths.original_root, GAME_ID, ["Run 1"])
 
@@ -420,10 +395,7 @@ def test_replay_assets_treats_timestamps_like_pools(cue_env):
 
 def test_replay_assets_drops_game_music_keeps_my_music(cue_env):
     _write(cue_env.paths.original_root, "music/song.ogg", "m")
-    _write_marker(cue_env, "a", {
-        "replay": "Run 1",
-        "music": ["music/song.ogg", "game/bgm.ogg"],
-    })
+    _write_marker(cue_env, "a", {"replay": "Run 1", "music": ["music/song.ogg", "game/bgm.ogg"]})
 
     assets = _imp._cue_replay_assets(cue_env.paths.original_root, GAME_ID, ["Run 1"])
 
@@ -433,51 +405,35 @@ def test_replay_assets_drops_game_music_keeps_my_music(cue_env):
 
 def test_replay_assets_includes_speed_variant_videos(cue_env):
     _write(cue_env.paths.original_root, "video/{}/clip.mkv".format(GAME_ID), "v")
-    _write_marker(cue_env, "a", {
-        "replay": "Run 1",
-        "files": ["video/{}/clip.mkv".format(GAME_ID)],
-    })
+    _write_marker(cue_env, "a", {"replay": "Run 1", "files": ["video/{}/clip.mkv".format(GAME_ID)]})
 
     assets = _imp._cue_replay_assets(cue_env.paths.original_root, GAME_ID, ["Run 1"])
 
-    assert assets.get(CueImportCategory.SPEED_VARIANTS) == [
-        "video/{}/clip.mkv".format(GAME_ID)]
+    assert assets.get(CueImportCategory.SPEED_VARIANTS) == ["video/{}/clip.mkv".format(GAME_ID)]
 
 
 def test_replay_assets_resolves_preset_references(cue_env):
     _write(cue_env.paths.original_root, _preset_rel("Growl", "audio"), "{}")
-    _write_marker(cue_env, "a", {
-        "replay": "Run 1",
-        "pools": [{"preset": "Growl"}],
-    })
+    _write_marker(cue_env, "a", {"replay": "Run 1", "pools": [{"preset": "Growl"}]})
 
     assets = _imp._cue_replay_assets(cue_env.paths.original_root, GAME_ID, ["Run 1"])
 
-    assert assets.get(CueImportCategory.PRESETS) == [
-        _preset_rel("Growl", "audio")]
+    assert assets.get(CueImportCategory.PRESETS) == [_preset_rel("Growl", "audio")]
 
 
 def test_replay_assets_skips_unparsable_marker(cue_env):
-    _write(cue_env.paths.original_root, "data/markers/{}/bad.json".format(GAME_ID),
-           "{ not json")
+    _write(cue_env.paths.original_root, "data/markers/{}/bad.json".format(GAME_ID), "{ not json")
     _write_marker(cue_env, "ok", {"replay": "Run 1", "pools": []})
 
     assets = _imp._cue_replay_assets(cue_env.paths.original_root, GAME_ID, ["Run 1"])
 
-    assert assets == {CueImportCategory.MARKERS: [
-        "data/markers/{}/ok.json".format(GAME_ID)]}
+    assert assets == {CueImportCategory.MARKERS: ["data/markers/{}/ok.json".format(GAME_ID)]}
 
 
 def test_replay_assets_dedupes_shared_files(cue_env):
     _write(cue_env.paths.original_root, "audio/g1/boom.ogg", "b")
-    _write_marker(cue_env, "a", {
-        "replay": "Run 1",
-        "pools": [{"files": ["audio/g1/boom.ogg"]}],
-    })
-    _write_marker(cue_env, "b", {
-        "replay": "Run 1",
-        "pools": [{"files": ["audio/g1/boom.ogg"]}],
-    })
+    _write_marker(cue_env, "a", {"replay": "Run 1", "pools": [{"files": ["audio/g1/boom.ogg"]}]})
+    _write_marker(cue_env, "b", {"replay": "Run 1", "pools": [{"files": ["audio/g1/boom.ogg"]}]})
 
     assets = _imp._cue_replay_assets(cue_env.paths.original_root, GAME_ID, ["Run 1"])
 
@@ -496,22 +452,19 @@ def test_replay_assets_includes_all_variants_when_replay_has_video_marker(cue_en
 
     assert sorted(assets.get(CueImportCategory.SPEED_VARIANTS)) == [
         "video/{}/clip_cue0.5x.mkv".format(GAME_ID),
-        "video/{}/clip_cue2.0x.mkv".format(GAME_ID)]
+        "video/{}/clip_cue2.0x.mkv".format(GAME_ID),
+    ]
 
 
 def test_replay_assets_leaves_variants_out_for_non_video_markers(cue_env):
     _write(cue_env.paths.original_root, "video/{}/clip_cue0.5x.mkv".format(GAME_ID), "a")
-    _write_marker(cue_env, "a", {
-        "replay": "Run 1",
-        "files": ["video/{}/clip.mkv".format(GAME_ID)],
-    })
+    _write_marker(cue_env, "a", {"replay": "Run 1", "files": ["video/{}/clip.mkv".format(GAME_ID)]})
 
     assets = _imp._cue_replay_assets(cue_env.paths.original_root, GAME_ID, ["Run 1"])
 
     # Only the referenced clip ships -- no video marker means the variant
     # tree is not pulled.
-    assert assets.get(CueImportCategory.SPEED_VARIANTS) == [
-        "video/{}/clip.mkv".format(GAME_ID)]
+    assert assets.get(CueImportCategory.SPEED_VARIANTS) == ["video/{}/clip.mkv".format(GAME_ID)]
 
 
 def test_replay_assets_skips_variants_for_unselected_replay(cue_env):

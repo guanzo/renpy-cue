@@ -12,27 +12,28 @@ from cue_lib.intensity.banding import _cue_band_speeds, _cue_resolve_level
 # _cue_band_speeds -- level per sorted distinct variant
 # ==========================================================================
 
+
 def test_uniform_speeds_even_split():
     # The design's canonical case: all gaps equal -> plain even split.
-    speeds, levels = _cue_band_speeds([.6, .7, .8, .9, 1, 1.1, 1.2, 1.3, 1.4], 3)
-    assert speeds == [.6, .7, .8, .9, 1.0, 1.1, 1.2, 1.3, 1.4]
+    speeds, levels = _cue_band_speeds([0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4], 3)
+    assert speeds == [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4]
     assert levels == [1, 1, 1, 2, 2, 2, 3, 3, 3]
 
 
 def test_uniform_speeds_n2_even_split():
-    speeds, levels = _cue_band_speeds([.6, .7, .8, .9, 1, 1.1, 1.2, 1.3, 1.4], 2)
+    speeds, levels = _cue_band_speeds([0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4], 2)
     assert levels == [1, 1, 1, 1, 2, 2, 2, 2, 2]
 
 
 def test_clustered_largest_gap_cuts():
     # Gaps .4,.1,.1,.1,.8 -> cut at .8 and .4: {.5}, {.9,1,1.1,1.2}, {2}.
-    speeds, levels = _cue_band_speeds([.5, .9, 1, 1.1, 1.2, 2], 3)
+    speeds, levels = _cue_band_speeds([0.5, 0.9, 1, 1.1, 1.2, 2], 3)
     assert levels == [1, 2, 2, 2, 2, 3]
 
 
 def test_clustered_n2_cuts_only_largest_gap():
     # N=2: only the .8 gap is cut; the .4 and .1 gaps stay inside a band.
-    speeds, levels = _cue_band_speeds([.5, .9, 1, 1.1, 1.2, 2], 2)
+    speeds, levels = _cue_band_speeds([0.5, 0.9, 1, 1.1, 1.2, 2], 2)
     assert levels == [1, 1, 1, 1, 1, 2]
 
 
@@ -83,18 +84,19 @@ def test_tied_top_gaps_prefer_even_bands():
 # _cue_resolve_level -- snap an off-list runtime speed to its band
 # ==========================================================================
 
+
 def _bands(variants, n):
     return _cue_band_speeds(variants, n)
 
 
 def test_resolve_level_exact_speed():
-    speeds, levels = _bands([.5, .9, 1, 1.1, 1.2, 2], 3)
+    speeds, levels = _bands([0.5, 0.9, 1, 1.1, 1.2, 2], 3)
     assert _cue_resolve_level(1.1, speeds, levels) == 2
     assert _cue_resolve_level(2.0, speeds, levels) == 3
 
 
 def test_resolve_level_snaps_nearest():
-    speeds, levels = _bands([.5, .9, 1, 1.1, 1.2, 2], 3)
+    speeds, levels = _bands([0.5, 0.9, 1, 1.1, 1.2, 2], 3)
     assert _cue_resolve_level(0.6, speeds, levels) == 1  # nearest .5
     assert _cue_resolve_level(1.9, speeds, levels) == 3  # nearest 2
     assert _cue_resolve_level(0.2, speeds, levels) == 1  # below slowest

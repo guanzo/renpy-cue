@@ -41,6 +41,7 @@ if MYPY:
 
 import hashlib as _hashlib
 
+
 def _key_to_filename(key):
     # type: (str) -> str
     # Dialogue key: d_file__dialogue or d_file|dialogue -> d_{file}_{hash}
@@ -71,16 +72,15 @@ def _is_marker_filename(name):
     shares the marker dir from being swept up as a marker by load_markers().
     The music_triggers/ subdir is excluded because load_markers() only lists
     direct children of the marker dir."""
-    return (name.endswith(".json")
-            and name.startswith((CUE_IMG_KEY_PREFIX, CUE_LOOP_KEY_PREFIX,
-                                 CUE_DLG_KEY_PREFIX, CUE_VID_KEY_PREFIX)))
+    return name.endswith(".json") and name.startswith(
+        (CUE_IMG_KEY_PREFIX, CUE_LOOP_KEY_PREFIX, CUE_DLG_KEY_PREFIX, CUE_VID_KEY_PREFIX)
+    )
 
 
 def _atomic_json_write(fpath, data, indent=None):
     # type: (str, Any, Optional[int]) -> None
     """Write `data` as JSON to fpath atomically."""
-    tmpfd, tmp = _tempfile.mkstemp(
-        dir=os.path.dirname(fpath), prefix=".", suffix=".tmp")
+    tmpfd, tmp = _tempfile.mkstemp(dir=os.path.dirname(fpath), prefix=".", suffix=".tmp")
     try:
         with os.fdopen(tmpfd, "w") as _f:
             _json.dump(data, _f, sort_keys=True, indent=indent)
@@ -96,6 +96,7 @@ def _atomic_json_write(fpath, data, indent=None):
 # =========================================================================
 # CueDatabase
 # =========================================================================
+
 
 class CueDatabase(object):
     """File-backed store for markers, presets, and speed-variant videos.
@@ -113,7 +114,7 @@ class CueDatabase(object):
 
     def __init__(self, paths, backup=None):
         # type: (CuePaths, Optional[CueBackupManager]) -> None
-        self.paths = paths         # the one CuePaths (shared with _cue for the live db)
+        self.paths = paths  # the one CuePaths (shared with _cue for the live db)
         self._open = False
         # The backup manager is a top-level _cue manager, built in the init -900
         # wiring block and injected here; the db drives it after writes and seeds
@@ -146,8 +147,7 @@ class CueDatabase(object):
         self._open = True
         # The auto-backup switch lives in shared config so it carries across
         # every game; default to on when no config exists yet.
-        self._backup.auto.enabled = self.load_shared_config().get(
-            "auto_backups", True)
+        self._backup.auto.enabled = self.load_shared_config().get("auto_backups", True)
 
     def close(self):
         # type: () -> None
@@ -175,8 +175,7 @@ class CueDatabase(object):
         # type: (str, str) -> str
         safe = name.replace("/", "_").replace("\\", "_")
         h = _hashlib.sha1(name.encode("utf-8")).hexdigest()[:CUE_HASH_TRUNC_LEN]
-        return os.path.join(self._preset_dir(preset_type),
-                            "{}_{}.json".format(safe, h))
+        return os.path.join(self._preset_dir(preset_type), "{}_{}.json".format(safe, h))
 
     # ------------------------------------------------------------------
     # Markers
@@ -388,7 +387,7 @@ class CueDatabase(object):
         for name in names:
             if not name.endswith(".json"):
                 continue
-            replay_id = name[:-len(".json")]
+            replay_id = name[: -len(".json")]
             fpath = os.path.join(dpath, name)
             try:
                 with open(fpath, "r") as f:
@@ -444,4 +443,3 @@ class CueDatabase(object):
             _atomic_json_write(fpath, items, indent=2)
         except Exception:
             _cue_log("MUSIC-TRIGGERS: save failed for {}".format(fpath))
-

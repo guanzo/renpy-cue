@@ -28,10 +28,7 @@ from cue_lib.backup import (
     zip_shared_tree,
     zip_tree,
 )
-from cue_lib.constants import (
-    CUE_MANUAL_BACKUP_NAME,
-    CUE_SHARED_CONFIG_FILENAME,
-)
+from cue_lib.constants import CUE_MANUAL_BACKUP_NAME, CUE_SHARED_CONFIG_FILENAME
 from cue_lib.paths import CUE_BACKUP_AUTO_DIR, CUE_BACKUP_DIR
 from cue_lib.db import CueDatabase
 from cue_lib.paths import CuePaths
@@ -80,13 +77,13 @@ def _read(root, rel):
 
 
 def _marker(shared, name):
-    return _write(shared, os.path.join("data", "markers", GAME_ID, name),
-                  '{"pools": []}')
+    return _write(shared, os.path.join("data", "markers", GAME_ID, name), '{"pools": []}')
 
 
 # ---------------------------------------------------------------------------
 # zip_shared_tree
 # ---------------------------------------------------------------------------
+
 
 def test_zip_shared_tree_arcnames(shared, tmp_path):
     _marker(shared, "v_a.json")
@@ -188,6 +185,7 @@ def test_validate_backup_zip_ignores_nonjson_media_file(shared, tmp_path):
 # restore_pieces -- merge semantics
 # ---------------------------------------------------------------------------
 
+
 def test_restore_keeps_files_made_after_backup(shared, tmp_path):
     _marker(shared, "v_old.json")
     _write(shared, "audio/hit.ogg", "OLD")
@@ -237,8 +235,7 @@ def test_partial_zip_leaves_other_pieces_untouched(shared, tmp_path):
     # A markers-only zip (still valid).
     zip_path = str(tmp_path / "backup.zip")
     with zipfile.ZipFile(zip_path, "w") as zf:
-        zf.write(os.path.join(shared, "data", "markers", GAME_ID, "v_a.json"),
-                 "markers/{}/v_a.json".format(GAME_ID))
+        zf.write(os.path.join(shared, "data", "markers", GAME_ID, "v_a.json"), "markers/{}/v_a.json".format(GAME_ID))
 
     ok, _reason = validate_backup_zip(zip_path)
     assert ok
@@ -253,8 +250,7 @@ def test_partial_zip_leaves_other_pieces_untouched(shared, tmp_path):
 
 def test_other_games_markers_untouched(shared, tmp_path):
     _marker(shared, "v_a.json")
-    _write(shared, os.path.join("data", "markers", "other_game", "v_b.json"),
-           '{"pools": []}')
+    _write(shared, os.path.join("data", "markers", "other_game", "v_b.json"), '{"pools": []}')
     zip_path = str(tmp_path / "backup.zip")
     zip_shared_tree(shared, zip_path)
 
@@ -316,15 +312,14 @@ def test_restore_returns_extracted_count(shared, tmp_path):
 # Manual backup -- the Back Up button (zip to backups/renpy_cue_backup.zip)
 # ---------------------------------------------------------------------------
 
+
 def test_manual_zip_includes_media(manual, cue_env):
     # The manual backup zips audio/, music/, and video/ alongside the
     # internal data/ tree.
     _write(cue_env.paths.root, "audio/hit.ogg", "A")
     _write(cue_env.paths.root, "music/song.ogg", "M")
     _write(cue_env.paths.root, "video/test_game/speed.ogv", "V")
-    _write(cue_env.paths.root,
-           os.path.join("data", "markers", "test_game", "v_a.json"),
-           '{"pools": []}')
+    _write(cue_env.paths.root, os.path.join("data", "markers", "test_game", "v_a.json"), '{"pools": []}')
 
     manual._zip_to_file()
 
@@ -340,9 +335,7 @@ def test_manual_zip_includes_media(manual, cue_env):
 def test_manual_zip_eexist_race_benign(manual, cue_env, monkeypatch):
     # The auto-backup thread can create {root}/backups/ between _zip_to_file's
     # isdir check and its own makedirs. EEXIST is benign -- the backup proceeds.
-    _write(cue_env.paths.root,
-           os.path.join("data", "markers", "test_game", "v_a.json"),
-           '{"pools": []}')
+    _write(cue_env.paths.root, os.path.join("data", "markers", "test_game", "v_a.json"), '{"pools": []}')
 
     backups_dir = os.path.join(cue_env.paths.root, CUE_BACKUP_DIR)
     real_makedirs = os.makedirs
@@ -371,9 +364,7 @@ def test_manual_zip_no_data_dir_logs(manual, cue_env):
 
 
 def test_manual_backup_reports_fraction(manual, cue_env):
-    _write(cue_env.paths.root,
-           os.path.join("data", "markers", "test_game", "v_a.json"),
-           '{"pools": []}')
+    _write(cue_env.paths.root, os.path.join("data", "markers", "test_game", "v_a.json"), '{"pools": []}')
     _write(cue_env.paths.root, "audio/hit.ogg", "A")
     _write(cue_env.paths.root, "music/song.ogg", "M")
     _write(cue_env.paths.root, "video/test_game/speed.ogv", "V")
@@ -393,6 +384,7 @@ def test_manual_backup_resets_fraction(manual, monkeypatch):
 def test_manual_zip_makedirs_error_raises(manual, cue_env, monkeypatch):
     def _boom(path):
         raise OSError(errno.EACCES, "denied")
+
     monkeypatch.setattr(os, "makedirs", _boom)
 
     # EACCES is a real failure (EEXIST is the benign race); _zip_to_file
@@ -420,6 +412,7 @@ def test_manual_backup_busy_noop(manual):
 def test_manual_backup_worker_error_sets_error(manual, monkeypatch):
     def _boom():
         raise OSError("denied")
+
     monkeypatch.setattr(manual, "_zip_to_file", _boom)
 
     manual._backup_worker()
@@ -430,6 +423,7 @@ def test_manual_backup_worker_error_sets_error(manual, monkeypatch):
 # ---------------------------------------------------------------------------
 # restore -- early-exit error surfacing (no file / invalid zip)
 # ---------------------------------------------------------------------------
+
 
 def test_restore_no_file_sets_error(manual, cue_env):
     # A missing backup zip must surface as restore_error, not a silent no-op.
@@ -476,7 +470,7 @@ def test_restore_counts_overwrite_vs_added(tmp_path):
 
     overwritten, added = _backup.restore_counts(zip_path, root, GAME_ID)
     assert overwritten == 3  # v_a.json + hit.ogg + cue_config.json
-    assert added == 2        # v_b.json + song.ogg
+    assert added == 2  # v_b.json + song.ogg
 
 
 def test_restore_counts_ignores_non_matching_entries(tmp_path):
@@ -518,9 +512,7 @@ class _FakeConfirmDialog(object):
 def test_restore_preflight_shows_dialog_with_counts(manual, cue_env, monkeypatch):
     # The heavy validate + count runs off-thread; poll() (the screen timer)
     # delivers the confirm dialog with overwrite/new counts once it is done.
-    _write(cue_env.paths.root,
-           os.path.join("data", "markers", "test_game", "v_a.json"),
-           '{"pools": []}')
+    _write(cue_env.paths.root, os.path.join("data", "markers", "test_game", "v_a.json"), '{"pools": []}')
     _write(cue_env.paths.root, "audio/hit.ogg", "A")
     manual._zip_to_file()
 
@@ -529,8 +521,7 @@ def test_restore_preflight_shows_dialog_with_counts(manual, cue_env, monkeypatch
     restarts = []
     # poll() runs under _update_screens=False, so the dialog only appears
     # because _finish_confirm forces a repaint.
-    monkeypatch.setattr(_backup.renpy, "restart_interaction",
-                        lambda: restarts.append(1))
+    monkeypatch.setattr(_backup.renpy, "restart_interaction", lambda: restarts.append(1))
     manual.restore()
     manual._restore_thread.join(timeout=10)
     manual.poll()
@@ -556,11 +547,11 @@ def test_restore_preflight_in_flight_swallows_second_click(manual):
 # Auto backup -- throttle, run, prune
 # ---------------------------------------------------------------------------
 
+
 def test_auto_backup_excludes_media(cue_env):
     # The rolling backup stays data-only; media rides only in the manual
     # renpy_cue_backup.zip.
-    _write(cue_env.paths.root, os.path.join("data", "markers", "test_game", "v_a.json"),
-           '{"pools": []}')
+    _write(cue_env.paths.root, os.path.join("data", "markers", "test_game", "v_a.json"), '{"pools": []}')
     _write(cue_env.paths.root, "audio/hit.ogg", "A")
     _write(cue_env.paths.root, "music/song.ogg", "M")
 
@@ -579,10 +570,8 @@ def test_auto_backup_excludes_media(cue_env):
 
 def test_backup_manager_latest_timestamp(tmp_path):
     root = str(tmp_path / "shared")
-    _write(root, os.path.join(CUE_BACKUP_DIR, CUE_BACKUP_AUTO_DIR,
-                              CUE_BACKUP_PREFIX + "100.zip"), "")
-    _write(root, os.path.join(CUE_BACKUP_DIR, CUE_BACKUP_AUTO_DIR,
-                              CUE_BACKUP_PREFIX + "250.zip"), "")
+    _write(root, os.path.join(CUE_BACKUP_DIR, CUE_BACKUP_AUTO_DIR, CUE_BACKUP_PREFIX + "100.zip"), "")
+    _write(root, os.path.join(CUE_BACKUP_DIR, CUE_BACKUP_AUTO_DIR, CUE_BACKUP_PREFIX + "250.zip"), "")
     _write(root, os.path.join(CUE_BACKUP_DIR, CUE_BACKUP_AUTO_DIR, "junk.txt"), "")
 
     m = CueBackupManager(CuePaths(root, GAME_ID))
@@ -663,8 +652,7 @@ def test_backup_manager_wire_sets_db_and_forwards_to_manual(cue_env):
 
 def test_open_seeds_auto_enabled_from_config(tmp_path):
     root = str(tmp_path / "shared")
-    _write(root, os.path.join("data", CUE_SHARED_CONFIG_FILENAME),
-           '{"auto_backups": false}')
+    _write(root, os.path.join("data", CUE_SHARED_CONFIG_FILENAME), '{"auto_backups": false}')
     db = CueDatabase(CuePaths(root, GAME_ID))
     db.open()
     assert db._backup.auto.enabled is False
@@ -694,6 +682,7 @@ def test_run_backup_logs_zip_error(tmp_path, monkeypatch):
 
     def _boom(*args, **kwargs):
         raise RuntimeError("zip failed")
+
     monkeypatch.setattr(_backup, "zip_tree", _boom)
 
     m.auto._run_backup()  # must not raise
@@ -706,6 +695,7 @@ def test_prune_backups_ignores_listdir_error(tmp_path, monkeypatch):
 
     def _boom(path):
         raise OSError("permission denied")
+
     monkeypatch.setattr(os, "listdir", _boom)
 
     m.auto._prune_backups()  # must not raise
@@ -741,6 +731,7 @@ def test_prune_backups_ignores_remove_error(tmp_path, monkeypatch):
 
     def _boom(path):
         raise OSError("locked")
+
     monkeypatch.setattr(os, "remove", _boom)
 
     m.auto._prune_backups()  # must not raise
@@ -749,6 +740,7 @@ def test_prune_backups_ignores_remove_error(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 # CueBackupManager composite facade
 # ---------------------------------------------------------------------------
+
 
 def test_composite_facade(cue_env):
     bm = cue_env.db._backup
@@ -795,6 +787,7 @@ def test_manual_is_busy(manual):
 # _backup_ts_from_name -- filename parsing branches
 # ---------------------------------------------------------------------------
 
+
 def test_backup_ts_from_name_rejects_unrelated_names():
     assert _backup_ts_from_name("other.txt") is None
     assert _backup_ts_from_name("notes.zip") is None
@@ -807,6 +800,7 @@ def test_backup_ts_from_name_rejects_non_numeric_ts():
 # ---------------------------------------------------------------------------
 # zip_tree -- default tmp path
 # ---------------------------------------------------------------------------
+
 
 def test_zip_tree_default_tmp_path(tmp_path):
     data = tmp_path / "data"
@@ -825,13 +819,12 @@ def test_zip_tree_default_tmp_path(tmp_path):
 # validate_backup_zip -- failure branches
 # ---------------------------------------------------------------------------
 
+
 def test_validate_rejects_corrupt_entry(tmp_path, monkeypatch):
     zip_path = str(tmp_path / "bad.zip")
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr("markers/{}/v_a.json".format(GAME_ID), '{"pools": []}')
-    monkeypatch.setattr(
-        zipfile.ZipFile, "testzip",
-        lambda self: "markers/{}/v_a.json".format(GAME_ID))
+    monkeypatch.setattr(zipfile.ZipFile, "testzip", lambda self: "markers/{}/v_a.json".format(GAME_ID))
 
     ok, reason = validate_backup_zip(zip_path)
     assert not ok
@@ -881,6 +874,7 @@ def test_validate_stops_spot_check_after_five(tmp_path):
 # ---------------------------------------------------------------------------
 # restore_pieces -- branch coverage
 # ---------------------------------------------------------------------------
+
 
 def test_restore_rejects_invalid_zip(tmp_path):
     zip_path = str(tmp_path / "bad.zip")

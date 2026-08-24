@@ -5,9 +5,11 @@ description: Run pyright and report all diagnostics
 
 # /lint
 
-Run pyright on `cue_lib/` and the 120-char line-length check on `cue_lib/`
-and `tests/` and report ALL findings. Every pyright diagnostic must either be
-fixed or suppressed with a `# pyright: ignore[rule]` comment.
+Run pyright on `cue_lib/`, `ruff format --check` on `cue_lib/` and `tests/`,
+the 120-char line-length check on `cue_lib/` and `tests/`, and the py2
+trailing-comma guard on `cue_lib/`, and report ALL findings. Every pyright
+diagnostic must either be fixed or suppressed with a
+`# pyright: ignore[rule]` comment.
 
 `tests/` is deliberately excluded from the pyright pass: the test suite is
 white-box (pokes private seams, injects fakes, patches module aliases), so
@@ -21,8 +23,9 @@ bin/lint.sh
 ```
 
 The checks live in `bin/lint.sh` -- the single source of truth shared with
-CI, so the two callers can't drift apart. It runs pyright plus the 120-char
-line-length check and prints every finding.
+CI, so the two callers can't drift apart. It runs pyright, `ruff format
+--check`, the 120-char line-length check, and the py2 trailing-comma guard,
+printing every finding.
 
 **/lint is CLEAN only when `bin/lint.sh` exits 0 and prints `CLEAN`.** It
 exits 1 and prints each `file:line: message` otherwise. (The raw pyright/awk
@@ -30,31 +33,50 @@ commands always exit 0 -- that's exactly why the script aggregates and
 exits nonzero, and why both CI and this skill call the script rather than
 inlining the commands.)
 
-How the script maps to the two checks:
+How the script maps to the four checks:
 
 1. **pyright**: `pyright cue_lib/ --outputjson 2>/dev/null` (tests/ excluded
    by design), with the JSON parsed as `file:line: message`. Prints `CLEAN`
    when there are zero diagnostics. Missing `pyright` on PATH is a hard
    failure (exit 1), not a silent pass.
-2. **line length (120 chars)**: `find cue_lib tests \( -name '*.py' -o
+2. **ruff format**: `ruff format --check cue_lib tests` (config in
+   `pyproject.toml`). Ruff is the deterministic enforcer of the 120-char and
+   one-argument-per-line rules for `.py`/`.pyi`; `.rpy` is not parseable by
+   ruff, so those wraps stay manual. Missing `ruff` on PATH is a hard
+   failure, not a silent pass.
+3. **line length (120 chars)**: `find cue_lib tests \( -name '*.py' -o
    -name '*.rpy' -o -name '*.pyi' \)` piped through awk, reporting lines over
    120 chars. `# type:` comment lines are exempt -- a comment cannot be
    wrapped. Lines carrying a `# pyright: ignore` comment are also exempt --
    see rule 5 below.
+4. **py2 trailing-comma guard**: grep on `cue_lib/*.py` for a bare
+   `*args,`/`**kwargs,` line. Ruff adds a trailing comma to width-split defs
+   ending in `*args`/`**kwargs` -- py3-only, a SyntaxError under Ren'Py 7.x.
+   Those defs are wrapped in `# fmt: off` / `# fmt: on` (see rule 8). This
+   backstop catches new breakers before the legacy harness (~15 min) does.
 
 ## Reformatting lines over 120 chars
 
-Apply in priority order; the goal is the smallest change that fits and reads
-like the file around it.
+For `.py`/`.pyi`, run `ruff format cue_lib tests` first -- ruff is the
+deterministic enforcer of the 120-char and one-argument-per-line rules
+(config in `pyproject.toml`), so hand-wrapping those files just fights it.
+The manual rules below apply to `.rpy` (ruff can't parse Ren'Py) and to the
+`.py`/`.pyi` cases ruff can't fix: long string literals (rule 4), pyright
+suppression priority (rule 5), py2-sensitive defs (rule 8), and the
+blank-line review.
+
+For files and cases ruff doesn't cover, apply in priority order; the goal is
+the smallest change that fits and reads like the file around it.
 
 1. **Shorten before wrapping**, only when genuinely equivalent -- a verbose
    `tt=` tooltip is often the real problem. Never silently rewrite
    user-facing copy; if the text must stay, wrap instead.
 2. **Wrap at the outermost commas**: one argument per line, +4 hanging
-   indent, `)` on the last argument's line. Each nested `Function(...)` /
-   manager call stays on one line -- break inside a nested call only if that
-   call alone exceeds 120. Break at the highest-level comma that fits, not
-   every comma. No trailing whitespace.
+   indent, `)` on the last argument's line. Do not group multiple outer
+   arguments onto one continuation line -- every wrapped argument gets its
+   own line. Each nested `Function(...)` / manager call stays on one line --
+   break inside a nested call only if that call alone exceeds 120. No
+   trailing whitespace.
    ```renpy
    use cue_select_btn(
        "Wait for other SFX to finish",
@@ -76,11 +98,28 @@ like the file around it.
    suppression takes priority over the 120 limit.** Splitting the line can
    move the diagnostic to generalDiagnostics where the comment stops working
    (precedent: `trigger.py` `_cue_play_pool` call).
-6. **`.pyi` signatures**: parameters on continuation lines in logical groups
-   (one per line when long), 4-space hanging indent, `->` return on the last
-   parameter's line.
+6. **`.pyi` signatures**: ruff formats `.pyi` (one param per line when long,
+   `->` on the last parameter's line). Use this rule only when hand-adjusting
+   a signature ruff won't fix.
 7. **Minimal diff**: touch the offending line only (plus the hoist line if
    needed). Never reflow neighboring lines that are already under 120.
+8. **Py2-sensitive defs**: a def that splits across lines AND ends in
+   `*args`/`**kwargs` gets a py3-only trailing comma from ruff. Wrap the def
+   header in `# fmt: off` / `# fmt: on` and hand-write it WITHOUT the comma:
+   ```python
+       # ruff's width-split adds a py3-only trailing comma after **kwargs
+       # (SyntaxError under Ren'Py 7.x / Python 2.7). Hand-written.
+       # fmt: off
+       def __init__(self, target, ..., **kwargs
+       ):
+       # fmt: on
+   ```
+   The directives must be EXACTLY `# fmt: off` / `# fmt: on` on their own
+   lines -- any trailing text makes ruff ignore them. Precedent: popper.py
+   `CuePopper.__init__`. Verify with the SDK's py2 interpreter
+   (`PYTHONHOME=$PWD/.local/renpy-7.4.10-sdk/lib
+   .local/renpy-7.4.10-sdk/lib/linux-x86_64/python -c "import py_compile;
+   py_compile.compile('cue_lib/...', doraise=True)"`).
 
 ## Review step: blank lines
 

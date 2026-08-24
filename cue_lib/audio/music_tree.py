@@ -7,10 +7,7 @@
 # Instantiated once as _cue.music.library; lives on the NoRollback _cue object.
 
 from cue_lib.audio.audio_tree import CueAudioTreeManager
-from cue_lib.constants import (
-    CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_GAME_TAG, CUE_MY_MUSIC_FOLDER,
-    CUE_MUSIC_PREFIX,
-)
+from cue_lib.constants import CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_GAME_TAG, CUE_MY_MUSIC_FOLDER, CUE_MUSIC_PREFIX
 
 MYPY = False
 if MYPY:
@@ -87,30 +84,33 @@ class CueCombinedMusicTree(CueAudioTreeManager):
         user_tree = self.user_music.tree
 
         if user_tree:
-            if (len(user_tree) == 1 and user_tree[0]["type"] == "folder"
-                    and user_tree[0]["name"] == CUE_MUSIC_PREFIX):
+            if len(user_tree) == 1 and user_tree[0]["type"] == "folder" and user_tree[0]["name"] == CUE_MUSIC_PREFIX:
                 children = user_tree[0].get("children", [])
                 has_files = user_tree[0].get("has_files", False)
             else:
                 children = user_tree
                 has_files = False
-            result.append({
-                "type": "folder",
-                "name": CUE_MY_MUSIC_FOLDER,
-                "children": children,
-                "expanded": False,
-                "has_files": has_files,
-            })
+            result.append(
+                {
+                    "type": "folder",
+                    "name": CUE_MY_MUSIC_FOLDER,
+                    "children": children,
+                    "expanded": False,
+                    "has_files": has_files,
+                }
+            )
 
         game_tree = self.game_music.tree
         if game_tree:
-            result.append({
-                "type": "folder",
-                "name": CUE_GAME_MUSIC_FOLDER,
-                "children": game_tree,
-                "expanded": False,
-                "has_files": False,
-            })
+            result.append(
+                {
+                    "type": "folder",
+                    "name": CUE_GAME_MUSIC_FOLDER,
+                    "children": game_tree,
+                    "expanded": False,
+                    "has_files": False,
+                }
+            )
         return result
 
     def maybe_rebuild(self):
@@ -122,11 +122,13 @@ class CueCombinedMusicTree(CueAudioTreeManager):
         the cheap rescan signal -- this keeps the combined tree fresh without
         re-merging on every frame."""
         q = self.search_query
-        if (q == self._search_applied
-                and id(self.user_music.tree) == self._user_tree_id
-                and id(self.game_music.tree) == self._game_tree_id):
+        if (
+            q == self._search_applied
+            and id(self.user_music.tree) == self._user_tree_id
+            and id(self.game_music.tree) == self._game_tree_id
+        ):
             return
-        
+
         self.rebuild_tree()
         self._search_applied = q
         self._user_tree_id = id(self.user_music.tree)
@@ -149,12 +151,11 @@ class CueCombinedMusicTree(CueAudioTreeManager):
         record=False is passed by recently-used rows so acting from the list
         doesn't re-feed it."""
         if display_path.startswith(CUE_GAME_MUSIC_FOLDER):
-            self._music.add_game_song_to_trigger(
-                display_path[len(CUE_GAME_MUSIC_FOLDER):], record=record)
+            self._music.add_game_song_to_trigger(display_path[len(CUE_GAME_MUSIC_FOLDER) :], record=record)
         else:
             self._music.add_user_song_to_trigger(
-                CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER):],
-                record=record)
+                CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER) :], record=record
+            )
 
     def add_folder_to_trigger(self, display_path, record=True):
         # type: (str, bool) -> None
@@ -166,12 +167,11 @@ class CueCombinedMusicTree(CueAudioTreeManager):
         if display_path.startswith(CUE_GAME_MUSIC_FOLDER):
             if display_path == CUE_GAME_MUSIC_FOLDER:
                 return
-            self._music.add_game_folder_to_trigger(
-                display_path[len(CUE_GAME_MUSIC_FOLDER):], record=record)
+            self._music.add_game_folder_to_trigger(display_path[len(CUE_GAME_MUSIC_FOLDER) :], record=record)
         else:
             self._music.add_user_folder_to_trigger(
-                CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER):],
-                record=record)
+                CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER) :], record=record
+            )
 
     def ref_display_path(self, ref):
         # type: (str) -> str
@@ -185,7 +185,7 @@ class CueCombinedMusicTree(CueAudioTreeManager):
         if tag == CUE_MUSIC_GAME_TAG:
             return CUE_GAME_MUSIC_FOLDER + path
         if path.startswith(CUE_MUSIC_PREFIX):
-            path = path[len(CUE_MUSIC_PREFIX):]
+            path = path[len(CUE_MUSIC_PREFIX) :]
         return CUE_MY_MUSIC_FOLDER + path
 
     def preview(self, display_path, volume=1.0):
@@ -196,10 +196,9 @@ class CueCombinedMusicTree(CueAudioTreeManager):
         paths resolve through _resolve_music_path (which also tolerates legacy
         no-prefix entries), game paths play game-relative as-is."""
         if display_path.startswith(CUE_GAME_MUSIC_FOLDER):
-            self._music.play_untracked(
-                display_path[len(CUE_GAME_MUSIC_FOLDER):], volume=volume)
+            self._music.play_untracked(display_path[len(CUE_GAME_MUSIC_FOLDER) :], volume=volume)
         else:
             self._music.play_untracked(
-                self._music._resolve_music_path(
-                    CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER):]),
-                volume=volume)
+                self._music._resolve_music_path(CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER) :]),
+                volume=volume,
+            )

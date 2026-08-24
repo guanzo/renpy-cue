@@ -26,6 +26,7 @@ def store(cue_env):
 # Dict-like surface
 # ---------------------------------------------------------------------------
 
+
 def test_dict_set_get_del(store):
     store["v_a"] = {"pools": []}
     assert "v_a" in store
@@ -86,6 +87,7 @@ def test_setdefault_and_pop(store):
 # Entry / pool mutators
 # ---------------------------------------------------------------------------
 
+
 def test_get_or_create_entry_creates_and_reuses(store):
     entry = store._get_or_create_entry("i_a")
     # _normalize_entry defaults the "replay" flag in place.
@@ -143,8 +145,7 @@ def test_detach_pool_plain_pool_noop(store):
 
 
 def test_resolve_pool_uses_defaults(store):
-    store.create_preset("Growl", {"files": ["a.ogg"], "volume": 0.8,
-                                  "trigger_on_shake": True})
+    store.create_preset("Growl", {"files": ["a.ogg"], "volume": 0.8, "trigger_on_shake": True})
     r = store.resolve_pool({"preset": "Growl"})
     assert r.files == ["a.ogg"]
     assert r.volume == 0.8
@@ -166,6 +167,7 @@ def test_resolve_video_pools_resolves_preset_pools(store):
 # Preset CRUD
 # ---------------------------------------------------------------------------
 
+
 def test_preset_crud_round_trip(store):
     store.create_preset("Growl", {"files": ["a.ogg"], "volume": 0.8})
     assert store.get_preset("Growl")["files"] == ["a.ogg"]
@@ -184,14 +186,14 @@ def test_create_preset_deepcopies_input(store):
 
 
 def test_video_preset_crud_round_trip(store):
-    entry = {"pools": [{"time": 3.0, "files": ["b.mp4"]},
-                       {"time": 1.0, "files": ["a.mp4"]}],
-             "volume": 0.5}
+    entry = {"pools": [{"time": 3.0, "files": ["b.mp4"]}, {"time": 1.0, "files": ["a.mp4"]}], "volume": 0.5}
     store.create_video_preset("VP", entry, source_dur=10.0)
     preset = store.get_video_preset("VP")
     # Pools are time-sorted; missing volume defaults to CUE_VOLUME_DEFAULT.
-    assert preset["pools"] == [{"time": 1.0, "files": ["a.mp4"], "volume": CUE_VOLUME_DEFAULT},
-                               {"time": 3.0, "files": ["b.mp4"], "volume": CUE_VOLUME_DEFAULT}]
+    assert preset["pools"] == [
+        {"time": 1.0, "files": ["a.mp4"], "volume": CUE_VOLUME_DEFAULT},
+        {"time": 3.0, "files": ["b.mp4"], "volume": CUE_VOLUME_DEFAULT},
+    ]
     assert preset["volume"] == 0.5
     assert preset["source_duration"] == 10.0
     assert store.list_video_presets() == ["VP"]
@@ -217,6 +219,7 @@ def test_create_video_preset_no_pools_returns(store):
 # ---------------------------------------------------------------------------
 # Sanitize / migration passes
 # ---------------------------------------------------------------------------
+
 
 def test_sanitize_video_pools_strips_time_less(store):
     store._data["v_a"] = {"pools": [{"time": 1.0}, {"no_time": True}, {"time": 3.0}]}
@@ -254,8 +257,7 @@ def test_normalize_all_no_change(store):
 def test_migrate_legacy_exclusive_bool_true(store):
     store._data["l_a"] = {"pools": [{"exclusive": True}]}
     assert store._migrate_legacy_exclusive() == 1
-    assert store._data["l_a"]["pools"][0]["exclusive"] == {
-        "group": 1, "start": 2, "hold": True}
+    assert store._data["l_a"]["pools"][0]["exclusive"] == {"group": 1, "start": 2, "hold": True}
 
 
 def test_migrate_legacy_exclusive_bool_false_removed(store):
@@ -302,6 +304,7 @@ def test_migrate_video_timestamps_to_pools(store):
 # ---------------------------------------------------------------------------
 # Persistence round-trips (against a real CueDatabase)
 # ---------------------------------------------------------------------------
+
 
 def test_save_all_and_load_from_db_round_trip(store, cue_env):
     store._data["v_a"] = {"pools": [{"time": 1.0}]}
@@ -380,6 +383,7 @@ def test_delete_removed_files_preset_only_when_session_created(store, cue_env):
 # on_save hook
 # ---------------------------------------------------------------------------
 
+
 def test_post_save_invokes_on_save_once_per_write(cue_env):
     calls = []
     s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: calls.append(1))
@@ -393,6 +397,7 @@ def _spy_sanitize(calls):
     def _fn():
         calls.append(1)
         return set()
+
     return _fn
 
 
@@ -446,6 +451,7 @@ def test_save_all_invokes_on_save_once(cue_env):
 # Branch tails -- all-time-less presets, legacy bools, missing/out-of-range
 # targets, legacy files-shaped entries, and db-closed guards
 # ---------------------------------------------------------------------------
+
 
 def test_create_video_preset_all_time_less_pools_returns(store):
     entry = {"pools": [{"files": ["a.ogg"]}, {"files": ["b.ogg"]}]}

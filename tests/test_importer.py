@@ -14,10 +14,7 @@ import pytest
 
 import cue_lib.importer as _imports
 from cue_lib import importer_io as _imp
-from cue_lib.constants import (
-    CueImportCategory,
-    CueImportMatch,
-)
+from cue_lib.constants import CueImportCategory, CueImportMatch
 from cue_lib.importer import CueImportManager
 
 GAME_ID = "test_game"
@@ -33,21 +30,29 @@ def imp_cue(monkeypatch):
 
     fake = types.SimpleNamespace(
         dialogs=types.SimpleNamespace(
-            confirm=types.SimpleNamespace(
-                show=_show,
-                show_or_run=lambda message, action: _show(message, action)),
-            merge=None))
+            confirm=types.SimpleNamespace(show=_show, show_or_run=lambda message, action: _show(message, action)),
+            merge=None,
+        )
+    )
     monkeypatch.setattr(_imports, "_cue", fake)
     return shown
 
 
-def _entry(imp="pack", match=CueImportMatch.CONFIRM, reason="x",
-           valid=True, game_id="other"):
+def _entry(imp="pack", match=CueImportMatch.CONFIRM, reason="x", valid=True, game_id="other"):
     return {
-        "imp": imp, "zip": imp + ".zip", "name": "Pack", "author": "",
-        "description": "", "game_id": game_id, "contents": ["audio/a.ogg"],
-        "match": match, "match_reason": reason, "valid": valid,
-        "missing": [], "error": "", "replays": [],
+        "imp": imp,
+        "zip": imp + ".zip",
+        "name": "Pack",
+        "author": "",
+        "description": "",
+        "game_id": game_id,
+        "contents": ["audio/a.ogg"],
+        "match": match,
+        "match_reason": reason,
+        "valid": valid,
+        "missing": [],
+        "error": "",
+        "replays": [],
     }
 
 
@@ -64,8 +69,7 @@ def _write(root, rel, content):
 def _unzip_dir(tmp_path):
     """Extracted working copies live under imports/unzipped/ -- the drop
     zone (imports/) holds archives only."""
-    return os.path.join(
-        str(tmp_path / "cue_root"), "imports", "unzipped")
+    return os.path.join(str(tmp_path / "cue_root"), "imports", "unzipped")
 
 
 def _drop_package(tmp_path, game_id, files, zip_name="pack.zip"):
@@ -145,11 +149,11 @@ def _scan_and_join(mgr, import_threads):
 # scan -- background auto-extract + entry build
 # ---------------------------------------------------------------------------
 
+
 def test_scan_auto_extracts_and_lists(cue_env, tmp_path, import_threads):
-    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [
-        ("audio/sfx.ogg", "sfx"),
-        ("data/markers/{}/v_a.json".format(GAME_ID), '{"pools": []}'),
-    ])
+    imports_dir, _zip_path = _drop_package(
+        tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx"), ("data/markers/{}/v_a.json".format(GAME_ID), '{"pools": []}')]
+    )
 
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
@@ -170,9 +174,7 @@ def test_scan_auto_extracts_and_lists(cue_env, tmp_path, import_threads):
 
 
 def test_scan_reuses_existing_extract(cue_env, tmp_path, import_threads):
-    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [
-        ("audio/sfx.ogg", "sfx"),
-    ])
+    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
     # Manually "extract" first; scan must not re-extract or clobber.
     unzip_dir = _unzip_dir(tmp_path)
     marker = os.path.join(unzip_dir, "pack", "data", "markers", GAME_ID, "mine.json")
@@ -187,10 +189,7 @@ def test_scan_reuses_existing_extract(cue_env, tmp_path, import_threads):
 
 
 def test_scan_flags_wrong_game_mismatch(cue_env, tmp_path, import_threads):
-    _drop_package(tmp_path, "other-game", [
-        ("audio/sfx.ogg", "sfx"),
-        ("data/markers/other-game/v_a.json", '{}'),
-    ])
+    _drop_package(tmp_path, "other-game", [("audio/sfx.ogg", "sfx"), ("data/markers/other-game/v_a.json", '{}')])
 
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
@@ -200,11 +199,8 @@ def test_scan_flags_wrong_game_mismatch(cue_env, tmp_path, import_threads):
     assert entry["valid"] is True
 
 
-def test_match_label_mismatch_shows_both_game_ids(cue_env, tmp_path,
-                                                  import_threads):
-    _drop_package(tmp_path, "other-game", [
-        ("audio/sfx.ogg", "sfx"),
-    ])
+def test_match_label_mismatch_shows_both_game_ids(cue_env, tmp_path, import_threads):
+    _drop_package(tmp_path, "other-game", [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
     imp = mgr.imports[0]["imp"]
@@ -217,14 +213,11 @@ def test_match_label_mismatch_shows_both_game_ids(cue_env, tmp_path,
     assert "Import Game ID: other-game" in warnings[0]
 
 
-def test_match_label_confirm_shows_same_mismatch_text(cue_env, tmp_path,
-                                                      import_threads):
+def test_match_label_confirm_shows_same_mismatch_text(cue_env, tmp_path, import_threads):
     # A probable-same-game package gets the same status as a hard mismatch.
     # The "probably the same game" guess is dropped from the row; Remap is
     # still the one action that confirms it.
-    _drop_package(tmp_path, "test_game456", [
-        ("audio/sfx.ogg", "sfx"),
-    ])
+    _drop_package(tmp_path, "test_game456", [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
 
@@ -256,9 +249,7 @@ def test_match_warnings_missing_files(cue_env, tmp_path, import_threads):
 
 def test_match_label_clean_import_empty(cue_env, tmp_path, import_threads):
     # A matching, complete import needs no label and no warning icon.
-    _drop_package(tmp_path, GAME_ID, [
-        ("audio/sfx.ogg", "sfx"),
-    ])
+    _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
 
@@ -272,8 +263,7 @@ def test_scan_marks_newer_format_invalid(cue_env, tmp_path, import_threads):
     os.makedirs(imports_dir)
     zip_path = os.path.join(imports_dir, "bad.zip")
     with zipfile.ZipFile(zip_path, "w") as zf:
-        zf.writestr("manifest.json",
-                    '{"format_version": 999, "game_id": "x", "contents": []}')
+        zf.writestr("manifest.json", '{"format_version": 999, "game_id": "x", "contents": []}')
 
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
@@ -287,8 +277,7 @@ def test_scan_flags_missing_files_not_invalid(cue_env, tmp_path, import_threads)
     imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     os.makedirs(imports_dir)
     with zipfile.ZipFile(os.path.join(imports_dir, "bad.zip"), "w") as zf:
-        zf.writestr("manifest.json",
-                    '{"format_version": 1, "game_id": "x", "contents": ["audio/nope.ogg"]}')
+        zf.writestr("manifest.json", '{"format_version": 1, "game_id": "x", "contents": ["audio/nope.ogg"]}')
 
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
@@ -303,30 +292,23 @@ def test_scan_flags_missing_files_not_invalid(cue_env, tmp_path, import_threads)
 # scan -- list ordering: most likely to be this game first, then recency
 # ---------------------------------------------------------------------------
 
-def test_scan_sorts_exact_then_confirm_then_mismatch(cue_env, tmp_path,
-                                                     import_threads):
+
+def test_scan_sorts_exact_then_confirm_then_mismatch(cue_env, tmp_path, import_threads):
     # Exact matches for this game on top, near-matches next, mismatches below.
-    _drop_package(tmp_path, GAME_ID, [("audio/a.ogg", "a")],
-                  zip_name="exact.zip")
-    _drop_package(tmp_path, "test_game456", [("audio/b.ogg", "b")],
-                  zip_name="confirm.zip")
-    _drop_package(tmp_path, "other-game", [("audio/c.ogg", "c")],
-                  zip_name="mismatch.zip")
+    _drop_package(tmp_path, GAME_ID, [("audio/a.ogg", "a")], zip_name="exact.zip")
+    _drop_package(tmp_path, "test_game456", [("audio/b.ogg", "b")], zip_name="confirm.zip")
+    _drop_package(tmp_path, "other-game", [("audio/c.ogg", "c")], zip_name="mismatch.zip")
 
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
 
-    assert [e["imp"] for e in mgr.imports] == \
-        ["exact", "confirm", "mismatch"]
+    assert [e["imp"] for e in mgr.imports] == ["exact", "confirm", "mismatch"]
 
 
-def test_scan_sorts_recent_drop_first_within_tier(cue_env, tmp_path,
-                                                  import_threads):
+def test_scan_sorts_recent_drop_first_within_tier(cue_env, tmp_path, import_threads):
     # Secondary key: the most recently dropped zip leads its tier.
-    _drop_package(tmp_path, GAME_ID, [("audio/a.ogg", "a")],
-                  zip_name="old.zip")
-    _drop_package(tmp_path, GAME_ID, [("audio/b.ogg", "b")],
-                  zip_name="new.zip")
+    _drop_package(tmp_path, GAME_ID, [("audio/a.ogg", "a")], zip_name="old.zip")
+    _drop_package(tmp_path, GAME_ID, [("audio/b.ogg", "b")], zip_name="new.zip")
     imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     os.utime(os.path.join(imports_dir, "old.zip"), (1000, 1000))
     os.utime(os.path.join(imports_dir, "new.zip"), (2000, 2000))
@@ -339,8 +321,7 @@ def test_scan_sorts_recent_drop_first_within_tier(cue_env, tmp_path,
 
 def test_scan_sorts_error_rows_last(cue_env, tmp_path, import_threads):
     # A broken zip isn't 'the wrong game' -- it sinks below every match tier.
-    _drop_package(tmp_path, "other-game", [("audio/c.ogg", "c")],
-                  zip_name="mismatch.zip")
+    _drop_package(tmp_path, "other-game", [("audio/c.ogg", "c")], zip_name="mismatch.zip")
     imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     _write(imports_dir, "corrupt.zip", "not a zip at all")
 
@@ -354,8 +335,8 @@ def test_scan_sorts_error_rows_last(cue_env, tmp_path, import_threads):
 # scan -- the background worker: deferral, progress, failure
 # ---------------------------------------------------------------------------
 
-def test_scan_defers_all_work_until_background_thread(cue_env, tmp_path,
-                                                      import_threads):
+
+def test_scan_defers_all_work_until_background_thread(cue_env, tmp_path, import_threads):
     _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     created, _join = import_threads
@@ -394,8 +375,7 @@ def test_scan_is_noop_while_worker_runs(cue_env, tmp_path, import_threads):
     assert mgr.is_scanning is True
 
 
-def test_corrupt_zip_shows_error_and_retries_next_pass(cue_env, tmp_path,
-                                                       import_threads):
+def test_corrupt_zip_shows_error_and_retries_next_pass(cue_env, tmp_path, import_threads):
     imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     _write(imports_dir, "corrupt.zip", "not a zip at all")
     mgr, _calls = _make_mgr(cue_env)
@@ -435,10 +415,9 @@ def test_import_progress_callback_reports_fraction(cue_env, import_threads):
 # folder walk -- merge source is the folder, not the manifest
 # ---------------------------------------------------------------------------
 
+
 def test_folder_files_walks_extract(cue_env, tmp_path, import_threads):
-    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [
-        ("audio/sfx.ogg", "sfx"),
-    ])
+    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
     _write(_unzip_dir(tmp_path), "pack/audio/extra.ogg", "new")
@@ -451,10 +430,7 @@ def test_folder_files_walks_extract(cue_env, tmp_path, import_threads):
 
 
 def test_merge_confirm_walks_folder_not_manifest(cue_env, tmp_path, import_threads):
-    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [
-        ("audio/sfx.ogg", "sfx"),
-        ("music/song.ogg", "music"),
-    ])
+    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx"), ("music/song.ogg", "music")])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
     imp = mgr.imports[0]["imp"]
@@ -475,10 +451,9 @@ def test_merge_confirm_walks_folder_not_manifest(cue_env, tmp_path, import_threa
 # activate / deactivate -- root swap + backup pause
 # ---------------------------------------------------------------------------
 
+
 def test_activate_swaps_root_and_pauses_backup(cue_env, tmp_path, import_threads):
-    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [
-        ("audio/sfx.ogg", "sfx"),
-    ])
+    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
     mgr, calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
     imp = mgr.imports[0]["imp"]
@@ -491,8 +466,7 @@ def test_activate_swaps_root_and_pauses_backup(cue_env, tmp_path, import_threads
     assert cue_env.paths._active_root == expected
     assert cue_env.paths.root == expected
     assert cue_env.paths.audio_dir == os.path.join(expected, "audio") + "/"
-    assert cue_env.paths.shared_config_path == os.path.join(
-        str(tmp_path / "cue_root"), "data", "cue_config.json")
+    assert cue_env.paths.shared_config_path == os.path.join(str(tmp_path / "cue_root"), "data", "cue_config.json")
     assert len(calls) == 1
 
     mgr.deactivate()
@@ -508,15 +482,19 @@ def test_scan_and_activate_cover_every_category(cue_env, tmp_path, import_thread
     # A package carrying every content category -- presets are the one
     # category no other manager test drops.  Scan must list them all, and
     # activation must serve a preset from the extracted root.
-    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [
-        ("data/markers/{}/v_a.json".format(GAME_ID), '{"pools": []}'),
-        ("audio/sfx.ogg", "sfx"),
-        ("music/song.ogg", "music"),
-        ("video/{}/m_cue0.5x.mkv".format(GAME_ID), "v"),
-        ("data/presets/audio/p.json", "ap"),
-        ("data/presets/video/p.json", "vp"),
-        ("data/presets/music/p.json", "mp"),
-    ])
+    imports_dir, _zip_path = _drop_package(
+        tmp_path,
+        GAME_ID,
+        [
+            ("data/markers/{}/v_a.json".format(GAME_ID), '{"pools": []}'),
+            ("audio/sfx.ogg", "sfx"),
+            ("music/song.ogg", "music"),
+            ("video/{}/m_cue0.5x.mkv".format(GAME_ID), "v"),
+            ("data/presets/audio/p.json", "ap"),
+            ("data/presets/video/p.json", "vp"),
+            ("data/presets/music/p.json", "mp"),
+        ],
+    )
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
     entry = mgr.imports[0]
@@ -532,15 +510,11 @@ def test_scan_and_activate_cover_every_category(cue_env, tmp_path, import_thread
     assert "data/presets/music/p.json" in contents
 
     mgr.activate(entry["imp"])
-    assert os.path.isfile(os.path.join(
-        cue_env.paths.root, "data", "presets", "audio", "p.json"))
+    assert os.path.isfile(os.path.join(cue_env.paths.root, "data", "presets", "audio", "p.json"))
 
 
 def test_activate_refuses_mismatch(cue_env, tmp_path, import_threads):
-    _drop_package(tmp_path, "other-game", [
-        ("audio/sfx.ogg", "sfx"),
-        ("data/markers/other-game/v_a.json", '{}'),
-    ])
+    _drop_package(tmp_path, "other-game", [("audio/sfx.ogg", "sfx"), ("data/markers/other-game/v_a.json", '{}')])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
 
@@ -550,14 +524,11 @@ def test_activate_refuses_mismatch(cue_env, tmp_path, import_threads):
     assert cue_env.paths._active_root is None
 
 
-def test_activate_refuses_confirm_until_remapped(cue_env, tmp_path,
-                                                 import_threads):
+def test_activate_refuses_confirm_until_remapped(cue_env, tmp_path, import_threads):
     # A CONFIRM package (names match once version numbers are dropped) must be
     # remapped before it can be activated.  Its markers/videos live under the
     # import.s game_id, not ours, so the swap would show an empty import.
-    _drop_package(tmp_path, "test_game456", [
-        ("audio/sfx.ogg", "sfx"),
-    ])
+    _drop_package(tmp_path, "test_game456", [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
 
@@ -587,14 +558,12 @@ def _drop_missing_files_package(tmp_path, game_id):
     os.makedirs(imports_dir)
     with zipfile.ZipFile(os.path.join(imports_dir, "pack.zip"), "w") as zf:
         zf.writestr(
-            "manifest.json",
-            '{{"format_version": 1, "game_id": "{}", "contents": ["audio/nope.ogg"]}}'
-            .format(game_id))
+            "manifest.json", '{{"format_version": 1, "game_id": "{}", "contents": ["audio/nope.ogg"]}}'.format(game_id)
+        )
     return imports_dir
 
 
-def test_activate_missing_files_previews_directly(cue_env, imp_cue, tmp_path,
-                                                  import_threads):
+def test_activate_missing_files_previews_directly(cue_env, imp_cue, tmp_path, import_threads):
     # Missing manifest-listed files no longer block Preview with a confirm
     # dialog -- the row's warning icon already flags them, so activate swaps
     # straight to the overlay and no confirm is shown.
@@ -610,8 +579,7 @@ def test_activate_missing_files_previews_directly(cue_env, imp_cue, tmp_path,
     assert len(imp_cue) == 0
 
 
-def test_activate_switches_from_another_preview(cue_env, tmp_path,
-                                                import_threads):
+def test_activate_switches_from_another_preview(cue_env, tmp_path, import_threads):
     # Previewing one import and activating another drops the first preview
     # and swaps the root to the clicked import -- no "Exit Preview" needed
     # in between.  Re-clicking the already-active import is a no-op.
@@ -643,37 +611,35 @@ def test_activate_switches_from_another_preview(cue_env, tmp_path,
 # replays -- manifest replay list, preview guard, jump-to-play
 # ---------------------------------------------------------------------------
 
+
 def test_scan_entry_carries_manifest_replays(cue_env, tmp_path, import_threads):
     # A package whose markers carry a replay field gets a normalized replays
     # list on its entry -- the exporter wrote it into the manifest.  A marker
     # never edited inside a replay has no replay field and is skipped.
-    _drop_package(tmp_path, GAME_ID, [
-        ("data/markers/{}/a.json".format(GAME_ID), '{"replay": "Run 2", "pools": []}'),
-        ("data/markers/{}/b.json".format(GAME_ID), '{"replay": "Run 1", "pools": []}'),
-        ("data/markers/{}/c.json".format(GAME_ID), '{"pools": []}'),
-        ("audio/sfx.ogg", "sfx"),
-    ])
+    _drop_package(
+        tmp_path,
+        GAME_ID,
+        [
+            ("data/markers/{}/a.json".format(GAME_ID), '{"replay": "Run 2", "pools": []}'),
+            ("data/markers/{}/b.json".format(GAME_ID), '{"replay": "Run 1", "pools": []}'),
+            ("data/markers/{}/c.json".format(GAME_ID), '{"pools": []}'),
+            ("audio/sfx.ogg", "sfx"),
+        ],
+    )
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
 
     entry = mgr.imports[0]
-    assert entry["replays"] == [
-        {"replay": "Run 1", "marker_count": 1},
-        {"replay": "Run 2", "marker_count": 1},
-    ]
+    assert entry["replays"] == [{"replay": "Run 1", "marker_count": 1}, {"replay": "Run 2", "marker_count": 1}]
     assert mgr.replays_for(entry["imp"]) == entry["replays"]
 
 
-def test_old_manifest_without_replays_yields_empty(cue_env, tmp_path,
-                                                   import_threads):
+def test_old_manifest_without_replays_yields_empty(cue_env, tmp_path, import_threads):
     # A pre-replays-field export has no replay list -- the row stays compact.
     imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     os.makedirs(imports_dir)
     with zipfile.ZipFile(os.path.join(imports_dir, "old.zip"), "w") as zf:
-        zf.writestr(
-            "manifest.json",
-            '{"format_version": 1, "game_id": "%s", "contents": ["audio/sfx.ogg"]}'
-            % GAME_ID)
+        zf.writestr("manifest.json", '{"format_version": 1, "game_id": "%s", "contents": ["audio/sfx.ogg"]}' % GAME_ID)
         zf.writestr("audio/sfx.ogg", "sfx")
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
@@ -714,8 +680,7 @@ def test_replay_expansion_toggles_per_import(cue_env, tmp_path, import_threads):
     assert mgr.is_replays_expanded("row", imp) is False
 
 
-def test_replay_expansion_row_and_banner_independent(cue_env, tmp_path,
-                                                     import_threads):
+def test_replay_expansion_row_and_banner_independent(cue_env, tmp_path, import_threads):
     _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
@@ -756,15 +721,10 @@ def test_can_preview_false_when_not_matched(cue_env, tmp_path, import_threads):
     assert mgr.can_preview(imp) is False
 
 
-def test_play_replay_enters_preview_then_calls(monkeypatch, cue_env, tmp_path,
-                                               import_threads):
+def test_play_replay_enters_preview_then_calls(monkeypatch, cue_env, tmp_path, import_threads):
     calls = []
-    monkeypatch.setattr(_imports.renpy, "call_replay",
-                        lambda label: calls.append(label), raising=False)
-    _drop_package(tmp_path, GAME_ID, [
-        ("data/markers/{}/a.json".format(GAME_ID),
-         '{"replay": "Run 1", "pools": []}'),
-    ])
+    monkeypatch.setattr(_imports.renpy, "call_replay", lambda label: calls.append(label), raising=False)
+    _drop_package(tmp_path, GAME_ID, [("data/markers/{}/a.json".format(GAME_ID), '{"replay": "Run 1", "pools": []}')])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
     imp = mgr.imports[0]["imp"]
@@ -778,11 +738,9 @@ def test_play_replay_enters_preview_then_calls(monkeypatch, cue_env, tmp_path,
     assert calls == ["Run 1"]
 
 
-def test_play_replay_noop_when_not_previewable(monkeypatch, cue_env, tmp_path,
-                                               import_threads):
+def test_play_replay_noop_when_not_previewable(monkeypatch, cue_env, tmp_path, import_threads):
     calls = []
-    monkeypatch.setattr(_imports.renpy, "call_replay",
-                        lambda label: calls.append(label), raising=False)
+    monkeypatch.setattr(_imports.renpy, "call_replay", lambda label: calls.append(label), raising=False)
     _drop_package(tmp_path, "other-game", [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
@@ -794,12 +752,10 @@ def test_play_replay_noop_when_not_previewable(monkeypatch, cue_env, tmp_path,
     assert calls == []
 
 
-def test_play_replay_reuses_existing_preview(monkeypatch, cue_env, tmp_path,
-                                             import_threads):
+def test_play_replay_reuses_existing_preview(monkeypatch, cue_env, tmp_path, import_threads):
     # Already previewing the same import: no root swap, straight to call.
     calls = []
-    monkeypatch.setattr(_imports.renpy, "call_replay",
-                        lambda label: calls.append(label), raising=False)
+    monkeypatch.setattr(_imports.renpy, "call_replay", lambda label: calls.append(label), raising=False)
     _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
@@ -816,20 +772,24 @@ def test_play_replay_reuses_existing_preview(monkeypatch, cue_env, tmp_path,
 # remap -- 2-folder rename + manifest rewrite, never a marker rewrite
 # ---------------------------------------------------------------------------
 
-def test_remap_renames_folders_and_updates_manifest(cue_env, tmp_path,
-                                                    import_threads):
-    imports_dir, _zip_path = _drop_package(tmp_path, "other-game", [
-        ("data/markers/other-game/v_a.json", '{"pools": []}'),
-        ("video/other-game/m_cue0.5x.mkv", "v"),
-        ("audio/sfx.ogg", "sfx"),
-    ])
+
+def test_remap_renames_folders_and_updates_manifest(cue_env, tmp_path, import_threads):
+    imports_dir, _zip_path = _drop_package(
+        tmp_path,
+        "other-game",
+        [
+            ("data/markers/other-game/v_a.json", '{"pools": []}'),
+            ("video/other-game/m_cue0.5x.mkv", "v"),
+            ("audio/sfx.ogg", "sfx"),
+        ],
+    )
     mgr, _calls = _make_mgr(cue_env)
     _created, _join = import_threads
     _scan_and_join(mgr, import_threads)
     imp = mgr.imports[0]["imp"]
 
     mgr.remap(imp)  # kicks a scan internally
-    _join()         # run it so the snapshot reflects the remap
+    _join()  # run it so the snapshot reflects the remap
 
     imp_dir = os.path.join(_unzip_dir(tmp_path), imp)
     assert os.path.isdir(os.path.join(imp_dir, "data", "markers", GAME_ID))
@@ -846,9 +806,7 @@ def test_remap_renames_folders_and_updates_manifest(cue_env, tmp_path,
 
 
 def test_remap_noop_when_already_matched(cue_env, tmp_path, import_threads):
-    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [
-        ("audio/sfx.ogg", "sfx"),
-    ])
+    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
     imp = mgr.imports[0]["imp"]
@@ -864,9 +822,7 @@ def test_activate_succeeds_after_remap(cue_env, tmp_path, import_threads):
     # this game), the rescan flips it to AUTO, and only then does activate work.
     # Audio-only package: no namespaced folders to rename, so the remap leaves
     # the manifest matching the zip and activate swaps without a confirm.
-    _drop_package(tmp_path, "other-game", [
-        ("audio/sfx.ogg", "sfx"),
-    ])
+    _drop_package(tmp_path, "other-game", [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _created, _join = import_threads
     _scan_and_join(mgr, import_threads)
@@ -874,7 +830,7 @@ def test_activate_succeeds_after_remap(cue_env, tmp_path, import_threads):
     assert mgr.imports[0]["match"] == CueImportMatch.MISMATCH
 
     mgr.remap(imp)  # kicks a scan internally
-    _join()         # run it so the entry reflects the remap
+    _join()  # run it so the entry reflects the remap
 
     assert mgr.import_for(imp)["match"] == CueImportMatch.AUTO
     mgr.activate(imp)
@@ -887,10 +843,9 @@ def test_activate_succeeds_after_remap(cue_env, tmp_path, import_threads):
 # delete
 # ---------------------------------------------------------------------------
 
+
 def test_delete_confirmed_removes_dir_and_zip(cue_env, tmp_path, import_threads):
-    imports_dir, zip_path = _drop_package(tmp_path, GAME_ID, [
-        ("audio/sfx.ogg", "sfx"),
-    ])
+    imports_dir, zip_path = _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _created, _join = import_threads
     _scan_and_join(mgr, import_threads)
@@ -905,9 +860,7 @@ def test_delete_confirmed_removes_dir_and_zip(cue_env, tmp_path, import_threads)
 
 
 def test_delete_confirmed_deactivates_if_active(cue_env, tmp_path, import_threads):
-    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [
-        ("audio/sfx.ogg", "sfx"),
-    ])
+    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
     mgr, calls = _make_mgr(cue_env)
     _created, _join = import_threads
     _scan_and_join(mgr, import_threads)
@@ -928,12 +881,17 @@ def test_delete_confirmed_deactivates_if_active(cue_env, tmp_path, import_thread
 # merge -- filesystem-only, filtered by selected categories
 # ---------------------------------------------------------------------------
 
+
 def test_merge_confirm_copies_selected_only(cue_env, tmp_path, import_threads):
-    imports_dir, _zip_path = _drop_package(tmp_path, GAME_ID, [
-        ("data/markers/{}/v_a.json".format(GAME_ID), '{"pools": []}'),
-        ("audio/sfx.ogg", "sfx"),
-        ("music/song.ogg", "music"),
-    ])
+    imports_dir, _zip_path = _drop_package(
+        tmp_path,
+        GAME_ID,
+        [
+            ("data/markers/{}/v_a.json".format(GAME_ID), '{"pools": []}'),
+            ("audio/sfx.ogg", "sfx"),
+            ("music/song.ogg", "music"),
+        ],
+    )
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
     imp = mgr.imports[0]["imp"]
@@ -949,9 +907,7 @@ def test_merge_confirm_copies_selected_only(cue_env, tmp_path, import_threads):
 
 
 def test_merge_confirm_nothing_selected(cue_env, tmp_path, import_threads):
-    _drop_package(tmp_path, GAME_ID, [
-        ("audio/sfx.ogg", "sfx"),
-    ])
+    _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
     imp = mgr.imports[0]["imp"]
@@ -962,10 +918,7 @@ def test_merge_confirm_nothing_selected(cue_env, tmp_path, import_threads):
 
 
 def test_merge_confirm_refuses_mismatch(cue_env, tmp_path, import_threads):
-    _drop_package(tmp_path, "other-game", [
-        ("audio/sfx.ogg", "sfx"),
-        ("data/markers/other-game/v_a.json", '{}'),
-    ])
+    _drop_package(tmp_path, "other-game", [("audio/sfx.ogg", "sfx"), ("data/markers/other-game/v_a.json", '{}')])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
     imp = mgr.imports[0]["imp"]
@@ -977,14 +930,11 @@ def test_merge_confirm_refuses_mismatch(cue_env, tmp_path, import_threads):
     assert not os.path.exists(os.path.join(original_root, "audio", "sfx.ogg"))
 
 
-def test_merge_confirm_refuses_confirm_until_remapped(cue_env, tmp_path,
-                                                      import_threads):
+def test_merge_confirm_refuses_confirm_until_remapped(cue_env, tmp_path, import_threads):
     # Same gate as activate: a CONFIRM import must be remapped first, or the
     # namespaced files would merge under the import.s game_id and nothing
     # would read them.
-    _drop_package(tmp_path, "test_game456", [
-        ("audio/sfx.ogg", "sfx"),
-    ])
+    _drop_package(tmp_path, "test_game456", [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
     imp = mgr.imports[0]["imp"]
@@ -1000,6 +950,7 @@ def test_merge_confirm_refuses_confirm_until_remapped(cue_env, tmp_path,
 # ---------------------------------------------------------------------------
 # confirm dialogs -- remap / delete
 # ---------------------------------------------------------------------------
+
 
 def test_confirm_delete_shows(cue_env, imp_cue):
     mgr, _calls = _make_mgr(cue_env)

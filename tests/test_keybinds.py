@@ -53,6 +53,7 @@ def mgr(db):
 # keysym_label
 # ---------------------------------------------------------------------------
 
+
 def test_keysym_label_empty_is_unbound(mgr):
     assert mgr.keysym_label("") == "--"
 
@@ -98,6 +99,7 @@ def test_keysym_label_no_k_returns_verbatim(mgr):
 # _is_valid_keysym
 # ---------------------------------------------------------------------------
 
+
 def test_is_valid_keysym_accepts_valid():
     assert CueKeybindsManager._is_valid_keysym("K_F5")
     assert CueKeybindsManager._is_valid_keysym("shift_K_1")
@@ -107,9 +109,9 @@ def test_is_valid_keysym_accepts_valid():
 
 def test_is_valid_keysym_rejects_bad_input():
     assert not CueKeybindsManager._is_valid_keysym("")
-    assert not CueKeybindsManager._is_valid_keysym("garbage")    # no "K_"
-    assert not CueKeybindsManager._is_valid_keysym(123)          # non-str
-    assert not CueKeybindsManager._is_valid_keysym("foo_K_")     # empty key
+    assert not CueKeybindsManager._is_valid_keysym("garbage")  # no "K_"
+    assert not CueKeybindsManager._is_valid_keysym(123)  # non-str
+    assert not CueKeybindsManager._is_valid_keysym("foo_K_")  # empty key
     assert not CueKeybindsManager._is_valid_keysym("super_K_a")  # bad modifier
 
 
@@ -131,6 +133,7 @@ def test_normalize_keysym_preserves_modded():
 # ---------------------------------------------------------------------------
 # get_keysym / shortcut_label / current_label
 # ---------------------------------------------------------------------------
+
 
 def test_get_keysym_unknown_action_returns_id(mgr):
     assert mgr.get_keysym("not_a_real_action") == "not_a_real_action"
@@ -167,6 +170,7 @@ def test_current_label_when_capturing(mgr):
 # ---------------------------------------------------------------------------
 # setup
 # ---------------------------------------------------------------------------
+
 
 def test_setup_registers_defaults(mgr):
     mgr.setup()
@@ -255,6 +259,7 @@ def test_key_string_types_includes_native_str():
 # visible_actions
 # ---------------------------------------------------------------------------
 
+
 def test_visible_actions_excludes_quit_relaunch(mgr):
     ids = [a["id"] for a in mgr.visible_actions()]
     assert CUE_KEYMAP_QUIT_RELAUNCH not in ids
@@ -263,8 +268,7 @@ def test_visible_actions_excludes_quit_relaunch(mgr):
 
 def test_visible_actions_filters_debug_only(mgr, monkeypatch):
     monkeypatch.setattr(_keybinds, "CUE_DEBUG", False)
-    fake = {"id": "cue_fake_debug", "default": "K_F9", "label": "Fake",
-            "desc": "", "debug_only": True}
+    fake = {"id": "cue_fake_debug", "default": "K_F9", "label": "Fake", "desc": "", "debug_only": True}
     mgr.actions = mgr.actions + [fake]
     ids = [a["id"] for a in mgr.visible_actions()]
     assert "cue_fake_debug" not in ids
@@ -272,8 +276,7 @@ def test_visible_actions_filters_debug_only(mgr, monkeypatch):
 
 def test_visible_actions_includes_debug_only_when_debug(mgr, monkeypatch):
     monkeypatch.setattr(_keybinds, "CUE_DEBUG", True)
-    fake = {"id": "cue_fake_debug", "default": "K_F9", "label": "Fake",
-            "desc": "", "debug_only": True}
+    fake = {"id": "cue_fake_debug", "default": "K_F9", "label": "Fake", "desc": "", "debug_only": True}
     mgr.actions = mgr.actions + [fake]
     ids = [a["id"] for a in mgr.visible_actions()]
     assert "cue_fake_debug" in ids
@@ -289,6 +292,7 @@ def test_visible_actions_includes_plain_action(mgr):
 # ---------------------------------------------------------------------------
 # start_capture / cancel_capture
 # ---------------------------------------------------------------------------
+
 
 def test_start_capture_sets_state(mgr):
     mgr.start_capture(CUE_KEYMAP_TOGGLE_OVERLAY)
@@ -309,6 +313,7 @@ def test_cancel_capture_resets_state(mgr):
 # ---------------------------------------------------------------------------
 # on_captured
 # ---------------------------------------------------------------------------
+
 
 def test_on_captured_noop_when_not_capturing(mgr):
     mgr.on_captured("K_F5")
@@ -349,6 +354,7 @@ def test_on_captured_collision_sets_pending(db, mgr):
 # ---------------------------------------------------------------------------
 # confirm_override
 # ---------------------------------------------------------------------------
+
 
 def test_confirm_override_applies_and_resets_others(db, mgr):
     # Toggle Active currently owns F7; rebind Toggle Overlay onto it.
@@ -414,6 +420,7 @@ def test_saved_unbound_survives_restart(cue_env):
 # reset_binding / save
 # ---------------------------------------------------------------------------
 
+
 def test_reset_binding_restores_default(db, mgr):
     renpy.config.keymap[CUE_KEYMAP_TOGGLE_OVERLAY] = ["K_F7"]
     mgr.reset_binding(CUE_KEYMAP_TOGGLE_OVERLAY)
@@ -441,6 +448,7 @@ def test_save_with_all_defaults_persists_empty(db, mgr):
 # _find_collisions
 # ---------------------------------------------------------------------------
 
+
 def test_find_collisions_renpy_builtin(mgr):
     renpy.config.keymap["rollback"] = ["K_PAGEUP"]  # a Ren'Py built-in name
     owners = mgr._find_collisions("K_PAGEUP", "cue_nonexistent")
@@ -466,6 +474,7 @@ def test_find_collisions_cue_owner(mgr):
 # ---------------------------------------------------------------------------
 # Target-context hotkeys (SFX Library [+] target selector: K_1..K_4)
 # ---------------------------------------------------------------------------
+
 
 def test_target_context_actions_visible(mgr):
     ids = [a["id"] for a in mgr.visible_actions()]

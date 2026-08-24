@@ -10,9 +10,7 @@
 
 from renpy.store import persistent
 
-from cue_lib.constants import (
-    CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG,
-)
+from cue_lib.constants import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
 from cue_lib.util import _cue_unwrap_persistent
 
 # Maximum entries in a "Recently Used" list.
@@ -38,7 +36,7 @@ class CueRecentManager(object):
         # type: (str, Callable[[str, str], bool]) -> None
         self.key = key
         self._keep = keep
-        self._entries = []   # type: list
+        self._entries = []  # type: list
         self.expanded = False
 
     def load(self):
@@ -51,8 +49,7 @@ class CueRecentManager(object):
         raw = persistent._cue or {}
         value = raw.get(self.key)
         self._entries = _cue_unwrap_persistent(value) if value is not None else []
-        self._entries = [e for e in self._entries
-                         if isinstance(e, dict) and "type" in e and "ref" in e]
+        self._entries = [e for e in self._entries if isinstance(e, dict) and "type" in e and "ref" in e]
         self.prune()
 
     def save(self):
@@ -84,8 +81,7 @@ class CueRecentManager(object):
 
     def prune(self):
         """Drop entries whose ref no longer exists; collapse when empty."""
-        self._entries = [e for e in self._entries
-                         if self._keep(e["type"], e["ref"])]
+        self._entries = [e for e in self._entries if self._keep(e["type"], e["ref"])]
         del self._entries[CUE_RECENT_MAX_ENTRIES:]
         if not self._entries:
             self.expanded = False
@@ -114,7 +110,7 @@ def _cue_music_ref_tag(ref):
     of the music manager."""
     for tag in (CUE_MUSIC_USER_TAG, CUE_MUSIC_GAME_TAG):
         if ref.startswith(tag):
-            return tag, ref[len(tag):]
+            return tag, ref[len(tag) :]
     return None, ref
 
 

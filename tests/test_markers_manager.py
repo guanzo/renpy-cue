@@ -28,6 +28,7 @@ def mgr(cue_env):
 # dict-like interface / _data passthrough
 # ---------------------------------------------------------------------------
 
+
 def test_manager_dict_interface(mgr):
     mgr["v_a"] = {"pools": []}
     assert "v_a" in mgr
@@ -49,6 +50,7 @@ def test_data_setter_writes_through_to_store(mgr):
 # presets
 # ---------------------------------------------------------------------------
 
+
 def test_audio_preset_passthroughs(mgr):
     mgr.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
     assert mgr.list_presets() == ["basic"]
@@ -58,8 +60,7 @@ def test_audio_preset_passthroughs(mgr):
 
 
 def test_video_preset_crud(mgr):
-    mgr.create_video_preset("vp", {"pools": [{"time": 1.0, "files": ["a.ogg"]}],
-                                   "volume": 0.7})
+    mgr.create_video_preset("vp", {"pools": [{"time": 1.0, "files": ["a.ogg"]}], "volume": 0.7})
     assert mgr.get_video_preset("vp")["pools"][0]["time"] == 1.0
     assert mgr.list_video_presets() == ["vp"]
     mgr.delete_video_preset("vp")
@@ -67,9 +68,7 @@ def test_video_preset_crud(mgr):
 
 
 def test_remove_video_preset_pool_deletes_pool(mgr):
-    mgr.create_video_preset("vp", {"pools": [
-        {"time": 0.0, "files": ["a.ogg"]},
-        {"time": 2.0, "files": ["b.ogg"]}]})
+    mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg"]}, {"time": 2.0, "files": ["b.ogg"]}]})
     mgr.remove_video_preset_pool("vp", 0)
     pools = mgr.get_video_preset("vp")["pools"]
     assert len(pools) == 1
@@ -132,6 +131,7 @@ def test_preset_remove_file_folder_ref(mgr):
 # resolve / stamp / detach
 # ---------------------------------------------------------------------------
 
+
 def test_resolve_pool_from_preset(mgr):
     mgr.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
     r = mgr.resolve_pool({"preset": "basic"})
@@ -190,11 +190,9 @@ def test_detach_active_video_ts(mgr):
 def test_detach_active_video_ts_multi_detaches_all_selected(mgr):
     mgr._ctx.current_file = "scene.ogv"
     mgr.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
-    mgr["v_scene.ogv"] = {"pools": [
-        {"preset": "basic", "time": 1.0},
-        {"preset": "basic", "time": 2.0},
-        {"time": 3.0, "files": ["c.ogg"]},
-    ]}
+    mgr["v_scene.ogv"] = {
+        "pools": [{"preset": "basic", "time": 1.0}, {"preset": "basic", "time": 2.0}, {"time": 3.0, "files": ["c.ogg"]}]
+    }
     mgr.video.selected = {0, 1}
     mgr.video.active_pool = 0
     mgr.detach_active_video_ts()
@@ -217,9 +215,9 @@ def test_detach_active_video_ts_missing_entry(mgr):
 # video preset out-of-range / apply
 # ---------------------------------------------------------------------------
 
+
 def test_video_preset_out_of_range_counts_overflow(mgr):
-    mgr.create_video_preset("vp", {"pools": [{"time": 5.0}, {"time": 99.0}],
-                                   "volume": 1.0})
+    mgr.create_video_preset("vp", {"pools": [{"time": 5.0}, {"time": 99.0}], "volume": 1.0})
     assert mgr.video_preset_out_of_range("vp") == 1
 
 
@@ -235,9 +233,9 @@ def test_video_preset_out_of_range_no_duration(mgr):
 
 def test_apply_video_preset_installs_sorted_pools(mgr):
     mgr._ctx.current_file = "scene.ogv"
-    mgr.create_video_preset("vp", {"pools": [
-        {"time": 5.0, "files": ["a.ogg"]}, {"time": 1.0, "files": ["b.ogg"]}],
-        "volume": 0.8})
+    mgr.create_video_preset(
+        "vp", {"pools": [{"time": 5.0, "files": ["a.ogg"]}, {"time": 1.0, "files": ["b.ogg"]}], "volume": 0.8}
+    )
     mgr.apply_video_preset("vp")
     entry = mgr.get("v_scene.ogv")
     assert [p["time"] for p in entry["pools"]] == [1.0, 5.0]
@@ -247,8 +245,7 @@ def test_apply_video_preset_installs_sorted_pools(mgr):
 
 def test_apply_video_preset_drops_out_of_range_and_no_time(mgr):
     mgr._ctx.current_file = "scene.ogv"
-    mgr.create_video_preset("vp", {"pools": [
-        {"time": 5.0}, {"time": 99.0}, {"files": ["x.ogg"]}], "volume": 1.0})
+    mgr.create_video_preset("vp", {"pools": [{"time": 5.0}, {"time": 99.0}, {"files": ["x.ogg"]}], "volume": 1.0})
     mgr.apply_video_preset("vp")
     entry = mgr.get("v_scene.ogv")
     assert [p["time"] for p in entry["pools"]] == [5.0]
@@ -275,6 +272,7 @@ def test_resolve_video_pools_expands_preset(mgr):
 # ---------------------------------------------------------------------------
 # folder-ref file removal
 # ---------------------------------------------------------------------------
+
 
 def test_detach_folder_ref_in_files(mgr):
     mgr._sfx_manager.files = ["music/a.ogg", "music/b.ogg"]
@@ -309,10 +307,7 @@ def test_remove_file_from_preset_pool_multi_fans_out(mgr):
     mgr._ctx.current_file = "scene.ogv"
     mgr._sfx_manager.files = ["music/a.ogg", "music/b.ogg"]
     mgr.create_preset("fold", {"files": ["music/a.ogg", "music/b.ogg"]})
-    mgr._data["v_scene.ogv"] = {"pools": [
-        {"preset": "fold", "time": 1.0},
-        {"preset": "fold", "time": 2.0},
-    ]}
+    mgr._data["v_scene.ogv"] = {"pools": [{"preset": "fold", "time": 1.0}, {"preset": "fold", "time": 2.0}]}
     mgr.video.active_pool = 0
     mgr.video.selected = {0, 1}
     mgr._remove_file_from_preset_pool("v_scene.ogv", 0, 0, "music/a.ogg")
@@ -326,10 +321,7 @@ def test_remove_file_from_preset_pool_multi_fans_out(mgr):
 def test_remove_file_from_folder_ref_multi_fans_out(mgr):
     mgr._ctx.current_file = "scene.ogv"
     mgr._sfx_manager.files = ["music/a.ogg", "music/b.ogg"]
-    mgr._data["v_scene.ogv"] = {"pools": [
-        {"time": 1.0, "files": ["music/"]},
-        {"time": 2.0, "files": ["music/"]},
-    ]}
+    mgr._data["v_scene.ogv"] = {"pools": [{"time": 1.0, "files": ["music/"]}, {"time": 2.0, "files": ["music/"]}]}
     mgr.video.active_pool = 0
     mgr.video.selected = {0, 1}
     mgr._remove_file_from_folder_ref("v_scene.ogv", 0, 0, "music/a.ogg")
@@ -355,6 +347,7 @@ def test_video_multi_file_edit_requires_multi_selection(mgr):
 # entry / pool mutators (store passthroughs)
 # ---------------------------------------------------------------------------
 
+
 def test_get_or_create_entry_creates_pooled_entry(mgr):
     entry = mgr._get_or_create_entry("v_new")
     assert entry["pools"] == []  # get_or_create normalizes (adds replay)
@@ -378,6 +371,7 @@ def test_add_and_remove_file_from_pool(mgr):
 # copy_context / paste_context
 # ---------------------------------------------------------------------------
 
+
 def test_copy_context_copies_all_key_types(mgr):
     mgr._ctx.current_file = "scene.ogv"
     mgr._ctx.current_dialogue = "hello"
@@ -386,8 +380,7 @@ def test_copy_context_copies_all_key_types(mgr):
     mgr["d_scene.ogv__hello"] = {"pools": [{"files": ["c.ogg"]}]}
     mgr["l_scene.ogv"] = {"pools": [{"files": ["d.ogg"]}]}
     mgr.copy_context()
-    assert set(mgr.clipboard["markers"].keys()) == {
-        "v_scene.ogv", "i_scene.ogv", "d_scene.ogv__hello", "l_scene.ogv"}
+    assert set(mgr.clipboard["markers"].keys()) == {"v_scene.ogv", "i_scene.ogv", "d_scene.ogv__hello", "l_scene.ogv"}
     assert mgr.clipboard["source_file"] == "scene.ogv"
 
 
@@ -416,8 +409,7 @@ def test_paste_context_no_clipboard_noop(mgr):
 
 def test_paste_context_skips_unmatched_source_key(mgr):
     mgr._ctx.current_file = "new.ogv"
-    mgr.clipboard = {"markers": {"v_old.ogv": {"pools": []}},
-                     "source_file": "scene.ogv"}
+    mgr.clipboard = {"markers": {"v_old.ogv": {"pools": []}}, "source_file": "scene.ogv"}
     mgr.paste_context()
     assert "v_new.ogv" not in mgr._data
 
@@ -436,6 +428,7 @@ def test_paste_context_clamps_video_times_to_duration(mgr):
 # ---------------------------------------------------------------------------
 # property setters / __delitem__
 # ---------------------------------------------------------------------------
+
 
 def test_presets_setter_writes_through(mgr):
     mgr._presets = {"p": {"files": ["a.ogg"]}}
@@ -464,10 +457,10 @@ def test_delitem_deletes_from_store(mgr):
 # strips time-less pools at save, so the branch is only reachable on raw data)
 # ---------------------------------------------------------------------------
 
+
 def test_apply_video_preset_drops_time_less_pool(mgr):
     mgr._ctx.current_file = "scene.ogv"
-    mgr._video_presets["vp"] = {"pools": [
-        {"time": 5.0, "files": ["a.ogg"]}, {"files": ["x.ogg"]}], "volume": 1.0}
+    mgr._video_presets["vp"] = {"pools": [{"time": 5.0, "files": ["a.ogg"]}, {"files": ["x.ogg"]}], "volume": 1.0}
     mgr.apply_video_preset("vp")
     entry = mgr.get("v_scene.ogv")
     assert [p["time"] for p in entry["pools"]] == [5.0]
@@ -476,6 +469,7 @@ def test_apply_video_preset_drops_time_less_pool(mgr):
 # ---------------------------------------------------------------------------
 # _remove_file_from_preset_pool -- guard branches + direct-file else
 # ---------------------------------------------------------------------------
+
 
 def test_remove_file_from_preset_pool_missing_entry_noop(mgr):
     mgr._remove_file_from_preset_pool("nope", 0, 0, "a.ogg")  # must not raise
@@ -500,6 +494,7 @@ def test_remove_file_from_preset_pool_direct_file(mgr):
 # ---------------------------------------------------------------------------
 # _detach_folder_ref_in_files / _remove_file_from_folder_ref guards
 # ---------------------------------------------------------------------------
+
 
 def test_detach_folder_ref_plain_file_noop(mgr):
     files = ["a.ogg"]
@@ -527,6 +522,7 @@ def test_remove_file_from_folder_ref_out_of_range_file_noop(mgr):
 # save / persistence API passthroughs
 # ---------------------------------------------------------------------------
 
+
 def test_save_preset_passthrough(mgr):
     mgr.create_preset("basic", {"files": ["a.ogg"]})
     mgr.save_preset("basic")
@@ -549,8 +545,8 @@ def test_save_all_passthrough(mgr):
 def test_delete_removed_files_no_removals(mgr):
     mgr["i_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}
     mgr.delete_removed_files(
-        set(mgr._data.keys()), dict(mgr._presets), dict(mgr._video_presets),
-        set(mgr._session_created))
+        set(mgr._data.keys()), dict(mgr._presets), dict(mgr._video_presets), set(mgr._session_created)
+    )
 
 
 def test_load_persistent(mgr):
@@ -632,8 +628,7 @@ class _Trigger(object):
 
 def test_paste_context_clears_target_loop_state(mgr):
     trig = _Trigger()
-    trig.loop_states = {"l_new.ogv": {"0": {"channels": ["old_ch"]}},
-                        "l_other.ogv": {"0": {"channels": ["ch2"]}}}
+    trig.loop_states = {"l_new.ogv": {"0": {"channels": ["old_ch"]}}, "l_other.ogv": {"0": {"channels": ["ch2"]}}}
     mgr._trigger = trig
     mgr._ctx.current_file = "scene.ogv"
     mgr["l_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}

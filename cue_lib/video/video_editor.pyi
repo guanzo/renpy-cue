@@ -24,12 +24,10 @@ class CueRpaExtractState:
     vpath: Optional[str]
     def __init__(self) -> None: ...
 
-
 class CueVideoEditorTab:
     SPEED: str
     INTENSITY: str
     CREATE: str
-
 
 class CueVideoEditor:
     SPEED_MIN: float
@@ -57,7 +55,8 @@ class CueVideoEditor:
         ffmpeg: CueFFmpeg,
         speed_resolver: CueVidSpeedResolver,
         vid_manager: CueVideoManager,
-        paths: CuePaths) -> None: ...
+        paths: CuePaths,
+    ) -> None: ...
     @property
     def processing(self) -> bool: ...
     @property
@@ -68,7 +67,6 @@ class CueVideoEditor:
     def last_error(self) -> str: ...
     @last_error.setter
     def last_error(self, value: str) -> None: ...
-
     def check_prerequisites(self) -> tuple[str, str]: ...
     def extract_from_rpa(self, vp: Optional[str] = None) -> tuple[str, str]: ...
     def _extract_then_create(self) -> None: ...

@@ -198,10 +198,7 @@ class CueVideoManager(object):
             return "--:--.-- / --:--.--"
         e = self.get_elapsed()
         d = self.get_duration()
-        return "{} / {}".format(
-            _cue_format_time(e),
-            _cue_format_time(d),
-        )
+        return "{} / {}".format(_cue_format_time(e), _cue_format_time(d))
 
     def frame_label(self):
         # type: () -> str

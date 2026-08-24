@@ -37,7 +37,6 @@ class CueIntensityGroupDialog:
     def cancel(self) -> None: ...
     def _reset(self) -> None: ...
 
-
 class CueConfirmDialog:
     message: str
     on_confirm: Optional[Callable[..., None]]

@@ -144,11 +144,9 @@ class CueMarkerRepeater(object):
         self._anchor_time = anchor_time
         for _, pool in tracked:
             r = self._store.resolve_pool(pool)
-            self.offsets.append({
-                "offset": pool.get("time", 0.0) - anchor_time,
-                "files": list(r.files),
-                "volume": r.volume,
-            })
+            self.offsets.append(
+                {"offset": pool.get("time", 0.0) - anchor_time, "files": list(r.files), "volume": r.volume}
+            )
         self.sel_count = len(self.offsets)
 
     def _shift_selected(self, delta):
@@ -282,11 +280,7 @@ class CueMarkerRepeater(object):
                     continue
                 if new_time < 0:
                     continue
-                clone = {
-                    "time": new_time,
-                    "files": list(offset["files"]),
-                    "volume": offset["volume"],
-                }
+                clone = {"time": new_time, "files": list(offset["files"]), "volume": offset["volume"]}
                 pools.append(clone)  # pyright: ignore[reportArgumentType]
                 new_count += 1
 
@@ -375,11 +369,13 @@ class CueMarkerRepeater(object):
                     continue
                 if time < 0:
                     continue
-                pools.append({
-                    "time": time,
-                    "files": list(offset.get("files", [])),
-                    "volume": offset.get("volume", CUE_VOLUME_DEFAULT),
-                })
+                pools.append(
+                    {
+                        "time": time,
+                        "files": list(offset.get("files", [])),
+                        "volume": offset.get("volume", CUE_VOLUME_DEFAULT),
+                    }
+                )
 
         pools.sort(key=lambda e: e["time"])
 

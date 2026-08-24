@@ -17,14 +17,18 @@ def _wav_raw(tag, sampwidth, data_bytes, channels=1, rate=48000):
     data_size = len(data_bytes)
     block_align = channels * sampwidth
     byte_rate = rate * block_align
-    fmt = struct.pack(
-        "<HHIIHH", tag, channels, rate, byte_rate, block_align, sampwidth * 8
-    )
+    fmt = struct.pack("<HHIIHH", tag, channels, rate, byte_rate, block_align, sampwidth * 8)
     riff_size = 4 + (8 + len(fmt)) + (8 + data_size)
     return (
-        b"RIFF" + struct.pack("<I", riff_size) + b"WAVE"
-        + b"fmt " + struct.pack("<I", len(fmt)) + fmt
-        + b"data" + struct.pack("<I", data_size) + data_bytes
+        b"RIFF"
+        + struct.pack("<I", riff_size)
+        + b"WAVE"
+        + b"fmt "
+        + struct.pack("<I", len(fmt))
+        + fmt
+        + b"data"
+        + struct.pack("<I", data_size)
+        + data_bytes
     )
 
 
@@ -46,18 +50,20 @@ def _wav_extensible_float(data_bytes, channels=1, rate=48000):
     data_size = len(data_bytes)
     block_align = channels * sampwidth
     byte_rate = rate * block_align
-    guid = struct.pack("<IHH", 3, 0, 0x10) + bytes(
-        [0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71]
-    )
-    fmt = struct.pack(
-        "<HHIIHH", 0xFFFE, channels, rate, byte_rate, block_align, sampwidth * 8
-    )
+    guid = struct.pack("<IHH", 3, 0, 0x10) + bytes([0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71])
+    fmt = struct.pack("<HHIIHH", 0xFFFE, channels, rate, byte_rate, block_align, sampwidth * 8)
     fmt += struct.pack("<HHI", 22, sampwidth * 8, 0) + guid
     riff_size = 4 + (8 + len(fmt)) + (8 + data_size)
     return (
-        b"RIFF" + struct.pack("<I", riff_size) + b"WAVE"
-        + b"fmt " + struct.pack("<I", len(fmt)) + fmt
-        + b"data" + struct.pack("<I", data_size) + data_bytes
+        b"RIFF"
+        + struct.pack("<I", riff_size)
+        + b"WAVE"
+        + b"fmt "
+        + struct.pack("<I", len(fmt))
+        + fmt
+        + b"data"
+        + struct.pack("<I", data_size)
+        + data_bytes
     )
 
 
@@ -171,7 +177,7 @@ def test_header_probed_once_then_memoized(tmp_path):
     w.ensure_playable(src)
     w.ensure_playable(src)
     assert len(probes) == 1  # memoized -- header not re-read on later plays
-    assert len(stats) == 1   # zero per-play os.stat after the first sighting
+    assert len(stats) == 1  # zero per-play os.stat after the first sighting
 
 
 def test_passthrough_16bit(tmp_path):
@@ -256,7 +262,7 @@ def test_nonwav_passthrough_silent(tmp_path, monkeypatch):
     monkeypatch.setattr("cue_lib.audio.wav_playable._cue_log", lambda msg: logged.append(msg))
 
     assert w.ensure_playable(src) == src  # passthrough, not our problem
-    assert w.unplayable() == {}           # nothing flagged
+    assert w.unplayable() == {}  # nothing flagged
     assert not any("unplayable" in m for m in logged)
 
 

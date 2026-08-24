@@ -32,6 +32,7 @@ if MYPY:
 
 class CueVideoEditorTab(object):
     """Video VFX section tabs.  `tab` on the editor is one of these."""
+
     SPEED = "speed"
     INTENSITY = "intensity"
     CREATE = "create"
@@ -39,6 +40,7 @@ class CueVideoEditorTab(object):
 
 class CueVideoEditorState(object):
     """Editing state for a single video file."""
+
     def __init__(self, vpath):
         self.vpath = vpath
         self.factor_text = "1.1"
@@ -49,6 +51,7 @@ class CueRpaExtractState(object):
     """Background .rpa extraction state.  The worker thread writes the
     ok/msg/done fields; poll_extract() (main thread) finalizes them into
     check_prerequisites + create."""
+
     def __init__(self):
         self.in_progress = False
         self.done = False
@@ -213,8 +216,10 @@ class CueVideoEditor(object):
         if not os.access(d, os.W_OK):
             return ("error", "Video directory is read-only.")
         if not self._ffmpeg.ffmpeg_available():
-            return ("error", "ffmpeg not found. Install ffmpeg and restart the game, "
-                    "or set RENPY_CUE_FFMPEG environment variable.")
+            return (
+                "error",
+                "ffmpeg not found. Install ffmpeg and restart the game, or set RENPY_CUE_FFMPEG environment variable.",
+            )
         return ("ok", "")
 
     def _ensure_state(self, vpath):
@@ -411,17 +416,24 @@ class CueVideoEditor(object):
         self.job_queue._next_job_id += 1
         # The temp name is job-scoped so a stale temp/passlog from a prior
         # job for the same video+speed can never be misread as this job's.
-        temp_path = os.path.join(
-            self._paths.video_dir,
-            "{}__cue_tmp_{:.1f}x_{}{}".format(_base, factor, job_id, _ext),
-        )
+        temp_path = os.path.join(self._paths.video_dir, "{}__cue_tmp_{:.1f}x_{}{}".format(_base, factor, job_id, _ext))
         input_fs = orig_fs
-        job = CueVideoJob(job_id, vp, input_fs, temp_path, factor,
-                          self.encode_mode, fspath_out=out_fspath,
-                          remove_audio=self.remove_audio)
+        job = CueVideoJob(
+            job_id,
+            vp,
+            input_fs,
+            temp_path,
+            factor,
+            self.encode_mode,
+            fspath_out=out_fspath,
+            remove_audio=self.remove_audio,
+        )
         self.job_queue.enqueue(job)
-        _cue_log("Speed variant job queued: id={}, factor={:.1f}, out={}".format(
-            job_id, factor, os.path.basename(out_fspath)))
+        _cue_log(
+            "Speed variant job queued: id={}, factor={:.1f}, out={}".format(
+                job_id, factor, os.path.basename(out_fspath)
+            )
+        )
 
     def refresh(self):
         # type: () -> None
@@ -462,12 +474,13 @@ class CueVideoEditor(object):
 # The chunked copy of a potentially multi-hundred-MB archive read is why
 # this must not run on the main thread.
 
+
 def _cue_extract_rpa(editor, vp):
     # type: (CueVideoEditor, str) -> None
     """Copy `vp` out of the game archives onto the editor's result fields."""
     try:
         status, msg = editor.extract_from_rpa(vp)
-        editor.rpa_extract.ok = (status == "ok")
+        editor.rpa_extract.ok = status == "ok"
         editor.rpa_extract.msg = msg
     except Exception as e:
         editor.rpa_extract.ok = False

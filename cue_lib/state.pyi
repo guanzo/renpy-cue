@@ -6,7 +6,10 @@ from cue_lib.audio.sfx_manager import CueSfxManager
 from cue_lib.markers import CueMarkerManager
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib._types import (
-    MarkerEntry, PoolDict, UndoSnapshot, VideoPreset,  # pyright: ignore[reportUnusedImport]
+    MarkerEntry as MarkerEntry,
+    PoolDict as PoolDict,
+    UndoSnapshot as UndoSnapshot,
+    VideoPreset as VideoPreset,
 )
 from cue_lib.video.auto_speed import CueAutoSpeedGenerator
 from cue_lib.video.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
@@ -35,7 +38,6 @@ from cue_lib.paths import CuePaths
 from cue_lib.intensity import CueIntensityManager
 from cue_lib.constants import CuePage  # pyright: ignore[reportUnusedImport]  # re-exported from constants
 
-
 class CueContext:
     current_file: str
     current_dialogue: str
@@ -46,14 +48,12 @@ class CueContext:
 
     def __init__(self) -> None: ...
 
-
 class CueDialogs:
     preset: CuePresetDialog
     video_preset: CueVideoPresetDialog
     confirm: CueConfirmDialog
     merge: CueMergeDialog
     intensity: CueIntensityGroupDialog
-
 
 class Cue:
     initialized: bool

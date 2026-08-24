@@ -1,14 +1,19 @@
 #!/bin/sh
 # Usage: bin/lint.sh
 #
-# Runs pyright on cue_lib/ plus the 120-char line-length check on cue_lib/
-# and tests/ and reports ALL findings. Exits 1 if any diagnostic or
-# line-length violation is found; exits 0 and prints "CLEAN" otherwise.
+# Runs four checks and reports ALL findings:
+#   1. pyright on cue_lib/
+#   2. ruff format --check on cue_lib/ and tests/ (the deterministic
+#      formatter enforcing the project's wrap rules; .rpy is not parseable
+#      by ruff, so its wrap rules stay manual)
+#   3. the 120-char line-length check on cue_lib/ and tests/
+#   4. py2 trailing-comma guard on cue_lib/ (see below)
+# Exits 1 if any finding; exits 0 and prints "CLEAN" otherwise.
 #
 # tests/ is deliberately left out of the pyright pass: the test suite is
 # white-box (pokes private seams, injects fakes, patches module aliases), so
 # strict type-checking against the .pyi public contract produces ~150 false
-# positives. The 120-char check still covers tests/.
+# positives. The ruff and 120-char checks still cover tests/.
 #
 # This is the single source of truth for both callers -- the /lint skill and
 # the GitHub Actions workflow invoke this script rather than inlining the
@@ -61,7 +66,22 @@ sys.exit(1 if lines else 0)
     fi
 fi
 
-# --- 2. line length (120 chars) ---
+# --- 2. ruff format ---
+# The deterministic formatter (config in pyproject.toml: line-length=120,
+# quote-style=preserve). Ruff parses .py/.pyi only; .rpy is covered by check
+# 3's awk pass and the manual wrap rules.
+if ! command -v ruff >/dev/null 2>&1; then
+    echo "lint: ruff not found on PATH" >&2
+    exit 1
+fi
+
+RUFF_OUT="$(ruff format --check cue_lib tests 2>&1)"
+if [ $? -ne 0 ]; then
+    printf '%s\n' "$RUFF_OUT"
+    status=1
+fi
+
+# --- 3. line length (120 chars) ---
 # `# type:` comment lines are exempt -- a comment cannot be wrapped. Lines
 # carrying a `# pyright: ignore` comment are exempt too -- see the lint skill.
 LONG_LINES="$(find cue_lib tests \( -name '*.py' -o -name '*.rpy' -o -name '*.pyi' \) -print0 \
@@ -70,6 +90,19 @@ LONG_LINES="$(find cue_lib tests \( -name '*.py' -o -name '*.rpy' -o -name '*.py
         {printf "%s:%d: %d chars\n", FILENAME, FNR, length($0)}')"
 if [ -n "$LONG_LINES" ]; then
     printf '%s\n' "$LONG_LINES"
+    status=1
+fi
+
+# --- 4. py2 trailing commas (cue_lib runtime only) ---
+# Ruff adds a trailing comma to any width-split def ending in *args/**kwargs
+# -- py3-only syntax, a SyntaxError under Ren'Py 7.x (Python 2.7). Those defs
+# must be wrapped in `# fmt: off` / `# fmt: on` and hand-written without the
+# comma (precedent: popper.py CuePopper.__init__). Catches new breakers fast,
+# before the legacy harness (one engine boot per testcase, ~15 min) does.
+PY2_COMMA="$(grep -rnE '^\s*\*{1,2}[A-Za-z_][A-Za-z0-9_]*,\s*(#.*)?$' cue_lib --include='*.py' || true)"
+if [ -n "$PY2_COMMA" ]; then
+    printf '%s\n' "$PY2_COMMA"
+    echo "lint: trailing comma after *args/**kwargs is a SyntaxError under Python 2.7; wrap the def in # fmt: off / # fmt: on and drop the comma" >&2
     status=1
 fi
 

@@ -15,25 +15,31 @@ import renpy
 from renpy.store import persistent
 
 from cue_lib.constants import (
-    CUE_VOLUME_DEFAULT, CueExclusiveStart as CueExclusiveStart, CueLoopFrequency as CueLoopFrequency,
+    CUE_VOLUME_DEFAULT,
+    CueExclusiveStart as CueExclusiveStart,
+    CueLoopFrequency as CueLoopFrequency,
     CueContextType,
 )
 from cue_lib.marker_context import CueImageContext, CueDialogueContext, CueVideoContext, CueLoopContext
 from cue_lib.copy_paste import copy_context as _copy_context, paste_context as _paste_context
+
 # ResolvedExclusive is re-exported (as X form = explicit re-export): tests
 # import both snapshots from cue_lib.markers.
 from cue_lib.marker_store import CueMarkerStore, ResolvedPool, ResolvedExclusive as ResolvedExclusive
 from cue_lib.state import _cue
-from cue_lib.util import (
-    _cue_expand_folder_ref, _cue_format_time, _cue_log, create_vid_key,
-)
+from cue_lib.util import _cue_expand_folder_ref, _cue_format_time, _cue_log, create_vid_key
 
 MYPY = False
 if MYPY:
     from typing import Any, Dict, ItemsView, KeysView, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
     from cue_lib._types import (
-        ClipboardData, MarkerEntry, PoolDict, VideoPoolDict, VideoPreset,  # pyright: ignore[reportUnusedImport]
+        ClipboardData,  # pyright: ignore[reportUnusedImport]
+        MarkerEntry,
+        PoolDict,
+        VideoPoolDict,
+        VideoPreset,
     )
+
     # Injected constructor collaborators (type-only; resolved at wiring time).
     from cue_lib.state import CueContext  # pyright: ignore[reportUnusedImport]
     from cue_lib.video.video import CueVideoManager  # pyright: ignore[reportUnusedImport]
@@ -47,16 +53,10 @@ if MYPY:
 # =========================================================================
 
 # Valid CueContextType ids (set_target_context validation + screen bars).
-_CUE_TARGET_CONTEXT_IDS = (
-    CueContextType.VIDEO,
-    CueContextType.IMAGE,
-    CueContextType.DIALOGUE,
-    CueContextType.LOOP,
-)
+_CUE_TARGET_CONTEXT_IDS = (CueContextType.VIDEO, CueContextType.IMAGE, CueContextType.DIALOGUE, CueContextType.LOOP)
 
 
 class CueMarkerManager(object):
-
     def __init__(self, ctx, store, vid_manager, sfx_manager, trigger, video_editor):
         # type: (CueContext, CueMarkerStore, CueVideoManager, CueSfxManager, CueTriggerEngine, CueVideoEditor) -> None
         self._store = store
@@ -186,10 +186,11 @@ class CueMarkerManager(object):
         for fi, f in enumerate(files):
             if f.endswith("/") and file_path.startswith(f):
                 resolved = _cue_expand_folder_ref(
-                    self._sfx_manager.library.files, f, self._sfx_manager.library.disabled_files)
+                    self._sfx_manager.library.files, f, self._sfx_manager.library.disabled_files
+                )
                 if file_path in resolved:
                     resolved.remove(file_path)
-                files[fi:fi + 1] = resolved
+                files[fi : fi + 1] = resolved
                 self._db_save_preset(name)
                 return
 
@@ -299,8 +300,9 @@ class CueMarkerManager(object):
         self.video.selected = set()
         self.video.sync_text()
         self._db_save_marker(vid_key)
-        _cue_log("APPLY-VIDEO-PRESET key={} preset={} markers={} dropped={}".format(
-            vid_key, name, len(new_pools), dropped))
+        _cue_log(
+            "APPLY-VIDEO-PRESET key={} preset={} markers={} dropped={}".format(vid_key, name, len(new_pools), dropped)
+        )
 
     def _resolve_video_pools(self, entry):
         # type: (Any) -> List[VideoPoolDict]
@@ -382,10 +384,11 @@ class CueMarkerManager(object):
         if not folder_ref.endswith("/"):
             return
         resolved = _cue_expand_folder_ref(
-            self._sfx_manager.library.files, folder_ref, self._sfx_manager.library.disabled_files)
+            self._sfx_manager.library.files, folder_ref, self._sfx_manager.library.disabled_files
+        )
         if child_file in resolved:
             resolved.remove(child_file)
-        files[file_index:file_index + 1] = resolved
+        files[file_index : file_index + 1] = resolved
 
     def _remove_file_from_folder_ref(self, marker_key, pool_index, file_index, child_file):
         # type: (str, int, int, str) -> None
@@ -535,8 +538,7 @@ class CueMarkerManager(object):
         preset is removed only when it was created in this session AND the
         on-disk entry still matches the entry being dropped. Never a
         directory sweep: files the store never loaded are left untouched."""
-        self._store.delete_removed_files(
-            old_marker_keys, old_presets, old_video_presets, old_session_created)
+        self._store.delete_removed_files(old_marker_keys, old_presets, old_video_presets, old_session_created)
 
     # ------------------------------------------------------------------
     # Load / migration
@@ -547,7 +549,6 @@ class CueMarkerManager(object):
         """Load markers + presets from the data store."""
         self._store.load_from_db()
         _cue_log("LOAD-MARKERS total_keys={}".format(len(self._data)))
-
 
     # ------------------------------------------------------------------
     # Post-restore reload (callback for CueManualBackupManager)
@@ -568,6 +569,7 @@ class CueMarkerManager(object):
         # Lazy import breaks the markers <-> runtime cycle: runtime.py imports
         # _cue_load_scalars_from_persistent at module load.
         from cue_lib.runtime import _cue_full_reload
+
         _cue_full_reload()
         # Capture the restored tree in a fresh auto-backup.
         db._backup.force_backup()
@@ -643,9 +645,9 @@ class CueMarkerManager(object):
             return "No pool yet.  Click + to create one."
         if ctx_id == CueContextType.VIDEO:
             pool = ctx.get_active_pool()
-            return "Pool {} @ {}".format(
-                ctx.get_active_index() + 1, _cue_format_time(pool.get("time", 0)))
+            return "Pool {} @ {}".format(ctx.get_active_index() + 1, _cue_format_time(pool.get("time", 0)))
         return "Pool {}".format(ctx.get_active_index() + 1)
+
 
 # ---------------------------------------------------------------------------
 # Bootstrap / coordinator functions -- module-level because they write to
@@ -729,8 +731,7 @@ def _cue_assign_tt(ctx_id):
         return "No video or image on screen right now"
     label = ctx_id.title()
     if getattr(mgr, ctx_id).has_pools():
-        return ("Click: Add to {} active pool\nShift+Click: Create new {} pool and add"
-                .format(label, label))
+        return "Click: Add to {} active pool\nShift+Click: Create new {} pool and add".format(label, label)
     return "Create {} pool and add".format(label)
 
 

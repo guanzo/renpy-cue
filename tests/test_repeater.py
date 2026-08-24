@@ -47,8 +47,7 @@ def env(tmp_path, monkeypatch):
     coord = FakeMarkers()
     rep = CueMarkerRepeater(ctx, store, vid, markers=coord)
     yield types.SimpleNamespace(
-        ctx=ctx, paths=paths, db=db, store=store, vid=vid,
-        coord=coord, rep=rep, tag="scene", music=_music_mock,
+        ctx=ctx, paths=paths, db=db, store=store, vid=vid, coord=coord, rep=rep, tag="scene", music=_music_mock
     )
 
 

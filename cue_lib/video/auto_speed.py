@@ -16,8 +16,7 @@ import random as _random
 
 import renpy
 
-from cue_lib.constants import (
-    CUE_DEFAULT_VIDEO_SPEED, CUE_AUTO_SPEED_MIN_VARIANTS)  # pyright: ignore[reportUnusedImport]
+from cue_lib.constants import CUE_DEFAULT_VIDEO_SPEED, CUE_AUTO_SPEED_MIN_VARIANTS  # pyright: ignore[reportUnusedImport]
 from cue_lib.util import create_vid_key, _cue_log, _cue_speed_label
 
 MYPY = False
@@ -52,63 +51,56 @@ CUE_AUTO_UNIT_ALLOWANCE_TU = 10.0
 _CUE_AUTO_PRESETS = {
     "roller_coaster": {
         "label": "Roller Coaster",
-        "desc":  "Sweeps back and forth across the full speed range",
+        "desc": "Sweeps back and forth across the full speed range",
         "method": "_gen_roller_coaster",
     },
     "build_up": {
         "label": "Building Up",
-        "desc":  "Stair-steps upward from slow to fast, then holds at peak",
+        "desc": "Stair-steps upward from slow to fast, then holds at peak",
         "method": "_gen_build_up",
     },
     "cool_down": {
         "label": "Winding Down",
-        "desc":  "Stair-steps downward from fast to slow and settles",
+        "desc": "Stair-steps downward from fast to slow and settles",
         "method": "_gen_cool_down",
     },
     "slow_groove": {
         "label": "Slow Groove",
-        "desc":  "Lingers in the lower speeds with a gentle, lazy sway",
+        "desc": "Lingers in the lower speeds with a gentle, lazy sway",
         "method": "_gen_slow_groove",
     },
     "fast_frenzy": {
         "label": "Fast Frenzy",
-        "desc":  "High-energy, stays fast with frequent quick changes",
+        "desc": "High-energy, stays fast with frequent quick changes",
         "method": "_gen_fast_frenzy",
     },
-    "tease": {
-        "label": "Tease",
-        "desc":  "Mostly slow with sudden, brief spikes of speed",
-        "method": "_gen_tease",
-    },
+    "tease": {"label": "Tease", "desc": "Mostly slow with sudden, brief spikes of speed", "method": "_gen_tease"},
     "plateau": {
         "label": "Plateau",
-        "desc":  "Long, sustained holds at one speed, then jumps to another",
+        "desc": "Long, sustained holds at one speed, then jumps to another",
         "method": "_gen_plateau",
     },
     "random_walk": {
         "label": "Random Walk",
-        "desc":  "Unpredictable drift with no fixed direction or shape",
+        "desc": "Unpredictable drift with no fixed direction or shape",
         "method": "_gen_random_walk",
     },
     "edge": {
         "label": "Edge",
-        "desc":  "Climbs toward peak, then drops suddenly, never quite getting there",
+        "desc": "Climbs toward peak, then drops suddenly, never quite getting there",
         "method": "_gen_edge",
     },
     "anchor": {
         "label": "Anchor",
-        "desc":  "Gravitates around a comfortable speed with small wobbles",
+        "desc": "Gravitates around a comfortable speed with small wobbles",
         "method": "_gen_anchor",
     },
     "pulse": {
         "label": "Pulse",
-        "desc":  "Steady repetitive beat that alternates around a central speed",
+        "desc": "Steady repetitive beat that alternates around a central speed",
         "method": "_gen_pulse",
     },
-    "shuffle": {
-        "label": "Shuffle",
-        "desc":  "Picks a random rhythm each sequence, so expect anything!",
-    },
+    "shuffle": {"label": "Shuffle", "desc": "Picks a random rhythm each sequence, so expect anything!"},
 }
 
 
@@ -117,8 +109,7 @@ def _cue_auto_preset_label(preset_name):
     """Human-readable label for a preset key."""
     if preset_name is None:
         return "Custom"
-    return _CUE_AUTO_PRESETS.get(preset_name, {}).get("label",
-        preset_name if preset_name else "Custom")
+    return _CUE_AUTO_PRESETS.get(preset_name, {}).get("label", preset_name if preset_name else "Custom")
 
 
 def _cue_auto_preset_description(preset_name):
@@ -128,6 +119,7 @@ def _cue_auto_preset_description(preset_name):
 
 
 # ==========================================================================
+
 
 class CueAutoSpeedGenerator(object):
     """Procedural speed sequence generator."""
@@ -314,10 +306,13 @@ class CueAutoSpeedGenerator(object):
         else:
             # Custom / fine-tuned -- use legacy walk
             seq = self._walk(
-                speeds, n,
-                self.custom_drift, self.custom_intensity,
-                self.custom_volatility, self.custom_center,
-                target_tu
+                speeds,
+                n,
+                self.custom_drift,
+                self.custom_intensity,
+                self.custom_volatility,
+                self.custom_center,
+                target_tu,
             )
 
         # -- Debug: log the grouped sequence --
@@ -339,11 +334,8 @@ class CueAutoSpeedGenerator(object):
         vid_dur = getattr(self, '_video_duration', 0) or 0
 
         _cue_log(
-            "[{}] {} rungs({}) | vid {:.1f}s | target {:.1f} TU"
-            " | actual {:.1f} TU | {} holds\n"
-            "    {}".format(
-                preset, n, rung_labels, vid_dur, target_tu, actual_tu,
-                len(runs), " -> ".join(parts)
+            "[{}] {} rungs({}) | vid {:.1f}s | target {:.1f} TU | actual {:.1f} TU | {} holds\n    {}".format(
+                preset, n, rung_labels, vid_dur, target_tu, actual_tu, len(runs), " -> ".join(parts)
             )
         )
 
@@ -370,22 +362,17 @@ class CueAutoSpeedGenerator(object):
 
         hold_tu = random in [min_hold_tu*scale, max_hold_tu*scale],
         clamped to remaining_tu.  Returns actual TU from _emit_hold."""
-        hold_tu = _random.uniform(
-            self.min_hold_tu * scale,
-            self.max_hold_tu * scale
-        )
+        hold_tu = _random.uniform(self.min_hold_tu * scale, self.max_hold_tu * scale)
         if hold_tu > remaining_tu:
             hold_tu = remaining_tu
 
         # Cap real time per hold.
-        if (hasattr(self, '_video_duration')
-                and self._video_duration > 0):
+        if hasattr(self, '_video_duration') and self._video_duration > 0:
             max_tu = max_real_s / self._video_duration
             if hold_tu > max_tu:
                 hold_tu = max_tu
 
         return self._emit_hold(seq, speeds, idx, hold_tu)
-
 
     def _should_stay(self, stay_count, stay_prob, max_stays=2):
         # type: (int, float, int) -> bool
@@ -493,24 +480,18 @@ class CueAutoSpeedGenerator(object):
             while rung < peak:
                 stride = _random.randint(_stride_lo, _stride_hi)
                 rung = min(rung + stride, peak)
-                tu += self._take_hold(seq, speeds, rung,
-                                      CUE_AUTO_UNIT_ALLOWANCE_TU,
-                                      scale=climb_scale)
+                tu += self._take_hold(seq, speeds, rung, CUE_AUTO_UNIT_ALLOWANCE_TU, scale=climb_scale)
             if rung != peak:
-                tu += self._take_hold(seq, speeds, peak,
-                                      CUE_AUTO_UNIT_ALLOWANCE_TU, scale=0.4)
+                tu += self._take_hold(seq, speeds, peak, CUE_AUTO_UNIT_ALLOWANCE_TU, scale=0.4)
 
             # -- Descend (same width as the climb) --
             rung = peak
             while rung > valley:
                 stride = _random.randint(_stride_lo, _stride_hi)
                 rung = max(rung - stride, valley)
-                tu += self._take_hold(seq, speeds, rung,
-                                      CUE_AUTO_UNIT_ALLOWANCE_TU,
-                                      scale=descend_scale)
+                tu += self._take_hold(seq, speeds, rung, CUE_AUTO_UNIT_ALLOWANCE_TU, scale=descend_scale)
             if rung != valley:
-                tu += self._take_hold(seq, speeds, valley,
-                                      CUE_AUTO_UNIT_ALLOWANCE_TU, scale=0.4)
+                tu += self._take_hold(seq, speeds, valley, CUE_AUTO_UNIT_ALLOWANCE_TU, scale=0.4)
 
             idx = valley
 
@@ -542,15 +523,12 @@ class CueAutoSpeedGenerator(object):
         climb_scale = max(0.3, per_rung / max(avg_hold, 0.1))
 
         for rung in climb_rungs:
-            tu += self._take_hold(seq, speeds, rung,
-                                  CUE_AUTO_UNIT_ALLOWANCE_TU,
-                                  scale=climb_scale)
+            tu += self._take_hold(seq, speeds, rung, CUE_AUTO_UNIT_ALLOWANCE_TU, scale=climb_scale)
 
         # -- Peak phase: wiggle until the budget is spent --
         idx = peak
         while tu < target_tu:
-            tu += self._take_hold(seq, speeds, idx,
-                                  CUE_AUTO_UNIT_ALLOWANCE_TU, scale=1.2)
+            tu += self._take_hold(seq, speeds, idx, CUE_AUTO_UNIT_ALLOWANCE_TU, scale=1.2)
             r = _random.random()
             if r < 0.35:
                 idx = max(peak - 1, idx - 1)
@@ -584,15 +562,12 @@ class CueAutoSpeedGenerator(object):
         descend_scale = max(0.3, per_rung / max(avg_hold, 0.1))
 
         for rung in descend_rungs:
-            tu += self._take_hold(seq, speeds, rung,
-                                  CUE_AUTO_UNIT_ALLOWANCE_TU,
-                                  scale=descend_scale)
+            tu += self._take_hold(seq, speeds, rung, CUE_AUTO_UNIT_ALLOWANCE_TU, scale=descend_scale)
 
         # -- Bottom phase: wiggle until the budget is spent --
         idx = bottom
         while tu < target_tu:
-            tu += self._take_hold(seq, speeds, idx,
-                                  CUE_AUTO_UNIT_ALLOWANCE_TU, scale=1.2)
+            tu += self._take_hold(seq, speeds, idx, CUE_AUTO_UNIT_ALLOWANCE_TU, scale=1.2)
             r = _random.random()
             if r < 0.35:
                 idx = min(bottom + 1, idx + 1)
@@ -616,8 +591,7 @@ class CueAutoSpeedGenerator(object):
         stay_count = 0
 
         while tu < target_tu:
-            tu += self._take_hold(seq, speeds, idx,
-                                  CUE_AUTO_UNIT_ALLOWANCE_TU, scale=1.1)
+            tu += self._take_hold(seq, speeds, idx, CUE_AUTO_UNIT_ALLOWANCE_TU, scale=1.1)
 
             if tu >= target_tu:
                 break
@@ -649,8 +623,7 @@ class CueAutoSpeedGenerator(object):
 
         while tu < target_tu:
             # Short holds for rapid change feel
-            tu += self._take_hold(seq, speeds, idx,
-                                  CUE_AUTO_UNIT_ALLOWANCE_TU, scale=0.5)
+            tu += self._take_hold(seq, speeds, idx, CUE_AUTO_UNIT_ALLOWANCE_TU, scale=0.5)
 
             if tu >= target_tu:
                 break
@@ -704,8 +677,7 @@ class CueAutoSpeedGenerator(object):
         spike_min_real_s = 3.0
         min_spike_plays = 1
         if hasattr(self, '_video_duration') and self._video_duration > 0:
-            min_spike_plays = max(
-                1, int(_math.ceil(spike_min_real_s / self._video_duration)))
+            min_spike_plays = max(1, int(_math.ceil(spike_min_real_s / self._video_duration)))
 
         while tu < target_tu:
             remaining = target_tu - tu
@@ -713,13 +685,13 @@ class CueAutoSpeedGenerator(object):
             # Force a spike if we haven't hit the minimum and we're
             # running out of room (each spike needs spike_hold + cooldown).
             spikes_needed = max(0, min_spikes - spike_count)
-            force_spike = (spikes_needed > 0
-                           and tu_since_spike >= cooldown_tu
-                           and remaining <= spikes_needed * (spike_hold + cooldown_tu + 0.5))
+            force_spike = (
+                spikes_needed > 0
+                and tu_since_spike >= cooldown_tu
+                and remaining <= spikes_needed * (spike_hold + cooldown_tu + 0.5)
+            )
 
-            if ((tu_since_spike >= cooldown_tu
-                    and (_random.random() < spike_chance or force_spike))
-                    and spike_rungs):
+            if (tu_since_spike >= cooldown_tu and (_random.random() < spike_chance or force_spike)) and spike_rungs:
                 spike_idx = _random.choice(spike_rungs)
                 # Spikes run at full length (not clamped to remaining) so a
                 # spike unit always completes once it starts.
@@ -737,8 +709,7 @@ class CueAutoSpeedGenerator(object):
                 if tu >= target_tu:
                     break
 
-            hold_tu = self._take_hold(seq, speeds, idx,
-                                      CUE_AUTO_UNIT_ALLOWANCE_TU, scale=1.1)
+            hold_tu = self._take_hold(seq, speeds, idx, CUE_AUTO_UNIT_ALLOWANCE_TU, scale=1.1)
             tu += hold_tu
             tu_since_spike += hold_tu
 
@@ -771,8 +742,7 @@ class CueAutoSpeedGenerator(object):
         plateau_scale = _random.uniform(2, 5)
 
         while tu < target_tu:
-            tu += self._take_hold(seq, speeds, idx, CUE_AUTO_UNIT_ALLOWANCE_TU,
-                                  scale=plateau_scale, max_real_s=20.0)
+            tu += self._take_hold(seq, speeds, idx, CUE_AUTO_UNIT_ALLOWANCE_TU, scale=plateau_scale, max_real_s=20.0)
 
             if tu >= target_tu:
                 break
@@ -809,8 +779,7 @@ class CueAutoSpeedGenerator(object):
         stay_count = 0
 
         while tu < target_tu:
-            tu += self._take_hold(seq, speeds, idx,
-                                  CUE_AUTO_UNIT_ALLOWANCE_TU)
+            tu += self._take_hold(seq, speeds, idx, CUE_AUTO_UNIT_ALLOWANCE_TU)
 
             if tu >= target_tu:
                 break
@@ -848,16 +817,14 @@ class CueAutoSpeedGenerator(object):
         early_drop_chance = _random.uniform(0.0, 0.12)
 
         while tu < target_tu:
-            tu += self._take_hold(seq, speeds, idx,
-                                  CUE_AUTO_UNIT_ALLOWANCE_TU)
+            tu += self._take_hold(seq, speeds, idx, CUE_AUTO_UNIT_ALLOWANCE_TU)
 
             if tu >= target_tu:
                 break
 
             if idx < max_rung:
                 # Optional early stumble
-                if (_random.random() < early_drop_chance
-                        and idx > n // 2):
+                if _random.random() < early_drop_chance and idx > n // 2:
                     idx -= 1
                 else:
                     idx += 1
@@ -878,17 +845,13 @@ class CueAutoSpeedGenerator(object):
         tu = 0.0
 
         # Pick anchor in middle range, start at it
-        anchor_rung = _random.randint(
-            max(1, n // 3),
-            min(n - 2, 2 * n // 3)
-        )
+        anchor_rung = _random.randint(max(1, n // 3), min(n - 2, 2 * n // 3))
         idx = anchor_rung
         max_drift = _random.randint(1, min(2, max(1, n // 2)))
         stay_count = 0
 
         while tu < target_tu:
-            tu += self._take_hold(seq, speeds, idx,
-                                  CUE_AUTO_UNIT_ALLOWANCE_TU)
+            tu += self._take_hold(seq, speeds, idx, CUE_AUTO_UNIT_ALLOWANCE_TU)
 
             if tu >= target_tu:
                 break
@@ -946,8 +909,7 @@ class CueAutoSpeedGenerator(object):
         beat_scale = _random.uniform(0.4, 0.7)
 
         while tu < target_tu:
-            tu += self._take_hold(seq, speeds, idx, CUE_AUTO_UNIT_ALLOWANCE_TU,
-                                  scale=beat_scale)
+            tu += self._take_hold(seq, speeds, idx, CUE_AUTO_UNIT_ALLOWANCE_TU, scale=beat_scale)
             if tu >= target_tu:
                 break
 
@@ -964,8 +926,7 @@ class CueAutoSpeedGenerator(object):
     # Legacy walk -- used only for custom / fine-tune mode
     # ================================================================
 
-    def _walk(self, speeds, n, drift, intensity, volatility,
-               center, target_tu):
+    def _walk(self, speeds, n, drift, intensity, volatility, center, target_tu):
         # type: (list, int, float, float, float, float, float) -> List[float]
         """Legacy walk algorithm for custom / fine-tune mode."""
         seq = []
@@ -973,7 +934,7 @@ class CueAutoSpeedGenerator(object):
         current_idx = _random.randint(0, n - 1)
 
         # Momentum state
-        momentum_dir = 0       # -1, 0, or +1
+        momentum_dir = 0  # -1, 0, or +1
         momentum_steps_left = 0
 
         while accumulated_tu < target_tu:
@@ -986,8 +947,7 @@ class CueAutoSpeedGenerator(object):
 
             # -- Decide next direction --
             direction = self._pick_direction(
-                current_idx, n, drift, intensity, volatility, center,
-                momentum_dir, momentum_steps_left
+                current_idx, n, drift, intensity, volatility, center, momentum_dir, momentum_steps_left
             )
 
             # Update momentum tracking
@@ -996,8 +956,7 @@ class CueAutoSpeedGenerator(object):
                     momentum_steps_left -= 1
                 else:
                     momentum_dir = direction
-                    momentum_steps_left = int(_random.uniform(
-                        self.momentum_min_steps, self.momentum_max_steps))
+                    momentum_steps_left = int(_random.uniform(self.momentum_min_steps, self.momentum_max_steps))
 
             # -- Step size --
             step = direction
@@ -1026,8 +985,7 @@ class CueAutoSpeedGenerator(object):
 
         return seq
 
-    def _pick_direction(self, idx, n, drift, intensity, volatility, center,
-                        momentum_dir, momentum_steps_left):
+    def _pick_direction(self, idx, n, drift, intensity, volatility, center, momentum_dir, momentum_steps_left):
         # type: (int, int, float, float, float, float, int, int) -> int
         """Decide the next direction: -1, 0, or +1."""
         # Chance to stay put (stay chance increases at edges)
@@ -1103,6 +1061,7 @@ class CueAutoSpeedGenerator(object):
         if not tag:
             return
         from cue_lib.video.speed import CueSpeedMode
+
         mode = self._video_sequence.get_mode(tag)
         if mode != CueSpeedMode.AUTO:
             return

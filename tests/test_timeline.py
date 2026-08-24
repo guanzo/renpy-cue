@@ -74,8 +74,7 @@ def _click():
 
 def test_empty_click_drops_group_and_restarts_interaction(monkeypatch):
     calls = []
-    monkeypatch.setattr(renpy, "restart_interaction",
-                        lambda *a, **k: calls.append(a))
+    monkeypatch.setattr(renpy, "restart_interaction", lambda *a, **k: calls.append(a))
     timeline, video = _make_timeline({0, 1})
 
     assert video.selected == {0, 1}
@@ -85,14 +84,14 @@ def test_empty_click_drops_group_and_restarts_interaction(monkeypatch):
         timeline.event(_click(), 15, 5, 0.0)
 
     assert video.selected == set()
-    assert calls, ("empty-click clear must restart the interaction so the "
-                   "SFX panel re-renders the tab highlights immediately")
+    assert calls, (
+        "empty-click clear must restart the interaction so the SFX panel re-renders the tab highlights immediately"
+    )
 
 
 def test_alt_click_group_keeps_active_anchor(monkeypatch):
     monkeypatch.setattr(pygame.key, "get_mods", lambda: pygame.KMOD_LALT)
-    timeline, video = _make_timeline(selected=set(), active=3,
-                                     times=[0.2, 0.4, 0.6, 0.8])
+    timeline, video = _make_timeline(selected=set(), active=3, times=[0.2, 0.4, 0.6, 0.8])
     timeline._w = 200
     # Alt-click marker 1: its tab spans inner_x [13, 27] (px=20 on a 200px
     # track), so a screen click at x=30 lands on it.
@@ -106,8 +105,7 @@ def test_alt_click_group_keeps_active_anchor(monkeypatch):
 
 def test_alt_click_active_toggles_out_and_reanchors(monkeypatch):
     monkeypatch.setattr(pygame.key, "get_mods", lambda: pygame.KMOD_LALT)
-    timeline, video = _make_timeline(selected={0, 1, 3}, active=3,
-                                     times=[0.2, 0.4, 0.6, 0.8])
+    timeline, video = _make_timeline(selected={0, 1, 3}, active=3, times=[0.2, 0.4, 0.6, 0.8])
     timeline._w = 200
     # Alt-click the active marker (pool 4, px=80 -> screen x=90): the group
     # drops it and the active re-anchors to the nearest remaining member by
@@ -122,8 +120,7 @@ def test_alt_click_active_toggles_out_and_reanchors(monkeypatch):
 
 def test_alt_click_other_member_keeps_active(monkeypatch):
     monkeypatch.setattr(pygame.key, "get_mods", lambda: pygame.KMOD_LALT)
-    timeline, video = _make_timeline(selected={0, 1, 3}, active=3,
-                                     times=[0.2, 0.4, 0.6, 0.8])
+    timeline, video = _make_timeline(selected={0, 1, 3}, active=3, times=[0.2, 0.4, 0.6, 0.8])
     timeline._w = 200
     # Alt-click a NON-active group member (pool 2, px=40 -> screen x=50):
     # it leaves the group but the active stays anchored.
@@ -137,8 +134,7 @@ def test_alt_click_other_member_keeps_active(monkeypatch):
 
 def test_shift_click_range_keeps_active_anchor(monkeypatch):
     monkeypatch.setattr(pygame.key, "get_mods", lambda: pygame.KMOD_SHIFT)
-    timeline, video = _make_timeline(selected=set(), active=3,
-                                     times=[0.2, 0.4, 0.6, 0.8])
+    timeline, video = _make_timeline(selected=set(), active=3, times=[0.2, 0.4, 0.6, 0.8])
     timeline._w = 200
     # Shift-click marker 2: its tab spans inner_x [33, 47] (px=40), so a
     # screen click at x=50 lands on it.  Range runs active(0.8) back to the

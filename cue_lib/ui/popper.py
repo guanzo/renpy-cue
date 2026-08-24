@@ -23,6 +23,7 @@ _cue_popper_anchors = {}
 
 # --- Focus rect helpers (version-adaptive) ---
 
+
 def _cue_store_focus_rect(name):
     # type: (str) -> None
     _v = getattr(renpy, 'version_tuple', (0, 0, 0))
@@ -35,6 +36,7 @@ def _cue_store_focus_rect(name):
         else:
             _cue_popper_anchors.pop(name, None)
 
+
 def _cue_clear_focus_rect(name):
     # type: (str) -> None
     _v = getattr(renpy, 'version_tuple', (0, 0, 0))
@@ -42,6 +44,7 @@ def _cue_clear_focus_rect(name):
         renpy.clear_capture_focus(name)
     else:
         _cue_popper_anchors.pop(name, None)
+
 
 def _cue_get_focus_rect(name):
     # type: (str) -> Tuple[Optional[int], Optional[int], Optional[int], Optional[int]]
@@ -57,8 +60,8 @@ def _cue_get_focus_rect(name):
 
 # --- Placement algorithm ---
 
-def _cue_compute_popup_position(ax, ay, aw, ah, cw, ch, vw, vh,
-                                placement, offset, margin):
+
+def _cue_compute_popup_position(ax, ay, aw, ah, cw, ch, vw, vh, placement, offset, margin):
     # type: (int, int, int, int, int, int, int, int, str, int, int) -> Tuple[int, int, str]
     if placement == "top":
         x = ax + (aw - cw) // 2
@@ -106,6 +109,7 @@ def _cue_compute_popup_position(ax, ay, aw, ah, cw, ch, vw, vh,
 
 ARROW_SZ = 6
 
+
 def _cue_draw_arrow(r, px, py, pw, ph, arrow_dir):
     # type: (Any, int, int, int, int, str) -> None
     cx, cy = px + pw // 2, py + ph // 2
@@ -123,13 +127,24 @@ def _cue_draw_arrow(r, px, py, pw, ph, arrow_dir):
 
 # --- CuePopper displayable ---
 
+
 class CuePopper(Container):
     HIDE_DELAY = 0.1
     MAX_POPUP_W = 400
     MAX_POPUP_H = 300
 
-    def __init__(self, target, placement="top", offset=CUE_POPPER_DEFAULT_OFFSET,
-                 viewport_margin=CUE_POPPER_DEFAULT_MARGIN, **kwargs):
+    # ruff's width-split adds a py3-only trailing comma after **kwargs
+    # (SyntaxError under Ren'Py 7.x / Python 2.7). Hand-written.
+    # fmt: off
+    def __init__(
+        self,
+        target,
+        placement="top",
+        offset=CUE_POPPER_DEFAULT_OFFSET,
+        viewport_margin=CUE_POPPER_DEFAULT_MARGIN,
+        **kwargs
+    ):
+    # fmt: on
         super(CuePopper, self).__init__(**kwargs)
         self.target = target
         self.placement = placement
@@ -175,16 +190,14 @@ class CuePopper(Container):
         vh = renpy.config.screen_height
 
         x, y, arrow_dir = _cue_compute_popup_position(
-            ax, ay, aw, ah, cw, ch,
-            vw, vh,
-            self.placement, self.offset, self.viewport_margin,
+            ax, ay, aw, ah, cw, ch, vw, vh, self.placement, self.offset, self.viewport_margin
         )
 
         _cue_draw_arrow(r, x, y, cw, ch, arrow_dir)
 
         mx, my = renpy.get_mouse_pos()
-        in_anchor = (ax <= mx <= ax + aw and ay <= my <= ay + ah)
-        in_popup = (x <= mx <= x + cw and y <= my <= y + ch)
+        in_anchor = ax <= mx <= ax + aw and ay <= my <= ay + ah
+        in_popup = x <= mx <= x + cw and y <= my <= y + ch
 
         if in_anchor or in_popup:
             self._hide_st = None

@@ -87,12 +87,7 @@ _KEY_DISPLAY = {
     "RIGHTBRACKET": "]",
 }
 
-_MOD_DISPLAY = {
-    "shift": "Shift",
-    "ctrl": "Ctrl",
-    "alt": "Alt",
-    "meta": "Win",
-}
+_MOD_DISPLAY = {"shift": "Shift", "ctrl": "Ctrl", "alt": "Alt", "meta": "Win"}
 
 _VALID_MODS = frozenset(("shift", "noshift", "ctrl", "alt", "meta"))
 
@@ -109,6 +104,7 @@ else:
 # ---------------------------------------------------------------------------
 # Bridge functions for Function() screen actions (no lambdas in Ren'Py)
 # ---------------------------------------------------------------------------
+
 
 def _cue_keybind_start(action_id):
     # type: (str) -> None
@@ -138,13 +134,14 @@ def _cue_keybind_override():
 # CueKeybindsManager
 # ---------------------------------------------------------------------------
 
+
 class CueKeybindsManager(object):
     """Owns the metadata for every rebindable hotkey, drives key-capture,
     collision detection, persistence, and the settings UI."""
 
     def __init__(self, db):
         # type: (CueDatabase) -> None
-        self._db = db            # shared config store for keybind persistence
+        self._db = db  # shared config store for keybind persistence
         # Ordered list of action dicts.  Each dict:
         #   id          - action identity, also the config.keymap entry name
         #                 (CUE_KEYMAP_* constant; doubles as the persistence key)
@@ -153,95 +150,120 @@ class CueKeybindsManager(object):
         #   desc        - tooltip description
         #   debug_only  - if True, only active when CUE_DEBUG is True
         self.actions = [
-            {"id": CUE_KEYMAP_TOGGLE_OVERLAY,
-             "default": "K_BACKQUOTE",
-             "label": "Toggle Overlay",
-             "desc": "Show or hide the Cue overlay"},
-            {"id": CUE_KEYMAP_TOGGLE_SFX_ACTIVE,
-             "default": "shift_K_3",
-             "label": "Toggle SFX Triggers",
-             "desc": "Enable or disable SFX triggers"},
-            {"id": CUE_KEYMAP_TOGGLE_SFX_LIBRARY,
-             "default": "shift_K_s",
-             "label": "Toggle SFX Library",
-             "desc": "Collapse or expand the SFX Library section"},
-            {"id": CUE_KEYMAP_TOGGLE_SFX_OVERLAY,
-             "default": "alt_K_a",
-             "label": "Toggle SFX Overlay",
-             "desc": "Toggle SFX Library overlay mode"},
+            {
+                "id": CUE_KEYMAP_TOGGLE_OVERLAY,
+                "default": "K_BACKQUOTE",
+                "label": "Toggle Overlay",
+                "desc": "Show or hide the Cue overlay",
+            },
+            {
+                "id": CUE_KEYMAP_TOGGLE_SFX_ACTIVE,
+                "default": "shift_K_3",
+                "label": "Toggle SFX Triggers",
+                "desc": "Enable or disable SFX triggers",
+            },
+            {
+                "id": CUE_KEYMAP_TOGGLE_SFX_LIBRARY,
+                "default": "shift_K_s",
+                "label": "Toggle SFX Library",
+                "desc": "Collapse or expand the SFX Library section",
+            },
+            {
+                "id": CUE_KEYMAP_TOGGLE_SFX_OVERLAY,
+                "default": "alt_K_a",
+                "label": "Toggle SFX Overlay",
+                "desc": "Toggle SFX Library overlay mode",
+            },
             # noshift: a bare K_1..K_4 also matches Shift+1..4 in Ren'Py
             # (plain keys only exclude alt/ctrl/meta), so without it the
             # target keys would clobber shift_K_1/2/3/4 on the SFX page.
-            {"id": CUE_KEYMAP_TARGET_VIDEO,
-             "default": "noshift_K_1",
-             "label": "Target Video",
-             "desc": "SFX Library + target: Video SFX pool"},
-            {"id": CUE_KEYMAP_TARGET_IMAGE,
-             "default": "noshift_K_2",
-             "label": "Target Image",
-             "desc": "SFX Library + target: Image SFX pool"},
-            {"id": CUE_KEYMAP_TARGET_DIALOGUE,
-             "default": "noshift_K_3",
-             "label": "Target Dialogue",
-             "desc": "SFX Library + target: Dialogue SFX pool"},
-            {"id": CUE_KEYMAP_TARGET_LOOP,
-             "default": "noshift_K_4",
-             "label": "Target Loop",
-             "desc": "SFX Library + target: Loop SFX pool"},
-            {"id": CUE_KEYMAP_PAGE_SFX,
-             "default": "alt_K_1",
-             "label": "Open SFX Editor",
-             "desc": "Open SFX Editor page"},
-            {"id": CUE_KEYMAP_PAGE_MUSIC,
-             "default": "alt_K_2",
-             "label": "Open Music",
-             "desc": "Open Music page"},
-            {"id": CUE_KEYMAP_PAGE_IMPORT,
-             "default": "alt_K_3",
-             "label": "Open Import / Export",
-             "desc": "Open Import / Export page"},
-            {"id": CUE_KEYMAP_PAGE_SETTINGS,
-             "default": "alt_K_4",
-             "label": "Open Settings",
-             "desc": "Open Settings page"},
-            {"id": CUE_KEYMAP_QUIT_RELAUNCH,
-             "default": "K_F5",
-             "label": "Quit & Relaunch",
-             "desc": "Quit and relaunch the game (dev only)",
-             "debug_only": True},
-            {"id": CUE_KEYMAP_COPY_CONTEXT,
-             "default": "shift_K_1",
-             "label": "Copy Markers",
-             "desc": "Copy current scene markers to clipboard"},
-            {"id": CUE_KEYMAP_PASTE_CONTEXT,
-             "default": "shift_K_2",
-             "label": "Paste Markers",
-             "desc": "Paste markers from clipboard"},
-            {"id": CUE_KEYMAP_PAUSE,
-             "default": "shift_K_4",
-             "label": "Pause Game",
-             "desc": "Pause the game (use on scenes that auto-advance)"},
-            {"id": CUE_KEYMAP_UNDO,
-             "default": "shift_K_q",
-             "label": "Undo",
-             "desc": "Undo last change"},
-            {"id": CUE_KEYMAP_REDO,
-             "default": "shift_K_w",
-             "label": "Redo",
-             "desc": "Redo last change"},
-            {"id": CUE_KEYMAP_SPEED_UP,
-             "default": "K_m",
-             "label": "Speed Up",
-             "desc": "Cycle video speed up by one step"},
-            {"id": CUE_KEYMAP_SPEED_DOWN,
-             "default": "K_n",
-             "label": "Speed Down",
-             "desc": "Cycle video speed down by one step"},
+            {
+                "id": CUE_KEYMAP_TARGET_VIDEO,
+                "default": "noshift_K_1",
+                "label": "Target Video",
+                "desc": "SFX Library + target: Video SFX pool",
+            },
+            {
+                "id": CUE_KEYMAP_TARGET_IMAGE,
+                "default": "noshift_K_2",
+                "label": "Target Image",
+                "desc": "SFX Library + target: Image SFX pool",
+            },
+            {
+                "id": CUE_KEYMAP_TARGET_DIALOGUE,
+                "default": "noshift_K_3",
+                "label": "Target Dialogue",
+                "desc": "SFX Library + target: Dialogue SFX pool",
+            },
+            {
+                "id": CUE_KEYMAP_TARGET_LOOP,
+                "default": "noshift_K_4",
+                "label": "Target Loop",
+                "desc": "SFX Library + target: Loop SFX pool",
+            },
+            {
+                "id": CUE_KEYMAP_PAGE_SFX,
+                "default": "alt_K_1",
+                "label": "Open SFX Editor",
+                "desc": "Open SFX Editor page",
+            },
+            {"id": CUE_KEYMAP_PAGE_MUSIC, "default": "alt_K_2", "label": "Open Music", "desc": "Open Music page"},
+            {
+                "id": CUE_KEYMAP_PAGE_IMPORT,
+                "default": "alt_K_3",
+                "label": "Open Import / Export",
+                "desc": "Open Import / Export page",
+            },
+            {
+                "id": CUE_KEYMAP_PAGE_SETTINGS,
+                "default": "alt_K_4",
+                "label": "Open Settings",
+                "desc": "Open Settings page",
+            },
+            {
+                "id": CUE_KEYMAP_QUIT_RELAUNCH,
+                "default": "K_F5",
+                "label": "Quit & Relaunch",
+                "desc": "Quit and relaunch the game (dev only)",
+                "debug_only": True,
+            },
+            {
+                "id": CUE_KEYMAP_COPY_CONTEXT,
+                "default": "shift_K_1",
+                "label": "Copy Markers",
+                "desc": "Copy current scene markers to clipboard",
+            },
+            {
+                "id": CUE_KEYMAP_PASTE_CONTEXT,
+                "default": "shift_K_2",
+                "label": "Paste Markers",
+                "desc": "Paste markers from clipboard",
+            },
+            {
+                "id": CUE_KEYMAP_PAUSE,
+                "default": "shift_K_4",
+                "label": "Pause Game",
+                "desc": "Pause the game (use on scenes that auto-advance)",
+            },
+            {"id": CUE_KEYMAP_UNDO, "default": "shift_K_q", "label": "Undo", "desc": "Undo last change"},
+            {"id": CUE_KEYMAP_REDO, "default": "shift_K_w", "label": "Redo", "desc": "Redo last change"},
+            {
+                "id": CUE_KEYMAP_SPEED_UP,
+                "default": "K_m",
+                "label": "Speed Up",
+                "desc": "Cycle video speed up by one step",
+            },
+            {
+                "id": CUE_KEYMAP_SPEED_DOWN,
+                "default": "K_n",
+                "label": "Speed Down",
+                "desc": "Cycle video speed down by one step",
+            },
         ]
 
-        self._capturing_id = ""         # action id currently being captured
-        self.collision_message = ""     # shown in the capture modal
-        self._pending_keysym = ""       # colliding key awaiting override confirm
+        self._capturing_id = ""  # action id currently being captured
+        self.collision_message = ""  # shown in the capture modal
+        self._pending_keysym = ""  # colliding key awaiting override confirm
 
     # ------------------------------------------------------------------
     # Setup
@@ -324,8 +346,8 @@ class CueKeybindsManager(object):
         if idx < 0:
             return keysym
 
-        key = keysym[idx + 2:]   # part after "K_"
-        mods = keysym[:idx]      # everything before "K_" (may be empty)
+        key = keysym[idx + 2 :]  # part after "K_"
+        mods = keysym[:idx]  # everything before "K_" (may be empty)
 
         # Resolve the base key label.
         key_upper = key.upper()
@@ -613,7 +635,7 @@ class CueKeybindsManager(object):
                 if m not in _VALID_MODS:
                     return False
         # Must have a non-empty key name after "K_".
-        key = keysym[idx + 2:]
+        key = keysym[idx + 2 :]
         if not key:
             return False
         return True

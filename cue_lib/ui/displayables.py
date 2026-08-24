@@ -29,15 +29,23 @@ CUE_INTENSITY_COLOR_HIGH = "#ff1f1f"
 # ---------------------------------------------------------------------------
 
 # Bare modifier keycodes — these cannot be bound as standalone keys.
-_BARE_MOD_NAMES = frozenset({
-    "K_LSHIFT", "K_RSHIFT",
-    "K_LCTRL", "K_RCTRL",
-    "K_LALT", "K_RALT",
-    "K_LSUPER", "K_RSUPER",
-    "K_LGUI", "K_RGUI",
-    "K_LMETA", "K_RMETA",
-    "K_MODE",
-})
+_BARE_MOD_NAMES = frozenset(
+    {
+        "K_LSHIFT",
+        "K_RSHIFT",
+        "K_LCTRL",
+        "K_RCTRL",
+        "K_LALT",
+        "K_RALT",
+        "K_LSUPER",
+        "K_RSUPER",
+        "K_LGUI",
+        "K_RGUI",
+        "K_LMETA",
+        "K_RMETA",
+        "K_MODE",
+    }
+)
 
 # Modifier ordering for keysym strings (alphabetical — deterministic).
 
@@ -172,8 +180,7 @@ class CueVideoTimeline(Displayable):
                 frac = max(0.0, min(1.0, rx / float(max(1, width))))
                 t = frac * dur
                 tip_text = "Click to seek to: " + _cue_format_time(t)
-                tip_widget = Txt(tip_text, style="cue_text", size=11,
-                                  color="#cccccc", italic=True, substitute=False)
+                tip_widget = Txt(tip_text, style="cue_text", size=11, color="#cccccc", italic=True, substitute=False)
                 tip_render = renpy.render(tip_widget, 300, 100, st, at)
                 tw, th = tip_render.get_size()
                 fw = min(tw + 8, 300)
@@ -336,8 +343,7 @@ class CueVideoMarkerTimeline(Displayable):
         """True when this marker's own pool plays intensity levels: the
         video's intensity toggle is on, it has 2+ speed variants, and the
         pool's folder list is hooked to an intensity group."""
-        return _cue.intensity.is_pool_intensity_active(
-            marker.get("files", []), variants, flags)
+        return _cue.intensity.is_pool_intensity_active(marker.get("files", []), variants, flags)
 
     def _hit_test(self, markers, dur, w, x, y):
         # type: (List[VideoPoolDict], float, int, int, int) -> int
@@ -414,8 +420,7 @@ class CueVideoMarkerTimeline(Displayable):
             bx_pos = px - self.TAB_W // 2
             by_pos = self.TRACK_H - 2
             c.rect(bg, (bx_pos, by_pos, self.TAB_W, self.TAB_H))
-            if (intensity_flags is not None
-                    and self._is_intensity_marker(m, intensity_flags, intensity_variants)):
+            if intensity_flags is not None and self._is_intensity_marker(m, intensity_flags, intensity_variants):
                 c.rect(self.INTENSITY_BORDER, (bx_pos, by_pos + self.TAB_H, self.TAB_W, 1))
 
             txt = Txt(str(i + 1), style="cue_button_text", color="#ffffff")
@@ -441,9 +446,11 @@ class CueVideoMarkerTimeline(Displayable):
         if self._tip_text:
             tip = self._tip_text
             tip_idx = self._hover_idx if self._hover_idx >= 0 else self._drag_idx
-            if (intensity_flags is not None and 0 <= tip_idx < len(markers)
-                    and self._is_intensity_marker(
-                        markers[tip_idx], intensity_flags, intensity_variants)):
+            if (
+                intensity_flags is not None
+                and 0 <= tip_idx < len(markers)
+                and self._is_intensity_marker(markers[tip_idx], intensity_flags, intensity_variants)
+            ):
                 tip += "\n[" + self.INTENSITY_NOTE + "]"
             CueVideoMarkerTimeline._marker_tip_text = tip
             # Anchor to the hovered/dragged marker tab, not the cursor, so the
@@ -451,8 +458,7 @@ class CueVideoMarkerTimeline(Displayable):
             if 0 <= tip_idx < len(markers):
                 px = self._time_to_x(markers[tip_idx].get("time", 0.0), dur, inner_w)
                 CueVideoMarkerTimeline._marker_tip_x = self._screen_x + px
-                CueVideoMarkerTimeline._marker_tip_y = (
-                    self._screen_y + self.TRACK_H - 2 + self.TAB_H)
+                CueVideoMarkerTimeline._marker_tip_y = self._screen_y + self.TRACK_H - 2 + self.TAB_H
             else:
                 CueVideoMarkerTimeline._marker_tip_x = self._screen_x + self._tip_x
                 CueVideoMarkerTimeline._marker_tip_y = self._screen_y + self._tip_y
@@ -482,9 +488,7 @@ class CueVideoMarkerTimeline(Displayable):
                     sel = self._get_selected()
                     valid_sel = [idx for idx in sel if 0 <= idx < len(markers)]
                     if len(valid_sel) > 1 and self._drag_idx in valid_sel:
-                        self._drag_orig_times = {
-                            idx: markers[idx]["time"] for idx in valid_sel
-                        }
+                        self._drag_orig_times = {idx: markers[idx]["time"] for idx in valid_sel}
                         times = self._drag_orig_times.values()
                         self._drag_group_min = min(times)
                         self._drag_group_max = max(times)
@@ -502,13 +506,12 @@ class CueVideoMarkerTimeline(Displayable):
                         drag_orig = self._drag_orig_times.get(self._drag_idx, 0)
                         cur_time = drag_orig + delta_time
                         self._tip_text = "Pool {} ({}) ({} selected)".format(
-                            self._drag_idx + 1, _cue_format_time(cur_time),
-                            len(self._drag_orig_times))
+                            self._drag_idx + 1, _cue_format_time(cur_time), len(self._drag_orig_times)
+                        )
                     else:
                         f = self._x_to_frac(inner_x, w)
                         self.set_time(self._drag_idx, f * dur)
-                        self._tip_text = "Pool {} ({})".format(
-                            self._drag_idx + 1, _cue_format_time(f * dur))
+                        self._tip_text = "Pool {} ({})".format(self._drag_idx + 1, _cue_format_time(f * dur))
                     self._tip_x = x
                     self._tip_y = y
                 renpy.redraw(self, 0)
@@ -519,11 +522,9 @@ class CueVideoMarkerTimeline(Displayable):
                 t = markers[hit_idx].get("time", 0.0)
                 sel = self._get_selected()
                 if len(sel) > 1 and hit_idx in sel:
-                    self._tip_text = "Pool {} ({}) [{} selected]".format(
-                        hit_idx + 1, _cue_format_time(t), len(sel))
+                    self._tip_text = "Pool {} ({}) [{} selected]".format(hit_idx + 1, _cue_format_time(t), len(sel))
                 else:
-                    self._tip_text = "Pool {} ({})".format(
-                        hit_idx + 1, _cue_format_time(t))
+                    self._tip_text = "Pool {} ({})".format(hit_idx + 1, _cue_format_time(t))
                     refs = sel if sel else {self.get_active_index()}
                     valid_refs = [s for s in refs if 0 <= s < len(markers)]
                     if hit_idx not in valid_refs and valid_refs:
@@ -531,7 +532,8 @@ class CueVideoMarkerTimeline(Displayable):
                         offset = t - markers[ref_idx]["time"]
                         sign = "+" if offset >= 0 else "-"
                         self._tip_text += "\nOffset from Pool {}: {}{}".format(
-                            ref_idx + 1, sign, _cue_format_time(abs(offset)))
+                            ref_idx + 1, sign, _cue_format_time(abs(offset))
+                        )
                 self._tip_x = x
                 self._tip_y = y
                 self._hover_idx = hit_idx
@@ -667,8 +669,12 @@ def _cue_render_tooltip(text, anchor, st, at):
     clamps to the screen. Shared by CueTooltip and CueVideoMarkerTooltip.
     """
     text_widget = Txt(
-        _cue_escape_text(text, brackets=False) or "", style="cue_text", size=12, color="#cccccc",
-        italic=False, substitute=False,
+        _cue_escape_text(text, brackets=False) or "",
+        style="cue_text",
+        size=12,
+        color="#cccccc",
+        italic=False,
+        substitute=False,
     )
     max_width = 350
     text_render = renpy.render(text_widget, max_width, 100, st, at)
@@ -736,8 +742,7 @@ class CueTooltip(Displayable):
         fc = renpy.focus_coordinates()
         if fc is not None:
             fx, fy, fw_elem, fh_elem = fc
-            if (fx is not None and fy is not None
-                    and fw_elem is not None and fh_elem is not None):
+            if fx is not None and fy is not None and fw_elem is not None and fh_elem is not None:
                 return _cue_render_tooltip(self._text, (fx, fy, fw_elem, fh_elem), st, at)
         # Nothing focused yet (transient) -- anchor at the cursor instead.
         mx, my = renpy.get_mouse_pos()
@@ -760,9 +765,12 @@ class CueVideoMarkerTooltip(Displayable):
         # Anchor on the marker tab (the published point is its center) so the
         # tip mirrors CueTooltip: centered above, flipping below when no room.
         tab = CueVideoMarkerTimeline
-        anchor = (CueVideoMarkerTimeline._marker_tip_x - tab.TAB_W // 2,
-                  CueVideoMarkerTimeline._marker_tip_y - tab.TAB_H,
-                  tab.TAB_W, tab.TAB_H)
+        anchor = (
+            CueVideoMarkerTimeline._marker_tip_x - tab.TAB_W // 2,
+            CueVideoMarkerTimeline._marker_tip_y - tab.TAB_H,
+            tab.TAB_W,
+            tab.TAB_H,
+        )
         return _cue_render_tooltip(text, anchor, st, at)
 
 
@@ -785,12 +793,8 @@ def _cue_intensity_color(level, total, low=CUE_INTENSITY_COLOR_LOW, high=CUE_INT
 
     h1, l1, s1 = _hex_to_hls(low)
     h2, l2, s2 = _hex_to_hls(high)
-    r, g, b = colorsys.hls_to_rgb(
-        h1 + (h2 - h1) * t,
-        l1 + (l2 - l1) * t,
-        s1 + (s2 - s1) * t)
-    return "#{:02x}{:02x}{:02x}".format(
-        int(round(r * 255)), int(round(g * 255)), int(round(b * 255)))
+    r, g, b = colorsys.hls_to_rgb(h1 + (h2 - h1) * t, l1 + (l2 - l1) * t, s1 + (s2 - s1) * t)
+    return "#{:02x}{:02x}{:02x}".format(int(round(r * 255)), int(round(g * 255)), int(round(b * 255)))
 
 
 class CueAutoSpeedChart(Displayable):
@@ -880,12 +884,10 @@ class CueAutoSpeedChart(Displayable):
                 intensity_flags = _cue.intensity.flags_from_entry(entry)
                 intensity_variants = _cue.speed_resolver.banding_speeds(tag)
                 if intensity_variants:
-                    intensity_pools = [p.get("files", [])
-                                       for p in _cue.markers._resolve_video_pools(entry)]
+                    intensity_pools = [p.get("files", []) for p in _cue.markers._resolve_video_pools(entry)]
                     step_levels = []
                     for sp in speeds:
-                        lvl = _cue.intensity.current_level(
-                            intensity_pools, sp, intensity_variants, intensity_flags)
+                        lvl = _cue.intensity.current_level(intensity_pools, sp, intensity_variants, intensity_flags)
                         if lvl is None:
                             step_levels.append(0)
                         else:
@@ -916,11 +918,11 @@ class CueAutoSpeedChart(Displayable):
         # --- Y-axis labels (min at bottom, max at top) ---
         by_top = min(py for _, py in points)
         by_bot = max(py for _, py in points)
+
         def _fmt(sp):
             return "{:.1f}x".format(sp)
 
-        y_style = dict(style="cue_text", size=12, color="#888888",
-                       italic=False, substitute=False)
+        y_style = dict(style="cue_text", size=12, color="#888888", italic=False, substitute=False)
         max_w = Txt(_fmt(sp_max), **y_style)
         max_r = renpy.render(max_w, 60, 16, st, at)
         # Top of the label aligns with the top of the y-axis.
@@ -936,8 +938,7 @@ class CueAutoSpeedChart(Displayable):
             cur_label = _fmt(cur_sp)
             if step_levels is not None and step_levels[current_idx]:
                 cur_label += " (lvl {})".format(step_levels[current_idx])
-            cur_w = Txt(cur_label, style="cue_text", size=12,
-                        color="#ffaa00", italic=False, substitute=False)
+            cur_w = Txt(cur_label, style="cue_text", size=12, color="#ffaa00", italic=False, substitute=False)
             # Wide enough that the "(lvl N)" suffix stays on one line.
             cur_r = renpy.render(cur_w, 200, 16, st, at)
             cw, _ch = cur_r.get_size()
@@ -965,8 +966,7 @@ class CueAutoSpeedChart(Displayable):
                 tip_text = "{:.1f}x  step {}/{}".format(sp, nearest_idx + 1, len(speeds))
                 if step_levels is not None and step_levels[nearest_idx]:
                     tip_text += "  (lvl {})".format(step_levels[nearest_idx])
-                tip_widget = Txt(tip_text, style="cue_text", size=10,
-                                  color="#cccccc", italic=False, substitute=False)
+                tip_widget = Txt(tip_text, style="cue_text", size=10, color="#cccccc", italic=False, substitute=False)
                 tip_render = renpy.render(tip_widget, 200, 50, st, at)
                 tw, th = tip_render.get_size()
                 fw = min(tw + 8, 200)

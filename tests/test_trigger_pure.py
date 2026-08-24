@@ -12,6 +12,7 @@ import cue_lib.trigger as _trigger
 # _cue_pick_deduped (dedupe rule from fire_context / _tick_loop)
 # ---------------------------------------------------------------------------
 
+
 def test_pick_deduped_fresh_pick(monkeypatch):
     monkeypatch.setattr(_trigger, "_cue_pick_file", lambda files: "a")
     assert _trigger._cue_pick_deduped(["a", "b"], []) == "a"
@@ -50,6 +51,7 @@ def test_pick_deduped_ignores_other_picks(monkeypatch):
 # ---------------------------------------------------------------------------
 # _cue_marker_reached (video marker window / cross checks)
 # ---------------------------------------------------------------------------
+
 
 def test_marker_reached_forward_window():
     # mt <= eff < mt + tolerance

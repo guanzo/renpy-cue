@@ -32,9 +32,7 @@ from cue_lib.marker_store import CueMarkerStore
 from cue_lib.markers import CueMarkerManager
 from cue_lib.state import CueContext
 
-from tests.fakes import (
-    FakeDb, FakeSfxManager, FakeTrigger, FakeUndo, FakeVideoEditor, FakeVidManager,
-)
+from tests.fakes import FakeDb, FakeSfxManager, FakeTrigger, FakeUndo, FakeVideoEditor, FakeVidManager
 
 GAME_ID = "test_game"
 
@@ -53,22 +51,27 @@ class FakeMusicRestore(object):
 
         def _scan():
             self.user_music.scan_calls += 1
+
         self.user_music.scan = _scan
 
         def _game_music_scan():
             self.game_music.scan_calls += 1
+
         self.game_music.scan = _game_music_scan
 
         def _maybe_rebuild():
             self.library.maybe_rebuild_calls += 1
+
         self.library.maybe_rebuild = _maybe_rebuild
 
         def _reload_presets():
             self.reload_presets_calls += 1
+
         self.reload_presets = _reload_presets
 
         def _recent_load():
             self._recent.load_calls += 1
+
         self._recent.load = _recent_load
 
 
@@ -82,6 +85,7 @@ def _make_fake_cue():
 
     def _sfx_recent_load():
         sfx._recent.load_calls += 1
+
     sfx._recent.load = _sfx_recent_load
 
     return types.SimpleNamespace(
@@ -160,11 +164,13 @@ def _backup_zip(cue_env):
 # (_finish_reload / poll), split so the merge runs in the background
 # ==========================================================================
 
+
 def test_restore_reloads_store_from_zip(cue_env, mgr, backups, _fake_singletons):
     # _key is authoritative (the DB writes it into every marker file; the
     # filename heuristic is only a fallback).
-    _seed_marker_file(cue_env, "v_scene.ogv.json",
-                      '{"_key": "v_scene.ogv", "pools": [{"time": 1.0, "files": ["a.ogg"]}]}')
+    _seed_marker_file(
+        cue_env, "v_scene.ogv.json", '{"_key": "v_scene.ogv", "pools": [{"time": 1.0, "files": ["a.ogg"]}]}'
+    )
     zip_path = _backup_zip(cue_env)
 
     backups._restore_worker(zip_path)
@@ -191,8 +197,7 @@ def test_restore_busy_noop(cue_env, backups):
 
 
 def test_restore_spawns_background_thread(cue_env, mgr, backups, _fake_singletons):
-    _seed_marker_file(cue_env, "v_scene.ogv.json",
-                      '{"_key": "v_scene.ogv", "pools": []}')
+    _seed_marker_file(cue_env, "v_scene.ogv.json", '{"_key": "v_scene.ogv", "pools": []}')
     zip_path = _backup_zip(cue_env)
 
     backups._apply_restore(zip_path)
@@ -211,6 +216,7 @@ def test_restore_spawns_background_thread(cue_env, mgr, backups, _fake_singleton
 # restore -- guard / branch coverage
 # ==========================================================================
 
+
 def test_restore_worker_db_closed_noop(cue_env, backups):
     cue_env.db.close()
     backups._restore_worker("whatever.zip")  # must not raise
@@ -224,8 +230,9 @@ def test_restore_worker_wait_timeout_noop(cue_env, backups, monkeypatch):
 
 
 def test_restore_scans_restored_music(cue_env, backups, _fake_singletons):
-    _seed_marker_file(cue_env, "v_scene.ogv.json",
-                      '{"_key": "v_scene.ogv", "pools": [{"time": 1.0, "files": ["a.ogg"]}]}')
+    _seed_marker_file(
+        cue_env, "v_scene.ogv.json", '{"_key": "v_scene.ogv", "pools": [{"time": 1.0, "files": ["a.ogg"]}]}'
+    )
     zip_path = _backup_zip(cue_env)
 
     scanned = []
@@ -246,12 +253,14 @@ def test_restore_worker_error_handled(cue_env, backups, monkeypatch):
 
 
 def test_finish_reload_error(cue_env, backups, monkeypatch):
-    _seed_marker_file(cue_env, "v_scene.ogv.json",
-                      '{"_key": "v_scene.ogv", "pools": [{"time": 1.0, "files": ["a.ogg"]}]}')
+    _seed_marker_file(
+        cue_env, "v_scene.ogv.json", '{"_key": "v_scene.ogv", "pools": [{"time": 1.0, "files": ["a.ogg"]}]}'
+    )
     zip_path = _backup_zip(cue_env)
 
     def _boom(*args, **kwargs):
         raise RuntimeError("boom")
+
     # full_reload now lives in runtime.py, so its module-global scalars call is
     # runtime's binding, not markers'.
     monkeypatch.setattr(_runtime, "_cue_load_scalars_from_persistent", _boom)
@@ -265,6 +274,7 @@ def test_finish_reload_error(cue_env, backups, monkeypatch):
 # ==========================================================================
 # restore -- the Restore button entry point
 # ==========================================================================
+
 
 class _FakeConfirmDialog(object):
     def __init__(self):
@@ -292,8 +302,9 @@ def test_restore_invalid_zip_noop(cue_env, backups):
 
 
 def test_restore_valid_zip_confirms(cue_env, backups):
-    _seed_marker_file(cue_env, "v_scene.ogv.json",
-                      '{"_key": "v_scene.ogv", "pools": [{"time": 1.0, "files": ["a.ogg"]}]}')
+    _seed_marker_file(
+        cue_env, "v_scene.ogv.json", '{"_key": "v_scene.ogv", "pools": [{"time": 1.0, "files": ["a.ogg"]}]}'
+    )
     zip_path = _backup_zip(cue_env)
 
     confirm = _FakeConfirmDialog()
@@ -308,6 +319,7 @@ def test_restore_valid_zip_confirms(cue_env, backups):
 # ==========================================================================
 # _cue_load_scalars_from_persistent
 # ==========================================================================
+
 
 def test_load_scalars_migrates_defaults_to_shared_config():
     _markers._cue_load_scalars_from_persistent()
@@ -363,6 +375,7 @@ def test_load_scalars_none_values_fall_back_to_defaults():
 # ==========================================================================
 # paste_context -- replay + no-duration branches
 # ==========================================================================
+
 
 def test_paste_context_records_replay(mgr):
     _store._in_replay = "replay-name"

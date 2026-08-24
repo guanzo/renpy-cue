@@ -26,12 +26,8 @@ from cue_lib.paths import CuePaths
 from cue_lib.db import CueDatabase
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.video.video import CueVideoManager
-from cue_lib.video.speed import (
-    CueSpeedMode, CueSpeedToast, CueVidSpeedResolver, CueVidSpeedSequence,
-)
-from cue_lib.video.auto_speed import (
-    CueAutoSpeedGenerator, _cue_auto_preset_description, _cue_auto_preset_label,
-)
+from cue_lib.video.speed import CueSpeedMode, CueSpeedToast, CueVidSpeedResolver, CueVidSpeedSequence
+from cue_lib.video.auto_speed import CueAutoSpeedGenerator, _cue_auto_preset_description, _cue_auto_preset_label
 from cue_lib.constants import CUE_AUTO_SPEED_MIN_VARIANTS, CUE_DEFAULT_VIDEO_SPEED
 from cue_lib.util import create_vid_key
 
@@ -80,9 +76,18 @@ def env(tmp_path, monkeypatch):
     _state._cue.speed_resolver = resolver
     try:
         yield types.SimpleNamespace(
-            ctx=ctx, paths=paths, db=db, store=store, vid=vid,
-            seq=seq, toast=toast, resolver=resolver, gen=gen,
-            video_dir=video_dir, base_fs=base_fs, tag=tag,
+            ctx=ctx,
+            paths=paths,
+            db=db,
+            store=store,
+            vid=vid,
+            seq=seq,
+            toast=toast,
+            resolver=resolver,
+            gen=gen,
+            video_dir=video_dir,
+            base_fs=base_fs,
+            tag=tag,
         )
     finally:
         _state._cue.speed_resolver = _prev
@@ -128,8 +133,7 @@ def test_preset_label():
 
 
 def test_preset_description():
-    assert _cue_auto_preset_description("tease") == (
-        "Mostly slow with sudden, brief spikes of speed")
+    assert _cue_auto_preset_description("tease") == ("Mostly slow with sudden, brief spikes of speed")
     assert _cue_auto_preset_description("bogus") == ""
 
 
@@ -166,8 +170,7 @@ PRESET_STRUCTURAL = [
 ]
 
 
-@pytest.mark.parametrize("preset,n,invariant", PRESET_STRUCTURAL,
-                         ids=[p for p, _, _ in PRESET_STRUCTURAL])
+@pytest.mark.parametrize("preset,n,invariant", PRESET_STRUCTURAL, ids=[p for p, _, _ in PRESET_STRUCTURAL])
 def test_preset_structure(env, preset, n, invariant):
     _random.seed(7)
     _compact(env.gen)
@@ -491,8 +494,7 @@ def test_on_wrap_around_respects_disabled_speeds(env):
 def _bare_gen():
     """A generator wired to nothing.  Enough for direct _gen_* calls (ctx is
     only read by lifecycle methods, and is a harmless empty context here)."""
-    return CueAutoSpeedGenerator(
-        types.SimpleNamespace(current_file=""), None, None, None, None)
+    return CueAutoSpeedGenerator(types.SimpleNamespace(current_file=""), None, None, None, None)
 
 
 def test_select_preset_shuffle_dispatch():
@@ -627,8 +629,7 @@ def test_regenerate_no_tag_is_noop():
 def test_regenerate_insufficient_variants_noop():
     resolver = types.SimpleNamespace(base_path_for=lambda tag: "")
     seq = types.SimpleNamespace(get_mode=lambda tag: CueSpeedMode.AUTO)
-    gen = CueAutoSpeedGenerator(
-        types.SimpleNamespace(current_file="scene"), None, resolver, None, seq)
+    gen = CueAutoSpeedGenerator(types.SimpleNamespace(current_file="scene"), None, resolver, None, seq)
     gen._regenerate()  # enabled_speeds == [] -> below min -> no-op
 
 

@@ -41,8 +41,7 @@ def _walk_rel(root):
     result = set()
     for dirpath, _dirs, names in os.walk(root):
         for name in names:
-            result.add(os.path.relpath(os.path.join(dirpath, name), root)
-                       .replace("\\", "/"))
+            result.add(os.path.relpath(os.path.join(dirpath, name), root).replace("\\", "/"))
     return result
 
 
@@ -67,6 +66,7 @@ def _build_root(tmp_path):
 # _cue_build_import_zip / _cue_extract_import_zip
 # ---------------------------------------------------------------------------
 
+
 def test_build_package_zip_writes_manifest_and_contents(tmp_path):
     root = _build_root(tmp_path)
     contents = _imp._cue_enumerate_import_files(root, GAME_ID)
@@ -83,6 +83,7 @@ def test_build_package_zip_writes_manifest_and_contents(tmp_path):
             assert rel in names
             assert _read(os.path.join(root, rel)) == zf.read(rel).decode("utf-8")
         import json as _json
+
         manifest = _json.loads(zf.read(CUE_IMPORT_MANIFEST_NAME))
         assert manifest["name"] == "My pack"
         assert sorted(manifest["contents"]) == sorted(flat)
@@ -92,16 +93,14 @@ def test_build_package_zip_writes_manifest_and_contents(tmp_path):
 
 def test_build_package_zip_reports_progress(tmp_path):
     root = _build_root(tmp_path)
-    flat = [f for files in _imp._cue_enumerate_import_files(root, GAME_ID).values()
-            for f in files]
+    flat = [f for files in _imp._cue_enumerate_import_files(root, GAME_ID).values() for f in files]
     zip_path = str(tmp_path / "out.zip")
     calls = []
 
     def _cb(written, total):
         calls.append((written, total))
 
-    _imp._cue_build_import_zip(
-        root, GAME_ID, "", "", "", flat, zip_path, progress=_cb)
+    _imp._cue_build_import_zip(root, GAME_ID, "", "", "", flat, zip_path, progress=_cb)
 
     # One callback per packed file; the last lands on the full byte total.
     assert len(calls) == len(flat)
@@ -110,8 +109,7 @@ def test_build_package_zip_reports_progress(tmp_path):
 
 def test_build_package_zip_skips_missing_files_and_counts_them_out(tmp_path):
     root = _build_root(tmp_path)
-    flat = [f for files in _imp._cue_enumerate_import_files(root, GAME_ID).values()
-            for f in files]
+    flat = [f for files in _imp._cue_enumerate_import_files(root, GAME_ID).values() for f in files]
     missing = "audio/gone.ogg"
     zip_path = str(tmp_path / "out.zip")
     calls = []
@@ -119,9 +117,7 @@ def test_build_package_zip_skips_missing_files_and_counts_them_out(tmp_path):
     def _cb(written, total):
         calls.append((written, total))
 
-    count = _imp._cue_build_import_zip(
-        root, GAME_ID, "", "", "", flat + [missing], zip_path,
-        progress=_cb)
+    count = _imp._cue_build_import_zip(root, GAME_ID, "", "", "", flat + [missing], zip_path, progress=_cb)
 
     assert count == len(flat)
     # The missing file contributes nothing to progress, so the last callback
@@ -163,9 +159,9 @@ def test_extract_rejects_parent_traversal(tmp_path):
     zip_path = str(tmp_path / "evil.zip")
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr("../evil.txt", "boom")
-        zf.writestr("audio/..\\..\\evil.txt", "boom")   # Windows-style ..\\
-        zf.writestr("C:\\evil.exe", "boom")             # drive-absolute
-        zf.writestr("audio/../escape.ogg", "boom")      # mid-path .., known content
+        zf.writestr("audio/..\\..\\evil.txt", "boom")  # Windows-style ..\\
+        zf.writestr("C:\\evil.exe", "boom")  # drive-absolute
+        zf.writestr("audio/../escape.ogg", "boom")  # mid-path .., known content
         zf.writestr("audio/ok.mp3", "fine")
         zf.writestr("music/ok.ogg", "fine")
 
@@ -183,8 +179,7 @@ def test_safe_extract_path_never_escapes(tmp_path):
     base = os.path.normpath(out)
     # Any name carrying a '..' segment is rejected outright -- never rewritten
     # into a sibling path (audio/../escape.ogg must not land at audio/escape.ogg).
-    for name in ["../evil.txt", "..\\..\\evil.txt", "audio/..\\..\\evil.txt",
-                 "audio/../escape.ogg"]:
+    for name in ["../evil.txt", "..\\..\\evil.txt", "audio/..\\..\\evil.txt", "audio/../escape.ogg"]:
         assert _safe_extract_path(out, name) is None
     # Everything else must resolve inside out_dir.
     for name in ["C:\\evil.exe", "/abs/evil.txt", "audio/ok.mp3"]:
@@ -202,8 +197,8 @@ def test_extract_keeps_only_known_content(tmp_path):
         zf.writestr("music/track.ogg", "b")
         zf.writestr("data/markers/{}/m.json".format(GAME_ID), "{}")
         zf.writestr("data/presets/audio/p.json", "{}")
-        zf.writestr("evil.exe", "x")          # root junk, no prefix
-        zf.writestr("notes.txt", "x")         # unknown extension
+        zf.writestr("evil.exe", "x")  # root junk, no prefix
+        zf.writestr("notes.txt", "x")  # unknown extension
 
     count = _imp._cue_extract_import_zip(zip_path, out)
 
@@ -226,8 +221,7 @@ def test_enumerate_skips_non_media_files(tmp_path):
     _write(root, "video/{}/clip.mkv".format(GAME_ID), "v")
     _write(root, "video/{}/thumb.png".format(GAME_ID), "p")
 
-    flat = [f for fs in _imp._cue_enumerate_import_files(root, GAME_ID).values()
-            for f in fs]
+    flat = [f for fs in _imp._cue_enumerate_import_files(root, GAME_ID).values() for f in fs]
 
     assert sorted(flat) == ["audio/ok.ogg", "video/{}/clip.mkv".format(GAME_ID)]
 
@@ -249,6 +243,7 @@ def test_merge_skips_unknown_content(tmp_path):
 # ---------------------------------------------------------------------------
 # merge: overwrites list + copy with data_bak safety net
 # ---------------------------------------------------------------------------
+
 
 def test_merge_overwrites_lists_only_existing(tmp_path):
     root = str(tmp_path / "root")
@@ -289,6 +284,7 @@ def test_merge_files_skips_missing_source(tmp_path):
 # end-to-end: export -> import reconstructs the shareable tree 1:1
 # ---------------------------------------------------------------------------
 
+
 def test_export_import_roundtrip_matches_source(tmp_path):
     """Every form of data a marker can reference (file, folder, preset, My
     Music, video variant) built into a data dir, exported, imported, and the
@@ -298,16 +294,17 @@ def test_export_import_roundtrip_matches_source(tmp_path):
     root = str(tmp_path / "src")
     preset = "Growl"
     files = [
-        ("data/markers/{}/scene_a.json".format(GAME_ID),
-         _json.dumps({
-             "replay": "Run 1",
-             "pools": [
-                 {"name": "a", "files": ["boom.ogg"]},
-                 {"name": "amb", "files": ["ambient/"]},
-             ],
-             "presets": [preset],
-             "music": ["u:shared/song.ogg", "g:game.ogg"],
-         })),
+        (
+            "data/markers/{}/scene_a.json".format(GAME_ID),
+            _json.dumps(
+                {
+                    "replay": "Run 1",
+                    "pools": [{"name": "a", "files": ["boom.ogg"]}, {"name": "amb", "files": ["ambient/"]}],
+                    "presets": [preset],
+                    "music": ["u:shared/song.ogg", "g:game.ogg"],
+                }
+            ),
+        ),
         ("audio/boom.ogg", "boom"),
         ("audio/ambient/rain.ogg", "rain"),
         ("audio/ambient/wind.ogg", "wind"),
@@ -336,8 +333,7 @@ def test_export_import_roundtrip_matches_source(tmp_path):
     # the recipient has their own copy.)
     assert _walk_rel(out) == set(flat) | {CUE_IMPORT_MANIFEST_NAME}
     # The manifest contents list is authoritative and matches the packed files.
-    manifest = _json.loads(
-        _read(os.path.join(out, CUE_IMPORT_MANIFEST_NAME)))
+    manifest = _json.loads(_read(os.path.join(out, CUE_IMPORT_MANIFEST_NAME)))
     assert sorted(manifest["contents"]) == sorted(flat)
 
 
@@ -348,29 +344,33 @@ def test_replay_export_import_roundtrip_matches_source(tmp_path):
     requires the extracted tree to match the exported asset set byte-for-byte
     -- and to exclude files nothing references."""
     root = str(tmp_path / "src")
-    _write(root, "data/markers/{}/scene_a.json".format(GAME_ID), _json.dumps({
-        "replay": "Run 1",
-        "pools": [
-            {"name": "a", "files": ["boom.ogg"]},
-            {"name": "amb", "files": ["ambient/"]},
-            {"name": "growl", "preset": "Growl"},
-        ],
-        "timestamps": [{"time": 1.5, "files": ["boom.ogg"]}],
-        "files": ["extra.ogg"],
-        "music": ["u:music/shared/song.ogg", "g:music/game.ogg"],
-    }))
+    _write(
+        root,
+        "data/markers/{}/scene_a.json".format(GAME_ID),
+        _json.dumps(
+            {
+                "replay": "Run 1",
+                "pools": [
+                    {"name": "a", "files": ["boom.ogg"]},
+                    {"name": "amb", "files": ["ambient/"]},
+                    {"name": "growl", "preset": "Growl"},
+                ],
+                "timestamps": [{"time": 1.5, "files": ["boom.ogg"]}],
+                "files": ["extra.ogg"],
+                "music": ["u:music/shared/song.ogg", "g:music/game.ogg"],
+            }
+        ),
+    )
     # A video-keyed marker in the same replay pulls the whole variant tree.
-    _write(root, "data/markers/{}/v_clip.json".format(GAME_ID),
-           _json.dumps({"replay": "Run 1", "pools": []}))
+    _write(root, "data/markers/{}/v_clip.json".format(GAME_ID), _json.dumps({"replay": "Run 1", "pools": []}))
     # Not part of the replay -- must stay out of the package.
-    _write(root, "data/markers/{}/no_replay.json".format(GAME_ID),
-           _json.dumps({"pools": []}))
+    _write(root, "data/markers/{}/no_replay.json".format(GAME_ID), _json.dumps({"pools": []}))
     for rel, content in [
         ("audio/boom.ogg", "boom"),
         ("audio/ambient/rain.ogg", "rain"),
         ("audio/ambient/wind.ogg", "wind"),
         ("audio/extra.ogg", "extra"),
-        ("audio/unused.ogg", "unused"),   # referenced by nothing -> not shipped
+        ("audio/unused.ogg", "unused"),  # referenced by nothing -> not shipped
         ("music/shared/song.ogg", "song"),
         ("video/{}/clip_cue0.5x.mkv".format(GAME_ID), "v0.5"),
         ("video/{}/clip_cue2.0x.mkv".format(GAME_ID), "v2"),

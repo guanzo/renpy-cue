@@ -13,12 +13,20 @@ from cue_lib.audio.game_music import CueGameMusic
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.audio.music_tree import CueCombinedMusicTree
 from cue_lib.constants import (
-    CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_GAME_TAG, CUE_MUSIC_PREFIX,
-    CUE_MUSIC_USER_TAG, CUE_MY_MUSIC_FOLDER,
+    CUE_GAME_MUSIC_FOLDER,
+    CUE_MUSIC_GAME_TAG,
+    CUE_MUSIC_PREFIX,
+    CUE_MUSIC_USER_TAG,
+    CUE_MY_MUSIC_FOLDER,
 )
 from cue_lib.util import (
-    _cue_expand_folder_ref, _cue_log, _cue_shift_held, _cue_strip_key_prefix,
-    _cue_ui_refresh, create_img_key, create_vid_key,
+    _cue_expand_folder_ref,
+    _cue_log,
+    _cue_shift_held,
+    _cue_strip_key_prefix,
+    _cue_ui_refresh,
+    create_img_key,
+    create_vid_key,
 )
 
 MYPY = False
@@ -161,12 +169,9 @@ class CueMusicManager(object):
         """
         full_path = self._playable_file(full_path)
         if _cue._has_relative_volume:
-            self._original_music_play(
-                full_path, channel=CUE_DEFAULT_MUSIC_CHANNEL,
-                loop=False, relative_volume=volume)
+            self._original_music_play(full_path, channel=CUE_DEFAULT_MUSIC_CHANNEL, loop=False, relative_volume=volume)
         else:
-            self._original_music_play(
-                full_path, channel=CUE_DEFAULT_MUSIC_CHANNEL, loop=False)
+            self._original_music_play(full_path, channel=CUE_DEFAULT_MUSIC_CHANNEL, loop=False)
             _music.set_volume(volume, delay=0, channel=CUE_DEFAULT_MUSIC_CHANNEL)
 
     def now_playing(self):
@@ -186,9 +191,9 @@ class CueMusicManager(object):
             return None
         root = self._paths.root
         if path.startswith(root):
-            path = path[len(root):].lstrip("/")
+            path = path[len(root) :].lstrip("/")
             if path.startswith(CUE_MUSIC_PREFIX):
-                path = path[len(CUE_MUSIC_PREFIX):]
+                path = path[len(CUE_MUSIC_PREFIX) :]
             return CUE_MY_MUSIC_FOLDER + path
         return CUE_GAME_MUSIC_FOLDER + path
 
@@ -294,8 +299,11 @@ class CueMusicManager(object):
             if event_type != "stop":
                 self._record_default_trigger(filenames, in_replay)
             # Log the full raw call so no argument is ever dropped.
-            _cue_log("MUSIC-{} channel={} files={} loop={} in_replay={} args={} kwargs={}".format(
-                event_type, channel, filenames, loop, in_replay, args, kwargs))
+            _cue_log(
+                "MUSIC-{} channel={} files={} loop={} in_replay={} args={} kwargs={}".format(
+                    event_type, channel, filenames, loop, in_replay, args, kwargs
+                )
+            )
         except Exception:
             pass  # detection must never break audio
 
@@ -374,7 +382,7 @@ class CueMusicManager(object):
         """
         if self._pending is None or renpy.in_rollback():
             return
-        
+
         pending = self._pending
         self._pending = None
         if renpy.store._in_replay != pending["replay_id"]:
@@ -387,7 +395,8 @@ class CueMusicManager(object):
                 item["key_after"] = key_after
                 break
         self._db.update_default_music_triggers(
-            pending["replay_id"], pending["key_before"], pending["filepath"], key_after)
+            pending["replay_id"], pending["key_before"], pending["filepath"], key_after
+        )
 
     # ------------------------------------------------------------------
     # Music trigger editing & override
@@ -424,11 +433,7 @@ class CueMusicManager(object):
             if trig.get("key_after") == key or trig.get("key_before") == key:
                 return True
         entry = self._store.get(key)
-        return (
-            entry is not None
-            and entry.get("music") is not None
-            and entry.get("replay", None) == replay_id
-        )
+        return entry is not None and entry.get("music") is not None and entry.get("replay", None) == replay_id
 
     def _resolve_selection(self):
         # type: () -> Optional[str]
@@ -523,9 +528,9 @@ class CueMusicManager(object):
         # type: (str) -> Tuple[Optional[str], str]
         """Split a stored ref into (tag, path); tag is None if untagged."""
         if ref.startswith(CUE_MUSIC_USER_TAG):
-            return CUE_MUSIC_USER_TAG, ref[len(CUE_MUSIC_USER_TAG):]
+            return CUE_MUSIC_USER_TAG, ref[len(CUE_MUSIC_USER_TAG) :]
         if ref.startswith(CUE_MUSIC_GAME_TAG):
-            return CUE_MUSIC_GAME_TAG, ref[len(CUE_MUSIC_GAME_TAG):]
+            return CUE_MUSIC_GAME_TAG, ref[len(CUE_MUSIC_GAME_TAG) :]
         return None, ref
 
     def ref_path(self, ref):
@@ -545,7 +550,7 @@ class CueMusicManager(object):
         tag, path = self._split_ref_tag(stored)
         if tag == CUE_MUSIC_USER_TAG:
             if path.startswith(CUE_MUSIC_PREFIX):
-                path = path[len(CUE_MUSIC_PREFIX):]
+                path = path[len(CUE_MUSIC_PREFIX) :]
             return self._paths.music_dir + path
         if tag == CUE_MUSIC_GAME_TAG:
             return path
@@ -554,10 +559,10 @@ class CueMusicManager(object):
         music_dir = self._paths.music_dir
         root_prefix = root.rstrip("/") + "/"
         if stored.startswith(root_prefix):
-            stored = stored[len(root_prefix):]
+            stored = stored[len(root_prefix) :]
         candidates = []
         if stored.startswith(CUE_MUSIC_PREFIX):
-            candidates.append(stored[len(CUE_MUSIC_PREFIX):])
+            candidates.append(stored[len(CUE_MUSIC_PREFIX) :])
         candidates.append(stored)
         for rel in candidates:
             abs_path = music_dir + rel
@@ -694,7 +699,7 @@ class CueMusicManager(object):
             resolved.remove(child_file)
         if tag:
             resolved = [tag + f for f in resolved]
-        music[file_index:file_index + 1] = resolved
+        music[file_index : file_index + 1] = resolved
         self._store.save_marker(key)
 
     @_cue_ui_refresh
@@ -749,15 +754,17 @@ class CueMusicManager(object):
                 continue
             seen.add(key)
             entry = self._store.get(key) or {}
-            result.append({
-                "key": key,
-                "label": _cue_strip_key_prefix(key),
-                "is_default": True,
-                "default_path": trig.get("filepath"),
-                "default_enabled": not entry.get("music_default_disabled", False),
-                "songs": entry.get("music") or [],
-                "selected": key == self.selected_key,
-            })
+            result.append(
+                {
+                    "key": key,
+                    "label": _cue_strip_key_prefix(key),
+                    "is_default": True,
+                    "default_path": trig.get("filepath"),
+                    "default_enabled": not entry.get("music_default_disabled", False),
+                    "songs": entry.get("music") or [],
+                    "selected": key == self.selected_key,
+                }
+            )
 
         # Every marker that carries a music list is a custom trigger (an
         # empty list still counts -- empty triggers are legal); list those
@@ -771,15 +778,17 @@ class CueMusicManager(object):
             if entry.get("replay", None) != replay_id:
                 continue
             seen.add(key)
-            result.append({
-                "key": key,
-                "label": _cue_strip_key_prefix(key),
-                "is_default": False,
-                "default_path": None,
-                "default_enabled": False,
-                "songs": entry.get("music") or [],
-                "selected": key == self.selected_key,
-            })
+            result.append(
+                {
+                    "key": key,
+                    "label": _cue_strip_key_prefix(key),
+                    "is_default": False,
+                    "default_path": None,
+                    "default_enabled": False,
+                    "songs": entry.get("music") or [],
+                    "selected": key == self.selected_key,
+                }
+            )
         return result
 
     def _pick_for_override(self):
@@ -821,9 +830,8 @@ class CueMusicManager(object):
         pool = self.music_pool_for(key)
         if pool:
             self._original_music_play(
-                self._playable_file(random.choice(pool)),
-                channel=CUE_DEFAULT_MUSIC_CHANNEL,
-                loop=True)
+                self._playable_file(random.choice(pool)), channel=CUE_DEFAULT_MUSIC_CHANNEL, loop=True
+            )
 
     # ------------------------------------------------------------------
     # Music presets -- saved trigger song lists (game-agnostic, like SFX)
@@ -942,11 +950,10 @@ class CueMusicManager(object):
         for i, ref in enumerate(files):
             if ref.endswith("/") and display_path in self._folder_display_children(ref):
                 tag, _ = self._split_ref_tag(ref)
-                resolved = [r for r in self.resolve_music_files([ref])
-                            if self._display_for_raw(tag, r) != display_path]
+                resolved = [r for r in self.resolve_music_files([ref]) if self._display_for_raw(tag, r) != display_path]
                 if tag:
                     resolved = [tag + f for f in resolved]
-                files[i:i + 1] = resolved
+                files[i : i + 1] = resolved
                 self._db_save_music_preset(name)
                 return
 
@@ -971,8 +978,7 @@ class CueMusicManager(object):
         # type: (str) -> List[str]
         """Display paths of the files a stored folder ref resolves to."""
         tag, _ = self._split_ref_tag(folder_ref)
-        return [self._display_for_raw(tag, f)
-                for f in self.resolve_music_files([folder_ref])]
+        return [self._display_for_raw(tag, f) for f in self.resolve_music_files([folder_ref])]
 
     def _display_for_raw(self, tag, raw):
         # type: (Optional[str], str) -> str
@@ -980,7 +986,7 @@ class CueMusicManager(object):
         if tag == CUE_MUSIC_GAME_TAG:
             return CUE_GAME_MUSIC_FOLDER + raw
         if raw.startswith(CUE_MUSIC_PREFIX):
-            raw = raw[len(CUE_MUSIC_PREFIX):]
+            raw = raw[len(CUE_MUSIC_PREFIX) :]
         return CUE_MY_MUSIC_FOLDER + raw
 
     @_cue_ui_refresh

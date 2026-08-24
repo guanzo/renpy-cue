@@ -13,11 +13,8 @@ class CueIntensityFlags:
     frequency: bool
 
     def __init__(
-        self,
-        enabled: bool = True,
-        sfx_levels: bool = True,
-        volume: bool = True,
-        frequency: bool = True) -> None: ...
+        self, enabled: bool = True, sfx_levels: bool = True, volume: bool = True, frequency: bool = True
+    ) -> None: ...
 
 class CueIntensityResolution:
     group: str
@@ -34,7 +31,8 @@ class CueIntensityResolution:
         folder: Optional[str],
         volume_mult: float,
         freq_mult: float,
-        files: Optional[List[str]] = None) -> None: ...
+        files: Optional[List[str]] = None,
+    ) -> None: ...
 
 class CueIntensityManager:
     def __init__(self, db: CueDatabase) -> None: ...
@@ -59,24 +57,25 @@ class CueIntensityManager:
         current_speed: float,
         variants: Optional[List[float]],
         is_populated: Optional[Callable[[str], bool]] = None,
-        flags: Optional[CueIntensityFlags] = None) -> Optional[CueIntensityResolution]: ...
+        flags: Optional[CueIntensityFlags] = None,
+    ) -> Optional[CueIntensityResolution]: ...
     def resolve_video_intensity(
         self,
         pools_files: List[List[str]],
         current_speed: float,
         variants: Optional[List[float]],
         is_populated: Optional[Callable[[str], bool]] = None,
-        flags: Optional[CueIntensityFlags] = None) -> Optional[CueIntensityResolution]: ...
+        flags: Optional[CueIntensityFlags] = None,
+    ) -> Optional[CueIntensityResolution]: ...
     def current_level(
         self,
         pools_files: List[List[str]],
         current_speed: float,
         variants: Optional[List[float]],
-        flags: Optional[CueIntensityFlags] = None) -> Optional[Tuple[int, int]]: ...
+        flags: Optional[CueIntensityFlags] = None,
+    ) -> Optional[Tuple[int, int]]: ...
     def video_hook(self, pools_files: List[List[str]]) -> Optional[str]: ...
     def is_pool_intensity_active(
-        self,
-        files: Optional[List[str]],
-        variants: Optional[List[float]],
-        flags: Optional[CueIntensityFlags] = None) -> bool: ...
+        self, files: Optional[List[str]], variants: Optional[List[float]], flags: Optional[CueIntensityFlags] = None
+    ) -> bool: ...
     def variant_levels(self, group_name: str, variants: List[float]) -> Optional[List[Tuple[float, int]]]: ...

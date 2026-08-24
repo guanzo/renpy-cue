@@ -30,7 +30,7 @@ else:
 # _cue_run_proc joins a communicate() thread with CUE_SUBPROC_TIMEOUT and
 # _cue_wait_proc polls with CUE_KILL_WAIT_TIMEOUT.  The thread/poll
 # implementations work on both Python 2.7 (Ren'Py 7.x) and Python 3 (8.x).
-CUE_SUBPROC_TIMEOUT = 10.0   # probe / encoder discovery communicate()
+CUE_SUBPROC_TIMEOUT = 10.0  # probe / encoder discovery communicate()
 CUE_KILL_WAIT_TIMEOUT = 5.0  # post-kill reap in _kill_proc
 
 # Maximum FPS cap for frame interpolation (minterpolate filter).
@@ -142,45 +142,45 @@ class CueFFmpeg(object):
     # Quality flags per encoder -- "visually transparent" without
     # ballooning file size or encode time.
     _VIDEO_QUALITY = {
-        "libx264":     ["-crf", "15", "-preset", "slower"],
-        "libx265":     ["-crf", "18", "-preset", "slower"],
-        "libvpx-vp9":  ["-crf", "12", "-b:v", "0"],
-        "libvpx":      ["-crf", "4", "-b:v", "0"],
-        "mpeg4":       ["-q:v", "2"],
-        "mpeg2video":  ["-q:v", "2"],
-        "libtheora":   ["-q:v", "8"],
-        "h263":        ["-q:v", "2"],
-        "wmv2":        ["-q:v", "2"],
+        "libx264": ["-crf", "15", "-preset", "slower"],
+        "libx265": ["-crf", "18", "-preset", "slower"],
+        "libvpx-vp9": ["-crf", "12", "-b:v", "0"],
+        "libvpx": ["-crf", "4", "-b:v", "0"],
+        "mpeg4": ["-q:v", "2"],
+        "mpeg2video": ["-q:v", "2"],
+        "libtheora": ["-q:v", "8"],
+        "h263": ["-q:v", "2"],
+        "wmv2": ["-q:v", "2"],
     }
     # Lower quality for fast preview -- decent enough to judge
     # speed changes, much faster to encode.
     _VIDEO_QUALITY_FAST = {
-        "libx264":     ["-crf", "23", "-preset", "veryfast"],
-        "libx265":     ["-crf", "26", "-preset", "veryfast"],
-        "libvpx-vp9":  ["-crf", "24", "-b:v", "0"],
-        "libvpx":      ["-crf", "10", "-b:v", "0"],
-        "mpeg4":       ["-q:v", "5"],
-        "mpeg2video":  ["-q:v", "5"],
-        "libtheora":   ["-q:v", "6"],
-        "h263":        ["-q:v", "5"],
-        "wmv2":        ["-q:v", "5"],
+        "libx264": ["-crf", "23", "-preset", "veryfast"],
+        "libx265": ["-crf", "26", "-preset", "veryfast"],
+        "libvpx-vp9": ["-crf", "24", "-b:v", "0"],
+        "libvpx": ["-crf", "10", "-b:v", "0"],
+        "mpeg4": ["-q:v", "5"],
+        "mpeg2video": ["-q:v", "5"],
+        "libtheora": ["-q:v", "6"],
+        "h263": ["-q:v", "5"],
+        "wmv2": ["-q:v", "5"],
     }
     _AUDIO_QUALITY = {
-        "aac":         ["-b:a", "320k"],
-        "libopus":     ["-b:a", "256k"],
-        "libvorbis":   ["-q:a", "8"],
-        "libmp3lame":  ["-q:a", "0"],
-        "mp3":         ["-q:a", "0"],
-        "mp2":         ["-b:a", "320k"],
+        "aac": ["-b:a", "320k"],
+        "libopus": ["-b:a", "256k"],
+        "libvorbis": ["-q:a", "8"],
+        "libmp3lame": ["-q:a", "0"],
+        "mp3": ["-q:a", "0"],
+        "mp2": ["-b:a", "320k"],
     }
 
     def __init__(self):
-        self._ffmpeg_cache = -1         # -1=unchecked, 0=not found, 1=found
-        self._ffprobe_cache = -1        # -1=unchecked, 0=not found, 1=found
+        self._ffmpeg_cache = -1  # -1=unchecked, 0=not found, 1=found
+        self._ffprobe_cache = -1  # -1=unchecked, 0=not found, 1=found
         self._ffmpeg_path = "ffmpeg"
         self._ffprobe_path = "ffprobe"
-        self._encoder_cache = None      # None=not loaded, set when populated
-        self._has_rubberband = False    # proven True after probe in load_encoders
+        self._encoder_cache = None  # None=not loaded, set when populated
+        self._has_rubberband = False  # proven True after probe in load_encoders
 
     # ==================================================================
     # Binary detection
@@ -191,10 +191,7 @@ class CueFFmpeg(object):
         """Return True if exe_name is runnable. Called from background thread."""
         try:
             p = subprocess.Popen(
-                [exe_name, "-version"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                creationflags=CREATIONFLAGS,
+                [exe_name, "-version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=CREATIONFLAGS
             )
             _cue_run_proc(p)
             return p.returncode == 0
@@ -309,11 +306,18 @@ class CueFFmpeg(object):
             return vc, ac
         try:
             p = subprocess.Popen(
-                [self._ffprobe_path, "-v", "error",
-                 "-select_streams", "v:0",
-                 "-show_entries", "stream=codec_name",
-                 "-of", "default=noprint_wrappers=1:nokey=1",
-                 fspath],
+                [
+                    self._ffprobe_path,
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "v:0",
+                    "-show_entries",
+                    "stream=codec_name",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    fspath,
+                ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
@@ -328,11 +332,18 @@ class CueFFmpeg(object):
             _cue_log("FFMPEG-CODECS: video probe failed for {}".format(fspath))
         try:
             p = subprocess.Popen(
-                [self._ffprobe_path, "-v", "error",
-                 "-select_streams", "a:0",
-                 "-show_entries", "stream=codec_name",
-                 "-of", "default=noprint_wrappers=1:nokey=1",
-                 fspath],
+                [
+                    self._ffprobe_path,
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "a:0",
+                    "-show_entries",
+                    "stream=codec_name",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    fspath,
+                ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
@@ -354,11 +365,18 @@ class CueFFmpeg(object):
             return True
         try:
             p = subprocess.Popen(
-                [self._ffprobe_path, "-v", "error",
-                 "-select_streams", "a",
-                 "-show_entries", "stream=index",
-                 "-of", "csv=p=0",
-                 fspath],
+                [
+                    self._ffprobe_path,
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "a",
+                    "-show_entries",
+                    "stream=index",
+                    "-of",
+                    "csv=p=0",
+                    fspath,
+                ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
@@ -380,11 +398,18 @@ class CueFFmpeg(object):
             return 30
         try:
             p = subprocess.Popen(
-                [self._ffprobe_path, "-v", "error",
-                 "-select_streams", "v:0",
-                 "-show_entries", "stream=r_frame_rate",
-                 "-of", "default=noprint_wrappers=1:nokey=1",
-                 fspath],
+                [
+                    self._ffprobe_path,
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "v:0",
+                    "-show_entries",
+                    "stream=r_frame_rate",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    fspath,
+                ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
@@ -410,10 +435,16 @@ class CueFFmpeg(object):
             return 0.0
         try:
             p = subprocess.Popen(
-                [self._ffprobe_path, "-v", "error",
-                 "-show_entries", "format=duration",
-                 "-of", "default=noprint_wrappers=1:nokey=1",
-                 fspath],
+                [
+                    self._ffprobe_path,
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    fspath,
+                ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
@@ -438,11 +469,18 @@ class CueFFmpeg(object):
         # Try stream bitrate first
         try:
             p = subprocess.Popen(
-                [self._ffprobe_path, "-v", "error",
-                 "-select_streams", "v:0",
-                 "-show_entries", "stream=bit_rate",
-                 "-of", "default=noprint_wrappers=1:nokey=1",
-                 fspath],
+                [
+                    self._ffprobe_path,
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "v:0",
+                    "-show_entries",
+                    "stream=bit_rate",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    fspath,
+                ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 creationflags=CREATIONFLAGS,
@@ -461,10 +499,16 @@ class CueFFmpeg(object):
         if not bps:
             try:
                 p = subprocess.Popen(
-                    [self._ffprobe_path, "-v", "error",
-                     "-show_entries", "format=bit_rate",
-                     "-of", "default=noprint_wrappers=1:nokey=1",
-                     fspath],
+                    [
+                        self._ffprobe_path,
+                        "-v",
+                        "error",
+                        "-show_entries",
+                        "format=bit_rate",
+                        "-of",
+                        "default=noprint_wrappers=1:nokey=1",
+                        fspath,
+                    ],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     creationflags=CREATIONFLAGS,
@@ -513,9 +557,20 @@ class CueFFmpeg(object):
     # ffmpeg command builder
     # ==================================================================
 
-    def build_ffmpeg_cmds(self, fspath, temp_path, speed, vcodec, acodec,
-                           has_audio, target_bitrate, interpolate=False,
-                           source_fps=30, fast=False, progress_path=None):
+    def build_ffmpeg_cmds(
+        self,
+        fspath,
+        temp_path,
+        speed,
+        vcodec,
+        acodec,
+        has_audio,
+        target_bitrate,
+        interpolate=False,
+        source_fps=30,
+        fast=False,
+        progress_path=None,
+    ):
         # type: (str, str, float, str, str, bool, Optional[str], bool, int, bool, Optional[str]) -> Tuple[List[List[str]], Optional[str]]
         """Build ffmpeg command(s). Returns list of arg lists.
 
@@ -545,12 +600,7 @@ class CueFFmpeg(object):
             filters.append("[0:a]{}[a]".format(_af))
 
         # Shared output args (except pass-specific ones)
-        shared = [
-            self._ffmpeg_path, "-y",
-            "-i", fspath,
-            "-filter_complex", ";".join(filters),
-            "-map", "[v]",
-        ]
+        shared = [self._ffmpeg_path, "-y", "-i", fspath, "-filter_complex", ";".join(filters), "-map", "[v]"]
         if has_audio:
             shared.extend(["-map", "[a]"])
         else:
@@ -561,8 +611,7 @@ class CueFFmpeg(object):
         if has_audio and acodec:
             shared.extend(["-c:a", acodec])
 
-        shared.extend(["-vsync", "0",
-                       "-avoid_negative_ts", "make_zero"])
+        shared.extend(["-vsync", "0", "-avoid_negative_ts", "make_zero"])
 
         # Determine if 2-pass (VP8/VP9 with bitrate available)
         is_vp = vcodec in ("libvpx-vp9", "libvpx")
@@ -573,28 +622,39 @@ class CueFFmpeg(object):
             # -an discards audio and unconnected [a] output is an error.
             _video_filter = filters[0] if filters else ""
             pass1 = [
-                self._ffmpeg_path, "-y",
-                "-v", "error",
-                "-i", fspath,
-                "-filter_complex", _video_filter,
-                "-map", "[v]",
-                "-c:v", vcodec,
-                "-b:v", target_bitrate,
-                "-quality", "good", "-speed", "4",
-                "-pass", "1",
-                "-passlogfile", passlog,
-                "-an", "-f", "webm", null_dev,
+                self._ffmpeg_path,
+                "-y",
+                "-v",
+                "error",
+                "-i",
+                fspath,
+                "-filter_complex",
+                _video_filter,
+                "-map",
+                "[v]",
+                "-c:v",
+                vcodec,
+                "-b:v",
+                target_bitrate,
+                "-quality",
+                "good",
+                "-speed",
+                "4",
+                "-pass",
+                "1",
+                "-passlogfile",
+                passlog,
+                "-an",
+                "-f",
+                "webm",
+                null_dev,
             ]
 
-            pass2 = [
-                self._ffmpeg_path, "-y",
-            ] + _prog + [
-                "-nostats",
-                "-loglevel", "error",
-                "-i", fspath,
-                "-filter_complex", ";".join(filters),
-                "-map", "[v]",
-            ]
+            pass2 = (
+                [self._ffmpeg_path, "-y"]
+                + _prog
+                + ["-nostats", "-loglevel", "error", "-i", fspath, "-filter_complex", ";".join(filters), "-map", "[v]"]
+            )
             if has_audio:
                 pass2.extend(["-map", "[a]"])
             else:
@@ -603,27 +663,35 @@ class CueFFmpeg(object):
             if has_audio and acodec:
                 pass2.extend(["-c:a", acodec])
             _pass2_speed = "2" if fast else "1"
-            pass2.extend([
-                "-b:v", target_bitrate,
-                "-quality", "good", "-speed", _pass2_speed,
-                "-pass", "2",
-                "-passlogfile", passlog,
-                "-vsync", "0",
-                "-avoid_negative_ts", "make_zero",
-                temp_path,
-            ])
+            pass2.extend(
+                [
+                    "-b:v",
+                    target_bitrate,
+                    "-quality",
+                    "good",
+                    "-speed",
+                    _pass2_speed,
+                    "-pass",
+                    "2",
+                    "-passlogfile",
+                    passlog,
+                    "-vsync",
+                    "0",
+                    "-avoid_negative_ts",
+                    "make_zero",
+                    temp_path,
+                ]
+            )
 
-            _cue_log("2-pass encode: bitrate={}, passlog={}".format(
-                target_bitrate, passlog))
+            _cue_log("2-pass encode: bitrate={}, passlog={}".format(target_bitrate, passlog))
             return [pass1, pass2], passlog
 
         # Single-pass
-        args = [self._ffmpeg_path, "-y",
-                ] + _prog + [
-                "-nostats",
-                "-loglevel", "error",
-                "-i", fspath,
-                "-filter_complex", ";".join(filters)]
+        args = (
+            [self._ffmpeg_path, "-y"]
+            + _prog
+            + ["-nostats", "-loglevel", "error", "-i", fspath, "-filter_complex", ";".join(filters)]
+        )
         if has_audio:
             args.extend(["-map", "[v]", "-map", "[a]"])
         else:
@@ -635,8 +703,7 @@ class CueFFmpeg(object):
         if has_audio and acodec:
             args.extend(["-c:a", acodec])
             args.extend(self._AUDIO_QUALITY.get(acodec, []))
-        args.extend(["-vsync", "0",
-                     "-avoid_negative_ts", "make_zero"])
+        args.extend(["-vsync", "0", "-avoid_negative_ts", "make_zero"])
         args.append(temp_path)
 
         _cue_log("1-pass encode: codec={}".format(vcodec))
@@ -653,6 +720,7 @@ class CueFFmpeg(object):
 # After probing, the job is staged for the main-thread poll() to launch
 # ffmpeg with stdout->file. No persistent readline() thread -- no GIL fight
 # during Ren'Py rollback.
+
 
 def _cue_probe_job(ffmpeg, job, dur_ms, base_dir):
     # type: (CueFFmpeg, Any, int, str) -> None
@@ -680,8 +748,11 @@ def _cue_probe_job(ffmpeg, job, dur_ms, base_dir):
                 acodec = ffmpeg.pick_encoder(ac_in, "audio") or ""
             # Probe source bitrate for quality matching
             target_bitrate = ffmpeg.probe_bitrate(input_fs)
-            _cue_log("probed vcodec: {} -> {}, acodec: {} -> {}, audio: {}, bitrate: {}".format(
-                vc_in, vcodec, ac_in, acodec, has_audio, target_bitrate))
+            _cue_log(
+                "probed vcodec: {} -> {}, acodec: {} -> {}, audio: {}, bitrate: {}".format(
+                    vc_in, vcodec, ac_in, acodec, has_audio, target_bitrate
+                )
+            )
 
         # Audio track removal override
         if job.remove_audio:
@@ -693,7 +764,8 @@ def _cue_probe_job(ffmpeg, job, dur_ms, base_dir):
         # --- Build ffmpeg command(s) ---
         # Lazy import to avoid circular dependency with video_edit_queue
         from cue_lib.video.video_edit_queue import CUE_VE_MODE_INTERPOLATE, CUE_VE_MODE_FAST_PREVIEW
-        interpolate = (job.encode_mode == CUE_VE_MODE_INTERPOLATE)
+
+        interpolate = job.encode_mode == CUE_VE_MODE_INTERPOLATE
         source_fps = ffmpeg.probe_fps(input_fs)
         # Total output frames for progress. -vsync 0 preserves frame count
         # unless minterpolate generates new frames at a different rate.
@@ -706,8 +778,12 @@ def _cue_probe_job(ffmpeg, job, dur_ms, base_dir):
 
         job._progress_path = os.path.join(_config.gamedir, base_dir, "ffmpeg_progress.txt")
         cmds, passlog = ffmpeg.build_ffmpeg_cmds(
-            input_fs, temp_path, factor,
-            vcodec, acodec, has_audio,
+            input_fs,
+            temp_path,
+            factor,
+            vcodec,
+            acodec,
+            has_audio,
             target_bitrate,
             interpolate=interpolate,
             source_fps=source_fps,
@@ -738,9 +814,14 @@ def _cue_probe_job(ffmpeg, job, dur_ms, base_dir):
         job._num_passes = len(cmds)
         job._log_path = os.path.join(_config.gamedir, base_dir, "ffmpeg.log")
 
-        _cue_log("Encoding {} -> {} at {:.1f}x ({})".format(
-            os.path.basename(input_fs), os.path.basename(temp_path),
-            factor, "2-pass" if len(cmds) == 2 else "1-pass"))
+        _cue_log(
+            "Encoding {} -> {} at {:.1f}x ({})".format(
+                os.path.basename(input_fs),
+                os.path.basename(temp_path),
+                factor,
+                "2-pass" if len(cmds) == 2 else "1-pass",
+            )
+        )
 
     except Exception as e:
         if not job.cancelled:

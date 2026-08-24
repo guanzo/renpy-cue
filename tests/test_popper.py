@@ -21,9 +21,9 @@ from cue_lib.ui.popper import (
 # _cue_compute_popup_position -- placement + clamping
 # ==========================================================================
 
+
 def test_position_top_normal():
-    x, y, arrow = _cue_compute_popup_position(100, 100, 50, 30, 40, 20, 1280, 720,
-                                              "top", 5, 8)
+    x, y, arrow = _cue_compute_popup_position(100, 100, 50, 30, 40, 20, 1280, 720, "top", 5, 8)
     assert x == 105
     assert y == 75  # 100 - 20 - 5
     assert arrow == "down"
@@ -31,66 +31,57 @@ def test_position_top_normal():
 
 def test_position_top_flips_below_margin():
     # Anchor at y=0 -- popup would go to -25 (< margin 8), so it flips below.
-    x, y, arrow = _cue_compute_popup_position(100, 0, 50, 30, 40, 20, 1280, 720,
-                                              "top", 5, 8)
+    x, y, arrow = _cue_compute_popup_position(100, 0, 50, 30, 40, 20, 1280, 720, "top", 5, 8)
     assert y == 35  # 0 + 30 + 5
     assert arrow == "up"
 
 
 def test_position_bottom_normal():
-    x, y, arrow = _cue_compute_popup_position(100, 100, 50, 30, 40, 20, 1280, 720,
-                                              "bottom", 5, 8)
+    x, y, arrow = _cue_compute_popup_position(100, 100, 50, 30, 40, 20, 1280, 720, "bottom", 5, 8)
     assert y == 135  # 100 + 30 + 5
     assert arrow == "up"
 
 
 def test_position_bottom_flips_over_edge():
     # Anchor near the bottom -- popup would exceed vh - margin, flips above.
-    x, y, arrow = _cue_compute_popup_position(100, 700, 50, 30, 40, 20, 1280, 720,
-                                              "bottom", 5, 8)
+    x, y, arrow = _cue_compute_popup_position(100, 700, 50, 30, 40, 20, 1280, 720, "bottom", 5, 8)
     assert y == 675  # 700 - 20 - 5
     assert arrow == "down"
 
 
 def test_position_left_normal():
-    x, y, arrow = _cue_compute_popup_position(100, 100, 50, 30, 40, 20, 1280, 720,
-                                              "left", 5, 8)
+    x, y, arrow = _cue_compute_popup_position(100, 100, 50, 30, 40, 20, 1280, 720, "left", 5, 8)
     assert x == 55  # 100 - 40 - 5
     assert arrow == "right"
 
 
 def test_position_left_flips_on_margin():
-    x, y, arrow = _cue_compute_popup_position(10, 100, 50, 30, 40, 20, 1280, 720,
-                                              "left", 5, 8)
+    x, y, arrow = _cue_compute_popup_position(10, 100, 50, 30, 40, 20, 1280, 720, "left", 5, 8)
     assert x == 65  # 10 + 50 + 5
     assert arrow == "left"
 
 
 def test_position_right_normal():
-    x, y, arrow = _cue_compute_popup_position(100, 100, 50, 30, 40, 20, 1280, 720,
-                                              "right", 5, 8)
+    x, y, arrow = _cue_compute_popup_position(100, 100, 50, 30, 40, 20, 1280, 720, "right", 5, 8)
     assert x == 155  # 100 + 50 + 5
     assert arrow == "left"
 
 
 def test_position_right_flips_over_edge():
-    x, y, arrow = _cue_compute_popup_position(1200, 100, 50, 30, 40, 20, 1280, 720,
-                                              "right", 5, 8)
+    x, y, arrow = _cue_compute_popup_position(1200, 100, 50, 30, 40, 20, 1280, 720, "right", 5, 8)
     assert x == 1155  # 1200 - 40 - 5
     assert arrow == "right"
 
 
 def test_position_unknown_defaults_top_behavior():
-    x, y, arrow = _cue_compute_popup_position(100, 100, 50, 30, 40, 20, 1280, 720,
-                                              "bogus", 5, 8)
+    x, y, arrow = _cue_compute_popup_position(100, 100, 50, 30, 40, 20, 1280, 720, "bogus", 5, 8)
     assert arrow == "down"
 
 
 def test_position_clamps_to_viewport():
     # Huge popup with a corner anchor clamps into the viewport: x hits the
     # margin floor, y is bounded by vh - ch - margin after the flip.
-    x, y, arrow = _cue_compute_popup_position(0, 0, 50, 30, 1300, 700, 1280, 720,
-                                              "top", 5, 8)
+    x, y, arrow = _cue_compute_popup_position(0, 0, 50, 30, 1300, 700, 1280, 720, "top", 5, 8)
     assert x == 8
     assert y == 12
     assert arrow == "up"
@@ -99,6 +90,7 @@ def test_position_clamps_to_viewport():
 # ==========================================================================
 # _cue_draw_arrow
 # ==========================================================================
+
 
 def test_draw_arrow_directions():
     # px=py=0, pw=10, ph=20 -> center (5, 10).
@@ -118,6 +110,7 @@ def test_draw_arrow_directions():
 # ==========================================================================
 # focus-rect helpers (version-adaptive)
 # ==========================================================================
+
 
 @pytest.fixture
 def anchors():
@@ -190,6 +183,7 @@ def test_get_focus_rect_v7_empty_anchors(monkeypatch):
 # ==========================================================================
 # CuePopper displayable
 # ==========================================================================
+
 
 @pytest.fixture
 def popper(monkeypatch):

@@ -66,6 +66,7 @@ def Move(**kwargs):
 # Key helpers
 # ---------------------------------------------------------------------------
 
+
 def test_create_img_key():
     assert create_img_key("bg beach") == "i_bg beach"
 
@@ -131,6 +132,7 @@ def test_get_key_prefix():
 # Time clamping
 # ---------------------------------------------------------------------------
 
+
 def test_clamp_time_within_range():
     assert _cue_clamp_time(5.0, 10.0) == 5.0
 
@@ -154,6 +156,7 @@ def test_clamp_time_negative_duration_clamps_below():
 # ---------------------------------------------------------------------------
 # Time formatting
 # ---------------------------------------------------------------------------
+
 
 def test_format_time_none():
     assert _cue_format_time(None) == "00:00.00"
@@ -211,6 +214,7 @@ def test_format_time_exactly_one_hour():
 # Speed labels
 # ---------------------------------------------------------------------------
 
+
 def test_speed_label():
     assert _cue_speed_label(1.0) == "1.0x"
     assert _cue_speed_label(1.5) == "1.5x"
@@ -221,6 +225,7 @@ def test_speed_label():
 # ---------------------------------------------------------------------------
 # Time parsing
 # ---------------------------------------------------------------------------
+
 
 def test_parse_time_none():
     assert _cue_parse_time(None) is None
@@ -263,6 +268,7 @@ def test_parse_time_garbage_returns_none():
 # ---------------------------------------------------------------------------
 # Persistent unwrapping
 # ---------------------------------------------------------------------------
+
 
 def test_unwrap_persistent_plain_dict():
     assert _cue_unwrap_persistent({"a": 1}) == {"a": 1}
@@ -314,6 +320,7 @@ def test_unwrap_persistent_duck_typed_mapping():
 # Key-prefix stripping
 # ---------------------------------------------------------------------------
 
+
 def test_strip_key_prefix_each_type():
     assert _cue_strip_key_prefix("i_bg") == "bg"
     assert _cue_strip_key_prefix("v_movie") == "movie"
@@ -328,6 +335,7 @@ def test_strip_key_prefix_no_match_returns_unchanged():
 # ---------------------------------------------------------------------------
 # UI refresh decorator
 # ---------------------------------------------------------------------------
+
 
 def test_ui_refresh_returns_result(monkeypatch):
     calls = []
@@ -350,6 +358,7 @@ def test_ui_refresh_runs_on_exception(monkeypatch):
         raise ValueError("nope")
 
     import pytest
+
     with pytest.raises(ValueError):
         _boom()
     assert calls == [1]
@@ -359,15 +368,13 @@ def test_ui_refresh_runs_on_exception(monkeypatch):
 # File tree building
 # ---------------------------------------------------------------------------
 
+
 def test_build_tree_empty():
     assert _cue_build_tree([]) == []
 
 
 def test_build_tree_root_files_only():
-    assert _cue_build_tree(["b.ogg", "a.ogg"]) == [
-        {"type": "file", "name": "a.ogg"},
-        {"type": "file", "name": "b.ogg"},
-    ]
+    assert _cue_build_tree(["b.ogg", "a.ogg"]) == [{"type": "file", "name": "a.ogg"}, {"type": "file", "name": "b.ogg"}]
 
 
 def test_build_tree_folders_before_files_nested():
@@ -395,38 +402,50 @@ def test_build_tree_folder_without_direct_files():
 # File resolution / random picking
 # ---------------------------------------------------------------------------
 
+
 def test_resolve_files_expands_folder_refs(monkeypatch):
-    monkeypatch.setattr(_cue, "sfx",
-                        SimpleNamespace(library=SimpleNamespace(
-                            files=["music/a.ogg", "music/b.ogg", "other.ogg"],
-                            disabled_files=set(["music/b.ogg"]))))
+    monkeypatch.setattr(
+        _cue,
+        "sfx",
+        SimpleNamespace(
+            library=SimpleNamespace(
+                files=["music/a.ogg", "music/b.ogg", "other.ogg"], disabled_files=set(["music/b.ogg"])
+            )
+        ),
+    )
     assert _cue_resolve_files(["music/"]) == ["music/a.ogg"]
 
 
 def test_resolve_files_passthrough_and_dedupe(monkeypatch):
-    monkeypatch.setattr(_cue, "sfx",
-                        SimpleNamespace(library=SimpleNamespace(
-                            files=["music/a.ogg"], disabled_files=set())))
+    monkeypatch.setattr(
+        _cue, "sfx", SimpleNamespace(library=SimpleNamespace(files=["music/a.ogg"], disabled_files=set()))
+    )
     assert _cue_resolve_files(["music/", "music/a.ogg", "other.ogg"]) == ["music/a.ogg", "other.ogg"]
 
 
 def test_resolve_files_skips_disabled_direct(monkeypatch):
-    monkeypatch.setattr(_cue, "sfx",
-                        SimpleNamespace(library=SimpleNamespace(
-                            files=["music/a.ogg"], disabled_files=set(["music/a.ogg"]))))
+    monkeypatch.setattr(
+        _cue,
+        "sfx",
+        SimpleNamespace(library=SimpleNamespace(files=["music/a.ogg"], disabled_files=set(["music/a.ogg"]))),
+    )
     assert _cue_resolve_files(["music/a.ogg"]) == []
 
 
 def test_resolve_files_nested_folder_prefix(monkeypatch):
     # A folder ref expands every nested descendant but not a sibling path that
     # merely shares the prefix up to the slash ("music.ogg" < "music/...").
-    monkeypatch.setattr(_cue, "sfx",
-                        SimpleNamespace(library=SimpleNamespace(
-                            files=["music.ogg", "music/a.ogg", "music/sub/b.ogg",
-                                   "music/sub/deep/c.ogg", "sfx/boom.ogg"],
-                            disabled_files=set())))
-    assert _cue_resolve_files(["music/"]) == [
-        "music/a.ogg", "music/sub/b.ogg", "music/sub/deep/c.ogg"]
+    monkeypatch.setattr(
+        _cue,
+        "sfx",
+        SimpleNamespace(
+            library=SimpleNamespace(
+                files=["music.ogg", "music/a.ogg", "music/sub/b.ogg", "music/sub/deep/c.ogg", "sfx/boom.ogg"],
+                disabled_files=set(),
+            )
+        ),
+    )
+    assert _cue_resolve_files(["music/"]) == ["music/a.ogg", "music/sub/b.ogg", "music/sub/deep/c.ogg"]
 
 
 def test_expand_folder_ref_prefix_boundary():
@@ -437,8 +456,7 @@ def test_expand_folder_ref_prefix_boundary():
 
 def test_expand_folder_ref_skips_disabled():
     files = ["b/one.ogg", "b/two.ogg", "b/three.ogg"]
-    assert _cue_expand_folder_ref(files, "b/", disabled=set(["b/two.ogg"])) == [
-        "b/one.ogg", "b/three.ogg"]
+    assert _cue_expand_folder_ref(files, "b/", disabled=set(["b/two.ogg"])) == ["b/one.ogg", "b/three.ogg"]
 
 
 def test_expand_folder_ref_no_match():
@@ -497,6 +515,7 @@ def test_pick_file_no_avoid_does_not_touch_last(monkeypatch):
 # _cue_replace_file (POSIX / Windows branches)
 # ---------------------------------------------------------------------------
 
+
 def test_replace_file_posix_plain_rename(tmp_path):
     src = tmp_path / "src.ogg"
     dst = tmp_path / "dst.ogg"
@@ -528,6 +547,7 @@ def test_replace_file_nt_remove_failure_swallowed(tmp_path, monkeypatch):
 
     def _boom(p):
         raise OSError("locked")
+
     monkeypatch.setattr(os, "name", "nt")
     monkeypatch.setattr(os, "remove", _boom)
     _cue_replace_file(str(src), str(dst))  # rename below still runs
@@ -549,6 +569,7 @@ def test_replace_file_nt_no_stale_dst(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 # Debug logging
 # ---------------------------------------------------------------------------
+
 
 def test_log_writes_when_debug_enabled(tmp_path, monkeypatch):
     monkeypatch.setattr(_constants, "CUE_DEBUG", True)
@@ -590,6 +611,7 @@ def test_clear_debug_log_truncates(tmp_path, monkeypatch):
 # Error logging (unguarded)
 # ---------------------------------------------------------------------------
 
+
 def test_log_error_writes_when_debug_disabled(tmp_path, monkeypatch):
     monkeypatch.setattr(_constants, "CUE_DEBUG", False)  # unguarded guarantee
     monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
@@ -626,8 +648,8 @@ def test_log_error_appends_traceback_inside_except(monkeypatch, tmp_path):
     except ValueError:
         _cue_logger.log_error("caught")
     text = (tmp_path / "renpy_cue" / "error.log").read_text()
-    assert "exploded" in text          # the exception message
-    assert "ValueError" in text        # the traceback frame
+    assert "exploded" in text  # the exception message
+    assert "ValueError" in text  # the traceback frame
 
 
 def test_log_error_no_traceback_outside_except(tmp_path, monkeypatch):
@@ -664,6 +686,7 @@ def test_clear_error_log_creates_missing_dir(tmp_path, monkeypatch):
 # Tab action / shift held
 # ---------------------------------------------------------------------------
 
+
 def test_make_tab_action_appends_index(monkeypatch):
     captured = {}
     monkeypatch.setattr(_util, "Function", lambda fn, *args: captured.update(fn=fn, args=args))
@@ -690,6 +713,7 @@ def test_shift_held(monkeypatch):
 # Screenshake detection
 # ---------------------------------------------------------------------------
 
+
 def test_screenshake_none_is_false():
     assert _cue_is_screenshake(None) is False
 
@@ -702,6 +726,7 @@ def test_screenshake_partial_move_true():
 def test_screenshake_partial_wrong_func_false():
     def Other():
         return None
+
     assert _cue_is_screenshake(functools.partial(Other, delay=0.3)) is False
 
 
@@ -731,6 +756,7 @@ def test_screenshake_partial_delay_non_numeric_false():
 # ---------------------------------------------------------------------------
 # Displayable unwrapping / naming
 # ---------------------------------------------------------------------------
+
 
 def test_unwrap_displayable_plain_returns_self():
     d = object()
@@ -852,6 +878,7 @@ def test_get_movie_play_empty():
 # _cue_query_matches (search-bar preset-name matcher)
 # ---------------------------------------------------------------------------
 
+
 def test_query_matches_case_insensitive_substring():
     assert _util._cue_query_matches("Intense Moans", "intense")
     assert _util._cue_query_matches("Intense Moans", "MOANS")
@@ -900,10 +927,9 @@ def test_query_matches_escaped_pipe_literal():
 # inside it matches, not just its own name)
 # ---------------------------------------------------------------------------
 
+
 def _stub_sfx_library(monkeypatch, files):
-    monkeypatch.setattr(_cue, "sfx",
-                        SimpleNamespace(library=SimpleNamespace(
-                            files=list(files), disabled_files=set())))
+    monkeypatch.setattr(_cue, "sfx", SimpleNamespace(library=SimpleNamespace(files=list(files), disabled_files=set())))
 
 
 def test_matches_any_empty_query_matches_everything():
@@ -927,22 +953,21 @@ def test_preset_search_matches_by_name(monkeypatch):
 
 def test_preset_search_matches_by_file_content(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
-    monkeypatch.setattr(_cue, "markers", SimpleNamespace(
-        get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]}))
+    monkeypatch.setattr(
+        _cue, "markers", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
+    )
     assert _util._cue_preset_search_matches("Action Pack", "scream")
 
 
 def test_preset_search_matches_folder_ref_content(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
-    monkeypatch.setattr(_cue, "markers", SimpleNamespace(
-        get_preset=lambda n: {"files": ["music/"]}))
+    monkeypatch.setattr(_cue, "markers", SimpleNamespace(get_preset=lambda n: {"files": ["music/"]}))
     assert _util._cue_preset_search_matches("Ambient", "scream")
 
 
 def test_preset_search_matches_nothing(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav"])
-    monkeypatch.setattr(_cue, "markers", SimpleNamespace(
-        get_preset=lambda n: {"files": ["music/scream.wav"]}))
+    monkeypatch.setattr(_cue, "markers", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav"]}))
     assert not _util._cue_preset_search_matches("Action Pack", "zzz")
 
 
@@ -957,14 +982,14 @@ def test_igroup_search_matches_by_name(monkeypatch):
 
 
 def test_igroup_search_matches_by_folder_content(monkeypatch):
-    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(
-        get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]}))
+    monkeypatch.setattr(
+        _cue, "intensity", SimpleNamespace(get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]})
+    )
     assert _util._cue_igroup_search_matches("Build", "gasps")
 
 
 def test_igroup_search_matches_nothing(monkeypatch):
-    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(
-        get_igroup=lambda n: {"folders": ["moans/soft"]}))
+    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(get_igroup=lambda n: {"folders": ["moans/soft"]}))
     assert not _util._cue_igroup_search_matches("Build", "zzz")
 
 
@@ -977,57 +1002,62 @@ def test_igroup_search_matches_missing_group(monkeypatch):
 # content-only match keeps just the matching files (the tree's folder-match
 # semantics -- matching folder keeps all descendants).
 
+
 def test_filter_preset_files_no_query_all_files(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
-    monkeypatch.setattr(_cue, "markers", SimpleNamespace(
-        get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]}))
-    assert _util._cue_filter_preset_files("Action Pack", "") == \
-        ["music/scream.wav", "music/moan.wav"]
+    monkeypatch.setattr(
+        _cue, "markers", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
+    )
+    assert _util._cue_filter_preset_files("Action Pack", "") == ["music/scream.wav", "music/moan.wav"]
 
 
 def test_filter_preset_files_name_match_keeps_all(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
-    monkeypatch.setattr(_cue, "markers", SimpleNamespace(
-        get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]}))
-    assert _util._cue_filter_preset_files("Action Pack", "action") == \
-        ["music/scream.wav", "music/moan.wav"]
+    monkeypatch.setattr(
+        _cue, "markers", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
+    )
+    assert _util._cue_filter_preset_files("Action Pack", "action") == ["music/scream.wav", "music/moan.wav"]
 
 
 def test_filter_preset_files_content_match_keeps_matches(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
-    monkeypatch.setattr(_cue, "markers", SimpleNamespace(
-        get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]}))
+    monkeypatch.setattr(
+        _cue, "markers", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
+    )
     assert _util._cue_filter_preset_files("Action Pack", "scream") == ["music/scream.wav"]
 
 
 def test_filter_preset_files_folder_ref_resolves_then_filters(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
-    monkeypatch.setattr(_cue, "markers", SimpleNamespace(
-        get_preset=lambda n: {"files": ["music/"]}))
+    monkeypatch.setattr(_cue, "markers", SimpleNamespace(get_preset=lambda n: {"files": ["music/"]}))
     assert _util._cue_filter_preset_files("Ambient", "scream") == ["music/scream.wav"]
 
 
 def test_filter_igroup_folders_no_query_all(monkeypatch):
-    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(
-        get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]}))
+    monkeypatch.setattr(
+        _cue, "intensity", SimpleNamespace(get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]})
+    )
     assert _util._cue_filter_igroup_folders("Build", "") == ["moans/soft", "gasps/light"]
 
 
 def test_filter_igroup_folders_name_match_keeps_all(monkeypatch):
-    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(
-        get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]}))
+    monkeypatch.setattr(
+        _cue, "intensity", SimpleNamespace(get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]})
+    )
     assert _util._cue_filter_igroup_folders("Build", "build") == ["moans/soft", "gasps/light"]
 
 
 def test_filter_igroup_folders_content_match_keeps_matches(monkeypatch):
-    monkeypatch.setattr(_cue, "intensity", SimpleNamespace(
-        get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]}))
+    monkeypatch.setattr(
+        _cue, "intensity", SimpleNamespace(get_igroup=lambda n: {"folders": ["moans/soft", "gasps/light"]})
+    )
     assert _util._cue_filter_igroup_folders("Build", "gasps") == ["gasps/light"]
 
 
 # ---------------------------------------------------------------------------
 # Branch tails -- error paths, Py2 unicode paths, dead-code fallbacks
 # ---------------------------------------------------------------------------
+
 
 def test_unwrap_displayable_target_callable_raises():
     # A displayable whose _target() raises resolves to None -> break keeps d.
@@ -1099,6 +1129,7 @@ def test_clear_debug_log_swallows_error(tmp_path, monkeypatch):
 
     def _boom(path):
         raise OSError("no perms")
+
     monkeypatch.setattr(os, "makedirs", _boom)
 
     _cue_logger.clear_debug()  # must not raise
@@ -1117,6 +1148,7 @@ def test_screenshake_swallows_inner_error(monkeypatch):
 # Engine hook wrappers -- with_statement / config.show screenshake detection
 # ---------------------------------------------------------------------------
 
+
 def Move(bounce=False, repeat=False, delay=None):
     """Fake renpy.transitions.Move so _cue_is_screenshake recognizes it."""
     pass
@@ -1131,7 +1163,7 @@ class _RecordingShow(object):
 
     def __init__(self, result="RESULT"):
         self.result = result
-        self.calls = []   # type: list
+        self.calls = []  # type: list
 
     def __call__(self, *args, **kwargs):
         self.calls.append((args, kwargs))
@@ -1212,6 +1244,7 @@ def test_config_show_wrapper_no_at_list_ok():
 # ---------------------------------------------------------------------------
 # Text escaping
 # ---------------------------------------------------------------------------
+
 
 def test_escape_text_none_returns_none():
     assert _cue_escape_text(None) is None

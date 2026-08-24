@@ -10,11 +10,7 @@ import os
 
 import pytest
 
-from cue_lib.constants import (
-    CUE_INTENSITY_FREQ_MAX,
-    CUE_INTENSITY_PRESET_TYPE,
-    CUE_INTENSITY_VOLUME_MAX,
-)
+from cue_lib.constants import CUE_INTENSITY_FREQ_MAX, CUE_INTENSITY_PRESET_TYPE, CUE_INTENSITY_VOLUME_MAX
 from cue_lib.intensity import CueIntensityManager, _level_ramp
 
 
@@ -38,6 +34,7 @@ def _igroup_files(cue_env):
 # ==========================================================================
 # _level_ramp -- ramp-default multiplier generation
 # ==========================================================================
+
 
 def test_level_ramp_single_level_is_identity():
     assert _level_ramp(1, CUE_INTENSITY_VOLUME_MAX) == [1.0]
@@ -64,6 +61,7 @@ def test_level_ramp_strictly_increasing_to_max():
 # ==========================================================================
 # create / list / get / rename / delete
 # ==========================================================================
+
 
 def test_create_empty_igroup(cue_env, imgr):
     assert imgr.create_igroup("Impacts") is None
@@ -138,6 +136,7 @@ def test_delete_igroup(cue_env, imgr):
 # level editing -- folder list is the level list
 # ==========================================================================
 
+
 def test_add_folder_ramps(cue_env, imgr):
     imgr.create_igroup("Impacts")
     assert imgr.add_folder("Impacts", "sfx/soft/") is None
@@ -202,6 +201,7 @@ def test_move_level_missing_igroup_noop(cue_env, imgr):
 # ==========================================================================
 # persistence -- on-disk JSON is the source of truth
 # ==========================================================================
+
 
 def test_igroups_survive_manager_rebuild(cue_env):
     m1 = CueIntensityManager(cue_env.db)

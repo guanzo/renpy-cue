@@ -38,10 +38,7 @@ import zipfile as _zipfile
 import renpy
 from renpy.store import Function
 
-from cue_lib.constants import (
-    CUE_MANUAL_BACKUP_NAME,
-    CUE_SHARED_CONFIG_FILENAME,
-)
+from cue_lib.constants import CUE_MANUAL_BACKUP_NAME, CUE_SHARED_CONFIG_FILENAME
 from cue_lib.util import _cue_log, _cue_replace_file, _to_str
 
 # Automatic backup of the data/ tree.  After any disk CRUD, when at least
@@ -79,7 +76,7 @@ def _backup_ts_from_name(name):
     Returns None if the name is not a recognized backup file."""
     if not (name.startswith(CUE_BACKUP_PREFIX) and name.endswith(".zip")):
         return None
-    ts_text = name[len(CUE_BACKUP_PREFIX):-len(".zip")]
+    ts_text = name[len(CUE_BACKUP_PREFIX) : -len(".zip")]
     try:
         return int(ts_text)
     except Exception:
@@ -162,8 +159,7 @@ def zip_shared_tree(root, zip_path, tmp_path=None, progress=None):
                 continue
             for walk_root, _dirs, files in os.walk(src_dir):
                 for name in files:
-                    total += os.path.getsize(
-                        _to_str(os.path.join(walk_root, name)))
+                    total += os.path.getsize(_to_str(os.path.join(walk_root, name)))
     count = 0
     written = 0
     with _zipfile.ZipFile(tmp_path, "w", _zipfile.ZIP_DEFLATED) as zf:
@@ -199,15 +195,20 @@ def validate_backup_zip(zip_path):
         if not names:
             return (False, "zip is empty")
         looks_like_data = any(
-            n.startswith("markers/") or n.startswith("presets/")
+            n.startswith("markers/")
+            or n.startswith("presets/")
             or n == CUE_SHARED_CONFIG_FILENAME
             or _matches_any(n, list(CUE_MEDIA_DIRS))
             or n.startswith(CUE_VIDEO_DIR + "/")
             for n in names
         )
         if not looks_like_data:
-            return (False, "not a data backup (no markers/, presets/, "
-                    "audio/, music/, video/, or {})".format(CUE_SHARED_CONFIG_FILENAME))
+            return (
+                False,
+                "not a data backup (no markers/, presets/, audio/, music/, video/, or {})".format(
+                    CUE_SHARED_CONFIG_FILENAME
+                ),
+            )
         # Spot-check that embedded JSON parses (stops after a few).  Only
         # mod-data entries are checked -- a stray .json dropped into audio/
         # or music/ isn't marker data and shouldn't invalidate the backup.
@@ -215,8 +216,7 @@ def validate_backup_zip(zip_path):
         for n in names:
             if not n.endswith(".json"):
                 continue
-            if not (n.startswith("markers/") or n.startswith("presets/")
-                    or n == CUE_SHARED_CONFIG_FILENAME):
+            if not (n.startswith("markers/") or n.startswith("presets/") or n == CUE_SHARED_CONFIG_FILENAME):
                 continue
             try:
                 _json.loads(zf.read(n))
@@ -298,8 +298,7 @@ def restore_pieces(zip_path, shared_dir, game_id):
             staged = _to_str(os.path.join(walk_root, name))
             rel = _to_str(os.path.relpath(staged, staging))
             first = rel.split("/", 1)[0]
-            base = shared_dir if (first in CUE_MEDIA_DIRS
-                                  or first == CUE_VIDEO_DIR) else data_dir
+            base = shared_dir if (first in CUE_MEDIA_DIRS or first == CUE_VIDEO_DIR) else data_dir
             target = os.path.join(base, rel)
             if os.path.lexists(target):
                 bak_target = os.path.join(bak_dir, rel)
@@ -337,8 +336,7 @@ def restore_counts(zip_path, shared_dir, game_id):
             if not _matches_any(name, matchers):
                 continue
             first = name.split("/", 1)[0]
-            base = (shared_dir if (first in CUE_MEDIA_DIRS
-                                   or first == CUE_VIDEO_DIR) else data_dir)
+            base = shared_dir if (first in CUE_MEDIA_DIRS or first == CUE_VIDEO_DIR) else data_dir
             target = _safe_extract_path(base, name)
             if target is None:
                 continue
@@ -354,15 +352,15 @@ def restore_confirm_message(overwritten, added):
     """The confirm-dialog body for a restore preflight."""
     op = "file" if overwritten == 1 else "files"
     ap = "file" if added == 1 else "files"
-    return ("Confirm restore.\n\n"
-            "{} {} will be overwritten, {} new {} will be added.\n"
-            "Existing files are saved to data_bak.").format(
-                overwritten, op, added, ap)
+    return (
+        "Confirm restore.\n\n{} {} will be overwritten, {} new {} will be added.\nExisting files are saved to data_bak."
+    ).format(overwritten, op, added, ap)
 
 
 # =========================================================================
 # CueAutoBackupManager
 # =========================================================================
+
 
 class CueAutoBackupManager(object):
     """Throttled, background zipping of the shared data/ tree."""
@@ -441,10 +439,10 @@ class CueAutoBackupManager(object):
             # Temp name is unique per game so two games backing up in the
             # same second never write the same file; the final move replaces
             # any same-second zip, so a collision resolves to one complete file.
-            tmp_path = os.path.join(backup_dir, "{}{}_{}.zip.tmp".format(
-                CUE_BACKUP_PREFIX, ts, self._owner._paths.game_id))
-            final_path = os.path.join(
-                backup_dir, "{}{}.zip".format(CUE_BACKUP_PREFIX, ts))
+            tmp_path = os.path.join(
+                backup_dir, "{}{}_{}.zip.tmp".format(CUE_BACKUP_PREFIX, ts, self._owner._paths.game_id)
+            )
+            final_path = os.path.join(backup_dir, "{}{}.zip".format(CUE_BACKUP_PREFIX, ts))
             count = zip_tree(data_dir, final_path, tmp_path)
             self._prune_backups()
             self._last_backup_ts = _time.time()
@@ -481,6 +479,7 @@ class CueAutoBackupManager(object):
 # CueManualBackupManager
 # =========================================================================
 
+
 class CueManualBackupManager(object):
     """Async manual backup/restore (the Back Up / Restore buttons).
 
@@ -493,7 +492,7 @@ class CueManualBackupManager(object):
     def __init__(self, owner):
         # type: (CueBackupManager) -> None
         self._owner = owner
-        self._db = None          # CueDatabase, injected by wire()
+        self._db = None  # CueDatabase, injected by wire()
         self._reload_work = None  # callable(count) -> None, wired by init -900
         self._confirm_dialog = None
         self.is_backing_up = False
@@ -532,8 +531,7 @@ class CueManualBackupManager(object):
     def is_busy(self):
         # type: () -> bool
         """True while a manual backup, restore, or preflight is in flight."""
-        return (self.is_backing_up or self.is_restoring
-                or self.is_restore_checking)
+        return self.is_backing_up or self.is_restoring or self.is_restore_checking
 
     # -- backup --
 
@@ -558,8 +556,7 @@ class CueManualBackupManager(object):
         clears is_backing_up when done."""
         try:
             count = self._zip_to_file()
-            self.backup_status = ("Backed up {} files to "
-                "backups/renpy_cue_backup.zip.").format(count)
+            self.backup_status = ("Backed up {} files to backups/renpy_cue_backup.zip.").format(count)
         except Exception as e:
             self.backup_error = "Backup failed: {}".format(e)
         finally:
@@ -590,8 +587,7 @@ class CueManualBackupManager(object):
                 if e.errno != errno.EEXIST:
                     raise
         zip_path = paths.manual_backup_path
-        tmp_path = os.path.join(
-            backups_dir, "{}.{}.tmp".format(CUE_MANUAL_BACKUP_NAME, paths.game_id))
+        tmp_path = os.path.join(backups_dir, "{}.{}.tmp".format(CUE_MANUAL_BACKUP_NAME, paths.game_id))
         return zip_shared_tree(root, zip_path, tmp_path, self._set_backup_progress)
 
     def _set_backup_progress(self, written, total):
@@ -627,8 +623,7 @@ class CueManualBackupManager(object):
             self.restore_error = "No backup to restore -- run Back Up first."
             return
         self._restore_checking = True
-        t = _threading.Thread(target=self._restore_check_worker,
-                              args=(zip_path,))
+        t = _threading.Thread(target=self._restore_check_worker, args=(zip_path,))
         t.daemon = True
         self._restore_thread = t
         t.start()
@@ -645,8 +640,7 @@ class CueManualBackupManager(object):
                 self.restore_error = "Backup is invalid: {}".format(reason)
                 return
             paths = self._owner._paths
-            overwritten, added = restore_counts(
-                zip_path, paths.original_root, paths.game_id)
+            overwritten, added = restore_counts(zip_path, paths.original_root, paths.game_id)
             self._confirm_payload = (zip_path, overwritten, added)
             self._confirm_pending = True
         except Exception as e:
@@ -683,14 +677,10 @@ class CueManualBackupManager(object):
             # Don't mutate the live tree while the auto-backup is zipping it.
             if not self._owner.auto.wait_until_idle():
                 _cue_log("RESTORE-MARKERS: timed out waiting for auto backup")
-                self.restore_error = ("Restore aborted: auto-backup is still "
-                    "running.")
+                self.restore_error = "Restore aborted: auto-backup is still running."
                 return
-            self._restore_count = restore_pieces(
-                zip_path, self._owner._paths.original_root,
-                self._owner._paths.game_id)
-            self.restore_status = ("Restored {} files -- reloading..."
-                ).format(self._restore_count)
+            self._restore_count = restore_pieces(zip_path, self._owner._paths.original_root, self._owner._paths.game_id)
+            self.restore_status = ("Restored {} files -- reloading...").format(self._restore_count)
             self._restore_pending = True
         except Exception as e:
             self.restore_error = "Restore failed: {}".format(e)
@@ -718,9 +708,7 @@ class CueManualBackupManager(object):
         if self._confirm_dialog is None or payload is None:
             return
         zip_path, overwritten, added = payload
-        self._confirm_dialog.show(
-            restore_confirm_message(overwritten, added),
-            Function(self._apply_restore, zip_path))
+        self._confirm_dialog.show(restore_confirm_message(overwritten, added), Function(self._apply_restore, zip_path))
         # poll() runs under _update_screens=False (overlay timer), so
         # show_screen alone would defer the dialog to an interaction that
         # never comes; force the repaint here (same as _reload_after_restore).
@@ -734,8 +722,9 @@ class CueManualBackupManager(object):
         try:
             if self._reload_work is not None:
                 self._reload_work(self._restore_count)
-            self.restore_status = ("Restored {} files from backups/renpy_cue_backup.zip. "
-                "Previous data saved to data_bak.").format(self._restore_count)
+            self.restore_status = (
+                "Restored {} files from backups/renpy_cue_backup.zip. Previous data saved to data_bak."
+            ).format(self._restore_count)
         except Exception as e:
             self.restore_error = "Restore reload failed: {}".format(e)
 
@@ -743,6 +732,7 @@ class CueManualBackupManager(object):
 # =========================================================================
 # CueBackupManager -- composite facade
 # =========================================================================
+
 
 class CueBackupManager(object):
     """Composite backup manager for the shared data tree.
@@ -758,7 +748,7 @@ class CueBackupManager(object):
         self._paths = paths
         self.auto = CueAutoBackupManager(self)
         self.manual = CueManualBackupManager(self)
-        self._db = None          # CueDatabase, injected by wire()
+        self._db = None  # CueDatabase, injected by wire()
 
     def wire(self, db, reload_work, confirm_dialog):
         # type: (Any, Callable[[int], None], Any) -> None

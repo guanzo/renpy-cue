@@ -60,6 +60,7 @@ def _pool(mgr, key, pools):
 # Base CueMarkerContext -- add_file guards + happy path (via mgr.image)
 # ==========================================================================
 
+
 def test_add_file_no_files_noop(mgr):
     _scene(mgr)
     mgr.image.add_file(0)  # empty library -> must not create an entry
@@ -102,6 +103,7 @@ def test_add_file_appends_within_pool(mgr):
 # ==========================================================================
 # send_file / send_folder / send_preset -- shift vs normal
 # ==========================================================================
+
 
 def test_send_file_normal_appends_to_active_pool(mgr):
     _scene(mgr)
@@ -168,6 +170,7 @@ def test_send_preset_shift_creates_new_pool(mgr):
 # ==========================================================================
 # remove_file / clear / add_pool / remove_pool / set_active_index
 # ==========================================================================
+
 
 def test_remove_file(mgr):
     _scene(mgr)
@@ -275,14 +278,14 @@ def test_has_pools(mgr):
 # Exclusive logic
 # ==========================================================================
 
+
 def test_set_exclusive_image_lands_on_every_pool(mgr):
     _scene(mgr)
     mgr.image.add_pool()
     mgr.image.add_pool()
     mgr.image.set_exclusive(CueExclusiveStart.WAIT, True)
     for pool in mgr.get("i_scene.ogv")["pools"]:
-        assert pool["exclusive"] == {
-            "group": 1, "start": CueExclusiveStart.WAIT, "hold": True}
+        assert pool["exclusive"] == {"group": 1, "start": CueExclusiveStart.WAIT, "hold": True}
 
 
 def test_set_exclusive_loop_active_pool_only(mgr):
@@ -359,6 +362,7 @@ def test_loop_clear_exclusive_active_pool_only(mgr):
 # Base add_folder (image context)
 # ==========================================================================
 
+
 def test_add_folder_dedupes_ref(mgr):
     _scene(mgr)
     mgr.image.add_folder("music/")
@@ -370,6 +374,7 @@ def test_add_folder_dedupes_ref(mgr):
 # ==========================================================================
 # CueVideoContext -- add_file
 # ==========================================================================
+
 
 def _video_key(mgr, file="scene.ogv"):
     _scene(mgr, file=file)
@@ -414,6 +419,7 @@ def test_video_add_file_disabled_noop(mgr):
 # ==========================================================================
 # CueVideoContext -- remove_file / add_folder / clear / add_pool
 # ==========================================================================
+
 
 def test_video_remove_file(mgr):
     key = _video_key(mgr)
@@ -473,6 +479,7 @@ def test_video_add_pool(mgr):
 # ==========================================================================
 # CueVideoContext -- apply_preset / apply_preset_active / send_preset
 # ==========================================================================
+
 
 def test_video_apply_preset_appends(mgr):
     key = _video_key(mgr)
@@ -548,6 +555,7 @@ def test_video_send_preset_shift_appends_new_pool(mgr):
 # CueVideoContext -- remove_pool / duplicate_pool / remove_selected
 # ==========================================================================
 
+
 def test_video_duplicate_pool(mgr):
     key = _video_key(mgr)
     _pool(mgr, key, [{"time": 1.0, "files": ["a.ogg"]}])
@@ -608,6 +616,7 @@ def test_video_remove_selected_empty_selection_removes_target(mgr):
 # CueVideoContext -- get_delete_message / set_active_index / select_tab
 # ==========================================================================
 
+
 def test_delete_message_multiple_selected(mgr):
     key = _video_key(mgr)
     _pool(mgr, key, [{"time": 1.0}, {"time": 2.0}, {"time": 3.0}])
@@ -655,6 +664,7 @@ def test_video_select_tab(mgr):
 # ==========================================================================
 # CueVideoContext -- nudge / set_time / finalize_drag / sync_text / commit_text
 # ==========================================================================
+
 
 def test_video_nudge_guard_no_pools(mgr):
     key = _video_key(mgr)
@@ -765,6 +775,7 @@ def test_video_sync_text(mgr):
 # CueVideoContext -- get_markers / get_duration
 # ==========================================================================
 
+
 def test_video_get_markers_no_entry(mgr):
     _video_key(mgr)
     assert mgr.video.get_markers() == []
@@ -788,6 +799,7 @@ def test_video_get_duration(mgr):
 # ==========================================================================
 # CueLoopContext -- add_pool / clear / set_frequency
 # ==========================================================================
+
 
 def test_loop_add_pool_adds_frequency(mgr):
     _scene(mgr)
@@ -840,6 +852,7 @@ def test_dialogue_context_keys_by_line(mgr):
 # ==========================================================================
 # CueVideoContext -- edge branches not covered above
 # ==========================================================================
+
 
 def test_video_entry_and_pools_empty_file_short_circuit(mgr):
     _scene(mgr, file="")

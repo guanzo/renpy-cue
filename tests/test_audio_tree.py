@@ -19,9 +19,7 @@ import cue_lib.audio.user_music as _user
 import cue_lib.util as _util
 from cue_lib.audio.audio_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
 from cue_lib.audio.game_music import CueGameMusic
-from cue_lib.audio.sfx_manager import (
-    CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name,
-)
+from cue_lib.audio.sfx_manager import CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name
 from cue_lib.audio.user_music import CueUserMusic
 from cue_lib.util import _cue_build_tree, _cue_filter_tree
 
@@ -54,13 +52,13 @@ class _ScanSrc(CueAudioTreeManager):
 
 
 def _rows(manager):
-    return [(r["type"], r["name"], r["full_path"], r["depth"])
-            for r in manager.visible_tree]
+    return [(r["type"], r["name"], r["full_path"], r["depth"]) for r in manager.visible_tree]
 
 
 # ==========================================================================
 # _cue_filter_tree (pure)
 # ==========================================================================
+
 
 def test_filter_tree_case_insensitive_file_match():
     tree = _cue_build_tree(["v2/agrat/02_IntenseMo.mp3", "v2/amira/01_NormalMo.mp3"])
@@ -73,14 +71,11 @@ def test_filter_tree_case_insensitive_file_match():
 
 
 def test_filter_tree_folder_match_keeps_full_contents():
-    tree = _cue_build_tree(["v2/agrat/01_SubtleMo.mp3", "v2/agrat/02_IntenseMo.mp3",
-                            "v2/agrat/03_ClosedMo.mp3"])
+    tree = _cue_build_tree(["v2/agrat/01_SubtleMo.mp3", "v2/agrat/02_IntenseMo.mp3", "v2/agrat/03_ClosedMo.mp3"])
     filtered = _cue_filter_tree(tree, "agrat")
     assert _children_names(filtered) == ["v2/"]
     agrat = filtered[0]["children"][0]
-    assert _children_names(agrat["children"]) == [
-        "01_SubtleMo.mp3", "02_IntenseMo.mp3", "03_ClosedMo.mp3",
-    ]
+    assert _children_names(agrat["children"]) == ["01_SubtleMo.mp3", "02_IntenseMo.mp3", "03_ClosedMo.mp3"]
 
 
 def test_filter_tree_prunes_unrelated_branches():
@@ -149,6 +144,7 @@ def test_filter_tree_does_not_mutate_source():
 # CueAudioTreeManager -- scan
 # ==========================================================================
 
+
 def test_scan_discover_error_sets_scan_error():
     m = CueAudioTreeManager()  # base _discover raises NotImplementedError
     m.scan()
@@ -167,10 +163,7 @@ def test_scan_sorts_and_builds_tree():
     # tree: folder "a/" first, then file z.ogg
     assert [n["name"] for n in m.tree] == ["a/", "z.ogg"]
     # collapsed folder hides children
-    assert _rows(m) == [
-        ("folder", "a/", "a/", 0),
-        ("file", "z.ogg", "z.ogg", 0),
-    ]
+    assert _rows(m) == [("folder", "a/", "a/", 0), ("file", "z.ogg", "z.ogg", 0)]
 
 
 def test_discover_walk_dir(tmp_path):
@@ -198,6 +191,7 @@ def test_discover_walk_dir_missing_folder_empty(tmp_path):
 # CueAudioTreeManager -- visible tree + search
 # ==========================================================================
 
+
 def test_rebuild_tree_expanded_folder_shows_children():
     m = _ScanSrc(["a/b.ogg", "a/c.ogg", "z.ogg"])
     m.scan()
@@ -220,11 +214,7 @@ def test_rebuild_tree_search_filters_and_expands_all():
     assert folders
     assert all(row["expanded"] for row in folders)
     files = [row["full_path"] for row in mgr.visible_tree if row["type"] == "file"]
-    assert files == [
-        "v2/agrat/02_IntenseMo.mp3",
-        "v2/anya/04_IntenseMo.mp3",
-        "v2/nora/03_IntenseMo.mp3",
-    ]
+    assert files == ["v2/agrat/02_IntenseMo.mp3", "v2/anya/04_IntenseMo.mp3", "v2/nora/03_IntenseMo.mp3"]
 
 
 def test_rebuild_tree_idle_respects_expansion():
@@ -319,11 +309,7 @@ def test_maybe_rebuild_only_on_query_change():
     mgr.search_query = "intense"
     mgr.maybe_rebuild()
     files = [row["full_path"] for row in mgr.visible_tree if row["type"] == "file"]
-    assert files == [
-        "v2/agrat/02_IntenseMo.mp3",
-        "v2/anya/04_IntenseMo.mp3",
-        "v2/nora/03_IntenseMo.mp3",
-    ]
+    assert files == ["v2/agrat/02_IntenseMo.mp3", "v2/anya/04_IntenseMo.mp3", "v2/nora/03_IntenseMo.mp3"]
     before = list(mgr.visible_tree)
     mgr.maybe_rebuild()  # unchanged query -> no-op
     assert mgr.visible_tree == before
@@ -348,6 +334,7 @@ def test_clear_search_resets_debounce_state():
 # CueUserMusic
 # ==========================================================================
 
+
 def test_user_music_discover_prefixes(monkeypatch, tmp_path):
     music_dir = str(tmp_path / "music") + "/"
     for rel in ("song.ogg", "sub/track.mp3", "notes.txt"):
@@ -368,38 +355,37 @@ def test_user_music_discover_prefixes(monkeypatch, tmp_path):
 # CueGameMusic
 # ==========================================================================
 
+
 def test_game_music_discover_filters(monkeypatch):
     files = [
         "music/bgm.ogg",
-        "Bgm/Upper.OGG",       # case-insensitive dir + ext
-        "bgm\\intro.mp3",      # backslash normalized to forward slash
+        "Bgm/Upper.OGG",  # case-insensitive dir + ext
+        "bgm\\intro.mp3",  # backslash normalized to forward slash
         "ost/track.wav",
         "soundtrack/t.opus",
-        "images/bg.png",       # not an audio ext
-        "sfx/shot.ogg",        # audio but not a music dir
-        "music/notes.txt",     # not an audio ext
+        "images/bg.png",  # not an audio ext
+        "sfx/shot.ogg",  # audio but not a music dir
+        "music/notes.txt",  # not an audio ext
     ]
     monkeypatch.setattr(_renpy, "list_files", lambda: files)
     m = CueGameMusic()
     results = set()
     m._discover(results)
-    assert results == {
-        "music/bgm.ogg", "Bgm/Upper.OGG", "bgm/intro.mp3",
-        "ost/track.wav", "soundtrack/t.opus",
-    }
+    assert results == {"music/bgm.ogg", "Bgm/Upper.OGG", "bgm/intro.mp3", "ost/track.wav", "soundtrack/t.opus"}
 
 
 # ==========================================================================
 # CueSfxLibraryTree
 # ==========================================================================
 
+
 @pytest.fixture
 def sfx(tmp_path):
     audio = str(tmp_path / "audio") + "/"
     # Library-tree tests only exercise the tree; volume/ctx/markers are unused.
     return CueSfxManager(
-        types.SimpleNamespace(audio_dir=audio), FakeDb(),
-        types.SimpleNamespace(), types.SimpleNamespace(), False).library
+        types.SimpleNamespace(audio_dir=audio), FakeDb(), types.SimpleNamespace(), types.SimpleNamespace(), False
+    ).library
 
 
 def test_sfx_init_state(sfx):
@@ -465,9 +451,9 @@ def test_sfx_count_file_list_rows(sfx):
 
 
 def test_sfx_count_file_list_rows_expands_folder_ref(sfx, monkeypatch):
-    fake = types.SimpleNamespace(sfx=types.SimpleNamespace(
-        library=types.SimpleNamespace(
-            files=["pool/a.ogg"], disabled_files=set())))
+    fake = types.SimpleNamespace(
+        sfx=types.SimpleNamespace(library=types.SimpleNamespace(files=["pool/a.ogg"], disabled_files=set()))
+    )
     monkeypatch.setattr(_util, "_cue", fake)
     sfx.expanded_file_refs["pool/"] = True
     n = sfx.count_file_list_rows(None, None, ["pool/"])
@@ -475,9 +461,9 @@ def test_sfx_count_file_list_rows_expands_folder_ref(sfx, monkeypatch):
 
 
 def test_sfx_count_file_list_rows_collapsed_ref(sfx, monkeypatch):
-    fake = types.SimpleNamespace(sfx=types.SimpleNamespace(
-        library=types.SimpleNamespace(
-            files=["pool/a.ogg"], disabled_files=set())))
+    fake = types.SimpleNamespace(
+        sfx=types.SimpleNamespace(library=types.SimpleNamespace(files=["pool/a.ogg"], disabled_files=set()))
+    )
     monkeypatch.setattr(_util, "_cue", fake)
     n = sfx.count_file_list_rows(None, None, ["pool/"])
     assert n == 1  # collapsed: ref row only
@@ -551,7 +537,7 @@ def test_sfx_igroup_add_mode_toggle_single_target(sfx):
 def test_sfx_igroup_add_mode_switches_group(sfx):
     sfx.toggle_igroup_add_mode("A")
     sfx.toggle_igroup_add_mode("B")
-    assert sfx.igroup_add_target == "B"   # only one group at a time
+    assert sfx.igroup_add_target == "B"  # only one group at a time
     assert sfx.expanded_igroups.get("A") is True
     assert sfx.expanded_igroups.get("B") is True
 
@@ -559,8 +545,8 @@ def test_sfx_igroup_add_mode_switches_group(sfx):
 def test_sfx_igroup_add_folder_wired(sfx):
     calls = []
     sfx._intensity = types.SimpleNamespace(
-        get_igroup=lambda g: {"folders": []},
-        add_folder=lambda g, f: calls.append((g, f)))
+        get_igroup=lambda g: {"folders": []}, add_folder=lambda g, f: calls.append((g, f))
+    )
     sfx.igroup_add_folder("Impacts", "soft/")
     assert calls == [("Impacts", "soft/")]
     # No-op before the manager is wired.
@@ -572,9 +558,7 @@ def test_sfx_igroup_add_folder_wired(sfx):
 def test_sfx_igroup_add_folder_clears_stale_target(sfx):
     # Deleting the active add-target group leaves a stale target; the next
     # add clears it instead of failing against a deleted group.
-    sfx._intensity = types.SimpleNamespace(
-        get_igroup=lambda g: None,
-        add_folder=lambda g, f: None)
+    sfx._intensity = types.SimpleNamespace(get_igroup=lambda g: None, add_folder=lambda g, f: None)
     sfx.igroup_add_target = "Gone"
     sfx.igroup_add_folder("Gone", "soft/")
     assert sfx.igroup_add_target is None
@@ -584,6 +568,7 @@ def test_sfx_igroup_add_folder_clears_stale_target(sfx):
 # SFX channel helpers (moved here from util.py with the playback manager)
 # ---------------------------------------------------------------------------
 
+
 def test_sfx_channel_name_and_index():
     assert _cue_sfx_channel_name(3) == "_cue_3"
     assert _cue_sfx_channel_index("_cue_7") == 7
@@ -592,6 +577,7 @@ def test_sfx_channel_name_and_index():
 # ---------------------------------------------------------------------------
 # One-time root expansion on scan (opt-in, _auto_expand_roots)
 # ---------------------------------------------------------------------------
+
 
 # A real scan needs a working _discover(); the concrete managers read _cue
 # paths, so test the base mechanism with a lightweight subclass instead.

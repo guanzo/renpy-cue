@@ -15,17 +15,12 @@ import zipfile
 import pytest
 
 from cue_lib import importer_io as _imp
-from cue_lib.constants import (
-    CUE_IMPORT_CATEGORY_ORDER,
-    CUE_IMPORT_MANIFEST_NAME,
-    CueImportMatch,
-)
+from cue_lib.constants import CUE_IMPORT_CATEGORY_ORDER, CUE_IMPORT_MANIFEST_NAME, CueImportMatch
 from cue_lib.importer import CueImportManager
 
 LOCAL_GID = "cue_test_harness"
 
-FIXTURES_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "fixtures", "import_exports")
+FIXTURES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "import_exports")
 
 MAX_ZIP = "cue-max-test.zip"
 MISMATCH_ZIP = "cue-match-mismatch.zip"
@@ -40,8 +35,7 @@ def _walk_rel(root):
     result = set()
     for dirpath, _dirs, names in os.walk(root):
         for name in names:
-            result.add(os.path.relpath(os.path.join(dirpath, name), root)
-                       .replace("\\", "/"))
+            result.add(os.path.relpath(os.path.join(dirpath, name), root).replace("\\", "/"))
     return result
 
 
@@ -59,6 +53,7 @@ def _load(tmp_path, name):
 # ---------------------------------------------------------------------------
 # importer_io level -- extract / match / validate / missing
 # ---------------------------------------------------------------------------
+
 
 def test_max_extracts_clean_and_flags_phantom(tmp_path):
     path = _fixture_path(MAX_ZIP)
@@ -84,8 +79,7 @@ def test_max_extracts_clean_and_flags_phantom(tmp_path):
 
     # The missing file is reported separately (warn-and-confirm), not fatal.
     man = _imp._cue_load_manifest(out)
-    assert _imp._cue_missing_files(man, _zip_names(path)) == \
-        ["audio/Missing/song.ogg"]
+    assert _imp._cue_missing_files(man, _zip_names(path)) == ["audio/Missing/song.ogg"]
 
 
 def test_max_covers_every_category(tmp_path):
@@ -116,14 +110,14 @@ def test_prefix_matches_confirm():
 def test_all_fixtures_validate(tmp_path):
     for name in (MAX_ZIP, MISMATCH_ZIP, PREFIX_ZIP):
         man = _load(tmp_path, name)
-        valid, why = _imp._cue_validate_manifest(
-            man, _zip_names(_fixture_path(name)))
+        valid, why = _imp._cue_validate_manifest(man, _zip_names(_fixture_path(name)))
         assert valid, (name, why)
 
 
 # ---------------------------------------------------------------------------
 # manager level -- drop in imports/, scan(), assert the entry
 # ---------------------------------------------------------------------------
+
 
 class _FakeThread(object):
     def __init__(self, target=None, args=()):
@@ -139,6 +133,7 @@ class _FakeThread(object):
 @pytest.fixture
 def import_threads(monkeypatch):
     import cue_lib.importer as _imports
+
     created = []
 
     def _factory(**kw):
@@ -185,9 +180,9 @@ def test_scan_real_exports_builds_expected_entries(tmp_path, import_threads):
 
     # Entry "imp" keys are the zip names minus the extension.
     by_name = {e["imp"]: e for e in mgr.imports}
-    max_imp = MAX_ZIP[:-len(".zip")]
-    mismatch_imp = MISMATCH_ZIP[:-len(".zip")]
-    prefix_imp = PREFIX_ZIP[:-len(".zip")]
+    max_imp = MAX_ZIP[: -len(".zip")]
+    mismatch_imp = MISMATCH_ZIP[: -len(".zip")]
+    prefix_imp = PREFIX_ZIP[: -len(".zip")]
 
     assert by_name[max_imp]["valid"]
     assert by_name[max_imp]["match"] == CueImportMatch.AUTO
@@ -199,8 +194,7 @@ def test_scan_real_exports_builds_expected_entries(tmp_path, import_threads):
 
     assert by_name[prefix_imp]["valid"]
     assert by_name[prefix_imp]["match"] == CueImportMatch.CONFIRM
-    assert by_name[prefix_imp]["match_reason"] == \
-        "both share prefix 'cue_test_harness'"
+    assert by_name[prefix_imp]["match_reason"] == "both share prefix 'cue_test_harness'"
 
     # The committed manifests carry the replays field (replay + marker_count),
     # computed from the packed markers -- exactly what a real export writes.
@@ -208,7 +202,5 @@ def test_scan_real_exports_builds_expected_entries(tmp_path, import_threads):
         {"replay": "scene_A_label", "marker_count": 3},
         {"replay": "scene_B_label", "marker_count": 2},
     ]
-    assert by_name[prefix_imp]["replays"] == [
-        {"replay": "probe_label", "marker_count": 1},
-    ]
+    assert by_name[prefix_imp]["replays"] == [{"replay": "probe_label", "marker_count": 1}]
     assert by_name[mismatch_imp]["replays"] == []

@@ -12,9 +12,7 @@ import types
 
 from cue_lib.audio.music import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
 from cue_lib.audio.music_tree import CueCombinedMusicTree
-from cue_lib.constants import (
-    CUE_GAME_MUSIC_FOLDER, CUE_MY_MUSIC_FOLDER, CUE_MUSIC_PREFIX,
-)
+from cue_lib.constants import CUE_GAME_MUSIC_FOLDER, CUE_MY_MUSIC_FOLDER, CUE_MUSIC_PREFIX
 from cue_lib.util import _cue_build_tree
 
 USER = CUE_MY_MUSIC_FOLDER
@@ -26,7 +24,7 @@ def _fake_split_tag(ref):
     """Mirror of CueMusicManager._split_ref_tag for the fake manager."""
     for tag in (CUE_MUSIC_USER_TAG, CUE_MUSIC_GAME_TAG):
         if ref.startswith(tag):
-            return tag, ref[len(tag):]
+            return tag, ref[len(tag) :]
     return None, ref
 
 
@@ -44,18 +42,11 @@ def _make_lib(user_paths=(), game_paths=()):
         # type: (str) -> object
         def _f(*args, **kwargs):
             calls.append((name, args, kwargs))
+
         return _f
 
-    user = types.SimpleNamespace(
-        tree=_fake_tree(user_paths),
-        files=list(user_paths),
-        scan_error="",
-    )
-    game = types.SimpleNamespace(
-        tree=_fake_tree(game_paths),
-        files=list(game_paths),
-        scan_error="",
-    )
+    user = types.SimpleNamespace(tree=_fake_tree(user_paths), files=list(user_paths), scan_error="")
+    game = types.SimpleNamespace(tree=_fake_tree(game_paths), files=list(game_paths), scan_error="")
     music = types.SimpleNamespace(
         add_user_song_to_trigger=_rec("add_user_song"),
         add_game_song_to_trigger=_rec("add_game_song"),
@@ -78,10 +69,11 @@ def _rows(lib):
 # Merge + flatten
 # ==========================================================================
 
+
 def test_merged_tree_wraps_both_sources():
     lib, _calls, _user, _game = _make_lib(
-        user_paths=("music/a.ogg", "music/sub/b.ogg"),
-        game_paths=("bgm/x.ogg", "music/y.ogg"))
+        user_paths=("music/a.ogg", "music/sub/b.ogg"), game_paths=("bgm/x.ogg", "music/y.ogg")
+    )
     lib.rebuild_tree()
     # Only the two synthetic roots are expanded by default; expand the inner
     # sub-folders so their child rows are rendered.
@@ -133,10 +125,11 @@ def test_merged_tree_empty_when_both_empty():
 # Search (one query over both sources)
 # ==========================================================================
 
+
 def test_search_filters_across_both_sources():
     lib, _calls, _user, _game = _make_lib(
-        user_paths=("music/song.ogg",),
-        game_paths=("bgm/song.ogg", "music/other.ogg"))
+        user_paths=("music/song.ogg",), game_paths=("bgm/song.ogg", "music/other.ogg")
+    )
     lib.rebuild_tree()
     lib.search_query = "bgm"
     lib.rebuild_tree()
@@ -148,9 +141,7 @@ def test_search_filters_across_both_sources():
 
 
 def test_search_matches_both_sources():
-    lib, _calls, _user, _game = _make_lib(
-        user_paths=("music/song.ogg",),
-        game_paths=("bgm/song.ogg",))
+    lib, _calls, _user, _game = _make_lib(user_paths=("music/song.ogg",), game_paths=("bgm/song.ogg",))
     lib.rebuild_tree()
     lib.search_query = "song"
     lib.rebuild_tree()
@@ -171,8 +162,7 @@ def test_search_caps_rows():
 
 
 def test_clear_search_restores_collapsed_tree():
-    lib, _calls, _user, _game = _make_lib(
-        user_paths=("music/a.ogg", "music/sub/b.ogg"))
+    lib, _calls, _user, _game = _make_lib(user_paths=("music/a.ogg", "music/sub/b.ogg"))
     lib.rebuild_tree()
     lib.search_query = "b"
     lib.rebuild_tree()
@@ -190,9 +180,9 @@ def test_clear_search_restores_collapsed_tree():
 # Expansion state
 # ==========================================================================
 
+
 def test_toggle_folder_collapses_and_expands():
-    lib, _calls, _user, _game = _make_lib(
-        user_paths=("music/a.ogg", "music/sub/b.ogg"))
+    lib, _calls, _user, _game = _make_lib(user_paths=("music/a.ogg", "music/sub/b.ogg"))
     lib.rebuild_tree()
     # A sub-folder starts collapsed; the first toggle expands it, the second
     # collapses it.
@@ -206,8 +196,7 @@ def test_toggle_folder_collapses_and_expands():
 
 
 def test_toggle_folder_noop_during_search():
-    lib, _calls, _user, _game = _make_lib(
-        user_paths=("music/a.ogg", "music/sub/b.ogg"))
+    lib, _calls, _user, _game = _make_lib(user_paths=("music/a.ogg", "music/sub/b.ogg"))
     lib.rebuild_tree()
     lib.search_query = "b"
     lib.rebuild_tree()
@@ -219,9 +208,9 @@ def test_toggle_folder_noop_during_search():
 # maybe_rebuild / rescan detection
 # ==========================================================================
 
+
 def test_maybe_rebuild_skips_when_unchanged():
-    lib, _calls, _user, _game = _make_lib(
-        user_paths=("music/a.ogg",), game_paths=("bgm/x.ogg",))
+    lib, _calls, _user, _game = _make_lib(user_paths=("music/a.ogg",), game_paths=("bgm/x.ogg",))
     lib.rebuild_tree()
     before = lib.visible_tree
     lib.maybe_rebuild()
@@ -231,8 +220,7 @@ def test_maybe_rebuild_skips_when_unchanged():
 def test_maybe_rebuild_skips_rebuild_after_rebuild_tree(monkeypatch):
     # A fresh rebuild_tree stamps the source-tree ids, so the next
     # maybe_rebuild must not re-merge (the tick loop calls it constantly).
-    lib, _calls, _user, _game = _make_lib(
-        user_paths=("music/a.ogg",), game_paths=("bgm/x.ogg",))
+    lib, _calls, _user, _game = _make_lib(user_paths=("music/a.ogg",), game_paths=("bgm/x.ogg",))
     lib.rebuild_tree()
     seen = []
     monkeypatch.setattr(lib, "rebuild_tree", lambda: seen.append(1))
@@ -241,8 +229,7 @@ def test_maybe_rebuild_skips_rebuild_after_rebuild_tree(monkeypatch):
 
 
 def test_maybe_rebuild_after_rescan():
-    lib, _calls, user, _game = _make_lib(
-        user_paths=("music/a.ogg",), game_paths=("bgm/x.ogg",))
+    lib, _calls, user, _game = _make_lib(user_paths=("music/a.ogg",), game_paths=("bgm/x.ogg",))
     lib.rebuild_tree()
     assert USER + "new.ogg" not in _rows(lib)
     # A re-scan replaces the sub-manager's tree object.
@@ -256,14 +243,15 @@ def test_maybe_rebuild_after_rescan():
 # files; the synthetic Game Music root and nested-only folders get none)
 # ==========================================================================
 
+
 def test_folder_rows_has_files():
     lib, _calls, _user, _game = _make_lib(
-        user_paths=("music/a.ogg", "music/sub/deep.ogg"),
-        game_paths=("bgm/ost/y.ogg",))
+        user_paths=("music/a.ogg", "music/sub/deep.ogg"), game_paths=("bgm/ost/y.ogg",)
+    )
     lib.rebuild_tree()
     rows = _rows(lib)
     # Direct file under the folder -> shows "+".
-    assert rows[USER]["has_files"] is True        # My Music/ hoists music/a.ogg
+    assert rows[USER]["has_files"] is True  # My Music/ hoists music/a.ogg
     assert rows[USER + "sub/"]["has_files"] is True
     # Nested-only folder (no direct files) -> no "+".
     assert rows[GAME + "bgm/"]["has_files"] is False
@@ -275,19 +263,17 @@ def test_folder_rows_has_files():
 # Dispatch: display path -> data path (refs stay tagged u:/g:)
 # ==========================================================================
 
+
 def test_add_song_user_routes_flattened_path():
     lib, calls, _user, _game = _make_lib(user_paths=("music/a.ogg",))
     lib.add_song_to_trigger(USER + "a.ogg")
-    assert calls == [("add_user_song", (CUE_MUSIC_PREFIX + "a.ogg",),
-                      {"record": True})]
+    assert calls == [("add_user_song", (CUE_MUSIC_PREFIX + "a.ogg",), {"record": True})]
 
 
 def test_add_song_user_nested_folder():
-    lib, calls, _user, _game = _make_lib(
-        user_paths=("music/folder/song.ogg",))
+    lib, calls, _user, _game = _make_lib(user_paths=("music/folder/song.ogg",))
     lib.add_song_to_trigger(USER + "folder/song.ogg")
-    assert calls == [("add_user_song", ("music/folder/song.ogg",),
-                      {"record": True})]
+    assert calls == [("add_user_song", ("music/folder/song.ogg",), {"record": True})]
 
 
 def test_add_song_game_routes():
@@ -299,8 +285,7 @@ def test_add_song_game_routes():
 def test_add_folder_user_routes():
     lib, calls, _user, _game = _make_lib(user_paths=("music/sub/b.ogg",))
     lib.add_folder_to_trigger(USER + "sub/")
-    assert calls == [("add_user_folder", ("music/sub/",),
-                      {"record": True})]
+    assert calls == [("add_user_folder", ("music/sub/",), {"record": True})]
 
 
 def test_add_folder_user_root_adds_all():
@@ -349,10 +334,10 @@ def test_preview_game_passes_path():
 # stored-ref -> display-path conversion (ref_display_path)
 # ==========================================================================
 
+
 def test_ref_display_path_user():
     lib, _calls, _user, _game = _make_lib()
-    assert lib.ref_display_path(CUE_MUSIC_USER_TAG + "music/song.ogg") == \
-        USER + "song.ogg"
+    assert lib.ref_display_path(CUE_MUSIC_USER_TAG + "music/song.ogg") == USER + "song.ogg"
 
 
 def test_ref_display_path_user_folder():
