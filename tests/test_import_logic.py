@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-# Tests for cue_lib.importer_io -- pure logic: category mapping, game_id matching,
+# Tests for cue_lib.sharing.importer_io -- pure logic: category mapping, game_id matching,
 # contents grouping/filtering, manifest build/validate, replay-scoped export.
 
 import json as _json
 import os
 
-from cue_lib import importer_io as _imp
+from cue_lib.sharing import importer_io as _imp
 from cue_lib.constants import CUE_IMPORT_CATEGORY_ORDER, CUE_IMPORT_MANIFEST_NAME, CueImportCategory, CueImportMatch
-from cue_lib.importer_io import CUE_IMPORT_FORMAT_VERSION
+from cue_lib.sharing.importer_io import CUE_IMPORT_FORMAT_VERSION
 
 GAME_ID = "test_game"
 

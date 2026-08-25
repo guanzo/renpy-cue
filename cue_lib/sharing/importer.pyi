@@ -1,4 +1,4 @@
-# Type stub for cue_lib.importer
+# Type stub for cue_lib.sharing.importer
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 def _imp_file_names(imp_dir: str) -> set: ...

@@ -212,7 +212,7 @@ CUE_MANUAL_BACKUP_NAME = "renpy_cue_backup.zip"
 CUE_IMPORT_MANIFEST_NAME = "manifest.json"
 
 # Characters kept from a SHA1 hex digest for file naming.  Shared by
-# db._preset_path and importer_io._cue_preset_files -- keep in sync.
+# db._preset_path and sharing.importer_io._cue_preset_files -- keep in sync.
 CUE_HASH_TRUNC_LEN = 8
 
 # Canonical checkbox order and labels for the 5 categories.  Labels are

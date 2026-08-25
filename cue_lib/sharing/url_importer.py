@@ -42,7 +42,7 @@ except ImportError:
     from urllib.error import URLError as _URLError
     from urllib.parse import urljoin as _urljoin, unquote as _url_unquote, urlparse as _urlparse
 
-from cue_lib.importer_io import _cue_sanitize_filename
+from cue_lib.sharing.importer_io import _cue_sanitize_filename
 from cue_lib.util import _cue_format_size, _cue_log, _cue_replace_file, _to_str
 
 MYPY = False

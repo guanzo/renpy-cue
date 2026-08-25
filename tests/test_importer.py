@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Tests for cue_lib.importer -- CueImportManager: scan/auto-extract, match
+# Tests for cue_lib.sharing.importer -- CueImportManager: scan/auto-extract, match
 # surfacing, activate/deactivate root swap, remap, delete, merge.
 #
 # scan() runs the whole pass (listing, extraction, manifest reads, entry
@@ -12,10 +12,10 @@ import zipfile
 
 import pytest
 
-import cue_lib.importer as _imports
-from cue_lib import importer_io as _imp
+import cue_lib.sharing.importer as _imports
+from cue_lib.sharing import importer_io as _imp
 from cue_lib.constants import CueImportCategory, CueImportMatch
-from cue_lib.importer import CueImportManager
+from cue_lib.sharing.importer import CueImportManager
 
 GAME_ID = "test_game"
 

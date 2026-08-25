@@ -13,7 +13,7 @@ import renpy
 import threading
 
 from cue_lib.constants import CUE_IMPORT_CATEGORY_ORDER, CueExportFileTypes, CueExportScope
-from cue_lib.importer_io import (
+from cue_lib.sharing.importer_io import (
     _cue_build_import_zip,
     _cue_enumerate_import_files,
     _cue_replay_assets,

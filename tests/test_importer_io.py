@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Tests for cue_lib.importer_io -- filesystem IO: zip build/extract, and
+# Tests for cue_lib.sharing.importer_io -- filesystem IO: zip build/extract, and
 # merge copy with the data_bak safety net.
 
 import hashlib as _hashlib
@@ -7,7 +7,7 @@ import json as _json
 import os
 import zipfile
 
-from cue_lib import importer_io as _imp
+from cue_lib.sharing import importer_io as _imp
 from cue_lib.backup import _safe_extract_path
 from cue_lib.constants import CUE_IMPORT_MANIFEST_NAME
 

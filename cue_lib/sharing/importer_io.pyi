@@ -1,4 +1,4 @@
-# Type stub for cue_lib.importer_io
+# Type stub for cue_lib.sharing.importer_io
 from typing import Any, Dict, Final, List, Optional, Set, Tuple
 
 CUE_IMPORT_FORMAT_VERSION: Final = 1

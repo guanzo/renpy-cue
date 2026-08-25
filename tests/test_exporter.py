@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Tests for cue_lib.exporter -- CueExportManager: category selection state,
+# Tests for cue_lib.sharing.exporter -- CueExportManager: category selection state,
 # selected_contents, and zip export with collision-safe filenames.
 
 import os
@@ -7,10 +7,10 @@ import zipfile
 
 import pytest
 
-import cue_lib.exporter as _exporter
+import cue_lib.sharing.exporter as _exporter
 
 from cue_lib.constants import CUE_IMPORT_MANIFEST_NAME, CueExportFileTypes, CueExportScope, CueImportCategory
-from cue_lib.exporter import CueExportManager
+from cue_lib.sharing.exporter import CueExportManager
 
 GAME_ID = "test_game"
 

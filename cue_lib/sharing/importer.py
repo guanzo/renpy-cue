@@ -16,7 +16,7 @@ from renpy.store import Function
 
 from cue_lib.constants import CUE_IMPORT_MANIFEST_NAME, CueImportMatch
 from cue_lib.db import _atomic_json_write
-from cue_lib.importer_io import (
+from cue_lib.sharing.importer_io import (
     _cue_extract_import_zip,
     _cue_filter_contents,
     _cue_load_manifest,

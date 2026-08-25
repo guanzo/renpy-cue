@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Tests for cue_lib.url_importer -- CueUrlImporter: URL policy (scheme,
+# Tests for cue_lib.sharing.url_importer -- CueUrlImporter: URL policy (scheme,
 # credentials, private hosts), the download worker (chunked read, redirects,
 # cancel), naming/collision, and the size/duration formatters.
 
@@ -8,8 +8,8 @@ import ssl
 
 import pytest
 
-import cue_lib.url_importer as _url
-from cue_lib.url_importer import CueUrlImporter
+import cue_lib.sharing.url_importer as _url
+from cue_lib.sharing.url_importer import CueUrlImporter
 from cue_lib.util import _cue_format_duration, _cue_format_size
 
 

@@ -1,4 +1,4 @@
-# Type stub for cue_lib.exporter
+# Type stub for cue_lib.sharing.exporter
 from typing import Any, Dict, List, Set
 
 class CueExportManager(object):

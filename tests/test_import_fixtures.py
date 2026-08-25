@@ -14,9 +14,9 @@ import zipfile
 
 import pytest
 
-from cue_lib import importer_io as _imp
+from cue_lib.sharing import importer_io as _imp
 from cue_lib.constants import CUE_IMPORT_CATEGORY_ORDER, CUE_IMPORT_MANIFEST_NAME, CueImportMatch
-from cue_lib.importer import CueImportManager
+from cue_lib.sharing.importer import CueImportManager
 
 LOCAL_GID = "cue_test_harness"
 
@@ -132,7 +132,7 @@ class _FakeThread(object):
 
 @pytest.fixture
 def import_threads(monkeypatch):
-    import cue_lib.importer as _imports
+    import cue_lib.sharing.importer as _imports
 
     created = []
 

@@ -1,4 +1,4 @@
-# Type stub for cue_lib.url_importer
+# Type stub for cue_lib.sharing.url_importer
 from typing import Any, List, Optional, Tuple
 
 CUE_URL_CONNECT_TIMEOUT: int

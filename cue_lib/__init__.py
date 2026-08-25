@@ -44,5 +44,6 @@ from cue_lib import marker_context
 from cue_lib import copy_paste
 from cue_lib import markers
 from cue_lib import trigger
+from cue_lib import sharing
 from cue_lib import runtime
 from cue_lib.ui import dialogs, displayables, icons, popper

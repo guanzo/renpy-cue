@@ -6,7 +6,7 @@ import renpy
 from renpy.store import Function
 
 from cue_lib.constants import CueImportMatch
-from cue_lib.importer_io import _cue_category_counts, _cue_filter_contents, _cue_merge_overwrites
+from cue_lib.sharing.importer_io import _cue_category_counts, _cue_filter_contents, _cue_merge_overwrites
 from cue_lib.state import _cue
 from cue_lib.util import _cue_shift_held, create_vid_key, _cue_log
 

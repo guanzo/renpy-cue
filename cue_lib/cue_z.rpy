@@ -199,9 +199,7 @@ init -900 python:
         CueConfirmDialog, CueMergeDialog, CueIntensityGroupDialog, CueDialogs,
     )
     from cue_lib.intensity import CueIntensityManager
-    from cue_lib.importer import CueImportManager
-    from cue_lib.exporter import CueExportManager
-    from cue_lib.url_importer import CueUrlImporter
+    from cue_lib.sharing import CueImportManager, CueExportManager, CueUrlImporter
     from cue_lib.settings import CueSettings
     from cue_lib.backup import CueBackupManager
     from cue_lib.db import CueDatabase
