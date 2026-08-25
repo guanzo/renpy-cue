@@ -146,7 +146,7 @@ class CueMarkerRepeater(CueDialogBase):
         for _, pool in tracked:
             r = self._store.resolve_pool(pool)
             self.offsets.append(
-                {"offset": pool.get("time", 0.0) - anchor_time, "files": list(r.files), "volume": r.volume}
+                {"offset": pool.get("time", 0.0) - anchor_time, "files": list(r.refs), "volume": r.volume}
             )
         self.sel_count = len(self.offsets)
 

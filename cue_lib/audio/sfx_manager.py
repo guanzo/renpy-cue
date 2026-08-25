@@ -161,10 +161,10 @@ class CueSfxManager(object):
         None (direct callers, UI previews) the pool's own files are expanded
         and picked.  ``volume_mult`` multiplies the pool's effective volume
         (intensity level scale)."""
-        resolved = self._markers_ctx().resolve_pool(pool)
+        resolved = self._markers_ctx().resolve_pool(pool, expand=True)
         f = file
         if f is None:
-            files = _cue_resolve_files(resolved.files)
+            files = resolved.files
             if not files:
                 return None
             f = _cue_pick_file(files, avoid_repeats=avoid_repeats)  # type: Any

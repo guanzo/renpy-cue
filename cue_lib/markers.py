@@ -348,9 +348,9 @@ class CueMarkerManager(object):
                 files.remove(child_file)
         self._db_save_marker(marker_key)
 
-    def resolve_pool(self, pool):
-        # type: (PoolDict) -> ResolvedPool
-        return self._store.resolve_pool(pool)
+    def resolve_pool(self, pool, speed=None, variants=None, flags=None, expand=False):
+        # type: (PoolDict, Optional[float], Optional[List[float]], Optional[Any], bool) -> ResolvedPool
+        return self._store.resolve_pool(pool, speed=speed, variants=variants, flags=flags, expand=expand)
 
     def _detach_pool(self, marker_key, pool_index):
         # type: (str, int) -> bool

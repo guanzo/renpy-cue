@@ -32,9 +32,10 @@ from tests.fakes import FakeMarkerStore, FakeMarkers, FakeRepeater, FakeSpeedRes
 
 @pytest.fixture(autouse=True)
 def _identity_resolve_files(monkeypatch):
+    # Only intensity.py still resolves files at runtime; trigger.py now gets
+    # concrete files from resolve_pool(expand=True).
     import cue_lib.intensity.intensity as _intensity
 
-    monkeypatch.setattr(_trigger, "_cue_resolve_files", lambda files: list(files))
     monkeypatch.setattr(_intensity, "_cue_resolve_files", lambda files: list(files))
 
 

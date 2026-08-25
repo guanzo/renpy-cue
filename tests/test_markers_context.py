@@ -982,7 +982,7 @@ def test_resolved_exclusive_defaults_and_to_dict():
 
 
 def test_resolved_pool_default_exclusive():
-    r = ResolvedPool(files=[], volume=1.0, frequency=1, trigger_on_shake=False)
+    r = ResolvedPool(refs=[], files=None, volume=1.0, frequency=1, trigger_on_shake=False)
     assert isinstance(r.exclusive, ResolvedExclusive)
     assert r.exclusive.group == 0
 

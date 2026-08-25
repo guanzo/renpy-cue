@@ -23,7 +23,8 @@ class ResolvedExclusive:
 class ResolvedPool:
     """Immutable pool snapshot after resolving presets."""
 
-    _files: List[str]
+    refs: List[str]
+    files: Optional[List[str]]
     volume: float
     frequency: int
     trigger_on_shake: bool
@@ -32,8 +33,6 @@ class ResolvedPool:
     ilevel_id: Optional[int]
     intensity: Optional[CueIntensityResolution]
     @property
-    def files(self) -> List[str]: ...
-    @property
     def volume_mult(self) -> Optional[float]: ...
     @property
     def freq_mult(self) -> Optional[float]: ...
@@ -41,7 +40,8 @@ class ResolvedPool:
     def level(self) -> Optional[int]: ...
     def __init__(
         self,
-        files: List[str],
+        refs: List[str],
+        files: Optional[List[str]],
         volume: float,
         frequency: int,
         trigger_on_shake: bool,
@@ -101,6 +101,7 @@ class CueMarkerStore:
         speed: Optional[float] = None,
         variants: Optional[List[float]] = None,
         flags: Optional[CueIntensityFlags] = None,
+        expand: bool = False,
     ) -> ResolvedPool: ...
     @staticmethod
     def _resolve_exclusive(pool: PoolDict, defaults: Any) -> ResolvedExclusive: ...

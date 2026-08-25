@@ -484,7 +484,7 @@ class CueVideoContext(CueMarkerContext):
             return
         elapsed = self._mgr._vid_manager.get_elapsed()
         r = self._mgr.resolve_pool({"preset": preset_name})
-        if not r.files:
+        if not r.refs:
             return
         vid_key = self._key()
         entry = self._mgr._get_or_create_entry(vid_key)
@@ -500,7 +500,7 @@ class CueVideoContext(CueMarkerContext):
         if not self._mgr._ctx.current_file:
             return
         r = self._mgr.resolve_pool({"preset": preset_name})
-        if not r.files:
+        if not r.refs:
             return
         vid_key = self._key()
         entry = self._mgr._get_or_create_entry(vid_key)

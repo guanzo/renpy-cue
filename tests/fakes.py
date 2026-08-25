@@ -6,6 +6,7 @@ from typing import Optional
 
 from cue_lib.constants import CUE_SIDEBAR_DEFAULT_WIDTH
 from cue_lib.state import _cue
+from cue_lib.util import _cue_resolve_files
 
 # Shared test doubles for cue_lib managers.
 #
@@ -109,7 +110,7 @@ class FakeManager(object):
         files = pool.get("files", defaults.get("files", []))
         volume = pool.get("volume", defaults.get("volume", 1.0))
         trigger_on_shake = pool.get("trigger_on_shake", defaults.get("trigger_on_shake", False))
-        return FakeResolvedPool(files=list(files), volume=volume, trigger_on_shake=trigger_on_shake)
+        return FakeResolvedPool(refs=list(files), volume=volume, trigger_on_shake=trigger_on_shake)
 
 
 class FakeDb(object):
@@ -157,14 +158,17 @@ class FakeExclusive(object):
 
 class FakeResolvedPool(object):
     """Resolved-pool stand-in carrying every attribute consumers read:
-    volume (volume.py), files/frequency/trigger_on_shake/exclusive/igroup/
+    volume (volume.py), refs/files/frequency/trigger_on_shake/exclusive/igroup/
     ilevel_id (trigger.py, intensity resolution).
 
     resolve_pool defaults mirror the real store: volume 1.0 (identity),
-    frequency CueLoopFrequency.MEDIUM, exclusive a default FakeExclusive."""
+    frequency CueLoopFrequency.MEDIUM, exclusive a default FakeExclusive.
+    files is the concrete playable list when resolve_pool was called with
+    expand=True, else None -- the real store's contract."""
 
     def __init__(
         self,
+        refs=None,
         files=None,
         volume=1.0,
         frequency=1,
@@ -174,7 +178,8 @@ class FakeResolvedPool(object):
         ilevel_id=None,
         intensity=None,
     ):
-        self._files = files if files is not None else []
+        self.refs = refs if refs is not None else []
+        self.files = files
         self.volume = volume
         self.frequency = frequency
         self.trigger_on_shake = trigger_on_shake
@@ -182,10 +187,6 @@ class FakeResolvedPool(object):
         self.igroup = igroup
         self.ilevel_id = ilevel_id
         self.intensity = intensity
-
-    @property
-    def files(self):
-        return self.intensity.files if self.intensity is not None else self._files
 
     @property
     def volume_mult(self):
@@ -221,7 +222,7 @@ class FakeMarkerStore(object):
     def save_marker(self, key):
         self.saved_keys.append(key)
 
-    def resolve_pool(self, pool, speed=None, variants=None, flags=None):
+    def resolve_pool(self, pool, speed=None, variants=None, flags=None, expand=False):
         excl = pool.get("exclusive", {})
         if not isinstance(excl, dict):
             excl = {}
@@ -230,8 +231,16 @@ class FakeMarkerStore(object):
         intensity = None
         if igroup is not None and speed is not None and _cue.intensity is not None:
             intensity = _cue.intensity.resolve_pool_intensity(igroup, ilevel_id, speed, variants, flags)
+        refs = pool.get("files", [])
+        files = None
+        if expand:
+            if intensity is not None:
+                files = intensity.files
+            else:
+                files = _cue_resolve_files(list(refs))
         return FakeResolvedPool(
-            files=pool.get("files", []),
+            refs=list(refs),
+            files=files,
             volume=pool.get("volume", 1.0),
             frequency=pool.get("frequency", 1),
             trigger_on_shake=pool.get("trigger_on_shake", False),

@@ -687,8 +687,15 @@ def _cue_expand_folder_ref(files_list, folder_ref, disabled=None):
 def _cue_resolve_files(files):
     # type: (List[str]) -> List[str]
     """Resolve a files list: expand folder refs (trailing '/') to matching
-    available files, skip disabled files, pass through direct references."""
-    library = _cue.sfx.library
+    available files, skip disabled files, pass through direct references.
+
+    A falsy input or an SFX library that isn't wired yet passes through as-is
+    (resolve_pool only expands when asked, and test runs may have no library)."""
+    if not files:
+        return []
+    library = getattr(_cue.sfx, "library", None)
+    if library is None:
+        return list(files)
     all_files = library.files
     disabled = library.disabled_files
     result = []

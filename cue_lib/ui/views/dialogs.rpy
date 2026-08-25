@@ -98,7 +98,7 @@ screen cue_save_preset_dialog():
     $ _pools = _entry.get("pools", []) if _entry else []
     $ _pool = _pools[_d.pool_idx] if _pools and _d.pool_idx < len(_pools) else {}
     $ _r = _cue.markers.resolve_pool(_pool)
-    $ _file_count = len(_cue_resolve_files(_r.files))
+    $ _file_count = len(_cue_resolve_files(_r.refs))
     key "K_RETURN" action Function(_d.commit)
     key "K_KP_ENTER" action Function(_d.commit)
     key "K_ESCAPE" action Function(_d.cancel)

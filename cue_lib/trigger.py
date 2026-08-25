@@ -12,15 +12,7 @@ from cue_lib.constants import CUE_INTENSITY_DELAY_MAX, CUE_INTENSITY_DELAY_MIN, 
 from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
 from cue_lib.trigger_debug import CueTriggerDebug
-from cue_lib.util import (
-    _cue_log,
-    _cue_resolve_files,
-    _cue_pick_file,
-    create_loop_key,
-    create_vid_key,
-    get_key_file,
-    is_dlg_key,
-)
+from cue_lib.util import _cue_log, _cue_pick_file, create_loop_key, create_vid_key, get_key_file, is_dlg_key
 
 MYPY = False
 if MYPY:
@@ -372,8 +364,8 @@ class CueTriggerEngine(object):
             vol = entry.get("volume", CUE_VOLUME_DEFAULT)
             # Resolve each pool once; the log's file count and the fire pass
             # below share the same resolutions.
-            resolved_pools = [self._store.resolve_pool(p) for p in pools]
-            total = sum(len(r.files) for r in resolved_pools)
+            resolved_pools = [self._store.resolve_pool(p, expand=True) for p in pools]
+            total = sum(len(r.files or []) for r in resolved_pools)
 
             _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(key, len(pools), total, vol))
 
@@ -388,7 +380,7 @@ class CueTriggerEngine(object):
             for pi, (pool, resolved) in enumerate(zip(pools, resolved_pools)):
                 if only_shake_pools and not resolved.trigger_on_shake:
                     continue
-                files = _cue_resolve_files(resolved.files)
+                files = resolved.files
                 if not files:
                     continue
                 excl = resolved.exclusive
@@ -448,15 +440,10 @@ class CueTriggerEngine(object):
         for pi, pool in enumerate(pools):
             # One resolve per pool: a hooked pool with nothing at its active
             # level (or a dead group) resolves to no files and is skipped below.
-            resolved = self._store.resolve_pool(pool, speed, variants, flags=flags)
-            if resolved.level is not None:
-                files = resolved.files
-                vol_mult = resolved.volume_mult
-                level = resolved.level
-            else:
-                files = _cue_resolve_files(resolved.files)
-                vol_mult = vid_scale
-                level = None
+            resolved = self._store.resolve_pool(pool, speed, variants, flags=flags, expand=True)
+            files = resolved.files
+            vol_mult = resolved.volume_mult if resolved.level is not None else vid_scale
+            level = resolved.level
             if not files:
                 continue
 
@@ -654,13 +641,9 @@ class CueTriggerEngine(object):
             if not _cue_marker_reached(t, effective_elapsed, prev_eff, marker_tolerance, marker_lead):
                 continue
 
-            resolved = self._store.resolve_pool(pool_entry, speed, variants, flags=flags)
-            if resolved.intensity is not None:
-                files = resolved.files
-                vol_mult = resolved.volume_mult
-            else:
-                files = _cue_resolve_files(resolved.files)
-                vol_mult = vid_scale
+            resolved = self._store.resolve_pool(pool_entry, speed, variants, flags=flags, expand=True)
+            files = resolved.files or []
+            vol_mult = resolved.volume_mult if resolved.intensity is not None else vid_scale
             f = _cue_pick_file(files, avoid_repeats=False)
             if f is not None:
                 f = _cue.sfx.play_pool(

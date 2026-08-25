@@ -148,7 +148,7 @@ def test_detach_pool_plain_pool_noop(store):
 def test_resolve_pool_uses_defaults(store):
     store.create_preset("Growl", {"files": ["a.ogg"], "volume": 0.8, "trigger_on_shake": True})
     r = store.resolve_pool({"preset": "Growl"})
-    assert r.files == ["a.ogg"]
+    assert r.refs == ["a.ogg"]
     assert r.volume == 0.8
     assert r.trigger_on_shake is True
     assert r.frequency == CueLoopFrequency.MEDIUM
@@ -182,9 +182,9 @@ class _StubIntensity(object):
 
 def test_resolve_pool_fold_no_speed_skips(store):
     # Without a speed, resolve_pool must not touch intensity: the hook stays
-    # metadata-only and files stay the pool's own ([] for hooked pools).
+    # metadata-only and refs stay the pool's own ([] for hooked pools).
     resolved = store.resolve_pool({"files": [], "igroup": "Impacts", "ilevel_id": 1})
-    assert resolved.files == []
+    assert resolved.refs == []
     assert resolved.intensity is None
     assert resolved.volume_mult is None
     assert resolved.freq_mult is None
@@ -195,13 +195,15 @@ def test_resolve_pool_fold_no_speed_skips(store):
 
 def test_resolve_pool_fold_embeds_intensity(store):
     # With a speed, the fold calls intensity and embeds the resolution, so
-    # resolved.files becomes the level files and the multipliers are readable.
+    # resolved.files (expand=True) becomes the level files and the multipliers
+    # are readable.
     store._intensity = _StubIntensity(CueIntensityResolution("Impacts", 2, 1.25, 1.5, ["hard/a.ogg"]))
     resolved = store.resolve_pool(
-        {"files": [], "igroup": "Impacts", "ilevel_id": 1}, speed=1.3, variants=[0.7, 1.0, 1.3]
+        {"files": [], "igroup": "Impacts", "ilevel_id": 1}, speed=1.3, variants=[0.7, 1.0, 1.3], expand=True
     )
     assert store._intensity.calls == [("Impacts", 1, 1.3, [0.7, 1.0, 1.3], None)]
     assert resolved.intensity is store._intensity.resolution
+    assert resolved.refs == []
     assert resolved.files == ["hard/a.ogg"]
     assert resolved.volume_mult == 1.25
     assert resolved.freq_mult == 1.5
@@ -214,7 +216,7 @@ def test_resolve_pool_fold_dead_group_falls_back(store):
     # A hooked pool whose group resolves to nothing keeps its own files.
     store._intensity = _StubIntensity(None)
     resolved = store.resolve_pool(
-        {"files": ["a.ogg"], "igroup": "Ghost", "ilevel_id": 1}, speed=1.3, variants=[0.7, 1.0, 1.3]
+        {"files": ["a.ogg"], "igroup": "Ghost", "ilevel_id": 1}, speed=1.3, variants=[0.7, 1.0, 1.3], expand=True
     )
     assert resolved.files == ["a.ogg"]
     assert resolved.intensity is None
@@ -227,8 +229,20 @@ def test_resolve_pool_speed_without_hook_no_fold(store):
     store._intensity = _StubIntensity(CueIntensityResolution("Nope", 1, 1.0, 1.0))
     resolved = store.resolve_pool({"files": ["a.ogg"]}, speed=1.3, variants=[0.7, 1.0, 1.3])
     assert store._intensity.calls == []
-    assert resolved.files == ["a.ogg"]
+    assert resolved.refs == ["a.ogg"]
     assert resolved.intensity is None
+
+
+def test_resolve_pool_expand_materializes_files(store):
+    # expand=False (default): refs only, files is None, no library access.
+    r = store.resolve_pool({"files": ["a.ogg"]})
+    assert r.refs == ["a.ogg"]
+    assert r.files is None
+    # expand=True: files becomes the concrete playable list (folder refs
+    # expanded; with no SFX library wired, refs pass through).
+    r = store.resolve_pool({"files": ["a.ogg"]}, expand=True)
+    assert r.refs == ["a.ogg"]
+    assert r.files == ["a.ogg"]
 
 
 def test_resolve_video_pools_resolves_preset_pools(store):

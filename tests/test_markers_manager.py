@@ -135,7 +135,7 @@ def test_preset_remove_file_folder_ref(mgr):
 def test_resolve_pool_from_preset(mgr):
     mgr.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
     r = mgr.resolve_pool({"preset": "basic"})
-    assert r.files == ["a.ogg"]
+    assert r.refs == ["a.ogg"]
     assert r.volume == 0.8
 
 

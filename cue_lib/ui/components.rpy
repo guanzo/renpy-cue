@@ -802,16 +802,16 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
             transclude
             if _r.igroup is not None:
                 use cue_igroup_pool_files(_r.igroup, _r.ilevel_id or 0, _active_eff)
-            elif _r.files:
+            elif _r.refs:
                 if _is_preset_pool:
                     # Preset-backed: render as expandable folder
                     use cue_file_list([], _cue.markers.detach_pool_at, (key, _target), _active_eff,
                         marker_key=key, pool_index=_target,
                         folder_label=_active_pool["preset"],
-                        folder_children=_cue_resolve_files(_r.files),
+                        folder_children=_cue_resolve_files(_r.refs),
                         folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
                 else:
-                    use cue_file_list(_r.files, ctx.remove_file, (_target,), _active_eff,
+                    use cue_file_list(_r.refs, ctx.remove_file, (_target,), _active_eff,
                         marker_key=key, pool_index=_target,
                         folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
             else:

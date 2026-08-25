@@ -545,12 +545,12 @@ def sfx_mgr(cue):
 
 
 def test_play_pool_no_files_returns_none(cue, sfx_mgr):
-    cue.markers.resolve_pool = lambda pool: types.SimpleNamespace(files=[])
+    cue.markers.resolve_pool = lambda pool, expand=False: types.SimpleNamespace(files=[])
     assert sfx_mgr.play_pool(None, "i_scene.ogv", {}, 0) is None
 
 
 def test_play_pool_file_override(cue, sfx_mgr, monkeypatch):
-    cue.markers.resolve_pool = lambda pool: types.SimpleNamespace(files=["a.ogg", "b.ogg"])
+    cue.markers.resolve_pool = lambda pool, expand=False: types.SimpleNamespace(files=["a.ogg", "b.ogg"])
     cue.sfx.library.files = ["a.ogg", "b.ogg"]
     played = []
     monkeypatch.setattr(
@@ -563,7 +563,7 @@ def test_play_pool_file_override(cue, sfx_mgr, monkeypatch):
 
 
 def test_play_pool_picks_file(cue, sfx_mgr, monkeypatch):
-    cue.markers.resolve_pool = lambda pool: types.SimpleNamespace(files=["a.ogg"])
+    cue.markers.resolve_pool = lambda pool, expand=False: types.SimpleNamespace(files=["a.ogg"])
     played = []
     monkeypatch.setattr(sfx_mgr, "play_sfx", lambda f, key, volume=1.0, **kwargs: played.append(f) or "cue_1")
     sfx_mgr.play_pool(None, "i_scene.ogv", {}, 0)
@@ -574,7 +574,7 @@ def test_play_pool_file_override_empty_pool(cue, sfx_mgr, monkeypatch):
     # Intensity-hooked pools carry no own files (files=[]); the trigger hands
     # the resolved file explicitly. play_pool must honor it instead of bailing
     # on the empty pool.
-    cue.markers.resolve_pool = lambda pool: types.SimpleNamespace(files=[])
+    cue.markers.resolve_pool = lambda pool, expand=False: types.SimpleNamespace(files=[])
     played = []
     monkeypatch.setattr(
         sfx_mgr, "play_sfx", lambda f, key, volume=1.0, **kwargs: played.append((f, key, volume)) or "cue_1"

@@ -17,7 +17,7 @@ import copy as _copy
 import renpy
 
 from cue_lib.constants import CUE_VOLUME_DEFAULT, CueExclusiveStart, CueLoopFrequency
-from cue_lib.util import _cue_log, is_vid_key, is_loop_key
+from cue_lib.util import _cue_log, _cue_resolve_files, is_vid_key, is_loop_key
 
 MYPY = False
 if MYPY:
@@ -53,15 +53,27 @@ class ResolvedExclusive(object):
 class ResolvedPool(object):
     """Immutable snapshot of a resolved pool.
 
-    ``intensity`` carries the folded intensity resolution (level files +
-    multipliers) when resolve_pool was given a runtime speed; otherwise None
-    and ``files`` returns the pool's own (raw) file list."""
+    ``refs`` is the stored view -- the pool's own file refs (folder refs and
+    preset lists intact).  ``files`` is the playback view -- concrete playable
+    files (folder refs expanded, intensity level files when folded), or None
+    when resolve_pool was called without expand.  ``intensity`` carries the
+    folded intensity resolution when resolve_pool was given a runtime speed."""
 
     def __init__(
-        self, files, volume, frequency, trigger_on_shake, exclusive=None, igroup=None, ilevel_id=None, intensity=None
+        self,
+        refs,
+        files,
+        volume,
+        frequency,
+        trigger_on_shake,
+        exclusive=None,
+        igroup=None,
+        ilevel_id=None,
+        intensity=None,
     ):
-        # type: (List[str], float, int, bool, Optional[Any], Optional[str], Optional[int], Optional[Any]) -> None
-        self._files = files
+        # type: (List[str], Optional[List[str]], float, int, bool, Optional[Any], Optional[str], Optional[int], Optional[Any]) -> None
+        self.refs = refs
+        self.files = files
         self.igroup = igroup
         self.ilevel_id = ilevel_id
         self.volume = volume
@@ -69,12 +81,6 @@ class ResolvedPool(object):
         self.trigger_on_shake = trigger_on_shake
         self.exclusive = exclusive if exclusive is not None else ResolvedExclusive()
         self.intensity = intensity
-
-    @property
-    def files(self):
-        # type: () -> List[str]
-        """Files that would play: intensity level files when folded, else raw."""
-        return self.intensity.files if self.intensity is not None else self._files
 
     @property
     def volume_mult(self):
@@ -94,9 +100,10 @@ class ResolvedPool(object):
     def __repr__(self):
         # type: () -> str
         return (
-            "ResolvedPool(files={!r}, volume={!r}, frequency={!r}, "
+            "ResolvedPool(refs={!r}, files={!r}, volume={!r}, frequency={!r}, "
             "trigger_on_shake={!r}, exclusive={!r}, igroup={!r}, ilevel_id={!r}, intensity={!r})"
         ).format(
+            self.refs,
             self.files,
             self.volume,
             self.frequency,
@@ -258,17 +265,19 @@ class CueMarkerStore(object):
 
     # -- resolve (preset -> concrete pool) --
 
-    def resolve_pool(self, pool, speed=None, variants=None, flags=None):
-        # type: (PoolDict, Optional[float], Optional[List[float]], Optional[Any]) -> ResolvedPool
+    def resolve_pool(self, pool, speed=None, variants=None, flags=None, expand=False):
+        # type: (PoolDict, Optional[float], Optional[List[float]], Optional[Any], bool) -> ResolvedPool
         """Resolve a pool to its concrete fire snapshot.
 
-        With a runtime ``speed`` (and an intensity manager wired), folds the
-        igroup hook: the intensity resolution is embedded so ``resolved.files``
-        becomes the level files and ``resolved.volume_mult`` / ``freq_mult`` /
-        ``level`` are populated.  Without a speed this is identical to the
-        pre-fold resolution (UI previews, load-time, presets)."""
+        ``refs`` always holds the pool's stored file refs (folder refs and
+        preset lists intact).  With ``expand=True``, ``files`` becomes the
+        concrete playable list -- the intensity fold's level files when a
+        runtime ``speed`` hooks an igroup (already expanded by the intensity
+        manager), otherwise the pool's refs with folder refs expanded.
+        ``files`` is None when ``expand`` is False, so the default path never
+        touches the SFX library."""
         defaults = self._presets.get(pool["preset"], {}) if "preset" in pool else {}
-        files = pool.get("files", defaults.get("files", []))
+        refs = pool.get("files", defaults.get("files", []))
         volume = pool.get("volume", defaults.get("volume", CUE_VOLUME_DEFAULT))
         frequency = pool.get("frequency", defaults.get("frequency", CueLoopFrequency.MEDIUM))
         trigger_on_shake = pool.get("trigger_on_shake", defaults.get("trigger_on_shake", False))
@@ -278,7 +287,15 @@ class CueMarkerStore(object):
         intensity = None
         if igroup is not None and speed is not None and self._intensity is not None:
             intensity = self._intensity.resolve_pool_intensity(igroup, ilevel_id, speed, variants, flags)
-        return ResolvedPool(list(files), volume, frequency, trigger_on_shake, exclusive, igroup, ilevel_id, intensity)
+        files = None
+        if expand:
+            if intensity is not None:
+                files = intensity.files
+            else:
+                files = _cue_resolve_files(list(refs))
+        return ResolvedPool(
+            list(refs), files, volume, frequency, trigger_on_shake, exclusive, igroup, ilevel_id, intensity
+        )
 
     @staticmethod
     def _resolve_exclusive(pool, defaults):
@@ -387,7 +404,7 @@ class CueMarkerStore(object):
         preset = self._presets.get(preset_name, {})
         r = self.resolve_pool(pool)
         del pool["preset"]
-        pool["files"] = r.files
+        pool["files"] = r.refs
         pool["volume"] = r.volume
         if "frequency" in preset:
             pool["frequency"] = r.frequency
@@ -398,9 +415,7 @@ class CueMarkerStore(object):
         if "exclusive" in preset or "exclusive" in pool:
             pool["exclusive"] = r.exclusive.to_dict()
         self._db_save_marker(marker_key)
-        _cue_log(
-            "DETACH-POOL key={} pi={} preset={} files={}".format(marker_key, pool_index, preset_name, len(r.files))
-        )
+        _cue_log("DETACH-POOL key={} pi={} preset={} files={}".format(marker_key, pool_index, preset_name, len(r.refs)))
         return True
 
     def _resolve_video_pools(self, entry):
@@ -412,7 +427,7 @@ class CueMarkerStore(object):
                 r = self.resolve_pool(pool)
                 resolved_pool = _copy.deepcopy(pool)
                 resolved_pool.pop("preset", None)
-                resolved_pool["files"] = r.files
+                resolved_pool["files"] = r.refs
                 resolved_pool["volume"] = r.volume
                 resolved.append(resolved_pool)
             else:

@@ -59,7 +59,10 @@ class CueDialogBase(object):
 
     def _show(self):
         # type: () -> None
-        _cue.dialogs.show(self)
+        # pyright can't unify Self@CueDialogBase with the stub's CueDialogBase
+        # param when _cue.dialogs resolves through state.pyi; the instance IS
+        # the base class, so this is safe.
+        _cue.dialogs.show(self)  # pyright: ignore[reportArgumentType]
 
     def _hide(self):
         # type: () -> None
