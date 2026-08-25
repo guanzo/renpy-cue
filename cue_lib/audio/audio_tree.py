@@ -9,8 +9,6 @@
 import os
 import time
 
-from renpy.store import Function
-
 from cue_lib.constants import CUE_AUDIO_EXTS
 from cue_lib.util import _cue_build_tree, _cue_filter_tree, _cue_log
 
@@ -43,8 +41,6 @@ class CueAudioTreeManager(object):
     # _auto_expand_roots) so a tree's root level is open by default.  After
     # that one-time default the user's toggle state is left untouched.
     _auto_expand_roots = False
-    # null-width px before a file row's label (music overrides to 2)
-    file_gap = 1
 
     def __init__(self):
         self._recent = None  # CueRecentManager, wired after construction
@@ -241,55 +237,3 @@ class CueAudioTreeManager(object):
         else:
             self.expanded_folders[folder_path] = True
         self.rebuild_tree()
-
-    # ------------------------------------------------------------------
-    # Row builders: flat row stream for the shared cue_tree_rows renderer
-    # ------------------------------------------------------------------
-    #
-    # tree_rows() turns the depth-annotated visible_tree into the renderer's
-    # row dicts, delegating the two per-manager variations to row_buttons()
-    # and warn_reason().  *state carries the non-owned values the screen
-    # computed (target availability/tooltip/unplayable for SFX, current_file
-    # for music) so subclasses never read globals.
-
-    def tree_rows(self, *state):
-        # type: (*Any) -> List[Dict[str, Any]]
-        """Flat row stream for the cue_tree_rows renderer: one row dict per
-        visible_tree item, buttons from row_buttons(), warn from
-        warn_reason(), file gap from file_gap."""
-        rows = []
-        for item in self.visible_tree:
-            if item["type"] == "folder":
-                rows.append(
-                    {
-                        "key": "tree:" + item["full_path"],
-                        "type": "folder",
-                        "label": item["name"],
-                        "depth": item["depth"],
-                        "buttons": self.row_buttons(item, *state),
-                        "toggle": Function(self.toggle_folder, item["full_path"]),
-                    }
-                )
-            else:
-                rows.append(
-                    {
-                        "key": "tree:" + item["full_path"],
-                        "type": "file",
-                        "label": item["name"],
-                        "depth": item["depth"],
-                        "buttons": self.row_buttons(item, *state),
-                        "warn": self.warn_reason(item, *state),
-                        "gap": self.file_gap,
-                    }
-                )
-        return rows
-
-    def row_buttons(self, item, *state):
-        # type: (Dict[str, Any], *Any) -> List[Dict[str, Any]]
-        """Buttons for one tree row ([] by default; subclasses fill in)."""
-        return []
-
-    def warn_reason(self, item, *state):
-        # type: (Dict[str, Any], *Any) -> str
-        """Invalid-file reason for a file row's warn icon ("" = none)."""
-        return ""

@@ -6,9 +6,8 @@
 # top-level folders so the UI shows one tree with a single shared search bar.
 # Instantiated once as _cue.music.library; lives on the NoRollback _cue object.
 
-from renpy.store import Function
-
 from cue_lib.audio.audio_tree import CueAudioTreeManager
+from cue_lib.audio.tree_rows import CueMusicTreeRows
 from cue_lib.constants import CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_GAME_TAG, CUE_MY_MUSIC_FOLDER, CUE_MUSIC_PREFIX
 
 MYPY = False
@@ -36,8 +35,6 @@ class CueCombinedMusicTree(CueAudioTreeManager):
     # Open both synthetic top folders by default (one-time), so the two
     # sources are visible without a click.
     _auto_expand_roots = True
-    # Music rows use a wider null gap before file labels (2px vs SFX 1px).
-    file_gap = 2
 
     def __init__(self, music, user_music, game_music):
         # type: (CueMusicManager, CueUserMusic, CueGameMusic) -> None
@@ -45,6 +42,9 @@ class CueCombinedMusicTree(CueAudioTreeManager):
         self._music = music
         self.user_music = user_music
         self.game_music = game_music
+
+        # Row builder for the cue_tree_rows renderer (tree_rows delegates).
+        self._rows = CueMusicTreeRows(self)
         # Source tree object ids at the last rebuild, for maybe_rebuild's
         # rescan detection (a re-scan replaces the sub-manager's tree list).
         self._user_tree_id = None
@@ -207,33 +207,8 @@ class CueCombinedMusicTree(CueAudioTreeManager):
                 volume=volume,
             )
 
-    def row_buttons(self, item, current_file):  # pyright: ignore[reportIncompatibleMethodOverride]
-        # type: (Dict[str, Any], object) -> List[Dict[str, Any]]
-        """Music row buttons: [plus, play] for files, [plus] for folders (only
-        when the folder directly holds files).  Plus adds to the selected
-        trigger or creates one for the current scene; disabled without either."""
-        sel_label = self._music.selected_trigger_label()
-        add_target = sel_label if sel_label else "a new trigger for the current scene"
-        add_enabled = self._music.selected_key is not None or bool(current_file)
-        buttons = []
-        if item["type"] == "folder":
-            if item.get("has_files", False):
-                buttons.append(
-                    {
-                        "icon": "plus",
-                        "action": Function(self.add_folder_to_trigger, item["full_path"]),
-                        "tt": "Add folder to " + add_target,
-                        "enabled": add_enabled,
-                    }
-                )
-        else:
-            buttons.append(
-                {
-                    "icon": "plus",
-                    "action": Function(self.add_song_to_trigger, item["full_path"]),
-                    "tt": "Add song to " + add_target,
-                    "enabled": add_enabled,
-                }
-            )
-            buttons.append({"icon": "play", "action": Function(self.preview, item["full_path"]), "tt": "Play song"})
-        return buttons
+    def tree_rows(self, *state):
+        # type: (*Any) -> List[Dict[str, Any]]
+        """Flat row stream for the cue_tree_rows renderer.  Music button logic
+        lives in CueMusicTreeRows; this just forwards *state (current_file)."""
+        return self._rows.tree_rows(*state)

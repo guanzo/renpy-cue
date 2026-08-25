@@ -20,6 +20,7 @@ from renpy.store import persistent
 import cue_lib.audio.audio_tree as _tree
 import cue_lib.audio.game_music as _game
 import cue_lib.audio.sfx_manager as _sfx_mod
+import cue_lib.audio.tree_rows as _tree_rows
 import cue_lib.audio.user_music as _user
 import cue_lib.util as _util
 from cue_lib.audio.audio_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
@@ -756,19 +757,25 @@ def test_music_managers_opt_into_root_expansion():
 # ==========================================================================
 
 
+def _base_rows(tree):
+    # type: (CueAudioTreeManager) -> list
+    """Row stream via the shared CueTreeRowsBuilder over a data tree."""
+    return _tree_rows.CueTreeRowsBuilder(tree).tree_rows()
+
+
 def test_tree_rows_folder_and_file_shape():
     tree = _ScanSrc(["v2/01_NormalMo.mp3", "v2/02_IntenseMo.mp3"])
     tree.scan()
     tree.expanded_folders["v2/"] = True
     tree.rebuild_tree()
-    rows = tree.tree_rows()
+    rows = _base_rows(tree)
     assert [r["type"] for r in rows] == ["folder", "file", "file"]
     folder = rows[0]
     assert folder["key"] == "tree:v2/"
     assert folder["label"] == "v2/"
     assert folder["depth"] == 0
     assert folder["buttons"] == []  # base row_buttons default
-    # toggle wraps toggle_folder(full_path)
+    # toggle wraps the data tree's toggle_folder(full_path)
     assert folder["toggle"]._args[1] == "v2/"
     f = rows[1]
     assert f["key"] == "tree:v2/01_NormalMo.mp3"
@@ -781,7 +788,7 @@ def test_tree_rows_folder_and_file_shape():
 def test_tree_rows_visible_tree_collapsed_emits_only_folder():
     tree = _ScanSrc(["v2/01_NormalMo.mp3"])
     tree.scan()  # nothing expanded -> only the top-level folder
-    rows = tree.tree_rows()
+    rows = _base_rows(tree)
     assert [r["type"] for r in rows] == ["folder"]
 
 
@@ -794,7 +801,7 @@ def test_tree_rows_ignores_search_state():
     tree.rebuild_tree()
     tree.search_query = "norm"
     before_folders = dict(tree.expanded_folders)
-    rows = tree.tree_rows()
+    rows = _base_rows(tree)
     assert [r["type"] for r in rows] == ["folder", "file"]
     assert tree.search_query == "norm"
     assert tree.expanded_folders == before_folders
@@ -822,7 +829,7 @@ def test_sfx_row_buttons_normal_mode(sfx):
     assert folder["buttons"][0]["action"]._args[0] == sfx._sfx.preview_folder
     assert folder["buttons"][1]["tt"] == "Add to pool"
     assert folder["buttons"][1]["enabled"] is True
-    assert folder["buttons"][1]["action"]._args[0] is _sfx_mod._cue_markers_send
+    assert folder["buttons"][1]["action"]._args[0] is _tree_rows._cue_markers_send
     assert folder["buttons"][1]["action"]._args[1] == "folder"
     assert folder["buttons"][1]["action"]._args[2] == "v2/"
     assert [b["icon"] for b in file_row["buttons"]] == ["play", "plus"]

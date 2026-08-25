@@ -12,9 +12,10 @@ import threading
 import renpy
 import renpy.audio.music as _music
 
-from renpy.store import Function, persistent
+from renpy.store import persistent
 
 from cue_lib.audio.audio_tree import CueAudioTreeManager
+from cue_lib.audio.tree_rows import CueSfxTreeRows
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.constants import (
     CUE_SFX_CHANNEL_COUNT,
@@ -24,7 +25,6 @@ from cue_lib.constants import (
     CUE_PERSIST_SIDEBAR_MODE,
     CUE_PERSIST_SIDEBAR_WIDTH,
 )
-from cue_lib.markers import _cue_markers_send
 from cue_lib.util import (
     _cue_log,
     _cue_resolve_files,
@@ -345,6 +345,9 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         self._sfx = None  # type: Any
         self._db = db
 
+        # Row builder for the cue_tree_rows renderer (tree_rows delegates).
+        self._rows = CueSfxTreeRows(self)
+
         # Pool file-list folder refs
         self.expanded_file_refs = {}  # folder_ref -> bool (pool file lists)
 
@@ -396,74 +399,14 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         return node
 
     # ------------------------------------------------------------------
-    # Row builders: SFX buttons + warn for the shared cue_tree_rows renderer
+    # Row stream: delegate to the shared cue_tree_rows builder
     # ------------------------------------------------------------------
 
-    def row_buttons(self, item, target_ok, target_tt, unplayable):  # pyright: ignore[reportIncompatibleMethodOverride]
-        # type: (Dict[str, Any], bool, str, Dict[str, str]) -> List[Dict[str, Any]]
-        """SFX row buttons: [play, plus].  Plus adds to the target context, or
-        in intensity add-mode appends to the active (group, level).  An empty
-        folder gets no buttons (matches the current tree UI)."""
-        buttons = []
-        if item["type"] == "folder":
-            if item.get("has_files", False):
-                buttons.append(
-                    {
-                        "icon": "play",
-                        "action": Function(self._sfx.preview_folder, item["full_path"]),
-                        "tt": "Play random file from folder",
-                    }
-                )
-                buttons.append(self._add_row_button(item, "folder", target_ok, target_tt))
-        else:
-            buttons.append(
-                {"icon": "play", "action": Function(self._sfx.preview_sfx, item["full_path"]), "tt": "Preview audio"}
-            )
-            buttons.append(self._add_row_button(item, "file", target_ok, target_tt))
-        return buttons
-
-    def _add_row_button(self, item, kind, target_ok, target_tt):
-        # type: (Dict[str, Any], str, bool, str) -> Dict[str, Any]
-        """The tree [+] button.  In intensity add-mode it appends item to the
-        active (group, level) -- dup-checked, marked with the selected_alt bg;
-        otherwise it sends item to the target context."""
-        target = self.ilevel_add_target
-        if target is not None:
-            group, lv_id = target
-            if kind == "folder":
-                action = Function(self.ilevel_add_folder, group, lv_id, item["full_path"])
-                label = "Add this folder to Level {} of {}.".format(lv_id, group)
-            else:
-                action = Function(self.ilevel_add_file, group, lv_id, item["full_path"])
-                label = "Add this file to Level {} of {}.".format(lv_id, group)
-            is_dup = self.level_has_file(group, lv_id, item["full_path"])
-            return {
-                "icon": "plus",
-                "action": action,
-                "tt": label,
-                "enabled": not is_dup,
-                "bg": (getattr(renpy.store, "_cue_color_selected_alt", None) if not is_dup else None),
-            }
-        if kind == "folder":
-            return {
-                "icon": "plus",
-                "action": Function(_cue_markers_send, "folder", item["full_path"]),
-                "tt": target_tt,
-                "enabled": target_ok,
-            }
-        return {
-            "icon": "plus",
-            "action": Function(_cue_markers_send, "file", item["index"]),
-            "tt": target_tt,
-            "enabled": target_ok,
-        }
-
-    def warn_reason(self, item, target_ok, target_tt, unplayable):  # pyright: ignore[reportIncompatibleMethodOverride]
-        # type: (Dict[str, Any], bool, str, Dict[str, str]) -> str
-        """Unplayable-file reason for a file row's warn icon ("" = playable).
-        target_ok / target_tt ride along in tree_rows' *state but are unused
-        here; only unplayable feeds the icon."""
-        return unplayable.get(self._paths.audio_dir + item["full_path"], "")
+    def tree_rows(self, *state):
+        # type: (*Any) -> List[Dict[str, Any]]
+        """Flat row stream for the cue_tree_rows renderer.  SFX button/warn
+        logic lives in CueSfxTreeRows; this just forwards *state."""
+        return self._rows.tree_rows(*state)
 
     # ------------------------------------------------------------------
     # Toggle: file enabled/disabled

@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 from cue_lib.audio.audio_tree import CueAudioTreeManager
 from cue_lib.audio.game_music import CueGameMusic
 from cue_lib.audio.music import CueMusicManager
+from cue_lib.audio.tree_rows import CueMusicTreeRows
 from cue_lib.audio.user_music import CueUserMusic
 
 class CueCombinedMusicTree(CueAudioTreeManager):
@@ -12,7 +13,7 @@ class CueCombinedMusicTree(CueAudioTreeManager):
     game_music: CueGameMusic
     _user_tree_id: object
     _game_tree_id: object
-    file_gap: int
+    _rows: CueMusicTreeRows
 
     def __init__(self, music: CueMusicManager, user_music: CueUserMusic, game_music: CueGameMusic) -> None: ...
     def rebuild_tree(self) -> None: ...
@@ -22,6 +23,4 @@ class CueCombinedMusicTree(CueAudioTreeManager):
     def add_folder_to_trigger(self, display_path: str, record: bool = True) -> None: ...
     def ref_display_path(self, ref: str) -> str: ...
     def preview(self, display_path: str, volume: float = 1.0) -> None: ...
-    def row_buttons(  # pyright: ignore[reportIncompatibleMethodOverride]
-        self, item: Dict[str, Any], current_file: object
-    ) -> List[Dict[str, Any]]: ...
+    def tree_rows(self, *state: object) -> List[Dict[str, Any]]: ...
