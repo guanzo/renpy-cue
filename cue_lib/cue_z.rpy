@@ -294,6 +294,10 @@ init -900 python:
         # intensity manager; late-bound here (same pattern as _recent) so the
         # tree only needs its own constructors at build time.
         sfx_manager.library._intensity = intensity
+        # The marker store's igroup fold (resolve_pool with a speed) needs the
+        # intensity manager too -- late-bound for the same construction-order
+        # reason as the sfx library above.
+        marker_store._intensity = intensity
 
         # Music's "Recently Used" list lives on the music manager: it records
         # add-to-trigger attempts through music's own _add_ref_to_trigger funnel.

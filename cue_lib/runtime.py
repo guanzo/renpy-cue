@@ -249,7 +249,7 @@ def _cue_refresh_context_impl():
         _cue.ctx._shake_just_happened = False
         if _cue.current_file:
             shake_key = create_img_key(_cue.current_file)
-            if shake_key != img_key:
+            if shake_key != img_key:  # avoid double trigger
                 _cue.trigger.fire_context(shake_key, only_shake_pools=True)
 
 

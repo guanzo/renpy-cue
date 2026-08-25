@@ -13,6 +13,7 @@ import os
 import pytest
 
 from cue_lib.constants import CUE_VOLUME_DEFAULT, CueLoopFrequency
+from cue_lib.intensity import CueIntensityResolution
 from cue_lib.marker_store import CueMarkerStore, _cue_migrate_intensity_hooks
 
 
@@ -165,6 +166,69 @@ def test_resolve_pool_unhooked_has_none(store):
     resolved = store.resolve_pool({"files": ["a.ogg"]})
     assert resolved.igroup is None
     assert resolved.ilevel_id is None
+
+
+class _StubIntensity(object):
+    """Records fold calls; returns a canned resolution or None."""
+
+    def __init__(self, resolution):
+        self.resolution = resolution
+        self.calls = []
+
+    def resolve_pool_intensity(self, igroup, ilevel_id, current_speed, variants, flags=None):
+        self.calls.append((igroup, ilevel_id, current_speed, variants, flags))
+        return self.resolution
+
+
+def test_resolve_pool_fold_no_speed_skips(store):
+    # Without a speed, resolve_pool must not touch intensity: the hook stays
+    # metadata-only and files stay the pool's own ([] for hooked pools).
+    resolved = store.resolve_pool({"files": [], "igroup": "Impacts", "ilevel_id": 1})
+    assert resolved.files == []
+    assert resolved.intensity is None
+    assert resolved.volume_mult is None
+    assert resolved.freq_mult is None
+    assert resolved.level is None
+    assert resolved.igroup == "Impacts"
+    assert resolved.ilevel_id == 1
+
+
+def test_resolve_pool_fold_embeds_intensity(store):
+    # With a speed, the fold calls intensity and embeds the resolution, so
+    # resolved.files becomes the level files and the multipliers are readable.
+    store._intensity = _StubIntensity(CueIntensityResolution("Impacts", 2, 1.25, 1.5, ["hard/a.ogg"]))
+    resolved = store.resolve_pool(
+        {"files": [], "igroup": "Impacts", "ilevel_id": 1}, speed=1.3, variants=[0.7, 1.0, 1.3]
+    )
+    assert store._intensity.calls == [("Impacts", 1, 1.3, [0.7, 1.0, 1.3], None)]
+    assert resolved.intensity is store._intensity.resolution
+    assert resolved.files == ["hard/a.ogg"]
+    assert resolved.volume_mult == 1.25
+    assert resolved.freq_mult == 1.5
+    assert resolved.level == 2
+    assert resolved.igroup == "Impacts"
+    assert resolved.ilevel_id == 1
+
+
+def test_resolve_pool_fold_dead_group_falls_back(store):
+    # A hooked pool whose group resolves to nothing keeps its own files.
+    store._intensity = _StubIntensity(None)
+    resolved = store.resolve_pool(
+        {"files": ["a.ogg"], "igroup": "Ghost", "ilevel_id": 1}, speed=1.3, variants=[0.7, 1.0, 1.3]
+    )
+    assert resolved.files == ["a.ogg"]
+    assert resolved.intensity is None
+    assert resolved.volume_mult is None
+    assert resolved.igroup == "Ghost"
+
+
+def test_resolve_pool_speed_without_hook_no_fold(store):
+    # No igroup -> no intensity call even with a speed; own files unchanged.
+    store._intensity = _StubIntensity(CueIntensityResolution("Nope", 1, 1.0, 1.0))
+    resolved = store.resolve_pool({"files": ["a.ogg"]}, speed=1.3, variants=[0.7, 1.0, 1.3])
+    assert store._intensity.calls == []
+    assert resolved.files == ["a.ogg"]
+    assert resolved.intensity is None
 
 
 def test_resolve_video_pools_resolves_preset_pools(store):

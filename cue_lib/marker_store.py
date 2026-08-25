@@ -45,19 +45,67 @@ class ResolvedExclusive(object):
         """Stored nested-dict form, for write-backs like _detach_pool."""
         return {"group": self.group, "start": self.start, "hold": self.hold}
 
+    def __repr__(self):
+        # type: () -> str
+        return "ResolvedExclusive(group={!r}, start={!r}, hold={!r})".format(self.group, self.start, self.hold)
+
 
 class ResolvedPool(object):
-    """Immutable snapshot of a resolved pool."""
+    """Immutable snapshot of a resolved pool.
 
-    def __init__(self, files, volume, frequency, trigger_on_shake, exclusive=None, igroup=None, ilevel_id=None):
-        # type: (List[str], float, int, bool, Optional[Any], Optional[str], Optional[int]) -> None
-        self.files = files
+    ``intensity`` carries the folded intensity resolution (level files +
+    multipliers) when resolve_pool was given a runtime speed; otherwise None
+    and ``files`` returns the pool's own (raw) file list."""
+
+    def __init__(
+        self, files, volume, frequency, trigger_on_shake, exclusive=None, igroup=None, ilevel_id=None, intensity=None
+    ):
+        # type: (List[str], float, int, bool, Optional[Any], Optional[str], Optional[int], Optional[Any]) -> None
+        self._files = files
+        self.igroup = igroup
+        self.ilevel_id = ilevel_id
         self.volume = volume
         self.frequency = frequency
         self.trigger_on_shake = trigger_on_shake
         self.exclusive = exclusive if exclusive is not None else ResolvedExclusive()
-        self.igroup = igroup
-        self.ilevel_id = ilevel_id
+        self.intensity = intensity
+
+    @property
+    def files(self):
+        # type: () -> List[str]
+        """Files that would play: intensity level files when folded, else raw."""
+        return self.intensity.files if self.intensity is not None else self._files
+
+    @property
+    def volume_mult(self):
+        # type: () -> Optional[float]
+        return self.intensity.volume_mult if self.intensity is not None else None
+
+    @property
+    def freq_mult(self):
+        # type: () -> Optional[float]
+        return self.intensity.freq_mult if self.intensity is not None else None
+
+    @property
+    def level(self):
+        # type: () -> Optional[int]
+        return self.intensity.level if self.intensity is not None else None
+
+    def __repr__(self):
+        # type: () -> str
+        return (
+            "ResolvedPool(files={!r}, volume={!r}, frequency={!r}, "
+            "trigger_on_shake={!r}, exclusive={!r}, igroup={!r}, ilevel_id={!r}, intensity={!r})"
+        ).format(
+            self.files,
+            self.volume,
+            self.frequency,
+            self.trigger_on_shake,
+            self.exclusive,
+            self.igroup,
+            self.ilevel_id,
+            self.intensity,
+        )
 
 
 class CueMarkerStore(object):
@@ -83,6 +131,10 @@ class CueMarkerStore(object):
         self._video_presets = {}
         # ("audio"|"video", name) -- presets created this session
         self._session_created = set()
+        # Late-bound intensity manager (same pattern as sfx library): the store
+        # is built before CueIntensityManager in cue_z.rpy, so resolve_pool's
+        # fold only activates once the wiring lands.
+        self._intensity = None  # type: Optional[Any]
 
     # -- dict-like interface --
 
@@ -206,8 +258,15 @@ class CueMarkerStore(object):
 
     # -- resolve (preset -> concrete pool) --
 
-    def resolve_pool(self, pool):
-        # type: (PoolDict) -> ResolvedPool
+    def resolve_pool(self, pool, speed=None, variants=None, flags=None):
+        # type: (PoolDict, Optional[float], Optional[List[float]], Optional[Any]) -> ResolvedPool
+        """Resolve a pool to its concrete fire snapshot.
+
+        With a runtime ``speed`` (and an intensity manager wired), folds the
+        igroup hook: the intensity resolution is embedded so ``resolved.files``
+        becomes the level files and ``resolved.volume_mult`` / ``freq_mult`` /
+        ``level`` are populated.  Without a speed this is identical to the
+        pre-fold resolution (UI previews, load-time, presets)."""
         defaults = self._presets.get(pool["preset"], {}) if "preset" in pool else {}
         files = pool.get("files", defaults.get("files", []))
         volume = pool.get("volume", defaults.get("volume", CUE_VOLUME_DEFAULT))
@@ -216,7 +275,10 @@ class CueMarkerStore(object):
         exclusive = self._resolve_exclusive(pool, defaults)
         igroup = pool.get("igroup", defaults.get("igroup"))
         ilevel_id = pool.get("ilevel_id", defaults.get("ilevel_id"))
-        return ResolvedPool(list(files), volume, frequency, trigger_on_shake, exclusive, igroup, ilevel_id)
+        intensity = None
+        if igroup is not None and speed is not None and self._intensity is not None:
+            intensity = self._intensity.resolve_pool_intensity(igroup, ilevel_id, speed, variants, flags)
+        return ResolvedPool(list(files), volume, frequency, trigger_on_shake, exclusive, igroup, ilevel_id, intensity)
 
     @staticmethod
     def _resolve_exclusive(pool, defaults):

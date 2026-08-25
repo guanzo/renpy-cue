@@ -3,6 +3,7 @@ from typing import Any, Callable, Dict, ItemsView, KeysView, List, Optional, Set
 
 from cue_lib._types import MarkerEntry, PoolDict, VideoPoolDict, VideoPreset
 from cue_lib.db import CueDatabase
+from cue_lib.intensity import CueIntensityFlags, CueIntensityManager, CueIntensityResolution
 from cue_lib.paths import CuePaths
 
 # =========================================================================
@@ -17,17 +18,27 @@ class ResolvedExclusive:
     hold: bool
     def __init__(self, group: int = 0, start: int = 0, hold: bool = False) -> None: ...
     def to_dict(self) -> Dict[str, Any]: ...
+    def __repr__(self) -> str: ...
 
 class ResolvedPool:
     """Immutable pool snapshot after resolving presets."""
 
-    files: List[str]
+    _files: List[str]
     volume: float
     frequency: int
     trigger_on_shake: bool
     exclusive: ResolvedExclusive
     igroup: Optional[str]
     ilevel_id: Optional[int]
+    intensity: Optional[CueIntensityResolution]
+    @property
+    def files(self) -> List[str]: ...
+    @property
+    def volume_mult(self) -> Optional[float]: ...
+    @property
+    def freq_mult(self) -> Optional[float]: ...
+    @property
+    def level(self) -> Optional[int]: ...
     def __init__(
         self,
         files: List[str],
@@ -37,7 +48,9 @@ class ResolvedPool:
         exclusive: Optional[ResolvedExclusive] = None,
         igroup: Optional[str] = None,
         ilevel_id: Optional[int] = None,
+        intensity: Optional[CueIntensityResolution] = None,
     ) -> None: ...
+    def __repr__(self) -> str: ...
 
 # =========================================================================
 # CueMarkerStore
@@ -51,6 +64,7 @@ class CueMarkerStore:
     _presets: Dict[str, PoolDict]
     _video_presets: Dict[str, VideoPreset]
     _session_created: Set[Tuple[str, str]]
+    _intensity: Optional[CueIntensityManager]
 
     def __init__(
         self, db: Optional[CueDatabase], paths: CuePaths, on_save: Optional[Callable[[], None]] = None
@@ -81,7 +95,13 @@ class CueMarkerStore:
     def list_video_presets(self) -> List[str]: ...
 
     # Resolve
-    def resolve_pool(self, pool: PoolDict) -> ResolvedPool: ...
+    def resolve_pool(
+        self,
+        pool: PoolDict,
+        speed: Optional[float] = None,
+        variants: Optional[List[float]] = None,
+        flags: Optional[CueIntensityFlags] = None,
+    ) -> ResolvedPool: ...
     @staticmethod
     def _resolve_exclusive(pool: PoolDict, defaults: Any) -> ResolvedExclusive: ...
 
