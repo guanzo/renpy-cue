@@ -48,7 +48,7 @@ screen cue_video_sfx():
                 use cue_icon_btn("xmark",
                     (Function(_cue.markers.video.remove_selected) if _has_markers else NullAction()),
                     "Delete selected markers" if _has_markers else "No markers to delete")
-                use cue_txt_button("Repeat Markers", Function(_cue.repeater.open),
+                use cue_txt_button("Repeat Markers", Function(_cue.dialogs.repeater.open),
                     tt="Repeat selected markers at regular intervals across the video")
                 use cue_icon("circle-question",
                     tt=("• Markers and marker groups are draggable.\n\n"

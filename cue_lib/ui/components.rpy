@@ -780,7 +780,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
                 null width 5
                 use cue_icon_btn(
                     "floppy-disk",
-                    Function(_cue.dialogs.preset.open, key, _target),
+                    Function(_cue.dialogs.pool_preset.open, key, _target),
                     "Save pool as a preset",
                 )
                 if not ctx.ONE_SHOT:

@@ -87,7 +87,7 @@ screen cue_overlay():
     zorder 9999
     # Modal only while a dialog is up so the dialog's input gets the keys
     # instead of the game's own keymap shortcuts.
-    modal (_cue.dialogs.active_id is not None)
+    modal (_cue.dialogs.active_dialog is not None)
 
     $ _z = _cue_overlay_zoom()
 
@@ -160,45 +160,6 @@ screen cue_overlay_content():
                 use cue_import_export_page()
             else:
                 use cue_settings_page()
-
-# =============================================================================
-# SUB-SCREEN: SFX sidebar -- full-height column pinned to the overlay panel's
-# right edge.  Renders only while sidebar mode is on and the SFX Library
-# section is expanded; otherwise the screen stays mounted but empty.
-# =============================================================================
-
-screen cue_sfx_sidebar():
-    style_group "cue"
-
-    zorder CUE_SIDEBAR_ZORDER
-
-    # Same video-context derivation as cue_overlay_content.
-    $ _is_video = _cue.top_layer_type == 'movie'
-
-    if _cue.sfx.library.is_sidebar_mode and not _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False):
-        $ _z = _cue_overlay_zoom()
-        button:
-            style "empty"
-            at Transform(zoom=_z)
-            action NullAction()
-            padding (0, 4)
-            xalign 0.0
-            yalign 0.0
-            xpos int(_cue_overlay_panel_width / _z)
-            xsize int(_cue.sfx.library.sidebar_width / _z)
-            ysize int(renpy.config.screen_height / _z)
-            background None
-            hover_background None
-            frame:
-                background _cue_color_bg_overlay
-                yfill True
-                use cue_sfx_library(_is_video)
-
-            # Resize handle: drag the game-facing right edge to change width.
-            # Custom displayable -- the screen `dragged` callback only fires on
-            # drop with a 2-arg signature, so live resize needs raw mouse events.
-            # Sized to the padded content rect so it hugs the colored frame.
-            add CueSidebarResizeHandle.get_handle() xalign 1.0 xsize 10 ysize int(renpy.config.screen_height / _z - 8)
 
 screen cue_header_toolbar():
     style_group "cue"
@@ -279,25 +240,62 @@ screen cue_header_toolbar():
             
             use cue_icon_btn("xmark", Function(_cue_hide_overlay), "Close overlay")
 
-# --- Active dialog: folded in gated on _cue.dialogs.active_id so the
-# overlay toggle hides it without losing its state. Dialog screens are
+# --- Active dialog: folded in gated on the live _cue.dialogs.active_dialog
+# so the overlay toggle hides it without losing its state. Dialog screens are
 # top-level on their own only when shown directly; the use inlines them. ---
 screen cue_dialogs():
-    zorder CUE_DIALOG_ZORDER
-    
-    $ _dlg_id = _cue.dialogs.active_id
-    if _dlg_id == "preset":
+    $ _dlg = _cue.dialogs.active_dialog
+    if isinstance(_dlg, CuePoolPresetDialog):
         use cue_save_preset_dialog()
-    elif _dlg_id == "music_preset":
+    elif isinstance(_dlg, CueMusicPresetDialog):
         use cue_save_music_preset_dialog()
-    elif _dlg_id == "video_preset":
+    elif isinstance(_dlg, CueVideoPresetDialog):
         use cue_save_video_preset_dialog()
-    elif _dlg_id == "igroup":
+    elif isinstance(_dlg, CueIntensityGroupDialog):
         use cue_new_igroup_dialog()
-    elif _dlg_id == "confirm":
+    elif isinstance(_dlg, CueConfirmDialog):
         use cue_confirm_dialog()
-    elif _dlg_id == "merge":
+    elif isinstance(_dlg, CueMergeDialog):
         use cue_merge_dialog()
+    elif isinstance(_dlg, CueMarkerRepeater):
+        use cue_repeat_markers_dialog()
+
+# =============================================================================
+# SUB-SCREEN: SFX sidebar -- full-height column pinned to the overlay panel's
+# right edge.  Renders only while sidebar mode is on and the SFX Library
+# section is expanded; otherwise the screen stays mounted but empty.
+# =============================================================================
+
+screen cue_sfx_sidebar():
+    style_group "cue"
+
+    # Same video-context derivation as cue_overlay_content.
+    $ _is_video = _cue.top_layer_type == 'movie'
+
+    if _cue.sfx.library.is_sidebar_mode and not _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False):
+        $ _z = _cue_overlay_zoom()
+        button:
+            style "empty"
+            at Transform(zoom=_z)
+            action NullAction()
+            padding (0, 4)
+            xalign 0.0
+            yalign 0.0
+            xpos int(_cue_overlay_panel_width / _z)
+            xsize int(_cue.sfx.library.sidebar_width / _z)
+            ysize int(renpy.config.screen_height / _z)
+            background None
+            hover_background None
+            frame:
+                background _cue_color_bg_overlay
+                yfill True
+                use cue_sfx_library(_is_video)
+
+            # Resize handle: drag the game-facing right edge to change width.
+            # Custom displayable -- the screen `dragged` callback only fires on
+            # drop with a 2-arg signature, so live resize needs raw mouse events.
+            # Sized to the padded content rect so it hugs the colored frame.
+            add CueSidebarResizeHandle.get_handle() xalign 1.0 xsize 10 ysize int(renpy.config.screen_height / _z - 8)
 
 ###############################################################################
 # Speed-change toast — subtle indicator in the top-left corner

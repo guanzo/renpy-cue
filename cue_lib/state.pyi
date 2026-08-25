@@ -1,6 +1,5 @@
 from typing import Any, Dict, Optional, Tuple
 
-from cue_lib.video.repeater import CueMarkerRepeater
 from cue_lib.video.ffmpeg import CueFFmpeg
 from cue_lib.audio.sfx_manager import CueSfxManager
 from cue_lib.markers import CueMarkerManager
@@ -65,7 +64,6 @@ class Cue:
     trigger: CueTriggerEngine
     vid_manager: CueVideoManager
     volume: CueVolumeManager
-    repeater: CueMarkerRepeater
     ffmpeg: CueFFmpeg
     video_editor: CueVideoEditor
     speed_resolver: CueVidSpeedResolver

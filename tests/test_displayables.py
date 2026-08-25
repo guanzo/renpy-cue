@@ -228,9 +228,9 @@ def _make_mtl(
     cue = types.SimpleNamespace(
         markers=markers,
         speed_resolver=speed_resolver,
-        repeater=repeater,
         current_file=current_file,
         intensity=intensity,
+        dialogs=types.SimpleNamespace(repeater=repeater),
     )
     monkeypatch.setattr(_displ, "_cue", cue)
 
@@ -329,7 +329,7 @@ def test_mtl_render_basic(monkeypatch):
 
 def test_mtl_render_scaled_and_preview(monkeypatch):
     env = _make_mtl(monkeypatch, [{"time": 0.0}, {"time": 5.0}], speed=2.0, selected={1})
-    env.cue.repeater.compute_preview_times = lambda: [2.5]
+    env.cue.dialogs.repeater.compute_preview_times = lambda: [2.5]
     r = env.tl.render(200, 60, 0.0, 0.0)
     ops = r.canvas().ops
     colors = [op[1] for op in ops if op[0] == "rect"]
@@ -364,7 +364,7 @@ def test_mtl_render_zero_duration_skips_preview(monkeypatch):
         visited.append(1)
         return [1.0]
 
-    env.cue.repeater.compute_preview_times = _preview
+    env.cue.dialogs.repeater.compute_preview_times = _preview
     env.tl.render(200, 60, 0.0, 0.0)
     assert visited == []
 

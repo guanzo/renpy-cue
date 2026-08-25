@@ -579,7 +579,7 @@ class CueVideoMarkerTimeline(Displayable):
             r.blit(tr, (bx_pos + (self.TAB_W - tw) // 2 + 1, by_pos))
 
         # Preview marker overlay
-        preview_times = _cue.repeater.compute_preview_times() if dur > 0.0 else []
+        preview_times = _cue.dialogs.repeater.compute_preview_times() if dur > 0.0 else []
 
         for ptime in preview_times:
             ppx = self._time_to_x(ptime, dur, inner_w)

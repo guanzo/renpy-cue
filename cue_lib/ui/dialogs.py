@@ -18,53 +18,58 @@ if MYPY:
 class CueDialogs(object):
     """Holds the overlay dialog instances and the active-dialog gate.
 
-    cue_overlay folds each dialog screen in gated on active_id, so the
-    overlay toggle hides the active dialog without losing its state."""
+    cue_overlay folds each dialog screen in gated on the live active dialog
+    instance, so the overlay toggle hides the active dialog without losing
+    its state."""
 
-    def __init__(self):
-        self.preset = None
-        self.music_preset = None
-        self.video_preset = None
-        self.confirm = None
-        self.merge = None
-        self.intensity = None
-        self.active_id = None
+    def __init__(
+        self,
+        pool_preset=None,
+        music_preset=None,
+        video_preset=None,
+        confirm=None,
+        merge=None,
+        intensity=None,
+        repeater=None,
+    ):
+        self.pool_preset = pool_preset
+        self.music_preset = music_preset
+        self.video_preset = video_preset
+        self.confirm = confirm
+        self.merge = merge
+        self.intensity = intensity
+        self.repeater = repeater
+        self.active_dialog = None
 
-    def show(self, dialog_id):
-        # type: (str) -> None
-        self.active_id = dialog_id
+    def show(self, dialog):
+        # type: (CueDialogBase) -> None
+        self.active_dialog = dialog
 
     def hide(self):
         # type: () -> None
-        self.active_id = None
+        self.active_dialog = None
 
 
 class CueDialogBase(object):
     """Shared plumbing for the overlay dialog popups.
 
-    Each dialog carries its id (the _cue.dialogs gate key) in .id;
-    _show()/_hide() flip the active_id slot instead of showing/hiding the
-    screen directly, so the overlay toggle can fold the active dialog in
-    without losing its state."""
-
-    def __init__(self, dialog_id):
-        # type: (str) -> None
-        self.id = dialog_id
+    _show()/_hide() record the dialog instance on the _cue.dialogs gate
+    instead of showing/hiding a screen directly, so the overlay toggle can
+    fold the active dialog in without losing its state."""
 
     def _show(self):
         # type: () -> None
-        _cue.dialogs.show(self.id)
+        _cue.dialogs.show(self)
 
     def _hide(self):
         # type: () -> None
         _cue.dialogs.hide()
 
 
-class CuePresetDialog(CueDialogBase):
+class CuePoolPresetDialog(CueDialogBase):
     """Self-contained state for the Save Preset popup (SFX pool)."""
 
     def __init__(self):
-        super(CuePresetDialog, self).__init__("preset")
         self.marker_key = None
         self.pool_idx = 0
         self.name = ""
@@ -113,7 +118,6 @@ class CueMusicPresetDialog(CueDialogBase):
     The song list is captured at open time; empty triggers don't open."""
 
     def __init__(self):
-        super(CueMusicPresetDialog, self).__init__("music_preset")
         self.music_key = None
         self.songs = []
         self.name = ""
@@ -153,7 +157,6 @@ class CueVideoPresetDialog(CueDialogBase):
     """Self-contained state for the Save Video Preset popup."""
 
     def __init__(self):
-        super(CueVideoPresetDialog, self).__init__("video_preset")
         self.name = ""
 
     def open(self):
@@ -193,7 +196,6 @@ class CueIntensityGroupDialog(CueDialogBase):
     inline and the popup stays open until a valid commit or cancel."""
 
     def __init__(self):
-        super(CueIntensityGroupDialog, self).__init__("igroup")
         self.name = ""
         self.error = ""
 
@@ -228,7 +230,6 @@ class CueConfirmDialog(CueDialogBase):
     """Reusable confirmation popup matching the overlay UI style."""
 
     def __init__(self):
-        super(CueConfirmDialog, self).__init__("confirm")
         self.message = ""
         self.on_confirm = None
 
@@ -263,7 +264,6 @@ class CueMergeDialog(CueDialogBase):
 
     def __init__(self, imports):
         # type: (Any) -> None
-        super(CueMergeDialog, self).__init__("merge")
         self._imports = imports
         self.imp = None
         self.checked = {}  # type: Dict[int, bool]

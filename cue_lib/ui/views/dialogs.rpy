@@ -24,11 +24,11 @@ screen cue_repeat_markers_dialog():
     # _sync_tracked() runs from render/tick contexts and only flips
     # dialog_visible when the preview session must end (anchor deleted,
     # markers cleared). Hide the screen itself on the next interaction.
-    if not _cue.repeater.dialog_visible:
-        timer 0.01 action Function(_cue.repeater.hide)
-    $ anchor = _cue.repeater.anchor
-    $ offsets = _cue.repeater.offsets
-    $ sel_count = _cue.repeater.sel_count
+    if not _cue.dialogs.repeater.dialog_visible:
+        timer 0.01 action Function(_cue.dialogs.repeater.hide)
+    $ anchor = _cue.dialogs.repeater.anchor
+    $ offsets = _cue.dialogs.repeater.offsets
+    $ sel_count = _cue.dialogs.repeater.sel_count
 
     use cue_dialog_wrapper():
         vbox:
@@ -43,49 +43,49 @@ screen cue_repeat_markers_dialog():
             hbox:
                 spacing 5
                 etext "Anchor:"
-                $ _anchor_dec = Function(_cue.repeater.nudge_anchor, -0.01)
-                $ _anchor_inc = Function(_cue.repeater.nudge_anchor, 0.01)
-                $ _anchor_commit = Function(_cue.repeater.commit_anchor)
-                $ _anchor_display = _cue.repeater.anchor_text
-                use cue_float_input("_cue.repeater.anchor_text", _anchor_commit, _anchor_display,
+                $ _anchor_dec = Function(_cue.dialogs.repeater.nudge_anchor, -0.01)
+                $ _anchor_inc = Function(_cue.dialogs.repeater.nudge_anchor, 0.01)
+                $ _anchor_commit = Function(_cue.dialogs.repeater.commit_anchor)
+                $ _anchor_display = _cue.dialogs.repeater.anchor_text
+                use cue_float_input("_cue.dialogs.repeater.anchor_text", _anchor_commit, _anchor_display,
                     dec_action=_anchor_dec, inc_action=_anchor_inc)
 
             hbox:
                 spacing 3
                 xalign 0.0
                 etext "Interval:"
-                $ _commit = Function(_cue.repeater.commit_interval)
-                $ _display = _cue.repeater.interval_text
-                use cue_float_input("_cue.repeater.interval_text", _commit, _display,
-                    dec_action=Function(_cue.repeater.nudge_interval, -0.1),
-                    inc_action=Function(_cue.repeater.nudge_interval, 0.1))
+                $ _commit = Function(_cue.dialogs.repeater.commit_interval)
+                $ _display = _cue.dialogs.repeater.interval_text
+                use cue_float_input("_cue.dialogs.repeater.interval_text", _commit, _display,
+                    dec_action=Function(_cue.dialogs.repeater.nudge_interval, -0.1),
+                    inc_action=Function(_cue.dialogs.repeater.nudge_interval, 0.1))
 
             hbox:
                 spacing 3
                 xalign 0.0
                 etext "Repeat:"
-                $ _dec = Function(_cue.repeater.nudge_count, -1)
-                $ _inc = Function(_cue.repeater.nudge_count, 1)
-                $ _commit = Function(_cue.repeater.commit_count)
-                $ _display = _cue.repeater.count_text
-                use cue_float_input("_cue.repeater.count_text", _commit, _display,
+                $ _dec = Function(_cue.dialogs.repeater.nudge_count, -1)
+                $ _inc = Function(_cue.dialogs.repeater.nudge_count, 1)
+                $ _commit = Function(_cue.dialogs.repeater.commit_count)
+                $ _display = _cue.dialogs.repeater.count_text
+                use cue_float_input("_cue.dialogs.repeater.count_text", _commit, _display,
                     dec_action=_dec, inc_action=_inc)
 
-            use cue_checkbox(_cue.repeater.preview_sfx_enabled, 
+            use cue_checkbox(_cue.dialogs.repeater.preview_sfx_enabled, 
                 "Preview markers trigger SFX",
-                Function(_cue.repeater.toggle_preview_sfx))
+                Function(_cue.dialogs.repeater.toggle_preview_sfx))
 
-            $ _preview_label = _cue.repeater.preview_text()
+            $ _preview_label = _cue.dialogs.repeater.preview_text()
             etext _preview_label
 
             null height 5
 
             hbox:
                 spacing 8
-                use cue_txt_button("Cancel", Function(_cue.repeater.hide))
+                use cue_txt_button("Cancel", Function(_cue.dialogs.repeater.hide))
                 use cue_txt_button("Apply", [
-                    Function(_cue.repeater.apply),
-                    Function(_cue.repeater.hide),
+                    Function(_cue.dialogs.repeater.apply),
+                    Function(_cue.dialogs.repeater.hide),
                 ])
 
 
@@ -93,7 +93,7 @@ screen cue_save_preset_dialog():
     style_group "cue"
 
     # SFX-pool save; the music-trigger save has its own screen and dialog.
-    $ _d = _cue.dialogs.preset
+    $ _d = _cue.dialogs.pool_preset
     $ _entry = _cue.markers.get(_d.marker_key) if _d.marker_key else None
     $ _pools = _entry.get("pools", []) if _entry else []
     $ _pool = _pools[_d.pool_idx] if _pools and _d.pool_idx < len(_pools) else {}
@@ -104,7 +104,7 @@ screen cue_save_preset_dialog():
     key "K_ESCAPE" action Function(_d.cancel)
 
     use cue_dialog_wrapper():
-        use cue_save_preset_body(_d, "_cue.dialogs.preset.name"):
+        use cue_save_preset_body(_d, "_cue.dialogs.pool_preset.name"):
             etext "Save Preset" style "cue_hdr"
 
             hbox:

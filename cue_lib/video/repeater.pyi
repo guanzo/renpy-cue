@@ -6,8 +6,9 @@ from cue_lib.marker_store import CueMarkerStore
 from cue_lib.video.video import CueVideoManager
 from cue_lib.state import CueContext
 from cue_lib.markers import CueMarkerManager
+from cue_lib.ui.dialogs import CueDialogBase
 
-class CueMarkerRepeater:
+class CueMarkerRepeater(CueDialogBase):
     anchor: float
     anchor_text: str
     _store: CueMarkerStore

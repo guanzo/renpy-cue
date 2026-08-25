@@ -121,7 +121,7 @@ init -999 python:
     )
 
     from cue_lib.ui.dialogs import (
-        CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog,
+        CuePoolPresetDialog, CueVideoPresetDialog, CueConfirmDialog,
         _cue_confirm_delete_preset, _cue_confirm_delete_video_preset,
         _cue_confirm_remove_video_preset_pool,
         _cue_confirm_delete_music_preset, _cue_confirm_delete_igroup,
@@ -195,7 +195,7 @@ init -900 python:
     from cue_lib.audio.recent import CueRecentManager, _cue_keep_sfx, _cue_keep_music
     from cue_lib.ui.icons import CueIconManager
     from cue_lib.ui.dialogs import (
-        CuePresetDialog, CueMusicPresetDialog, CueVideoPresetDialog,
+        CuePoolPresetDialog, CueMusicPresetDialog, CueVideoPresetDialog,
         CueConfirmDialog, CueMergeDialog, CueIntensityGroupDialog, CueDialogs,
     )
     from cue_lib.intensity import CueIntensityManager
@@ -263,7 +263,7 @@ init -900 python:
         url_importer = CueUrlImporter(importer)
 
         merge_dialog = CueMergeDialog(importer)
-        preset_dialog = CuePresetDialog()
+        pool_preset_dialog = CuePoolPresetDialog()
         music_preset_dialog = CueMusicPresetDialog()
         video_preset_dialog = CueVideoPresetDialog()
         confirm_dialog = CueConfirmDialog()
@@ -320,20 +320,20 @@ init -900 python:
         _cue.speed_toast = speed_toast
         _cue.speed_resolver = speed_resolver
         _cue.auto_speed = auto_speed
-        _cue.repeater = repeater
 
         _cue.trigger = trigger
         _cue.sfx = sfx_manager
         _cue.music = music
         _cue.volume = volume
 
-        _cue.dialogs = CueDialogs()
-        _cue.dialogs.preset = preset_dialog
-        _cue.dialogs.music_preset = music_preset_dialog
-        _cue.dialogs.video_preset = video_preset_dialog
-        _cue.dialogs.confirm = confirm_dialog
-        _cue.dialogs.merge = merge_dialog
-        _cue.dialogs.intensity = igroup_dialog
+        _cue.dialogs = CueDialogs(
+            pool_preset=pool_preset_dialog,
+            music_preset=music_preset_dialog,
+            video_preset=video_preset_dialog,
+            confirm=confirm_dialog,
+            merge=merge_dialog,
+            intensity=igroup_dialog,
+            repeater=repeater)
 
         _cue.settings = settings
         _cue.keybinds = keybinds

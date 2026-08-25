@@ -14,7 +14,7 @@ from cue_lib.ui.dialogs import (
     CueDialogs,
     CueMergeDialog,
     CueMusicPresetDialog,
-    CuePresetDialog,
+    CuePoolPresetDialog,
     CueVideoPresetDialog,
     _cue_confirm_delete_music_preset,
     _cue_confirm_delete_preset,
@@ -59,73 +59,73 @@ def ui_cue(monkeypatch):
 
 
 # ==========================================================================
-# CuePresetDialog
+# CuePoolPresetDialog
 # ==========================================================================
 
 
 def test_preset_open_missing_entry_noop(ui_cue):
-    d = CuePresetDialog()
+    d = CuePoolPresetDialog()
     d.open("v_scene.ogv", 0)
     assert d.marker_key is None
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_preset_open_pool_out_of_range_noop(ui_cue):
     ui_cue.markers.get = lambda key: {"pools": [{"files": []}]}
-    d = CuePresetDialog()
+    d = CuePoolPresetDialog()
     d.open("v_scene.ogv", 1)
     assert d.marker_key is None
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_preset_open_happy(ui_cue):
     ui_cue.markers.get = lambda key: {"pools": [{"files": ["a.ogg"]}]}
-    d = CuePresetDialog()
+    d = CuePoolPresetDialog()
     d.open("v_scene.ogv", 0)
     assert d.marker_key == "v_scene.ogv"
     assert d.pool_idx == 0
     assert d.name == ""
     assert ui_cue.calls["detach_pool"] == [(("v_scene.ogv", 0), {})]
-    assert ui_cue.dialogs.active_id == "preset"
+    assert isinstance(ui_cue.dialogs.active_dialog, CuePoolPresetDialog)
 
 
 def test_preset_commit_empty_name_no_create(ui_cue):
-    d = CuePresetDialog()
+    d = CuePoolPresetDialog()
     d.marker_key = "v_scene.ogv"
     d.pool_idx = 0
     d.name = "   "
     d.commit()
     assert "create_preset" not in ui_cue.calls
     assert d.marker_key is None
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_preset_commit_no_trigger_no_create(ui_cue):
-    d = CuePresetDialog()
+    d = CuePoolPresetDialog()
     d.name = "Foo"
     d.commit()
     assert "create_preset" not in ui_cue.calls
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_preset_commit_happy(ui_cue):
     ui_cue.markers.get = lambda key: {"pools": [{"files": ["a.ogg"]}]}
-    d = CuePresetDialog()
+    d = CuePoolPresetDialog()
     d.marker_key = "v_scene.ogv"
     d.pool_idx = 0
     d.name = "Tense"
     d.commit()
     assert ui_cue.calls["create_preset"] == [(("Tense", {"files": ["a.ogg"]}), {})]
     assert d.marker_key is None
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_preset_cancel(ui_cue):
-    d = CuePresetDialog()
+    d = CuePoolPresetDialog()
     d.marker_key = "v_scene.ogv"
     d.cancel()
     assert d.marker_key is None
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 # ==========================================================================
@@ -137,7 +137,7 @@ def test_music_preset_open_empty_songs_noop(ui_cue):
     d = CueMusicPresetDialog()
     d.open("i_scene.ogv")
     assert d.music_key is None
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_music_preset_open_happy(ui_cue):
@@ -147,7 +147,7 @@ def test_music_preset_open_happy(ui_cue):
     assert d.music_key == "i_scene.ogv"
     assert d.songs == ["u:music/a.ogg", "u:music/b.ogg"]
     assert d.name == ""
-    assert ui_cue.dialogs.active_id == "music_preset"
+    assert isinstance(ui_cue.dialogs.active_dialog, CueMusicPresetDialog)
 
 
 def test_music_preset_commit_happy(ui_cue):
@@ -159,7 +159,7 @@ def test_music_preset_commit_happy(ui_cue):
     assert ui_cue.calls["music_create_preset"] == [(("Tense", ["u:music/a.ogg"]), {})]
     assert d.music_key is None
     assert d.songs == []
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_music_preset_commit_no_trigger_no_create(ui_cue):
@@ -168,7 +168,7 @@ def test_music_preset_commit_no_trigger_no_create(ui_cue):
     d.name = "Tense"
     d.commit()
     assert "music_create_preset" not in ui_cue.calls
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_music_preset_commit_empty_name_no_create(ui_cue):
@@ -179,7 +179,7 @@ def test_music_preset_commit_empty_name_no_create(ui_cue):
     d.commit()
     assert "music_create_preset" not in ui_cue.calls
     assert d.music_key is None
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_music_preset_cancel(ui_cue):
@@ -189,7 +189,7 @@ def test_music_preset_cancel(ui_cue):
     d.cancel()
     assert d.music_key is None
     assert d.songs == []
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 # ==========================================================================
@@ -200,14 +200,14 @@ def test_music_preset_cancel(ui_cue):
 def test_video_preset_open_no_current_file(ui_cue):
     d = CueVideoPresetDialog()
     d.open()
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_video_preset_open_missing_entry(ui_cue):
     ui_cue.current_file = "v_scene.ogv"
     d = CueVideoPresetDialog()
     d.open()
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_video_preset_open_no_pools(ui_cue):
@@ -215,7 +215,7 @@ def test_video_preset_open_no_pools(ui_cue):
     ui_cue.markers.get = lambda key: {"pools": []}
     d = CueVideoPresetDialog()
     d.open()
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_video_preset_open_happy(ui_cue):
@@ -224,7 +224,7 @@ def test_video_preset_open_happy(ui_cue):
     d = CueVideoPresetDialog()
     d.open()
     assert d.name == ""
-    assert ui_cue.dialogs.active_id == "video_preset"
+    assert isinstance(ui_cue.dialogs.active_dialog, CueVideoPresetDialog)
 
 
 def test_video_preset_commit_empty_name(ui_cue):
@@ -232,7 +232,7 @@ def test_video_preset_commit_empty_name(ui_cue):
     d.name = ""
     d.commit()
     assert "create_video_preset" not in ui_cue.calls
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_video_preset_commit_happy(ui_cue):
@@ -242,13 +242,13 @@ def test_video_preset_commit_happy(ui_cue):
     d.name = "Slow"
     d.commit()
     assert ui_cue.calls["create_video_preset"] == [(("Slow", {"pools": [{"time": 1.0}]}), {})]
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_video_preset_cancel(ui_cue):
     d = CueVideoPresetDialog()
     d.cancel()
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 # ==========================================================================
@@ -261,11 +261,11 @@ def test_confirm_show_hide(ui_cue):
     d.show("Sure?", lambda: None)
     assert d.message == "Sure?"
     assert callable(d.on_confirm)
-    assert ui_cue.dialogs.active_id == "confirm"
+    assert isinstance(ui_cue.dialogs.active_dialog, CueConfirmDialog)
     d.hide()
     assert d.message == ""
     assert d.on_confirm is None
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_confirm_show_or_run_shows_without_shift(ui_cue, monkeypatch):
@@ -274,7 +274,7 @@ def test_confirm_show_or_run_shows_without_shift(ui_cue, monkeypatch):
     d.show_or_run("Sure?", lambda: None)
     assert d.message == "Sure?"
     assert callable(d.on_confirm)
-    assert ui_cue.dialogs.active_id == "confirm"
+    assert isinstance(ui_cue.dialogs.active_dialog, CueConfirmDialog)
 
 
 def test_confirm_show_or_run_skips_with_shift(ui_cue, monkeypatch):
@@ -285,7 +285,7 @@ def test_confirm_show_or_run_skips_with_shift(ui_cue, monkeypatch):
     assert calls == [1]
     assert d.message == ""
     assert d.on_confirm is None
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 # ==========================================================================
@@ -299,48 +299,48 @@ def test_confirm_delete_preset(ui_cue):
     # on_confirm is the Function() wrapper -- callable, not run yet.
     assert callable(ui_cue.dialogs.confirm.on_confirm)
     assert "delete_preset" not in ui_cue.calls
-    assert ui_cue.dialogs.active_id == "confirm"
+    assert isinstance(ui_cue.dialogs.active_dialog, CueConfirmDialog)
 
 
 def test_confirm_delete_video_preset(ui_cue):
     _cue_confirm_delete_video_preset("Bar")
     assert ui_cue.dialogs.confirm.message == "Delete video preset 'Bar'?"
     assert "delete_video_preset" not in ui_cue.calls
-    assert ui_cue.dialogs.active_id == "confirm"
+    assert isinstance(ui_cue.dialogs.active_dialog, CueConfirmDialog)
 
 
 def test_confirm_delete_music_preset(ui_cue):
     _cue_confirm_delete_music_preset("Foo")
     assert ui_cue.dialogs.confirm.message == "Delete music preset 'Foo'?"
     assert "music_delete_preset" not in ui_cue.calls
-    assert ui_cue.dialogs.active_id == "confirm"
+    assert isinstance(ui_cue.dialogs.active_dialog, CueConfirmDialog)
 
 
 def test_confirm_delete_preset_skips_with_shift(ui_cue, monkeypatch):
     monkeypatch.setattr(_dlg, "_cue_shift_held", lambda: True)
     _cue_confirm_delete_preset("Foo")
     assert ui_cue.calls["delete_preset"] == [(("Foo",), {})]
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_confirm_delete_video_preset_skips_with_shift(ui_cue, monkeypatch):
     monkeypatch.setattr(_dlg, "_cue_shift_held", lambda: True)
     _cue_confirm_delete_video_preset("Bar")
     assert ui_cue.calls["delete_video_preset"] == [(("Bar",), {})]
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_confirm_delete_music_preset_skips_with_shift(ui_cue, monkeypatch):
     monkeypatch.setattr(_dlg, "_cue_shift_held", lambda: True)
     _cue_confirm_delete_music_preset("Foo")
     assert ui_cue.calls["music_delete_preset"] == [(("Foo",), {})]
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_maybe_apply_video_preset_in_range(ui_cue):
     _cue_maybe_apply_video_preset("Preset")
     assert ui_cue.calls["apply_video_preset"] == [(("Preset",), {})]
-    assert ui_cue.dialogs.active_id is None
+    assert ui_cue.dialogs.active_dialog is None
 
 
 def test_maybe_apply_video_preset_out_of_range(ui_cue):
@@ -351,7 +351,7 @@ def test_maybe_apply_video_preset_out_of_range(ui_cue):
     assert "3 of 4 marker(s)" in ui_cue.dialogs.confirm.message
     assert "12.5s" in ui_cue.dialogs.confirm.message
     assert "apply_video_preset" not in ui_cue.calls
-    assert ui_cue.dialogs.active_id == "confirm"
+    assert isinstance(ui_cue.dialogs.active_dialog, CueConfirmDialog)
 
 
 def test_maybe_apply_video_preset_out_of_range_no_preset(ui_cue):
@@ -391,7 +391,7 @@ def merge_env(cue_env, monkeypatch):
     """Fake imports surface: import_for returns _merge_entry, merge_confirm
     records its args.  original_root is the real cue_env root so summary() can
     compute overwrites against real files.  _cue.dialogs is a real CueDialogs
-    so open/commit/cancel flip active_id."""
+    so open/commit/cancel flip the active_dialog gate."""
     calls = []
     original_root = cue_env.paths.original_root
 
@@ -431,7 +431,7 @@ def test_merge_open_happy(merge_env):
     assert d.is_category_enabled(CueImportCategory.SFX) is True
     assert d.is_category_enabled(CueImportCategory.MARKERS) is False
     assert d.total_files == 3
-    assert dialogs.active_id == "merge"
+    assert isinstance(dialogs.active_dialog, CueMergeDialog)
 
 
 def test_merge_open_invalid_noop(merge_env):
@@ -442,7 +442,7 @@ def test_merge_open_invalid_noop(merge_env):
     d.open("pack")
 
     assert d.imp is None
-    assert dialogs.active_id is None
+    assert dialogs.active_dialog is None
 
 
 def test_merge_open_mismatch_noop(merge_env):
@@ -453,7 +453,7 @@ def test_merge_open_mismatch_noop(merge_env):
     d.open("pack")
 
     assert d.imp is None
-    assert dialogs.active_id is None
+    assert dialogs.active_dialog is None
 
 
 def test_merge_toggle(merge_env):
@@ -519,7 +519,7 @@ def test_merge_confirm_records_checked_and_hides(merge_env):
     assert calls == [("pack", [CueImportCategory.MUSIC])]
     assert d.imp is None
     assert d.checked == {}
-    assert dialogs.active_id is None
+    assert dialogs.active_dialog is None
 
 
 def test_merge_cancel(merge_env):
@@ -532,4 +532,4 @@ def test_merge_cancel(merge_env):
 
     assert d.imp is None
     assert calls == []
-    assert dialogs.active_id is None
+    assert dialogs.active_dialog is None

@@ -23,6 +23,8 @@ from cue_lib.marker_store import CueMarkerStore
 from cue_lib.video.video import CueVideoManager
 from cue_lib.video.repeater import CueMarkerRepeater
 from cue_lib.util import create_vid_key
+import cue_lib.ui.dialogs as _dlg
+from cue_lib.ui.dialogs import CueDialogs
 
 from tests.fakes import FakeMarkers
 
@@ -46,8 +48,21 @@ def env(tmp_path, monkeypatch):
     vid = CueVideoManager(ctx)
     coord = FakeMarkers()
     rep = CueMarkerRepeater(ctx, store, vid, markers=coord)
+    # CueDialogBase._show/_hide route through the dialogs module's _cue.dialogs,
+    # so give that module a live CueDialogs to record the active-dialog gate.
+    dialogs = CueDialogs()
+    monkeypatch.setattr(_dlg, "_cue", types.SimpleNamespace(dialogs=dialogs, markers=coord))
     yield types.SimpleNamespace(
-        ctx=ctx, paths=paths, db=db, store=store, vid=vid, coord=coord, rep=rep, tag="scene", music=_music_mock
+        ctx=ctx,
+        paths=paths,
+        db=db,
+        store=store,
+        vid=vid,
+        coord=coord,
+        rep=rep,
+        dialogs=dialogs,
+        tag="scene",
+        music=_music_mock,
     )
 
 
@@ -111,6 +126,18 @@ def test_open_no_markers_noop(env):
     env.rep.open()
     assert env.rep.dialog_visible is False
     assert env.rep.offsets == []
+    assert env.dialogs.active_dialog is None
+
+
+def test_open_sets_active_gate(env):
+    _open(env, [1.0, 2.0], selected=[0, 1])
+    assert env.dialogs.active_dialog is env.rep
+
+
+def test_hide_clears_active_gate(env):
+    _open(env, [1.0, 2.0], selected=[0, 1])
+    env.rep.hide()
+    assert env.dialogs.active_dialog is None
 
 
 def test_open_no_current_file_noop(env):

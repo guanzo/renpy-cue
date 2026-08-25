@@ -45,7 +45,6 @@ class Cue(_renpy_python.NoRollback):
         self.trigger = None
         self.vid_manager = None
         self.volume = None
-        self.repeater = None
         self.ffmpeg = None
         self.video_editor = None
         self.speed_resolver = None

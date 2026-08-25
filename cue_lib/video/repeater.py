@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 # CueMarkerRepeater -- repeat-pattern dialog for video marker pools.
-# Instantiated once at _cue.repeater, lives on the NoRollback _cue object.
+# Instantiated once at _cue.dialogs.repeater, lives on the NoRollback _cue object.
 
 import renpy
 
 from cue_lib.constants import CUE_VOLUME_DEFAULT
 from cue_lib.state import _cue
+from cue_lib.ui.dialogs import CueDialogBase
 from cue_lib.util import create_vid_key, _cue_format_time, _cue_parse_time, _cue_clamp_time
 
 MYPY = False
@@ -18,7 +19,7 @@ if MYPY:
     from cue_lib.markers import CueMarkerManager  # pyright: ignore[reportUnusedImport]
 
 
-class CueMarkerRepeater(object):
+class CueMarkerRepeater(CueDialogBase):
     """Dialog state machine for repeating video marker patterns.
 
     Opens over the selected video markers, lets the user set an interval
@@ -245,7 +246,7 @@ class CueMarkerRepeater(object):
                 max_count = 0
             self.count_text = str(max_count)
 
-        renpy.show_screen("cue_repeat_markers_dialog", _layer="cue_layer")
+        self._show()
 
     def apply(self):
         # type: () -> None
@@ -300,7 +301,7 @@ class CueMarkerRepeater(object):
         self._anchor_time = 0.0
         self.offsets = []
         self.sel_count = 0
-        renpy.hide_screen("cue_repeat_markers_dialog", layer="cue_layer")
+        self._hide()
 
     def toggle_preview_sfx(self):
         # type: () -> None

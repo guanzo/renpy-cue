@@ -2,28 +2,37 @@
 from typing import Any, Callable, List, Optional
 
 from cue_lib._types import MarkerEntry  # pyright: ignore[reportUnusedImport]
+from cue_lib.video.repeater import CueMarkerRepeater
 
 class CueDialogBase:
-    id: str
-
-    def __init__(self, dialog_id: str) -> None: ...
+    def __init__(self) -> None: ...
     def _show(self) -> None: ...
     def _hide(self) -> None: ...
 
 class CueDialogs:
-    preset: CuePresetDialog
+    pool_preset: CuePoolPresetDialog
     music_preset: CueMusicPresetDialog
     video_preset: CueVideoPresetDialog
     confirm: CueConfirmDialog
     merge: CueMergeDialog
     intensity: CueIntensityGroupDialog
-    active_id: Optional[str]
+    repeater: CueMarkerRepeater
+    active_dialog: Optional[CueDialogBase]
 
-    def __init__(self) -> None: ...
-    def show(self, dialog_id: str) -> None: ...
+    def __init__(
+        self,
+        pool_preset: Optional[CuePoolPresetDialog] = None,
+        music_preset: Optional[CueMusicPresetDialog] = None,
+        video_preset: Optional[CueVideoPresetDialog] = None,
+        confirm: Optional[CueConfirmDialog] = None,
+        merge: Optional[CueMergeDialog] = None,
+        intensity: Optional[CueIntensityGroupDialog] = None,
+        repeater: Optional[CueMarkerRepeater] = None,
+    ) -> None: ...
+    def show(self, dialog: CueDialogBase) -> None: ...
     def hide(self) -> None: ...
 
-class CuePresetDialog(CueDialogBase):
+class CuePoolPresetDialog(CueDialogBase):
     marker_key: Optional[str]
     pool_idx: int
     name: str
