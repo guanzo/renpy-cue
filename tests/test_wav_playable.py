@@ -291,6 +291,113 @@ def test_unreadable_and_nonwav_return_original(tmp_path):
     assert w.ensure_playable(txt) == txt
 
 
+def test_warm_skips_known_files_on_fresh_instance(tmp_path):
+    audio = tmp_path / "audio"
+    audio.mkdir()
+    _write(str(audio / "native.wav"), _wav_sw(2, bytes([0x00, 0x40])))
+    _write(str(audio / "conv.wav"), _wav24(bytes([0x01, 0x02, 0x03])))
+    audio_dir = str(audio) + "/"
+
+    w1 = CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    w1.warm(["native.wav", "conv.wav"], audio_dir)
+
+    # A fresh instance loads the persisted index, so warm re-checks nothing.
+    w2 = CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    calls = []
+    orig = w2._classify
+    w2._classify = lambda p: calls.append(p) or orig(p)
+    w2.warm(["native.wav", "conv.wav"], audio_dir)
+    assert calls == []
+
+
+def test_warm_probes_new_file_and_records(tmp_path):
+    audio = tmp_path / "audio"
+    audio.mkdir()
+    audio_dir = str(audio) + "/"
+    _write(str(audio / "native.wav"), _wav_sw(2, bytes([0x00, 0x40])))
+    w1 = CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    w1.warm(["native.wav"], audio_dir)
+
+    # A new convert appears after the first warm -- it is classified and converted.
+    conv = str(audio / "conv.wav")
+    _write(conv, _wav24(bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x06])))
+    w1.warm(["conv.wav"], audio_dir)
+
+    playable = w1.ensure_playable(conv)
+    assert playable != conv
+    ch, sw, rate, frames = _read_frames(playable)
+    assert (ch, sw, rate) == (1, 2, 48000)
+    assert frames == bytes([0x02, 0x03, 0x05, 0x06])
+
+
+def test_load_index_preloads_decisions(tmp_path):
+    audio = tmp_path / "audio"
+    audio.mkdir()
+    nat = str(audio / "native.wav")
+    _write(nat, _wav_sw(2, bytes([0x00, 0x40])))
+    audio_dir = str(audio) + "/"
+    w1 = CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    w1.warm(["native.wav"], audio_dir)
+
+    w2 = CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    calls = []
+    orig = w2._classify
+    w2._classify = lambda p: calls.append(p) or orig(p)
+    assert w2.ensure_playable(nat) == nat
+    assert calls == []
+
+
+def test_cleaned_convert_node_rebuilt_on_play(tmp_path):
+    audio = tmp_path / "audio"
+    audio.mkdir()
+    conv = str(audio / "conv.wav")
+    _write(conv, _wav24(bytes([0x01, 0x02, 0x03])))
+    audio_dir = str(audio) + "/"
+    w1 = CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    w1.warm(["conv.wav"], audio_dir)
+
+    node = w1._cache_node(conv)
+    assert os.path.exists(node)
+    os.remove(node)
+    assert w1.ensure_playable(conv) == node  # rebuilt lazily on play
+    assert os.path.exists(node)
+
+
+def test_unplayable_reason_persisted(tmp_path):
+    audio = tmp_path / "audio"
+    audio.mkdir()
+    adpcm = str(audio / "adpcm.wav")
+    _write(adpcm, _wav_raw(2, 3, bytes([0x00, 0x11, 0x22])))
+    audio_dir = str(audio) + "/"
+    w1 = CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    w1.warm(["adpcm.wav"], audio_dir)
+    assert w1.unplayable() == {adpcm: "ADPCM"}
+
+    w2 = CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    assert w2.unplayable() == {adpcm: "ADPCM"}
+
+
+def test_missing_or_corrupt_index_is_empty(tmp_path):
+    audio = tmp_path / "audio"
+    audio.mkdir()
+    nat = str(audio / "n.wav")
+    _write(nat, _wav_sw(2, bytes([0x00, 0x40])))
+    audio_dir = str(audio) + "/"
+
+    # No index on a fresh cache root -- everything is classified once, no crash.
+    w = CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    w.warm(["n.wav"], audio_dir)
+    assert w.ensure_playable(nat) == nat
+
+    # A corrupt index loads as empty (full probe), no crash.
+    cache = tmp_path / "cache" / "renpy_cue"
+    cache.mkdir(parents=True, exist_ok=True)
+    _write(str(cache / "index.json"), b"{not json")
+    w2 = CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    w2.warm(["n.wav"], audio_dir)
+    assert w2.ensure_playable(nat) == nat
+
+
 def test_imports_and_converts_without_wave_or_audioop(tmp_path, monkeypatch):
     """Regression: Ren'Py ships no C extension modules, and the stdlib ``wave``
     module line-imports the C-only ``audioop``.  A build without ``audioop``

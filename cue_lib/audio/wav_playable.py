@@ -13,18 +13,21 @@
 #
 # Cost model.  ensure_playable() is the play path: after a file has been seen
 # once it is a memoized dict hit with no filesystem call, so a native file (the
-# common case) costs nothing per play.  Source-change detection is a scan-time
-# concern, not a play-time one -- refresh() runs on the warm background thread
-# and rebuilds a node only when the file's size/mtime changed.  A residual case
-# is a converted node cleaned out of temp: ensure_playable() checks its existence
-# and rebuilds, a single stat only for files that need it.
+# common case) costs nothing per play.  warm() is the scan-time batch: it probes
+# each path once (classify -> convert if needed) and skips any path already
+# decided.  Those decisions persist in index.json next to the nodes, so a warm
+# pass on a fresh session only touches files it has never seen -- the bulk of a
+# library is a fast dict hit.  A converted node cleaned out of temp is rebuilt by
+# ensure_playable() -- a single stat for files that need it.
 
 import hashlib
+import json
 import os
 import struct
 import tempfile
+import time
 
-from cue_lib.util import _cue_replace_file, _cue_log
+from cue_lib.util import _cue_replace_file, _cue_log, _to_str
 
 MYPY = False
 if MYPY:
@@ -38,6 +41,11 @@ CUE_WAV_PLAYABLE_SUBDIR = "renpy_cue"
 CUE_WAV_PLAYABLE_NATIVE = "native"  # 8/16-bit PCM int -> passthrough
 CUE_WAV_PLAYABLE_CONVERT = "convert"  # wide int or float -> rebuilt as 16-bit
 CUE_WAV_PLAYABLE_UNPLAYABLE = "unplayable"  # we can't make it play -> surfaced
+
+# Filename of the persisted classification index, kept in the cache dir next to
+# the converted nodes.  A fresh session loads it so warm() skips files it already
+# handled instead of re-probing the whole library.
+CUE_WAV_PLAYABLE_INDEX = "index.json"
 
 
 def _byte_str(s):
@@ -91,6 +99,7 @@ class CueWavPlayable(object):
         self._decision = {}  # path -> CUE_WAV_PLAYABLE_* state; read on play (no I/O)
         self._stamp = {}  # path -> (size, mtime) recorded at last probe/refresh
         self._reason = {}  # path -> short reason, only for unplayable files
+        self._load_index()
 
     def _make_cache_root(self, temp_root):
         # type: (Optional[str]) -> str
@@ -160,6 +169,38 @@ class CueWavPlayable(object):
             return node
         return path
 
+    def warm(self, rel_paths, audio_dir):
+        # type: (list, str) -> None
+        """Scan-time batch: ensure every ``audio_dir + rel`` path is decided.
+
+        A path already in ``_decision`` is skipped entirely (no stat, no header
+        read) -- the whole point is to avoid re-probing the bulk of a native
+        library on every launch.  A new path is classified once and, when it
+        needs conversion, converted to a cached 16-bit copy.  New decisions are
+        saved to the index once at the end.  Runs on the warm background thread,
+        never on the play path."""
+        t0 = time.time()
+        did_change = False
+        for rel in rel_paths:
+            path = audio_dir + rel
+            try:
+                if path in self._decision:
+                    continue
+                if self._stat(path) is None:
+                    continue  # vanished since discovery; leave it undecided
+                state, reason = self._classify(path)
+                if state == CUE_WAV_PLAYABLE_CONVERT:
+                    if not self._convert(path, self._cache_node(path)):
+                        state = CUE_WAV_PLAYABLE_UNPLAYABLE
+                        reason = "failed to convert"
+                self._record(path, state, reason)
+                did_change = True
+            except Exception:
+                continue  # one bad file must not abort the whole warm pass
+        if did_change:
+            self._save_index()
+        _cue_log("WARM-SFX: {} files in {:.3f}s".format(len(rel_paths), time.time() - t0))
+
     def unplayable(self):
         # type: () -> dict
         """{path: reason} for every WAV that can't be made playable, for UI."""
@@ -181,6 +222,7 @@ class CueWavPlayable(object):
         state, reason = self._classify(path)
         self._stamp[path] = (st.st_size, st.st_mtime) if st else None
         self._record(path, state, reason)
+        self._save_index()  # first sighting at play time is persisted too
 
     def _ensure_node(self, path):
         # type: (str) -> str
@@ -208,6 +250,48 @@ class CueWavPlayable(object):
                 _cue_log("WAV-PLAYABLE: {} unplayable: {}".format(path, reason))
         else:
             self._reason.pop(path, None)
+
+    def _index_path(self):
+        # type: () -> str
+        return os.path.join(self._cache_root, CUE_WAV_PLAYABLE_INDEX).replace("\\", "/")
+
+    def _load_index(self):
+        # type: () -> None
+        """Load decisions/reasons persisted by a prior session.  A missing or
+        corrupt index leaves the maps empty (a full reprobe today) -- it never
+        crashes startup."""
+        path = self._index_path()
+        if not os.path.isfile(path):
+            return
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                return
+            decision = data.get("decision")
+            reasons = data.get("reasons")
+            if isinstance(decision, dict):
+                # _to_str keeps keys as str on py2 (json yields unicode there)
+                self._decision = {_to_str(k): v for k, v in decision.items()}
+            if isinstance(reasons, dict):
+                self._reason = {_to_str(k): v for k, v in reasons.items()}
+        except Exception:
+            _cue_log("WAV-PLAYABLE: index load failed at {}".format(path))
+
+    def _save_index(self):
+        # type: () -> None
+        """Persist decisions/reasons atomically (temp file + replace) so a
+        concurrent reader never sees a partial file.  Best-effort: a write
+        failure logs and is ignored -- classification still works this session."""
+        path = self._index_path()
+        tmp = path + ".tmp"
+        data = {"version": 1, "decision": self._decision, "reasons": self._reason}
+        try:
+            with open(tmp, "w") as f:
+                json.dump(data, f, sort_keys=True)
+            _cue_replace_file(tmp, path)
+        except Exception as exc:
+            _cue_log("WAV-PLAYABLE: index save failed at {}: {}".format(path, exc))
 
     def _stat(self, path):
         # type: (str) -> Optional[os.stat_result]

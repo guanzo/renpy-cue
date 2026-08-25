@@ -112,7 +112,10 @@ class CueSfxManager(object):
         Used so the first play of a 24-bit file doesn't convert on the UI thread.
         The converter makes no Ren'Py API calls, so a daemon thread is safe.  A
         no-op while a warm is already running (an overlay reload would otherwise
-        spawn one each time)."""
+        spawn one each time).  Logs the pass duration (WARM-SFX) via wav_playable.
+
+        Only files never seen before are probed; the rest are a dict hit from the
+        persisted index, so a repeat launch warm fast."""
         if self._warm_thread is not None and self._warm_thread.is_alive():
             return
         rel_paths = list(self.library.files)
@@ -120,11 +123,7 @@ class CueSfxManager(object):
         wav_playable = self._wav_playable
 
         def _run():
-            for rel in rel_paths:
-                try:
-                    wav_playable.refresh(paths.audio_dir + rel)
-                except Exception:
-                    pass
+            wav_playable.warm(rel_paths, paths.audio_dir)
 
         self._warm_thread = threading.Thread(target=_run)
         self._warm_thread.daemon = True

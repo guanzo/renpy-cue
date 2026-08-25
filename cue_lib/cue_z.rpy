@@ -473,4 +473,4 @@ init 999 python:
 
     if not _cue.initialized:
         _cue_load_initial_data()
-        _cue_log("INIT: Done")
+        _cue_log("INIT: Done in {:.3f}s".format(_time.time() - _t0))
