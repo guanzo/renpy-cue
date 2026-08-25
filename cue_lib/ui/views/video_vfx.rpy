@@ -240,19 +240,15 @@ screen cue_video_vfx_intensity(_has_speeds):
                 spacing 30
                 vbox:
                     use cue_checkbox(_flags.enabled, "Intensity Mode",
-                        Function(_cue_toggle_intensity_flag, "enabled"),
-                        tt_on=("Intensity on: SFX resolve to the intensity group's "
-                            "level as playback speed changes."),
-                        tt_off=("Intensity off: this video's pools play exactly as "
-                            "before, ignoring intensity groups."))
+                        Function(_cue_toggle_intensity_flag, "enabled"))
                     vbox:
                         spacing 4
                         xoffset 8
                         use cue_checkbox(_flags.sfx_levels, "Swap SFX by level",
                             Function(_cue_toggle_intensity_flag, "sfx_levels"),
                             enabled=_flags.enabled,
-                            tt_on=("On: SFX play from the level matching the current video speed."),
-                            tt_off=("Off: SFX play from the level attached to the video pool."))
+                            tt_on=("On: SFX play from the intensity group's current level."),
+                            tt_off=("Off: SFX play from the files attached to the pool."))
                         use cue_checkbox(_flags.volume, "Scale Volume",
                             Function(_cue_toggle_intensity_flag, "volume"),
                             enabled=_flags.enabled,
