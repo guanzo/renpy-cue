@@ -748,3 +748,52 @@ def test_music_managers_opt_into_root_expansion():
     assert CueGameMusic._auto_expand_roots is True
     # The base default (shared with the SFX library) is off.
     assert CueAudioTreeManager._auto_expand_roots is False
+
+
+# ==========================================================================
+# tree_rows builders
+# ==========================================================================
+
+
+def test_tree_rows_folder_and_file_shape():
+    tree = _ScanSrc(["v2/01_NormalMo.mp3", "v2/02_IntenseMo.mp3"])
+    tree.scan()
+    tree.expanded_folders["v2/"] = True
+    tree.rebuild_tree()
+    rows = tree.tree_rows()
+    assert [r["type"] for r in rows] == ["folder", "file", "file"]
+    folder = rows[0]
+    assert folder["key"] == "tree:v2/"
+    assert folder["label"] == "v2/"
+    assert folder["depth"] == 0
+    assert folder["buttons"] == []  # base row_buttons default
+    # toggle wraps toggle_folder(full_path)
+    assert folder["toggle"]._args[1] == "v2/"
+    f = rows[1]
+    assert f["key"] == "tree:v2/01_NormalMo.mp3"
+    assert f["depth"] == 1
+    assert f["gap"] == 1
+    assert f["warn"] == ""
+    assert f["buttons"] == []
+
+
+def test_tree_rows_visible_tree_collapsed_emits_only_folder():
+    tree = _ScanSrc(["v2/01_NormalMo.mp3"])
+    tree.scan()  # nothing expanded -> only the top-level folder
+    rows = tree.tree_rows()
+    assert [r["type"] for r in rows] == ["folder"]
+
+
+def test_tree_rows_ignores_search_state():
+    # tree_rows is a pure reader of visible_tree (which already reflects a
+    # search via rebuild_tree): it must not touch search or expand state.
+    tree = _ScanSrc(["v2/01_NormalMo.mp3"])
+    tree.scan()
+    tree.expanded_folders["v2/"] = True
+    tree.rebuild_tree()
+    tree.search_query = "norm"
+    before_folders = dict(tree.expanded_folders)
+    rows = tree.tree_rows()
+    assert [r["type"] for r in rows] == ["folder", "file"]
+    assert tree.search_query == "norm"
+    assert tree.expanded_folders == before_folders
