@@ -100,7 +100,6 @@ class CueSfxManager(object):
         pool_index: int,
         file: Optional[str] = None,
         avoid_repeats: bool = True,
-        files: Optional[List[str]] = None,
         volume_mult: Optional[float] = None,
         marker_time: Optional[float] = None,
         marker_elapsed: Optional[float] = None,

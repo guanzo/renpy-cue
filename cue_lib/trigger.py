@@ -25,7 +25,6 @@ from cue_lib.util import (
 MYPY = False
 if MYPY:
     from typing import Any, List, Optional
-    from cue_lib.intensity import CueIntensityResolution  # pyright: ignore[reportUnusedImport]
     from cue_lib.marker_store import CueMarkerStore  # pyright: ignore[reportUnusedImport]
     from cue_lib.video.repeater import CueMarkerRepeater  # pyright: ignore[reportUnusedImport]
     from cue_lib.video.speed import CueVidSpeedResolver  # pyright: ignore[reportUnusedImport]
@@ -321,13 +320,13 @@ class CueTriggerEngine(object):
             return None
         return _cue.intensity.resolve_video_intensity(pool_hooks, speed, variants, flags=flags)
 
-    def _loop_delay(self, frequency, res):
-        # type: (int, Optional[CueIntensityResolution]) -> float
+    def _loop_delay(self, frequency, freq_mult):
+        # type: (int, Optional[float]) -> float
         """Breathing delay for a loop pool, scaled by its intensity level.
-        res is None for pools not hooked to a group -- plain delay."""
+        freq_mult is None for pools not hooked to a group -- plain delay."""
         delay = self._markers_ctx().loop.get_delay(frequency)
-        if res is not None:
-            delay = _cue_effective_delay(delay, res.freq_mult)
+        if freq_mult is not None:
+            delay = _cue_effective_delay(delay, freq_mult)
         return delay
 
     # -- context triggers (i_, d_, shake) --
@@ -371,7 +370,10 @@ class CueTriggerEngine(object):
             if not pools:
                 continue
             vol = entry.get("volume", CUE_VOLUME_DEFAULT)
-            total = sum(len(self._store.resolve_pool(p).files) for p in pools)
+            # Resolve each pool once; the log's file count and the fire pass
+            # below share the same resolutions.
+            resolved_pools = [self._store.resolve_pool(p) for p in pools]
+            total = sum(len(r.files) for r in resolved_pools)
 
             _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(key, len(pools), total, vol))
 
@@ -383,8 +385,7 @@ class CueTriggerEngine(object):
             line = key if is_dlg_key(key) else None
 
             picked = []
-            for pi, pool in enumerate(pools):
-                resolved = self._store.resolve_pool(pool)
+            for pi, (pool, resolved) in enumerate(zip(pools, resolved_pools)):
                 if only_shake_pools and not resolved.trigger_on_shake:
                     continue
                 files = _cue_resolve_files(resolved.files)
@@ -435,24 +436,6 @@ class CueTriggerEngine(object):
         # Per-video toggles read from the current video's marker entry.
         flags = _cue.intensity.flags_from_entry(self._store.get(create_vid_key(current_file)) if current_file else None)
 
-        # Collect frequencies from resolved pools, default 1.  A pool that is
-        # hooked to an intensity group has no own files -- its level resolution
-        # supplies them, so resolve it here to decide whether it can fire.
-        freqs = []
-        for p in pools:
-            resolved = self._store.resolve_pool(p)
-            if resolved.igroup is not None:
-                res = _cue.intensity.resolve_pool_intensity(
-                    resolved.igroup, resolved.ilevel_id, speed, variants, flags=flags
-                )
-                has_files = res is not None and bool(res.files)
-            else:
-                has_files = bool(resolved.files)
-            if has_files:
-                freqs.append(resolved.frequency)
-        if not freqs:
-            return
-
         # Global volume scale for pools not hooked to an intensity group.
         vid_scale = self._vid_intensity.volume_mult if self._vid_intensity is not None else 1.0
 
@@ -463,14 +446,13 @@ class CueTriggerEngine(object):
 
         picked = []
         for pi, pool in enumerate(pools):
-            resolved = self._store.resolve_pool(pool)
-            res = _cue.intensity.resolve_pool_intensity(
-                resolved.igroup, resolved.ilevel_id, speed, variants, flags=flags
-            )
-            if res is not None:
-                files = res.files
-                vol_mult = res.volume_mult
-                level = res.level
+            # One resolve per pool: a hooked pool with nothing at its active
+            # level (or a dead group) resolves to no files and is skipped below.
+            resolved = self._store.resolve_pool(pool, speed, variants, flags=flags)
+            if resolved.level is not None:
+                files = resolved.files
+                vol_mult = resolved.volume_mult
+                level = resolved.level
             else:
                 files = _cue_resolve_files(resolved.files)
                 vol_mult = vid_scale
@@ -480,7 +462,7 @@ class CueTriggerEngine(object):
 
             pst = ps.get(pi)
             if pst is None:
-                init_delay = _random.uniform(0.0, self._loop_delay(resolved.frequency, res))
+                init_delay = _random.uniform(0.0, self._loop_delay(resolved.frequency, resolved.freq_mult))
                 ps[pi] = {
                     "ready_at": now + init_delay,
                     "channels": [],
@@ -493,7 +475,7 @@ class CueTriggerEngine(object):
             # If this pool's channels are done playing, reset for next cycle
             if pst["channels"] and not _cue_loop_still_playing(pst["channels"]):
                 dur = now - pst["play_start"]
-                breathing = self._loop_delay(resolved.frequency, res)
+                breathing = self._loop_delay(resolved.frequency, resolved.freq_mult)
                 pst["ready_at"] = now + breathing
                 pst["channels"] = []
                 _cue_log(
@@ -508,7 +490,7 @@ class CueTriggerEngine(object):
             if level is not None and pst.get("ilevel") != level:
                 pst["ilevel"] = level
                 if not pst["channels"]:
-                    pst["ready_at"] = now + self._loop_delay(resolved.frequency, res)
+                    pst["ready_at"] = now + self._loop_delay(resolved.frequency, resolved.freq_mult)
 
             # Skip if not ready yet
             if pst["channels"]:
@@ -561,7 +543,7 @@ class CueTriggerEngine(object):
                         pi,
                         ch_used,
                         _music.get_duration(channel=ch_used) or 0.0,
-                        self._loop_delay(resolved.frequency, res),
+                        self._loop_delay(resolved.frequency, resolved.freq_mult),
                     )
                 )
 
@@ -672,28 +654,26 @@ class CueTriggerEngine(object):
             if not _cue_marker_reached(t, effective_elapsed, prev_eff, marker_tolerance, marker_lead):
                 continue
 
-            resolved = self._store.resolve_pool(pool_entry)
-            res = _cue.intensity.resolve_pool_intensity(
-                resolved.igroup, resolved.ilevel_id, speed, variants, flags=flags
-            )
-            if res is not None:
-                files = res.files
-                vol_mult = res.volume_mult
+            resolved = self._store.resolve_pool(pool_entry, speed, variants, flags=flags)
+            if resolved.intensity is not None:
+                files = resolved.files
+                vol_mult = resolved.volume_mult
             else:
-                files = None
+                files = _cue_resolve_files(resolved.files)
                 vol_mult = vid_scale
-            f = _cue.sfx.play_pool(
-                entry,  # pyright: ignore[reportArgumentType]
-                vid_key,
-                pool_entry,
-                pool_index,
-                avoid_repeats=False,
-                files=files,
-                volume_mult=vol_mult,
-                marker_time=t,
-                marker_elapsed=elapsed,
-                marker_delta=effective_elapsed - t,
-            )
+            f = _cue_pick_file(files, avoid_repeats=False)
+            if f is not None:
+                f = _cue.sfx.play_pool(
+                    entry,  # pyright: ignore[reportArgumentType]
+                    vid_key,
+                    pool_entry,
+                    pool_index,
+                    file=f,
+                    volume_mult=vol_mult,
+                    marker_time=t,
+                    marker_elapsed=elapsed,
+                    marker_delta=effective_elapsed - t,
+                )
             if f:
                 # Track as its own kind so exclusive cut-ins spare it.
                 # Overwrites any stale entry on the reused channel (dlg loops

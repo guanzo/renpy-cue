@@ -449,6 +449,22 @@ def test_resolve_files_nested_folder_prefix(monkeypatch):
     assert _cue_resolve_files(["music/"]) == ["music/a.ogg", "music/sub/b.ogg", "music/sub/deep/c.ogg"]
 
 
+def test_resolve_files_dedupes_overlapping_folder_refs(monkeypatch):
+    # Two folder refs where one nests inside the other resolve to a single
+    # dedup'd list, preserving first-occurrence order (the dedup used to be a
+    # linear scan of the result list -- O(R^2) on overlapping folders).
+    monkeypatch.setattr(
+        _cue,
+        "sfx",
+        SimpleNamespace(
+            library=SimpleNamespace(
+                files=["music/a.ogg", "music/sub/b.ogg", "music/sub/deep/c.ogg"], disabled_files=set()
+            )
+        ),
+    )
+    assert _cue_resolve_files(["music/", "music/sub/"]) == ["music/a.ogg", "music/sub/b.ogg", "music/sub/deep/c.ogg"]
+
+
 def test_expand_folder_ref_prefix_boundary():
     # "b.ogg" shares the "b" prefix but not "b/" -- it must not match.
     files = ["b.ogg", "b/one.ogg", "b/sub/two.ogg"]

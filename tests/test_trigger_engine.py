@@ -470,7 +470,9 @@ def test_tick_loop_pool_without_files():
     store = FakeMarkerStore({"l_scene.ogg": {"pools": [{"files": []}]}})
     eng = make_engine(store=store)
     eng._tick_loop(100.0, 1, "scene.ogg", 1.0, None)
-    assert eng.loop_states == {}
+    # A pool with nothing to play leaves an empty state entry behind; it never
+    # fires.  (The empty dict is inert -- nothing reads loop_states.)
+    assert eng.loop_states == {"l_scene.ogg": {}}
 
 
 def test_tick_loop_plays_when_ready(monkeypatch, play_stub):
@@ -566,7 +568,7 @@ def test_tick_video_fires_marker(play_stub):
     markers = FakeMarkers(markers=[{"time": 0.0, "files": ["a.ogg"]}])
     eng = make_engine(store=store, markers=markers)
     eng._tick_video("scene.ogv", "movie", 1.0, None)
-    assert play_stub == [("v_scene.ogv", 0, None)]
+    assert play_stub == [("v_scene.ogv", 0, "a.ogg")]
 
 
 def test_tick_video_marker_not_refired(play_stub):
@@ -576,12 +578,12 @@ def test_tick_video_marker_not_refired(play_stub):
     vid.last_elapsed = 0.1  # not a fresh reset -- dedup set survives
     eng = make_engine(store=store, vid=vid, markers=markers)
     eng._tick_video("scene.ogv", "movie", 1.0, None)
-    assert play_stub == [("v_scene.ogv", 0, None)]
+    assert play_stub == [("v_scene.ogv", 0, "a.ogg")]
 
     vid.last_elapsed = 0.1
     vid._elapsed = 0.15
     eng._tick_video("scene.ogv", "movie", 1.0, None)
-    assert play_stub == [("v_scene.ogv", 0, None)]  # no re-fire
+    assert play_stub == [("v_scene.ogv", 0, "a.ogg")]  # no re-fire
 
 
 def test_tick_video_preview_marker(play_stub):
@@ -593,7 +595,7 @@ def test_tick_video_preview_marker(play_stub):
     )
     eng = make_engine(store=store, vid=vid, markers=FakeMarkers(), repeater=repeater)
     eng._tick_video("scene.ogv", "movie", 1.0, None)
-    assert play_stub == [("v_scene.ogv", 0, None)]
+    assert play_stub == [("v_scene.ogv", 0, "p.ogg")]
 
 
 def test_tick_video_restart_clears_played(play_stub):
@@ -660,7 +662,7 @@ def test_tick_passes_wall_interval_to_marker_lead(play_stub, monkeypatch):
     clock[0] = 100.05  # 50ms later -> interval 0.05
     vid._elapsed = 0.3  # eff = 0.48: crosses lead target 0.46, below mt 0.5
     eng.tick("scene.ogv", "movie")
-    assert play_stub == [("v_scene.ogv", 0, None)]
+    assert play_stub == [("v_scene.ogv", 0, "a.ogg")]
 
 
 def test_tick_video_no_cadence_no_lead(play_stub):
@@ -748,8 +750,8 @@ def test_tick_video_hooked_uses_level_folder(cue_env, monkeypatch, play_full):
     markers = FakeMarkers(markers=[{"time": 0.0, "igroup": "Impacts", "ilevel_id": 1}])
     eng = _igroup_engine(cue_env, monkeypatch, store, markers=markers)
     eng._tick_video("scene.ogv", "movie", 1.3, [0.7, 1.0, 1.3])
-    # 1.3 -> L2: the fire list is the level folder, volume scaled by it.
-    assert play_full == [("v_scene.ogv", 0, None, ["hard/"], 1.25)]
+    # 1.3 -> L2: fires from the resolved level folder, volume scaled by it.
+    assert play_full == [("v_scene.ogv", 0, "hard/", None, 1.25)]
 
 
 def test_tick_video_nonhooked_gets_global_scale(cue_env, monkeypatch, play_full):
@@ -764,8 +766,8 @@ def test_tick_video_nonhooked_gets_global_scale(cue_env, monkeypatch, play_full)
     eng.tick("scene.ogv", "movie")
     # Both fire at the video's active level volume (1.25); the hooked marker
     # also fires from the resolved level folder.
-    assert play_full[0] == ("v_scene.ogv", 0, None, ["hard/"], 1.25)
-    assert play_full[1] == ("v_scene.ogv", 1, None, None, 1.25)
+    assert play_full[0] == ("v_scene.ogv", 0, "hard/", None, 1.25)
+    assert play_full[1] == ("v_scene.ogv", 1, "plain.ogg", None, 1.25)
 
 
 def test_tick_loop_nonhooked_gets_global_scale(cue_env, monkeypatch, play_full):
@@ -853,7 +855,7 @@ def test_tick_video_volume_off_unscaled(cue_env, monkeypatch, play_full):
     eng = _igroup_engine(cue_env, monkeypatch, store, markers=markers)
     eng._tick_video("scene.ogv", "movie", 1.3, [0.7, 1.0, 1.3])
     # Volume toggle off -> still the level folder, but at unscaled volume.
-    assert play_full == [("v_scene.ogv", 0, None, ["hard/"], 1.0)]
+    assert play_full == [("v_scene.ogv", 0, "hard/", None, 1.0)]
 
 
 def test_fire_context_master_off_unscaled(cue_env, monkeypatch, play_full):
@@ -1115,6 +1117,32 @@ def test_td_late_report_clears_deltas(monkeypatch):
     reports.clear()
     dbg.end_fire_loop("scene.ogv", 0.9, {"v_scene.ogv@0.500#1"}, [{"time": 0.5, "files": ["a.ogg"]}], 0)
     assert reports == []  # delta already reported; nothing new
+
+
+def test_td_tick_diag_gated_behind_flag(monkeypatch):
+    """TICK-DIAG cadence summaries log only when CUE_TD_DIAG is on; the gate is
+    independent of anomaly detection, which needs only CUE_DEBUG."""
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
+    lines = []
+    monkeypatch.setattr(_tdmod, "_cue_log", lambda msg: lines.append(msg))
+    dbg = _tdmod.CueTriggerDebug()
+    clock = [100.0]
+    monkeypatch.setattr(_tdmod._time, "time", lambda: clock[0])
+
+    # Off by default -> no TICK-DIAG even after a full window elapses.
+    monkeypatch.setattr(_tdmod, "CUE_TD_DIAG", False)
+    dbg.tick(100.0, "scene.ogv", "image", None)
+    clock[0] = 100.2
+    dbg.tick_end(100.1)
+    assert not any("TICK-DIAG" in ln for ln in lines)
+
+    # On -> a summary line is emitted once the window spans a second.
+    monkeypatch.setattr(_tdmod, "CUE_TD_DIAG", True)
+    dbg.tick(200.0, "scene.ogv", "image", None)
+    dbg.tick(200.1, "scene.ogv", "image", None)
+    clock[0] = 201.2
+    dbg.tick_end(200.1)
+    assert any("TICK-DIAG n=" in ln for ln in lines)
 
 
 def test_td_marker_beyond_duration_reported_once(monkeypatch):

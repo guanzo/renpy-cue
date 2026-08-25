@@ -148,27 +148,26 @@ class CueSfxManager(object):
         pool_index,
         file=None,
         avoid_repeats=True,
-        files=None,
         volume_mult=None,
         marker_time=None,
         marker_elapsed=None,
         marker_delta=None,
     ):
-        # type: (Optional[MarkerEntry], str, PoolDict, int, Optional[str], bool, Optional[List[str]], Optional[float], Optional[float], Optional[float], Optional[float]) -> Optional[str]
+        # type: (Optional[MarkerEntry], str, PoolDict, int, Optional[str], bool, Optional[float], Optional[float], Optional[float], Optional[float]) -> Optional[str]
         """Play one sound from a pool.  The single fire choke point for all
         trigger paths.
 
-        ``files`` overrides the pool's own file list -- the trigger engine
-        hands in an intensity-resolved level folder so hooked pools fire from
-        that folder instead of the raw pool.  ``volume_mult`` multiplies the
-        pool's effective volume (intensity level scale).  Both are None for
-        non-intensity playback: pick from the pool as before."""
+        The trigger engine hands in a single concrete ``file``; when it is
+        None (direct callers, UI previews) the pool's own files are expanded
+        and picked.  ``volume_mult`` multiplies the pool's effective volume
+        (intensity level scale)."""
         resolved = self._markers_ctx().resolve_pool(pool)
-        if files is None:
+        f = file
+        if f is None:
             files = _cue_resolve_files(resolved.files)
-        if not files:
-            return None
-        f = file if file is not None else _cue_pick_file(files, avoid_repeats=avoid_repeats)  # type: Any
+            if not files:
+                return None
+            f = _cue_pick_file(files, avoid_repeats=avoid_repeats)  # type: Any
         vol = self._volume.get_effective(entry, key, pool_index=pool_index)
         if volume_mult is not None:
             vol = vol * volume_mult

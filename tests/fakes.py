@@ -5,6 +5,7 @@ import types
 from typing import Optional
 
 from cue_lib.constants import CUE_SIDEBAR_DEFAULT_WIDTH
+from cue_lib.state import _cue
 
 # Shared test doubles for cue_lib managers.
 #
@@ -163,15 +164,40 @@ class FakeResolvedPool(object):
     frequency CueLoopFrequency.MEDIUM, exclusive a default FakeExclusive."""
 
     def __init__(
-        self, files=None, volume=1.0, frequency=1, trigger_on_shake=False, exclusive=None, igroup=None, ilevel_id=None
+        self,
+        files=None,
+        volume=1.0,
+        frequency=1,
+        trigger_on_shake=False,
+        exclusive=None,
+        igroup=None,
+        ilevel_id=None,
+        intensity=None,
     ):
-        self.files = files if files is not None else []
+        self._files = files if files is not None else []
         self.volume = volume
         self.frequency = frequency
         self.trigger_on_shake = trigger_on_shake
         self.exclusive = exclusive if exclusive is not None else FakeExclusive()
         self.igroup = igroup
         self.ilevel_id = ilevel_id
+        self.intensity = intensity
+
+    @property
+    def files(self):
+        return self.intensity.files if self.intensity is not None else self._files
+
+    @property
+    def volume_mult(self):
+        return self.intensity.volume_mult if self.intensity is not None else None
+
+    @property
+    def freq_mult(self):
+        return self.intensity.freq_mult if self.intensity is not None else None
+
+    @property
+    def level(self):
+        return self.intensity.level if self.intensity is not None else None
 
 
 class FakeMarkerStore(object):
@@ -195,10 +221,15 @@ class FakeMarkerStore(object):
     def save_marker(self, key):
         self.saved_keys.append(key)
 
-    def resolve_pool(self, pool):
+    def resolve_pool(self, pool, speed=None, variants=None, flags=None):
         excl = pool.get("exclusive", {})
         if not isinstance(excl, dict):
             excl = {}
+        igroup = pool.get("igroup")
+        ilevel_id = pool.get("ilevel_id")
+        intensity = None
+        if igroup is not None and speed is not None and _cue.intensity is not None:
+            intensity = _cue.intensity.resolve_pool_intensity(igroup, ilevel_id, speed, variants, flags)
         return FakeResolvedPool(
             files=pool.get("files", []),
             volume=pool.get("volume", 1.0),
@@ -207,8 +238,9 @@ class FakeMarkerStore(object):
             exclusive=FakeExclusive(
                 start=excl.get("start", 0), hold=excl.get("hold", False), group=excl.get("group", 0)
             ),
-            igroup=pool.get("igroup"),
-            ilevel_id=pool.get("ilevel_id"),
+            igroup=igroup,
+            ilevel_id=ilevel_id,
+            intensity=intensity,
         )
 
 

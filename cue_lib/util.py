@@ -692,12 +692,15 @@ def _cue_resolve_files(files):
     all_files = library.files
     disabled = library.disabled_files
     result = []
+    seen = set()
     for item in files:
         if item.endswith("/"):
             for f in _cue_expand_folder_ref(all_files, item, disabled):
-                if f not in result:
+                if f not in seen:
+                    seen.add(f)
                     result.append(f)
-        elif item not in disabled and item not in result:
+        elif item not in disabled and item not in seen:
+            seen.add(item)
             result.append(item)
     return result
 
