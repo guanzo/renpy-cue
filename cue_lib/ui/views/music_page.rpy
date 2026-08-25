@@ -234,7 +234,7 @@ screen trigger_list(triggers):
                                 for _child in _folder_files:
                                     hbox:
                                         spacing 6
-                                        etext "  "
+                                        etext _cue_indent
                                         use cue_icon_btn(
                                             "xmark",
                                             Function(
@@ -281,7 +281,7 @@ screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
             hbox:
                 spacing 2
                 if item["depth"] > 0:
-                    etext " " * item["depth"]
+                    etext _cue_indent * item["depth"]
                 if item["type"] == "folder":
                     if item.get("has_files", False):
                         use cue_icon_btn(
@@ -337,7 +337,7 @@ screen cue_music_recent_list(entries):
         $ _re_path = _cue.music.library.ref_display_path(_re["ref"])
         hbox:
             spacing 2
-            etext " "  # indent under Recently Used/
+            etext _cue_indent  # indent under Recently Used/
             if _re["type"] == "folder":
                 use cue_icon_btn(
                     "plus",
@@ -379,7 +379,7 @@ screen cue_music_presets_list(name_filter=None):
         $ _p_files = _cue.music.preset_display_files(_pdata) if _pdata else []
         hbox:
             spacing 2
-            etext " "  # indent under Music Presets/
+            etext _cue_indent  # indent under Music Presets/
             use cue_icon_btn(
                 "xmark",
                 Function(_cue_confirm_delete_music_preset, _pname),
@@ -399,7 +399,7 @@ screen cue_music_presets_list(name_filter=None):
             for _child in _p_files:
                 hbox:
                     spacing 2
-                    etext "  "
+                    etext _cue_indent
                     use cue_icon_btn(
                         "xmark",
                         Function(_cue.music.preset_remove_file, _pname, _child),

@@ -11,6 +11,7 @@ from renpy.display.core import Displayable, IgnoreEvent
 
 from cue_lib.state import _cue
 from cue_lib.util import _cue_escape_text, _cue_format_time, create_vid_key
+from cue_lib.constants import CUE_INTENSITY_HINT_COLOR, CUE_INTENSITY_NOTE
 
 MYPY = False
 if MYPY:
@@ -395,9 +396,7 @@ class CueVideoMarkerTimeline(Displayable):
 
     # Intensity-live marker indicator: a 2px bottom border under the tab and a
     # tooltip note.  Hot orange reads as "escalating" against the tab's
-    # green/blue/purple states.
-    INTENSITY_BORDER = "#ff8800"
-    INTENSITY_NOTE = "Intensity mode active"
+    # green/blue/purple states.  Border color is CUE_INTENSITY_HINT_COLOR.
 
     def __init__(self, get_markers, get_active_index, set_active_index, set_time, get_dur, **kw):
         super(CueVideoMarkerTimeline, self).__init__(**kw)
@@ -489,8 +488,10 @@ class CueVideoMarkerTimeline(Displayable):
     def _is_intensity_marker(self, marker, flags, variants):
         # type: (VideoPoolDict, CueIntensityFlags, Optional[List[float]]) -> bool
         """True when this marker's own pool plays intensity levels: the
-        video's intensity toggle is on, it has 2+ speed variants, and the
-        pool's folder list is hooked to an intensity group."""
+        video's intensity toggle is on, SFX-by-level is on, it has 2+ speed
+        variants, and the pool's folder list is hooked to an intensity group."""
+        if flags is not None and not flags.sfx_levels:
+            return False
         return _cue.intensity.is_pool_intensity_active(marker.get("igroup"), variants, flags)
 
     def _hit_test(self, markers, dur, w, x, y):
@@ -569,7 +570,7 @@ class CueVideoMarkerTimeline(Displayable):
             by_pos = self.TRACK_H - 2
             c.rect(bg, (bx_pos, by_pos, self.TAB_W, self.TAB_H))
             if intensity_flags is not None and self._is_intensity_marker(m, intensity_flags, intensity_variants):
-                c.rect(self.INTENSITY_BORDER, (bx_pos, by_pos + self.TAB_H, self.TAB_W, 1))
+                c.rect(CUE_INTENSITY_HINT_COLOR, (bx_pos, by_pos + self.TAB_H, self.TAB_W, 1))
 
             txt = Txt(str(i + 1), style="cue_button_text", color="#ffffff")
             tr = renpy.render(txt, self.TAB_W, self.TAB_H, st, at)
@@ -599,7 +600,7 @@ class CueVideoMarkerTimeline(Displayable):
                 and 0 <= tip_idx < len(markers)
                 and self._is_intensity_marker(markers[tip_idx], intensity_flags, intensity_variants)
             ):
-                tip += "\n[" + self.INTENSITY_NOTE + "]"
+                tip += "\n[" + CUE_INTENSITY_NOTE + "]"
             CueVideoMarkerTimeline._marker_tip_text = tip
             # Anchor to the hovered/dragged marker tab, not the cursor, so the
             # tip doesn't drift as the mouse moves within the tab.

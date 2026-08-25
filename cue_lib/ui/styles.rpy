@@ -46,6 +46,8 @@ define _cue_color_bar_active = "#3a5269"
 define _cue_overlay_panel_width = 500
 define _cue_btn_height = 16
 
+define _cue_indent = "  "
+
 style cue_frame is empty:
     background _cue_color_bg_panel
     padding (4, 4)

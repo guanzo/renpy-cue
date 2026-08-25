@@ -379,6 +379,11 @@ testcase intensity_groups_crud:
     run Function(_cue.sfx.library.ilevel_add_folder, "Test Impacts", 1, "Sub/")
     $ _ok = _ok and _cue.intensity.get_igroup("Test Impacts")["levels"][0]["files"] == ["Sub/"]
     $ _ok = _ok and _cue.sfx.library.level_has_file("Test Impacts", 1, "Sub/")
+    # Level folder refs render as expandable folder UI (shared with the tree).
+    run Function(_cue.sfx.library.toggle_file_ref_expand, "Sub/")
+    $ _ok = _ok and _cue.sfx.library.expanded_file_refs.get("Sub/", False)
+    run Function(_cue.sfx.library.toggle_file_ref_expand, "Sub/")
+    $ _ok = _ok and not _cue.sfx.library.expanded_file_refs.get("Sub/", False)
     # A duplicate add is rejected by add_level_file (the tree disables the
     # button via level_has_file, so a direct call surfaces the guard).
     $ _err = _cue.intensity.add_level_file("Test Impacts", 1, "Sub/")
@@ -666,6 +671,53 @@ testcase intensity_hook_level_to_target:
     # keep symmetric with the modern suite).
     $ _cue.markers.set_target_context(CueContextType.VIDEO)
     run Function(_cue.intensity.delete_igroup, "Guard A")
+    $ _cue_intensity_cleanup()
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase intensity_hook_pool_renders:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _cue_test_reset()
+    # A pool hooked to an intensity level renders its level's files read-only
+    # (preview button only -- no remove) on the Loop and Video SFX sections.
+    # A render crash here fails the interaction.
+    $ _cue_intensity_folders()
+    run Function(_cue.intensity.create_igroup, "Hook Render")
+    run Function(_cue.sfx.library.add_level, "Hook Render")
+    run Function(_cue.sfx.library.ilevel_add_folder, "Hook Render", 1, "soft/")
+    $ _ok = True
+    # Video target: hook the active video pool, render the Video SFX section.
+    $ renpy.show("cuevid")
+    pause 1.0
+    $ _cue.markers.video.add_pool()
+    run Function(_cue_set_page, CuePage.SFX)
+    pause 0.2
+    run Function(_cue_send_level_to_target, "Hook Render", 1)
+    $ _vidk = _cue_create_vid_key(_cue.current_file)
+    $ _vp = _cue.markers._get_or_create_entry(_vidk)["pools"][0]
+    $ _ok = _ok and _vp.get("igroup") == "Hook Render"
+    $ _ok = _ok and _vp.get("files") == []
+    $ _vl = _cue.intensity.level_files_by_id("Hook Render", _vp.get("ilevel_id") or 0)
+    $ _ok = _ok and _vl == ["soft/"]
+    pause 0.3
+    # Loop target: hook a loop pool, render the Loop SFX section.
+    $ _cue.markers.set_target_context(CueContextType.LOOP)
+    $ _loop_key = _cue_create_loop_key(_cue.current_file or "")
+    $ _cue.markers._get_or_create_entry(_loop_key)["pools"] = [
+        {"files": [], "volume": 1.0, "frequency": CueLoopFrequency.MEDIUM}]
+    run Function(_cue_send_level_to_target, "Hook Render", 1)
+    $ _lp = _cue.markers._get_or_create_entry(_loop_key)["pools"][0]
+    $ _ok = _ok and _lp.get("igroup") == "Hook Render"
+    $ _lr = _cue.markers.resolve_pool(_lp)
+    $ _ok = _ok and _lr.igroup == "Hook Render" and _lr.files == []
+    pause 0.3
+    # Cleanup.
+    $ _cue.markers.pop(_loop_key, None)
+    $ _cue.markers.pop(_vidk, None)
+    $ _cue.markers.set_target_context(CueContextType.VIDEO)
+    run Function(_cue.intensity.delete_igroup, "Hook Render")
     $ _cue_intensity_cleanup()
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()

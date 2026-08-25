@@ -157,6 +157,14 @@ CUE_INTENSITY_FREQ_MAX = 1.5
 CUE_INTENSITY_DELAY_MIN = 0.2
 CUE_INTENSITY_DELAY_MAX = 6.0
 
+# Intensity-hint accent: the 2px bar drawn on intensity-hooked UI (video
+# marker tabs, level folders in a hooked pool's file list).
+CUE_INTENSITY_HINT_COLOR = "#ff8800"
+
+# Tooltip note paired with the hint bar, identifying a marker as an
+# intensity-hooked target.
+CUE_INTENSITY_NOTE = "Intensity mode active"
+
 # SFX Library sidebar: default width and clamp bounds (logical px, pre-zoom).
 CUE_SIDEBAR_DEFAULT_WIDTH = 320
 CUE_SIDEBAR_MIN_WIDTH = 270

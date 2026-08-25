@@ -126,7 +126,7 @@ def issue_exists(title):
 
 def file_issue(title, body):
     """Create the issue; True on success."""
-    out = _gh(["issue", "create", "--repo", REPO, "--title", title, "--body", body])
+    out = _gh(["issue", "create", "--repo", REPO, "--title", title, "--body", body, "--label", "bug"])
     if out is None:
         return False
     if out.returncode != 0:

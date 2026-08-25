@@ -85,7 +85,9 @@ screen cue_overlay():
     style_group "cue"
 
     zorder 9999
-    modal False
+    # Modal only while a dialog is up so the dialog's input gets the keys
+    # instead of the game's own keymap shortcuts.
+    modal (_cue.dialogs.active_id is not None)
 
     $ _z = _cue_overlay_zoom()
 
@@ -281,6 +283,8 @@ screen cue_header_toolbar():
 # overlay toggle hides it without losing its state. Dialog screens are
 # top-level on their own only when shown directly; the use inlines them. ---
 screen cue_dialogs():
+    zorder CUE_DIALOG_ZORDER
+    
     $ _dlg_id = _cue.dialogs.active_id
     if _dlg_id == "preset":
         use cue_save_preset_dialog()

@@ -26,6 +26,7 @@ from cue_lib.ui.displayables import (
     CUE_INTENSITY_COLOR_LOW,
     CUE_INTENSITY_COLOR_HIGH,
 )
+from cue_lib.constants import CUE_INTENSITY_HINT_COLOR, CUE_INTENSITY_NOTE
 from renpy.display.core import IgnoreEvent
 
 
@@ -206,7 +207,9 @@ def test_vtl_event_unhandled_button_noop(vtl):
 # ==========================================================================
 
 
-def _make_mtl(monkeypatch, markers_list, dur=10.0, speed=1.0, selected=None, current_file="", intensity_on=False):
+def _make_mtl(
+    monkeypatch, markers_list, dur=10.0, speed=1.0, selected=None, current_file="", intensity_on=False, sfx_levels=True
+):
     selected = set() if selected is None else selected
     video = types.SimpleNamespace(get_selected=lambda: selected, selected=selected, finalize_drag=lambda: None)
     markers = types.SimpleNamespace(video=video, get=(lambda key, default: {"pools": []} if current_file else default))
@@ -214,7 +217,7 @@ def _make_mtl(monkeypatch, markers_list, dur=10.0, speed=1.0, selected=None, cur
     repeater = types.SimpleNamespace(compute_preview_times=lambda: [])
 
     def _fake_flags(entry):
-        return types.SimpleNamespace(enabled=True, sfx_levels=True, volume=True, frequency=True)
+        return types.SimpleNamespace(enabled=True, sfx_levels=sfx_levels, volume=True, frequency=True)
 
     def _fake_pool_active(igroup, variants, flags):
         # A non-None igroup is the intensity hook, gated on the per-video
@@ -460,7 +463,7 @@ def test_mtl_render_intensity_border_on_hooked_marker(monkeypatch):
         monkeypatch, [{"time": 0.0, "igroup": "Impacts"}, {"time": 5.0}], current_file="clip.webm", intensity_on=True
     )
     r = env.tl.render(200, 60, 0.0, 0.0)
-    border_ops = [op for op in r.canvas().ops if op[0] == "rect" and op[1] == env.tl.INTENSITY_BORDER]
+    border_ops = [op for op in r.canvas().ops if op[0] == "rect" and op[1] == CUE_INTENSITY_HINT_COLOR]
     assert len(border_ops) == 1
     # The border is a strip flush under the tab's bottom edge, spanning the
     # tab width.  (Exact thickness is a live visual tweak -- not pinned here.)
@@ -476,7 +479,28 @@ def test_mtl_render_intensity_no_border_when_off(monkeypatch):
     )
     r = env.tl.render(200, 60, 0.0, 0.0)
     colors = [op[1] for op in r.canvas().ops if op[0] == "rect"]
-    assert env.tl.INTENSITY_BORDER not in colors
+    assert CUE_INTENSITY_HINT_COLOR not in colors
+
+
+def test_mtl_render_intensity_no_border_when_sfx_levels_off(monkeypatch):
+    # Master toggle is on but "Swap SFX by level" is off: the pool stays on its
+    # attached level folder, so it is not an intensity-swapped marker and the
+    # hint strip (and its tooltip note) must not appear.
+    env = _make_mtl(
+        monkeypatch,
+        [{"time": 0.0, "igroup": "Impacts"}, {"time": 5.0}],
+        current_file="clip.webm",
+        intensity_on=True,
+        sfx_levels=False,
+    )
+    r = env.tl.render(200, 60, 0.0, 0.0)
+    colors = [op[1] for op in r.canvas().ops if op[0] == "rect"]
+    assert CUE_INTENSITY_HINT_COLOR not in colors
+    env.tl._tip_text = "Pool 1 (0:00)"
+    env.tl._hover_idx = 0
+    env.tl.render(200, 60, 0.0, 0.0)
+    tip = CueVideoMarkerTimeline._marker_tip_text
+    assert CUE_INTENSITY_NOTE not in tip
 
 
 def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
@@ -488,7 +512,7 @@ def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
     env.tl.render(200, 60, 0.0, 0.0)
     tip = CueVideoMarkerTimeline._marker_tip_text
     assert tip.startswith("Pool 1 (0:00)")
-    assert env.tl.INTENSITY_NOTE in tip  # appended, not replacing the base text
+    assert CUE_INTENSITY_NOTE in tip  # appended, not replacing the base text
 
 
 def test_mtl_render_intensity_tooltip_no_note_unhooked(monkeypatch):

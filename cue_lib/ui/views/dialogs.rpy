@@ -21,8 +21,6 @@ screen cue_dialog_wrapper():
 screen cue_repeat_markers_dialog():
     style_group "cue"
 
-    zorder CUE_DIALOG_ZORDER
-
     # _sync_tracked() runs from render/tick contexts and only flips
     # dialog_visible when the preview session must end (anchor deleted,
     # markers cleared). Hide the screen itself on the next interaction.
@@ -94,8 +92,6 @@ screen cue_repeat_markers_dialog():
 screen cue_save_preset_dialog():
     style_group "cue"
 
-    zorder CUE_DIALOG_ZORDER
-
     # SFX-pool save; the music-trigger save has its own screen and dialog.
     $ _d = _cue.dialogs.preset
     $ _entry = _cue.markers.get(_d.marker_key) if _d.marker_key else None
@@ -124,8 +120,6 @@ screen cue_save_preset_dialog():
 
 screen cue_save_music_preset_dialog():
     style_group "cue"
-
-    zorder CUE_DIALOG_ZORDER
 
     $ _d = _cue.dialogs.music_preset
     $ _song_count = len(_cue.music.resolve_music_files(_d.songs))
@@ -175,8 +169,6 @@ screen cue_save_preset_body(dialog, name_path):
 
 screen cue_save_video_preset_dialog():
     style_group "cue"
-
-    zorder CUE_DIALOG_ZORDER
 
     $ _d = _cue.dialogs.video_preset
     $ _vid_key = _cue_create_vid_key(_cue.current_file) if _cue.current_file else ""
@@ -239,8 +231,6 @@ screen cue_save_video_preset_dialog():
 screen cue_new_igroup_dialog():
     style_group "cue"
 
-    zorder CUE_DIALOG_ZORDER
-
     $ _d = _cue.dialogs.intensity
     key "K_RETURN" action Function(_d.commit)
     key "K_KP_ENTER" action Function(_d.commit)
@@ -276,8 +266,6 @@ screen cue_new_igroup_dialog():
 screen cue_confirm_dialog():
     style_group "cue"
 
-    zorder CUE_DIALOG_ZORDER
-
     $ _d = _cue.dialogs.confirm
     key "K_RETURN" action [Function(_d.hide)] + ([_d.on_confirm] if _d.on_confirm else [])
     key "K_KP_ENTER" action [Function(_d.hide)] + ([_d.on_confirm] if _d.on_confirm else [])
@@ -299,8 +287,6 @@ screen cue_confirm_dialog():
 
 screen cue_merge_dialog():
     style_group "cue"
-
-    zorder CUE_DIALOG_ZORDER
 
     $ _d = _cue.dialogs.merge
     $ _summary = _d.summary()

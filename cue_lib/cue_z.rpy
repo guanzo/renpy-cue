@@ -62,6 +62,7 @@ init -999 python:
         CUE_DEFAULT_VIDEO_SPEED,
         CUE_INTENSITY_IDEAL_LEVELS,
         CUE_INTENSITY_VOLUME_MAX, CUE_INTENSITY_FREQ_MAX,
+        CUE_INTENSITY_HINT_COLOR, CUE_INTENSITY_NOTE,
         CUE_SFX_LIBRARY_HEADER, CUE_AUDIO_EXTS,
         CUE_HELP_SHIFT_SKIP_DELETE,
         CUE_MANUAL_BACKUP_NAME,
@@ -205,6 +206,7 @@ init -900 python:
     from cue_lib.backup import CueBackupManager
     from cue_lib.db import CueDatabase
     from cue_lib.paths import CuePaths
+    from cue_lib.logger import _cue_install_exception_handler
     from cue_lib.state import _cue
 
     def _cue_wire_managers():

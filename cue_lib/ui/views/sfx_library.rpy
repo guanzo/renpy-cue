@@ -169,7 +169,7 @@ screen cue_recent_list(entries):
     for _re in entries:
         hbox:
             spacing 2
-            etext " "  # indent under Recently Used/
+            etext _cue_indent  # indent under Recently Used/
             if _re["type"] == "file":
                 $ _re_idx = _cue.sfx.library._file_index.get(_re["ref"], -1)
                 $ _re_ok = _re_idx >= 0
@@ -222,7 +222,7 @@ screen cue_audio_presets_list(name_filter=None, search_query=""):
         $ _p_files = _cue_filter_preset_files(_pname, search_query)
         hbox:
             spacing 2
-            etext " "  # indent under Presets/
+            etext _cue_indent  # indent under Presets/
             use cue_icon_btn("xmark", Function(_cue_confirm_delete_preset, _pname),
                 "Delete preset" + CUE_HELP_SHIFT_SKIP_DELETE)
             use cue_icon_btn(
@@ -241,7 +241,7 @@ screen cue_audio_presets_list(name_filter=None, search_query=""):
             for _child in _p_files:
                 hbox:
                     spacing 2
-                    etext "  "
+                    etext _cue_indent
                     use cue_icon_btn(
                         "xmark",
                         Function(_cue.markers.preset_remove_file, _pname, _child),
@@ -264,7 +264,7 @@ screen cue_video_presets_list(_is_video, name_filter=None):
         $ _vp_pools = _vpdata.get("pools", []) if _vpdata else []
         hbox:
             spacing 2
-            etext " "  # indent under Video Presets/
+            etext _cue_indent  # indent under Video Presets/
             use cue_icon_btn(
                 "xmark",
                 Function(_cue_confirm_delete_video_preset, _vpname),
@@ -286,7 +286,7 @@ screen cue_video_presets_list(_is_video, name_filter=None):
                 $ _pool_files = _cue_resolve_files(_pool.get("files", []))
                 hbox:
                     spacing 2
-                    etext "  "
+                    etext _cue_indent
                     use cue_icon_btn(
                         "xmark",
                         Function(_cue_confirm_remove_video_preset_pool, _vpname, _pool_index),
@@ -324,7 +324,7 @@ screen cue_intensity_group_row(igroup_names, searching, search_query=""):
         if searching or _cue.sfx.library.igroups_expanded:
             hbox:
                 spacing 2
-                etext " "  # indent
+                etext _cue_indent  # indent
                 use cue_txt_button("+ Group", Function(_cue.dialogs.intensity.open),
                     tt="Create a new intensity group.")
 
@@ -339,11 +339,11 @@ screen cue_intensity_group_row(igroup_names, searching, search_query=""):
 screen cue_intensity_groups_list(igroup_names, search_query=""):
     style_group "cue"
 
-    $ _indent = " "
+    default _hovered_level = None
 
     if not igroup_names:
-        etext _indent + "No intensity groups yet." style "cue_help"
-        etext (_indent + "An intensity group is a soft-to-hard level list; "
+        etext _cue_indent + "No intensity groups yet." style "cue_help"
+        etext (_cue_indent + "An intensity group is a soft-to-hard level list; "
                "each level is a pool of files.") style "cue_help"
 
     $ _searching = bool(search_query.strip())
@@ -359,7 +359,7 @@ screen cue_intensity_groups_list(igroup_names, search_query=""):
         $ _g_expanded = _cue.sfx.library.expanded_igroups.get(_gname, False)
         hbox:
             spacing 2
-            etext _indent
+            etext _cue_indent
             use cue_icon_btn("xmark", Function(_cue_confirm_delete_igroup, _gname),
                 "Delete intensity group" + CUE_HELP_SHIFT_SKIP_DELETE)
             use cue_txt_button(_gname, Function(_cue.sfx.library.toggle_igroup_expand, _gname))
@@ -372,7 +372,7 @@ screen cue_intensity_groups_list(igroup_names, search_query=""):
             if not _searching:
                 hbox:
                     spacing 2
-                    etext _indent * 2
+                    etext _cue_indent * 2
                     use cue_txt_button("+ Level", Function(_cue.sfx.library.add_level, _gname),
                         tt="Add a new level to this group.")
 
@@ -389,17 +389,11 @@ screen cue_intensity_groups_list(igroup_names, search_query=""):
                 $ _in_add = (_cue.sfx.library.ilevel_add_target == (_gname, _lv_id))
                 hbox:
                     spacing 2
-                    etext _indent * 2
+                    etext _cue_indent * 2
                     if not _searching:
                         use cue_icon_btn("xmark",
                             Function(_cue.intensity.remove_level, _gname, _idx),
                             "Remove this level")
-                        use cue_icon_btn("chevron-up",
-                            Function(_cue.intensity.move_level, _gname, _idx, -1),
-                            "Move level up", enabled=(_idx > 0))
-                        use cue_icon_btn("chevron-down",
-                            Function(_cue.intensity.move_level, _gname, _idx, 1),
-                            "Move level down", enabled=(_idx < len(_g_levels) - 1))
                     use cue_icon_btn("play",
                         Function(_cue.sfx.preview_level, _gname, _lv_id),
                         "Play a random file from this level")
@@ -411,47 +405,75 @@ screen cue_intensity_groups_list(igroup_names, search_query=""):
                     use cue_icon_btn("plus",
                         Function(_cue_send_level_to_target, _gname, _lv_id),
                         _lv_tt, enabled=_lv_hook_ok)
-                    use cue_txt_button(
-                        "Level {}:".format(_idx + 1),
-                        Function(_cue.sfx.library.toggle_ilevel_expand, _gname, _lv_id),
-                        tt="Click to show or hide this level's files")
-                    etext "{} file(s)".format(len(_lv_files)) color _cue_color_text_muted size 11
+                    hbox:
+                        spacing 0
+                        use cue_txt_button(
+                            "Level {}/".format(_idx + 1),
+                            Function(_cue.sfx.library.toggle_ilevel_expand, _gname, _lv_id),
+                            hovered=SetLocalVariable("_hovered_level", (_gname, _lv_id)),
+                            unhovered=SetLocalVariable("_hovered_level", None))
+                        if _hovered_level == (_gname, _lv_id) and not _searching:
+                            use cue_icon_btn("chevron-up",
+                                Function(_cue.intensity.move_level, _gname, _idx, -1),
+                                "Move level up",
+                                bg=(_cue_color_bg_dialog if _idx == 0 else None),
+                                on_hover=SetLocalVariable("_hovered_level", (_gname, _lv_id)),
+                                on_unhover=SetLocalVariable("_hovered_level", None))
+                            use cue_icon_btn("chevron-down",
+                                Function(_cue.intensity.move_level, _gname, _idx, 1),
+                                "Move level down",
+                                bg=(_cue_color_bg_dialog if _idx == len(_g_levels) - 1 else None),
+                                on_hover=SetLocalVariable("_hovered_level", (_gname, _lv_id)),
+                                on_unhover=SetLocalVariable("_hovered_level", None))
 
                 if _lv_expanded or _searching:
                     if not _lv_files:
-                        etext (_indent * 3) + "Click the folder icon to add files" style "cue_help"
+                        etext (_cue_indent * 3) + "Click the folder icon to add files" style "cue_help"
                     for _file in _lv_files:
-                        $ _is_folder = _file.endswith("/")
-                        hbox:
-                            spacing 2
-                            etext _indent * 3
-                            use cue_icon_btn("xmark",
-                                Function(_cue.intensity.remove_level_file, _gname, _lv_id, _file),
-                                "Remove file from level")
-                            if _is_folder:
+                        if _file.endswith("/"):
+                            $ _is_expanded = _cue.sfx.library.expanded_file_refs.get(_file, False)
+                            $ _count = len(_cue_resolve_files([_file]))
+                            hbox:
+                                spacing 2
+                                etext _cue_indent * 3
+                                use cue_icon_btn("xmark",
+                                    Function(_cue.intensity.remove_level_file, _gname, _lv_id, _file),
+                                    "Remove folder from level")
                                 use cue_icon_btn("play",
                                     Function(_cue.sfx.preview_folder, _file),
                                     "Play random file from folder")
-                            else:
+                                use cue_txt_button(_file,
+                                    Function(_cue.sfx.library.toggle_file_ref_expand, _file))
+                            if _is_expanded:
+                                for _child in _cue_resolve_files([_file]):
+                                    hbox:
+                                        spacing 2
+                                        etext (_cue_indent * 3) + "  "
+                                        use cue_icon_btn("play",
+                                            Function(_cue.sfx.preview_sfx, _child),
+                                            "Preview audio")
+                                        $ _display = _child[len(_file):]  # strip folder prefix
+                                        etext _display color _cue_color_text_accent size 11
+                        else:
+                            hbox:
+                                spacing 2
+                                etext _cue_indent * 3
+                                use cue_icon_btn("xmark",
+                                    Function(_cue.intensity.remove_level_file, _gname, _lv_id, _file),
+                                    "Remove file from level")
                                 use cue_icon_btn("play",
                                     Function(_cue.sfx.preview_sfx, _file),
                                     "Preview audio")
-                            null width 1
-                            etext _file color _cue_color_text_accent size 11
+                                null width 1
+                                etext _file color _cue_color_text_accent size 11
 
 
-# Folder/file rows for the current audio tree.
-# [+] sends the row to the resolved target context's active pool (see
-# cue_target_context).  Shift+Click on [+] creates a new pool first.
 screen cue_file_tree():
     style_group "cue"
 
     $ _tgt_ok = _cue.markers.target_is_available(_cue.markers.resolve_target_context())
     $ _tgt_tt = _cue_target_assign_tt()
-    # An active level add-files target turns the tree's + into a level-file
-    # adder for that (group, level) pair (one level at a time).
     $ _ilevel_target = _cue.sfx.library.ilevel_add_target
-    # {audio_dir-prefixed path: reason} for WAVs the converter can't make playable.
     $ _unplayable = _cue.sfx.unplayable_files()
 
     for item in _cue.sfx.library.visible_tree:
@@ -459,13 +481,14 @@ screen cue_file_tree():
             spacing 2
             # Indent
             if item["depth"] > 0:
-                etext " " * item["depth"]
+                etext _cue_indent * item["depth"]
             if item["type"] == "folder":
                 if item["has_files"]:
                     use cue_icon_btn(
                         "play",
                         Function(_cue.sfx.preview_folder, item["full_path"]),
                         "Play random file from folder")
+                    
                     if _ilevel_target is not None:
                         $ _tgt_group, _tgt_lv_id = _ilevel_target
                         $ _is_dup = _cue.sfx.library.level_has_file(_tgt_group, _tgt_lv_id, item["full_path"])
@@ -479,10 +502,11 @@ screen cue_file_tree():
                             "plus",
                             Function(_cue_markers_send, "folder", item["full_path"]),
                             _tgt_tt, enabled=_tgt_ok)
+                
                 use cue_txt_button(item["name"], Function(_cue.sfx.library.toggle_folder, item["full_path"]))
             else:
-                # Play preview
                 use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, item["full_path"]), "Preview audio")
+                
                 if _ilevel_target is not None:
                     $ _tgt_group, _tgt_lv_id = _ilevel_target
                     $ _is_dup = _cue.sfx.library.level_has_file(_tgt_group, _tgt_lv_id, item["full_path"])
@@ -496,6 +520,7 @@ screen cue_file_tree():
                         "plus",
                         Function(_cue_markers_send, "file", item["index"]),
                         _tgt_tt, enabled=_tgt_ok)
+                
                 null width 1
                 etext item["name"] color _cue_color_text_accent
                 $ _bad_reason = _unplayable.get(_cue.paths.audio_dir + item["full_path"], "")

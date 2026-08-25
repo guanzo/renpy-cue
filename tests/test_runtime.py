@@ -570,6 +570,21 @@ def test_play_pool_picks_file(cue, sfx_mgr, monkeypatch):
     assert played == ["a.ogg"]
 
 
+def test_play_pool_file_override_empty_pool(cue, sfx_mgr, monkeypatch):
+    # Intensity-hooked pools carry no own files (files=[]); the trigger hands
+    # the resolved file explicitly. play_pool must honor it instead of bailing
+    # on the empty pool.
+    cue.markers.resolve_pool = lambda pool: types.SimpleNamespace(files=[])
+    played = []
+    monkeypatch.setattr(
+        sfx_mgr, "play_sfx", lambda f, key, volume=1.0, **kwargs: played.append((f, key, volume)) or "cue_1"
+    )
+    cue.volume.get_effective = lambda entry, key, pool_index: 0.5
+    ch = sfx_mgr.play_pool(None, "l_scene", {"igroup": "G", "ilevel_id": 1, "files": []}, 0, file="hard/1.ogg")
+    assert ch == "cue_1"
+    assert played == [("hard/1.ogg", "l_scene", 0.5)]
+
+
 # ==========================================================================
 # _cue_refresh_channel
 # ==========================================================================

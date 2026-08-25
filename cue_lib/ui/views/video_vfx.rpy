@@ -251,8 +251,8 @@ screen cue_video_vfx_intensity(_has_speeds):
                         use cue_checkbox(_flags.sfx_levels, "Swap SFX by level",
                             Function(_cue_toggle_intensity_flag, "sfx_levels"),
                             enabled=_flags.enabled,
-                            tt_on=("On: each level plays its own folder, instead of the pool's normal files."),
-                            tt_off=("Off: pools play their own files."))
+                            tt_on=("On: SFX play from the level matching the current video speed."),
+                            tt_off=("Off: SFX play from the level attached to the video pool."))
                         use cue_checkbox(_flags.volume, "Scale Volume",
                             Function(_cue_toggle_intensity_flag, "volume"),
                             enabled=_flags.enabled,
@@ -283,7 +283,6 @@ screen cue_video_vfx_intensity(_has_speeds):
                             spacing 5
                             etext "Speed Range" color _cue_color_text_muted minwidth 100
                             etext "Level" color _cue_color_text_muted minwidth 40
-                            etext "Files" color _cue_color_text_muted
 
                         for _lvl in sorted(_rows):
                             $ _row_speeds = sorted(_rows[_lvl])
@@ -291,11 +290,6 @@ screen cue_video_vfx_intensity(_has_speeds):
                             $ _row_hi = _cue_speed_label(_row_speeds[-1])
                             $ _row_range = _row_lo if len(_row_speeds) == 1 else _row_lo + " - " + _row_hi
                             $ _row_speed_tt = ", ".join(_cue_speed_label(_sp) for _sp in _row_speeds)
-                            $ _row_files = _cue.intensity.level_files(_hook_group, _lvl)
-                            if _row_files:
-                                $ _row_leaf = ", ".join(_rf.rstrip("/").split("/")[-1] or _rf for _rf in _row_files)
-                            else:
-                                $ _row_leaf = "(no files)"
                             $ _is_active_row = (_res is not None and _lvl == _res.level)
                             hbox:
                                 spacing 5
@@ -304,12 +298,7 @@ screen cue_video_vfx_intensity(_has_speeds):
                                     action NullAction()
                                     tooltip _row_speed_tt
                                     etext _row_range minwidth 100
-                                etext str(_lvl) minwidth 40
-                                button:
-                                    style "empty"
-                                    action NullAction()
-                                    tooltip ", ".join(_row_files or [])
-                                    etext _row_leaf
+                                etext str(_lvl)
                                 if _is_active_row:
                                     use cue_icon("caret-left", 
                                         icon_color=_cue_color_green,
