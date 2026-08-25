@@ -1260,17 +1260,22 @@ testcase sfx_sidebar_resize:
 testcase tree_render:
     run Jump("start")
     $ _cue_test_reset()
-    # Every row kind cue_tree_rows draws -- folder, file (warn + gap), action,
-    # help.  A compile or layout error in the shared renderer fails this.
+    # Every row cue_tree_rows can draw -- folder (with trailing hover buttons),
+    # file (gap + warn + size), action (plain + explorer), help (color + v_gap).
+    # A compile or layout error in the shared renderer fails this.
     $ _rows = [
         {"key": "t1", "type": "folder", "label": "Folder/", "depth": 0,
-         "buttons": [], "toggle": Function(_cue.sfx.library.toggle_folder, "Folder/")},
+         "buttons": [], "toggle": Function(_cue.sfx.library.toggle_folder, "Folder/"),
+         "hover_buttons": [{"icon": "chevron-up", "action": NullAction(), "tt": "Move level up"}]},
         {"key": "t2", "type": "file", "label": "a.wav", "depth": 1,
          "buttons": [{"icon": "play", "action": NullAction(), "tt": "Preview audio"}],
-         "warn": "bad format", "gap": 1},
+         "warn": "bad format", "gap": 1, "size": 11},
         {"key": "t3", "type": "action", "label": "+ Group", "depth": 0,
          "action": NullAction(), "tt": "Create a new intensity group."},
-        {"key": "t4", "type": "help", "label": "No files yet.", "depth": 0},
+        {"key": "t4", "type": "help", "label": "No files yet.", "depth": 0,
+         "color": _cue_color_error, "v_gap": 2},
+        {"key": "t5", "type": "action", "label": "Open Music folder", "depth": 0,
+         "explorer": "fake/dir"},
     ]
     $ renpy.show_screen("cue_tree_rows", _rows, _layer="cue_layer")
     pause 0.5

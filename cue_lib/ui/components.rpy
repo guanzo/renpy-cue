@@ -473,6 +473,12 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
 # tree_rows() builders (one dict per visible row).  Folder rows expand via a
 # toggle button; file rows are labels with an optional gap + warn icon.  Rows
 # carry buttons in data, so the SFX and music trees share this renderer 1:1.
+# Optional data fields (all default-off, stage-1 output unchanged):
+#   size    -- file label font size (section rows use 11; tree rows default)
+#   hover_buttons -- folder rows render them trailing the toggle at spacing 0
+#   v_gap   -- null height after the row (2px spacers in section builders)
+#   explorer -- action rows render cue_open_in_explorer_btn(dir, label)
+#   color   -- help rows render etext in this color (error text)
 screen cue_tree_rows(rows):
     style_group "cue"
 
@@ -493,34 +499,47 @@ screen cue_tree_rows(rows):
                         bg=_b.get("bg"),
                         on_hover=SetLocalVariable("_hovered_key", _row["key"]),
                         on_unhover=SetLocalVariable("_hovered_key", None))
-                for _hb in _row.get("hover_buttons", []):
-                    if _hovered_key == _row["key"]:
-                        use cue_icon_btn(
-                            _hb["icon"],
-                            _hb["action"],
-                            tt=_hb.get("tt"),
-                            enabled=_hb.get("enabled", True),
-                            bg=_hb.get("bg"),
-                            on_hover=SetLocalVariable("_hovered_key", _row["key"]),
-                            on_unhover=SetLocalVariable("_hovered_key", None))
                 if _row["type"] == "folder":
-                    use cue_txt_button(
-                        _row["label"],
-                        _row["toggle"],
-                        hovered=SetLocalVariable("_hovered_key", _row["key"]),
-                        unhovered=SetLocalVariable("_hovered_key", None))
+                    hbox:
+                        spacing 0
+                        use cue_txt_button(
+                            _row["label"],
+                            _row["toggle"],
+                            hovered=SetLocalVariable("_hovered_key", _row["key"]),
+                            unhovered=SetLocalVariable("_hovered_key", None))
+                        for _hb in _row.get("hover_buttons", []):
+                            if _hovered_key == _row["key"]:
+                                use cue_icon_btn(
+                                    _hb["icon"],
+                                    _hb["action"],
+                                    tt=_hb.get("tt"),
+                                    enabled=_hb.get("enabled", True),
+                                    bg=_hb.get("bg"),
+                                    on_hover=SetLocalVariable("_hovered_key", _row["key"]),
+                                    on_unhover=SetLocalVariable("_hovered_key", None))
                 elif _row["type"] == "file":
                     null width _row.get("gap", 1)
-                    etext _row["label"] color _cue_color_text_accent
+                    if _row.get("size"):
+                        etext _row["label"] color _cue_color_text_accent size _row["size"]
+                    else:
+                        etext _row["label"] color _cue_color_text_accent
                     if _row.get("warn"):
                         use cue_icon(
                             "triangle-exclamation",
                             tt=("Invalid file: " + _row["warn"]),
                             icon_color=_cue_color_warn)
                 elif _row["type"] == "action":
-                    use cue_txt_button(_row["label"], _row["action"], tt=_row.get("tt"))
+                    if _row.get("explorer"):
+                        use cue_open_in_explorer_btn(_row["explorer"], _row["label"])
+                    else:
+                        use cue_txt_button(_row["label"], _row["action"], tt=_row.get("tt"))
                 elif _row["type"] == "help":
-                    etext _row["label"] style "cue_help"
+                    if _row.get("color"):
+                        etext _row["label"] style "cue_help" color _row["color"]
+                    else:
+                        etext _row["label"] style "cue_help"
+            if _row.get("v_gap"):
+                null height _row["v_gap"]
 
 screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
                             marker_key, pool_index, folder_child_remove_fn,
