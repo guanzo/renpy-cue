@@ -374,3 +374,66 @@ def test_ref_display_path_never_leaks_data_prefix():
         disp = lib.ref_display_path(ref)
         assert not disp.startswith(CUE_MUSIC_PREFIX)
         assert disp.startswith(USER) or disp.startswith(GAME)
+
+
+# ==========================================================================
+# row_buttons (music tree)
+# ==========================================================================
+
+
+def _row_lib(sel_label="", selected_key=None, has_files=True):
+    # type: (str, object, bool) -> CueCombinedMusicTree
+    """Lib with a two-row visible_tree (folder + file) and a fake music mgr."""
+    user = types.SimpleNamespace(tree=[], files=[], scan_error="")
+    game = types.SimpleNamespace(tree=[], files=[], scan_error="")
+    music = types.SimpleNamespace(selected_trigger_label=lambda: sel_label, selected_key=selected_key)
+    lib = CueCombinedMusicTree(music, user, game)
+    lib.visible_tree = [
+        {
+            "type": "folder",
+            "name": "My Music/",
+            "full_path": "My Music/",
+            "depth": 0,
+            "expanded": True,
+            "has_files": has_files,
+        },
+        {"type": "file", "name": "a.ogg", "full_path": "My Music/a.ogg", "depth": 1},
+    ]
+    return lib
+
+
+def test_music_row_buttons_plus_play_order():
+    lib = _row_lib(sel_label="S1", selected_key="replay:r")
+    rows = lib.tree_rows("x.ogg")
+    folder, file_row = rows
+    assert [b["icon"] for b in folder["buttons"]] == ["plus"]  # no play on folders
+    assert folder["buttons"][0]["tt"] == "Add folder to S1"
+    assert folder["buttons"][0]["enabled"] is True
+    assert folder["buttons"][0]["action"]._args[0] == lib.add_folder_to_trigger
+    assert folder["buttons"][0]["action"]._args[1] == "My Music/"
+    assert [b["icon"] for b in file_row["buttons"]] == ["plus", "play"]
+    assert file_row["buttons"][0]["tt"] == "Add song to S1"
+    assert file_row["buttons"][0]["action"]._args[0] == lib.add_song_to_trigger
+    assert file_row["buttons"][1]["tt"] == "Play song"
+    assert file_row["buttons"][1]["action"]._args[0] == lib.preview
+    assert file_row["gap"] == 2  # music gap override
+
+
+def test_music_row_buttons_gates_on_selection_or_current_file():
+    lib = _row_lib(sel_label="", selected_key=None)  # no selection, no current
+    rows = lib.tree_rows("")
+    assert rows[0]["buttons"][0]["enabled"] is False
+    assert rows[1]["buttons"][0]["enabled"] is False
+    lib2 = _row_lib(sel_label="", selected_key=None)
+    rows2 = lib2.tree_rows("s.ogg")  # current_file alone enables
+    assert rows2[0]["buttons"][0]["enabled"] is True
+    lib3 = _row_lib(sel_label="", selected_key="replay:r")
+    rows3 = lib3.tree_rows("")  # selected_key alone enables; default target label
+    assert rows3[1]["buttons"][0]["enabled"] is True
+    assert rows3[1]["buttons"][0]["tt"] == "Add song to a new trigger for the current scene"
+
+
+def test_music_folder_without_files_has_no_buttons():
+    lib = _row_lib(has_files=False)
+    rows = lib.tree_rows("")
+    assert rows[0]["buttons"] == []
