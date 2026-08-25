@@ -71,6 +71,8 @@ CUE_ICON_MAP = {
     "play": ("play-solid.png", False),
     "plus": ("plus-solid.png", False),
     "question": ("question-solid.png", False),
+    "rectangle-vertical-history": ("rectangle-vertical-history-solid.png", False),
+    "rectangle-vertical-history-flip": ("rectangle-vertical-history-solid.png", True),
     "recycle": ("recycle-solid.png", False),
     "redo": ("reply-solid.png", True),
     "rotate-left": ("rotate-left-solid.png", False),

@@ -16,7 +16,7 @@ screen cue_sfx_library(_is_video):
         $ _ov_tt = _ov_tt + " to toggle expansion."
 
     $ _icons = [{
-        "name": "sidebar-flip",
+        "name": ("rectangle-vertical-history-flip" if _sidebar_mode else "rectangle-vertical-history"),
         "action": Function(_cue.sfx.library.toggle_sidebar_mode),
         "tt": _ov_tt
     }]
