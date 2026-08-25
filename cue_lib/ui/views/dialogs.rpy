@@ -3,6 +3,21 @@
 # Repeat markers, save preset, save video preset, and confirm dialogs.
 ###############################################################################
 
+# Shared shell for every dialog: a dark button with a 4px padding ring wraps
+# the content panel, giving each dialog the same black border as the
+# overlay/sfx panels (outer padded container + nested dark frame).
+screen cue_dialog_wrapper():
+    style_group "cue"
+
+    button:
+        style "cue_dialog_wrapper"
+        action NullAction()
+
+        frame:
+            style "cue_dialog_content"
+            transclude
+
+
 screen cue_repeat_markers_dialog():
     style_group "cue"
 
@@ -17,10 +32,7 @@ screen cue_repeat_markers_dialog():
     $ offsets = _cue.repeater.offsets
     $ sel_count = _cue.repeater.sel_count
 
-    button:
-        style "cue_dialog"
-        action NullAction()
-
+    use cue_dialog_wrapper():
         vbox:
             spacing 8
             etext "Repeat Markers" style "cue_hdr"
@@ -100,10 +112,7 @@ screen cue_save_preset_dialog():
     key "K_KP_ENTER" action Function(_d.commit)
     key "K_ESCAPE" action Function(_d.cancel)
 
-    button:
-        style "cue_dialog"
-        action NullAction()
-
+    use cue_dialog_wrapper():
         vbox:
             spacing 8
             etext "Save Preset" style "cue_hdr"
@@ -167,10 +176,7 @@ screen cue_save_video_preset_dialog():
     key "K_KP_ENTER" action Function(_d.commit)
     key "K_ESCAPE" action Function(_d.cancel)
 
-    button:
-        style "cue_dialog"
-        action NullAction()
-
+    use cue_dialog_wrapper():
         vbox:
             spacing 8
             etext "Save Video Preset" style "cue_hdr"
@@ -221,10 +227,7 @@ screen cue_new_igroup_dialog():
     key "K_KP_ENTER" action Function(_d.commit)
     key "K_ESCAPE" action Function(_d.cancel)
 
-    button:
-        style "cue_dialog"
-        action NullAction()
-
+    use cue_dialog_wrapper():
         vbox:
             spacing 8
             etext ("Rename Intensity Group" if _d.renaming is not None else "New Intensity Group") style "cue_hdr"
@@ -261,10 +264,7 @@ screen cue_confirm_dialog():
     key "K_KP_ENTER" action [Function(_d.hide)] + ([_d.on_confirm] if _d.on_confirm else [])
     key "K_ESCAPE" action Function(_d.hide)
 
-    button:
-        style "cue_dialog"
-        action NullAction()
-
+    use cue_dialog_wrapper():
         vbox:
             spacing 8
             etext _d.message
@@ -291,10 +291,7 @@ screen cue_merge_dialog():
     key "K_KP_ENTER" action Function(_d.confirm)
     key "K_ESCAPE" action Function(_d.cancel)
 
-    button:
-        style "cue_dialog"
-        action NullAction()
-
+    use cue_dialog_wrapper():
         vbox:
             spacing 8
             etext "Merge Import" style "cue_hdr"

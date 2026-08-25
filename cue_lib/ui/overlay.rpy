@@ -174,23 +174,24 @@ screen cue_sfx_sidebar():
             style "empty"
             at Transform(zoom=_z)
             action NullAction()
+            padding (0, 4)
             xalign 0.0
             yalign 0.0
             xpos int(_cue_overlay_panel_width / _z)
             xsize int(_cue.sfx.library.sidebar_width / _z)
             ysize int(renpy.config.screen_height / _z)
-            background _cue_color_bg_overlay
-            use cue_sfx_library(_is_video)
+            background None
+            hover_background None
+            frame:
+                background _cue_color_bg_overlay
+                yfill True
+                use cue_sfx_library(_is_video)
 
             # Resize handle: drag the game-facing right edge to change width.
-            draggroup:
-                drag:
-                    drag_name "cue_sidebar_resize"
-                    xalign 1.0
-                    xsize 8
-                    ysize int(renpy.config.screen_height / _z)
-                    dragged _cue_sidebar_resize_dragged
-                    add Solid(_cue_color_divider) xalign 0.5 xsize 2 ysize int(renpy.config.screen_height / _z)
+            # Custom displayable -- the screen `dragged` callback only fires on
+            # drop with a 2-arg signature, so live resize needs raw mouse events.
+            # Sized to the padded content rect so it hugs the colored frame.
+            add CueSidebarResizeHandle.get_handle() xalign 1.0 xsize 10 ysize int(renpy.config.screen_height / _z - 8)
 
 screen cue_header_toolbar():
     style_group "cue"
@@ -229,11 +230,14 @@ screen cue_header_toolbar():
             # registered yet -- cue_icon_btn falls back to text.
             if _cue.sfx.library.is_sidebar_mode:
                 use cue_v_divider()
+                $ _sidebar_open = not _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
+                $ _sidebar_bg = _cue_color_active if _sidebar_open else None
                 use cue_icon_btn(
                     "sidebar-flip",
                     Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER),
                     "Toggle the SFX sidebar visibility ({}).".format(
-                        _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_LIBRARY)))
+                        _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_LIBRARY)),
+                    bg=_sidebar_bg)
 
 
         hbox:

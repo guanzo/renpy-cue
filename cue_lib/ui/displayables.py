@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # Creator-Defined Displayables for the Cue overlay.
-# CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline, CueTooltip, CueVideoMarkerTooltip.
+# CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline, CueTooltip,
+# CueVideoMarkerTooltip, CueSidebarResizeHandle.
 
 import colorsys
 import pygame
@@ -105,6 +106,153 @@ def _cue_keysym_from_event(ev):
     if mod_parts:
         return "_".join(mod_parts) + "_" + key_name
     return key_name
+
+
+# ---------------------------------------------------------------------------
+# Sidebar resize + mouse cursor helpers
+# ---------------------------------------------------------------------------
+
+
+def _cue_sidebar_width_from_mouse(mx, zoom, panel):
+    # type: (int, float, int) -> int
+    """Sidebar width (physical px) for a logical cursor x at the given zoom."""
+    return int(mx * zoom) - panel
+
+
+def _cue_sidebar_set_cursor(name):
+    # type: (str) -> None
+    """Force the hardware cursor for the rest of this interaction.
+
+    Ren'Py picks the cursor from the focused widget's style.mouse, then
+    interface.mouse, then default_mouse. Setting interface.mouse is the only
+    path that doesn't depend on focus, but it resets at the top of each
+    interact(), so callers re-assert it whenever the state that needs it is
+    active.
+    """
+    iface = getattr(renpy.display, "interface", None)
+    if iface is not None:
+        iface.mouse = name
+
+
+def _cue_sidebar_poll_cursor():
+    # type: () -> None
+    """Periodic: keep the resize cursor up for the whole drag.
+
+    interface.mouse resets to the default at the top of every interact(), so
+    a drag MOTION that restarts the interaction would let the default cursor
+    flash back. This runs on every PERIODIC tick immediately before
+    update_mouse, so while the handle is dragging it re-asserts the resize
+    cursor after any reset.
+    """
+    handle = CueSidebarResizeHandle._instance
+    if handle is not None and handle._dragging:
+        _cue_sidebar_set_cursor("cue_resize")
+
+
+def _cue_setup_mouse_cursor():
+    # type: () -> None
+    """Register the mod's custom hardware cursors in config.mouse."""
+    mouse = dict(renpy.config.mouse or {})
+    mouse["cue_resize"] = [(_cue.paths.icon("arrows-left-right-solid.png"), 16, 16)]
+    renpy.config.mouse = mouse
+
+
+# ---------------------------------------------------------------------------
+# Tooltip + intensity color helpers
+# ---------------------------------------------------------------------------
+
+
+def _cue_render_tooltip(text, anchor, st, at):
+    # type: (str, Tuple[int, int, int, int], float, float) -> Any
+    """Render an auto-sized tooltip positioned relative to an anchor rect.
+
+    `anchor` is the hovered element's screen bounds (fx, fy, fw, fh). The
+    tooltip centers above it, flipping below when there's no room above, and
+    clamps to the screen. Shared by CueTooltip and CueVideoMarkerTooltip.
+    """
+    text_widget = Txt(
+        _cue_escape_text(text, brackets=False) or "",
+        style="cue_text",
+        size=12,
+        color="#cccccc",
+        italic=False,
+        substitute=False,
+    )
+    max_width = 350
+    text_render = renpy.render(text_widget, max_width, 100, st, at)
+    tw, th = text_render.get_size()
+
+    pad_x, pad_y = 4, 2
+    fw = tw + pad_x * 2
+    fh = th + pad_y * 2
+
+    # Outer footprint: 1px border on every side plus a 2px drop shadow on
+    # the right/bottom. Positioned as a whole so the border never clips.
+    BORDER = 1
+    SHADOW = 2
+    ow = fw + BORDER * 2 + SHADOW
+    oh = fh + BORDER * 2 + SHADOW
+
+    sw = renpy.config.screen_width
+    sh = renpy.config.screen_height
+
+    fx, fy, fw_elem, fh_elem = anchor
+    # Anchor to the hovered element (not the cursor) so the tooltip never
+    # covers it: centered above, flipping below when there's no room above.
+    tx = fx + (fw_elem - ow) // 2
+    ty = fy - oh - 4
+    if ty < 0:
+        ty = fy + fh_elem + 4
+
+    # Clamp to keep the tooltip fully on screen
+    if tx + ow > sw:
+        tx = sw - ow
+    if ty + oh > sh:
+        ty = sh - oh
+    if tx < 0:
+        tx = 0
+    if ty < 0:
+        ty = 0
+
+    r = renpy.Render(1, 1)
+    tip = renpy.Render(ow, oh)
+
+    # Drop shadow: translucent black offset 2px past the bottom-right border.
+    shadow = renpy.Render(ow - SHADOW, oh - SHADOW)
+    shadow.canvas().rect("#000000", (0, 0, ow - SHADOW, oh - SHADOW))
+    shadow.alpha = 0.45
+    tip.blit(shadow, (SHADOW, SHADOW))
+
+    # 1px border (palette _cue_color_divider) around the interior fill.
+    tip.canvas().rect("#555555", (0, 0, ow - SHADOW, oh - SHADOW), 1)
+    tip.canvas().rect("#2e2e2e", (BORDER, BORDER, fw, fh))
+
+    tip.blit(text_render, (BORDER + pad_x, BORDER + pad_y))
+    r.blit(tip, (tx, ty))
+    return r
+
+
+def _cue_intensity_color(level, total, low=CUE_INTENSITY_COLOR_LOW, high=CUE_INTENSITY_COLOR_HIGH):
+    # type: (int, int, str, str) -> str
+    """Hex color for a 1-based intensity `level` out of `total` levels,
+    interpolated along the HSL hue path from soft (low) to hard (high)."""
+    if total <= 1 or level >= total:
+        return high
+    if level <= 1:
+        return low
+    t = (level - 1) / float(total - 1)
+
+    def _hex_to_hls(hex_color):
+        hex_color = hex_color.lstrip("#")
+        r = int(hex_color[0:2], 16) / 255.0
+        g = int(hex_color[2:4], 16) / 255.0
+        b = int(hex_color[4:6], 16) / 255.0
+        return colorsys.rgb_to_hls(r, g, b)
+
+    h1, l1, s1 = _hex_to_hls(low)
+    h2, l2, s2 = _hex_to_hls(high)
+    r, g, b = colorsys.hls_to_rgb(h1 + (h2 - h1) * t, l1 + (l2 - l1) * t, s1 + (s2 - s1) * t)
+    return "#{:02x}{:02x}{:02x}".format(int(round(r * 255)), int(round(g * 255)), int(round(b * 255)))
 
 
 class CueSelfUpdatingLabel(Displayable):
@@ -660,74 +808,98 @@ class CueVideoMarkerTimeline(Displayable):
         return None
 
 
-def _cue_render_tooltip(text, anchor, st, at):
-    # type: (str, Tuple[int, int, int, int], float, float) -> Any
-    """Render an auto-sized tooltip positioned relative to an anchor rect.
+class CueSidebarResizeHandle(Displayable):
+    """Drag the SFX sidebar's game-facing right edge to resize it.
 
-    `anchor` is the hovered element's screen bounds (fx, fy, fw, fh). The
-    tooltip centers above it, flipping below when there's no room above, and
-    clamps to the screen. Shared by CueTooltip and CueVideoMarkerTooltip.
+    The screen `dragged` callback fires only on drop with a 2-arg signature,
+    so live resize needs raw mouse handling here. A container dispatches every
+    mouse event to all of its children with child-relative coords, so the
+    handle receives the whole gesture regardless of focus state. Drag state
+    therefore lives on this instance, not the focus system.
+
+    The "cue_resize" cursor applies on hover because the handle registers
+    itself via Render.add_focus, so it becomes the focused widget and its
+    style.mouse is used. During the drag the mouse outruns the 10px strip,
+    focus leaves the handle, and the cursor would revert to default; each
+    MOTION re-asserts interface.mouse = "cue_resize" to keep it up for the
+    whole gesture.
+
+    The strip itself renders nothing -- it is an invisible resize zone, with
+    the resize cursor as the only affordance.
     """
-    text_widget = Txt(
-        _cue_escape_text(text, brackets=False) or "",
-        style="cue_text",
-        size=12,
-        color="#cccccc",
-        italic=False,
-        substitute=False,
-    )
-    max_width = 350
-    text_render = renpy.render(text_widget, max_width, 100, st, at)
-    tw, th = text_render.get_size()
 
-    pad_x, pad_y = 4, 2
-    fw = tw + pad_x * 2
-    fh = th + pad_y * 2
+    _instance = None
 
-    # Outer footprint: 1px border on every side plus a 2px drop shadow on
-    # the right/bottom. Positioned as a whole so the border never clips.
-    BORDER = 1
-    SHADOW = 2
-    ow = fw + BORDER * 2 + SHADOW
-    oh = fh + BORDER * 2 + SHADOW
+    WIDTH = 10
 
-    sw = renpy.config.screen_width
-    sh = renpy.config.screen_height
+    def __init__(self, **properties):
+        super(CueSidebarResizeHandle, self).__init__(**properties)
+        self.focusable = True
+        self._dragging = False
 
-    fx, fy, fw_elem, fh_elem = anchor
-    # Anchor to the hovered element (not the cursor) so the tooltip never
-    # covers it: centered above, flipping below when there's no room above.
-    tx = fx + (fw_elem - ow) // 2
-    ty = fy - oh - 4
-    if ty < 0:
-        ty = fy + fh_elem + 4
+    @classmethod
+    def get_handle(cls):
+        # type: () -> CueSidebarResizeHandle
+        if cls._instance is None:
+            cls._instance = cls(style="cue_sidebar_handle")
+        return cls._instance
 
-    # Clamp to keep the tooltip fully on screen
-    if tx + ow > sw:
-        tx = sw - ow
-    if ty + oh > sh:
-        ty = sh - oh
-    if tx < 0:
-        tx = 0
-    if ty < 0:
-        ty = 0
+    def _new_width(self):
+        # type: () -> int
+        mx, _my = renpy.get_mouse_pos()
+        zoom = getattr(renpy.store, "_cue_overlay_zoom")()
+        panel = getattr(renpy.store, "_cue_overlay_panel_width")
+        return _cue_sidebar_width_from_mouse(mx, zoom, panel)
 
-    r = renpy.Render(1, 1)
-    tip = renpy.Render(ow, oh)
+    def event(self, ev, x, y, st):
+        # type: (Any, int, int, float) -> Optional[Any]
+        if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+            _in = 0 <= x <= self.WIDTH
+            if _in:
+                self._dragging = True
+                # Hover already pinned the resize cursor; re-assert so the
+                # gesture starts from the right cursor even if focus lagged.
+                _cue_sidebar_set_cursor("cue_resize")
+                raise IgnoreEvent()
+            # A press off the strip ends any stale drag (missed release).
+            self._dragging = False
+            _cue_sidebar_set_cursor("default")
+            return None
 
-    # Drop shadow: translucent black offset 2px past the bottom-right border.
-    shadow = renpy.Render(ow - SHADOW, oh - SHADOW)
-    shadow.canvas().rect("#000000", (0, 0, ow - SHADOW, oh - SHADOW))
-    shadow.alpha = 0.45
-    tip.blit(shadow, (SHADOW, SHADOW))
+        if ev.type == pygame.MOUSEMOTION:
+            if self._dragging:
+                # Focus leaves the handle once the mouse outruns the 10px
+                # strip, so re-assert the cursor every motion; see the class
+                # docstring on why interface.mouse is the reliable path.
+                _cue_sidebar_set_cursor("cue_resize")
+                lib = _cue.sfx.library
+                old_w = lib.sidebar_width
+                lib.set_sidebar_width(self._new_width())
+                if lib.sidebar_width != old_w:
+                    renpy.restart_interaction()
+                raise IgnoreEvent()
+            return None
 
-    # 1px border (palette _cue_color_divider) around the interior fill.
-    tip.canvas().rect("#555555", (0, 0, ow - SHADOW, oh - SHADOW), 1)
-    tip.canvas().rect("#2e2e2e", (BORDER, BORDER, fw, fh))
+        if ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:
+            if self._dragging:
+                self._dragging = False
+                _cue_sidebar_set_cursor("default")
+                _cue.sfx.library.persist_sidebar_state()
+                renpy.restart_interaction()
+                raise IgnoreEvent()
+            return None
 
-    tip.blit(text_render, (BORDER + pad_x, BORDER + pad_y))
-    r.blit(tip, (tx, ty))
-    return r
+        return None
+
+    def render(self, width, height, st, at):
+        # type: (int, int, float, float) -> Any
+        r = renpy.Render(width, height)
+        # Register the whole strip as a focus target.  focus_at_point only
+        # finds displayables that called Render.add_focus during render, so
+        # without this the handle never becomes the focused widget on hover
+        # and its style.mouse cursor is never applied.
+        r.add_focus(self, None, 0, 0, width, height, None, None, None)
+        return r
 
 
 class CueTooltip(Displayable):
@@ -772,29 +944,6 @@ class CueVideoMarkerTooltip(Displayable):
             tab.TAB_H,
         )
         return _cue_render_tooltip(text, anchor, st, at)
-
-
-def _cue_intensity_color(level, total, low=CUE_INTENSITY_COLOR_LOW, high=CUE_INTENSITY_COLOR_HIGH):
-    # type: (int, int, str, str) -> str
-    """Hex color for a 1-based intensity `level` out of `total` levels,
-    interpolated along the HSL hue path from soft (low) to hard (high)."""
-    if total <= 1 or level >= total:
-        return high
-    if level <= 1:
-        return low
-    t = (level - 1) / float(total - 1)
-
-    def _hex_to_hls(hex_color):
-        hex_color = hex_color.lstrip("#")
-        r = int(hex_color[0:2], 16) / 255.0
-        g = int(hex_color[2:4], 16) / 255.0
-        b = int(hex_color[4:6], 16) / 255.0
-        return colorsys.rgb_to_hls(r, g, b)
-
-    h1, l1, s1 = _hex_to_hls(low)
-    h2, l2, s2 = _hex_to_hls(high)
-    r, g, b = colorsys.hls_to_rgb(h1 + (h2 - h1) * t, l1 + (l2 - l1) * t, s1 + (s2 - s1) * t)
-    return "#{:02x}{:02x}{:02x}".format(int(round(r * 255)), int(round(g * 255)), int(round(b * 255)))
 
 
 class CueAutoSpeedChart(Displayable):

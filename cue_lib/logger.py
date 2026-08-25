@@ -135,6 +135,13 @@ class CueLogger(object):
         except Exception:
             pass  # Never let clearing the log break the game
 
+    def clear_logs(self):
+        # type: () -> None
+        """Truncate every log and drop buffered lines, so a fresh session
+        starts clean.  Boot-time replacement for calling each clear_*."""
+        self.clear_debug()
+        self.clear_error()
+
     # --- Internals ---
 
     def _write_debug_lines(self, lines):

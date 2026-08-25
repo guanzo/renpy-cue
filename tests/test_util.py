@@ -683,6 +683,18 @@ def test_clear_error_log_creates_missing_dir(tmp_path, monkeypatch):
     assert (tmp_path / "renpy_cue" / "error.log").exists()
 
 
+def test_clear_logs_truncates_both(tmp_path, monkeypatch):
+    monkeypatch.setattr(_cue, "paths", SimpleNamespace(in_game_base_dir="renpy_cue"))
+    monkeypatch.setattr(_config, "gamedir", str(tmp_path))
+    for name in ("debug.log", "error.log"):
+        log_file = tmp_path / "renpy_cue" / name
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        log_file.write_text("stale content")
+    _cue_logger.clear_logs()
+    for name in ("debug.log", "error.log"):
+        assert (tmp_path / "renpy_cue" / name).read_text() == ""
+
+
 # ---------------------------------------------------------------------------
 # Tab action / shift held
 # ---------------------------------------------------------------------------

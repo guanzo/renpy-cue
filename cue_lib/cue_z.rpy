@@ -66,6 +66,7 @@ init -999 python:
         CUE_HELP_SHIFT_SKIP_DELETE,
         CUE_MANUAL_BACKUP_NAME,
         CUE_SIDEBAR_ZORDER, CUE_DIALOG_ZORDER, CUE_SIDEBAR_MIN_WIDTH,
+        CUE_SIDEBAR_MAX_WIDTH_RATIO,
         CUE_IMPORT_CATEGORY_ORDER, CUE_IMPORT_CATEGORY_LABELS,
     )
     from cue_lib.util import (
@@ -105,7 +106,6 @@ init -999 python:
         _cue_set_page,
         _cue_toggle_video_mute,
         _cue_toggle_intensity_flag,
-        _cue_sidebar_resize_dragged,
     )
 
     from cue_lib.video.speed import (
@@ -134,7 +134,8 @@ init -999 python:
     from cue_lib.ui.displayables import (
         CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline,
         CueTooltip, CueVideoMarkerTooltip, CueAutoSpeedChart,
-        CueKeyCaptureDisplayable,
+        CueKeyCaptureDisplayable, CueSidebarResizeHandle,
+        _cue_sidebar_poll_cursor, _cue_setup_mouse_cursor,
     )
 
     from cue_lib.video.speed import (
@@ -448,6 +449,8 @@ init 999 python:
 
         config.after_replay_callback = _cue_after_replay
 
+        config.periodic_callbacks.append(_cue_sidebar_poll_cursor)
+
     def _cue_load_initial_data():
         """Hydrate the freshly-wired managers from persistent/shared config and
         prime the SFX/music libraries.  Runs once, right after callbacks."""
@@ -458,12 +461,12 @@ init 999 python:
 
         _cue.initialized = True
 
-    
+
     _v = getattr(renpy, "version_tuple", (0, 0, 0))
     _cue_log("INIT: renpy_version={}".format(".".join(str(x) for x in _v)))
 
-    _cue_logger.clear_debug()
-    _cue_logger.clear_error()
+    _cue_logger.clear_logs()
+    _cue_setup_mouse_cursor()
     _cue.keybinds.setup()
     _cue_patch_runtime()
     _cue_install_callbacks()

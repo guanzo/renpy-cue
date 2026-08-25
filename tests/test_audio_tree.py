@@ -538,8 +538,10 @@ def test_sfx_set_sidebar_width_clamps(sfx):
     assert sfx.sidebar_width == CUE_SIDEBAR_MIN_WIDTH
     sfx.set_sidebar_width(5000)
     assert sfx.sidebar_width == int(renpy.config.screen_width * CUE_SIDEBAR_MAX_WIDTH_RATIO)
-    sfx.set_sidebar_width(400)
-    assert sfx.sidebar_width == 400
+    # A width strictly inside the bounds passes through unchanged.
+    mid = int((CUE_SIDEBAR_MIN_WIDTH + int(renpy.config.screen_width * CUE_SIDEBAR_MAX_WIDTH_RATIO)) / 2)
+    sfx.set_sidebar_width(mid)
+    assert sfx.sidebar_width == mid
 
 
 def test_sfx_igroup_add_mode_toggle_single_target(sfx):

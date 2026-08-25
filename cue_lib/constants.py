@@ -159,8 +159,8 @@ CUE_INTENSITY_DELAY_MAX = 6.0
 
 # SFX Library sidebar: default width and clamp bounds (logical px, pre-zoom).
 CUE_SIDEBAR_DEFAULT_WIDTH = 320
-CUE_SIDEBAR_MIN_WIDTH = 200
-CUE_SIDEBAR_MAX_WIDTH_RATIO = 0.5  # max width = 50% of screen width
+CUE_SIDEBAR_MIN_WIDTH = 270
+CUE_SIDEBAR_MAX_WIDTH_RATIO = 0.3  # max width % of screen width
 
 # persistent._cue keys for the SFX sidebar state.
 CUE_PERSIST_SIDEBAR_MODE = "sfx_sidebar_mode"

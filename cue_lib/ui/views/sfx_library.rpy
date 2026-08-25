@@ -16,7 +16,7 @@ screen cue_sfx_library(_is_video):
         $ _ov_tt = _ov_tt + " to toggle expansion."
 
     $ _icons = [{
-        "name": "window-maximize" if _sidebar_mode else "window-restore",
+        "name": "sidebar-flip",
         "action": Function(_cue.sfx.library.toggle_sidebar_mode),
         "tt": _ov_tt
     }]

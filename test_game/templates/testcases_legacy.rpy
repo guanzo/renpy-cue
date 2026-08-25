@@ -115,15 +115,6 @@ init 1000 python:
     def _cue_intensity_soft_fired():
         return _cue_played_from("soft/")
 
-    class _CueFakeDrag(object):
-        def __init__(self, _x):
-            self.x = _x
-
-    def _cue_test_fake_drag(x):
-        # Minimal stand-in for a Ren'Py drag; the sidebar resize callback
-        # reads .x from it. Lets the harness exercise the drag width math.
-        return _CueFakeDrag(x)
-
     # The video_seamless testcase re-enables it itself.
     _cue.speed_resolver.seamless_transition = False
 
@@ -1399,19 +1390,41 @@ testcase sfx_sidebar_resize:
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     pause 0.5
     $ _ok = renpy.get_screen("cue_sfx_sidebar", layer="cue_layer") is not None
-    $ _ok = _ok and callable(_cue_sidebar_resize_dragged)
+    # The resize handle is a stable focusable singleton wired into the screen.
+    # Live drag math is covered by pytest -- the screen `dragged` callback
+    # only fires on drop with a 2-arg signature, so drags are raw mouse
+    # events on the handle.
+    $ _ok = _ok and (CueSidebarResizeHandle.get_handle() is CueSidebarResizeHandle.get_handle())
+    $ _ok = _ok and CueSidebarResizeHandle.get_handle().focusable
+    # Hover must hit the handle: Render.add_focus registers the strip so
+    # focus_at_point returns it, which is what drives its style.mouse cursor.
+    $ _ok = _ok and (renpy.display.render.focus_at_point(int(_cue_overlay_panel_width + _cue.sfx.library.sidebar_width - 5 * _cue_overlay_zoom()), int(renpy.config.screen_height / 2)).widget is CueSidebarResizeHandle.get_handle())
+    $ if not _ok: renpy.quit(status=1)
+    # The resize cursor must hold for the whole drag. Focus follows the mouse,
+    # so once it outruns the 10px strip the handle's style.mouse no longer
+    # applies; the handle re-asserts interface.mouse = "cue_resize" on every
+    # drag MOTION, the only focus-independent cursor path. Drive one motion
+    # straight on the handle and prove the cursor is applied.
+    python:
+        import pygame
+        renpy.display.interface.mouse = "default"
+        _h = CueSidebarResizeHandle.get_handle()
+        _h._dragging = True
+        _ev = pygame.event.Event(pygame.MOUSEMOTION, {"pos": (0, 0)})
+        try:
+            _h.event(_ev, 5, 100, 0.0)
+        except renpy.display.core.IgnoreEvent:
+            pass
+        _ok = renpy.display.interface.mouse == "cue_resize"
+        _h._dragging = False
+        renpy.display.interface.mouse = "default"
     $ if not _ok: renpy.quit(status=1)
     # Clamps to the max ratio at the top end...
     run Function(_cue.sfx.library.set_sidebar_width, 99999)
-    $ _ok = _cue.sfx.library.sidebar_width == int(renpy.config.screen_width * 0.5)
+    $ _ok = _cue.sfx.library.sidebar_width == max(CUE_SIDEBAR_MIN_WIDTH, int(renpy.config.screen_width * CUE_SIDEBAR_MAX_WIDTH_RATIO))
     $ if not _ok: renpy.quit(status=1)
     # ...and to the sidebar minimum at the bottom end.
     run Function(_cue.sfx.library.set_sidebar_width, 1)
     $ _ok = _cue.sfx.library.sidebar_width == CUE_SIDEBAR_MIN_WIDTH
-    $ if not _ok: renpy.quit(status=1)
-    # The drag callback resolves the store globals at call time and derives
-    # the width from the handle's logical x.
-    run Function(_cue_sidebar_resize_dragged, [_cue_test_fake_drag(800)], "update", 0, 0, 0, 0)
-    $ _ok = _cue.sfx.library.sidebar_width == int(800 * _cue_overlay_zoom()) - _cue_overlay_panel_width
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()

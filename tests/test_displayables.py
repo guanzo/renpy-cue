@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Tests for cue_lib.ui.displayables -- key-capture helpers and the six
+# Tests for cue_lib.ui.displayables -- key-capture helpers and the seven
 # creator-defined displayable classes.
 
 import types
@@ -15,12 +15,14 @@ from cue_lib.ui.displayables import (
     CueKeyCaptureDisplayable,
     CueVideoMarkerTooltip,
     CueSelfUpdatingLabel,
+    CueSidebarResizeHandle,
     CueTooltip,
     CueVideoMarkerTimeline,
     CueVideoTimeline,
     _cue_build_key_code_map,
     _cue_keysym_from_event,
     _cue_intensity_color,
+    _cue_sidebar_width_from_mouse,
     CUE_INTENSITY_COLOR_LOW,
     CUE_INTENSITY_COLOR_HIGH,
 )
@@ -36,6 +38,7 @@ def _reset_marker_tip_mailbox():
     CueVideoMarkerTimeline._marker_tip_x = 0
     CueVideoMarkerTimeline._marker_tip_y = 0
     CueVideoMarkerTimeline._instance = None
+    CueSidebarResizeHandle._instance = None
 
 
 # ==========================================================================
@@ -774,6 +777,190 @@ def test_mtl_event_mouseup_no_drag_noop(monkeypatch):
     env.tl.render(200, 60, 0.0, 0.0)
     up = types.SimpleNamespace(type=_pygame.MOUSEBUTTONUP, button=1)
     assert env.tl.event(up, 100, 15, 0.0) is None
+
+
+# ==========================================================================
+# CueSidebarResizeHandle
+# ==========================================================================
+
+
+class _SidebarEnv(object):
+    """Mutable recording rig; width/counters are read fresh at assert time.
+
+    A SimpleNamespace(**state) snapshots ints at construction, so counters
+    mutated by the closures would read stale at assert time.
+    """
+
+    def __init__(self, width):
+        self.width = width
+        self.persists = 0
+        self.restarts = 0
+        self.library = types.SimpleNamespace(sidebar_width=width)
+
+
+def _make_sidebar_env(monkeypatch, mouse=(0, 0), zoom=1.0, panel=500, width=320):
+    # type: (Any, Tuple[int, int], float, int, int) -> Any
+    """Patch renpy/_cue into a resize recording rig for the handle.
+
+    The fake library clamps like the real CueSfxLibraryTree, so the
+    no-op-when-clamped restart gate in the handle can be exercised.
+    """
+    env = _SidebarEnv(width)
+    library = env.library
+
+    def set_sidebar_width(w):
+        env.width = max(200, min(640, int(w)))
+        library.sidebar_width = env.width
+
+    def persist_sidebar_state():
+        env.persists += 1
+
+    def restart_interaction():
+        env.restarts += 1
+
+    library.set_sidebar_width = set_sidebar_width
+    library.persist_sidebar_state = persist_sidebar_state
+
+    cue = types.SimpleNamespace(sfx=types.SimpleNamespace(library=library))
+    monkeypatch.setattr(_displ, "_cue", cue)
+    monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: mouse)
+    monkeypatch.setattr(
+        _renpy, "store", types.SimpleNamespace(_cue_overlay_zoom=lambda: zoom, _cue_overlay_panel_width=panel)
+    )
+    monkeypatch.setattr(_renpy, "restart_interaction", restart_interaction)
+
+    return env
+
+
+def test_sidebar_width_from_mouse_math():
+    assert _cue_sidebar_width_from_mouse(800, 1.0, 500) == 300
+    assert _cue_sidebar_width_from_mouse(800, 1.5, 500) == 700
+    assert _cue_sidebar_width_from_mouse(600, 2.0, 500) == 700
+
+
+def test_sidebar_handle_singleton_and_focusable():
+    handle = CueSidebarResizeHandle.get_handle()
+    assert handle is CueSidebarResizeHandle.get_handle()
+    assert handle.focusable
+
+
+def test_sidebar_handle_down_on_strip_starts_drag(monkeypatch):
+    env = _make_sidebar_env(monkeypatch)
+    handle = CueSidebarResizeHandle.get_handle()
+    ev = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
+    with pytest.raises(IgnoreEvent):
+        handle.event(ev, 5, 100, 0.0)  # inside the 10px strip
+    assert handle._dragging
+    assert _renpy.display.interface.mouse == "cue_resize"  # pins the resize cursor
+    assert env.width == 320  # a click alone never resizes
+
+
+def test_sidebar_handle_down_outside_strip_ignored(monkeypatch):
+    env = _make_sidebar_env(monkeypatch)
+    handle = CueSidebarResizeHandle.get_handle()
+    ev = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
+    assert handle.event(ev, 50, 100, 0.0) is None
+    assert not handle._dragging
+
+
+def test_sidebar_handle_down_off_strip_clears_stale_drag(monkeypatch):
+    env = _make_sidebar_env(monkeypatch)
+    handle = CueSidebarResizeHandle.get_handle()
+    handle._dragging = True  # a release was missed (mouse left the window)
+    ev = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
+    assert handle.event(ev, 50, 100, 0.0) is None
+    assert not handle._dragging
+    assert _renpy.display.interface.mouse == "default"  # stale cursor not forced
+
+
+def test_sidebar_handle_motion_resizes_when_dragging(monkeypatch):
+    env = _make_sidebar_env(monkeypatch, mouse=(800, 400))
+    handle = CueSidebarResizeHandle.get_handle()
+    down = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
+    with pytest.raises(IgnoreEvent):
+        handle.event(down, 5, 100, 0.0)
+    mot = types.SimpleNamespace(type=_pygame.MOUSEMOTION)
+    with pytest.raises(IgnoreEvent):
+        handle.event(mot, -200, 100, 0.0)  # cursor may leave the strip
+    assert env.width == 300  # 800 * 1.0 - 500
+    assert env.restarts == 1  # only when the clamped width actually moved
+    assert _renpy.display.interface.mouse == "cue_resize"  # cursor survives the drag
+
+
+def test_sidebar_handle_motion_clamped_skips_restart(monkeypatch):
+    env = _make_sidebar_env(monkeypatch, mouse=(2000, 400), width=640)
+    handle = CueSidebarResizeHandle.get_handle()
+    down = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
+    with pytest.raises(IgnoreEvent):
+        handle.event(down, 5, 100, 0.0)
+    mot = types.SimpleNamespace(type=_pygame.MOUSEMOTION)
+    with pytest.raises(IgnoreEvent):
+        handle.event(mot, 0, 0, 0.0)  # 1500 clamps to the same 640
+    assert env.width == 640
+    assert env.restarts == 0
+
+
+def test_sidebar_handle_motion_ignored_when_not_dragging(monkeypatch):
+    env = _make_sidebar_env(monkeypatch, mouse=(800, 400))
+    handle = CueSidebarResizeHandle.get_handle()
+    mot = types.SimpleNamespace(type=_pygame.MOUSEMOTION)
+    assert handle.event(mot, 0, 0, 0.0) is None
+    assert env.width == 320
+    assert env.restarts == 0
+
+
+def test_sidebar_handle_up_ends_drag_and_persists(monkeypatch):
+    env = _make_sidebar_env(monkeypatch)
+    handle = CueSidebarResizeHandle.get_handle()
+    down = types.SimpleNamespace(type=_pygame.MOUSEBUTTONDOWN, button=1)
+    with pytest.raises(IgnoreEvent):
+        handle.event(down, 5, 100, 0.0)
+    up = types.SimpleNamespace(type=_pygame.MOUSEBUTTONUP, button=1)
+    with pytest.raises(IgnoreEvent):
+        handle.event(up, 5, 100, 0.0)
+    assert not handle._dragging
+    assert _renpy.display.interface.mouse == "default"  # cursor restored on drop
+    assert env.persists == 1
+
+
+def test_sidebar_handle_up_ignored_when_not_dragging(monkeypatch):
+    env = _make_sidebar_env(monkeypatch)
+    handle = CueSidebarResizeHandle.get_handle()
+    up = types.SimpleNamespace(type=_pygame.MOUSEBUTTONUP, button=1)
+    assert handle.event(up, 0, 0, 0.0) is None
+    assert env.persists == 0
+
+
+def test_sidebar_cursor_poll_applies_only_while_dragging(monkeypatch):
+    # The periodic poll closes the interact() reset gap: it must re-assert the
+    # resize cursor while dragging and leave the default alone otherwise.
+    env = _make_sidebar_env(monkeypatch)
+    handle = CueSidebarResizeHandle.get_handle()
+    _renpy.display.interface.mouse = "default"
+    _displ._cue_sidebar_poll_cursor()
+    assert _renpy.display.interface.mouse == "default"
+    handle._dragging = True
+    _displ._cue_sidebar_poll_cursor()
+    assert _renpy.display.interface.mouse == "cue_resize"
+    handle._dragging = False
+
+
+def test_sidebar_handle_render_draws_nothing():
+    # The strip is an invisible resize zone -- no divider line, no grip icon.
+    # Its only presence is the focus registration (asserted separately), so
+    # the sidebar edge stays visually clean.
+    handle = CueSidebarResizeHandle.get_handle()
+    r = handle.render(10, 600, 0.0, 0.0)
+    assert r.canvas().ops == []
+    assert r.blits == []
+
+
+def test_sidebar_handle_render_registers_focus_target():
+    # Without Render.add_focus the handle never becomes the focused widget on
+    # hover, so focus_at_point can't return it and its cursor never applies.
+    handle = CueSidebarResizeHandle.get_handle()
+    r = handle.render(10, 600, 0.0, 0.0)
+    assert r.focus == (handle, 0, 0, 10, 600)
 
 
 # ==========================================================================

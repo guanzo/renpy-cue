@@ -51,13 +51,23 @@ style cue_frame is empty:
     padding (4, 4)
     xfill True
 
-style cue_dialog is empty:
+# Dialog shell: dark outer button whose 4px padding ring reads as a black
+# border around the content panel, matching the overlay/sfx panels (outer
+# padded container + nested dark frame).
+style cue_dialog_wrapper is empty:
     xpos _cue_overlay_panel_width
     ypos 4
+    padding (4, 4)
+    background _cue_color_bg_overlay
+    hover_background _cue_color_bg_overlay
+    xmaximum 408
+
+# Inner content panel of a dialog: the dark surface the actual dialog lives
+# on, inset inside cue_dialog_wrapper's border ring.
+style cue_dialog_content is empty:
     padding (16, 8)
     background _cue_color_bg_dialog
     hover_background _cue_color_bg_dialog
-    xmaximum 400
 
 style cue_popper_frame is empty:
     background "#000000ee"
@@ -142,3 +152,6 @@ style cue_scrollbar is empty:
     thumb_offset 0
     bar_vertical False
     bar_resizing False
+
+style cue_sidebar_handle is empty:
+    mouse "cue_resize"

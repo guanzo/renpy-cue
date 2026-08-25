@@ -79,6 +79,12 @@ class Render(object):
     def get_size(self):
         return (self.width, self.height)
 
+    def add_focus(self, widget, arg, fx, fy, fw, fh, fmx, fmy, mask):
+        # Stub -- records the focus registration so displayables that call
+        # Render.add_focus during render (e.g. the sidebar resize handle)
+        # run headlessly.
+        self.focus = (widget, fx, fy, fw, fh)
+
 
 class RenderCanvas(object):
     """Records canvas draw operations for assertion."""
