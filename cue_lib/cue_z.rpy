@@ -341,6 +341,9 @@ init -900 python:
 
 
 init 999 python:
+    import time as _time
+    _t0 = _time.time()
+    
     if CUE_DEBUG:
         # Enable dev tools for this mod (Shift+R reload, Shift+O console)
         config.developer = True

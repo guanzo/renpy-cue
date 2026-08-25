@@ -191,7 +191,7 @@ def test_tick_inactive_is_noop(monkeypatch):
     eng.active = False
     seen = []
     monkeypatch.setattr(eng, "_tick_loop", lambda now, tick, cf, speed, variants: seen.append("loop"))
-    monkeypatch.setattr(eng, "_tick_video", lambda cf, layer, speed, variants: seen.append("video"))
+    monkeypatch.setattr(eng, "_tick_video", lambda cf, layer, speed, variants, tick_interval=0.0: seen.append("video"))
     eng.tick("scene.ogg", "movie")
     assert eng._tick_count == 0
     assert seen == []
@@ -201,7 +201,7 @@ def test_tick_dispatches_loop_then_video(monkeypatch):
     eng = make_engine()
     seen = []
     monkeypatch.setattr(eng, "_tick_loop", lambda now, tick, cf, speed, variants: seen.append("loop"))
-    monkeypatch.setattr(eng, "_tick_video", lambda cf, layer, speed, variants: seen.append("video"))
+    monkeypatch.setattr(eng, "_tick_video", lambda cf, layer, speed, variants, tick_interval=0.0: seen.append("video"))
     eng.tick("scene.ogg", "movie")
     assert eng._tick_count == 1
     assert seen == ["loop", "video"]
@@ -641,6 +641,37 @@ def test_tick_video_wrap_to_coarse_position_still_fires_time_zero(play_stub):
     eng._tick_video("scene.ogv", "movie", 1.0, None)
     assert len(play_stub) == 2
     assert "v_scene.ogv@0.000#1" in eng.played_video_keys
+
+
+def test_tick_passes_wall_interval_to_marker_lead(play_stub, monkeypatch):
+    """tick() sizes the marker lead from the real wall-clock gap between
+    frames: a 50ms gap at 1.6x gives lead 0.04 (target 0.46), so a marker at
+    0.5 fires before its position is reached instead of always late."""
+    store = FakeMarkerStore({"v_scene.ogv": {"pools": []}})
+    markers = FakeMarkers(markers=[{"time": 0.5, "files": ["a.ogg"]}])
+    vid = FakeVidManager(elapsed=0.2)
+    eng = make_engine(store=store, vid=vid, markers=markers, speed=FakeSpeedResolver(speed=1.6, variants=[1.6]))
+    clock = [100.0]
+    monkeypatch.setattr(_trigger._time, "time", lambda: clock[0])
+
+    eng.tick("scene.ogv", "movie")  # seeds the wall baseline; eff = 0.32
+    assert play_stub == []
+
+    clock[0] = 100.05  # 50ms later -> interval 0.05
+    vid._elapsed = 0.3  # eff = 0.48: crosses lead target 0.46, below mt 0.5
+    eng.tick("scene.ogv", "movie")
+    assert play_stub == [("v_scene.ogv", 0, None)]
+
+
+def test_tick_video_no_cadence_no_lead(play_stub):
+    """Same position with no cadence info (interval 0 -> lead 0) does NOT
+    fire: the early fire above is the cadence lead, not the position."""
+    store = FakeMarkerStore({"v_scene.ogv": {"pools": []}})
+    markers = FakeMarkers(markers=[{"time": 0.5, "files": ["a.ogg"]}])
+    vid = FakeVidManager(elapsed=0.3)  # eff = 0.48 below mt 0.5
+    eng = make_engine(store=store, vid=vid, markers=markers)
+    eng._tick_video("scene.ogv", "movie", 1.6, [1.6], tick_interval=0.0)
+    assert play_stub == []
 
 
 # ---------------------------------------------------------------------------

@@ -11,7 +11,7 @@ from cue_lib.trigger_debug import CueTriggerDebug
 
 def _cue_loop_still_playing(channels: List[str]) -> bool: ...
 def _cue_pick_deduped(files: List[str], picked: List[str], max_tries: int = 3) -> Optional[str]: ...
-def _cue_marker_lead(effective_elapsed: float, prev_eff: float) -> float: ...
+def _cue_marker_lead(tick_interval: float, speed: float) -> float: ...
 def _cue_marker_reached(
     mt: float, effective_elapsed: float, prev_eff: float, marker_tolerance: float, lead: float = 0.0
 ) -> bool: ...
@@ -27,6 +27,7 @@ class CueTriggerEngine:
     played_video_keys: Set[str]
     _prev_eff_elapsed: float
     _tick_count: int
+    _last_tick_wall: float
     _vid_intensity: Optional[CueIntensityResolution]
     _td: CueTriggerDebug
     _store: CueMarkerStore

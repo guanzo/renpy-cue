@@ -114,20 +114,27 @@ def test_marker_reached_lead_cross_check():
 
 
 def test_marker_lead_half_advance():
-    assert _trigger._cue_marker_lead(5.04, 5.0) == pytest.approx(0.02)
+    # 16.7ms cadence at 1.0x -> half a tick's position advance
+    assert _trigger._cue_marker_lead(0.0167, 1.0) == pytest.approx(0.00835)
 
 
-def test_marker_lead_reset_sentinel_zero():
-    # prev_eff = -1.0 sentinel: advance unknown, no lead
-    assert _trigger._cue_marker_lead(0.05, -1.0) == 0.0
+def test_marker_lead_scales_with_speed():
+    assert _trigger._cue_marker_lead(0.0167, 1.6) == pytest.approx(0.01336)
 
 
-def test_marker_lead_paused_zero():
-    assert _trigger._cue_marker_lead(5.0, 5.0) == 0.0
+def test_marker_lead_slow_cadence_centers():
+    # the 20fps/1.6x case: full centering (half of the 0.08 advance) = the cap
+    assert _trigger._cue_marker_lead(0.05, 1.6) == pytest.approx(_trigger.CUE_MARKER_LEAD_MAX)
+
+
+def test_marker_lead_unknown_cadence_zero():
+    # first tick: no wall-clock baseline yet, cadence unknown -> no lead
+    assert _trigger._cue_marker_lead(0.0, 1.0) == 0.0
 
 
 def test_marker_lead_clamps_max():
-    assert _trigger._cue_marker_lead(5.2, 5.0) == _trigger.CUE_MARKER_LEAD_MAX
+    # dropped frame / focus loss: a long interval must not inflate the lead
+    assert _trigger._cue_marker_lead(0.5, 1.6) == _trigger.CUE_MARKER_LEAD_MAX
 
 
 # ---------------------------------------------------------------------------

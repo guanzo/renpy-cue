@@ -48,10 +48,11 @@ CUE_EXCL_KIND_ONESHOT = "oneshot"
 CUE_EXCL_KIND_VIDEO = "video"
 
 # Max lead (seconds) to fire a video marker before its time.  Lead is half the
-# measured per-tick position advance, which centers deltas around 0 instead of
-# always firing a tick late.  The cap allows full centering even at high speed
-# with coarse get_pos() steps (~43ms audio-buffer chunks * 1.6x ~= 69ms) while
-# bounding how early a marker can fire after a reset or dropped frame.
+# expected per-tick position advance -- wall-clock tick interval * speed --
+# which centers deltas around 0 instead of always firing a tick late.  The cap
+# allows full centering even at high speed with coarse get_pos() steps (~43ms
+# audio-buffer chunks * 1.6x ~= 69ms) while bounding how early a marker can fire
+# after a dropped frame or focus-loss gap.
 CUE_MARKER_LEAD_MAX = 0.04
 
 
@@ -85,16 +86,17 @@ def _cue_pick_deduped(files, picked, max_tries=3):
         tries += 1
 
 
-def _cue_marker_lead(effective_elapsed, prev_eff):
+def _cue_marker_lead(tick_interval, speed):
     # type: (float, float) -> float
-    """Seconds to fire a video marker early: half the per-tick position
-    advance, clamped to CUE_MARKER_LEAD_MAX.  Zero when the advance is unknown
-    (prev_eff < 0 reset sentinel) or playback is stalled (advance ~= 0)."""
-    if prev_eff < 0.0:
+    """Seconds to fire a video marker early: half the expected per-tick
+    position advance (wall-clock tick interval * speed), clamped to
+    CUE_MARKER_LEAD_MAX.  Zero when the cadence is unknown (first tick).  Sized
+    from the real frame cadence -- not the previous tick's position jump -- so
+    it stays stable through get_pos() chunking and the position jumps at
+    speed-variant changes, which a position-derived lead misreads."""
+    if tick_interval <= 0.0:
         return 0.0
-    lead = 0.5 * (effective_elapsed - prev_eff)
-    if lead < 0.0:
-        return 0.0
+    lead = 0.5 * tick_interval * speed
     if lead > CUE_MARKER_LEAD_MAX:
         return CUE_MARKER_LEAD_MAX
     return lead
@@ -161,6 +163,9 @@ class CueTriggerEngine(object):
         self.played_video_keys = set()
         self._prev_eff_elapsed = -1.0
         self._tick_count = 0
+        # Wall-clock time of the last active tick; measures the frame cadence
+        # the marker lead is sized from.  0 = no baseline yet (first tick).
+        self._last_tick_wall = 0.0
         # Per-tick video-level intensity resolution; the global volume scale
         # for non-hooked fires during a video with intensity.
         self._vid_intensity = None  # type: Optional[Any]
@@ -267,11 +272,16 @@ class CueTriggerEngine(object):
         # type: (str, str) -> None
         """Called every frame. Handles loop (l_) and video (v_) triggers."""
         if not self.active:
+            self._last_tick_wall = 0.0
             return
 
         self._tick_count += 1
         tick = self._tick_count
         now = _time.time()
+        # Frame cadence for the marker lead: the real wall-clock interval since
+        # the last tick.  Zero on the first tick (no baseline yet).
+        interval = now - self._last_tick_wall if self._last_tick_wall else 0.0
+        self._last_tick_wall = now
 
         self._td.tick(now, current_file, top_layer_type, self._vid_manager.channel)
 
@@ -285,7 +295,7 @@ class CueTriggerEngine(object):
         self._vid_intensity = self._vid_intensity_resolution(current_file, speed, variants)
 
         self._tick_loop(now, tick, current_file, speed, variants)
-        self._tick_video(current_file, top_layer_type, speed, variants)
+        self._tick_video(current_file, top_layer_type, speed, variants, interval)
 
     def _vid_intensity_resolution(self, current_file, speed, variants):
         # type: (str, float, Optional[List[float]]) -> Optional[Any]
@@ -544,8 +554,8 @@ class CueTriggerEngine(object):
 
     # -- video triggers (v_ keys) --
 
-    def _tick_video(self, current_file, top_layer_type, speed, variants):
-        # type: (str, str, float, Optional[List[float]]) -> None
+    def _tick_video(self, current_file, top_layer_type, speed, variants, tick_interval=0.0):
+        # type: (str, str, float, Optional[List[float]], float) -> None
         """Video pool triggers for v_ keys -- fires SFX at marked times.
 
         Uses two complementary checks so markers aren't missed when playback
@@ -581,14 +591,18 @@ class CueTriggerEngine(object):
             self._td.note_restart()
 
         if current_file:
-            self._fire_video_markers(current_file, effective_elapsed, self._prev_eff_elapsed, elapsed, speed, variants)
+            self._fire_video_markers(
+                current_file, effective_elapsed, self._prev_eff_elapsed, elapsed, speed, variants, tick_interval
+            )
 
         self._vid_manager.last_elapsed = elapsed
         # Store for next tick's cross-between-ticks detection
         self._prev_eff_elapsed = effective_elapsed
 
-    def _fire_video_markers(self, current_file, effective_elapsed, prev_eff, elapsed, speed, variants):
-        # type: (str, float, float, float, float, Optional[List[float]]) -> None
+    def _fire_video_markers(
+        self, current_file, effective_elapsed, prev_eff, elapsed, speed, variants, tick_interval=0.0
+    ):
+        # type: (str, float, float, float, float, Optional[List[float]], float) -> None
         """Fire SFX for this video's markers passed since the last tick.
 
         Preview markers from the repeat dialog ride along as extra pools.
@@ -620,9 +634,9 @@ class CueTriggerEngine(object):
         # timestamps doesn't invalidate already-fired keys.
         time_counts = {}
         marker_tolerance = 0.08
-        # Lead compensation: fire up to half a tick's position advance before
+        # Lead compensation: fire up to half a tick's expected advance before
         # each marker so deltas center on 0 instead of always landing late.
-        marker_lead = _cue_marker_lead(effective_elapsed, prev_eff)
+        marker_lead = _cue_marker_lead(tick_interval, speed)
 
         for idx, pool_entry in enumerate(markers):
             is_preview = idx >= len(markers) - preview_count
