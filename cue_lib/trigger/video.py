@@ -174,6 +174,4 @@ class CueVideoTrigger(object):
                 self.played_keys.add(ts_key)
                 self._engine._debug.note_failed_fire(t, effective_elapsed, current_file)
 
-        self._engine._debug.end_fire_loop(
-            current_file, effective_elapsed, self.played_keys, markers, preview_count
-        )
+        self._engine._debug.end_fire_loop(current_file, effective_elapsed, self.played_keys, markers, preview_count)

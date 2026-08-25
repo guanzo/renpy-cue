@@ -4,7 +4,7 @@ from typing import List, Optional, Set
 from cue_lib.trigger.engine import CueTriggerEngine
 
 class CueVideoTrigger:
-    played_video_keys: Set[str]
+    played_keys: Set[str]
     _prev_eff_elapsed: float
 
     def __init__(self, engine: CueTriggerEngine) -> None: ...

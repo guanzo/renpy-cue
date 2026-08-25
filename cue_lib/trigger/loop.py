@@ -14,7 +14,7 @@ from cue_lib.util import _cue_log, create_loop_key, create_vid_key
 
 MYPY = False
 if MYPY:
-    from typing import List, Optional
+    from typing import Any, Dict, List, Optional
     from cue_lib.trigger.engine import CueTriggerEngine  # pyright: ignore[reportUnusedImport]
 
 
@@ -64,102 +64,126 @@ class CueLoopTrigger(object):
             self.loop_states[loop_key] = {}
         ps = self.loop_states[loop_key]
 
+        # Files already picked this tick; dedup picks across pools.
         picked = []
         for pi, pool in enumerate(pools):
             # One resolve per pool: a hooked pool with nothing at its active
             # level (or a dead group) resolves to no files and is skipped below.
             resolved = self._engine._store.resolve_pool(pool, speed, variants, flags=flags, expand=True)
-            files = resolved.files
-            vol_mult = resolved.volume_mult if resolved.level is not None else vid_scale
-            level = resolved.level
-            if not files:
+            if not resolved.files:
                 continue
+            vol_mult = resolved.volume_mult if resolved.level is not None else vid_scale
 
             pst = ps.get(pi)
             if pst is None:
-                init_delay = _random.uniform(0.0, self._loop_delay(resolved.frequency, resolved.freq_mult))
-                ps[pi] = {
-                    "ready_at": now + init_delay,
-                    "channels": [],
-                    "play_start": 0.0,
-                    "blocked_logged": False,
-                    "ilevel": level,
-                }
-                pst = ps[pi]
+                pst = self._new_pool_state(now, resolved)
+                ps[pi] = pst
 
-            # If this pool's channels are done playing, reset for next cycle
-            if pst["channels"] and not _cue_loop_still_playing(pst["channels"]):
-                dur = now - pst["play_start"]
-                breathing = self._loop_delay(resolved.frequency, resolved.freq_mult)
-                pst["ready_at"] = now + breathing
-                pst["channels"] = []
-                _cue_log(
-                    "TICK#{} POOL-DONE  key={} pool={} dur={:.2f}s next_in={:.2f}s".format(
-                        tick, loop_key, pi, dur, breathing
-                    )
+            if not self._pool_should_fire(pst, now, tick, loop_key, pi, resolved):
+                continue
+
+            picked_file = self._pool_fire(pst, now, tick, loop_key, pi, pool, entry, resolved, vol_mult, picked)
+            if picked_file:
+                picked.append(picked_file)
+
+    def _new_pool_state(self, now, resolved):
+        # type: (float, Any) -> Dict[str, Any]
+        """Fresh fire state for one pool: armed with a random breathing delay."""
+        init_delay = _random.uniform(0.0, self._loop_delay(resolved.frequency, resolved.freq_mult))
+        return {
+            "ready_at": now + init_delay,
+            "channels": [],
+            "play_start": 0.0,
+            "blocked_logged": False,
+            "ilevel": resolved.level,
+        }
+
+    def _pool_should_fire(self, pst, now, tick, loop_key, pi, resolved):
+        # type: (Dict[str, Any], float, int, str, int, Any) -> bool
+        """Advance one pool toward its next fire; True when it should fire now.
+
+        Arms the next cycle when its channel finished, re-arms a pending fire
+        on a level change, and defers through the hold/wait gates."""
+        # Finished channels re-arm the timer for the next cycle.
+        if pst["channels"] and not _cue_loop_still_playing(pst["channels"]):
+            dur = now - pst["play_start"]
+            breathing = self._loop_delay(resolved.frequency, resolved.freq_mult)
+            pst["ready_at"] = now + breathing
+            pst["channels"] = []
+            _cue_log(
+                "TICK#{} POOL-DONE  key={} pool={} dur={:.2f}s next_in={:.2f}s".format(
+                    tick, loop_key, pi, dur, breathing
                 )
+            )
 
-            # Level change: drop a pending/deferred fire and restart the timer
-            # with the new level's delay.  A sound still playing is left to
-            # finish -- POOL-DONE above re-arms with the new level.
-            if level is not None and pst.get("ilevel") != level:
-                pst["ilevel"] = level
-                if not pst["channels"]:
-                    pst["ready_at"] = now + self._loop_delay(resolved.frequency, resolved.freq_mult)
+        # Level change: drop a pending/deferred fire and restart the timer
+        # with the new level's delay.  A sound still playing is left to
+        # finish -- POOL-DONE above re-arms with the new level.
+        level = resolved.level
+        if level is not None and pst.get("ilevel") != level:
+            pst["ilevel"] = level
+            if not pst["channels"]:
+                pst["ready_at"] = now + self._loop_delay(resolved.frequency, resolved.freq_mult)
 
-            # Skip if not ready yet
-            if pst["channels"]:
-                continue
-            if now < pst["ready_at"]:
-                continue
+        # Skip if not ready yet
+        if pst["channels"]:
+            return False
+        if now < pst["ready_at"]:
+            return False
 
-            excl = resolved.exclusive
-            # Gate: a holding out-group SFX owns the air -- defer and retry.
-            # Logged once per blocked episode (flag clears on play) so the
-            # 0.1s retry cadence doesn't spam the log.
-            if self._engine.excl.is_hold_blocked(CUE_EXCL_KIND_LOOP, None, None):
-                if not pst.get("blocked_logged"):
-                    _cue_log("TICK#{} POOL-DEFER reason=hold key={} pool={}".format(tick, loop_key, pi))
-                    pst["blocked_logged"] = True
-                pst["ready_at"] = now + 0.1
-                continue
+        excl = resolved.exclusive
+        # Gate: a holding out-group SFX owns the air -- defer and retry.
+        # Logged once per blocked episode (flag clears on play) so the
+        # 0.1s retry cadence doesn't spam the log.
+        if self._engine.excl.is_hold_blocked(CUE_EXCL_KIND_LOOP, None, None):
+            if not pst.get("blocked_logged"):
+                _cue_log("TICK#{} POOL-DEFER reason=hold key={} pool={}".format(tick, loop_key, pi))
+                pst["blocked_logged"] = True
+            pst["ready_at"] = now + 0.1
+            return False
 
-            # Gate: wait mode defers until no out-group loop SFX is playing.
-            if excl.start == CueExclusiveStart.WAIT and self._engine.excl.is_outgroup_busy(
-                CUE_EXCL_KIND_LOOP, None, None
-            ):
-                if not pst.get("blocked_logged"):
-                    _cue_log("TICK#{} POOL-DEFER reason=wait key={} pool={}".format(tick, loop_key, pi))
-                    pst["blocked_logged"] = True
-                pst["ready_at"] = now + 0.1
-                continue
+        # Gate: wait mode defers until no out-group loop SFX is playing.
+        if excl.start == CueExclusiveStart.WAIT and self._engine.excl.is_outgroup_busy(CUE_EXCL_KIND_LOOP, None, None):
+            if not pst.get("blocked_logged"):
+                _cue_log("TICK#{} POOL-DEFER reason=wait key={} pool={}".format(tick, loop_key, pi))
+                pst["blocked_logged"] = True
+            pst["ready_at"] = now + 0.1
+            return False
 
-            # Pick a file and play
-            picked_file = _cue_pick_deduped(files, picked)
-            if picked_file is None:
-                continue
-            picked.append(picked_file)
-            if excl.start == CueExclusiveStart.FADE:
-                # Cut-in: fade out other loops (never image/dialogue SFX).
-                faded = _cue.sfx.fade_out(
-                    exclude_channels=self._engine.excl.group_channels(CUE_EXCL_KIND_LOOP, None, None),
-                    only_channels=self._engine.excl.kind_channels(CUE_EXCL_KIND_LOOP),
+        return True
+
+    def _pool_fire(self, pst, now, tick, loop_key, pi, pool, entry, resolved, vol_mult, picked):
+        # type: (Dict[str, Any], float, int, str, int, Any, Any, Any, float, List[str]) -> Optional[str]
+        """Pick a deduped file and play it on the loop channel.
+
+        Returns the picked file (None when deduped away); the caller records
+        it in the running dedup list.  FADE mode sweeps other loop channels."""
+        picked_file = _cue_pick_deduped(resolved.files, picked)
+        if picked_file is None:
+            return None
+        excl = resolved.exclusive
+        if excl.start == CueExclusiveStart.FADE:
+            # Cut-in: fade out other loops (never image/dialogue SFX).
+            faded = _cue.sfx.fade_out(
+                exclude_channels=self._engine.excl.group_channels(CUE_EXCL_KIND_LOOP, None, None),
+                only_channels=self._engine.excl.kind_channels(CUE_EXCL_KIND_LOOP),
+            )
+            _cue_log("TICK#{} POOL-SWEEP key={} pool={} faded={}".format(tick, loop_key, pi, faded))
+        ch_used = _cue.sfx.play_pool(entry, loop_key, pool, pi, file=picked_file, volume_mult=vol_mult)
+        if ch_used:
+            pst["channels"] = [ch_used]
+            pst["play_start"] = now
+            pst["blocked_logged"] = False
+            self._engine.excl.track_channel(ch_used, CUE_EXCL_KIND_LOOP, None, None, excl.hold)
+
+            _cue_log(
+                "TICK#{} POOL-PLAY  key={} pool={} ch={} dur={:.2f}s next_in={:.2f}s".format(
+                    tick,
+                    loop_key,
+                    pi,
+                    ch_used,
+                    _music.get_duration(channel=ch_used) or 0.0,
+                    self._loop_delay(resolved.frequency, resolved.freq_mult),
                 )
-                _cue_log("TICK#{} POOL-SWEEP key={} pool={} faded={}".format(tick, loop_key, pi, faded))
-            ch_used = _cue.sfx.play_pool(entry, loop_key, pool, pi, file=picked_file, volume_mult=vol_mult)
-            if ch_used:
-                pst["channels"] = [ch_used]
-                pst["play_start"] = now
-                pst["blocked_logged"] = False
-                self._engine.excl.track_channel(ch_used, CUE_EXCL_KIND_LOOP, None, None, excl.hold)
-
-                _cue_log(
-                    "TICK#{} POOL-PLAY  key={} pool={} ch={} dur={:.2f}s next_in={:.2f}s".format(
-                        tick,
-                        loop_key,
-                        pi,
-                        ch_used,
-                        _music.get_duration(channel=ch_used) or 0.0,
-                        self._loop_delay(resolved.frequency, resolved.freq_mult),
-                    )
-                )
+            )
+        return picked_file

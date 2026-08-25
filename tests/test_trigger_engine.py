@@ -936,18 +936,18 @@ def test_delay_nonpositive_multiplier_guarded():
     # A malformed (<= 0) multiplier would divide by zero; treat as identity.
     assert _cue_effective_delay(3.0, 0.0) == 3.0
     assert _cue_effective_delay(3.0, -1.0) == 3.0
-played_keys
+
 
 # ---------------------------------------------------------------------------
 # Anomaly detection (TD: late-fire / missed / stall / stuck-gate + cooldown)
 # ---------------------------------------------------------------------------
 
-played_keys
+
 def test_tick_video_reports_play_failed_and_marks_played(sfx_playback, monkeypatch):
     """A reached marker whose playback fails (play_pool returns None) is
     reported once as play-failed and marked as fired -- no retry every tick,
     no mislabel as missed."""
-    monkeypatch.setatplayed_keysUE_DEBUG", True)
+    monkeypatch.setattr(_constants, "CUE_DEBUG", True)
     store = FakeMarkerStore({"v_scene.ogv": {"pools": []}})
     markers = FakeMarkers(markers=[{"time": 0.680, "files": []}])
     vid = FakeVidManager(elapsed=0.5)
@@ -958,18 +958,18 @@ def test_tick_video_reports_play_failed_and_marks_played(sfx_playback, monkeypat
 
     eng.video.tick("scene.ogv", "movie", 1.0, None)  # eff=0.5: marker not yet reached
     assert reports == []
-    assert eng.video.played_video_keys == set()
+    assert eng.video.played_keys == set()
 
     vid._elapsed = 0.82  # crossed 0.680 (+0.14, under late threshold) but play failed
     eng.video.tick("scene.ogv", "movie", 1.0, None)
     assert reports and reports[0][0] == "play-failed"
     assert "mt=0.680" in reports[0][1]
-    assert eng.video.played_video_keys == {"v_scene.ogv@0.680#1"}  # marked fired
+    assert eng.video.played_keys == {"v_scene.ogv@0.680#1"}  # marked fired
 
     vid._elapsed = 0.9  # still past the marker; must NOT retry or re-report
     eng.video.tick("scene.ogv", "movie", 1.0, None)
     assert len(reports) == 1
-    assert eng.video.played_video_keys == {"v_scene.ogv@0.680#1"}
+    assert eng.video.played_keys == {"v_scene.ogv@0.680#1"}
 
 
 def test_tick_video_reports_missed_never_reached(play_stub, monkeypatch):
