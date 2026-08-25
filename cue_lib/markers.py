@@ -751,9 +751,9 @@ def _cue_send_level_to_target_tt():
     intensity hook, so the button is disabled there."""
     ctx_id = _cue.markers.resolve_target_context()
     if ctx_id == CueContextType.VIDEO:
-        return "Hook this level to the Video pool.\nThe pool fires from the active level's files."
+        return "Attach this level to the Video pool.\nThe pool fires from the active level's files."
     if ctx_id == CueContextType.LOOP:
-        return "Hook this level to the Loop pool.\nThe pool fires from the active level's files."
+        return "Attach this level to the Loop pool.\nThe pool fires from the active level's files."
     return "Select the Video or Loop target to hook this level."
 
 

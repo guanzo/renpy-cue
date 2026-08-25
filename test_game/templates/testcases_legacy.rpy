@@ -26,10 +26,8 @@ init 1000 python:
     def _cue_test_reset():
         _cue.trigger.active = True
         _cue.trigger.last_played = []
-        _cue.trigger.played_video_keys.clear()
-        _cue.trigger.loop_states = {}
-        _cue.trigger.excl_channels.clear()
-        _cue.trigger._prev_eff_elapsed = -1.0
+        _cue.trigger.reset()
+        _cue.trigger.excl.channels.clear()
         _cue.current_file = ""
         # Empty scene leaves top_layer_type stale; clear it so the target
         # fallback doesn't point at a movie that isn't on screen.
@@ -150,7 +148,7 @@ init -10 python:
             _cue.top_layer_type == "movie"
             and _cue.vid_manager.get_duration() > 0
             and _cue.vid_manager.get_elapsed() > 0.0
-            and len(_cue.trigger.played_video_keys) >= 1
+            and len(_cue.trigger.video.played_keys) >= 1
         )
 
     def _cue_io_idle():
@@ -1263,7 +1261,7 @@ testcase video_marker_fires_at_ts:
     $ _cue.markers._get_or_create_entry("v_cuevid")["pools"] = [{"time": 0.0, "files": ["sfx_001.ogg"], "volume": 1.0}]
     $ renpy.show("cuevid")
     # Wait out the 7.x movie startup: the v_ marker fires on the first tick
-    # even before the movie advances, but played_video_keys is wiped every tick
+    # even before the movie advances, but played_keys is wiped every tick
     # while last_elapsed == 0.  Only once the movie actually plays (elapsed > 0)
     # does the fired key stick.  Poll until it does (see the init -10 waiter
     # above) -- a fixed pause races slow 7.x startup under xvfb.
@@ -1272,7 +1270,7 @@ testcase video_marker_fires_at_ts:
     $ _ok = _cue.top_layer_type == "movie"
     $ _ok = _ok and _cue.vid_manager.get_duration() > 0
     $ _ok = _ok and _cue.vid_manager.get_elapsed() > 0.0
-    $ _ok = _ok and len(_cue.trigger.played_video_keys) >= 1
+    $ _ok = _ok and len(_cue.trigger.video.played_keys) >= 1
     $ _cue.markers.pop("v_cuevid", None)
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()

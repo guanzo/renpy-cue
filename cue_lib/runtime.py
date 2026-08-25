@@ -218,9 +218,7 @@ def _cue_refresh_context_impl():
             img_key = create_img_key(_cue.current_file)
 
         _cue.music.play_custom_music()
-        _cue.trigger.loop_states = {}
-        _cue.trigger.played_video_keys.clear()
-        _cue.trigger._prev_eff_elapsed = -1.0
+        _cue.trigger.reset()
         if _cue.is_overlay_visible:
             _cue.video_editor.refresh()
         _cue.video_sequence.handle(_cue.current_file)
@@ -242,7 +240,9 @@ def _cue_refresh_context_impl():
 
     if changed:
         _cue_log("CTX-CHANGE{}".format(changed))
-        _cue.trigger.fire_context(img_key, dlg_key)
+        for ctx_key in (img_key, dlg_key):
+            if ctx_key:
+                _cue.trigger.fire_context(ctx_key)
         renpy.restart_interaction()
 
     if _cue.ctx._shake_just_happened:
@@ -430,7 +430,7 @@ def _cue_tick_trigger_impl():
     _cue.video_sequence.tick()
     _cue.trigger.tick(_cue.current_file, _cue.top_layer_type or "")
     # Tick cadence + body-cost measurement live in the trigger-debug module.
-    _cue.trigger._td.tick_end(_t0)
+    _cue.trigger._debug.tick_end(_t0)
 
     # Slow lane: work that doesn't need the 20ms cadence runs at most every
     # 0.25s -- search-bar rebuilds and anything else deferred here.

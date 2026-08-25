@@ -812,10 +812,10 @@ def test_loop_add_pool_adds_frequency(mgr):
 def test_loop_clear_pops_trigger_state(mgr):
     _scene(mgr)
     mgr.loop.add_pool()
-    mgr._trigger.loop_states["l_scene.ogv"] = {"state": "playing"}
+    mgr._trigger.loop.loop_states["l_scene.ogv"] = {"state": "playing"}
     mgr.loop.clear()
     assert "l_scene.ogv" not in mgr._data
-    assert "l_scene.ogv" not in mgr._trigger.loop_states
+    assert "l_scene.ogv" not in mgr._trigger.loop.loop_states
 
 
 def test_loop_set_frequency(mgr):

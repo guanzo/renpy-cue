@@ -400,10 +400,8 @@ def test_refresh_context_file_change_fires(cue, monkeypatch):
     assert cue.calls["music.play_custom_music"] == [((), {})]
     assert cue.calls["video_sequence.handle"] == [(("scene.ogv",), {})]
     assert cue.calls["speed_resolver.clear_pending"] == [((), {})]
-    assert cue.trigger.loop_states == {}
-    assert cue.trigger.played_video_keys == set()
-    assert cue.trigger._prev_eff_elapsed == -1.0
-    assert cue.calls["trigger.fire_context"] == [((("i_scene.ogv", None)), {})]
+    assert cue.calls["trigger.reset"] == [((), {})]
+    assert cue.calls["trigger.fire_context"] == [((("i_scene.ogv",), {}))]
     assert "video_editor.refresh" not in cue.calls  # overlay hidden
 
 
@@ -423,7 +421,7 @@ def test_refresh_context_channel_change(cue, monkeypatch):
     _runtime._cue_refresh_context()
     # refresh_channel swept the stale channel (no candidates) -> ch branch
     assert cue.vid_manager.channel is None
-    assert cue.calls["trigger.fire_context"] == [((None, None), {})]
+    assert "trigger.fire_context" not in cue.calls
 
 
 def test_refresh_context_dialogue_change(cue, monkeypatch):
@@ -435,7 +433,7 @@ def test_refresh_context_dialogue_change(cue, monkeypatch):
     cue.prev_dialogue = "Goodbye"
     monkeypatch.setattr(_runtime, "_cue_get_top_layer", lambda: ("scene.ogv", "image", None))
     _runtime._cue_refresh_context()
-    assert cue.calls["trigger.fire_context"] == [((None, "d_scene.ogv__Hello there"), {})]
+    assert cue.calls["trigger.fire_context"] == [((("d_scene.ogv__Hello there",), {}))]
 
 
 def test_refresh_context_type_change(cue, monkeypatch):
@@ -449,7 +447,7 @@ def test_refresh_context_type_change(cue, monkeypatch):
     _runtime._cue_refresh_context()
     assert cue.ctx.top_layer_type == "movie"
     assert cue.ctx.top_displayable is d
-    assert cue.calls["trigger.fire_context"] == [((None, None), {})]
+    assert "trigger.fire_context" not in cue.calls
 
 
 def test_refresh_context_shake_fires_only_shake(cue, monkeypatch):
@@ -470,7 +468,7 @@ def test_refresh_context_shake_skips_duplicate_after_file_change(cue, monkeypatc
     monkeypatch.setattr(_runtime, "_cue_get_top_layer", lambda: ("scene.ogv", "image", None))
     _runtime._cue_refresh_context()
     # file-change fire set img_key == shake_key, so the shake fire is skipped
-    assert cue.calls["trigger.fire_context"] == [((("i_scene.ogv", None)), {})]
+    assert cue.calls["trigger.fire_context"] == [((("i_scene.ogv",), {}))]
 
 
 # ==========================================================================

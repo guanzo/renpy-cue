@@ -19,6 +19,12 @@ import renpy.store as _store
 
 import cue_lib.runtime as _runtime
 import cue_lib.trigger as _trigger
+import cue_lib.trigger.context as _tcontext
+import cue_lib.trigger.engine as _tengine
+import cue_lib.trigger.helpers as _thelpers
+import cue_lib.trigger.loop as _tloop
+import cue_lib.trigger.trigger_debug as _tdbg
+import cue_lib.trigger.video as _tvideo
 import cue_lib.util as _util
 from cue_lib.trigger import CueTriggerEngine
 from cue_lib.constants import CueExclusiveStart
@@ -35,6 +41,11 @@ def cue(monkeypatch, tmp_path):
     monkeypatch.setattr(_runtime, "_cue", c)
     monkeypatch.setattr(_trigger, "_cue", c)
     monkeypatch.setattr(_util, "_cue", c)
+    # The trigger submodules each bind the _cue singleton at import; point them
+    # all at the fake graph so the video/loop fire paths read the fake's sfx,
+    # intensity, and ctx.
+    for _mod in (_tcontext, _tengine, _thelpers, _tloop, _tdbg, _tvideo):
+        monkeypatch.setattr(_mod, "_cue", c)
     _store.persistent._cue = None
     _music._reset_all()
     return c
@@ -105,7 +116,7 @@ def _video_still_playing(ch):
 
 def _fire_video_sfx(eng):
     """Fire the t=0 video marker and return the channel it played on."""
-    eng._tick_video("scene.ogv", "movie", 1.0, None)
+    eng.video.tick("scene.ogv", "movie", 1.0, None)
     return _channel_playing("moan.ogg")
 
 
@@ -178,7 +189,7 @@ def test_excl_loop_fade_leaves_video_sfx(cue, real_sfx, monkeypatch):
     video_ch = _fire_video_sfx(eng)
     assert video_ch is not None
 
-    eng._tick_loop(100.0, 1, "scene.ogg", 1.0, None)
+    eng.loop.tick(100.0, 1, "scene.ogg", 1.0, None)
 
     assert _video_still_playing(video_ch), "loop cut-in must not fade video SFX"
 

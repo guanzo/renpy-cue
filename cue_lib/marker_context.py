@@ -831,7 +831,7 @@ class CueLoopContext(CueMarkerContext):
         # type: () -> None
         key = self._key()
         self._mgr.pop(key, None)
-        self._mgr._trigger.loop_states.pop(key, None)
+        self._mgr._trigger.loop.loop_states.pop(key, None)
         self._mgr._db_save_marker(key)
 
     def set_frequency(self, freq):

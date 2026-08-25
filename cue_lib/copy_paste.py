@@ -110,4 +110,4 @@ def paste_context(mgr):
     # A pasted loop marker takes over the target scene's loop key; drop the
     # state the old marker was scheduling so it starts on a fresh cycle.
     if pasted_loop and mgr._trigger is not None:
-        mgr._trigger.loop_states.pop(create_loop_key(ctx_file), None)
+        mgr._trigger.loop.loop_states.pop(create_loop_key(ctx_file), None)

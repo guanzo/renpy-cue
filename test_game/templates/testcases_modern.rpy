@@ -6,15 +6,13 @@
 init 1000 python:
     # Reset trigger/context state so each testcase starts clean.  The modern
     # suite runs every testcase in one process, so last_played, loop_states,
-    # played_video_keys, current_file, and the dialogue fields all leak
+    # played_keys, current_file, and the dialogue fields all leak
     # between testcases without this.
     def _cue_test_reset():
         _cue.trigger.active = True
         _cue.trigger.last_played = []
-        _cue.trigger.played_video_keys.clear()
-        _cue.trigger.loop_states = {}
-        _cue.trigger.excl_channels.clear()
-        _cue.trigger._prev_eff_elapsed = -1.0
+        _cue.trigger.reset()
+        _cue.trigger.excl.channels.clear()
         _cue.current_file = ""
         # Empty scene leaves top_layer_type stale; clear it so the target
         # fallback doesn't point at a movie that isn't on screen.
@@ -972,11 +970,11 @@ testcase video_marker_fires_at_ts:
     pause 1.0
     assert eval (_cue.top_layer_type == "movie")
     assert eval (_cue.vid_manager.get_duration() > 0)
-    # played_video_keys is wiped every tick while last_elapsed == 0, so a stuck
+    # played_keys is wiped every tick while last_elapsed == 0, so a stuck
     # audio clock would hang the poll below. Fail here instead.
     assert eval (_cue.vid_manager.get_elapsed() > 0.0)
-    pause 0.1 until eval (len(_cue.trigger.played_video_keys) >= 1) timeout 10.0
-    assert eval (len(_cue.trigger.played_video_keys) == 1)
+    pause 0.1 until eval (len(_cue.trigger.video.played_keys) >= 1) timeout 10.0
+    assert eval (len(_cue.trigger.video.played_keys) == 1)
     $ _cue.markers.pop("v_cuevid", None)
 
 testcase img_oneshot_dedup_no_refire:

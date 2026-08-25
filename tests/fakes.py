@@ -417,7 +417,7 @@ class FakeTrigger(object):
     """Trigger-engine stand-in for the loop_states dict loop clear() pops."""
 
     def __init__(self, loop_states=None):
-        self.loop_states = loop_states if loop_states is not None else {}
+        self.loop = types.SimpleNamespace(loop_states=loop_states if loop_states is not None else {})
         self.active = True
 
 
@@ -502,18 +502,29 @@ def make_runtime_cue(root="", audio_dir=""):
     )
 
     # trigger -- mutable state the context/tick drivers read and reset.
-    # _td mirrors the real engine's CueTriggerDebug seam that the tick driver
-    # pokes after each frame; the debug object itself is CUE_DEBUG-gated, so a
-    # no-op stand-in is enough here.
+    # _debug mirrors the real engine's CueTriggerDebug seam that the tick
+    # driver pokes after each frame; the debug object itself is CUE_DEBUG-
+    # gated, so a no-op stand-in is enough here.  reset() mirrors the real
+    # engine.reset: it records AND clears the per-file loop/video state.
+    def _reset_trigger():
+        def _do_reset():
+            cue.calls.setdefault("trigger.reset", []).append(((), {}))
+            cue.trigger.loop.loop_states = {}
+            cue.trigger.video.played_keys = set()
+            cue.trigger.video._prev_eff_elapsed = -1.0
+
+        return _do_reset
+
     cue.trigger = types.SimpleNamespace(
         active=True,
-        loop_states={},
-        played_video_keys=set(),
+        excl=types.SimpleNamespace(channels={}),
+        loop=types.SimpleNamespace(loop_states={}),
+        video=types.SimpleNamespace(played_keys=set(), _prev_eff_elapsed=-1.0),
         last_played=[],
-        _prev_eff_elapsed=-1.0,
-        _td=types.SimpleNamespace(tick_end=lambda t0: None),
+        _debug=types.SimpleNamespace(tick_end=lambda t0: None),
         fire_context=_rec("trigger", "fire_context"),
         tick=_rec("trigger", "tick"),
+        reset=_reset_trigger(),
     )
 
     # vid_manager -- channel + flags + driver methods.  reset() mirrors the

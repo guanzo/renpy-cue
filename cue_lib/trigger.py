@@ -151,7 +151,7 @@ class CueTriggerEngine(object):
         self.loop_states = {}
         self.excl_channels = {}
         self.last_played = []
-        self.played_video_keys = set()
+        self.played_keys = set()
         self._prev_eff_elapsed = -1.0
         self._tick_count = 0
         # Wall-clock time of the last active tick; measures the frame cadence
@@ -323,19 +323,20 @@ class CueTriggerEngine(object):
 
     # -- context triggers (i_, d_, shake) --
 
-    def fire_context(self, *keys, **kwargs):
-        # type: (*Optional[str], **Any) -> None
-        """Fire i_, d_, or shake triggers for the given keys.
+    def fire_context(self, key, only_shake_pools=False):
+        # type: (Optional[str], bool) -> None
+        """Fire an i_, d_, or shake trigger for one key.
 
         Multi-pool entries play one random file from EACH pool concurrently.
         Dedupe guard: same file in two pools of the same trigger is re-picked
         up to 3 times, then skipped to avoid echo artifacts.
 
-        When only_shake_pools is True, pools without the trigger_on_shake flag
-        are skipped -- used by screenshake triggers so each pool independently
-        opts in to firing on shake."""
-        only_shake_pools = kwargs.get("only_shake_pools", False)
+        An empty key is a no-op.  When only_shake_pools is True, pools without
+        the trigger_on_shake flag are skipped -- used by screenshake triggers
+        so each pool independently opts in to firing on shake."""
         if not self.active:
+            return
+        if not key:
             return
 
         # Global intensity volume scale: context one-shots (image/dialogue/
@@ -352,66 +353,63 @@ class CueTriggerEngine(object):
             if vres is not None:
                 vid_scale = vres.volume_mult
 
-        for key in keys:
-            if not key:
+        entry = self._store.get(key)
+        if not entry:
+            return
+        pools = entry.get("pools", [])
+        if not pools:
+            return
+        vol = entry.get("volume", CUE_VOLUME_DEFAULT)
+        # Resolve each pool once; the log's file count and the fire pass
+        # below share the same resolutions.
+        resolved_pools = [self._store.resolve_pool(p, expand=True) for p in pools]
+        total = sum(len(r.files or []) for r in resolved_pools)
+
+        _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(key, len(pools), total, vol))
+
+        # Group identity: scene (file) + line (dialogue key, or None for
+        # image/shake). Same scene AND (either is non-dialogue OR same
+        # line) share a group -- image/dialogue coexist, a new line cuts
+        # the previous one.
+        scene = get_key_file(key)
+        line = key if is_dlg_key(key) else None
+
+        picked = []
+        for pi, (pool, resolved) in enumerate(zip(pools, resolved_pools)):
+            if only_shake_pools and not resolved.trigger_on_shake:
                 continue
-            entry = self._store.get(key)
-            if not entry:
+            files = resolved.files
+            if not files:
                 continue
-            pools = entry.get("pools", [])
-            if not pools:
+            excl = resolved.exclusive
+            # Hold gate: a holding out-group SFX owns the air -- drop this pool.
+            if self._excl_hold_blocked(CUE_EXCL_KIND_ONESHOT, scene, line):
+                _cue_log("CTX-DROPPED key={} pool={} (held)".format(key, pi))
                 continue
-            vol = entry.get("volume", CUE_VOLUME_DEFAULT)
-            # Resolve each pool once; the log's file count and the fire pass
-            # below share the same resolutions.
-            resolved_pools = [self._store.resolve_pool(p, expand=True) for p in pools]
-            total = sum(len(r.files or []) for r in resolved_pools)
+            # One-shot pools can't defer: "wait" only plays into open air.
+            if excl.start == CueExclusiveStart.WAIT and self._excl_outgroup_busy(
+                CUE_EXCL_KIND_ONESHOT, scene, line
+            ):
+                _cue_log("CTX-DROPPED key={} pool={} (air busy)".format(key, pi))
+                continue
+            file = _cue_pick_deduped(files, picked)
+            if file is None:
+                continue
+            picked.append(file)
 
-            _cue_log("CTX-TRIGGER key={} pools={} files={} vol={:.2f}".format(key, len(pools), total, vol))
-
-            # Group identity: scene (file) + line (dialogue key, or None for
-            # image/shake). Same scene AND (either is non-dialogue OR same
-            # line) share a group -- image/dialogue coexist, a new line cuts
-            # the previous one.
-            scene = get_key_file(key)
-            line = key if is_dlg_key(key) else None
-
-            picked = []
-            for pi, (pool, resolved) in enumerate(zip(pools, resolved_pools)):
-                if only_shake_pools and not resolved.trigger_on_shake:
-                    continue
-                files = resolved.files
-                if not files:
-                    continue
-                excl = resolved.exclusive
-                # Hold gate: a holding out-group SFX owns the air -- drop this pool.
-                if self._excl_hold_blocked(CUE_EXCL_KIND_ONESHOT, scene, line):
-                    _cue_log("CTX-DROPPED key={} pool={} (held)".format(key, pi))
-                    continue
-                # One-shot pools can't defer: "wait" only plays into open air.
-                if excl.start == CueExclusiveStart.WAIT and self._excl_outgroup_busy(
-                    CUE_EXCL_KIND_ONESHOT, scene, line
-                ):
-                    _cue_log("CTX-DROPPED key={} pool={} (air busy)".format(key, pi))
-                    continue
-                file = _cue_pick_deduped(files, picked)
-                if file is None:
-                    continue
-                picked.append(file)
-
-                if excl.start == CueExclusiveStart.FADE:
-                    # Cut-in: fade out one-shots outside this group, plus any
-                    # playing loops (one-shots cut loops).  Video-marker SFX
-                    # are spared -- they're tracked as their own kind.
-                    faded = _cue.sfx.fade_out(
-                        exclude_channels=(
-                            self._excl_group_channels(CUE_EXCL_KIND_ONESHOT, scene, line)
-                            + self._excl_kind_channels(CUE_EXCL_KIND_VIDEO)
-                        )
+            if excl.start == CueExclusiveStart.FADE:
+                # Cut-in: fade out one-shots outside this group, plus any
+                # playing loops (one-shots cut loops).  Video-marker SFX
+                # are spared -- they're tracked as their own kind.
+                faded = _cue.sfx.fade_out(
+                    exclude_channels=(
+                        self._excl_group_channels(CUE_EXCL_KIND_ONESHOT, scene, line)
+                        + self._excl_kind_channels(CUE_EXCL_KIND_VIDEO)
                     )
-                    _cue_log("CTX-FADE key={} pool={} faded={}".format(key, pi, faded))
-                ch_used = _cue.sfx.play_pool(entry, key, pool, pi, file=file, volume_mult=vid_scale)
-                self._track_excl_channel(ch_used, CUE_EXCL_KIND_ONESHOT, scene, line, excl.hold)
+                )
+                _cue_log("CTX-FADE key={} pool={} faded={}".format(key, pi, faded))
+            ch_used = _cue.sfx.play_pool(entry, key, pool, pi, file=file, volume_mult=vid_scale)
+            self._track_excl_channel(ch_used, CUE_EXCL_KIND_ONESHOT, scene, line, excl.hold)
 
     # -- loop triggers (l_ keys) --
 
@@ -568,7 +566,7 @@ class CueTriggerEngine(object):
         is_fresh_reset = self._vid_manager.last_elapsed == 0
         is_backward_jump = self._vid_manager.last_elapsed > 0 and elapsed < self._vid_manager.last_elapsed - 0.3
         if is_fresh_reset or is_backward_jump:
-            self.played_video_keys.clear()
+            self.played_keys.clear()
             self._prev_eff_elapsed = -1.0
             self._td.note_restart()
 
@@ -588,7 +586,7 @@ class CueTriggerEngine(object):
         """Fire SFX for this video's markers passed since the last tick.
 
         Preview markers from the repeat dialog ride along as extra pools.
-        Skips markers already fired (played_video_keys) and pools missing a
+        Skips markers already fired (played_keys) and pools missing a
         time (logged, not crashed).  The dedup set and prev_eff bookkeeping
         live in _tick_video.  elapsed is the raw media position at this tick
         (effective_elapsed = elapsed * speed), passed through so the
@@ -635,7 +633,7 @@ class CueTriggerEngine(object):
             time_counts[t] = count
             ts_key = "{}@{:.3f}#{}".format(vid_key, t, count)
 
-            if ts_key in self.played_video_keys:
+            if ts_key in self.played_keys:
                 continue
 
             if not _cue_marker_reached(t, effective_elapsed, prev_eff, marker_tolerance, marker_lead):
@@ -662,14 +660,14 @@ class CueTriggerEngine(object):
                 # Overwrites any stale entry on the reused channel (dlg loops
                 # etc.), which is what makes the immunity deterministic.
                 self._track_excl_channel(f, CUE_EXCL_KIND_VIDEO, current_file, None, False)
-                self.played_video_keys.add(ts_key)
+                self.played_keys.add(ts_key)
                 self._td.note_fire(t, effective_elapsed, current_file)
             elif not is_preview:
                 # Reached but playback produced nothing (empty intensity
                 # folder / play_sfx exception).  Mark it fired so it doesn't
                 # retry every tick and noisily re-enter the missed check; the
                 # play-failed report carries the accuracy signal.
-                self.played_video_keys.add(ts_key)
+                self.played_keys.add(ts_key)
                 self._td.note_failed_fire(t, effective_elapsed, current_file)
 
-        self._td.end_fire_loop(current_file, effective_elapsed, self.played_video_keys, markers, preview_count)
+        self._td.end_fire_loop(current_file, effective_elapsed, self.played_keys, markers, preview_count)

@@ -5,6 +5,8 @@
 # (FakeVidManager / FakeSfxManager) or plain None since the tested methods
 # never touch trigger/video_editor.
 
+import types
+
 import pytest
 
 from cue_lib.constants import CUE_VOLUME_DEFAULT
@@ -623,12 +625,12 @@ class _Trigger(object):
     """Trigger stand-in: only the loop_states seam paste_context pops."""
 
     def __init__(self):
-        self.loop_states = {}
+        self.loop = types.SimpleNamespace(loop_states={})
 
 
 def test_paste_context_clears_target_loop_state(mgr):
     trig = _Trigger()
-    trig.loop_states = {"l_new.ogv": {"0": {"channels": ["old_ch"]}}, "l_other.ogv": {"0": {"channels": ["ch2"]}}}
+    trig.loop.loop_states = {"l_new.ogv": {"0": {"channels": ["old_ch"]}}, "l_other.ogv": {"0": {"channels": ["ch2"]}}}
     mgr._trigger = trig
     mgr._ctx.current_file = "scene.ogv"
     mgr["l_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}
@@ -636,13 +638,13 @@ def test_paste_context_clears_target_loop_state(mgr):
 
     mgr._ctx.current_file = "new.ogv"
     mgr.paste_context()
-    assert "l_new.ogv" not in trig.loop_states  # stale state for the pasted key dropped
-    assert "l_other.ogv" in trig.loop_states  # unrelated keys untouched
+    assert "l_new.ogv" not in trig.loop.loop_states  # stale state for the pasted key dropped
+    assert "l_other.ogv" in trig.loop.loop_states  # unrelated keys untouched
 
 
 def test_paste_context_keeps_loop_state_when_no_loop_pasted(mgr):
     trig = _Trigger()
-    trig.loop_states = {"l_scene.ogv": {"0": {"channels": ["ch"]}}}
+    trig.loop.loop_states = {"l_scene.ogv": {"0": {"channels": ["ch"]}}}
     mgr._trigger = trig
     mgr._ctx.current_file = "scene.ogv"
     mgr["i_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}  # image only
@@ -650,4 +652,4 @@ def test_paste_context_keeps_loop_state_when_no_loop_pasted(mgr):
 
     mgr._ctx.current_file = "new.ogv"
     mgr.paste_context()
-    assert "l_scene.ogv" in trig.loop_states  # untouched
+    assert "l_scene.ogv" in trig.loop.loop_states  # untouched
