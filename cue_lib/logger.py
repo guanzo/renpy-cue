@@ -182,7 +182,7 @@ def _cue_install_exception_handler():
     before us, if any.  The handler body is guarded so a failing safety net
     never crashes the game."""
 
-    previous = _config.exception_handler
+    previous = _config.exception_handler  # pyright: ignore[reportAttributeAccessIssue]
 
     def handler(exc, tb):
         try:
@@ -197,4 +197,4 @@ def _cue_install_exception_handler():
         except Exception:
             return not _constants.CUE_DEBUG
 
-    _config.exception_handler = handler
+    _config.exception_handler = handler  # pyright: ignore[reportAttributeAccessIssue]

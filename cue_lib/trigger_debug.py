@@ -36,8 +36,10 @@ CUE_TD_RESTART_WINDOW = 3.0  # restarts inside this window count toward a burst
 CUE_TD_RESTART_BURST_N = 5  # this many restarts in the window = burst
 CUE_TD_ACCURACY_MAX_FIRES = 500  # cap stored fire deltas per video
 # Tick cadence diagnostics: per-second window summary of tick intervals, body
-# cost, and the video position-clock rate relative to wall time.  Bounded to
-# CUE_TD_DIAG_MAX_LINES per session so it can't flood debug.log.
+# cost, and the video position-clock rate relative to wall time.  Gated behind
+# CUE_TD_DIAG (off unless debugging) -- it never feeds anomaly detection -- and
+# bounded to CUE_TD_DIAG_MAX_LINES per session so it can't flood debug.log.
+CUE_TD_DIAG = False  # master switch for TICK-DIAG cadence diagnostics
 CUE_TD_DIAG_WINDOW = 1.0  # accumulation window per summary line (s)
 CUE_TD_DIAG_MAX_LINES = 400  # hard cap on TICK-DIAG lines per session
 
@@ -109,11 +111,11 @@ class CueTriggerDebug(object):
         the fire loop no longer runs to close out."""
         if not _constants.CUE_DEBUG:
             return
-        if not self._diag_win_start:
+        if CUE_TD_DIAG and not self._diag_win_start:
             self._diag_win_start = now
         if self._last_tick_wall:
             _interval = now - self._last_tick_wall
-            if _interval < 1.0:  # ignore long gaps (focus loss, scene switch)
+            if CUE_TD_DIAG and _interval < 1.0:  # ignore long gaps (focus loss, scene switch)
                 self._diag_int_n += 1
                 if _interval < self._diag_int_min:
                     self._diag_int_min = _interval
@@ -123,7 +125,8 @@ class CueTriggerDebug(object):
             if top_layer_type == 'movie' and _interval > CUE_TD_STALL_GAP:
                 self.report("stall", "gap={:.2f} vid={}".format(_interval, current_file))
         self._last_tick_wall = now
-        self._diag_ticks += 1
+        if CUE_TD_DIAG:
+            self._diag_ticks += 1
 
         # Gate-closed: a movie is the top layer but the video manager has no
         # channel, so _tick_video early-returns and no markers can fire.  A
@@ -146,6 +149,8 @@ class CueTriggerDebug(object):
         """Close out an engine frame: tick-body wall cost, video clock-rate
         sample, and the per-second TICK-DIAG window summary."""
         if not _constants.CUE_DEBUG:
+            return
+        if not CUE_TD_DIAG:
             return
         _body = _time.time() - t0
         if _body > self._diag_body_max:
@@ -187,6 +192,8 @@ class CueTriggerDebug(object):
         # type: () -> None
         """Emit the accumulated TICK-DIAG window once it spans a second, then
         reset the accumulators for the next window."""
+        if not CUE_TD_DIAG:
+            return
         if self._diag_lines >= CUE_TD_DIAG_MAX_LINES:
             return
         if not self._diag_win_start:
