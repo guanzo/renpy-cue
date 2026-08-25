@@ -11,11 +11,73 @@ import renpy
 
 from renpy.store import Function
 
+from cue_lib.constants import CUE_HELP_SHIFT_SKIP_DELETE
 from cue_lib.markers import _cue_markers_send
+from cue_lib.ui.dialogs import _cue_confirm_delete_preset
+from cue_lib.util import _cue_filter_preset_files
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List
+    from typing import Any, Dict, List, Optional
+
+
+# Shared row helpers: every section/leaf row the content_rows builders emit is
+# one of these four shapes, so the renderer's data contract has a single
+# construction site.
+
+
+def _cue_file_row(key, label, depth, buttons, warn=None, gap=1, size=None):
+    # type: (str, str, int, List[Dict[str, Any]], Optional[str], Optional[int], Optional[int]) -> Dict[str, Any]
+    """A file leaf row: indent, buttons, gap-null, then the accent label."""
+    row = {
+        "key": key,
+        "type": "file",
+        "label": label,
+        "depth": depth,
+        "buttons": buttons,
+        "warn": warn or "",
+        "gap": gap,
+    }
+    if size:
+        row["size"] = size
+    return row
+
+
+def _cue_help_row(key, label, color=None, v_gap=None):
+    # type: (str, str, Optional[str], Optional[int]) -> Dict[str, Any]
+    """A muted help/empty-state line (depth 0, no buttons)."""
+    row = {"key": key, "type": "help", "label": label, "depth": 0}
+    if color:
+        row["color"] = color
+    if v_gap:
+        row["v_gap"] = v_gap
+    return row
+
+
+def _cue_section_rows(key, label, toggle_fn, expanded, searching, has_any, child_fn, auto_show=True):
+    # type: (str, str, Any, bool, bool, Any, Any, bool) -> List[Dict[str, Any]]
+    """Collapsible-section header + children-when-open.
+
+    The header hides during a search unless has_any() reports a match;
+    children render when the section is expanded, or during a search when
+    auto_show (the tree's 'reveal matches' rule).  has_any() is a thunk so a
+    search can skip an expensive child scan until the header is kept."""
+    if searching and not has_any():
+        return []
+    rows = [{"key": key, "type": "folder", "label": label, "depth": 0, "buttons": [], "toggle": toggle_fn}]
+    if expanded or (auto_show and searching):
+        rows.extend(child_fn())
+    return rows
+
+
+def _cue_folder_rows(key, label, depth, toggle_fn, expanded, searching, buttons, children):
+    # type: (str, str, int, Any, bool, bool, List[Dict[str, Any]], List[Dict[str, Any]]) -> List[Dict[str, Any]]
+    """A collapsible folder row + its children while open (or during a
+    search, when children auto-show like the tree)."""
+    rows = [{"key": key, "type": "folder", "label": label, "depth": depth, "buttons": buttons, "toggle": toggle_fn}]
+    if expanded or searching:
+        rows.extend(children)
+    return rows
 
 
 class CueTreeRowsBuilder(object):
@@ -145,6 +207,119 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
             "tt": target_tt,
             "enabled": target_ok,
         }
+
+    def _recent_rows(self, entries, target_ok, target_tt):
+        # type: (List[Dict[str, str]], bool, str) -> List[Dict[str, Any]]
+        """Recently-Used rows.  Each entry is {"type", "ref"} (file / folder /
+        preset).  File rows resolve a concrete _file_index so the [+] can send
+        an index; all [+]s send record=False so acting from this list does not
+        re-feed it.  Empty list yields the muted empty-state line."""
+        if not entries:
+            return [_cue_help_row("recent:empty", "Files you add to pools show up here.")]
+        rows = []
+        for entry in entries:
+            ref = entry["ref"]
+            kind = entry["type"]
+            if kind == "file":
+                idx = self._tree._file_index.get(ref, -1)
+                buttons = [
+                    {"icon": "play", "action": Function(self._tree._sfx.preview_sfx, ref)},
+                    {
+                        "icon": "plus",
+                        "action": Function(_cue_markers_send, "file", idx, False),
+                        "tt": target_tt,
+                        "enabled": target_ok and idx >= 0,
+                    },
+                ]
+            elif kind == "folder":
+                buttons = [
+                    {
+                        "icon": "play",
+                        "action": Function(self._tree._sfx.preview_folder, ref),
+                        "tt": "Play random file from folder",
+                    },
+                    {
+                        "icon": "plus",
+                        "action": Function(_cue_markers_send, "folder", ref, False),
+                        "tt": target_tt,
+                        "enabled": target_ok,
+                    },
+                ]
+            else:  # preset
+                buttons = [
+                    {
+                        "icon": "play",
+                        "action": Function(self._tree._sfx.preview_preset, ref),
+                        "tt": "Play random file from preset",
+                    },
+                    {
+                        "icon": "plus",
+                        "action": Function(_cue_markers_send, "preset", ref, False),
+                        "tt": target_tt,
+                        "enabled": target_ok,
+                    },
+                ]
+            rows.append(_cue_file_row("recent:" + ref, ref, 1, buttons))
+        return rows
+
+    def _preset_rows(self, preset_names, search_query, target_ok, target_tt):
+        # type: (List[str], str, bool, str) -> List[Dict[str, Any]]
+        """Pool Preset rows: one collapsible folder row per preset, then its
+        filtered files while expanded or searching.  Files auto-show during a
+        search so a content-matched preset reveals what matched (like the
+        tree's matching-folder rule)."""
+        searching = bool(search_query.strip())
+        rows = []
+        for pname in preset_names:
+            expanded = self._tree.expanded_presets.get(pname, False)
+            buttons = [
+                {
+                    "icon": "xmark",
+                    "action": Function(_cue_confirm_delete_preset, pname),
+                    "tt": "Delete preset" + CUE_HELP_SHIFT_SKIP_DELETE,
+                },
+                {
+                    "icon": "play",
+                    "action": Function(self._tree._sfx.preview_preset, pname),
+                    "tt": "Play random file from preset",
+                },
+                {
+                    "icon": "plus",
+                    "action": Function(_cue_markers_send, "preset", pname),
+                    "tt": target_tt,
+                    "enabled": target_ok,
+                },
+            ]
+            children = [
+                _cue_file_row(
+                    "preset:" + pname + "/" + child,
+                    child,
+                    1,
+                    [
+                        {
+                            "icon": "xmark",
+                            "action": Function(self._tree._sfx._markers.preset_remove_file, pname, child),
+                            "tt": "Remove file from preset",
+                        },
+                        {"icon": "play", "action": Function(self._tree._sfx.preview_sfx, child), "tt": "Preview file"},
+                    ],
+                    size=11,
+                )
+                for child in _cue_filter_preset_files(pname, search_query)
+            ]
+            rows.extend(
+                _cue_folder_rows(
+                    "preset:" + pname,
+                    pname,
+                    1,
+                    Function(self._tree.toggle_preset_expand, pname),
+                    expanded,
+                    searching,
+                    buttons,
+                    children,
+                )
+            )
+        return rows
 
     def warn_reason(self, item, target_ok, target_tt, unplayable):  # pyright: ignore[reportIncompatibleMethodOverride]
         # type: (Dict[str, Any], bool, str, Dict[str, str]) -> str
