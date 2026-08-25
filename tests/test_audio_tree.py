@@ -19,11 +19,12 @@ from renpy.store import persistent
 
 import cue_lib.audio.audio_tree as _tree
 import cue_lib.audio.game_music as _game
+import cue_lib.audio.sfx_manager as _sfx_mod
 import cue_lib.audio.user_music as _user
 import cue_lib.util as _util
 from cue_lib.audio.audio_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
 from cue_lib.audio.game_music import CueGameMusic
-from cue_lib.audio.sfx_manager import CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name
+from cue_lib.audio.sfx_manager import CueSfxLibraryTree, CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name
 from cue_lib.audio.user_music import CueUserMusic
 from cue_lib.constants import (
     CUE_PERSIST_SIDEBAR_MODE,
@@ -797,3 +798,90 @@ def test_tree_rows_ignores_search_state():
     assert [r["type"] for r in rows] == ["folder", "file"]
     assert tree.search_query == "norm"
     assert tree.expanded_folders == before_folders
+
+
+# ==========================================================================
+# SFX row buttons + warn reason
+# ==========================================================================
+
+
+def _sfx_tree_rows(sfx, target_ok=True, target_tt="Add to pool", unplayable=None):
+    # type: (CueSfxLibraryTree, bool, str, object) -> list
+    """Row stream for a two-row SFX tree (folder + file) with default state."""
+    sfx.visible_tree = [
+        {"type": "folder", "name": "v2/", "full_path": "v2/", "depth": 0, "expanded": True, "has_files": True},
+        {"type": "file", "name": "a.wav", "full_path": "v2/a.wav", "depth": 1, "index": 0},
+    ]
+    return sfx.tree_rows(target_ok, target_tt, unplayable or {})
+
+
+def test_sfx_row_buttons_normal_mode(sfx):
+    folder, file_row = _sfx_tree_rows(sfx)
+    assert [b["icon"] for b in folder["buttons"]] == ["play", "plus"]
+    assert folder["buttons"][0]["tt"] == "Play random file from folder"
+    assert folder["buttons"][0]["action"]._args[0] == sfx._sfx.preview_folder
+    assert folder["buttons"][1]["tt"] == "Add to pool"
+    assert folder["buttons"][1]["enabled"] is True
+    assert folder["buttons"][1]["action"]._args[0] is _sfx_mod._cue_markers_send
+    assert folder["buttons"][1]["action"]._args[1] == "folder"
+    assert folder["buttons"][1]["action"]._args[2] == "v2/"
+    assert [b["icon"] for b in file_row["buttons"]] == ["play", "plus"]
+    assert file_row["buttons"][0]["tt"] == "Preview audio"
+    assert file_row["buttons"][0]["action"]._args[0] == sfx._sfx.preview_sfx
+    assert file_row["buttons"][1]["action"]._args[1] == "file"
+    assert file_row["buttons"][1]["action"]._args[2] == 0  # file index
+    assert file_row["gap"] == 1
+    assert file_row["warn"] == ""
+
+
+def test_sfx_row_buttons_disabled_when_target_unavailable(sfx):
+    folder, file_row = _sfx_tree_rows(sfx, target_ok=False)
+    assert folder["buttons"][1]["enabled"] is False
+    assert file_row["buttons"][1]["enabled"] is False
+
+
+def test_sfx_row_buttons_add_mode(sfx, monkeypatch):
+    monkeypatch.setattr(renpy.store, "_cue_color_selected_alt", "#446688", raising=False)
+    sfx.ilevel_add_target = ("g", 1)
+    folder, file_row = _sfx_tree_rows(sfx)
+    fplus = folder["buttons"][1]
+    assert fplus["tt"] == "Add this folder to Level 1 of g."
+    assert fplus["enabled"] is True
+    assert fplus["bg"] == "#446688"
+    assert fplus["action"]._args[0] == sfx.ilevel_add_folder
+    assert fplus["action"]._args[1:3] == ("g", 1)
+    fplus2 = file_row["buttons"][1]
+    assert fplus2["tt"] == "Add this file to Level 1 of g."
+    assert fplus2["action"]._args[0] == sfx.ilevel_add_file
+    assert fplus2["action"]._args[1:3] == ("g", 1)
+
+
+def test_sfx_row_buttons_add_mode_dup_gates(sfx, monkeypatch):
+    monkeypatch.setattr(renpy.store, "_cue_color_selected_alt", "#446688", raising=False)
+    sfx.ilevel_add_target = ("g", 1)
+    sfx.level_has_file = lambda g, lv, ref: True  # shadow: simulate dup
+    _folder, file_row = _sfx_tree_rows(sfx)
+    plus = file_row["buttons"][1]
+    assert plus["enabled"] is False
+    assert plus["bg"] is None
+
+
+def test_sfx_folder_without_files_has_only_plus(sfx):
+    # The whole folder button block (play + add) is gated on has_files, so an
+    # empty folder shows no buttons -- exactly like the current screen.
+    sfx.visible_tree = [
+        {"type": "folder", "name": "empty/", "full_path": "empty/", "depth": 0, "expanded": False, "has_files": False}
+    ]
+    rows = sfx.tree_rows(False, "tt", {})
+    assert rows[0]["buttons"] == []
+
+
+def test_sfx_warn_reason(sfx):
+    audio = sfx._paths.audio_dir
+    sfx.visible_tree = [
+        {"type": "file", "name": "bad.wav", "full_path": "bad.wav", "depth": 0, "index": 0},
+        {"type": "file", "name": "ok.wav", "full_path": "ok.wav", "depth": 0, "index": 1},
+    ]
+    rows = sfx.tree_rows(True, "tt", {audio + "bad.wav": "unsupported format"})
+    assert rows[0]["warn"] == "unsupported format"
+    assert rows[1]["warn"] == ""
