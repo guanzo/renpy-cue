@@ -32,6 +32,7 @@ from cue_lib.util import (
     _cue_is_screenshake,
     _cue_log,
     _cue_make_tab_action,
+    _cue_open_in_os_file_explorer,
     _cue_parse_time,
     _cue_pick_file,
     _cue_replace_file,
@@ -581,6 +582,85 @@ def test_replace_file_nt_no_stale_dst(tmp_path, monkeypatch):
     _cue_replace_file(str(src), str(dst))
     assert removed == []  # lexists(dst) false -> no remove
     assert dst.read_bytes() == b"data"
+
+
+# ---------------------------------------------------------------------------
+# _cue_open_in_os_file_explorer (platform file-explorer dispatch)
+# ---------------------------------------------------------------------------
+
+
+def test_open_folder_linux_uses_xdg_open(tmp_path, monkeypatch):
+    target = str(tmp_path)
+    calls = []
+    monkeypatch.setattr(os, "name", "posix")
+    monkeypatch.setattr(_util.sys, "platform", "linux")
+    monkeypatch.setattr(_util._subprocess, "Popen", lambda cmd: calls.append(cmd))
+    _cue_open_in_os_file_explorer(target)
+    assert calls == [["xdg-open", target]]
+
+
+def test_open_folder_macos_uses_open(tmp_path, monkeypatch):
+    target = str(tmp_path)
+    calls = []
+    monkeypatch.setattr(os, "name", "posix")
+    monkeypatch.setattr(_util.sys, "platform", "darwin")
+    monkeypatch.setattr(_util._subprocess, "Popen", lambda cmd: calls.append(cmd))
+    _cue_open_in_os_file_explorer(target)
+    assert calls == [["open", target]]
+
+
+def test_open_folder_windows_uses_startfile(tmp_path, monkeypatch):
+    target = str(tmp_path)
+    calls = []
+    monkeypatch.setattr(os, "name", "nt")
+    monkeypatch.setattr(os, "startfile", lambda p: calls.append(p), raising=False)
+    _cue_open_in_os_file_explorer(target)
+    assert calls == [target]
+
+
+def test_open_folder_creates_missing_dir(tmp_path, monkeypatch):
+    target = str(tmp_path / "music")
+    calls = []
+    monkeypatch.setattr(os, "name", "posix")
+    monkeypatch.setattr(_util.sys, "platform", "linux")
+    monkeypatch.setattr(_util._subprocess, "Popen", lambda cmd: calls.append(cmd))
+    _cue_open_in_os_file_explorer(target)
+    assert os.path.isdir(target)  # created before the explorer is asked
+    assert calls == [["xdg-open", target]]
+
+
+def test_open_folder_existing_dir_not_recreated(tmp_path, monkeypatch):
+    target = str(tmp_path)
+    makedirs = []
+    monkeypatch.setattr(os, "name", "posix")
+    monkeypatch.setattr(_util.sys, "platform", "linux")
+    monkeypatch.setattr(os, "makedirs", lambda p: makedirs.append(p))
+    monkeypatch.setattr(_util._subprocess, "Popen", lambda cmd: None)
+    _cue_open_in_os_file_explorer(target)
+    assert makedirs == []  # dir already exists -> no mkdir
+
+
+def test_open_folder_swallows_mkdir_error(tmp_path, monkeypatch):
+    target = str(tmp_path / "music")
+    calls = []
+    monkeypatch.setattr(os, "name", "posix")
+    monkeypatch.setattr(_util.sys, "platform", "linux")
+    monkeypatch.setattr(_util._subprocess, "Popen", lambda cmd: calls.append(cmd))
+    monkeypatch.setattr(os, "makedirs", lambda p: (_ for _ in ()).throw(OSError("no perms")))
+    _cue_open_in_os_file_explorer(target)  # must not raise
+    assert calls == []  # nothing opened when the dir can't be created
+
+
+def test_open_folder_swallows_open_error(tmp_path, monkeypatch):
+    target = str(tmp_path)
+    monkeypatch.setattr(os, "name", "posix")
+    monkeypatch.setattr(_util.sys, "platform", "linux")
+
+    def _boom(cmd):
+        raise OSError("no xdg-open")
+
+    monkeypatch.setattr(_util._subprocess, "Popen", _boom)
+    _cue_open_in_os_file_explorer(target)  # must not raise
 
 
 # ---------------------------------------------------------------------------

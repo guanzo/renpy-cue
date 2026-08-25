@@ -41,7 +41,10 @@ screen cue_data_dir():
                 etext _cue.settings.shared_dir_error color _cue_color_error
             elif _cue.settings.shared_dir_success:
                 etext _cue.settings.shared_dir_success color _cue_color_green
-            use cue_txt_button("Save", Function(_cue.settings.confirm_shared_dir))
+            hbox:
+                spacing 6
+                use cue_open_in_explorer_btn(_cue.paths.original_root, "Open Data Folder")
+                use cue_txt_button("Save", Function(_cue.settings.confirm_shared_dir))
 
 
 screen cue_keybinds():

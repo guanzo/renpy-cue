@@ -290,10 +290,10 @@ testcase import_export_roundtrip:
     # rows + overwrite summary.
     run Function(_cue.dialogs.merge.open, "Roundtrip")
     pause 0.5
-    $ _ok = _ok and _cue.dialogs.active_id == "merge"
+    $ _ok = _ok and _cue.dialogs.active_dialog is _cue.dialogs.merge
     run Function(_cue.dialogs.merge.cancel)
     pause 0.5
-    $ _ok = _ok and _cue.dialogs.active_id is None
+    $ _ok = _ok and _cue.dialogs.active_dialog is None
     # Activate serves the whole editor from the extracted package: the
     # effective root follows.
     run Function(_cue.importer.activate, "Roundtrip")
@@ -312,14 +312,14 @@ testcase confirm_dialog_escape:
     pause 2.0
     run Function(_cue.dialogs.confirm.show, "Really?", _cue_hide_overlay)
     pause 0.5
-    $ if not (_cue.dialogs.active_id == "confirm"): renpy.quit(status=1)
+    $ if not (_cue.dialogs.active_dialog is _cue.dialogs.confirm): renpy.quit(status=1)
     $ import pygame_sdl2
     $ import renpy.test.testkey as _testkey
     $ _testkey.code_to_unicode[pygame_sdl2.K_ESCAPE] = "\x1b"
     $ _testkey.down(None, "ESCAPE")
     $ _testkey.up(None, "ESCAPE")
     pause 0.5
-    $ if not (_cue.dialogs.active_id is None): renpy.quit(status=1)
+    $ if not (_cue.dialogs.active_dialog is None): renpy.quit(status=1)
     $ renpy.quit()
 
 testcase sfx_library_rows:
@@ -328,6 +328,31 @@ testcase sfx_library_rows:
     pause 2.0
     $ _ok = len(_cue.sfx.library.files) >= 2 and _cue.sfx.library.scan_error == ""
     $ _ok = _ok and "sfx_001.ogg" in _cue.sfx.library.files
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase empty_library_open_folder_btn:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    # Empty both libraries in memory and render the SFX + Music pages: the
+    # empty-state Open Audio/Music folder button is the only place the
+    # store-bridged _cue_open_in_os_file_explorer name resolves.  Each legacy
+    # testcase forks a fresh process, so no restore is needed.
+    $ _cue.sfx.library.files = []
+    $ _cue.sfx.library.tree = []
+    $ _cue.music.user_music.files = []
+    $ _cue.music.user_music.tree = []
+    run Function(_cue_set_page, CuePage.SFX)
+    pause 0.5
+    $ _ok = _cue.overlay_active_page == CuePage.SFX
+    run Function(_cue_set_page, CuePage.MUSIC)
+    pause 0.5
+    $ _ok = _ok and _cue.overlay_active_page == CuePage.MUSIC
+    # Settings' Data Folder section carries the same button (Open Data Folder).
+    run Function(_cue_set_page, CuePage.SETTINGS)
+    pause 0.5
+    $ _ok = _ok and _cue.overlay_active_page == CuePage.SETTINGS
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
@@ -406,9 +431,9 @@ testcase intensity_groups_crud:
     run Function(_cue.sfx.library.toggle_ilevel_add_mode, "Test Impacts", 1)
     # New-group dialog smoke: opens, renders, cancels.
     run Function(_cue.dialogs.intensity.open)
-    $ _ok = _ok and _cue.dialogs.active_id == "igroup"
+    $ _ok = _ok and _cue.dialogs.active_dialog is _cue.dialogs.intensity
     run Function(_cue.dialogs.intensity.cancel)
-    $ _ok = _ok and _cue.dialogs.active_id is None
+    $ _ok = _ok and _cue.dialogs.active_dialog is None
     # One JSON landed on disk under data/presets/intensity/.
     $ import os as _os
     $ _ok = _ok and _os.path.isdir(_cue.paths.intensity_preset_dir)
@@ -709,7 +734,7 @@ testcase intensity_hook_pool_renders:
     $ _lp = _cue.markers._get_or_create_entry(_loop_key)["pools"][0]
     $ _ok = _ok and _lp.get("igroup") == "Hook Render"
     $ _lr = _cue.markers.resolve_pool(_lp)
-    $ _ok = _ok and _lr.igroup == "Hook Render" and _lr.files == []
+    $ _ok = _ok and _lr.igroup == "Hook Render" and _lr.refs == []
     pause 0.3
     # Cleanup.
     $ _cue.markers.pop(_loop_key, None)
@@ -1459,7 +1484,7 @@ testcase sfx_sidebar_with_confirm_dialog:
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     run Function(_cue.dialogs.confirm.show, "Really?", _cue.dialogs.confirm.hide)
     pause 0.5
-    $ _ok = _cue.dialogs.active_id == "confirm"
+    $ _ok = _cue.dialogs.active_dialog is _cue.dialogs.confirm
     $ _ok = _ok and (renpy.get_screen("cue_overlay", layer="cue_layer") is not None)
     $ if not _ok: renpy.quit(status=1)
     run Function(_cue.dialogs.confirm.hide)

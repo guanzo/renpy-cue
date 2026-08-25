@@ -34,6 +34,7 @@ screen cue_sfx_library(_is_video):
             etext "No audio files found in: {}".format(_cue.paths.audio_dir)
             etext ("Add {} files there "
                 "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS))
+            use cue_open_in_explorer_btn(_cue.paths.audio_dir, "Open Audio folder")
         else:
             use cue_target_context()
             if _cue.sfx.library.add_to_pool_warning:

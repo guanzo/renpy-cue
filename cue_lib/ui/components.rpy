@@ -236,6 +236,22 @@ screen cue_txt_button(label, action, bg=None, hover_bg=None, tt=None,
         if ysize is not None and ysize > 0:
             ysize ysize
 
+# Open-folder button: folder icon + label that opens dir_path in the OS file
+# explorer.  Used by the empty Music/SFX library states so users can jump
+# straight to the drop-folder.
+screen cue_open_in_explorer_btn(dir_path, label):
+    style_group "cue"
+
+    $ _folder_icon = _cue.icons.displayable_for("folder-open") if _cue.icons is not None else None
+    button:
+        style "cue_button"
+        action Function(_cue_open_in_os_file_explorer, dir_path)
+        hbox:
+            spacing 4
+            if _folder_icon is not None:
+                add _folder_icon yalign 0.5
+            etext label style "cue_button_text"
+
 # Selectable textbutton: highlights when selected, dims when not.
 # active_color overrides the highlight (default: _cue_color_active).
 screen cue_select_btn(label, selected, action, tt=None, sensitive=True,

@@ -178,11 +178,11 @@ testcase import_export_roundtrip:
     assert eval (_cue.importer.imports[0]["match"] == CueImportMatch.AUTO)
     # The merge dialog opens on the scanned package and renders its category
     # rows + overwrite summary.  Dialogs are folded into cue_overlay gated on
-    # _cue.dialogs.active_id, so the state gate is the render proof.
+    # _cue.dialogs.active_dialog, so the state gate is the render proof.
     run Function(_cue.dialogs.merge.open, "Roundtrip")
-    assert eval (_cue.dialogs.active_id == "merge")
+    assert eval (_cue.dialogs.active_dialog is _cue.dialogs.merge)
     keysym "K_ESCAPE"
-    assert eval (_cue.dialogs.active_id is None)
+    assert eval (_cue.dialogs.active_dialog is None)
     # Activate serves the whole editor from the extracted package: the
     # effective root follows, shared_config stays on the real data root.
     run Function(_cue.importer.activate, "Roundtrip")
@@ -197,15 +197,44 @@ testcase import_export_roundtrip:
 testcase confirm_dialog_escape:
     run Jump("start")
     run Function(_cue.dialogs.confirm.show, "Really?", _cue_hide_overlay)
-    assert eval (_cue.dialogs.active_id == "confirm")
+    assert eval (_cue.dialogs.active_dialog is _cue.dialogs.confirm)
     keysym "K_ESCAPE"
-    assert eval (_cue.dialogs.active_id is None)
+    assert eval (_cue.dialogs.active_dialog is None)
 
 testcase sfx_library_rows:
     run Jump("start")
     assert eval (len(_cue.sfx.library.files) >= 2)
     assert eval (_cue.sfx.library.scan_error == "")
     assert eval ("sfx_001.ogg" in _cue.sfx.library.files)
+
+testcase empty_library_open_folder_btn:
+    run Jump("start")
+    $ _cue_test_reset()
+    # The empty-state Open Audio/Music folder button is the only place the
+    # store-bridged _cue_open_in_os_file_explorer name resolves, so render both
+    # pages with empty libraries.  _cue_set_page does not rescan, so the
+    # in-memory empty holds for the render; restore the snapshot right after
+    # so later testcases see the seeded libraries (reassign, not scan -- the
+    # scan may carry fixtures other testcases created).
+    $ _sfx_files = _cue.sfx.library.files
+    $ _sfx_tree = _cue.sfx.library.tree
+    $ _mu_files = _cue.music.user_music.files
+    $ _mu_tree = _cue.music.user_music.tree
+    $ _cue.sfx.library.files = []
+    $ _cue.sfx.library.tree = []
+    $ _cue.music.user_music.files = []
+    $ _cue.music.user_music.tree = []
+    run Function(_cue_set_page, CuePage.SFX)
+    assert eval (_cue.overlay_active_page == CuePage.SFX)
+    run Function(_cue_set_page, CuePage.MUSIC)
+    assert eval (_cue.overlay_active_page == CuePage.MUSIC)
+    # Settings' Data Folder section carries the same button (Open Data Folder).
+    run Function(_cue_set_page, CuePage.SETTINGS)
+    assert eval (_cue.overlay_active_page == CuePage.SETTINGS)
+    $ _cue.sfx.library.files = _sfx_files
+    $ _cue.sfx.library.tree = _sfx_tree
+    $ _cue.music.user_music.files = _mu_files
+    $ _cue.music.user_music.tree = _mu_tree
 
 testcase sfx_file_tree_expand:
     run Jump("start")
@@ -271,9 +300,9 @@ testcase intensity_groups_crud:
     run Function(_cue.sfx.library.toggle_ilevel_add_mode, "Test Impacts", 1)
     # New-group dialog smoke: opens, renders, cancels.
     run Function(_cue.dialogs.intensity.open)
-    assert eval (_cue.dialogs.active_id == "igroup")
+    assert eval (_cue.dialogs.active_dialog is _cue.dialogs.intensity)
     run Function(_cue.dialogs.intensity.cancel)
-    assert eval (_cue.dialogs.active_id is None)
+    assert eval (_cue.dialogs.active_dialog is None)
     # One JSON landed on disk under data/presets/intensity/.
     $ import os as _os
     $ _ok = _os.path.isdir(_cue.paths.intensity_preset_dir)
@@ -584,7 +613,7 @@ testcase intensity_hook_pool_renders:
     $ _lp = _cue.markers._get_or_create_entry(_loop_key)["pools"][0]
     assert eval (_lp.get("igroup") == "Hook Render")
     $ _lr = _cue.markers.resolve_pool(_lp)
-    assert eval (_lr.igroup == "Hook Render" and _lr.files == [])
+    assert eval (_lr.igroup == "Hook Render" and _lr.refs == [])
     pause 0.3
     # Cleanup.
     $ _cue.markers.pop(_loop_key, None)
@@ -1169,11 +1198,11 @@ testcase sfx_sidebar_with_confirm_dialog:
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     run Function(_cue.dialogs.confirm.show, "Really?", _cue.dialogs.confirm.hide)
     run Jump("start")
-    assert eval (_cue.dialogs.active_id == "confirm")
+    assert eval (_cue.dialogs.active_dialog is _cue.dialogs.confirm)
     assert eval (renpy.get_screen("cue_overlay", layer="cue_layer") is not None)
     run Function(_cue.dialogs.confirm.hide)
     run Jump("start")
-    assert eval (_cue.dialogs.active_id is None)
+    assert eval (_cue.dialogs.active_dialog is None)
     # Restore state so later testcases render the in-overlay SFX section.
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     run Jump("start")

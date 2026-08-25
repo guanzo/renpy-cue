@@ -7,6 +7,8 @@ import bisect as _bisect
 import os
 import random as _random
 import functools as _functools
+import subprocess as _subprocess
+import sys
 import pygame
 import renpy
 import renpy.atl as _atl
@@ -759,6 +761,30 @@ def _cue_replace_file(src, dst):
         except Exception:
             pass  # Rename below fails loudly if the stale file persists
     os.rename(src, dst)
+
+
+def _cue_open_in_os_file_explorer(path):
+    # type: (str) -> None
+    """Open a directory in the OS file explorer (non-blocking).
+
+    Creates the directory if it's missing so a first-time click still lands
+    the user in the drop-folder.  Every failure is logged, never raised -- a
+    missing handler or locked dir must not crash the click."""
+    if not os.path.isdir(path):
+        try:
+            os.makedirs(path)
+        except Exception:
+            _cue_logger.log_error("open folder: cannot create " + path)
+            return
+    try:
+        if os.name == "nt":
+            os.startfile(path)
+        elif sys.platform == "darwin":
+            _subprocess.Popen(["open", path])
+        else:
+            _subprocess.Popen(["xdg-open", path])
+    except Exception:
+        _cue_logger.log_error("open folder failed: " + path)
 
 
 # --------------------------------------------------------------------------

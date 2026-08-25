@@ -74,16 +74,18 @@ def test_title_for_uses_vid_or_game():
     assert tm.title_for(group, "GameA") == "trigger-anomaly: restart-burst GameA"
 
 
-def test_build_body_includes_meaning_count_evidence(tmp_path):
-    log = tmp_path / "trigger-debug.log"
+def test_build_body_includes_meaning_count_evidence():
     group = {
         "kind": "missed",
         "vid": "v_a.ogv",
         "markers": ["vid=v_a.ogv mt=[0.68]", "vid=v_a.ogv mt=[0.92]"],
         "evidence": ["[12:00:01.234] TD-ANOMALY type=missed vid=v_a.ogv", "[12:00:01.235] ctx"],
     }
-    body = tm.build_body(group, "GameA", log)
+    body = tm.build_body(group, "GameA")
     assert "Anomaly type: missed -- marker skipped entirely (past-due, never fired)" in body
     assert "Occurrences: 2" in body
     assert "[12:00:01.234] TD-ANOMALY type=missed vid=v_a.ogv" in body
-    assert "GameA (/mnt/e/Porn/pGames/GameA)" in body
+    assert "Game: GameA" in body
+    # Issue bodies must not leak local file paths -- filename only, no path.
+    assert "/mnt/e" not in body
+    assert "Evidence (trigger-debug.log):" in body

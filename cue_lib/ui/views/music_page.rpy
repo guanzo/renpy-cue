@@ -142,6 +142,7 @@ screen cue_music_page():
                         etext "No music found in: {}".format(_cue.paths.music_dir)
                         etext ("Add {} files there "
                             "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS))
+                        use cue_open_in_explorer_btn(_cue.paths.music_dir, "Open Music folder")
                     if not _cue.music.game_music.tree:
                         if _cue.music.game_music.scan_error:
                             etext _cue.music.game_music.scan_error color _cue_color_error
