@@ -79,10 +79,9 @@ LAUNCHER="$1"; shift || { echo "Usage: $0 /path/to/game/Game.sh [testcase...] [o
 # mutable state, and the committed test_game/ + fixtures stay pristine.  Only
 # the read-only cue_lib source is shared (via the symlink in the mod section).
 # An explicit RENPY_CUE_DIR seeds the fixture copy instead of the default.
-XVPID=""
 GAME="$(mktemp -d "${TMPDIR:-/tmp}/cue_testgame.XXXXXX")"
 DATA="$(mktemp -d "${TMPDIR:-/tmp}/cue_testdata.XXXXXX")"
-trap 'rm -rf "$GAME" "$DATA"; [ -n "$XVPID" ] && kill "$XVPID" 2>/dev/null' EXIT
+trap 'rm -rf "$GAME" "$DATA"' EXIT
 cp -r "$ROOT/test_game/." "$GAME/"
 cp -r "${RENPY_CUE_DIR:-$ROOT/tests/fixtures/data}/." "$DATA/"
 # Dirty fixture sources (prior runs leave data/backups/video residue) must not
@@ -178,48 +177,32 @@ if [ "$DSL" = "legacy" ]; then
 
     # --- Parallel workers ----------------------------------------------------
     # Each worker runs a slice of the suite in its own isolated GAME/DATA/saves
-    # tree (concurrent engine processes can't share mutable state) against one
-    # shared Xvfb display. Sequential (1) is the default: 7.4.10 drops posted
-    # test-mouse clicks under sustained multi-engine Xvfb contention, so the
-    # click_create_tab_opens_editor testcase flakes in parallel (instrumented:
-    # 27/27 clicks posted, none reached the button) but is deterministic serial.
-    # CUE_LEGACY_WORKERS overrides the default for machines that handle it.
-    WORKERS="${CUE_LEGACY_WORKERS:-1}"
+    # tree (concurrent engine processes can't share mutable state) and its own
+    # Xvfb display. Sharing one display is the bug: 7.4.10 drops synthetic
+    # test-mouse clicks when engines run concurrently on a single X server
+    # (pointer position, focus, and window stacking are display-global, and the
+    # overlay's async reflow races that state) -- instrumented, 27/27 clicks
+    # posted, none reached the button. A display per worker reuses one server
+    # across the whole slice, so isolation costs nothing extra.
+    # CUE_LEGACY_WORKERS overrides the default. Default is one worker per
+    # vCPU, capped at 8 -- self-tunes for dev boxes and CI runners and never
+    # oversubscribes.
+    WORKERS="${CUE_LEGACY_WORKERS:-$(nproc 2>/dev/null || echo 1)}"
     case "$WORKERS" in
-        *[!0-9]*|0) WORKERS=1 ;;
+        *[!0-9]*|0|"") WORKERS=1 ;;
     esac
     [ "$WORKERS" -gt 8 ] && WORKERS=8
 
-    # Shared Xvfb for parallel local runs. CI already wraps the invocation in
-    # xvfb-run (DISPLAY inherited); workers=1 keeps the per-boot xvfb-run.
-    if [ "$WORKERS" -gt 1 ] && [ "$HEADLESS" = "1" ] && [ -z "${CI:-}" ]; then
+    # Parallel workers each start their own Xvfb (isolated display) when
+    # headless. Workers=1 keeps the per-boot xvfb-run from the headless setup
+    # above; CI (wrapped in a single xvfb-run) stays at workers=1.
+    XVFB_PER_WORKER=0
+    if [ "$WORKERS" -gt 1 ] && [ "$HEADLESS" = "1" ]; then
         if command -v Xvfb >/dev/null 2>&1; then
             export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-dummy}"
-            _d=99
-            while [ -e "/tmp/.X${_d}-lock" ]; do
-                _d=$((_d + 1))
-                if [ "$_d" -ge 150 ]; then
-                    echo "[cue] no free Xvfb display in 99-149" >&2
-                    exit 2
-                fi
-            done
-            Xvfb ":$((_d))" -screen 0 1280x800x24 >/dev/null 2>&1 &
-            XVPID=$!
-            export DISPLAY=":$((_d))"
-            # Xvfb creates its lock/socket asynchronously -- wait for it so the
-            # first engine's SDL connect doesn't race the server startup.
-            _t=0
-            while [ ! -e "/tmp/.X${_d}-lock" ]; do
-                if ! kill -0 "$XVPID" 2>/dev/null; then
-                    echo "[cue] Xvfb failed to start on :$((_d))" >&2
-                    exit 2
-                fi
-                _t=$((_t + 1))
-                [ "$_t" -ge 10 ] && break
-                sleep 1
-            done
-            RUN_PREFIX=""
-            echo "[cue] legacy: ${WORKERS} workers on shared Xvfb :$((_d))"
+            XVFB_PER_WORKER=1
+            RUN_PREFIX=""   # each worker sets its own DISPLAY
+            echo "[cue] legacy: ${WORKERS} workers, one Xvfb per worker"
         else
             echo "[cue] parallel legacy needs Xvfb (install xvfb) -- running sequential" >&2
             WORKERS=1
@@ -232,9 +215,53 @@ if [ "$DSL" = "legacy" ]; then
         _w="$1"
         _slice="$2"
         _run="$3"
+        _xvfb="$4"
         WGAME="$(mktemp -d "${TMPDIR:-/tmp}/cue_legacy_${_w}.XXXXXX")"
         WDATA="$(mktemp -d "${TMPDIR:-/tmp}/cue_legdata_${_w}.XXXXXX")"
-        trap 'rm -rf "$WGAME" "$WDATA"' EXIT
+        # Own Xvfb per worker: -displayfd picks a free display atomically (no
+        # cross-worker race on the pick), and the server is reused across the
+        # slice. Serial/CI workers skip this and inherit the ambient display.
+        XVPID=""
+        _claim=""
+        if [ "$_xvfb" = "1" ]; then
+            # A mkdir claim makes the display-number pick atomic across workers
+            # (two workers must not choose the same :NN before either starts a
+            # server); once Xvfb's /tmp/.X*-lock exists, that guards the display.
+            _d=99
+            while :; do
+                if [ ! -e "/tmp/.X${_d}-lock" ] && mkdir "/tmp/.cue_xvfb_claim_${_d}" 2>/dev/null; then
+                    break
+                fi
+                _d=$((_d + 1))
+                if [ "$_d" -ge 150 ]; then
+                    echo "[cue] no free Xvfb display in 99-149" >&2
+                    return 1
+                fi
+            done
+            _claim="/tmp/.cue_xvfb_claim_${_d}"
+            Xvfb ":$((_d))" -screen 0 1280x800x24 >/dev/null 2>&1 &
+            XVPID=$!
+            export DISPLAY=":$((_d))"
+            # Xvfb creates its lock/socket asynchronously -- wait for it so the
+            # first engine's SDL connect doesn't race the server startup.
+            _t=0
+            while [ ! -e "/tmp/.X${_d}-lock" ]; do
+                if ! kill -0 "$XVPID" 2>/dev/null; then
+                    echo "[cue] worker $_w Xvfb failed to start on :$((_d))" >&2
+                    rmdir "$_claim" 2>/dev/null
+                    return 1
+                fi
+                _t=$((_t + 1))
+                [ "$_t" -ge 10 ] && break
+                sleep 1
+            done
+            rmdir "$_claim" 2>/dev/null
+        fi
+        # `set -e` is inherited: a trap whose final command fails (rmdir of an
+        # already-removed claim, kill of a dead pid) overrides the subshell's
+        # exit status, so a passing worker would exit 1. `|| true` per chain
+        # keeps the trap exit status 0.
+        trap 'rm -rf "$WGAME" "$WDATA"; [ -n "$_claim" ] && rmdir "$_claim" 2>/dev/null || true; [ -n "$XVPID" ] && kill "$XVPID" 2>/dev/null || true' EXIT
         # Seed from the main path's already-prepared /tmp trees: cue_lib is a
         # real copy there, and /tmp avoids the concurrent-read race on the slow
         # Windows-mounted source FS that intermittently corrupts .rpy parses.
@@ -259,11 +286,22 @@ if [ "$DSL" = "legacy" ]; then
         for _name in $_slice; do
             echo "[cue] running testcase: $_name (worker $_w)"
             rm -f "$WMODE/debug.log"
+            # Each testcase boots a fresh engine, but the data store is shared
+            # across testcases on this worker. A store-writing testcase leaks
+            # disk state (e.g. a leftover MULTI speed sequence after a pop that
+            # only removes in-memory) that a later plain-video testcase then
+            # resolves into an absolute play path and fails on. Reset the
+            # mutable data tree + persistent before every launch.
+            rm -rf "$WDATA/data" "$WDATA/backups" "$WDATA/video" "$WGAME/game/saves"
             if ! timeout "$CUE_ENGINE_TIMEOUT" $_run "$LAUNCHER" --savedir "$WSAVEDIR" "$WGAME" test "$_name"; then
                 echo "[cue] worker $_w testcase FAILED: $_name" >&2
                 if [ -f "$WMODE/debug.log" ]; then
                     echo "[cue] worker $_w renpy_cue/debug.log:" >&2
                     cat "$WMODE/debug.log" >&2
+                fi
+                if [ -f "$WMODE/error.log" ]; then
+                    echo "[cue] worker $_w renpy_cue/error.log:" >&2
+                    cat "$WMODE/error.log" >&2
                 fi
                 rc=1
             fi
@@ -286,7 +324,7 @@ if [ "$DSL" = "legacy" ]; then
             fi
         done
         if [ -n "$_slice" ]; then
-            _run_legacy_worker "$w" "$_slice" "$RUN_PREFIX" &
+            _run_legacy_worker "$w" "$_slice" "$RUN_PREFIX" "$XVFB_PER_WORKER" &
             _pids="$_pids $!"
         fi
         w=$((w + 1))

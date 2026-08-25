@@ -362,7 +362,14 @@ init 999 python:
         """Reinstall the Ren'Py monkey patches.  Runs on every init (including
         Shift+R reload), because Ren'Py rebuilds config fresh on reload."""
 
-        renpy.with_statement = _cue_wrap_with_statement(renpy.with_statement)
+        import renpy.exports as _rpexp
+        # The `with` statement compiles to renpy.exports.with_statement (ast.py).
+        # renpy.with_statement in the package namespace can be a Python-2
+        # __future__ marker leaked in via the renpy.compat star-import, so wrap
+        # the exports function and point the package alias at the wrapper too.
+        _cue_wrapped_ws = _cue_wrap_with_statement(_rpexp.with_statement)
+        _rpexp.with_statement = _cue_wrapped_ws
+        renpy.with_statement = _cue_wrapped_ws
         renpy.config.show = _cue_wrap_config_show(renpy.config.show)
 
         import renpy.loader as _rl

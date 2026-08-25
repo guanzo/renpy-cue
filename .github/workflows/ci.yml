@@ -29,11 +29,12 @@ jobs:
       RENPY_CUE_DIR: ${{ github.workspace }}/tests/fixtures/data
       # Headless runner: no audio device. The testcases play no audio.
       SDL_AUDIODRIVER: dummy
-      # Serial by default: 7.4.10 drops posted test-mouse clicks under
-      # sustained multi-engine Xvfb contention (click_create flakes in
-      # parallel), so the legacy leg runs sequentially. The modern leg is
-      # single-process and ignores this.
-      CUE_LEGACY_WORKERS: 1
+      # Legacy workers default to one per vCPU (capped at 8), so the 7.x leg
+      # runs parallel here (2 workers on the standard runner). 7.4.10 drops
+      # synthetic test-mouse clicks under multi-engine Xvfb contention, so each
+      # worker starts its own display (bin/test_harness.sh); one per core
+      # avoids that contention. The modern leg is single-process and ignores
+      # workers.
     steps:
       - uses: actions/checkout@v4
 
@@ -68,7 +69,16 @@ jobs:
         # Explicit `bash` invocation: the repo lives on a filesystem that
         # doesn't persist the exec bit (core.fileMode=false), so the scripts
         # aren't executable in the working tree.
-        run: xvfb-run -a bash bin/test_harness.sh "$SDK_DIR/renpy.sh"
+        # The 7.x leg runs parallel workers, each with its own Xvfb display, so
+        # wrapping it in xvfb-run too would nest a second display layer (and
+        # leak XAUTHORITY across displays). Only the modern single-process leg
+        # needs the wrapper.
+        run: |
+          if [ "${{ matrix.renpy }}" = "8.5.3" ]; then
+            xvfb-run -a bash bin/test_harness.sh "$SDK_DIR/renpy.sh"
+          else
+            bash bin/test_harness.sh "$SDK_DIR/renpy.sh"
+          fi
 
   # Fast gate: pyright + 120-char lint, then the pytest suite, under the
   # modern toolchain. Mirrors the /lint and /test skills via bin/*.sh.
