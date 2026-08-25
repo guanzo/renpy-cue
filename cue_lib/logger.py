@@ -163,3 +163,38 @@ class CueLogger(object):
 
 
 _cue_logger = CueLogger()
+
+
+def _cue_traceback_touches_mod(tb):
+    # type: (Any) -> bool
+    for frame in _traceback.extract_tb(tb):
+        if "cue_lib" in frame.filename:
+            return True
+    return False
+
+
+def _cue_install_exception_handler():
+    # type: () -> None
+    """Last-resort runtime error handler.  Logs errors whose traceback touches
+    cue_lib and swallows them only in production (CUE_DEBUG off), so a player's
+    game keeps running; in a debug build the error propagates so the dev sees
+    the traceback.  Defer every non-cue_lib error to the handler installed
+    before us, if any.  The handler body is guarded so a failing safety net
+    never crashes the game."""
+
+    previous = _config.exception_handler
+
+    def handler(exc, tb):
+        try:
+            if not _cue_traceback_touches_mod(tb):
+                if previous is not None:
+                    return previous(exc, tb)
+                return False
+            _cue_logger.log_error("CUE uncaught error: {}".format(exc))
+            if _constants.CUE_DEBUG:
+                return False
+            return True
+        except Exception:
+            return not _constants.CUE_DEBUG
+
+    _config.exception_handler = handler

@@ -22,5 +22,8 @@ start_interact_callbacks = []
 developer = False
 console = False
 
+# Last-resort error handler (set by cue_lib.logger._cue_install_exception_handler).
+exception_handler = None
+
 # Monkeypatch targets (cue_z.rpy init 999 swaps these in the real runtime).
 show = None

@@ -466,6 +466,7 @@ init 999 python:
     _v = getattr(renpy, "version_tuple", (0, 0, 0))
     _cue_log("INIT: renpy_version={}".format(".".join(str(x) for x in _v)))
 
+    _cue_install_exception_handler()
     _cue_logger.clear_logs()
     _cue_setup_mouse_cursor()
     _cue.keybinds.setup()
