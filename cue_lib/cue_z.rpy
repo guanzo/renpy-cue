@@ -368,9 +368,11 @@ init 999 python:
             _cue_orig_loader_loadable = _rl.loadable
             _cue_orig_loader_open = _rl.open_file
 
+            # load() strips the leading slash and treats it as game-relative
+            # monkey patch to make absoluate paths to the cue data dir work
             def _cue_loader_load(name, *args, **kwargs):
                 try:
-                    if os.path.isabs(name) and os.path.isfile(name):
+                    if _cue.paths._loader_owns(name):
                         return _cue_orig_loader_open(name, "rb")
                 except (TypeError, ValueError):
                     pass
@@ -378,7 +380,7 @@ init 999 python:
 
             def _cue_loader_loadable(name, *args, **kwargs):
                 try:
-                    if os.path.isabs(name) and os.path.isfile(name):
+                    if _cue.paths._loader_owns(name):
                         return True
                 except (TypeError, ValueError):
                     pass

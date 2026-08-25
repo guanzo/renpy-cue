@@ -11,6 +11,8 @@
 import os
 import sys
 
+import renpy.config as _config
+
 from cue_lib.constants import CUE_MANUAL_BACKUP_NAME, CUE_SHARED_CONFIG_FILENAME
 
 MYPY = False
@@ -95,6 +97,29 @@ class CuePaths(object):
     def icon(self, filename):
         # type: (str) -> str
         return self.in_game_base_dir + "/cue_lib/images/icons/" + filename
+
+    # ------------------------------------------------------------------
+    # Loader ownership -- which absolute paths the loader patch may claim.
+    # Only files under the shared tree or the in-game base dir belong to
+    # the mod; every other path is left to Ren'Py.
+    # ------------------------------------------------------------------
+
+    def _loader_roots(self):
+        # type: () -> list
+        roots = [self.root, self.original_root, os.path.join(_config.gamedir, CUE_MOD_DIRNAME)]
+        return list({os.path.abspath(r).replace("\\", "/") for r in roots})
+
+    def _loader_owns(self, name):
+        # type: (str) -> bool
+        """True if an absolute path lives under one of the mod's data
+        roots.  Relative or foreign paths are never the mod's."""
+        if not os.path.isabs(name):
+            return False
+        n = os.path.normpath(name).replace("\\", "/")
+        for root in self._loader_roots():
+            if n == root or n.startswith(root + "/"):
+                return True
+        return False
 
     # ------------------------------------------------------------------
     # Root resolution -- "where IS the shared dir?" (class-level: no game

@@ -173,3 +173,53 @@ def test_save_root_default_removes_pointer(tmp_path, monkeypatch):
     ptr.write_text("old")
     CuePaths.save_root(str(base))
     assert not ptr.exists()
+
+
+# ---------------------------------------------------------------------------
+# Loader ownership -- which absolute paths the loader patch may claim
+# ---------------------------------------------------------------------------
+
+
+def test_loader_owns_shared_root_file(tmp_path):
+    root = str(tmp_path / "cue_root")
+    p = CuePaths(root, "g1")
+    assert p._loader_owns(root + "/video/g1/movie_1.5x.mp4")
+
+
+def test_loader_owns_original_root_during_import(tmp_path):
+    root = str(tmp_path / "cue_root")
+    imp = str(tmp_path / "cue_root" / "imports" / "imp")
+    p = CuePaths(root, "g1")
+    p._active_root = imp
+    assert p._loader_owns(imp + "/video/g1/movie.mp4")
+
+
+def test_loader_owns_in_game_base_dir(tmp_path, monkeypatch):
+    from renpy import config as _config
+
+    gamedir = str(tmp_path / "game")
+    monkeypatch.setattr(_config, "gamedir", gamedir)
+    p = CuePaths(str(tmp_path / "cue_root"), "g1")
+    assert p._loader_owns(gamedir + "/" + CUE_MOD_DIRNAME + "/cue_lib/images/icons/x.png")
+
+
+def test_loader_owns_exact_root(tmp_path):
+    root = str(tmp_path / "cue_root")
+    p = CuePaths(root, "g1")
+    assert p._loader_owns(root)
+
+
+def test_loader_owns_false_for_foreign_path(tmp_path):
+    p = CuePaths(str(tmp_path / "cue_root"), "g1")
+    assert p._loader_owns(str(tmp_path / "elsewhere" / "file.mp4")) is False
+
+
+def test_loader_owns_false_for_relative_path(tmp_path):
+    p = CuePaths(str(tmp_path / "cue_root"), "g1")
+    assert p._loader_owns("video/g1/file.mp4") is False
+
+
+def test_loader_owns_false_for_sibling_prefix(tmp_path):
+    root = str(tmp_path / "cue_root")
+    p = CuePaths(root, "g1")
+    assert p._loader_owns(root + "_evil/file.mp4") is False
