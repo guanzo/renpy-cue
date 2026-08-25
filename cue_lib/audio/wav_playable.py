@@ -23,7 +23,6 @@ import hashlib
 import os
 import struct
 import tempfile
-import wave
 
 from cue_lib.util import _cue_replace_file, _cue_log
 
@@ -50,6 +49,31 @@ def _byte_str(s):
     if isinstance(s, bytes):
         return s
     return s.encode("utf-8")
+
+
+def _write_wav16(path, channels, rate, data):
+    # type: (str, int, int, bytes) -> None
+    """Write ``data`` (16-bit PCM) as a standard PCM WAV at ``path``.
+
+    Pure Python.  Ren'Py's bundled interpreter ships no C extensions, and the
+    stdlib ``wave`` module line-imports the C-only ``audioop``, so ``wave``
+    cannot be loaded inside Ren'Py.  Writing the header by hand is symmetric
+    with ``_read_wav``."""
+    data_size = len(data)
+    fmt = struct.pack("<HHIIHH", 1, channels, rate, rate * channels * 2, channels * 2, 16)
+    header = (
+        b"RIFF"
+        + struct.pack("<I", 36 + data_size)
+        + b"WAVE"
+        + b"fmt "
+        + struct.pack("<I", len(fmt))
+        + fmt
+        + b"data"
+        + struct.pack("<I", data_size)
+    )
+    with open(path, "wb") as f:
+        f.write(header)
+        f.write(data)
 
 
 class CueWavPlayable(object):
@@ -357,14 +381,7 @@ class CueWavPlayable(object):
             return False
         tmp = dst + ".tmp"
         try:
-            out = wave.open(tmp, "wb")
-            try:
-                out.setnchannels(meta["channels"])
-                out.setsampwidth(2)
-                out.setframerate(meta["rate"])
-                out.writeframes(bytes(conv))
-            finally:
-                out.close()
+            _write_wav16(tmp, meta["channels"], meta["rate"], bytes(conv))
             _cue_replace_file(tmp, dst)
         except Exception as exc:
             _cue_log("WAV-PLAYABLE: write {} failed: {}".format(dst, exc))

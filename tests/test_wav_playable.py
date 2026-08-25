@@ -289,3 +289,37 @@ def test_unreadable_and_nonwav_return_original(tmp_path):
     txt = str(tmp_path / "x.txt")
     _write(txt, b"hello")
     assert w.ensure_playable(txt) == txt
+
+
+def test_imports_and_converts_without_wave_or_audioop(tmp_path, monkeypatch):
+    """Regression: Ren'Py ships no C extension modules, and the stdlib ``wave``
+    module line-imports the C-only ``audioop``.  A build without ``audioop``
+    (e.g. Race of Life's py3.9 renpy-build-fix) crashes the whole cue_lib import
+    if this module pulls ``wave`` in.  Block both and prove the module still
+    imports and a full convert writes a playable WAV."""
+    import builtins
+    import importlib
+
+    from cue_lib.audio import wav_playable
+
+    real_import = builtins.__import__
+
+    def _blocked(name, *a, **k):
+        if name in ("wave", "audioop"):
+            raise ModuleNotFoundError("No module named '{}'".format(name))
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", _blocked)
+    try:
+        mod = importlib.reload(wav_playable)
+    finally:
+        monkeypatch.undo()
+
+    w = mod.CueWavPlayable(temp_root=str(tmp_path / "cache"))
+    src = str(tmp_path / "in.wav")
+    _write(src, _wav_float(struct.pack("<2f", -1.0, 1.0)))
+    playable = w.ensure_playable(src)
+    assert playable != src
+    ch, sw, rate, frames = _read_frames(playable)
+    assert (ch, sw, rate) == (1, 2, 48000)
+    assert frames == bytes([0x01, 0x80, 0xFF, 0x7F])
