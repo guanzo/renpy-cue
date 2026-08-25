@@ -659,6 +659,14 @@ class CueMarkerManager(object):
 # ---------------------------------------------------------------------------
 
 
+def _cue_coalesce_bool(value, default):
+    # type: (object, bool) -> bool
+    """None means *default*, else bool(value).  A dict key holding None (e.g. a
+    partially-nulled persistent._cue) must not silently flip these scalars to
+    falsy -- remove_audio=None would keep audio on every encode."""
+    return default if value is None else bool(value)
+
+
 def _cue_load_scalars_from_persistent():
     # type: () -> None
     """Fan out per-game scalars from persistent/shared config into the
@@ -687,22 +695,16 @@ def _cue_load_scalars_from_persistent():
         _cue_dict.pop("disabled_files", None)
 
     _cue.sfx.library.disabled_files = set(shared.get("disabled_files", []))
-    # Coalesce None to the default: a dict whose keys hold None (e.g. a
-    # partially-nulled persistent._cue) must not silently flip these to
-    # falsy -- remove_audio=None would keep audio on every encode.
-    _triggers = _cue_dict.get("triggers_active")
-    _cue.trigger.active = True if _triggers is None else bool(_triggers)
+
+    # Coalesce None to the default: see _cue_coalesce_bool.
+    _cue.trigger.active = _cue_coalesce_bool(_cue_dict.get("triggers_active"), True)
     _mode = _cue_dict.get("encode_mode")
-    if _mode is None:
-        _mode = _cue.video_editor.MODE_INTERPOLATE
-    _cue.video_editor.encode_mode = _mode
-    _ra = _cue_dict.get("remove_audio")
-    _cue.video_editor.remove_audio = True if _ra is None else bool(_ra)
-    _st = _cue_dict.get("seamless_transition")
-    _cue.speed_resolver.seamless_transition = False if _st is None else bool(_st)
-    _sfm = _cue_dict.get(CUE_PERSIST_SIDEBAR_MODE)
-    _cue.sfx.library.is_sidebar_mode = False if _sfm is None else bool(_sfm)
+    _cue.video_editor.encode_mode = _mode if _mode is not None else _cue.video_editor.MODE_INTERPOLATE
+    _cue.video_editor.remove_audio = _cue_coalesce_bool(_cue_dict.get("remove_audio"), True)
+    _cue.speed_resolver.seamless_transition = _cue_coalesce_bool(_cue_dict.get("seamless_transition"), False)
+    _cue.sfx.library.is_sidebar_mode = _cue_coalesce_bool(_cue_dict.get(CUE_PERSIST_SIDEBAR_MODE), False)
     _sw = _cue_dict.get(CUE_PERSIST_SIDEBAR_WIDTH)
+
     if isinstance(_sw, int):
         _cue.sfx.library.set_sidebar_width(_sw)
     else:

@@ -400,7 +400,6 @@ init 999 python:
         the patches: reload_all() restores renpy.* modules to their
         post-import state, wiping the config callback lists too."""
         
-        # Register 8 dedicated SFX channels on the "sfx" mixer
         for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
             ch_name = _cue_sfx_channel_name(i)
             if not renpy.music.channel_defined(ch_name):
@@ -430,7 +429,6 @@ init 999 python:
 
         config.all_character_callbacks.append(_cue_char_callback)
 
-        # start_interact callback — detects context changes at interaction
         def _cue_start_interact_callback(*args, **kwargs):
             # Ensure the runtime driver is always active.
             if not renpy.get_screen("cue_runtime_driver", layer="cue_layer"):
