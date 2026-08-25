@@ -24,15 +24,6 @@ class CueContext(object):
         self._shake_just_happened = False
 
 
-class CueDialogs(object):
-    def __init__(self):
-        self.preset = None
-        self.video_preset = None
-        self.confirm = None
-        self.merge = None
-        self.intensity = None
-
-
 class Cue(_renpy_python.NoRollback):
     """Root object for the Cue mod -- state, managers, constants, and caches."""
 
@@ -63,7 +54,7 @@ class Cue(_renpy_python.NoRollback):
         self.auto_speed = None
         self.sfx = None
         self.settings = None  # CueSettings
-        self.dialogs = CueDialogs()  # dialog managers (wired by cue_z.rpy init -900)
+        self.dialogs = None  # CueDialogs (wired by cue_z.rpy init -900)
         self.keybinds = None
         self.icons = None
         self.music = None

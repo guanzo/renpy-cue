@@ -96,62 +96,81 @@ screen cue_save_preset_dialog():
 
     zorder CUE_DIALOG_ZORDER
 
-    # Shared by the SFX-pool and music-trigger save flows; the summary rows
-    # branch on which target the dialog holds.
+    # SFX-pool save; the music-trigger save has its own screen and dialog.
     $ _d = _cue.dialogs.preset
-    $ _is_music = _d.music_key is not None
-    if _is_music:
-        $ _song_count = len(_cue.music.resolve_music_files(_d.songs))
-    else:
-        $ _entry = _cue.markers.get(_d.marker_key) if _d.marker_key else None
-        $ _pools = _entry.get("pools", []) if _entry else []
-        $ _pool = _pools[_d.pool_idx] if _pools and _d.pool_idx < len(_pools) else {}
-        $ _r = _cue.markers.resolve_pool(_pool)
-        $ _file_count = len(_cue_resolve_files(_r.files))
+    $ _entry = _cue.markers.get(_d.marker_key) if _d.marker_key else None
+    $ _pools = _entry.get("pools", []) if _entry else []
+    $ _pool = _pools[_d.pool_idx] if _pools and _d.pool_idx < len(_pools) else {}
+    $ _r = _cue.markers.resolve_pool(_pool)
+    $ _file_count = len(_cue_resolve_files(_r.files))
     key "K_RETURN" action Function(_d.commit)
     key "K_KP_ENTER" action Function(_d.commit)
     key "K_ESCAPE" action Function(_d.cancel)
 
     use cue_dialog_wrapper():
-        vbox:
-            spacing 8
+        use cue_save_preset_body(_d, "_cue.dialogs.preset.name"):
             etext "Save Preset" style "cue_hdr"
-
-            if _is_music:
-                hbox:
-                    spacing 5
-                    etext "Songs:"
-                    etext "{} file(s)".format(_song_count) color _cue_color_text_accent
-            else:
-                hbox:
-                    spacing 5
-                    etext "Files:"
-                    etext "{} file(s)".format(_file_count) color _cue_color_text_accent
-
-                hbox:
-                    spacing 5
-                    etext "Volume:"
-                    etext "{:.1f}".format(_r.volume) color _cue_color_text_accent
-
-            null height 5
 
             hbox:
                 spacing 5
-                etext "Name:"
-                input:
-                    style "cue_input"
-                    value _CueFieldValue("_cue.dialogs.preset.name")
-                    default True
-                    xsize 200
-                    copypaste True
-
-            null height 5
+                etext "Files:"
+                etext "{} file(s)".format(_file_count) color _cue_color_text_accent
 
             hbox:
-                spacing 8
-                xalign 0.5
-                use cue_txt_button("Cancel", Function(_d.cancel))
-                use cue_txt_button("Save", Function(_d.commit))
+                spacing 5
+                etext "Volume:"
+                etext "{:.1f}".format(_r.volume) color _cue_color_text_accent
+
+
+screen cue_save_music_preset_dialog():
+    style_group "cue"
+
+    zorder CUE_DIALOG_ZORDER
+
+    $ _d = _cue.dialogs.music_preset
+    $ _song_count = len(_cue.music.resolve_music_files(_d.songs))
+    key "K_RETURN" action Function(_d.commit)
+    key "K_KP_ENTER" action Function(_d.commit)
+    key "K_ESCAPE" action Function(_d.cancel)
+
+    use cue_dialog_wrapper():
+        use cue_save_preset_body(_d, "_cue.dialogs.music_preset.name"):
+            etext "Save Music Preset" style "cue_hdr"
+
+            hbox:
+                spacing 5
+                etext "Songs:"
+                etext "{} file(s)".format(_song_count) color _cue_color_text_accent
+
+
+# Shared name field + save/cancel row for both save-preset popups.
+# dialog/name_path bind each screen to its own dialog instance.
+screen cue_save_preset_body(dialog, name_path):
+    style_group "cue"
+
+    vbox:
+        spacing 8
+        transclude
+
+        null height 5
+
+        hbox:
+            spacing 5
+            etext "Name:"
+            input:
+                style "cue_input"
+                value _CueFieldValue(name_path)
+                default True
+                xsize 200
+                copypaste True
+
+        null height 5
+
+        hbox:
+            spacing 8
+            xalign 0.5
+            use cue_txt_button("Cancel", Function(dialog.cancel))
+            use cue_txt_button("Save", Function(dialog.commit))
 
 
 screen cue_save_video_preset_dialog():

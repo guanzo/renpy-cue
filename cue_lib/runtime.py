@@ -119,7 +119,6 @@ def _cue_show_overlay():
     _cue.video_editor.refresh()
 
     renpy.show_screen("cue_overlay", _layer="cue_layer")
-    renpy.show_screen("cue_sfx_sidebar", _layer="cue_layer")
     renpy.restart_interaction()
 
 
@@ -164,7 +163,6 @@ def _cue_hide_overlay():
     # drag on the next show.
     CueVideoMarkerTimeline.reset_timeline_drag()
     renpy.hide_screen("cue_overlay", layer="cue_layer")
-    renpy.hide_screen("cue_sfx_sidebar", layer="cue_layer")
 
 
 # --------------------------------------------------------------------------

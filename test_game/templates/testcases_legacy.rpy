@@ -292,10 +292,10 @@ testcase import_export_roundtrip:
     # rows + overwrite summary.
     run Function(_cue.dialogs.merge.open, "Roundtrip")
     pause 0.5
-    $ _ok = _ok and renpy.get_screen("cue_merge_dialog", layer="cue_layer") is not None
+    $ _ok = _ok and _cue.dialogs.active_id == "merge"
     run Function(_cue.dialogs.merge.cancel)
     pause 0.5
-    $ _ok = _ok and renpy.get_screen("cue_merge_dialog", layer="cue_layer") is None
+    $ _ok = _ok and _cue.dialogs.active_id is None
     # Activate serves the whole editor from the extracted package: the
     # effective root follows.
     run Function(_cue.importer.activate, "Roundtrip")
@@ -314,14 +314,14 @@ testcase confirm_dialog_escape:
     pause 2.0
     run Function(_cue.dialogs.confirm.show, "Really?", _cue_hide_overlay)
     pause 0.5
-    $ if not renpy.get_screen("cue_confirm_dialog", layer="cue_layer"): renpy.quit(status=1)
+    $ if not (_cue.dialogs.active_id == "confirm"): renpy.quit(status=1)
     $ import pygame_sdl2
     $ import renpy.test.testkey as _testkey
     $ _testkey.code_to_unicode[pygame_sdl2.K_ESCAPE] = "\x1b"
     $ _testkey.down(None, "ESCAPE")
     $ _testkey.up(None, "ESCAPE")
     pause 0.5
-    $ if renpy.get_screen("cue_confirm_dialog", layer="cue_layer"): renpy.quit(status=1)
+    $ if not (_cue.dialogs.active_id is None): renpy.quit(status=1)
     $ renpy.quit()
 
 testcase sfx_library_rows:
@@ -391,9 +391,9 @@ testcase intensity_groups_crud:
     run Function(_cue.sfx.library.toggle_igroup_add_mode, "Test Impacts")
     # New-group dialog smoke: opens, renders, cancels.
     run Function(_cue.dialogs.intensity.open)
-    $ _ok = _ok and renpy.get_screen("cue_new_igroup_dialog", layer="cue_layer")
+    $ _ok = _ok and _cue.dialogs.active_id == "igroup"
     run Function(_cue.dialogs.intensity.cancel)
-    $ _ok = _ok and not renpy.get_screen("cue_new_igroup_dialog", layer="cue_layer")
+    $ _ok = _ok and _cue.dialogs.active_id is None
     # Rename moves the group; one JSON lands on disk under data/presets/.
     run Function(_cue.intensity.rename_igroup, "Test Impacts", "Impacts 2")
     $ _ok = _ok and ("Impacts 2" in _cue.intensity.list_igroups())
@@ -1365,7 +1365,7 @@ testcase sfx_sidebar_mode_renders:
     pause 0.5
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     pause 0.5
-    $ _ok = renpy.get_screen("cue_sfx_sidebar", layer="cue_layer") is not None
+    $ _ok = renpy.get_screen("cue_overlay", layer="cue_layer") is not None
     $ _ok = _ok and (_cue.sfx.library.is_sidebar_mode is True)
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
@@ -1377,8 +1377,8 @@ testcase sfx_sidebar_with_confirm_dialog:
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     run Function(_cue.dialogs.confirm.show, "Really?", _cue.dialogs.confirm.hide)
     pause 0.5
-    $ _ok = renpy.get_screen("cue_confirm_dialog", layer="cue_layer") is not None
-    $ _ok = _ok and (renpy.get_screen("cue_sfx_sidebar", layer="cue_layer") is not None)
+    $ _ok = _cue.dialogs.active_id == "confirm"
+    $ _ok = _ok and (renpy.get_screen("cue_overlay", layer="cue_layer") is not None)
     $ if not _ok: renpy.quit(status=1)
     run Function(_cue.dialogs.confirm.hide)
     $ renpy.quit()
@@ -1389,7 +1389,7 @@ testcase sfx_sidebar_resize:
     pause 0.5
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     pause 0.5
-    $ _ok = renpy.get_screen("cue_sfx_sidebar", layer="cue_layer") is not None
+    $ _ok = renpy.get_screen("cue_overlay", layer="cue_layer") is not None
     # The resize handle is a stable focusable singleton wired into the screen.
     # Live drag math is covered by pytest -- the screen `dragged` callback
     # only fires on drop with a 2-arg signature, so drags are raw mouse

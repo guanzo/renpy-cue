@@ -3,21 +3,49 @@ from typing import Any, Callable, List, Optional
 
 from cue_lib._types import MarkerEntry  # pyright: ignore[reportUnusedImport]
 
-class CuePresetDialog:
+class CueDialogBase:
+    id: str
+
+    def __init__(self, dialog_id: str) -> None: ...
+    def _show(self) -> None: ...
+    def _hide(self) -> None: ...
+
+class CueDialogs:
+    preset: CuePresetDialog
+    music_preset: CueMusicPresetDialog
+    video_preset: CueVideoPresetDialog
+    confirm: CueConfirmDialog
+    merge: CueMergeDialog
+    intensity: CueIntensityGroupDialog
+    active_id: Optional[str]
+
+    def __init__(self) -> None: ...
+    def show(self, dialog_id: str) -> None: ...
+    def hide(self) -> None: ...
+
+class CuePresetDialog(CueDialogBase):
     marker_key: Optional[str]
     pool_idx: int
     name: str
-    music_key: Optional[str]
-    songs: List[str]
 
     def __init__(self) -> None: ...
     def open(self, marker_key: str, pool_idx: int) -> None: ...
-    def open_music(self, music_key: str) -> None: ...
     def commit(self) -> None: ...
     def cancel(self) -> None: ...
     def _reset(self) -> None: ...
 
-class CueVideoPresetDialog:
+class CueMusicPresetDialog(CueDialogBase):
+    music_key: Optional[str]
+    songs: List[str]
+    name: str
+
+    def __init__(self) -> None: ...
+    def open(self, music_key: str) -> None: ...
+    def commit(self) -> None: ...
+    def cancel(self) -> None: ...
+    def _reset(self) -> None: ...
+
+class CueVideoPresetDialog(CueDialogBase):
     name: str
 
     def __init__(self) -> None: ...
@@ -25,7 +53,7 @@ class CueVideoPresetDialog:
     def commit(self) -> None: ...
     def cancel(self) -> None: ...
 
-class CueIntensityGroupDialog:
+class CueIntensityGroupDialog(CueDialogBase):
     name: str
     renaming: Optional[str]
     error: str
@@ -37,7 +65,7 @@ class CueIntensityGroupDialog:
     def cancel(self) -> None: ...
     def _reset(self) -> None: ...
 
-class CueConfirmDialog:
+class CueConfirmDialog(CueDialogBase):
     message: str
     on_confirm: Optional[Callable[..., None]]
 
@@ -46,7 +74,7 @@ class CueConfirmDialog:
     def show_or_run(self, message: str, confirm_action: Callable[..., None]) -> None: ...
     def hide(self) -> None: ...
 
-class CueMergeDialog:
+class CueMergeDialog(CueDialogBase):
     imp: Optional[str]
     checked: dict
     counts: dict

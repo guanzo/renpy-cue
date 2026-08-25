@@ -193,8 +193,8 @@ init -900 python:
     from cue_lib.audio.recent import CueRecentManager, _cue_keep_sfx, _cue_keep_music
     from cue_lib.ui.icons import CueIconManager
     from cue_lib.ui.dialogs import (
-        CuePresetDialog, CueVideoPresetDialog, CueConfirmDialog, CueMergeDialog,
-        CueIntensityGroupDialog,
+        CuePresetDialog, CueMusicPresetDialog, CueVideoPresetDialog,
+        CueConfirmDialog, CueMergeDialog, CueIntensityGroupDialog, CueDialogs,
     )
     from cue_lib.intensity import CueIntensityManager
     from cue_lib.importer import CueImportManager
@@ -261,6 +261,7 @@ init -900 python:
 
         merge_dialog = CueMergeDialog(importer)
         preset_dialog = CuePresetDialog()
+        music_preset_dialog = CueMusicPresetDialog()
         video_preset_dialog = CueVideoPresetDialog()
         confirm_dialog = CueConfirmDialog()
         intensity = CueIntensityManager(db)
@@ -319,7 +320,9 @@ init -900 python:
         _cue.music = music
         _cue.volume = volume
 
+        _cue.dialogs = CueDialogs()
         _cue.dialogs.preset = preset_dialog
+        _cue.dialogs.music_preset = music_preset_dialog
         _cue.dialogs.video_preset = video_preset_dialog
         _cue.dialogs.confirm = confirm_dialog
         _cue.dialogs.merge = merge_dialog
@@ -432,12 +435,6 @@ init 999 python:
                 renpy.show_screen("cue_overlay", _layer="cue_layer")
             elif not _cue.is_overlay_visible and renpy.get_screen("cue_overlay", layer="cue_layer"):
                 renpy.hide_screen("cue_overlay", layer="cue_layer")
-            # Sidebar follows the overlay: keep the (possibly empty) screen in
-            # sync with the NoRollback flag the same way cue_overlay is.
-            if _cue.is_overlay_visible and not renpy.get_screen("cue_sfx_sidebar", layer="cue_layer"):
-                renpy.show_screen("cue_sfx_sidebar", _layer="cue_layer")
-            elif not _cue.is_overlay_visible and renpy.get_screen("cue_sfx_sidebar", layer="cue_layer"):
-                renpy.hide_screen("cue_sfx_sidebar", layer="cue_layer")
 
             _cue_refresh_context()
 

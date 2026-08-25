@@ -14,13 +14,7 @@ from cue_lib._types import (
 from cue_lib.video.auto_speed import CueAutoSpeedGenerator
 from cue_lib.video.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
 from cue_lib.trigger import CueTriggerEngine
-from cue_lib.ui.dialogs import (
-    CueConfirmDialog,
-    CueIntensityGroupDialog,
-    CueMergeDialog,
-    CuePresetDialog,
-    CueVideoPresetDialog,
-)
+from cue_lib.ui.dialogs import CueDialogs
 from cue_lib.importer import CueImportManager
 from cue_lib.exporter import CueExportManager
 from cue_lib.url_importer import CueUrlImporter
@@ -47,13 +41,6 @@ class CueContext:
     _shake_just_happened: bool
 
     def __init__(self) -> None: ...
-
-class CueDialogs:
-    preset: CuePresetDialog
-    video_preset: CueVideoPresetDialog
-    confirm: CueConfirmDialog
-    merge: CueMergeDialog
-    intensity: CueIntensityGroupDialog
 
 class Cue:
     initialized: bool

@@ -179,11 +179,12 @@ testcase import_export_roundtrip:
     assert eval (_cue.importer.imports[0]["valid"])
     assert eval (_cue.importer.imports[0]["match"] == CueImportMatch.AUTO)
     # The merge dialog opens on the scanned package and renders its category
-    # rows + overwrite summary.
+    # rows + overwrite summary.  Dialogs are folded into cue_overlay gated on
+    # _cue.dialogs.active_id, so the state gate is the render proof.
     run Function(_cue.dialogs.merge.open, "Roundtrip")
-    assert screen "cue_merge_dialog" layer "cue_layer"
+    assert eval (_cue.dialogs.active_id == "merge")
     keysym "K_ESCAPE"
-    assert not screen "cue_merge_dialog" layer "cue_layer"
+    assert eval (_cue.dialogs.active_id is None)
     # Activate serves the whole editor from the extracted package: the
     # effective root follows, shared_config stays on the real data root.
     run Function(_cue.importer.activate, "Roundtrip")
@@ -198,9 +199,9 @@ testcase import_export_roundtrip:
 testcase confirm_dialog_escape:
     run Jump("start")
     run Function(_cue.dialogs.confirm.show, "Really?", _cue_hide_overlay)
-    assert screen "cue_confirm_dialog" layer "cue_layer"
+    assert eval (_cue.dialogs.active_id == "confirm")
     keysym "K_ESCAPE"
-    assert not screen "cue_confirm_dialog" layer "cue_layer"
+    assert eval (_cue.dialogs.active_id is None)
 
 testcase sfx_library_rows:
     run Jump("start")
@@ -257,9 +258,9 @@ testcase intensity_groups_crud:
     run Function(_cue.sfx.library.toggle_igroup_add_mode, "Test Impacts")
     # New-group dialog smoke: opens, renders, cancels.
     run Function(_cue.dialogs.intensity.open)
-    assert screen "cue_new_igroup_dialog" layer "cue_layer"
+    assert eval (_cue.dialogs.active_id == "igroup")
     run Function(_cue.dialogs.intensity.cancel)
-    assert not screen "cue_new_igroup_dialog" layer "cue_layer"
+    assert eval (_cue.dialogs.active_id is None)
     # Rename moves the group.
     run Function(_cue.intensity.rename_igroup, "Test Impacts", "Impacts 2")
     assert eval ("Impacts 2" in _cue.intensity.list_igroups())
@@ -1074,7 +1075,9 @@ testcase sfx_sidebar_mode_renders:
     run Jump("start")
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     run Jump("start")
-    assert screen "cue_sfx_sidebar" layer "cue_layer"
+    # The sidebar is folded into cue_overlay, so the overlay being mounted is
+    # the render proof; the mode flag gates its content.
+    assert eval (renpy.get_screen("cue_overlay", layer="cue_layer") is not None)
     assert eval (_cue.sfx.library.is_sidebar_mode is True)
     run Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
     run Jump("start")
@@ -1092,11 +1095,11 @@ testcase sfx_sidebar_with_confirm_dialog:
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     run Function(_cue.dialogs.confirm.show, "Really?", _cue.dialogs.confirm.hide)
     run Jump("start")
-    assert screen "cue_confirm_dialog" layer "cue_layer"
-    assert screen "cue_sfx_sidebar" layer "cue_layer"
+    assert eval (_cue.dialogs.active_id == "confirm")
+    assert eval (renpy.get_screen("cue_overlay", layer="cue_layer") is not None)
     run Function(_cue.dialogs.confirm.hide)
     run Jump("start")
-    assert not screen "cue_confirm_dialog" layer "cue_layer"
+    assert eval (_cue.dialogs.active_id is None)
     # Restore state so later testcases render the in-overlay SFX section.
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     run Jump("start")
@@ -1105,7 +1108,9 @@ testcase sfx_sidebar_resize:
     run Jump("start")
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     run Jump("start")
-    assert screen "cue_sfx_sidebar" layer "cue_layer"
+    # Sidebar is folded into cue_overlay; its resize handle is a stable
+    # focusable singleton wired into the (now in-overlay) screen.
+    assert eval (renpy.get_screen("cue_overlay", layer="cue_layer") is not None)
     # The resize handle is a stable focusable singleton wired into the screen.
     # Live drag math is covered by pytest -- the screen `dragged` callback
     # only fires on drop with a 2-arg signature, so drags are raw mouse

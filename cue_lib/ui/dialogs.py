@@ -8,26 +8,66 @@ from renpy.store import Function
 from cue_lib.constants import CueImportMatch
 from cue_lib.importer_io import _cue_category_counts, _cue_filter_contents, _cue_merge_overwrites
 from cue_lib.state import _cue
-from cue_lib.util import _cue_shift_held, create_vid_key
+from cue_lib.util import _cue_shift_held, create_vid_key, _cue_log
 
 MYPY = False
 if MYPY:
     from typing import Any, Callable, Dict  # pyright: ignore[reportUnusedImport]
 
 
-class CuePresetDialog(object):
-    """Self-contained state for the Save Preset popup (SFX + music).
+class CueDialogs(object):
+    """Holds the overlay dialog instances and the active-dialog gate.
 
-    The target discriminates the save: `marker_key`/`pool_idx` names an SFX
-    pool, `music_key`/`songs` names a music trigger.  Exactly one is set while
-    the popup is open; commit() dispatches on whichever is."""
+    cue_overlay folds each dialog screen in gated on active_id, so the
+    overlay toggle hides the active dialog without losing its state."""
 
     def __init__(self):
+        self.preset = None
+        self.music_preset = None
+        self.video_preset = None
+        self.confirm = None
+        self.merge = None
+        self.intensity = None
+        self.active_id = None
+
+    def show(self, dialog_id):
+        # type: (str) -> None
+        self.active_id = dialog_id
+
+    def hide(self):
+        # type: () -> None
+        self.active_id = None
+
+
+class CueDialogBase(object):
+    """Shared plumbing for the overlay dialog popups.
+
+    Each dialog carries its id (the _cue.dialogs gate key) in .id;
+    _show()/_hide() flip the active_id slot instead of showing/hiding the
+    screen directly, so the overlay toggle can fold the active dialog in
+    without losing its state."""
+
+    def __init__(self, dialog_id):
+        # type: (str) -> None
+        self.id = dialog_id
+
+    def _show(self):
+        # type: () -> None
+        _cue.dialogs.show(self.id)
+
+    def _hide(self):
+        # type: () -> None
+        _cue.dialogs.hide()
+
+
+class CuePresetDialog(CueDialogBase):
+    """Self-contained state for the Save Preset popup (SFX pool)."""
+
+    def __init__(self):
+        super(CuePresetDialog, self).__init__("preset")
         self.marker_key = None
         self.pool_idx = 0
         self.name = ""
-        self.music_key = None
-        self.songs = []
 
     def open(self, marker_key, pool_idx):
         # type: (str, int) -> None
@@ -41,56 +81,79 @@ class CuePresetDialog(object):
         _cue.markers._detach_pool(marker_key, pool_idx)
         self.marker_key = marker_key
         self.pool_idx = pool_idx
-        self.music_key = None
-        self.songs = []
         self.name = ""
-        renpy.show_screen("cue_save_preset_dialog", _layer="cue_layer")
-
-    def open_music(self, music_key):
-        # type: (str) -> None
-        """Open the popup for a music trigger's song list.
-
-        The song list is captured at open time; empty triggers don't open."""
-        songs = _cue.music.songs_for_trigger(music_key)
-        if not songs:
-            return
-        self.music_key = music_key
-        self.songs = list(songs)
-        self.marker_key = None
-        self.name = ""
-        renpy.show_screen("cue_save_preset_dialog", _layer="cue_layer")
+        self._show()
 
     def commit(self):
         # type: () -> None
         name = self.name.strip()
-        if name:
-            if self.music_key is not None:
-                _cue.music.create_preset(name, self.songs)
-            elif self.marker_key is not None:
-                entry = _cue.markers.get(self.marker_key)
-                if entry:
-                    pools = entry.get("pools", [])
-                    if self.pool_idx < len(pools):
-                        _cue.markers.create_preset(name, pools[self.pool_idx])
+        marker_key = self.marker_key
+        if name and marker_key is not None:
+            entry = _cue.markers.get(marker_key)
+            if entry:
+                pools = entry.get("pools", [])
+                if self.pool_idx < len(pools):
+                    _cue.markers.create_preset(name, pools[self.pool_idx])
         self._reset()
-        renpy.hide_screen("cue_save_preset_dialog", layer="cue_layer")
+        self._hide()
 
     def cancel(self):
         # type: () -> None
         self._reset()
-        renpy.hide_screen("cue_save_preset_dialog", layer="cue_layer")
+        self._hide()
 
     def _reset(self):
         # type: () -> None
         self.marker_key = None
+
+
+class CueMusicPresetDialog(CueDialogBase):
+    """Self-contained state for the Save Music Preset popup.
+
+    The song list is captured at open time; empty triggers don't open."""
+
+    def __init__(self):
+        super(CueMusicPresetDialog, self).__init__("music_preset")
+        self.music_key = None
+        self.songs = []
+        self.name = ""
+
+    def open(self, music_key):
+        # type: (str) -> None
+        songs = _cue.music.songs_for_trigger(music_key)
+        _cue_log('songs ' + str(songs))
+
+        if not songs:
+            return
+        self.music_key = music_key
+        self.songs = list(songs)
+        self.name = ""
+        self._show()
+
+    def commit(self):
+        # type: () -> None
+        name = self.name.strip()
+        if name and self.music_key is not None:
+            _cue.music.create_preset(name, self.songs)
+        self._reset()
+        self._hide()
+
+    def cancel(self):
+        # type: () -> None
+        self._reset()
+        self._hide()
+
+    def _reset(self):
+        # type: () -> None
         self.music_key = None
         self.songs = []
 
 
-class CueVideoPresetDialog(object):
+class CueVideoPresetDialog(CueDialogBase):
     """Self-contained state for the Save Video Preset popup."""
 
     def __init__(self):
+        super(CueVideoPresetDialog, self).__init__("video_preset")
         self.name = ""
 
     def open(self):
@@ -105,7 +168,7 @@ class CueVideoPresetDialog(object):
         if not pools:
             return
         self.name = ""
-        renpy.show_screen("cue_save_video_preset_dialog", _layer="cue_layer")
+        self._show()
 
     def commit(self):
         # type: () -> None
@@ -116,14 +179,14 @@ class CueVideoPresetDialog(object):
                 entry = _cue.markers.get(vid_key)
                 if entry:
                     _cue.markers.create_video_preset(name, entry)
-        renpy.hide_screen("cue_save_video_preset_dialog", layer="cue_layer")
+        self._hide()
 
     def cancel(self):
         # type: () -> None
-        renpy.hide_screen("cue_save_video_preset_dialog", layer="cue_layer")
+        self._hide()
 
 
-class CueIntensityGroupDialog(object):
+class CueIntensityGroupDialog(CueDialogBase):
     """Self-contained state for the New / Rename Group popup.
 
     `renaming` holds the group being renamed (None = create).  Errors from
@@ -131,6 +194,7 @@ class CueIntensityGroupDialog(object):
     popup stays open until a valid commit or cancel."""
 
     def __init__(self):
+        super(CueIntensityGroupDialog, self).__init__("igroup")
         self.name = ""
         self.renaming = None
         self.error = ""
@@ -140,14 +204,14 @@ class CueIntensityGroupDialog(object):
         self.name = ""
         self.renaming = None
         self.error = ""
-        renpy.show_screen("cue_new_igroup_dialog", _layer="cue_layer")
+        self._show()
 
     def open_rename(self, group_name):
         # type: (str) -> None
         self.name = group_name
         self.renaming = group_name
         self.error = ""
-        renpy.show_screen("cue_new_igroup_dialog", _layer="cue_layer")
+        self._show()
 
     def commit(self):
         # type: () -> None
@@ -156,7 +220,7 @@ class CueIntensityGroupDialog(object):
         else:
             error = _cue.intensity.create_igroup(self.name)
         if error is None:
-            renpy.hide_screen("cue_new_igroup_dialog", layer="cue_layer")
+            self._hide()
             self._reset()
         else:
             self.error = error
@@ -165,7 +229,7 @@ class CueIntensityGroupDialog(object):
     def cancel(self):
         # type: () -> None
         self._reset()
-        renpy.hide_screen("cue_new_igroup_dialog", layer="cue_layer")
+        self._hide()
 
     def _reset(self):
         # type: () -> None
@@ -174,10 +238,11 @@ class CueIntensityGroupDialog(object):
         self.error = ""
 
 
-class CueConfirmDialog(object):
+class CueConfirmDialog(CueDialogBase):
     """Reusable confirmation popup matching the overlay UI style."""
 
     def __init__(self):
+        super(CueConfirmDialog, self).__init__("confirm")
         self.message = ""
         self.on_confirm = None
 
@@ -185,7 +250,7 @@ class CueConfirmDialog(object):
         # type: (str, Callable[..., None]) -> None
         self.message = message
         self.on_confirm = confirm_action
-        renpy.show_screen("cue_confirm_dialog", _layer="cue_layer")
+        self._show()
 
     def show_or_run(self, message, confirm_action):
         # type: (str, Callable[..., None]) -> None
@@ -200,10 +265,10 @@ class CueConfirmDialog(object):
         # type: () -> None
         self.message = ""
         self.on_confirm = None
-        renpy.hide_screen("cue_confirm_dialog", layer="cue_layer")
+        self._hide()
 
 
-class CueMergeDialog(object):
+class CueMergeDialog(CueDialogBase):
     """Category picker for merging an import into live data.
 
     State is reset on open; confirm() hands the checked categories to the
@@ -212,6 +277,7 @@ class CueMergeDialog(object):
 
     def __init__(self, imports):
         # type: (Any) -> None
+        super(CueMergeDialog, self).__init__("merge")
         self._imports = imports
         self.imp = None
         self.checked = {}  # type: Dict[int, bool]
@@ -235,7 +301,7 @@ class CueMergeDialog(object):
         self.overwrites = []
         self.total_files = len(folder)
         self.error = ""
-        renpy.show_screen("cue_merge_dialog", _layer="cue_layer")
+        self._show()
 
     def toggle(self, cat):
         # type: (int) -> None
@@ -277,7 +343,7 @@ class CueMergeDialog(object):
     def cancel(self):
         # type: () -> None
         self._reset()
-        renpy.hide_screen("cue_merge_dialog", layer="cue_layer")
+        self._hide()
 
     def confirm(self):
         # type: () -> None
@@ -286,7 +352,7 @@ class CueMergeDialog(object):
         self._reset()
         if imp:
             self._imports.merge_confirm(imp, checked)
-        renpy.hide_screen("cue_merge_dialog", layer="cue_layer")
+        self._hide()
 
     def _reset(self):
         # type: () -> None

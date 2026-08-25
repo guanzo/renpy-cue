@@ -105,6 +105,12 @@ screen cue_overlay():
             yfill True
             use cue_overlay_content()
 
+    # --- SFX sidebar: pinned to the panel's right edge. Folded in (not a
+    # separate screen) so the overlay toggle hides it together with the panel. ---
+    use cue_sfx_sidebar()
+
+    use cue_dialogs()
+
     # --- Floating tooltip near mouse (auto-sizes to fit text) ---
     $ _tt = GetTooltip()
 
@@ -114,9 +120,8 @@ screen cue_overlay():
     if _tt:
         add CueTooltip(_tt)
 
-    # --- Marker timeline tooltip (rendered last so it's always on top) ---
+    # --- Marker timeline tooltip ---
     add CueVideoMarkerTooltip()
-
 
 # =============================================================================
 # SUB-SCREEN: Sidebar content (shared between normal and fullscreen frames)
@@ -271,6 +276,24 @@ screen cue_header_toolbar():
 
             
             use cue_icon_btn("xmark", Function(_cue_hide_overlay), "Close overlay")
+
+# --- Active dialog: folded in gated on _cue.dialogs.active_id so the
+# overlay toggle hides it without losing its state. Dialog screens are
+# top-level on their own only when shown directly; the use inlines them. ---
+screen cue_dialogs():
+    $ _dlg_id = _cue.dialogs.active_id
+    if _dlg_id == "preset":
+        use cue_save_preset_dialog()
+    elif _dlg_id == "music_preset":
+        use cue_save_music_preset_dialog()
+    elif _dlg_id == "video_preset":
+        use cue_save_video_preset_dialog()
+    elif _dlg_id == "igroup":
+        use cue_new_igroup_dialog()
+    elif _dlg_id == "confirm":
+        use cue_confirm_dialog()
+    elif _dlg_id == "merge":
+        use cue_merge_dialog()
 
 ###############################################################################
 # Speed-change toast — subtle indicator in the top-left corner
