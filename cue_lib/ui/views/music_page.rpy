@@ -263,47 +263,6 @@ screen trigger_list(triggers):
                 elif not trigger["is_default"]:
                     etext "No music added."
 
-# Combined Music Library file tree. Each row carries a play button plus an
-# add-to-trigger "+" button. The combined manager routes display paths back to
-# the correct (user- vs game-music) data model. Folder rows show "+" only when
-# the folder directly contains files (has_files).
-screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
-    style_group "cue"
-
-    $ _sel_label = _cue.music.selected_trigger_label()
-    $ _add_target = _sel_label if _sel_label else "a new trigger for the current scene"
-    $ _tree_add_tt = "Add song to " + _add_target
-    $ _tree_add_folder_tt = "Add folder to " + _add_target
-    $ _tree_add_enabled = (_cue.music.selected_key is not None
-                           or bool(_cue.current_file))
-    vbox:
-        spacing 2
-        for item in tree:
-            hbox:
-                spacing 2
-                if item["depth"] > 0:
-                    etext _cue_indent * item["depth"]
-                if item["type"] == "folder":
-                    if item.get("has_files", False):
-                        use cue_icon_btn(
-                            "plus",
-                            Function(add_folder, item["full_path"]),
-                            _tree_add_folder_tt,
-                            enabled=_tree_add_enabled)
-                    use cue_txt_button(
-                        item["name"],
-                        Function(toggle_folder, item["full_path"]),
-                    )
-                else:
-                    use cue_icon_btn(
-                        "plus",
-                        Function(add_song, item["full_path"]),
-                        _tree_add_tt,
-                        enabled=_tree_add_enabled)
-                    use cue_icon_btn("play", Function(preview, item["full_path"]), "Play song")
-                    null width 2
-                    etext item["name"] color _cue_color_text_accent
-
 # Combined My/Game Music tree. One shared search bar filters both sources; the
 # combined manager's visible_tree holds the merged display rows.  The search
 # "no files found" message lives in cue_music_page, which also accounts for
@@ -311,12 +270,7 @@ screen _cue_music_file_tree(tree, add_folder, toggle_folder, preview, add_song):
 screen cue_music_tree():
     style_group "cue"
 
-    use _cue_music_file_tree(
-        _cue.music.library.visible_tree,
-        _cue.music.library.add_folder_to_trigger,
-        _cue.music.library.toggle_folder,
-        _cue.music.library.preview,
-        _cue.music.library.add_song_to_trigger)
+    use cue_tree_rows(_cue.music.library.tree_rows(_cue.current_file))
 
 # Recently Used rows, shown when the Recently Used folder is expanded.
 # entries: filtered recent-entry dicts {type, ref}, most-recent-first, refs

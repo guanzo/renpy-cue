@@ -1256,3 +1256,23 @@ testcase sfx_sidebar_resize:
     # Restore state so later testcases render the in-overlay SFX section.
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     run Jump("start")
+
+testcase tree_render:
+    run Jump("start")
+    $ _cue_test_reset()
+    # Every row kind cue_tree_rows draws -- folder, file (warn + gap), action,
+    # help.  A compile or layout error in the shared renderer fails this.
+    $ _rows = [
+        {"key": "t1", "type": "folder", "label": "Folder/", "depth": 0,
+         "buttons": [], "toggle": Function(_cue.sfx.library.toggle_folder, "Folder/")},
+        {"key": "t2", "type": "file", "label": "a.wav", "depth": 1,
+         "buttons": [{"icon": "play", "action": NullAction(), "tt": "Preview audio"}],
+         "warn": "bad format", "gap": 1},
+        {"key": "t3", "type": "action", "label": "+ Group", "depth": 0,
+         "action": NullAction(), "tt": "Create a new intensity group."},
+        {"key": "t4", "type": "help", "label": "No files yet.", "depth": 0},
+    ]
+    $ renpy.show_screen("cue_tree_rows", _rows, _layer="cue_layer")
+    pause 0.5
+    assert screen "cue_tree_rows" layer "cue_layer"
+    $ renpy.hide_screen("cue_tree_rows")
