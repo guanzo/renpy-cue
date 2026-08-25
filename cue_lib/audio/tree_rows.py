@@ -13,8 +13,13 @@ from renpy.store import Function
 
 from cue_lib.constants import CUE_HELP_SHIFT_SKIP_DELETE
 from cue_lib.markers import _cue_markers_send
-from cue_lib.ui.dialogs import _cue_confirm_delete_preset
-from cue_lib.util import _cue_filter_preset_files
+from cue_lib.ui.dialogs import (
+    _cue_confirm_delete_preset,
+    _cue_confirm_delete_video_preset,
+    _cue_confirm_remove_video_preset_pool,
+    _cue_maybe_apply_video_preset,
+)
+from cue_lib.util import _cue_filter_preset_files, _cue_format_time, _cue_resolve_files
 
 MYPY = False
 if MYPY:
@@ -317,6 +322,96 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                     searching,
                     buttons,
                     children,
+                )
+            )
+        return rows
+
+    def _video_preset_rows(self, video_preset_names, is_video):
+        # type: (List[str], bool) -> List[Dict[str, Any]]
+        """Video Preset rows: preset folder -> timestamp pools (depth 1) ->
+        pool files (depth 2, size 11).  Pools reveal only on explicit expand
+        (no search auto-show, matching the video preset screen); the apply-v
+        button is gated on is_video."""
+        rows = []
+        for vpname in video_preset_names:
+            data = self._tree._sfx._markers.get_video_preset(vpname)
+            pools = data.get("pools", []) if data else []
+            vp_expanded = self._tree.expanded_video_presets.get(vpname, False)
+            buttons = [
+                {
+                    "icon": "xmark",
+                    "action": Function(_cue_confirm_delete_video_preset, vpname),
+                    "tt": "Delete video preset" + CUE_HELP_SHIFT_SKIP_DELETE,
+                },
+                {
+                    "icon": "v",
+                    "action": Function(_cue_maybe_apply_video_preset, vpname),
+                    "tt": "Apply video markers to the current video.\nOverwrites existing markers.",
+                    "enabled": is_video,
+                },
+            ]
+            pool_rows = []
+            pool_state = self._tree.expanded_video_pools.get(vpname, {})
+            for pool_index, pool in enumerate(pools):
+                pool_label = _cue_format_time(pool.get("time", 0))
+                pool_expanded = pool_state.get(pool_index, False)
+                pool_files = _cue_resolve_files(pool.get("files", []))
+                children = [
+                    _cue_file_row(
+                        "vpreset:" + vpname + "/" + str(pool_index) + "/" + child,
+                        child,
+                        2,
+                        [
+                            {
+                                "icon": "xmark",
+                                "action": Function(
+                                    self._tree._sfx._markers.remove_video_preset_pool_file, vpname, pool_index, child
+                                ),
+                                "tt": "Remove file from pool",
+                            },
+                            {
+                                "icon": "play",
+                                "action": Function(self._tree._sfx.preview_sfx, child),
+                                "tt": "Preview file",
+                            },
+                        ],
+                        size=11,
+                    )
+                    for child in pool_files
+                ]
+                pool_rows.extend(
+                    _cue_folder_rows(
+                        "vpreset:" + vpname + "/" + str(pool_index),
+                        pool_label,
+                        1,
+                        Function(self._tree.toggle_video_pool_expand, vpname, pool_index),
+                        pool_expanded,
+                        False,
+                        [
+                            {
+                                "icon": "xmark",
+                                "action": Function(_cue_confirm_remove_video_preset_pool, vpname, pool_index),
+                                "tt": "Remove this pool from the video preset" + CUE_HELP_SHIFT_SKIP_DELETE,
+                            },
+                            {
+                                "icon": "play",
+                                "action": Function(self._tree._sfx.preview_video_pool, vpname, pool_index),
+                                "tt": "Play random file from this pool",
+                            },
+                        ],
+                        children,
+                    )
+                )
+            rows.extend(
+                _cue_folder_rows(
+                    "vpreset:" + vpname,
+                    vpname,
+                    1,
+                    Function(self._tree.toggle_video_preset_expand, vpname),
+                    vp_expanded,
+                    False,
+                    buttons,
+                    pool_rows,
                 )
             )
         return rows

@@ -1111,3 +1111,72 @@ def test_sfx_preset_rows_auto_show_children_on_search(sfx):
     assert len(rows) == 2
     assert rows[1]["type"] == "file"
     assert rows[1]["label"] == "a.ogg"
+
+
+def _video_preset_rows(sfx, names, is_video=True):
+    # type: (CueSfxLibraryTree, list, bool) -> list
+    """Video Preset row stream via the SFX builder, with markers/pset stubs."""
+    sfx._sfx._markers = types.SimpleNamespace(
+        get_video_preset=lambda n: {"pools": [{"time": 1.5, "files": ["a.ogg", "b.ogg"]}]},
+        remove_video_preset_pool_file=lambda n, i, f: None,
+    )
+    import cue_lib.util as util_mod
+
+    util_mod._cue.sfx = types.SimpleNamespace(library=None)
+    return _tree_rows.CueSfxTreeRows(sfx)._video_preset_rows(names, is_video)
+
+
+def test_sfx_video_preset_rows_expanded(sfx):
+    sfx.expanded_video_presets = {"vp": True}
+    sfx.expanded_video_pools = {"vp": {0: True}}
+    rows = _video_preset_rows(sfx, ["vp"])
+    folder = rows[0]
+    assert folder["type"] == "folder"
+    assert folder["label"] == "vp"
+    assert folder["depth"] == 1
+    assert [b["icon"] for b in folder["buttons"]] == ["xmark", "v"]
+    assert folder["buttons"][0]["action"]._args[0] is _tree_rows._cue_confirm_delete_video_preset
+    assert folder["buttons"][0]["tt"] == "Delete video preset" + CUE_HELP_SHIFT_SKIP_DELETE
+    assert folder["buttons"][1]["action"]._args[0] is _tree_rows._cue_maybe_apply_video_preset
+    assert folder["buttons"][1]["enabled"] is True
+    assert folder["toggle"]._args[0] == sfx.toggle_video_preset_expand
+    pool = rows[1]
+    assert pool["type"] == "folder"
+    assert pool["label"] == "00:01.50"
+    assert pool["depth"] == 1
+    assert [b["icon"] for b in pool["buttons"]] == ["xmark", "play"]
+    assert pool["buttons"][0]["action"]._args[0] is _tree_rows._cue_confirm_remove_video_preset_pool
+    assert pool["buttons"][0]["action"]._args[1:3] == ("vp", 0)
+    assert pool["buttons"][1]["action"]._args[0] == sfx._sfx.preview_video_pool
+    assert pool["buttons"][1]["action"]._args[1:3] == ("vp", 0)
+    assert pool["toggle"]._args[0] == sfx.toggle_video_pool_expand
+    assert pool["toggle"]._args[1:3] == ("vp", 0)
+    file_rows = rows[2:]
+    assert [r["label"] for r in file_rows] == ["a.ogg", "b.ogg"]
+    assert file_rows[0]["depth"] == 2
+    assert file_rows[0]["size"] == 11
+    assert file_rows[0]["gap"] == 1
+    assert [b["icon"] for b in file_rows[0]["buttons"]] == ["xmark", "play"]
+    assert file_rows[0]["buttons"][0]["action"]._args[0] == sfx._sfx._markers.remove_video_preset_pool_file
+    assert file_rows[0]["buttons"][0]["action"]._args[1:4] == ("vp", 0, "a.ogg")
+    assert file_rows[0]["buttons"][1]["action"]._args[0] == sfx._sfx.preview_sfx
+
+
+def test_sfx_video_preset_rows_apply_disabled_without_video(sfx):
+    sfx.expanded_video_presets = {"vp": True}
+    rows = _video_preset_rows(sfx, ["vp"], is_video=False)
+    assert rows[0]["buttons"][1]["enabled"] is False
+
+
+def test_sfx_video_preset_rows_collapsed_no_pools(sfx):
+    sfx.expanded_video_presets = {}
+    rows = _video_preset_rows(sfx, ["vp"])
+    assert len(rows) == 1
+    assert rows[0]["type"] == "folder"
+
+
+def test_sfx_video_preset_rows_pool_collapsed_no_files(sfx):
+    sfx.expanded_video_presets = {"vp": True}
+    sfx.expanded_video_pools = {"vp": {0: False}}
+    rows = _video_preset_rows(sfx, ["vp"])
+    assert len(rows) == 2  # preset folder + pool row, no file rows
