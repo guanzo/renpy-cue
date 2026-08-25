@@ -135,13 +135,13 @@ def file_issue(title, body):
     return True
 
 
-def build_body(group, game, path):
+def build_body(group, game):
     lines = ["Found by the trigger-debug anomaly monitor (durable cron).", ""]
-    lines.append("Game: {} ({})".format(game, GAMES_ROOT / game))
+    lines.append("Game: {}".format(game))
     lines.append("Anomaly type: {} -- {}".format(group["kind"], KIND_MEANING.get(group["kind"], group["kind"])))
     lines.append("Occurrences: {}".format(len(group["markers"])))
     lines.append("")
-    lines.append("Evidence ({}):".format(path))
+    lines.append("Evidence (trigger-debug.log):")
     lines.append("```")
     lines.extend(group["evidence"])
     lines.append("```")
@@ -170,7 +170,7 @@ def process_log(path, dry_run):
             print("  would file: {}".format(title))
             out["filed"] += 1
             continue
-        if file_issue(title, build_body(group, game, path)):
+        if file_issue(title, build_body(group, game)):
             out["filed"] += 1
         else:
             out["failed"] = 1
