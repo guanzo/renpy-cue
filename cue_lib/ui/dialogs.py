@@ -187,38 +187,25 @@ class CueVideoPresetDialog(CueDialogBase):
 
 
 class CueIntensityGroupDialog(CueDialogBase):
-    """Self-contained state for the New / Rename Group popup.
+    """Self-contained state for the New Group popup.
 
-    `renaming` holds the group being renamed (None = create).  Errors from
-    the intensity manager (empty/duplicate name) are shown inline and the
-    popup stays open until a valid commit or cancel."""
+    Errors from the intensity manager (empty/duplicate name) are shown
+    inline and the popup stays open until a valid commit or cancel."""
 
     def __init__(self):
         super(CueIntensityGroupDialog, self).__init__("igroup")
         self.name = ""
-        self.renaming = None
         self.error = ""
 
     def open(self):
         # type: () -> None
         self.name = ""
-        self.renaming = None
-        self.error = ""
-        self._show()
-
-    def open_rename(self, group_name):
-        # type: (str) -> None
-        self.name = group_name
-        self.renaming = group_name
         self.error = ""
         self._show()
 
     def commit(self):
         # type: () -> None
-        if self.renaming is not None:
-            error = _cue.intensity.rename_igroup(self.renaming, self.name)
-        else:
-            error = _cue.intensity.create_igroup(self.name)
+        error = _cue.intensity.create_igroup(self.name)
         if error is None:
             self._hide()
             self._reset()
@@ -234,7 +221,6 @@ class CueIntensityGroupDialog(CueDialogBase):
     def _reset(self):
         # type: () -> None
         self.name = ""
-        self.renaming = None
         self.error = ""
 
 

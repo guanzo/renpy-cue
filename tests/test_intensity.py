@@ -94,36 +94,6 @@ def test_get_missing_igroup_returns_none(cue_env, imgr):
     assert imgr.get_igroup("nope") is None
 
 
-def test_rename_igroup_moves_file(cue_env, imgr):
-    imgr.create_igroup("Impacts")
-    assert imgr.add_level("Impacts") == 1
-    assert imgr.add_level_file("Impacts", 1, "Sub/") is None
-    assert imgr.rename_igroup("Impacts", "Hits") is None
-    assert imgr.list_igroups() == ["Hits"]
-    assert imgr.get_igroup("Impacts") is None
-    data = imgr.get_igroup("Hits")
-    assert data is not None
-    assert data["levels"][0]["files"] == ["Sub/"]
-    files = _igroup_files(cue_env)
-    assert len(files) == 1
-    assert files[0].startswith("Hits_")
-
-
-def test_rename_to_existing_rejected(cue_env, imgr):
-    imgr.create_igroup("A")
-    imgr.create_igroup("B")
-    assert imgr.rename_igroup("A", "B") is not None
-
-
-def test_rename_blank_rejected(cue_env, imgr):
-    imgr.create_igroup("A")
-    assert imgr.rename_igroup("A", "  ") is not None
-
-
-def test_rename_missing_igroup_rejected(cue_env, imgr):
-    assert imgr.rename_igroup("nope", "Hits") is not None
-
-
 def test_delete_igroup(cue_env, imgr):
     imgr.create_igroup("A")
     imgr.delete_igroup("A")

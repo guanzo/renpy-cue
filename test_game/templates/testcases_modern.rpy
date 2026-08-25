@@ -271,18 +271,14 @@ testcase intensity_groups_crud:
     assert eval (_cue.dialogs.active_id == "igroup")
     run Function(_cue.dialogs.intensity.cancel)
     assert eval (_cue.dialogs.active_id is None)
-    # Rename moves the group.
-    run Function(_cue.intensity.rename_igroup, "Test Impacts", "Impacts 2")
-    assert eval ("Impacts 2" in _cue.intensity.list_igroups())
-    assert eval ("Test Impacts" not in _cue.intensity.list_igroups())
     # One JSON landed on disk under data/presets/intensity/.
     $ import os as _os
     $ _ok = _os.path.isdir(_cue.paths.intensity_preset_dir)
-    $ _ok = _ok and len([f for f in _os.listdir(_cue.paths.intensity_preset_dir) if f.startswith("Impacts")]) == 1
+    $ _ok = _ok and len([f for f in _os.listdir(_cue.paths.intensity_preset_dir) if f.startswith("Test")]) == 1
     assert eval (_ok)
     # Delete removes it from memory and disk.
-    run Function(_cue.intensity.delete_igroup, "Impacts 2")
-    assert eval ("Impacts 2" not in _cue.intensity.list_igroups())
+    run Function(_cue.intensity.delete_igroup, "Test Impacts")
+    assert eval ("Test Impacts" not in _cue.intensity.list_igroups())
 
 testcase intensity_resolves_level_folders:
     run Jump("start")

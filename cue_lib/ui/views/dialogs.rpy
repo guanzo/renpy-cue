@@ -249,7 +249,7 @@ screen cue_new_igroup_dialog():
     use cue_dialog_wrapper():
         vbox:
             spacing 8
-            etext ("Rename Intensity Group" if _d.renaming is not None else "New Intensity Group") style "cue_hdr"
+            etext "New Intensity Group" style "cue_hdr"
 
             hbox:
                 spacing 5

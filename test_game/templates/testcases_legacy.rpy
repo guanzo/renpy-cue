@@ -406,15 +406,12 @@ testcase intensity_groups_crud:
     $ _ok = _ok and _cue.dialogs.active_id == "igroup"
     run Function(_cue.dialogs.intensity.cancel)
     $ _ok = _ok and _cue.dialogs.active_id is None
-    # Rename moves the group; one JSON lands on disk under data/presets/.
-    run Function(_cue.intensity.rename_igroup, "Test Impacts", "Impacts 2")
-    $ _ok = _ok and ("Impacts 2" in _cue.intensity.list_igroups())
-    $ _ok = _ok and ("Test Impacts" not in _cue.intensity.list_igroups())
+    # One JSON landed on disk under data/presets/intensity/.
     $ import os as _os
     $ _ok = _ok and _os.path.isdir(_cue.paths.intensity_preset_dir)
-    $ _ok = _ok and len([f for f in _os.listdir(_cue.paths.intensity_preset_dir) if f.startswith("Impacts")]) == 1
+    $ _ok = _ok and len([f for f in _os.listdir(_cue.paths.intensity_preset_dir) if f.startswith("Test")]) == 1
     $ if not _ok: renpy.quit(status=1)
-    run Function(_cue.intensity.delete_igroup, "Impacts 2")
+    run Function(_cue.intensity.delete_igroup, "Test Impacts")
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 

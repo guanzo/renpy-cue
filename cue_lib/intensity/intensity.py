@@ -145,23 +145,6 @@ class CueIntensityManager(object):
         self._save(name, data)
         return None
 
-    def rename_igroup(self, old_name, new_name):
-        # type: (str, str) -> Optional[str]
-        new_name = new_name.strip()
-        if not new_name:
-            return "Intensity group name can't be empty."
-        if new_name == old_name:
-            return None
-        if self.get_igroup(new_name) is not None:
-            return "An intensity group named '{}' already exists.".format(new_name)
-        data = self.get_igroup(old_name)
-        if data is None:
-            return "No intensity group named '{}'.".format(old_name)
-        self._save(new_name, data)
-        self._db.delete_preset(CUE_INTENSITY_PRESET_TYPE, old_name)
-        self._invalidate()
-        return None
-
     def delete_igroup(self, name):
         # type: (str) -> None
         self._db.delete_preset(CUE_INTENSITY_PRESET_TYPE, name)
