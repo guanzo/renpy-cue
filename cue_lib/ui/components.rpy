@@ -31,8 +31,36 @@ init -900 python:
             # a string. In Python 2 screen strings are unicode, which fails
             # FieldInputValue's isinstance(obj, str) gate in get_text/set_text.
             _obj = renpy.python.py_eval(self._obj_expr)
-            FieldInputValue.__init__(self, _obj, self._field, default=default)
+            # List-element paths: "settings.folders[i]" binds a single element
+            # of a list attribute instead of a scalar field (Settings folder
+            # rows).  FieldInputValue can't address "folders[i]" via setattr,
+            # so the list case routes get_text/set_text through the element.
+            _lb = self._field.rfind("[")
+            if _lb == -1:
+                self._is_list = False
+                self._list = None
+                self._index = 0
+                FieldInputValue.__init__(self, _obj, self._field, default=default)
+            else:
+                self._is_list = True
+                self._list = getattr(_obj, self._field[:_lb])
+                self._index = int(self._field[_lb + 1 : self._field.rfind("]")])
             self.enter_action = enter_action
+
+        def get_text(self):
+            if self._is_list:
+                try:
+                    return self._list[self._index]
+                except Exception:
+                    return ""
+            return FieldInputValue.get_text(self)
+
+        def set_text(self, text):
+            if self._is_list:
+                self._list[self._index] = text
+                renpy.restart_interaction()
+                return
+            FieldInputValue.set_text(self, text)
 
         def enter(self):
             if self.enter_action is not None:
@@ -96,6 +124,13 @@ init -900 python:
         _pair = _cue_split_dotted_path(dotted_path)
         setattr(_pair[0], _pair[1], _clip)
         renpy.restart_interaction()
+
+    def _cue_clear_list_element(value_path):
+        # type: (str) -> None
+        """Empty a list-element field ("settings.folders[i]").  The clear
+        action for Settings folder rows -- _CueFieldValue binds the element
+        and set_text writes it (restart included)."""
+        _CueFieldValue(value_path).set_text("")
 
 
 

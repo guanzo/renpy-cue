@@ -113,6 +113,34 @@ init 1000 python:
     def _cue_intensity_soft_fired():
         return _cue_played_from("soft/")
 
+    def _cue_external_dirs():
+        # Create two temp external Music/SFX folders (one audio file each)
+        # under the data root; returns (music_dir, sfx_dir).  Exercises the
+        # external-scan paths.  Cleaned up by _cue_external_cleanup.
+        import os as _os
+        _base = _cue.paths.root
+        _md = _base + "/ExtMusic"
+        _sd = _base + "/ExtSfx"
+        for _d in (_md, _sd):
+            if not _os.path.isdir(_d):
+                _os.makedirs(_d)
+        with open(_os.path.join(_md, "song.ogg"), "wb") as _f:
+            _f.write(b"x")
+        with open(_os.path.join(_sd, "drip.ogg"), "wb") as _f:
+            _f.write(b"x")
+        return _md, _sd
+
+    def _cue_external_cleanup():
+        # Remove the temp external folders and reset the library lists (each
+        # legacy testcase forks a fresh process, so no rescan is needed).
+        import os as _os
+        import shutil as _shutil
+        _base = _cue.paths.root
+        _shutil.rmtree(_base + "/ExtMusic", ignore_errors=True)
+        _shutil.rmtree(_base + "/ExtSfx", ignore_errors=True)
+        _cue.music.library.external_folders = []
+        _cue.sfx.library.external_folders = []
+
     # The video_seamless testcase re-enables it itself.
     _cue.speed_resolver.seamless_transition = False
 
@@ -1569,4 +1597,85 @@ testcase tree_render:
     pause 0.5
     $ if not renpy.get_screen("cue_tree_rows", layer="cue_layer"): renpy.quit(status=1)
     $ renpy.hide_screen("cue_tree_rows")
+    $ renpy.quit()
+
+
+testcase settings_page_folder_sections:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    # Rendering the Settings page exercises the Data Folder section's new
+    # SFX/Music folder row editors; a broken cue_sfx_folders or
+    # cue_music_folders screen fails this interaction.  The lists hydrate from
+    # shared config (empty in a fresh fixture root).
+    run Function(_cue_set_page, CuePage.SETTINGS)
+    pause 0.5
+    run Function(_cue.settings.prepare_for_page)
+    $ _ok = _cue.overlay_active_page == CuePage.SETTINGS
+    $ _ok = _ok and _cue.settings.music_folders == []
+    $ _ok = _ok and _cue.settings.sfx_folders == []
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase music_external_tree_renders:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    # A configured external Music folder becomes a top-level tree entry; the
+    # Music page render under that state is the smoke test for the external
+    # row path.
+    $ _md, _sd = _cue_external_dirs()
+    $ _cue.music.library.external_folders = [_md]
+    $ _cue.music.library.scan()
+    $ _ok = len(_cue.music.library.external_files) == 1
+    $ _ok = _ok and _cue.music.library.external_sources[0]["label"] == "ExtMusic"
+    $ _ok = _ok and any(_e.get("name") == "ExtMusic/" for _e in _cue.music.library.tree)
+    run Function(_cue_set_page, CuePage.MUSIC)
+    pause 0.5
+    $ _ok = _ok and _cue.overlay_active_page == CuePage.MUSIC
+    $ _cue_external_cleanup()
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase sfx_external_tree_renders:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    # The SFX library wraps built-ins in the synthetic "SFX Folder/" root and
+    # appends external folders below it; rendering the SFX page under that
+    # state exercises the per-source tree rows.
+    $ _md, _sd = _cue_external_dirs()
+    $ _cue.sfx.library.external_folders = [_sd]
+    $ _cue.sfx.library.scan()
+    $ _ok = len(_cue.sfx.library.external_files) == 1
+    $ _ok = _ok and _cue.sfx.library.external_sources[0]["label"] == "ExtSfx"
+    $ _ok = _ok and len(_cue.sfx.library.tree) >= 2
+    $ _ok = _ok and _cue.sfx.library.tree[0]["name"] == "SFX Folder/"
+    $ _ok = _ok and any(_e.get("name") == "ExtSfx/" for _e in _cue.sfx.library.tree)
+    run Function(_cue_set_page, CuePage.SFX)
+    pause 0.5
+    $ _ok = _ok and _cue.overlay_active_page == CuePage.SFX
+    $ _cue_external_cleanup()
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase empty_state_settings_tip:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    # Empty per-source state renders the SFX empty-state rows, including the
+    # new Settings > Data Folder tip line; a broken tip row fails this.
+    $ _sfx_builtin_tree = _cue.sfx.library.builtin_tree
+    $ _sfx_builtin_scan_error = _cue.sfx.library.builtin_scan_error
+    $ _sfx_external_sources = _cue.sfx.library.external_sources
+    $ _cue.sfx.library.builtin_tree = []
+    $ _cue.sfx.library.builtin_scan_error = ""
+    $ _cue.sfx.library.external_sources = []
+    run Function(_cue_set_page, CuePage.SFX)
+    pause 0.5
+    $ _ok = _cue.overlay_active_page == CuePage.SFX
+    $ _cue.sfx.library.builtin_tree = _sfx_builtin_tree
+    $ _cue.sfx.library.builtin_scan_error = _sfx_builtin_scan_error
+    $ _cue.sfx.library.external_sources = _sfx_external_sources
+    $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()

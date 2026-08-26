@@ -46,6 +46,84 @@ screen cue_data_dir():
                 use cue_open_in_explorer_btn(_cue.paths.original_root, "Open Data Folder")
                 use cue_txt_button("Save", Function(_cue.settings.confirm_shared_dir))
 
+            use cue_h_divider()
+
+            # SFX Folders -- external folders scanned into the SFX Library.
+            etext "SFX Folders" style "cue_hdr"
+            etext ("Add more folders to check for SFX. They appear in the SFX "
+                "Library alongside the built-in SFX Folder.") style "cue_help"
+            for _i in range(len(_cue.settings.sfx_folders)):
+                use cue_folder_row(
+                    "_cue.settings.sfx_folders[{}]".format(_i),
+                    Function(_cue.settings.commit_sfx_folder, _i),
+                    Function(_cue.settings.remove_sfx_folder, _i))
+                if _i < len(_cue.settings.sfx_folder_errors):
+                    if _cue.settings.sfx_folder_errors[_i]:
+                        etext _cue.settings.sfx_folder_errors[_i] color _cue_color_error
+            use cue_txt_button("Add SFX Folder", Function(_cue.settings.add_sfx_folder))
+
+            use cue_h_divider()
+
+            # Music Folders -- external folders scanned into the Music Library.
+            etext "Music Folders" style "cue_hdr"
+            etext ("Add more folders to check for music. They appear in the "
+                "Music Library alongside My Music and Game Music.") style "cue_help"
+            for _i in range(len(_cue.settings.music_folders)):
+                use cue_folder_row(
+                    "_cue.settings.music_folders[{}]".format(_i),
+                    Function(_cue.settings.commit_music_folder, _i),
+                    Function(_cue.settings.remove_music_folder, _i))
+                if _i < len(_cue.settings.music_folder_errors):
+                    if _cue.settings.music_folder_errors[_i]:
+                        etext _cue.settings.music_folder_errors[_i] color _cue_color_error
+            use cue_txt_button("Add Music Folder", Function(_cue.settings.add_music_folder))
+
+
+# Editable folder row (Settings > Data Folder): text input bound to a
+# settings.folders[i] element + remove button.  Enter commits (validates and
+# rescans); the row keeps its text on failure so the user can fix it.
+screen cue_folder_row(value_path, commit_action, remove_action, xsize=430):
+    style_group "cue"
+
+    $ editing = (_cue.editing_input == value_path)
+    $ _start_edit = SetField(_cue, "editing_input", value_path)
+    $ _commit = [commit_action, SetField(_cue, "editing_input", "")]
+    $ _exit_edit = SetField(_cue, "editing_input", "")
+    $ _clear = [Function(_cue_clear_list_element, value_path), _exit_edit]
+    $ _value = _CueFieldValue(value_path).get_text()
+
+    hbox:
+        spacing 4
+        if editing:
+            use cue_icon_btn("xmark", _clear, "Clear", bg=_cue_color_bg_input)
+        else:
+            use cue_icon_btn("keyboard", enabled=False, bg=_cue_color_bg_input)
+        if editing:
+            # Single child only, like cue_text_input's editing frame.
+            frame:
+                style "empty"
+                background _cue_color_bg_input
+                padding (6, 0)
+                xsize xsize
+                yminimum 16
+                input:
+                    value _CueFieldValue(value_path, enter_action=_commit)
+                    default True
+                    copypaste True
+                    xsize xsize
+                    yminimum 16
+                    yoffset 1
+        else:
+            textbutton _cue_escape_text(_value if _value else "Click to type a folder path..."):
+                action _start_edit
+                text_xalign 0
+                background _cue_color_bg_input
+                hover_background _cue_color_bg_input_hover
+                padding (6, 0)
+                xsize xsize
+                tooltip "Click to type. Enter to confirm."
+        use cue_icon_btn("trash", remove_action, "Remove folder")
+
 
 screen cue_keybinds():
     style_group "cue"

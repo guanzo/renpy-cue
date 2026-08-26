@@ -19,6 +19,8 @@ from cue_lib.constants import (
     CUE_PERSIST_SIDEBAR_MODE,
     CUE_PERSIST_SIDEBAR_WIDTH,
     CUE_SIDEBAR_DEFAULT_WIDTH,
+    CUE_SHARED_KEY_MUSIC_FOLDERS,
+    CUE_SHARED_KEY_SFX_FOLDERS,
     CueExclusiveStart as CueExclusiveStart,
     CueLoopFrequency as CueLoopFrequency,
     CueContextType,
@@ -695,6 +697,17 @@ def _cue_load_scalars_from_persistent():
         _cue_dict.pop("disabled_files", None)
 
     _cue.sfx.library.disabled_files = set(shared.get("disabled_files", []))
+
+    # Hydrate the external Music/SFX folder lists (Settings > Data Folder) and
+    # push them into the loader roots.  The caller's scan() runs after this,
+    # so the trees pick the fresh lists up.  Lazy import avoids the runtime
+    # <-> markers module cycle (runtime imports this function).
+    _cue.music.library.external_folders = list(shared.get(CUE_SHARED_KEY_MUSIC_FOLDERS, []) or [])
+    _cue.sfx.library.external_folders = list(shared.get(CUE_SHARED_KEY_SFX_FOLDERS, []) or [])
+
+    from cue_lib import runtime
+
+    runtime._cue_refresh_loader_roots()
 
     # Coalesce None to the default: see _cue_coalesce_bool.
     _cue.trigger.active = _cue_coalesce_bool(_cue_dict.get("triggers_active"), True)

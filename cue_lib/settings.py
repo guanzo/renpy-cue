@@ -6,6 +6,7 @@
 import os as _os
 import renpy
 
+from cue_lib.constants import CUE_SHARED_KEY_MUSIC_FOLDERS, CUE_SHARED_KEY_SFX_FOLDERS
 from cue_lib.db import CueDatabase
 from cue_lib.paths import CuePaths
 from cue_lib.state import _cue
@@ -13,30 +14,162 @@ from cue_lib.util import _cue_log, _cue_ui_refresh
 
 MYPY = False
 if MYPY:
-    from typing import Any  # pyright: ignore[reportUnusedImport]
+    from typing import Any, List  # pyright: ignore[reportUnusedImport]
 
 
 class CueSettings(object):
     """Settings-page state and actions.
 
-    Owns the Shared Dir input.  Methods are callable via Function() from the
-    settings screens."""
+    Owns the Shared Dir input and the external Music/SFX folder lists.
+    Methods are callable via Function() from the settings screens."""
 
     def __init__(self):
         self.setup_dir_text = ""  # text bound to the Shared Dir input
         self.shared_dir_error = ""  # error line under the Shared Dir input
         self.shared_dir_success = ""  # success line under the Shared Dir input
 
+        # External folder lists (Settings > Data Folder).  The *_folders lists
+        # hold committed absolute paths (mirror of the shared-config lists the
+        # trees consume); *_folder_errors parallel them by index.  Row inputs
+        # bind directly to *_folders elements (components._CueFieldValue).
+        self.music_folders = []  # type: List[str]
+        self.sfx_folders = []  # type: List[str]
+        self.music_folder_errors = []  # type: List[str]
+        self.sfx_folder_errors = []  # type: List[str]
+
     def prepare_for_page(self):
         # type: () -> None
-        """Reset the Shared Dir fields when the Settings page opens.
+        """Reset the Settings-page fields when it opens.
 
-        The field names the real data root -- never an import path the
-        active overlay happens to serve.
+        The Shared Dir field names the real data root -- never an import path
+        the active overlay happens to serve.  Folder lists hydrate from the
+        shared config; uncommitted row text is dropped (config is truth).
         """
         self.setup_dir_text = _cue.paths.original_root
         self.shared_dir_error = ""
         self.shared_dir_success = ""
+
+        _config = _cue.db.load_shared_config()
+        self.music_folders = list(_config.get(CUE_SHARED_KEY_MUSIC_FOLDERS, []) or [])
+        self.sfx_folders = list(_config.get(CUE_SHARED_KEY_SFX_FOLDERS, []) or [])
+        self.music_folder_errors = ["" for _ in self.music_folders]
+        self.sfx_folder_errors = ["" for _ in self.sfx_folders]
+
+    # ------------------------------------------------------------------
+    # External folder lists -- add / commit / remove
+    # ------------------------------------------------------------------
+
+    @_cue_ui_refresh
+    def add_music_folder(self):
+        # type: () -> None
+        """Append an empty Music folder row (committed by Enter)."""
+        self.music_folders.append("")
+        self.music_folder_errors.append("")
+
+    @_cue_ui_refresh
+    def add_sfx_folder(self):
+        # type: () -> None
+        """Append an empty SFX folder row (committed by Enter)."""
+        self.sfx_folders.append("")
+        self.sfx_folder_errors.append("")
+
+    @_cue_ui_refresh
+    def commit_music_folder(self, index):
+        # type: (int) -> None
+        """Validate + persist music_folders[index], then apply + rescan."""
+        self._commit_folder(
+            index,
+            self.music_folders,
+            self.music_folder_errors,
+            CUE_SHARED_KEY_MUSIC_FOLDERS,
+            self._builtin_dir("music"),
+            "music",
+        )
+
+    @_cue_ui_refresh
+    def commit_sfx_folder(self, index):
+        # type: (int) -> None
+        """Validate + persist sfx_folders[index], then apply + rescan."""
+        self._commit_folder(
+            index, self.sfx_folders, self.sfx_folder_errors, CUE_SHARED_KEY_SFX_FOLDERS, self._builtin_dir("sfx"), "sfx"
+        )
+
+    @_cue_ui_refresh
+    def remove_music_folder(self, index):
+        # type: (int) -> None
+        """Remove music_folders[index], persist, then apply + rescan."""
+        self.music_folders.pop(index)
+        self.music_folder_errors.pop(index)
+        self._persist_folders(CUE_SHARED_KEY_MUSIC_FOLDERS, self.music_folders)
+        self._apply("music", self.music_folders)
+
+    @_cue_ui_refresh
+    def remove_sfx_folder(self, index):
+        # type: (int) -> None
+        """Remove sfx_folders[index], persist, then apply + rescan."""
+        self.sfx_folders.pop(index)
+        self.sfx_folder_errors.pop(index)
+        self._persist_folders(CUE_SHARED_KEY_SFX_FOLDERS, self.sfx_folders)
+        self._apply("sfx", self.sfx_folders)
+
+    # ------------------------------------------------------------------
+    # Shared helpers
+    # ------------------------------------------------------------------
+
+    def _commit_folder(self, index, folders, errors, key, builtin, kind):
+        # type: (int, List[str], List[str], str, str, str) -> None
+        """Validate folders[index]; on success persist + apply + rescan.
+
+        On failure only the row's error line is set -- the raw text stays so
+        the user can fix it without retyping."""
+        text = (folders[index] or "").strip()
+        if not text:
+            errors[index] = "Path cannot be empty."
+            return
+
+        path = _os.path.abspath(_os.path.normpath(_os.path.expanduser(text))).replace("\\", "/")
+        if path == builtin:
+            errors[index] = "That folder is already built in."
+            return
+        if not _os.path.isdir(path):
+            errors[index] = "Folder not found."
+            return
+        # Dup check excludes the committing row itself (its current value is
+        # the text being validated).
+        _others = list(folders)
+        _others[index] = ""
+        if path in _others:
+            errors[index] = "Folder already in the list."
+            return
+
+        folders[index] = path
+        errors[index] = ""
+        self._persist_folders(key, folders)
+        self._apply(kind, folders)
+
+    def _builtin_dir(self, kind):
+        # type: (str) -> str
+        """The always-on folder for a library kind, normalized like user input
+        ("" if the paths graph lacks it -- unit-test graphs)."""
+        _dir = getattr(_cue.paths, "music_dir" if kind == "music" else "audio_dir", "")
+        if not _dir:
+            return ""
+        return _os.path.abspath(_os.path.normpath(_os.path.expanduser(_dir))).replace("\\", "/")
+
+    def _persist_folders(self, key, folders):
+        # type: (str, List[str]) -> None
+        """Write one folder list into the shared config."""
+        _cue.db.update_shared_config({key: list(folders)})
+
+    def _apply(self, kind, folders):
+        # type: (str, List[str]) -> None
+        """Fan out a committed list to the runtime apply helper (rescan)."""
+        from cue_lib import runtime
+
+        if kind == "music":
+            runtime._cue_apply_music_folders(folders)
+        else:
+            runtime._cue_apply_sfx_folders(folders)
 
     @_cue_ui_refresh
     def confirm_shared_dir(self):

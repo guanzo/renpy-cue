@@ -129,6 +129,7 @@ class FakeDb(object):
         return self.shared
 
     def update_shared_config(self, data):
+        self.shared.update(data)
         self.saved.append(data)
 
     def save_shared_config(self, data):
@@ -470,7 +471,16 @@ def make_runtime_cue(root="", audio_dir=""):
     from cue_lib.settings import CueSettings
 
     cue = Cue()
-    cue.paths = types.SimpleNamespace(root=root, original_root=root, audio_dir=audio_dir)
+
+    # paths carries a loader-roots seam mirroring CuePaths.set_extra_loader_roots
+    # (real CuePaths normalizes + stores into _extra_loader_roots), so hydration
+    # and apply tests can assert the combined external roots.
+    _paths = types.SimpleNamespace(root=root, original_root=root, audio_dir=audio_dir, music_dir=root + "/music/")
+    _paths._extra_loader_roots = []
+    _paths.set_extra_loader_roots = lambda folders: _paths.__dict__.update(
+        {"_extra_loader_roots": [r.replace("\\", "/") for r in (folders or [])]}
+    )
+    cue.paths = _paths
     cue.settings = CueSettings()
     cue.calls = {}
     cue.ensured_pools = []
@@ -605,7 +615,9 @@ def make_runtime_cue(root="", audio_dir=""):
     cue.intensity = types.SimpleNamespace(_load=lambda: {})
 
     # db -- shared-config surface read/written by _cue_load_scalars_from_persistent
-    cue.db = types.SimpleNamespace(load_shared_config=lambda: {}, save_shared_config=_rec("db", "save_shared_config"))
+    # (settings folder actions persist through it).  Stateful FakeDb records
+    # update_shared_config payloads in db.saved and reflects them in db.shared.
+    cue.db = FakeDb()
 
     cue.volume = types.SimpleNamespace(
         get_effective=lambda entry, key, pool_index: 1.0, flush_pending_saves=_rec("volume", "flush_pending_saves")

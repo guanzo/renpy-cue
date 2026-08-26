@@ -194,31 +194,33 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         # type: (Dict[str, Any], bool, str, Dict[str, str]) -> List[Dict[str, Any]]
         """SFX row buttons: [play, plus].  Plus adds to the target context, or
         in intensity add-mode appends to the active (group, level).  An empty
-        folder gets no buttons (matches the current tree UI)."""
+        folder gets no buttons (matches the current tree UI).
+
+        Display paths carry the synthetic wrapper ("SFX Folder/..." for
+        built-in, "ExtA/..." for external); every action that feeds a path
+        uses ref_from_display to get the stored ref.  The file [+] is
+        index-based and stays."""
         buttons = []
+        ref = self._tree.ref_from_display(item["full_path"])
         if item["type"] == "folder":
             if item.get("has_files", False):
                 buttons.append(
                     {
                         "icon": "play",
-                        "action": Function(self._tree._sfx.preview_folder, item["full_path"]),
+                        "action": Function(self._tree._sfx.preview_folder, ref),
                         "tt": "Play random file from folder",
                     }
                 )
-                buttons.append(self._add_row_button(item, "folder", target_ok, target_tt))
+                buttons.append(self._add_row_button(item, "folder", target_ok, target_tt, ref))
         else:
             buttons.append(
-                {
-                    "icon": "play",
-                    "action": Function(self._tree._sfx.preview_sfx, item["full_path"]),
-                    "tt": "Preview audio",
-                }
+                {"icon": "play", "action": Function(self._tree._sfx.preview_sfx, ref), "tt": "Preview audio"}
             )
-            buttons.append(self._add_row_button(item, "file", target_ok, target_tt))
+            buttons.append(self._add_row_button(item, "file", target_ok, target_tt, ref))
         return buttons
 
-    def _add_row_button(self, item, kind, target_ok, target_tt):
-        # type: (Dict[str, Any], str, bool, str) -> Dict[str, Any]
+    def _add_row_button(self, item, kind, target_ok, target_tt, ref):
+        # type: (Dict[str, Any], str, bool, str, str) -> Dict[str, Any]
         """The tree [+] button.  In intensity add-mode it appends item to the
         active (group, level) -- dup-checked, marked with the selected_alt bg;
         otherwise it sends item to the target context."""
@@ -227,12 +229,12 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         if target is not None:
             group, lv_id = target
             if kind == "folder":
-                action = Function(tree.ilevel_add_folder, group, lv_id, item["full_path"])
+                action = Function(tree.ilevel_add_folder, group, lv_id, ref)
                 label = "Add this folder to Level {} of {}.".format(lv_id, group)
             else:
-                action = Function(tree.ilevel_add_file, group, lv_id, item["full_path"])
+                action = Function(tree.ilevel_add_file, group, lv_id, ref)
                 label = "Add this file to Level {} of {}.".format(lv_id, group)
-            is_dup = tree.level_has_file(group, lv_id, item["full_path"])
+            is_dup = tree.level_has_file(group, lv_id, ref)
             return {
                 "icon": "plus",
                 "action": action,
@@ -243,7 +245,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         if kind == "folder":
             return {
                 "icon": "plus",
-                "action": Function(_cue_markers_send, "folder", item["full_path"]),
+                "action": Function(_cue_markers_send, "folder", ref),
                 "tt": target_tt,
                 "enabled": target_ok,
             }
@@ -742,6 +744,57 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                 lambda: self._intensity_rows(igroup_names, search_query, lv_hook_ok, lv_tt),
             )
         )
+        # -- Per-source empty/error states ------------------------------------
+        tree = self._tree
+        if not tree.builtin_tree:
+            if tree.builtin_scan_error:
+                rows.append(
+                    _cue_help_row(
+                        "builtin:scan_error",
+                        tree.builtin_scan_error,
+                        color=getattr(renpy.store, "_cue_color_error", None),
+                        plain=True,
+                    )
+                )
+            rows.append(
+                _cue_help_row("builtin:empty", "No audio files found in: {}".format(tree._paths.audio_dir), plain=True)
+            )
+            rows.append(
+                _cue_help_row(
+                    "builtin:add",
+                    "Add {} files there and click the refresh button.".format(", ".join(CUE_AUDIO_EXTS)),
+                    plain=True,
+                )
+            )
+            rows.append(_cue_action_row("builtin:open", "Open Audio folder", explorer=tree._paths.audio_dir))
+            rows.append(
+                _cue_help_row(
+                    "builtin:settings_tip", "Add additional folder locations in Settings > Data Folder.", plain=True
+                )
+            )
+        for src in tree.external_sources:
+            if src["tree"]:
+                continue
+            if src["scan_error"]:
+                rows.append(
+                    _cue_help_row(
+                        "ext:{}:scan_error".format(src["label"]),
+                        src["scan_error"],
+                        color=getattr(renpy.store, "_cue_color_error", None),
+                        plain=True,
+                    )
+                )
+            else:
+                rows.append(
+                    _cue_help_row(
+                        "ext:{}:empty".format(src["label"]),
+                        "No audio files found in: {}".format(src["abs_root"]),
+                        plain=True,
+                    )
+                )
+                rows.append(
+                    _cue_action_row("ext:{}:open".format(src["label"]), "Open folder", explorer=src["abs_root"])
+                )
         # -- no-results guard + file tree ------------------------------------
         if (
             searching
@@ -780,8 +833,10 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         # type: (Dict[str, Any], bool, str, Dict[str, str]) -> str
         """Unplayable-file reason for a file row's warn icon ("" = playable).
         target_ok / target_tt ride along in tree_rows' *state but are unused
-        here; only unplayable feeds the icon."""
-        return unplayable.get(self._tree._paths.audio_dir + item["full_path"], "")
+        here; only unplayable feeds the icon.  The WAV index is keyed by the
+        absolute path, so the display path resolves through the stored ref."""
+        ref = self._tree.ref_from_display(item["full_path"])
+        return unplayable.get(self._tree.resolve_path(ref), "")
 
 
 class CueMusicTreeRows(CueTreeRowsBuilder):
@@ -1013,8 +1068,29 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
                     )
                 )
             rows.append(_cue_help_row("game:empty", "No music found in game directory.", plain=True))
+        for src in self._tree.external_sources:
+            if src["tree"]:
+                continue
+            if src["scan_error"]:
+                rows.append(
+                    _cue_help_row(
+                        "ext:{}:scan_error".format(src["label"]),
+                        src["scan_error"],
+                        color=getattr(renpy.store, "_cue_color_error", None),
+                        plain=True,
+                    )
+                )
+            else:
+                rows.append(
+                    _cue_help_row(
+                        "ext:{}:empty".format(src["label"]), "No music found in: {}".format(src["abs_root"]), plain=True
+                    )
+                )
+                rows.append(
+                    _cue_action_row("ext:{}:open".format(src["label"]), "Open folder", explorer=src["abs_root"])
+                )
         # -- no-results guard + tree -----------------------------------------
-        if self._tree.user_tree or self._tree.game_tree:
+        if self._tree.user_tree or self._tree.game_tree or self._tree.external_sources:
             if searching and not recent_entries and not preset_names and not self._tree.visible_tree:
                 rows.append(_cue_help_row("no_results", 'No files found for "{}".'.format(search_query), plain=True))
             else:

@@ -18,6 +18,7 @@ import zipfile as _zipfile
 from cue_lib.backup import CUE_BAK_DIR, _safe_extract_path
 from cue_lib.constants import (
     CUE_AUDIO_EXTS,
+    CUE_EXT_TAG,
     CUE_HASH_TRUNC_LEN,
     CUE_MUSIC_GAME_TAG,
     CUE_MUSIC_PREFIX,
@@ -329,13 +330,25 @@ def _cue_enumerate_import_files(root, game_id):
 
 def _cue_replay_assets(root, game_id, replay_labels):
     # type: (str, str, List[str]) -> Dict[int, List[str]]
-    """{category: [arcname]} for every marker whose replay field is in
+    """Backward-compat wrapper: the per-category asset map for a replay
+    export.  External (e:) refs are dropped -- see _cue_replay_assets_full
+    for the dropped-file count."""
+    per_cat, _ext = _cue_replay_assets_full(root, game_id, replay_labels)
+    return per_cat
+
+
+def _cue_replay_assets_full(root, game_id, replay_labels):
+    # type: (str, str, List[str]) -> Tuple[Dict[int, List[str]], int]
+    """Replay-scoped export content + the count of external (e:) refs dropped.
+
+    {category: [arcname]} for every marker whose replay field is in
     replay_labels, plus the files those markers reference: SFX pool files
     (audio-relative on disk; folder refs expanded to the files under them),
     My Music entries, and presets named on their pools.  A marker never edited
     inside a replay has no replay field and belongs to no replay.  Game-music
     refs and untagged game-relative refs are dropped -- the recipient's copy
-    has its own.  A marker file that can't be parsed is skipped.
+    has its own.  External (e:) refs are dropped too (their files live outside
+    the shared tree and can't be packed); the count lets the exporter warn.
 
     A replay whose markers include any video marker (v_ key) also pulls the
     whole video/<game_id>/ tree: the base movie path is runtime state, not
@@ -346,11 +359,12 @@ def _cue_replay_assets(root, game_id, replay_labels):
     labels = set(replay_labels)
     result = {}
     has_video = False
+    external_refs = set()  # type: Set[str]
 
     try:
         names = sorted(os.listdir(paths.marker_dir))
     except Exception:
-        return result
+        return result, 0
 
     for name in names:
         if not name.endswith(".json"):
@@ -370,7 +384,10 @@ def _cue_replay_assets(root, game_id, replay_labels):
             if not isinstance(pool, dict):
                 continue
             for ref in pool.get("files") or []:
-                _cue_add_referenced_asset(root, result, _cue_audio_rel(ref))
+                if ref.startswith(CUE_EXT_TAG):
+                    external_refs.add(ref)
+                else:
+                    _cue_add_referenced_asset(root, result, _cue_audio_rel(ref))
             if pool.get("preset"):
                 for rel in _cue_preset_files(root, pool["preset"]):
                     _cue_add_asset(result, CueImportCategory.PRESETS, rel)
@@ -379,13 +396,16 @@ def _cue_replay_assets(root, game_id, replay_labels):
             _cue_add_referenced_asset(root, result, _cue_audio_rel(ref))
 
         for song in entry.get("music") or []:
-            rel = _cue_music_rel(song)
-            if rel:
-                _cue_add_referenced_asset(root, result, rel)
+            if hasattr(song, "startswith") and song.startswith(CUE_EXT_TAG):
+                external_refs.add(song)
+            else:
+                rel = _cue_music_rel(song)
+                if rel:
+                    _cue_add_referenced_asset(root, result, rel)
     if has_video:
         for rel in _cue_collect_tree(root, paths.video_dir):
             _cue_add_asset(result, CueImportCategory.SPEED_VARIANTS, rel)
-    return result
+    return result, len(external_refs)
 
 
 def _cue_replay_labels(root, game_id):

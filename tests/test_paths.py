@@ -223,3 +223,32 @@ def test_loader_owns_false_for_sibling_prefix(tmp_path):
     root = str(tmp_path / "cue_root")
     p = CuePaths(root, "g1")
     assert p._loader_owns(root + "_evil/file.mp4") is False
+
+
+def test_loader_roots_include_external_folders(tmp_path):
+    root = str(tmp_path / "root")
+    ext1 = str(tmp_path / "ext1")
+    p = CuePaths(root, "g1")
+    base = set(p._loader_roots())
+    assert ext1 not in base
+
+    p.set_extra_loader_roots([ext1, root + "/other"])
+    roots = set(p._loader_roots())
+    assert ext1 in roots
+    assert (root + "/other") in roots
+    assert roots.issuperset(base)
+
+
+def test_loader_owns_extra_root_files(tmp_path):
+    root = str(tmp_path / "root")
+    ext = str(tmp_path / "ext")
+    p = CuePaths(root, "g1")
+    p.set_extra_loader_roots([ext])
+    assert p._loader_owns(ext + "/sub/x.ogg")
+    assert not p._loader_owns(str(tmp_path / "elsewhere" / "y.ogg"))
+
+
+def test_set_extra_loader_roots_normalizes_slashes(tmp_path):
+    p = CuePaths(str(tmp_path / "root"), "g1")
+    p.set_extra_loader_roots(["E:\\Music\\A"])
+    assert p._extra_loader_roots == ["E:/Music/A"]

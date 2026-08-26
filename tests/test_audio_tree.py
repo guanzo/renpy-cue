@@ -25,12 +25,14 @@ from cue_lib.audio.file_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
 from cue_lib.audio.music_tree import CueMusicTree
 from cue_lib.audio.sfx_manager import CueSfxLibraryTree, CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name
 from cue_lib.constants import (
+    CUE_EXT_TAG,
     CUE_GAME_MUSIC_FOLDER,
     CUE_HELP_SHIFT_SKIP_DELETE,
     CUE_MY_MUSIC_FOLDER,
     CUE_PERSIST_SIDEBAR_MODE,
     CUE_PERSIST_SFX_TREE_EXPANDED,
     CUE_PERSIST_SFX_UI_STATE,
+    CUE_SFX_FOLDER,
     CUE_SIDEBAR_DEFAULT_WIDTH,
     CUE_SIDEBAR_MIN_WIDTH,
     CUE_SIDEBAR_MAX_WIDTH_RATIO,
@@ -469,6 +471,102 @@ def test_sfx_discover_walks_audio_dir(sfx, tmp_path):
     results = set()
     sfx._discover(results)
     assert results == {"a.ogg", "sub/b.wav"}
+
+
+def _write_tree(root, rels):
+    for rel in rels:
+        p = os.path.join(root, rel)
+        d = os.path.dirname(p)
+        if not os.path.isdir(d):
+            os.makedirs(d)
+        open(p, "w").close()
+
+
+def test_sfx_scan_builds_per_source_and_merged(sfx, tmp_path):
+    audio = str(tmp_path / "audio") + "/"
+    _write_tree(audio, ["g1/drip.ogg", "a.ogg"])
+    ext1 = str(tmp_path / "ExtA")
+    _write_tree(ext1, ["x.ogg", "sub/y.mp3"])
+    ext2 = str(tmp_path / "ExtB")
+    _write_tree(ext2, ["w.wav"])
+    sfx.external_folders = [ext1, ext2]
+    sfx.scan()
+    assert sfx.builtin_files == ["a.ogg", "g1/drip.ogg"]
+    assert sfx.external_files == [ext1 + "/sub/y.mp3", ext1 + "/x.ogg", ext2 + "/w.wav"]
+    # Flat ref list: built-in audio-relative + external e: tagged, sorted (the
+    # bisect-based folder expansion depends on the sort).
+    assert sfx.files == sorted(["a.ogg", "g1/drip.ogg"] + [CUE_EXT_TAG + f for f in sfx.external_files])
+    # Merged display tree: synthetic root first, then external sources.
+    assert [n["name"] for n in sfx.tree] == [CUE_SFX_FOLDER, "ExtA/", "ExtB/"]
+    assert sfx.builtin_scan_error == ""
+    # _file_index keys refs, so built-in AND external rows get valid indices.
+    assert sfx._file_index["g1/drip.ogg"] >= 0
+    assert sfx._file_index[CUE_EXT_TAG + ext1 + "/x.ogg"] >= 0
+
+
+def test_sfx_scan_missing_external_folder_keeps_warning(sfx, tmp_path):
+    _write_tree(str(tmp_path / "audio") + "/", ["a.ogg"])
+    missing = str(tmp_path / "nope")
+    sfx.external_folders = [missing]
+    sfx.scan()
+    assert len(sfx.external_sources) == 1
+    src = sfx.external_sources[0]
+    assert src["scan_error"] == "Folder not found: {}".format(missing)
+    assert src["tree"] == []
+    assert sfx.external_files == []
+    # The missing source still appears in the merged tree (warning reachable).
+    assert [n["name"] for n in sfx.tree] == [CUE_SFX_FOLDER, "nope/"]
+
+
+def test_sfx_external_label_disambiguated(sfx):
+    assert sfx._external_label("E:/SFX Folder", []) == "SFX Folder (2)"
+    assert sfx._external_label("E:/Music", []) == "Music"
+    assert sfx._external_label("E:/Music", ["Music"]) == "Music (2)"
+
+
+def test_sfx_ref_from_display(sfx):
+    sfx.external_sources = [{"label": "ExtA", "abs_root": "E:/SFX/A", "tree": [], "files": [], "scan_error": ""}]
+    assert sfx.ref_from_display("SFX Folder/g1/drip.ogg") == "g1/drip.ogg"
+    assert sfx.ref_from_display("ExtA/g1/drip.ogg") == CUE_EXT_TAG + "E:/SFX/A/g1/drip.ogg"
+    assert sfx.ref_from_display("ExtA/g1/") == CUE_EXT_TAG + "E:/SFX/A/g1/"
+    # Unknown paths (legacy / unqualified rows) pass through unchanged.
+    assert sfx.ref_from_display("legacy/x.ogg") == "legacy/x.ogg"
+
+
+def test_sfx_resolve_path(sfx):
+    audio = sfx._paths.audio_dir
+    assert sfx.resolve_path("g1/drip.ogg") == audio + "g1/drip.ogg"
+    assert sfx.resolve_path(CUE_EXT_TAG + "E:/SFX/A/g1/drip.ogg") == "E:/SFX/A/g1/drip.ogg"
+
+
+def test_sfx_file_node_ref_index_enabled(sfx):
+    sfx.external_sources = [{"label": "ExtA", "abs_root": "E:/SFX/A", "tree": [], "files": [], "scan_error": ""}]
+    sfx._file_index = {"g1/drip.ogg": 2, CUE_EXT_TAG + "E:/SFX/A/x.ogg": 3}
+    sfx.disabled_files = {CUE_EXT_TAG + "E:/SFX/A/x.ogg"}
+    builtin = sfx._file_node({"name": "drip.ogg"}, "SFX Folder/g1/drip.ogg", 1)
+    assert builtin["ref"] == "g1/drip.ogg"
+    assert builtin["index"] == 2
+    assert builtin["enabled"] is True
+    external = sfx._file_node({"name": "x.ogg"}, "ExtA/x.ogg", 1)
+    assert external["ref"] == CUE_EXT_TAG + "E:/SFX/A/x.ogg"
+    assert external["index"] == 3
+    assert external["enabled"] is False
+
+
+def test_sfx_toggle_file_enabled_external(sfx):
+    ref = CUE_EXT_TAG + "E:/SFX/A/x.ogg"
+    sfx.toggle_file_enabled(ref)
+    assert ref in sfx.disabled_files
+    assert sfx._db.saved[-1]["disabled_files"] == [ref]
+    sfx.toggle_file_enabled(ref)
+    assert ref not in sfx.disabled_files
+
+
+def test_sfx_expand_folder_ref_sorted_files(sfx):
+    ext = "E:/SFX/A"
+    files = sorted(["g1/a.ogg", CUE_EXT_TAG + ext + "/g1/x.ogg", CUE_EXT_TAG + ext + "/g1/y.ogg"])
+    out = _util._cue_expand_folder_ref(files, CUE_EXT_TAG + ext + "/g1/")
+    assert out == [CUE_EXT_TAG + ext + "/g1/x.ogg", CUE_EXT_TAG + ext + "/g1/y.ogg"]
 
 
 def test_sfx_file_node_index_and_enabled(sfx):
@@ -911,6 +1009,39 @@ def test_sfx_folder_without_files_has_only_plus(sfx):
     sfx.visible_tree = [{"type": "folder", "name": "empty/", "full_path": "empty/", "depth": 0, "has_files": False}]
     rows = sfx.tree_rows(False, "tt", {})
     assert rows[0]["buttons"] == []
+
+
+def test_sfx_row_buttons_use_refs(sfx):
+    sfx.external_sources = [{"label": "ExtA", "abs_root": "E:/SFX/A", "tree": [], "files": [], "scan_error": ""}]
+    sfx.visible_tree = [
+        {"type": "folder", "name": "ExtA/", "full_path": "ExtA/", "depth": 0, "has_files": True},
+        {"type": "file", "name": "drip.ogg", "full_path": "SFX Folder/g1/drip.ogg", "depth": 1, "index": 0},
+    ]
+    rows = sfx.tree_rows(True, "tt", {})
+    ext_folder, builtin_file = rows
+    # External folder play + add dispatch the e: ref, not the display path.
+    assert ext_folder["buttons"][0]["action"]._args[1] == CUE_EXT_TAG + "E:/SFX/A/"
+    assert ext_folder["buttons"][1]["action"]._args[2] == CUE_EXT_TAG + "E:/SFX/A/"
+    # Built-in file preview strips the synthetic wrapper back to the ref.
+    assert builtin_file["buttons"][0]["action"]._args[1] == "g1/drip.ogg"
+
+
+def test_sfx_row_buttons_external_add_mode(sfx, monkeypatch):
+    monkeypatch.setattr(renpy.store, "_cue_color_selected_alt", "#446688", raising=False)
+    sfx.external_sources = [{"label": "ExtA", "abs_root": "E:/SFX/A", "tree": [], "files": [], "scan_error": ""}]
+    sfx.ilevel_add_target = ("g", 1)
+    sfx.visible_tree = [{"type": "folder", "name": "ExtA/", "full_path": "ExtA/", "depth": 0, "has_files": True}]
+    rows = sfx.tree_rows(True, "tt", {})
+    fplus = rows[0]["buttons"][1]
+    assert fplus["action"]._args[0] == sfx.ilevel_add_folder
+    assert fplus["action"]._args[3] == CUE_EXT_TAG + "E:/SFX/A/"
+
+
+def test_sfx_warn_reason_external(sfx):
+    sfx.external_sources = [{"label": "ExtA", "abs_root": "E:/SFX/A", "tree": [], "files": [], "scan_error": ""}]
+    sfx.visible_tree = [{"type": "file", "name": "bad.wav", "full_path": "ExtA/bad.wav", "depth": 1, "index": 0}]
+    rows = sfx.tree_rows(True, "tt", {"E:/SFX/A/bad.wav": "unsupported format"})
+    assert rows[0]["warn"] == "unsupported format"
 
 
 def test_sfx_warn_reason(sfx):
@@ -1403,7 +1534,15 @@ def _content_rows(
     )
 
 
+def _seed_builtin(sfx):
+    # Populate the built-in source so the per-source empty rows don't render --
+    # content_rows only shows them when another source has content (the merged
+    # tree is non-empty), which these section tests don't exercise.
+    sfx.builtin_tree = [{"type": "folder", "name": "seed/", "children": [], "has_files": False}]
+
+
 def test_sfx_content_rows_section_headers_collapsed(sfx):
+    _seed_builtin(sfx)
     rows = _content_rows(sfx, presets=["p"], vpresets=["vp"], igroups=["g"])
     # Four collapsed section headers; sections with content keep their header,
     # and no children render while collapsed.
@@ -1433,6 +1572,7 @@ def test_sfx_content_rows_no_recent_section_when_unwired(sfx):
 
 
 def test_sfx_content_rows_preset_children_expanded(sfx):
+    _seed_builtin(sfx)
     sfx.presets_expanded = True
     sfx.expanded_presets = {"p": True}
     rows = _content_rows(sfx, presets=["p"])
@@ -1460,6 +1600,7 @@ def test_sfx_content_rows_video_presets_no_auto_show_on_search(sfx):
 
 
 def test_sfx_content_rows_video_preset_children_expanded(sfx):
+    _seed_builtin(sfx)
     sfx.video_presets_expanded = True
     sfx.expanded_video_presets = {"vp": True}
     sfx.expanded_video_pools = {"vp": {0: True}}
@@ -1484,6 +1625,7 @@ def test_sfx_content_rows_video_preset_empty_help(sfx):
 
 
 def test_sfx_content_rows_intensity_children_expanded(sfx):
+    _seed_builtin(sfx)
     sfx.igroups_expanded = True
     sfx.expanded_igroups = {"g": True}
     sfx.expanded_ilevels = {"g": {1}}
@@ -1524,6 +1666,7 @@ def test_sfx_content_rows_intensity_hook_disabled_without_target(sfx):
 def test_sfx_content_rows_search_filters_sections(sfx):
     # No section content matches "z": every header hides, the file tree is
     # empty, and the no-results line renders (plain, default-styled).
+    _seed_builtin(sfx)
     rows = _content_rows(
         sfx, query="z", presets=["p"], vpresets=["vp"], igroups=["g"], recent_entries=[("file", "a.wav")]
     )
@@ -1545,6 +1688,25 @@ def test_sfx_content_rows_search_reveals_preset_matches(sfx):
     assert "a.ogg" in labels
 
 
+def test_sfx_content_rows_per_source_empty_states(sfx, tmp_path):
+    empty = str(tmp_path / "Empty")
+    os.makedirs(empty, exist_ok=True)
+    missing = str(tmp_path / "nope")
+    sfx.external_folders = [empty, missing]
+    sfx.scan()
+    rows = _content_rows(sfx, presets=["p"])
+    labels = [r["label"] for r in rows]
+    # Built-in source empty state: scan text + Open-folder action + Settings tip.
+    assert "No audio files found in: {}".format(sfx._paths.audio_dir) in labels
+    assert any(r["type"] == "action" and r["explorer"] == sfx._paths.audio_dir for r in rows)
+    assert any("Settings > Data Folder" in label for label in labels)
+    # Found-but-empty external source: empty text + Open-folder action.
+    assert "No audio files found in: {}".format(empty) in labels
+    assert any(r["type"] == "action" and r["explorer"] == empty for r in rows)
+    # Missing external source keeps its warning (no Open action -- nothing to open).
+    assert "Folder not found: {}".format(missing) in labels
+
+
 def test_sfx_content_rows_appends_file_tree(sfx, tmp_path):
     audio = str(tmp_path / "audio") + "/"
     for rel in ("a.ogg", "sub/b.wav"):
@@ -1554,9 +1716,12 @@ def test_sfx_content_rows_appends_file_tree(sfx, tmp_path):
             os.makedirs(d)
         open(p, "w").close()
     sfx.scan()
+    # Built-ins render under the synthetic root; expand it to see the tree.
+    sfx.expanded_folders[CUE_SFX_FOLDER] = True
+    sfx.rebuild_tree()
     rows = _content_rows(sfx, presets=["p"])
     tree_labels = [r["label"] for r in rows if r.get("key", "").startswith("tree:")]
-    assert tree_labels == ["sub/", "a.ogg"]
+    assert tree_labels == [CUE_SFX_FOLDER, "sub/", "a.ogg"]
 
 
 # ==========================================================================

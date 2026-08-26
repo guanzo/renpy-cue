@@ -192,6 +192,8 @@ class CuePersistentData(TypedDict):
     presets: Dict[str, PoolDict]
     video_presets: Dict[str, VideoPreset]
     disabled_files: List[str]
+    music_folders: List[str]
+    sfx_folders: List[str]
     triggers_active: bool
     encode_mode: int
     remove_audio: bool

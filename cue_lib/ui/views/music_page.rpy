@@ -84,7 +84,8 @@ screen cue_music_page():
 
         $ music_lib_tt = (
             "My Music: add {} files to \n{}\n\n"
-            "Game Music is found with heuristics, it may not find all music.").format(
+            "Game Music is found with heuristics, it may not find all music.\n\n"
+            "Add additional folder locations in Settings > Data Folder.").format(
                 ", ".join(CUE_AUDIO_EXTS), _cue.paths.music_dir)
         
         use cue_section_frame("Music Library", tt=music_lib_tt):

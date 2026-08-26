@@ -182,10 +182,14 @@ def test_keep_sfx_file_folder_preset():
 # ---------------------------------------------------------------------------
 
 
-def _music_lib(user_files, game_files):
-    # type: (list, list) -> object
+def _music_lib(user_files, game_files, external_files=()):
+    # type: (list, list, tuple) -> object
     """Library stand-in exposing the per-source files _cue_keep_music reads."""
-    return type("FakeMusicLib", (object,), {"user_files": list(user_files), "game_files": list(game_files)})()
+    return type(
+        "FakeMusicLib",
+        (object,),
+        {"user_files": list(user_files), "game_files": list(game_files), "external_files": list(external_files)},
+    )()
 
 
 def test_keep_music_file_user():
@@ -217,6 +221,18 @@ def test_keep_music_untagged_checks_both():
     assert _cue_keep_music("file", "music/a.ogg", lib)
     assert _cue_keep_music("file", "music/b.ogg", lib)
     assert not _cue_keep_music("file", "music/c.ogg", lib)
+
+
+def test_keep_music_external_file():
+    lib = _music_lib([], [], external_files=["E:/Music/artist/song.ogg"])
+    assert _cue_keep_music("file", "e:E:/Music/artist/song.ogg", lib)
+    assert not _cue_keep_music("file", "e:E:/Music/artist/miss.ogg", lib)
+
+
+def test_keep_music_external_folder():
+    lib = _music_lib([], [], external_files=["E:/Music/artist/a.ogg"])
+    assert _cue_keep_music("folder", "e:E:/Music/artist/", lib)
+    assert not _cue_keep_music("folder", "e:E:/Music/other/", lib)
 
 
 def test_keep_music_unknown_kind_never_kept():

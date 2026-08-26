@@ -24,7 +24,7 @@ import cue_lib.runtime as _runtime
 import cue_lib.settings as _settings
 import cue_lib.util as _util
 from cue_lib.audio.sfx_manager import CueSfxManager
-from cue_lib.constants import CuePage, CUE_SFX_CHANNEL_COUNT
+from cue_lib.constants import CuePage, CUE_SFX_CHANNEL_COUNT, CUE_SHARED_KEY_MUSIC_FOLDERS, CUE_SHARED_KEY_SFX_FOLDERS
 from cue_lib.state import _cue
 from tests.fakes import make_runtime_cue
 from types import SimpleNamespace
@@ -104,6 +104,16 @@ def test_full_reload_scans_and_reloads(cue):
     assert cue.calls["music.reload_presets"] == [((), {})]
     assert cue.calls["sfx_manager.scan"] == [((), {})]
     assert cue.calls["music.library.scan"] == [((), {})]
+
+
+def test_full_reload_hydrates_external_folders(cue):
+    """Boot/apply hydration contract: shared-config folder lists seed the
+    trees' external sources and the loader roots on every full reload."""
+    cue.db.shared = {CUE_SHARED_KEY_MUSIC_FOLDERS: ["E:/Music/A"], CUE_SHARED_KEY_SFX_FOLDERS: ["E:/SFX/B"]}
+    _runtime._cue_full_reload()
+    assert cue.music.library.external_folders == ["E:/Music/A"]
+    assert cue.sfx.library.external_folders == ["E:/SFX/B"]
+    assert cue.paths._extra_loader_roots == ["E:/SFX/B", "E:/Music/A"]
 
 
 def test_full_reload_migrates_intensity_hooks(cue):
@@ -951,6 +961,28 @@ def test_play_sfx_free_channel(cue, sfx_mgr, monkeypatch):
     assert _music_mock._registry["_cue_1"]["playing"] == cue.paths.audio_dir + "a.ogg"
     assert _music_mock._registry["_cue_1"]["volume"] == 0.5  # set_volume path
     assert sfx_mgr._next_sfx_channel == 1
+
+
+def test_play_sfx_external_resolves_abs(cue, sfx_mgr, monkeypatch):
+    sfx_mgr._supports_relative_volume = False
+    monkeypatch.setattr(_sfx_manager._random, "uniform", lambda a, b: 1.0)
+    sfx_mgr._next_sfx_channel = 0
+    ch = sfx_mgr.play_sfx("e:E:/SFX/A/g1/drip.ogg", "preview")
+    assert ch == "_cue_1"
+    # e: refs resolve to their absolute payload, independent of audio_dir.
+    assert _music_mock._registry["_cue_1"]["playing"] == "E:/SFX/A/g1/drip.ogg"
+
+
+def test_play_sfx_folder_external(cue, sfx_mgr, monkeypatch):
+    ext = "E:/SFX/A"
+    cue.sfx.library.files = ["e:" + ext + "/g1/x.ogg", "g1/a.ogg"]
+    picked = []
+    monkeypatch.setattr(_sfx_manager._random, "choice", lambda files: picked.append(files) or files[0])
+    monkeypatch.setattr(_sfx_manager._random, "uniform", lambda a, b: 1.0)
+    monkeypatch.setattr(sfx_mgr, "preview_sfx", lambda f, volume=1.0: None)
+    sfx_mgr.preview_folder("e:" + ext + "/g1/")
+    # Folder preview resolves the e: folder ref against library.files.
+    assert picked == [["e:" + ext + "/g1/x.ogg"]]
 
 
 def test_play_sfx_round_robin_when_all_busy(cue, sfx_mgr, monkeypatch):

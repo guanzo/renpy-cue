@@ -7,8 +7,10 @@
 # late-bound via bind_markers (construction cycle with CueMarkerManager).
 # Instantiated once at _cue.sfx, lives on the NoRollback _cue object.
 
+import os
 import random as _random
 import threading
+import time
 import renpy
 import renpy.audio.music as _music
 
@@ -18,7 +20,9 @@ from cue_lib.audio.file_tree import CueAudioTreeManager
 from cue_lib.audio.file_tree_rows import CueSfxTreeRows
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.constants import (
+    CUE_EXT_TAG,
     CUE_SFX_CHANNEL_COUNT,
+    CUE_SFX_FOLDER,
     CUE_SIDEBAR_DEFAULT_WIDTH,
     CUE_SIDEBAR_MIN_WIDTH,
     CUE_SIDEBAR_MAX_WIDTH_RATIO,
@@ -28,6 +32,7 @@ from cue_lib.constants import (
     CUE_PERSIST_SFX_UI_STATE,
 )
 from cue_lib.util import (
+    _cue_build_tree,
     _cue_log,
     _cue_resolve_files,
     _cue_pick_file,
@@ -124,12 +129,13 @@ class CueSfxManager(object):
         persisted index, so a repeat launch warm fast."""
         if self._warm_thread is not None and self._warm_thread.is_alive():
             return
-        rel_paths = list(self.library.files)
-        paths = self._paths
+        # library.files holds refs (built-in audio-relative + external e:); the
+        # converter needs absolute paths, so resolve here with an empty dir.
+        abs_paths = [self.library.resolve_path(r) for r in list(self.library.files)]
         wav_playable = self._wav_playable
 
         def _run():
-            wav_playable.warm(rel_paths, paths.audio_dir)
+            wav_playable.warm(abs_paths, "")
 
         self._warm_thread = threading.Thread(target=_run)
         self._warm_thread.daemon = True
@@ -188,7 +194,7 @@ class CueSfxManager(object):
         jitter = _random.uniform(1.0 - MAX_JITTER, 1.0 + MAX_JITTER)
         volume = volume * jitter
 
-        full_path = self._wav_playable.ensure_playable(self._paths.audio_dir + filename)
+        full_path = self._wav_playable.ensure_playable(self.library.resolve_path(filename))
 
         target_ch = None
         for i in range(1, CUE_SFX_CHANNEL_COUNT + 1):
@@ -339,6 +345,9 @@ class CueSfxLibraryTree(CueAudioTreeManager):
 
     _scan_label = "audio folder"
     _log_tag = "AUDIO"
+    # The synthetic "SFX Folder" root stays collapsed by default (unlike
+    # music's roots, which open to show their two sources).
+    _auto_expand_roots = False
     _persist_key = CUE_PERSIST_SFX_TREE_EXPANDED
 
     def __init__(self, paths, db):
@@ -378,12 +387,25 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         self.add_to_pool_warning = ""
 
         # File disable
-        self.disabled_files = set()  # full_path strings
+        self.disabled_files = set()  # stored refs (audio-relative or e:<abs>)
 
         # Sidebar mode: SFX Library renders as a right-side sidebar (mode on)
         # or as a section frame inside the overlay page (mode off).
         self.is_sidebar_mode = False
         self.sidebar_width = CUE_SIDEBAR_DEFAULT_WIDTH
+
+        # Per-source scan state, mirroring CueMusicTree.  builtin_* is the
+        # shared {shared}/audio/ source; external_* comes from the configured
+        # external SFX folders (Settings > Data Folder).  library.files stays
+        # the flat ref list -- built-in audio-relative refs plus e:-tagged
+        # absolute payloads -- so _cue_resolve_files / _cue_pick_file /
+        # _cue_keep_sfx and the [+] index path keep working unchanged.
+        self.builtin_files = []  # type: List[str]
+        self.builtin_tree = []  # type: List[Dict[str, Any]]
+        self.builtin_scan_error = ""  # type: str
+        self.external_folders = []  # type: List[str]
+        self.external_files = []  # type: List[str]
+        self.external_sources = []  # type: List[Dict[str, Any]]
 
     # ------------------------------------------------------------------
     # Scanning
@@ -394,12 +416,178 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         """Scan the audio dir -- files the user drops in for SFX."""
         self._discover_walk_dir(results_set, self._paths.audio_dir)
 
+    def scan(self):
+        # type: () -> None
+        """Scan every source (built-in audio dir + external folders), then
+        merge the per-source trees under a synthetic "SFX Folder" root.
+
+        Mirror of CueMusicTree.scan.  A built-in scan failure leaves that
+        source's files/tree empty and sets its scan_error; external folders
+        keep their entries (with a warning) even when missing.  library.files
+        is rebuilt as the sorted flat ref list that the resolution helpers
+        (_cue_resolve_files, _cue_expand_folder_ref, _cue_pick_file) depend
+        on."""
+        _t0 = time.time()
+
+        results_set = set()
+        builtin_error = ""  # type: str
+        try:
+            self._discover(results_set)
+        except Exception as err:
+            builtin_error = "Failed to scan {}: {}".format(self._scan_label, err)
+        self.builtin_files = sorted(results_set)
+        self.builtin_tree = _cue_build_tree(self.builtin_files)
+        self.builtin_scan_error = builtin_error
+
+        self._scan_external()
+
+        # Flat ref list, sorted for the bisect-based folder expansion.
+        external_refs = [CUE_EXT_TAG + f for f in self.external_files]
+        self.files = sorted(self.builtin_files + external_refs)
+        self._file_index = {ref: i for i, ref in enumerate(self.files)}
+
+        # Whole-tree error, read only when the merged tree is empty.
+        self.scan_error = builtin_error
+
+        self._rebuild_merged()
+
+        _cue_log(
+            "SCAN-{}: {:.3f}s {} + {} files".format(
+                self._log_tag, time.time() - _t0, len(self.builtin_files), len(self.external_files)
+            )
+        )
+
+    def _scan_external(self):
+        # type: () -> None
+        """Scan configured external folders into per-source trees.
+
+        Each configured abs_root becomes an external source dict (label,
+        files, tree, scan_error).  A missing folder keeps its entry with a
+        warning and an empty tree so the warning row stays reachable."""
+        self.external_files = []
+        self.external_sources = []
+        used_labels = []  # type: List[str]
+        for abs_root in self.external_folders:
+            source = self._scan_external_root(abs_root, used_labels)
+            used_labels.append(source["label"])
+            self.external_sources.append(source)
+            self.external_files += source["files"]
+
+    def _scan_external_root(self, abs_root, used_labels):
+        # type: (str, List[str]) -> Dict[str, Any]
+        """Scan one configured external folder into an external source dict.
+
+        files hold the absolute payloads (the untagged form); the display
+        tree is built from the relative paths so it renders under the source
+        label."""
+        abs_root = abs_root.replace("\\", "/").rstrip("/")
+        rel_files = []  # type: List[str]
+        scan_error = ""  # type: str
+        if os.path.isdir(abs_root):
+            try:
+                sub = set()
+                self._discover_walk_dir(sub, abs_root)
+                rel_files = sorted(sub)
+            except Exception as err:
+                rel_files = []
+                scan_error = "Failed to scan external folder: {}".format(err)
+        else:
+            scan_error = "Folder not found: {}".format(abs_root)
+        return {
+            "abs_root": abs_root,
+            "label": self._external_label(abs_root, used_labels),
+            "files": [abs_root + "/" + rel for rel in rel_files],
+            "tree": _cue_build_tree(rel_files),
+            "scan_error": scan_error,
+        }
+
+    def _external_label(self, abs_root, used_labels):
+        # type: (str, List[str]) -> str
+        """Display label for an external folder: its basename, disambiguated
+        against the synthetic "SFX Folder" root and other external labels."""
+        base = abs_root.rstrip("/").rsplit("/", 1)[-1] or "External"
+        reserved = (CUE_SFX_FOLDER.rstrip("/"),)
+        label = base
+        n = 2
+        while label in reserved or label in used_labels:
+            label = "{} ({})".format(base, n)
+            n += 1
+        return label
+
+    def ref_from_display(self, display_path):
+        # type: (str) -> str
+        """Stored ref for a merged display path.
+
+        Inverts the merged tree: the synthetic "SFX Folder" root maps back to
+        the audio-relative ref; an external source label maps to the e:-tagged
+        absolute payload.  Any other path passes through unchanged (row
+        builders feed untagged paths in tests and for legacy trees)."""
+        if display_path.startswith(CUE_SFX_FOLDER):
+            return display_path[len(CUE_SFX_FOLDER) :]
+        for source in self.external_sources:
+            label = source["label"]
+            if display_path.startswith(label + "/"):
+                return CUE_EXT_TAG + source["abs_root"] + "/" + display_path[len(label) + 1 :]
+        return display_path
+
+    def resolve_path(self, ref):
+        # type: (str) -> str
+        """Absolute filesystem path for a stored SFX ref.
+
+        Built-in refs are audio-relative; external refs embed their absolute
+        payload after the e: tag.  Shared by playback, WAV warming, and the
+        unplayable-warning lookup."""
+        if ref.startswith(CUE_EXT_TAG):
+            return ref[len(CUE_EXT_TAG) :]
+        return self._paths.audio_dir + ref
+
+    # ------------------------------------------------------------------
+    # Tree building
+    # ------------------------------------------------------------------
+
+    def _rebuild_merged(self):
+        # type: () -> None
+        """Re-merge the per-source trees and rebuild the visible rows.
+
+        Called by scan() after every source is scanned; tests seed the
+        per-source trees and call this directly."""
+        self.tree = self._merged_tree()
+        if self._auto_expand_roots and not self._has_expanded_roots and self.tree:
+            self._expand_roots()
+            self._has_expanded_roots = True
+        self._restore_expansion()
+        CueAudioTreeManager.rebuild_tree(self)
+
+    def _merged_tree(self):
+        # type: () -> List[Dict[str, Any]]
+        """Build the combined nested tree from the per-source trees.
+
+        Built-in files wrap under the synthetic "SFX Folder" root; external
+        sources render as additional top-level entries below it.  A source
+        with no files (missing folder) still appears so its warning row is
+        reachable."""
+        result = []
+        if self.builtin_tree:
+            result.append({"type": "folder", "name": CUE_SFX_FOLDER, "children": self.builtin_tree, "has_files": False})
+        for source in self.external_sources:
+            result.append(
+                {"type": "folder", "name": source["label"] + "/", "children": source["tree"], "has_files": False}
+            )
+        return result
+
     def _file_node(self, item, full, depth):
         # type: (Dict[str, Any], str, int) -> Dict[str, Any]
-        """File row with index/enabled for the SFX Library."""
+        """File row with ref/index/enabled for the SFX Library.
+
+        ``full`` is the merged display path ("SFX Folder/g1/x.ogg" for
+        built-in, "ExtA/g1/x.ogg" for external); the stored ref inverts it so
+        both built-in AND external rows get valid indices and disabled
+        membership without changing the [+] index path."""
         node = super(CueSfxLibraryTree, self)._file_node(item, full, depth)
-        node["index"] = self._file_index.get(full, -1)
-        node["enabled"] = full not in self.disabled_files
+        ref = self.ref_from_display(full)
+        node["ref"] = ref
+        node["index"] = self._file_index.get(ref, -1)
+        node["enabled"] = ref not in self.disabled_files
         return node
 
     # ------------------------------------------------------------------

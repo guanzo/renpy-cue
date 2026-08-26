@@ -1,6 +1,8 @@
 # Type stub for cue_lib.sharing.exporter
 from typing import Any, Dict, List, Set
 
+def _cue_external_warning(count: int) -> str: ...
+
 class CueExportManager(object):
     scope: int
     file_types: int
@@ -15,6 +17,7 @@ class CueExportManager(object):
     current_replay: str
     export_status: str
     export_error: str
+    export_warning: str
     is_exporting: bool
     export_fraction: float
     _export_thread: Any

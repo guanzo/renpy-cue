@@ -4,6 +4,7 @@
 # them under two synthetic folders for display.  Instantiated once as
 # _cue.music.library; lives on the NoRollback _cue object.
 
+import os
 import time
 
 import renpy
@@ -12,6 +13,7 @@ from cue_lib.audio.file_tree import CueAudioTreeManager
 from cue_lib.audio.file_tree_rows import CueMusicTreeRows
 from cue_lib.constants import (
     CUE_AUDIO_EXTS,
+    CUE_EXT_TAG,
     CUE_GAME_MUSIC_FOLDER,
     CUE_MUSIC_GAME_TAG,
     CUE_MY_MUSIC_FOLDER,
@@ -27,7 +29,7 @@ CUE_GAME_MUSIC_DIRS = ("music", "bgm", "ost", "soundtrack")
 
 MYPY = False
 if MYPY:
-    from typing import Any, Callable, Dict, List, Set
+    from typing import Any, Callable, Dict, List, Optional, Set
     from cue_lib.audio.music import CueMusicManager
 
 
@@ -66,6 +68,14 @@ class CueMusicTree(CueAudioTreeManager):
         self.game_tree = []  # type: List[Dict[str, Any]]
         self.user_scan_error = ""  # type: str
         self.game_scan_error = ""  # type: str
+        # External sources (Settings > Data Folder music folders).  external_folders
+        # is the configured list (absolute paths, from shared config); the scan
+        # populates external_sources (per-root dict) and external_files (the
+        # flat list of absolute payloads, used by folder expansion + recent
+        # membership).  Stored trigger refs add the CUE_EXT_TAG at add time.
+        self.external_folders = []  # type: List[str]
+        self.external_files = []  # type: List[str]
+        self.external_sources = []  # type: List[Dict[str, Any]]
 
     # ------------------------------------------------------------------
     # Scanning
@@ -85,12 +95,13 @@ class CueMusicTree(CueAudioTreeManager):
         self.game_files, self.game_scan_error = self._scan_source(self._discover_game, "game music")
         self.user_tree = _cue_build_tree(self.user_files)
         self.game_tree = _cue_build_tree(self.game_files)
+        self._scan_external()
 
         self._rebuild_merged()
 
         _cue_log(
-            "SCAN-{}: {:.3f}s {} + {} files".format(
-                self._log_tag, time.time() - _t0, len(self.user_files), len(self.game_files)
+            "SCAN-{}: {:.3f}s {} + {} + {} files".format(
+                self._log_tag, time.time() - _t0, len(self.user_files), len(self.game_files), len(self.external_files)
             )
         )
 
@@ -131,6 +142,65 @@ class CueMusicTree(CueAudioTreeManager):
             dirs = [p.lower() for p in parts[:-1]]
             if any(d in CUE_GAME_MUSIC_DIRS for d in dirs):
                 results_set.add(path)
+
+    def _scan_external(self):
+        # type: () -> None
+        """Scan configured external folders into per-source trees.
+
+        Each configured abs_root becomes an external source (label, files,
+        tree, scan_error).  A missing folder keeps its entry with a warning
+        and an empty tree.  Stored refs are built at add time from the
+        abs_root + relative path; the flat external_files here are the
+        absolute payloads for expansion and membership checks."""
+        self.external_files = []
+        self.external_sources = []
+        used_labels = []  # type: List[str]
+        for abs_root in self.external_folders:
+            source = self._scan_external_root(abs_root, used_labels)
+            used_labels.append(source["label"])
+            self.external_sources.append(source)
+            self.external_files += source["files"]
+
+    def _scan_external_root(self, abs_root, used_labels):
+        # type: (str, List[str]) -> Dict[str, Any]
+        """Scan one configured external folder into an external source dict.
+
+        files hold absolute payloads (the untagged form, mirroring how
+        user_files/game_files are untagged); the display tree is built from the
+        relative paths so it renders under the source label."""
+        abs_root = abs_root.replace("\\", "/").rstrip("/")
+        rel_files = []  # type: List[str]
+        scan_error = ""  # type: str
+        if os.path.isdir(abs_root):
+            try:
+                sub = set()
+                self._discover_walk_dir(sub, abs_root)
+                rel_files = sorted(sub)
+            except Exception as err:
+                rel_files = []
+                scan_error = "Failed to scan external folder: {}".format(err)
+        else:
+            scan_error = "Folder not found: {}".format(abs_root)
+        return {
+            "abs_root": abs_root,
+            "label": self._external_label(abs_root, used_labels),
+            "files": [abs_root + "/" + rel for rel in rel_files],
+            "tree": _cue_build_tree(rel_files),
+            "scan_error": scan_error,
+        }
+
+    def _external_label(self, abs_root, used_labels):
+        # type: (str, List[str]) -> str
+        """Display label for an external folder: its basename, disambiguated
+        against the built-in synthetic folders and other external labels."""
+        base = abs_root.rstrip("/").rsplit("/", 1)[-1] or "External"
+        reserved = (CUE_MY_MUSIC_FOLDER.rstrip("/"), CUE_GAME_MUSIC_FOLDER.rstrip("/"))
+        label = base
+        n = 2
+        while label in reserved or label in used_labels:
+            label = "{} ({})".format(base, n)
+            n += 1
+        return label
 
     # ------------------------------------------------------------------
     # Tree building
@@ -179,6 +249,14 @@ class CueMusicTree(CueAudioTreeManager):
         game_tree = self.game_tree
         if game_tree:
             result.append({"type": "folder", "name": CUE_GAME_MUSIC_FOLDER, "children": game_tree, "has_files": False})
+
+        # External sources render as additional top-level entries after the
+        # built-ins.  A source with no files (missing folder) still appears so
+        # its warning row is reachable.
+        for source in self.external_sources:
+            result.append(
+                {"type": "folder", "name": source["label"] + "/", "children": source["tree"], "has_files": False}
+            )
         return result
 
     # ------------------------------------------------------------------
@@ -191,13 +269,27 @@ class CueMusicTree(CueAudioTreeManager):
     # prefix, a game path is the game-relative path unchanged.  Ref tags
     # (u:/g:) and stored refs are therefore untouched by the UI merge.
 
+    def _display_to_external(self, display_path):
+        # type: (str) -> Optional[str]
+        """Absolute payload for display_path if it points into an external
+        source tree, else None.  Label prefix matching is exact (label + "/"),
+        so "ExtA2/..." never matches a source labelled "ExtA"."""
+        for source in self.external_sources:
+            label = source["label"]
+            if display_path.startswith(label + "/"):
+                return source["abs_root"] + "/" + display_path[len(label) + 1 :]
+        return None
+
     def add_song_to_trigger(self, display_path, record=True):
         # type: (str, bool) -> None
         """Add the song under display_path to the selected trigger.
 
         record=False is passed by recently-used rows so acting from the list
         doesn't re-feed it."""
-        if display_path.startswith(CUE_GAME_MUSIC_FOLDER):
+        external = self._display_to_external(display_path)
+        if external is not None:
+            self._music.add_external_song_to_trigger(external, record=record)
+        elif display_path.startswith(CUE_GAME_MUSIC_FOLDER):
             self._music.add_game_song_to_trigger(display_path[len(CUE_GAME_MUSIC_FOLDER) :], record=record)
         else:
             self._music.add_user_song_to_trigger(
@@ -211,7 +303,10 @@ class CueMusicTree(CueAudioTreeManager):
         The synthetic "Game Music/" root is skipped -- it groups several real
         folders and has no single data path.  record=False is passed by
         recently-used rows so acting from the list doesn't re-feed it."""
-        if display_path.startswith(CUE_GAME_MUSIC_FOLDER):
+        external = self._display_to_external(display_path)
+        if external is not None:
+            self._music.add_external_folder_to_trigger(external, record=record)
+        elif display_path.startswith(CUE_GAME_MUSIC_FOLDER):
             if display_path == CUE_GAME_MUSIC_FOLDER:
                 return
             self._music.add_game_folder_to_trigger(display_path[len(CUE_GAME_MUSIC_FOLDER) :], record=record)
@@ -226,11 +321,19 @@ class CueMusicTree(CueAudioTreeManager):
 
         Inverts the dispatch in add_song_to_trigger/add_folder_to_trigger: a
         user ref sheds its "music/" data prefix under "My Music/", a game ref
-        keeps its path under "Game Music/".  An untagged legacy ref is treated
-        as user, which is the round-trip of the user-default dispatch."""
+        keeps its path under "Game Music/", an external ref sheds its absolute
+        root under its source label (or falls back to the absolute path when
+        the source was removed).  An untagged legacy ref is treated as user,
+        which is the round-trip of the user-default dispatch."""
         tag, path = self._music._split_ref_tag(ref)
         if tag == CUE_MUSIC_GAME_TAG:
             return CUE_GAME_MUSIC_FOLDER + path
+        if tag == CUE_EXT_TAG:
+            for source in self.external_sources:
+                root = source["abs_root"]
+                if path.startswith(root + "/"):
+                    return source["label"] + "/" + path[len(root) + 1 :]
+            return path
         if path.startswith(CUE_MUSIC_PREFIX):
             path = path[len(CUE_MUSIC_PREFIX) :]
         return CUE_MY_MUSIC_FOLDER + path
@@ -241,8 +344,12 @@ class CueMusicTree(CueAudioTreeManager):
 
         Mirrors the previous _cue_preview_music/_cue_preview_game_music: user
         paths resolve through _resolve_music_path (which also tolerates legacy
-        no-prefix entries), game paths play game-relative as-is."""
-        if display_path.startswith(CUE_GAME_MUSIC_FOLDER):
+        no-prefix entries), game paths play game-relative as-is, external paths
+        play the absolute payload directly."""
+        external = self._display_to_external(display_path)
+        if external is not None:
+            self._music.play_untracked(external, volume=volume)
+        elif display_path.startswith(CUE_GAME_MUSIC_FOLDER):
             self._music.play_untracked(display_path[len(CUE_GAME_MUSIC_FOLDER) :], volume=volume)
         else:
             self._music.play_untracked(

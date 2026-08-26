@@ -13,6 +13,7 @@ from cue_lib.state import _cue
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.audio.music_tree import CueMusicTree
 from cue_lib.constants import (
+    CUE_EXT_TAG,
     CUE_GAME_MUSIC_FOLDER,
     CUE_MUSIC_GAME_TAG,
     CUE_MUSIC_PREFIX,
@@ -125,7 +126,9 @@ class CueMusicManager(object):
 
         if not path.lower().endswith(".wav"):
             return path
-        if not path.startswith(self._paths.music_dir):
+        in_user_dir = path.startswith(self._paths.music_dir)
+        in_external = any(path.startswith(root) for root in getattr(self.library, "external_folders", []) or [])
+        if not (in_user_dir or in_external):
             return path
         return self._wav_playable.ensure_playable(path)
 
@@ -527,6 +530,14 @@ class CueMusicManager(object):
             sources = [self.library.user_files]
         elif tag == CUE_MUSIC_GAME_TAG:
             sources = [self.library.game_files]
+        elif tag == CUE_EXT_TAG:
+            # External files hold absolute payloads; re-tag the expanded paths
+            # so they resolve through _resolve_music_path's e: branch.
+            for f in _cue_expand_folder_ref(self.library.external_files, ref):
+                expanded = CUE_EXT_TAG + f
+                if expanded not in result:
+                    result.append(expanded)
+            return
         else:
             # Legacy untagged ref -- ambiguous, match both caches.
             sources = [self.library.user_files, self.library.game_files]
@@ -542,6 +553,8 @@ class CueMusicManager(object):
             return CUE_MUSIC_USER_TAG, ref[len(CUE_MUSIC_USER_TAG) :]
         if ref.startswith(CUE_MUSIC_GAME_TAG):
             return CUE_MUSIC_GAME_TAG, ref[len(CUE_MUSIC_GAME_TAG) :]
+        if ref.startswith(CUE_EXT_TAG):
+            return CUE_EXT_TAG, ref[len(CUE_EXT_TAG) :]
         return None, ref
 
     def ref_path(self, ref):
@@ -564,6 +577,9 @@ class CueMusicManager(object):
                 path = path[len(CUE_MUSIC_PREFIX) :]
             return self._paths.music_dir + path
         if tag == CUE_MUSIC_GAME_TAG:
+            return path
+        if tag == CUE_EXT_TAG:
+            # External payload is already absolute.
             return path
         # Legacy untagged entry -- probe the disk to tell user from game.
         root = self._paths.root
@@ -629,6 +645,22 @@ class CueMusicManager(object):
 
         record=False (recently-used rows) suppresses the use feed."""
         self._add_ref_to_trigger(CUE_MUSIC_GAME_TAG + folder_path.rstrip("/") + "/", record)
+
+    @_cue_ui_refresh
+    def add_external_song_to_trigger(self, abs_path, record=True):
+        # type: (str, bool) -> None
+        """Add an external-folder song (already absolute) to the trigger.
+
+        Stored as an e: ref so it survives the external list changing order."""
+        self._add_ref_to_trigger(CUE_EXT_TAG + abs_path, record)
+
+    @_cue_ui_refresh
+    def add_external_folder_to_trigger(self, abs_folder, record=True):
+        # type: (str, bool) -> None
+        """Add a whole external-folder subfolder (a trailing-'/' e: ref).
+
+        record=False (recently-used rows) suppresses the use feed."""
+        self._add_ref_to_trigger(CUE_EXT_TAG + abs_folder.rstrip("/") + "/", record)
 
     def _add_ref_to_trigger(self, ref, record=True):
         # type: (str, bool) -> None

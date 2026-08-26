@@ -17,7 +17,7 @@ from cue_lib.constants import CUE_MANUAL_BACKUP_NAME, CUE_SHARED_CONFIG_FILENAME
 
 MYPY = False
 if MYPY:
-    from typing import Any  # pyright: ignore[reportUnusedImport]
+    from typing import Any, List  # pyright: ignore[reportUnusedImport]
 
 # The mod's folder name -- both the in-game base dir under gamedir (debug
 # logs, ffmpeg progress/log, icons) and the platform default dir under
@@ -62,6 +62,10 @@ class CuePaths(object):
         # Set while an import is active; every serving dir then resolves
         # against the import instead of the live data tree.
         self._active_root = None
+        # User's external Music/SFX folder lists (Settings > Data Folder).
+        # Fed by runtime._cue_apply_* / boot hydration; the loader patch must
+        # serve them or external playback fails.
+        self._extra_loader_roots = []  # type: List[str]
 
     @property
     def root(self):
@@ -107,7 +111,15 @@ class CuePaths(object):
     def _loader_roots(self):
         # type: () -> list
         roots = [self.root, self.original_root, os.path.join(_config.gamedir, CUE_MOD_DIRNAME)]
+        roots += self._extra_loader_roots
         return list({os.path.abspath(r).replace("\\", "/") for r in roots})
+
+    def set_extra_loader_roots(self, folders):
+        # type: (List[str]) -> None
+        """Replace the external Music/SFX folder roots the loader may serve.
+
+        Called by runtime on settings changes and at boot hydration."""
+        self._extra_loader_roots = [r.replace("\\", "/") for r in (folders or [])]
 
     def _loader_owns(self, name):
         # type: (str) -> bool

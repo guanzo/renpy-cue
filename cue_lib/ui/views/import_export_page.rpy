@@ -170,6 +170,11 @@ screen cue_export_section():
                 elif _exporter.export_status:
                     etext _exporter.export_status color _cue_color_green
 
+            null height 4
+
+            if _exporter.export_warning:
+                etext _exporter.export_warning color _cue_color_warn size 11
+
 
 screen cue_import_imports():
     style_group "cue"

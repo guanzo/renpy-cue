@@ -21,6 +21,8 @@ CUE_MY_MUSIC_FOLDER: Final = "My Music/"
 CUE_GAME_MUSIC_FOLDER: Final = "Game Music/"
 CUE_MUSIC_USER_TAG: Final = "u:"
 CUE_MUSIC_GAME_TAG: Final = "g:"
+CUE_EXT_TAG: Final = "e:"
+CUE_SFX_FOLDER: Final = "SFX Folder/"
 CUE_VOLUME_DEFAULT: Final = 1.0
 
 CUE_INTENSITY_PRESET_TYPE: Final = "intensity"
@@ -66,6 +68,8 @@ CUE_KEYMAP_TARGET_IMAGE: Final = "cue_target_image"
 CUE_KEYMAP_TARGET_DIALOGUE: Final = "cue_target_dialogue"
 CUE_KEYMAP_TARGET_LOOP: Final = "cue_target_loop"
 CUE_SHARED_CONFIG_FILENAME: Final = "cue_config.json"
+CUE_SHARED_KEY_MUSIC_FOLDERS: Final = "music_folders"
+CUE_SHARED_KEY_SFX_FOLDERS: Final = "sfx_folders"
 CUE_MANUAL_BACKUP_NAME: Final = "renpy_cue_backup.zip"
 CUE_IMPORT_MANIFEST_NAME: Final = "manifest.json"
 CUE_HASH_TRUNC_LEN: Final = 8

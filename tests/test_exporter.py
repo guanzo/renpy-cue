@@ -9,7 +9,13 @@ import pytest
 
 import cue_lib.sharing.exporter as _exporter
 
-from cue_lib.constants import CUE_IMPORT_MANIFEST_NAME, CueExportFileTypes, CueExportScope, CueImportCategory
+from cue_lib.constants import (
+    CUE_EXT_TAG,
+    CUE_IMPORT_MANIFEST_NAME,
+    CueExportFileTypes,
+    CueExportScope,
+    CueImportCategory,
+)
 from cue_lib.sharing.exporter import CueExportManager
 
 GAME_ID = "test_game"
@@ -678,3 +684,123 @@ def test_refresh_keeps_last_snapshot_on_failure(cue_env, export_threads, monkeyp
     # half-built one, and clears the running flag.
     assert mgr.is_refreshing is False
     assert mgr.counts[CueImportCategory.SFX] == 1
+
+
+# ---------------------------------------------------------------------------
+# export warning -- external (e:) refs can't be packed into the zip
+# ---------------------------------------------------------------------------
+
+
+def test_cue_external_warning_phrasing():
+    assert _exporter._cue_external_warning(0) == ""
+    assert _exporter._cue_external_warning(1).startswith("1 file(s) are in external folders")
+    assert _exporter._cue_external_warning(7).startswith("7 file(s) are in external folders")
+
+
+def test_export_warning_counts_external_sfx_refs(cue_env):
+    ext = CUE_EXT_TAG + "E:/SFX/g1/drip.ogg"
+    _seed(
+        cue_env,
+        [
+            ("audio/g1/boom.ogg", "b"),
+            (
+                "data/markers/{}/a.json".format(GAME_ID),
+                '{{"replay": "Run 1", "pools": [{{"files": ["g1/boom.ogg", "{}"]}}]}}'.format(ext),
+            ),
+        ],
+    )
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+
+    sel = mgr.selected_contents()
+
+    # The built-in ref is packed; the external one is dropped, not turned into
+    # a bogus audio/e:... arcname, and the count lands on the warning.
+    assert "audio/g1/boom.ogg" in sel
+    assert not any("E:/SFX" in s or s.startswith("audio/e:") for s in sel)
+    assert mgr.export_warning == (
+        "1 file(s) are in external folders and won't be included in this export. "
+        "Copy them into your shared music/ or audio/ folder to make it portable."
+    )
+
+
+def test_export_warning_counts_external_music_song(cue_env):
+    ext = CUE_EXT_TAG + "E:/Music/artist/a.ogg"
+    _seed(
+        cue_env,
+        [("data/markers/{}/a.json".format(GAME_ID), '{{"replay": "Run 1", "pools": [], "music": ["{}"]}}'.format(ext))],
+    )
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+
+    mgr.selected_contents()
+
+    assert mgr.export_warning.startswith("1 file(s) are in external folders")
+
+
+def test_export_warning_empty_when_no_external_refs(cue_env):
+    _seed(
+        cue_env,
+        [
+            ("audio/g1/boom.ogg", "b"),
+            ("data/markers/{}/a.json".format(GAME_ID), '{"replay": "Run 1", "pools": [{"files": ["g1/boom.ogg"]}]}'),
+        ],
+    )
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+
+    mgr.selected_contents()
+
+    assert mgr.export_warning == ""
+
+
+def test_export_warning_cleared_in_whole_game_scope(cue_env):
+    ext = CUE_EXT_TAG + "E:/SFX/g1/drip.ogg"
+    _seed(
+        cue_env,
+        [
+            (
+                "data/markers/{}/a.json".format(GAME_ID),
+                '{{"replay": "Run 1", "pools": [{{"files": ["{}"]}}]}}'.format(ext),
+            )
+        ],
+    )
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+    mgr.selected_contents()
+    assert mgr.export_warning != ""
+
+    mgr.set_scope(CueExportScope.ALL_REPLAYS)
+    mgr.selected_contents()
+
+    assert mgr.export_warning == ""
+
+
+def test_export_excludes_external_refs_and_warns(cue_env):
+    ext = CUE_EXT_TAG + "E:/SFX/g1/drip.ogg"
+    _seed(
+        cue_env,
+        [
+            ("audio/g1/boom.ogg", "b"),
+            (
+                "data/markers/{}/a.json".format(GAME_ID),
+                '{{"replay": "Run 1", "pools": [{{"files": ["g1/boom.ogg", "{}"]}}]}}'.format(ext),
+            ),
+        ],
+    )
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+    mgr.name = "Replay"
+
+    _export_and_join(mgr)
+
+    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Replay.zip")) as zf:
+        names = set(zf.namelist())
+    assert "audio/g1/boom.ogg" in names
+    assert not any("E:/SFX" in n or n.startswith("audio/e:") for n in names)
+    assert mgr.export_warning.startswith("1 file(s) are in external folders")

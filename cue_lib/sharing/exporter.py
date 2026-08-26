@@ -16,11 +16,26 @@ from cue_lib.constants import CUE_IMPORT_CATEGORY_ORDER, CueExportFileTypes, Cue
 from cue_lib.sharing.importer_io import (
     _cue_build_import_zip,
     _cue_enumerate_import_files,
-    _cue_replay_assets,
+    _cue_replay_assets_full,
     _cue_replay_labels,
     _cue_sanitize_filename,
 )
 from cue_lib.util import _cue_log
+
+
+def _cue_external_warning(count):
+    # type: (int) -> str
+    """Non-blocking export warning for external (e:) refs that can't be packed.
+
+    External media lives outside the shared tree, so a replay export can't
+    include it -- the export proceeds and the UI surfaces the dropped count."""
+    if not count:
+        return ""
+    return (
+        "{} file(s) are in external folders and won't be included in this export. "
+        "Copy them into your shared music/ or audio/ folder to make it portable."
+    ).format(count)
+
 
 MYPY = False
 if MYPY:
@@ -46,6 +61,7 @@ class CueExportManager(object):
         self.current_replay = ""  # the replay the user is in right now
         self.export_status = ""
         self.export_error = ""
+        self.export_warning = ""  # external refs dropped from this export, if any
         self.is_exporting = False  # zip build running on a background thread
         self.export_fraction = 0.0  # 0..1 progress of the active build
         self._export_thread = None  # type: Any
@@ -195,6 +211,7 @@ class CueExportManager(object):
         """Files to pack for the current scope, in canonical category order."""
         if self.scope == CueExportScope.SPECIFIC_REPLAYS:
             return self._replay_contents()
+        self.export_warning = ""
         return self._category_contents()
 
     def _category_contents(self):
@@ -220,7 +237,8 @@ class CueExportManager(object):
         if not labels:
             return []
 
-        per_cat = _cue_replay_assets(self._paths.original_root, self._paths.game_id, labels)
+        per_cat, external_count = _cue_replay_assets_full(self._paths.original_root, self._paths.game_id, labels)
+        self.export_warning = _cue_external_warning(external_count)
         selected = []
 
         for cat in CUE_IMPORT_CATEGORY_ORDER:
@@ -234,6 +252,7 @@ class CueExportManager(object):
         # type: () -> None
         self.export_status = ""
         self.export_error = ""
+        self.export_warning = ""
 
     # ------------------------------------------------------------------
     # export -- the zip build runs on a background thread so a large import

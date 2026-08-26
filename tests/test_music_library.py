@@ -19,6 +19,7 @@ from renpy.store import persistent
 from cue_lib.audio.music import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
 from cue_lib.audio.music_tree import CueMusicTree
 from cue_lib.constants import (
+    CUE_EXT_TAG,
     CUE_GAME_MUSIC_FOLDER,
     CUE_MUSIC_PREFIX,
     CUE_MY_MUSIC_FOLDER,
@@ -39,7 +40,7 @@ def _clean_persistent(monkeypatch):
 def _fake_split_tag(ref):
     # type: (str) -> tuple
     """Mirror of CueMusicManager._split_ref_tag for the fake manager."""
-    for tag in (CUE_MUSIC_USER_TAG, CUE_MUSIC_GAME_TAG):
+    for tag in (CUE_MUSIC_USER_TAG, CUE_MUSIC_GAME_TAG, CUE_EXT_TAG):
         if ref.startswith(tag):
             return tag, ref[len(tag) :]
     return None, ref
@@ -65,8 +66,10 @@ def _make_lib(user_paths=(), game_paths=()):
     music = types.SimpleNamespace(
         add_user_song_to_trigger=_rec("add_user_song"),
         add_game_song_to_trigger=_rec("add_game_song"),
+        add_external_song_to_trigger=_rec("add_external_song"),
         add_user_folder_to_trigger=_rec("add_user_folder"),
         add_game_folder_to_trigger=_rec("add_game_folder"),
+        add_external_folder_to_trigger=_rec("add_external_folder"),
         play_untracked=_rec("play_untracked"),
         _resolve_music_path=lambda p: "ABS:" + p,
         _split_ref_tag=_fake_split_tag,
@@ -386,6 +389,170 @@ def test_ref_display_path_never_leaks_data_prefix():
 
 
 # ==========================================================================
+# External sources (Settings > Data Folder music folders)
+# ==========================================================================
+
+
+def _ext_abs(p):
+    # type: (object) -> str
+    return str(p).replace("\\", "/")
+
+
+def _scan_lib(tmp_path, folders, user_paths=(), game_paths=()):
+    # type: (object, list, tuple, tuple) -> CueMusicTree
+    """Lib with external_folders set and externals scanned (built-ins seeded)."""
+    lib, _calls = _make_lib(user_paths=user_paths, game_paths=game_paths)
+    lib.external_folders = [_ext_abs(p) for p in folders]
+    lib._scan_external()
+    return lib
+
+
+def test_scan_external_builds_sources(tmp_path):
+    d1 = tmp_path / "ExtA"
+    (d1 / "artist").mkdir(parents=True)
+    (d1 / "artist" / "song.ogg").write_bytes(b"x")
+    (d1 / "top.ogg").write_bytes(b"x")
+    d2 = tmp_path / "ExtB"
+    d2.mkdir()
+    (d2 / "loop.ogg").write_bytes(b"x")
+    lib = _scan_lib(tmp_path, [d1, d2])
+    assert len(lib.external_sources) == 2
+    src = lib.external_sources[0]
+    root = _ext_abs(d1)
+    assert src["abs_root"] == root
+    assert src["label"] == "ExtA"
+    assert src["files"] == [root + "/artist/song.ogg", root + "/top.ogg"]
+    assert src["scan_error"] == ""
+    assert lib.external_files == src["files"] + lib.external_sources[1]["files"]
+    # External tree is relative (no e: tag), so it renders under the label.
+    assert src["tree"][0] == {
+        "type": "folder",
+        "name": "artist/",
+        "has_files": True,
+        "children": [{"type": "file", "name": "song.ogg"}],
+    }
+
+
+def test_scan_external_missing_folder_sets_error(tmp_path):
+    missing = tmp_path / "Nope"
+    lib = _scan_lib(tmp_path, [missing])
+    src = lib.external_sources[0]
+    assert src["files"] == []
+    assert src["tree"] == []
+    assert "Folder not found" in src["scan_error"]
+
+
+def test_scan_external_skips_non_audio_files(tmp_path):
+    d1 = tmp_path / "ExtA"
+    d1.mkdir()
+    (d1 / "song.ogg").write_bytes(b"x")
+    (d1 / "readme.txt").write_bytes(b"x")
+    lib = _scan_lib(tmp_path, [d1])
+    assert lib.external_sources[0]["files"] == [_ext_abs(d1) + "/song.ogg"]
+
+
+def test_external_label_disambiguates_reserved(tmp_path):
+    d1 = tmp_path / "My Music"
+    d1.mkdir()
+    (d1 / "a.ogg").write_bytes(b"x")
+    lib = _scan_lib(tmp_path, [d1])
+    assert lib.external_sources[0]["label"] == "My Music (2)"
+
+
+def test_external_label_disambiguates_duplicates(tmp_path):
+    d1 = tmp_path / "A" / "Shared"
+    d2 = tmp_path / "B" / "Shared"
+    d1.mkdir(parents=True)
+    (d1 / "x.ogg").write_bytes(b"x")
+    d2.mkdir(parents=True)
+    (d2 / "y.ogg").write_bytes(b"x")
+    lib = _scan_lib(tmp_path, [d1, d2])
+    assert [s["label"] for s in lib.external_sources] == ["Shared", "Shared (2)"]
+
+
+def test_merged_tree_appends_external_wrappers(tmp_path):
+    d1 = tmp_path / "ExtA"
+    (d1 / "artist").mkdir(parents=True)
+    (d1 / "artist" / "song.ogg").write_bytes(b"x")
+    lib = _scan_lib(tmp_path, [d1], user_paths=("music/a.ogg",), game_paths=("bgm/x.ogg",))
+    lib._rebuild_merged()
+    assert [n["name"] for n in lib.tree] == ["My Music/", "Game Music/", "ExtA/"]
+    ext = lib.tree[-1]
+    assert ext["has_files"] is False
+    assert ext["children"][0]["name"] == "artist/"
+
+
+def test_merged_tree_keeps_missing_external_wrapper(tmp_path):
+    missing = tmp_path / "Nope"
+    lib = _scan_lib(tmp_path, [missing], user_paths=("music/a.ogg",))
+    lib._rebuild_merged()
+    assert [n["name"] for n in lib.tree] == ["My Music/", "Nope/"]
+
+
+def test_add_song_external_routes(tmp_path):
+    d1 = tmp_path / "ExtA"
+    (d1 / "artist").mkdir(parents=True)
+    (d1 / "artist" / "song.ogg").write_bytes(b"x")
+    lib, calls = _make_lib()
+    lib.external_folders = [_ext_abs(d1)]
+    lib._scan_external()
+    lib.add_song_to_trigger("ExtA/artist/song.ogg")
+    assert calls[-1][0] == "add_external_song"
+    assert calls[-1][1] == (_ext_abs(d1) + "/artist/song.ogg",)
+
+
+def test_add_folder_external_routes(tmp_path):
+    d1 = tmp_path / "ExtA"
+    (d1 / "artist").mkdir(parents=True)
+    (d1 / "artist" / "song.ogg").write_bytes(b"x")
+    lib, calls = _make_lib()
+    lib.external_folders = [_ext_abs(d1)]
+    lib._scan_external()
+    lib.add_folder_to_trigger("ExtA/artist")
+    assert calls[-1][0] == "add_external_folder"
+    assert calls[-1][1] == (_ext_abs(d1) + "/artist",)
+
+
+def test_add_folder_external_label_prefix_not_confused(tmp_path):
+    # "ExtA2/..." must not match the "ExtA" source.
+    d1 = tmp_path / "ExtA"
+    (d1 / "artist").mkdir(parents=True)
+    (d1 / "artist" / "song.ogg").write_bytes(b"x")
+    lib, calls = _make_lib()
+    lib.external_folders = [_ext_abs(d1)]
+    lib._scan_external()
+    lib.add_song_to_trigger("ExtA2/x.ogg")
+    # No external source matched -> falls through to the user default branch.
+    assert calls[-1][0] == "add_user_song"
+
+
+def test_ref_display_path_external(tmp_path):
+    d1 = tmp_path / "ExtA"
+    (d1 / "artist").mkdir(parents=True)
+    (d1 / "artist" / "song.ogg").write_bytes(b"x")
+    lib = _scan_lib(tmp_path, [d1])
+    ref = CUE_EXT_TAG + lib.external_sources[0]["files"][0]
+    assert lib.ref_display_path(ref) == "ExtA/artist/song.ogg"
+
+
+def test_ref_display_path_external_no_source_falls_back_to_abs(tmp_path):
+    # A stored external ref whose source was removed still renders.
+    lib, _calls = _make_lib()
+    assert lib.ref_display_path("e:E:/Gone/sub/x.ogg") == "E:/Gone/sub/x.ogg"
+
+
+def test_preview_external_plays_absolute(tmp_path):
+    d1 = tmp_path / "ExtA"
+    (d1 / "artist").mkdir(parents=True)
+    (d1 / "artist" / "song.ogg").write_bytes(b"x")
+    lib, calls = _make_lib()
+    lib.external_folders = [_ext_abs(d1)]
+    lib._scan_external()
+    lib.preview("ExtA/artist/song.ogg")
+    assert calls[-1] == ("play_untracked", (_ext_abs(d1) + "/artist/song.ogg",), {"volume": 1.0})
+
+
+# ==========================================================================
 # row_buttons (music tree)
 # ==========================================================================
 
@@ -564,6 +731,47 @@ def test_music_content_rows_preset_children_do_not_auto_show_on_search():
     rows = _content_rows(lib, query="p1", presets=["p1"], recent_entries=None)
     assert any(r["type"] == "folder" and r["label"] == "p1" for r in rows)
     assert not any(r["label"] == "a.ogg" for r in rows)
+
+
+def test_music_content_rows_external_scan_error(monkeypatch, tmp_path):
+    monkeypatch.setattr(renpy.store, "_cue_color_error", "#f00", raising=False)
+    lib = _content_lib(user_paths=(), game_paths=())
+    missing = _ext_abs(tmp_path / "Nope")
+    lib.external_folders = [missing]
+    lib._scan_external()
+    lib._rebuild_merged()
+    rows = _content_rows(lib, recent_entries=None)
+    labels = [r["label"] for r in rows]
+    assert "Folder not found: {}".format(missing) in labels
+    # The missing-folder wrapper still renders so the warning is reachable.
+    assert any(r["type"] == "folder" and r["label"] == "Nope/" for r in rows)
+
+
+def test_music_content_rows_external_empty(tmp_path):
+    lib = _content_lib(user_paths=(), game_paths=())
+    d1 = tmp_path / "ExtA"
+    d1.mkdir()
+    lib.external_folders = [_ext_abs(d1)]
+    lib._scan_external()
+    lib._rebuild_merged()
+    rows = _content_rows(lib, recent_entries=None)
+    labels = [r["label"] for r in rows]
+    assert "No music found in: {}".format(_ext_abs(d1)) in labels
+
+
+def test_music_content_rows_external_only_renders_tree(tmp_path):
+    # The no-results guard must treat external sources as populated.
+    lib = _content_lib(user_paths=(), game_paths=())
+    d1 = tmp_path / "ExtA"
+    d1.mkdir()
+    (d1 / "song.ogg").write_bytes(b"x")
+    lib.external_folders = [_ext_abs(d1)]
+    lib._scan_external()
+    lib._rebuild_merged()
+    rows = _content_rows(lib, recent_entries=None)
+    # The wrapper folder and its file both render (external source populated).
+    assert any(r["type"] == "folder" and r["label"] == "ExtA/" for r in rows)
+    assert any(r["type"] == "file" and r["label"] == "song.ogg" for r in rows)
 
 
 def test_music_content_rows_per_source_empty_states(monkeypatch):
