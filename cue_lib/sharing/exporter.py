@@ -235,6 +235,7 @@ class CueExportManager(object):
         path."""
         labels = sorted(self.checked_replays)
         if not labels:
+            self.export_warning = ""
             return []
 
         per_cat, external_count = _cue_replay_assets_full(self._paths.original_root, self._paths.game_id, labels)

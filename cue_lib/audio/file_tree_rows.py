@@ -29,6 +29,7 @@ from cue_lib.ui.dialogs import (
 )
 from cue_lib.runtime import _cue_preview_music_preset
 from cue_lib.util import (
+    _cue_escape_text,
     _cue_filter_igroup_folders,
     _cue_filter_preset_files,
     _cue_format_time,
@@ -160,7 +161,7 @@ class CueTreeRowsBuilder(object):
                     "toggle": Function(self._tree.toggle_folder, item["full_path"]),
                 }
                 if item.get("abs_root"):
-                    row["tt"] = item["abs_root"]
+                    row["tt"] = _cue_escape_text(item["abs_root"])
                 rows.append(row)
             else:
                 rows.append(
