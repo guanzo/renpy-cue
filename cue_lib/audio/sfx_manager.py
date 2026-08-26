@@ -408,6 +408,15 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         logic lives in CueSfxTreeRows; this just forwards *state."""
         return self._rows.tree_rows(*state)
 
+    def content_rows(self, search_query, preset_names, video_preset_names, igroup_names, is_video, tgt_ok, unplayable):
+        # type: (str, List[str], List[str], List[str], bool, bool, Dict[str, str]) -> List[Dict[str, Any]]
+        """Full SFX Library section row stream for the cue_tree_rows renderer
+        (recent + pool presets + video presets + intensity + file tree).  All
+        builder logic lives in CueSfxTreeRows; this just forwards."""
+        return self._rows.content_rows(
+            search_query, preset_names, video_preset_names, igroup_names, is_video, tgt_ok, unplayable
+        )
+
     # ------------------------------------------------------------------
     # Toggle: file enabled/disabled
     # ------------------------------------------------------------------

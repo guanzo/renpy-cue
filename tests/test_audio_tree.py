@@ -1313,3 +1313,218 @@ def test_sfx_intensity_rows_folder_ref_children(sfx):
     assert pool_child["label"] == "a.ogg"
     assert [b["icon"] for b in pool_child["buttons"]] == ["play"]
     assert pool_child["buttons"][0]["action"]._args[0] == sfx._sfx.preview_sfx
+
+
+# --------------------------------------------------------------------------
+# SFX content_rows: full section stream (recent + presets + intensity + tree)
+# --------------------------------------------------------------------------
+
+
+def _content_rows(
+    sfx,
+    query="",
+    presets=(),
+    vpresets=(),
+    igroups=(),
+    is_video=True,
+    tgt_ok=True,
+    unplayable=None,
+    recent_entries=(),
+    recent_expanded=False,
+    ctx="video",
+):
+    # type: (CueSfxLibraryTree, str, tuple, tuple, tuple, bool, bool, dict, tuple, bool, str) -> list
+    """Full SFX section stream via the builder.  recent_entries None wires no
+    recent manager; otherwise the fake returns the given (type, ref) pairs."""
+    import cue_lib.util as util_mod
+
+    if recent_entries is None:
+        sfx._recent = None
+    else:
+        sfx._recent = types.SimpleNamespace(
+            expanded=recent_expanded,
+            entries=lambda: [{"type": t, "ref": r} for t, r in recent_entries],
+            toggle=lambda: None,
+        )
+    sfx._sfx._markers = types.SimpleNamespace(
+        get_preset=lambda n: {"files": ["a.ogg", "b.ogg"]},
+        preset_remove_file=lambda n, f: None,
+        get_video_preset=lambda n: {"pools": [{"time": 1.5, "files": ["a.ogg", "b.ogg"]}]},
+        remove_video_preset_pool_file=lambda n, i, f: None,
+    )
+    sfx._intensity = types.SimpleNamespace(
+        remove_level=lambda n, i: None, remove_level_file=lambda n, i, f: None, move_level=lambda n, i, d: None
+    )
+    util_mod._cue.markers = types.SimpleNamespace(
+        get_preset=lambda n: {"files": ["a.ogg", "b.ogg"]},
+        resolve_target_context=lambda: ctx,
+        target_is_available=lambda c: tgt_ok,
+        video=types.SimpleNamespace(has_pools=lambda: True),
+        loop=types.SimpleNamespace(has_pools=lambda: True),
+        image=types.SimpleNamespace(has_pools=lambda: True),
+        dialogue=types.SimpleNamespace(has_pools=lambda: True),
+    )
+    util_mod._cue.intensity = types.SimpleNamespace(
+        get_igroup=lambda n: {"levels": [{"id": 1, "files": ["a.ogg", "pool/"]}]}
+    )
+    util_mod._cue.sfx = types.SimpleNamespace(library=types.SimpleNamespace(files=["pool/a.ogg"], disabled_files=set()))
+    util_mod._cue.dialogs = types.SimpleNamespace(intensity=types.SimpleNamespace(open=lambda: None))
+    return _tree_rows.CueSfxTreeRows(sfx).content_rows(
+        query, list(presets), list(vpresets), list(igroups), is_video, tgt_ok, unplayable or {}
+    )
+
+
+def test_sfx_content_rows_section_headers_collapsed(sfx):
+    rows = _content_rows(sfx, presets=["p"], vpresets=["vp"], igroups=["g"])
+    # Four collapsed section headers; sections with content keep their header,
+    # and no children render while collapsed.
+    labels = [r["label"] for r in rows]
+    assert labels == ["Recently Used/", "Pool Presets/", "Video Presets/", "Intensity Groups/"]
+    assert all(r["type"] == "folder" for r in rows)
+    assert all(r["depth"] == 0 for r in rows)
+
+
+def test_sfx_content_rows_recent_children_when_expanded(sfx):
+    rows = _content_rows(sfx, recent_entries=[("file", "a.wav"), ("folder", "v2/")], recent_expanded=True)
+    assert rows[0]["label"] == "Recently Used/"
+    assert rows[0]["toggle"]._args[0] == sfx._recent.toggle
+    file_row, folder_row = rows[1], rows[2]
+    assert file_row["type"] == "file"
+    assert file_row["label"] == "a.wav"
+    assert file_row["depth"] == 1
+    assert folder_row["label"] == "v2/"
+    # plus buttons forward the resolved target tooltip
+    assert file_row["buttons"][1]["tt"] == "Click: Add to Video active pool\nShift+Click: Create new Video pool and add"
+
+
+def test_sfx_content_rows_no_recent_section_when_unwired(sfx):
+    rows = _content_rows(sfx, recent_entries=None, presets=["p"])
+    assert rows[0]["label"] == "Pool Presets/"
+    assert "Recently Used/" not in [r["label"] for r in rows]
+
+
+def test_sfx_content_rows_preset_children_expanded(sfx):
+    sfx.presets_expanded = True
+    sfx.expanded_presets = {"p": True}
+    rows = _content_rows(sfx, presets=["p"])
+    labels = [r["label"] for r in rows]
+    assert labels == ["Recently Used/", "Pool Presets/", "p", "a.ogg", "b.ogg", "Video Presets/", "Intensity Groups/"]
+
+
+def test_sfx_content_rows_preset_empty_help(sfx):
+    sfx.presets_expanded = True
+    rows = _content_rows(sfx)
+    # No preset names -> the pool-presets empty line inside the expanded section.
+    empty = [r for r in rows if r["label"] == "No pool presets yet. Save a pool as a preset to fill this."]
+    assert len(empty) == 1
+    assert empty[0]["type"] == "help"
+    assert empty[0]["depth"] == 0
+
+
+def test_sfx_content_rows_video_presets_no_auto_show_on_search(sfx):
+    # A search match keeps the Video Presets/ header but its preset rows only
+    # reveal on explicit expand (pools are timestamp folders, not the tree).
+    rows = _content_rows(sfx, query="vp", vpresets=["vp"])
+    labels = [r["label"] for r in rows]
+    assert "Video Presets/" in labels
+    assert "vp" not in labels
+
+
+def test_sfx_content_rows_video_preset_children_expanded(sfx):
+    sfx.video_presets_expanded = True
+    sfx.expanded_video_presets = {"vp": True}
+    sfx.expanded_video_pools = {"vp": {0: True}}
+    rows = _content_rows(sfx, vpresets=["vp"])
+    labels = [r["label"] for r in rows]
+    assert labels == [
+        "Recently Used/",
+        "Pool Presets/",
+        "Video Presets/",
+        "vp",
+        "00:01.50",
+        "a.ogg",
+        "b.ogg",
+        "Intensity Groups/",
+    ]
+
+
+def test_sfx_content_rows_video_preset_empty_help(sfx):
+    sfx.video_presets_expanded = True
+    rows = _content_rows(sfx)
+    assert "No video presets yet. Save video markers as a preset to fill this." in [r["label"] for r in rows]
+
+
+def test_sfx_content_rows_intensity_children_expanded(sfx):
+    sfx.igroups_expanded = True
+    sfx.expanded_igroups = {"g": True}
+    sfx.expanded_ilevels = {"g": {1}}
+    sfx.expanded_file_refs = {"pool/": True}
+    rows = _content_rows(sfx, igroups=["g"])
+    labels = [r["label"] for r in rows]
+    assert labels == [
+        "Recently Used/",
+        "Pool Presets/",
+        "Video Presets/",
+        "Intensity Groups/",
+        "+ Group",
+        "g",
+        "+ Level",
+        "Level 1/",
+        "a.ogg",
+        "pool/",
+        "a.ogg",
+    ]
+    plus_group = rows[4]
+    assert plus_group["action"] is _tree_rows._cue.dialogs.intensity.open
+    level = rows[7]
+    # video context + available target -> the level [+] hooks to the pool
+    assert level["buttons"][3]["enabled"] is True
+    assert level["buttons"][3]["tt"].startswith("Attach this level to the Video pool.")
+
+
+def test_sfx_content_rows_intensity_hook_disabled_without_target(sfx):
+    sfx.igroups_expanded = True
+    sfx.expanded_igroups = {"g": True}
+    sfx.expanded_ilevels = {"g": {1}}
+    rows = _content_rows(sfx, igroups=["g"], ctx="image")
+    level = rows[7]
+    assert level["buttons"][3]["enabled"] is False
+    assert level["buttons"][3]["tt"] == "Select the Video or Loop target to hook this level."
+
+
+def test_sfx_content_rows_search_filters_sections(sfx):
+    # No section content matches "z": every header hides, the file tree is
+    # empty, and the no-results line renders (plain, default-styled).
+    rows = _content_rows(
+        sfx, query="z", presets=["p"], vpresets=["vp"], igroups=["g"], recent_entries=[("file", "a.wav")]
+    )
+    assert len(rows) == 1
+    assert rows[0]["type"] == "help"
+    assert rows[0]["label"] == 'No files found for "z".'
+    assert rows[0]["plain"] is True
+    assert "plain" in rows[0]
+
+
+def test_sfx_content_rows_search_reveals_preset_matches(sfx):
+    # "a" matches the preset's file contents: Pool Presets header stays and its
+    # matching file rows auto-show, even while collapsed.
+    sfx.expanded_presets = {}
+    rows = _content_rows(sfx, query="a", presets=["p"])
+    labels = [r["label"] for r in rows]
+    assert "Pool Presets/" in labels
+    assert "p" in labels
+    assert "a.ogg" in labels
+
+
+def test_sfx_content_rows_appends_file_tree(sfx, tmp_path):
+    audio = str(tmp_path / "audio") + "/"
+    for rel in ("a.ogg", "sub/b.wav"):
+        p = os.path.join(audio, rel)
+        d = os.path.dirname(p)
+        if not os.path.isdir(d):
+            os.makedirs(d)
+        open(p, "w").close()
+    sfx.scan()
+    rows = _content_rows(sfx, presets=["p"])
+    tree_labels = [r["label"] for r in rows if r.get("key", "").startswith("tree:")]
+    assert tree_labels == ["sub/", "a.ogg"]

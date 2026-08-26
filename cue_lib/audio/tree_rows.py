@@ -11,8 +11,13 @@ import renpy
 
 from renpy.store import Function
 
-from cue_lib.constants import CUE_HELP_SHIFT_SKIP_DELETE, CUE_INTENSITY_IDEAL_LEVELS
-from cue_lib.markers import _cue_markers_send, _cue_send_level_to_target
+from cue_lib.constants import CUE_HELP_SHIFT_SKIP_DELETE, CUE_INTENSITY_IDEAL_LEVELS, CueContextType
+from cue_lib.markers import (
+    _cue_markers_send,
+    _cue_send_level_to_target,
+    _cue_send_level_to_target_tt,
+    _cue_target_assign_tt,
+)
 from cue_lib.state import _cue
 from cue_lib.ui.dialogs import (
     _cue_confirm_delete_igroup,
@@ -21,7 +26,15 @@ from cue_lib.ui.dialogs import (
     _cue_confirm_remove_video_preset_pool,
     _cue_maybe_apply_video_preset,
 )
-from cue_lib.util import _cue_filter_igroup_folders, _cue_filter_preset_files, _cue_format_time, _cue_resolve_files
+from cue_lib.util import (
+    _cue_filter_igroup_folders,
+    _cue_filter_preset_files,
+    _cue_format_time,
+    _cue_igroup_search_matches,
+    _cue_preset_search_matches,
+    _cue_query_matches,
+    _cue_resolve_files,
+)
 
 MYPY = False
 if MYPY:
@@ -50,14 +63,18 @@ def _cue_file_row(key, label, depth, buttons, warn=None, gap=1, size=None):
     return row
 
 
-def _cue_help_row(key, label, color=None, v_gap=None, depth=0):
-    # type: (str, str, Optional[str], Optional[int], int) -> Dict[str, Any]
-    """A muted help/empty-state line, indented to depth (0 = flush left)."""
+def _cue_help_row(key, label, color=None, v_gap=None, depth=0, plain=False):
+    # type: (str, str, Optional[str], Optional[int], int, bool) -> Dict[str, Any]
+    """A muted help/empty-state line, indented to depth (0 = flush left).
+    plain drops the cue_help style for text the screen renders unstyled
+    (the no-results line)."""
     row = {"key": key, "type": "help", "label": label, "depth": depth}
     if color:
         row["color"] = color
     if v_gap:
         row["v_gap"] = v_gap
+    if plain:
+        row["plain"] = True
     return row
 
 
@@ -643,6 +660,119 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                 size=11,
             )
         ]
+
+    def content_rows(self, search_query, preset_names, video_preset_names, igroup_names, is_video, tgt_ok, unplayable):
+        # type: (str, List[str], List[str], List[str], bool, bool, Dict[str, str]) -> List[Dict[str, Any]]
+        """Full SFX Library section stream: Recently Used, Pool Presets, Video
+        Presets, Intensity Groups, then the file tree.  Name lists arrive raw
+        from the other managers and are search-filtered here (the current
+        screen filters them the same way); recent entries are gathered from the
+        tree's own CueRecentManager.  tgt_tt and the intensity hook state are
+        resolved from the marker context here."""
+        searching = bool(search_query.strip())
+        tgt_tt = _cue_target_assign_tt()
+        rows = []
+        # -- Recently Used ---------------------------------------------------
+        recent_entries = []
+        recent = self._tree._recent
+        if recent is not None:
+            entries = recent.entries()
+            if searching:
+                entries = [e for e in entries if _cue_query_matches(e["ref"], search_query)]
+            recent_entries = entries
+            if not searching or entries:
+                rows.extend(
+                    _cue_section_rows(
+                        "recent",
+                        "Recently Used/",
+                        Function(recent.toggle),
+                        recent.expanded,
+                        searching,
+                        lambda: bool(entries),
+                        lambda: self._recent_rows(entries, tgt_ok, tgt_tt),
+                    )
+                )
+        # -- Pool Presets -----------------------------------------------------
+        if searching:
+            preset_names = [n for n in preset_names if _cue_preset_search_matches(n, search_query)]
+        rows.extend(
+            _cue_section_rows(
+                "presets",
+                "Pool Presets/",
+                Function(self._tree.toggle_presets_expand),
+                self._tree.presets_expanded,
+                searching,
+                lambda: bool(preset_names),
+                lambda: self._preset_children(preset_names, search_query, tgt_ok, tgt_tt),
+            )
+        )
+        # -- Video Presets ----------------------------------------------------
+        if searching:
+            video_preset_names = [n for n in video_preset_names if _cue_query_matches(n, search_query)]
+        rows.extend(
+            _cue_section_rows(
+                "vpresets",
+                "Video Presets/",
+                Function(self._tree.toggle_video_presets_expand),
+                self._tree.video_presets_expanded,
+                searching,
+                lambda: bool(video_preset_names),
+                lambda: self._video_preset_children(video_preset_names, is_video),
+                auto_show=False,
+            )
+        )
+        # -- Intensity Groups -------------------------------------------------
+        if searching:
+            igroup_names = [n for n in igroup_names if _cue_igroup_search_matches(n, search_query)]
+        ctx = _cue.markers.resolve_target_context()
+        lv_hook_ok = (ctx == CueContextType.VIDEO or ctx == CueContextType.LOOP) and _cue.markers.target_is_available(
+            ctx
+        )
+        lv_tt = _cue_send_level_to_target_tt()
+        rows.extend(
+            _cue_section_rows(
+                "igroups",
+                "Intensity Groups/",
+                Function(self._tree.toggle_igroups_expand),
+                self._tree.igroups_expanded,
+                searching,
+                lambda: bool(igroup_names),
+                lambda: self._intensity_rows(igroup_names, search_query, lv_hook_ok, lv_tt),
+            )
+        )
+        # -- no-results guard + file tree ------------------------------------
+        if (
+            searching
+            and not recent_entries
+            and not preset_names
+            and not video_preset_names
+            and not igroup_names
+            and not self._tree.visible_tree
+        ):
+            rows.append(_cue_help_row("no_results", 'No files found for "{}".'.format(search_query), plain=True))
+        else:
+            rows.extend(self.tree_rows(tgt_ok, tgt_tt, unplayable))
+        return rows
+
+    def _preset_children(self, preset_names, search_query, target_ok, target_tt):
+        # type: (List[str], str, bool, str) -> List[Dict[str, Any]]
+        """Pool Presets children: the empty-state line, then the preset rows."""
+        rows = []
+        if not preset_names:
+            rows.append(_cue_help_row("presets:empty", "No pool presets yet. Save a pool as a preset to fill this."))
+        rows.extend(self._preset_rows(preset_names, search_query, target_ok, target_tt))
+        return rows
+
+    def _video_preset_children(self, video_preset_names, is_video):
+        # type: (List[str], bool) -> List[Dict[str, Any]]
+        """Video Presets children: the empty-state line, then the preset rows."""
+        rows = []
+        if not video_preset_names:
+            rows.append(
+                _cue_help_row("vpresets:empty", "No video presets yet. Save video markers as a preset to fill this.")
+            )
+        rows.extend(self._video_preset_rows(video_preset_names, is_video))
+        return rows
 
     def warn_reason(self, item, target_ok, target_tt, unplayable):  # pyright: ignore[reportIncompatibleMethodOverride]
         # type: (Dict[str, Any], bool, str, Dict[str, str]) -> str
