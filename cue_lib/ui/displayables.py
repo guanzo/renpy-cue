@@ -155,6 +155,7 @@ def _cue_setup_mouse_cursor():
     """Register the mod's custom hardware cursors in config.mouse."""
     mouse = dict(renpy.config.mouse or {})
     mouse["cue_resize"] = [(_cue.paths.icon("arrows-left-right-solid.png"), 16, 16)]
+    mouse["cue_pointer"] = [(_cue.paths.icon("hand-pointer-solid.png"), 16, 16)]
     renpy.config.mouse = mouse
 
 

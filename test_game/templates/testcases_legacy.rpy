@@ -218,6 +218,14 @@ testcase page_nav:
     $ if not (_cue.overlay_active_page == CuePage.MUSIC): renpy.quit(status=1)
     $ renpy.quit()
 
+testcase settings_page_about:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    run Function(_cue_set_page, CuePage.SETTINGS)
+    $ if not (_cue.overlay_active_page == CuePage.SETTINGS): renpy.quit(status=1)
+    $ renpy.quit()
+
 testcase import_page_nav:
     $ _cue.is_overlay_visible = True
     run Jump("start")

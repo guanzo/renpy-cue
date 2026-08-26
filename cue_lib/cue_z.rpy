@@ -59,6 +59,7 @@ init -999 python:
         CueImportCategory, CueImportMatch, CueExportScope,
         CueExportFileTypes,
         CUE_DEBUG, CUE_SFX_CHANNEL_COUNT, CUE_VERSION,
+        CUE_DISCORD, CUE_GITHUB,
         CUE_DEFAULT_VIDEO_SPEED,
         CUE_INTENSITY_IDEAL_LEVELS,
         CUE_INTENSITY_VOLUME_MAX, CUE_INTENSITY_FREQ_MAX,

@@ -1,6 +1,8 @@
 from typing import Final
 
 CUE_VERSION: Final = "0.1.0"
+CUE_DISCORD: Final = "https://discord.gg/kAVtFGcQYm"
+CUE_GITHUB: Final = "https://github.com/guanzo/renpy-cue/issues"
 
 CUE_IMG_KEY_PREFIX: Final = "i_"
 CUE_LOOP_KEY_PREFIX: Final = "l_"

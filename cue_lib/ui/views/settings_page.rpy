@@ -144,11 +144,11 @@ screen cue_about():
     style_group "cue"
 
     use cue_section_frame("About Cue"):
-        text 'hi'
-        # TODO: Add cue version, add "Cue Version" field to github bug template
-        # Add github issues link
-        # add discord link
-        # add contact email (set this up)
+        vbox:
+            spacing 8
+            etext "Version {}".format(CUE_VERSION)
+            text ("{a=" + CUE_GITHUB + "}Report bugs or request features{/a}") style "cue_about_link"
+            text ("{a=" + CUE_DISCORD + "}Join the Cue Discord{/a}") style "cue_about_link"
 
 # -----------------------------------------------------------------------------
 # Keybind-capture modal — shown while waiting for the user to press a key

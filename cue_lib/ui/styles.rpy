@@ -123,6 +123,29 @@ style cue_help is cue_text:
     size 11
     color _cue_color_text_muted
 
+# About-page hyperlinks.  {a=} tags need a per-style handler: theming the
+# link means overriding hyperlink_functions on the text's own style (not the
+# global style.hyperlink_text), and the click handler must open the browser on
+# 7.x too, where renpy.open_url does not exist.
+init python:
+    def _cue_about_link_styler(target):
+        return style.cue_about_link_text
+
+    def _cue_open_url(url):
+        if hasattr(renpy, "open_url"):
+            renpy.open_url(url)
+        else:
+            import webbrowser
+            webbrowser.open(url)
+
+style cue_about_link_text is cue_help:
+    idle_color "#66aaff"
+    hover_color "#7ab4ff"
+
+style cue_about_link is cue_help:
+    hyperlink_functions (_cue_about_link_styler, _cue_open_url, None)
+    mouse "cue_pointer"
+
 style cue_input is cue_text:
     color _cue_color_text_white
     background _cue_color_bg_input

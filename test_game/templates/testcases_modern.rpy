@@ -116,6 +116,13 @@ testcase page_nav:
     run Function(_cue_set_page, CuePage.MUSIC)
     assert eval (_cue.overlay_active_page == CuePage.MUSIC)
 
+testcase settings_page_about:
+    run Jump("start")
+    # Rendering the Settings page exercises cue_about: a broken version line
+    # or {a=} hyperlink style fails this interaction.
+    run Function(_cue_set_page, CuePage.SETTINGS)
+    assert eval (_cue.overlay_active_page == CuePage.SETTINGS)
+
 testcase import_page_nav:
     run Jump("start")
     # _cue_set_page(IMPORT) scans imports/ and refreshes the export categories
