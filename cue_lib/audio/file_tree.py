@@ -155,6 +155,10 @@ class CueAudioTreeManager(object):
             used_labels.append(source["label"])
             self.external_sources.append(source)
             self.external_files += source["files"]
+        # Global sort: the per-source lists are sorted individually but splicing
+        # them in config order is not; _cue_expand_folder_ref bisects this list,
+        # so it must be sorted for a stored folder ref to expand correctly.
+        self.external_files.sort()
 
     def _scan_external_root(self, abs_root, used_labels):
         # type: (str, List[str]) -> Dict[str, Any]

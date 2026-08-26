@@ -433,6 +433,20 @@ def test_scan_external_builds_sources(tmp_path):
     }
 
 
+def test_scan_external_sorts_flattened_global(tmp_path):
+    # Folders added in reverse-alphabetical order: the flattened external_files
+    # must still be globally sorted, because _cue_expand_folder_ref bisects it
+    # (a stored folder ref expands to [] when the list isn't sorted).
+    d1 = tmp_path / "Zeta"
+    d1.mkdir()
+    (d1 / "a.ogg").write_bytes(b"x")
+    d2 = tmp_path / "Alpha"
+    d2.mkdir()
+    (d2 / "b.ogg").write_bytes(b"x")
+    lib = _scan_lib(tmp_path, [d1, d2])
+    assert lib.external_files == sorted(lib.external_files)
+
+
 def test_scan_external_missing_folder_sets_error(tmp_path):
     missing = tmp_path / "Nope"
     lib = _scan_lib(tmp_path, [missing])
