@@ -36,10 +36,10 @@ class NullAction(object):
         return None
 
 
-# Ren'Py's store defines _in_replay (False when not replaying).  The marker
-# store's _normalize_entry reads it when defaulting an entry's "replay" key,
-# so the mock must provide it for headless tests.
-_in_replay = False
+# Ren'Py's store defines _in_replay (None when not replaying; a string replay
+# label inside one).  The marker store's _normalize_entry reads it when scoping
+# an entry to a replay, so the mock must provide it for headless tests.
+_in_replay = None
 
 
 persistent = PersistentStub()

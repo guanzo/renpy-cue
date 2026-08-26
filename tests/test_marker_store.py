@@ -11,6 +11,7 @@
 import os
 
 import pytest
+import renpy.store as _store
 
 from cue_lib.constants import CUE_VOLUME_DEFAULT, CueLoopFrequency
 from cue_lib.intensity import CueIntensityResolution
@@ -67,20 +68,50 @@ def test_get_returns_normalized_entry(store):
     assert store._data["v_a"]["pools"] == [{"files": ["s.ogg"]}]
 
 
-def test_get_drops_replay_id_and_defaults_replay(store):
-    # Legacy cleanup runs on the write path, not on read.
+def test_get_drops_replay_id_and_leaves_replay_absent(store):
+    # Legacy cleanup runs on the write path, not on read.  Outside a replay no
+    # replay field is stamped -- the marker stays un-scoped.
     store._data["v_a"] = {"pools": [], "replay_id": "stale"}
     store._get_or_create_entry("v_a")
     entry = store.get("v_a")
     assert "replay_id" not in entry
-    assert entry["replay"] is False
+    assert "replay" not in entry
+
+
+def test_existing_replay_value_survives_non_replay_touch(store, monkeypatch):
+    # Real Ren'Py sets _in_replay to None outside a replay.  Having the mod
+    # open during normal gameplay must not drop the replay scoping a marker
+    # already carries -- normalization is a no-op on an existing replay key.
+    monkeypatch.setattr(_store, "_in_replay", None)
+    store._data["v_a"] = {"pools": [{"files": ["s.ogg"]}], "replay": "run-3"}
+    store._get_or_create_entry("v_a")
+    assert store.get("v_a")["replay"] == "run-3"
+
+
+def test_replay_edit_rescopes_none_stamped_marker(store, monkeypatch):
+    # Old normalization stamped replay: None on non-replay touches, pinning
+    # the marker as permanently non-replay.  Editing it inside a replay must
+    # re-scope it to that replay instead of staying pinned.
+    store._data["v_a"] = {"pools": [], "replay": None}
+    monkeypatch.setattr(_store, "_in_replay", "run-3")
+    store._get_or_create_entry("v_a")
+    assert store.get("v_a")["replay"] == "run-3"
+
+
+def test_replay_edit_stamps_absent_replay(store, monkeypatch):
+    # A marker with no replay field, edited inside a replay, gains that
+    # replay's scoping.
+    store._data["v_a"] = {"pools": []}
+    monkeypatch.setattr(_store, "_in_replay", "run-3")
+    store._get_or_create_entry("v_a")
+    assert store.get("v_a")["replay"] == "run-3"
 
 
 def test_setdefault_and_pop(store):
     created = store.setdefault("v_a", {"pools": []})
-    assert created == {"pools": [], "replay": False}
-    assert store.setdefault("v_a", {"other": True}) == {"pools": [], "replay": False}
-    assert store.pop("v_a") == {"pools": [], "replay": False}
+    assert created == {"pools": []}
+    assert store.setdefault("v_a", {"other": True}) == {"pools": []}
+    assert store.pop("v_a") == {"pools": []}
     assert store.pop("v_a", "gone") == "gone"
 
 
@@ -91,8 +122,8 @@ def test_setdefault_and_pop(store):
 
 def test_get_or_create_entry_creates_and_reuses(store):
     entry = store._get_or_create_entry("i_a")
-    # _normalize_entry defaults the "replay" flag in place.
-    assert entry == {"pools": [], "replay": False}
+    # _normalize_entry leaves replay absent outside a replay.
+    assert entry == {"pools": []}
     assert store._data["i_a"] is entry
 
 

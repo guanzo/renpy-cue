@@ -133,7 +133,7 @@ def backups(cue_env, mgr):
 def _fake_singletons(monkeypatch):
     """Fresh persistent + fake _cue per test."""
     _store.persistent._cue = None
-    _store._in_replay = False
+    _store._in_replay = None
     fake = _make_fake_cue()
     monkeypatch.setattr(_markers, "_cue", fake)
     monkeypatch.setattr(_markers, "persistent", _store.persistent)

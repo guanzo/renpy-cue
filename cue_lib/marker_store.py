@@ -319,7 +319,11 @@ class CueMarkerStore(object):
         if "pools" not in entry:
             entry["pools"] = [{"files": entry.pop("files", [])}]
         entry.pop('replay_id', None)
-        entry.setdefault("replay", renpy.store._in_replay)
+        # Only edits inside a replay stamp replay; writing a falsy _in_replay
+        # would pin the marker as non-replay and block later re-scoping.
+        in_replay = renpy.store._in_replay
+        if in_replay:
+            entry["replay"] = in_replay
         return entry
 
     def _get_or_create_entry(self, marker_key):
