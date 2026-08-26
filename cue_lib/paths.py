@@ -270,6 +270,23 @@ class CuePaths(object):
         return os.path.join(self._original_root, "data", CUE_SHARED_CONFIG_FILENAME)
 
     # ------------------------------------------------------------------
+    # Exchange tree -- {root}/exports/ and {root}/imports/.  Sharing zips are
+    # written to and dropped into these.  Use _original_root (never the active
+    # import) -- exports/imports are user-visible files on the live shared
+    # tree, like backups.
+    # ------------------------------------------------------------------
+
+    @property
+    def exports_dir(self):
+        # type: () -> str
+        return os.path.join(self._original_root, "exports")
+
+    @property
+    def imports_dir(self):
+        # type: () -> str
+        return os.path.join(self._original_root, "imports")
+
+    # ------------------------------------------------------------------
     # Backup tree -- {root}/backups/.  Automatic backups live under
     # auto/; the manual backup is a single named zip at the root.  These
     # use _original_root (never the active import) -- backups are real user data

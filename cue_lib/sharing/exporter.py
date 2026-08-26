@@ -12,10 +12,12 @@ import os
 import renpy
 import threading
 
-from cue_lib.constants import CUE_IMPORT_CATEGORY_ORDER, CueExportFileTypes, CueExportScope
+from cue_lib.constants import CUE_IMPORT_CATEGORY_ORDER, CueExportFileTypes, CueExportScope, CueImportCategory
 from cue_lib.sharing.importer_io import (
     _cue_build_import_zip,
     _cue_enumerate_import_files,
+    _cue_external_bake,
+    _cue_external_roots,
     _cue_replay_assets_full,
     _cue_replay_labels,
     _cue_sanitize_filename,
@@ -23,23 +25,9 @@ from cue_lib.sharing.importer_io import (
 from cue_lib.util import _cue_log
 
 
-def _cue_external_warning(count):
-    # type: (int) -> str
-    """Non-blocking export warning for external (e:) refs that can't be packed.
-
-    External media lives outside the shared tree, so a replay export can't
-    include it -- the export proceeds and the UI surfaces the dropped count."""
-    if not count:
-        return ""
-    return (
-        "{} file(s) are in external folders and won't be included in this export. "
-        "Copy them into your shared music/ or audio/ folder to make it portable."
-    ).format(count)
-
-
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List, Set  # pyright: ignore[reportUnusedImport]
+    from typing import Any, Dict, List, Set, Tuple  # pyright: ignore[reportUnusedImport]
 
 
 class CueExportManager(object):
@@ -61,7 +49,6 @@ class CueExportManager(object):
         self.current_replay = ""  # the replay the user is in right now
         self.export_status = ""
         self.export_error = ""
-        self.export_warning = ""  # external refs dropped from this export, if any
         self.is_exporting = False  # zip build running on a background thread
         self.export_fraction = 0.0  # 0..1 progress of the active build
         self._export_thread = None  # type: Any
@@ -76,7 +63,9 @@ class CueExportManager(object):
 
     def exports_dir(self):
         # type: () -> str
-        return os.path.join(self._paths.original_root, "exports").replace("\\", "/")
+        """Where export zips are written -- owned by paths.py on the live
+        shared tree."""
+        return self._paths.exports_dir
 
     def refresh(self):
         # type: () -> None
@@ -209,15 +198,24 @@ class CueExportManager(object):
     def selected_contents(self):
         # type: () -> List[str]
         """Files to pack for the current scope, in canonical category order."""
-        if self.scope == CueExportScope.SPECIFIC_REPLAYS:
-            return self._replay_contents()
-        self.export_warning = ""
-        return self._category_contents()
+        return self._selection()[0]
 
-    def _category_contents(self):
-        # type: () -> List[str]
-        """Every enabled category that's in scope: all of them, or only the
-        checked ones in Specific File Types mode."""
+    def _selection(self):
+        # type: () -> Tuple[List[str], List[str]]
+        """(contents, marker_arcnames) for the current scope.
+
+        marker_arcnames are the in-scope markers, so the export thread can hunt
+        each for absolute external refs to bake.  A no-op scope (nothing
+        checked) yields ([], [])."""
+        if self.scope == CueExportScope.SPECIFIC_REPLAYS:
+            return self._replay_selection()
+        return self._category_selection()
+
+    def _category_selection(self):
+        # type: () -> Tuple[List[str], List[str]]
+        """Whole-game selection: every enabled category in scope, plus the full
+        marker list (all markers are in scope in whole-game mode)."""
+        marker_arcnames = list(self.contents_by_category.get(CueImportCategory.MARKERS, []))
         selected = []
         for cat in CUE_IMPORT_CATEGORY_ORDER:
             if not self.is_category_enabled(cat):
@@ -226,34 +224,40 @@ class CueExportManager(object):
                 if not self.is_checked(cat):
                     continue
             selected.extend(self.contents_by_category.get(cat, []))
-        return selected
+        return selected, marker_arcnames
 
-    def _replay_contents(self):
-        # type: () -> List[str]
-        """Markers + referenced assets for the checked replays, deduped.
-        The file-types filter prunes whole categories, same as the whole-game
-        path."""
+    def _replay_selection(self):
+        # type: () -> Tuple[List[str], List[str]]
+        """Replay selection: markers + referenced assets for the checked
+        replays, plus the markers themselves as the bake targets.  The
+        file-types filter prunes whole categories, same as whole-game."""
         labels = sorted(self.checked_replays)
         if not labels:
-            self.export_warning = ""
-            return []
-
-        per_cat, external_count = _cue_replay_assets_full(self._paths.original_root, self._paths.game_id, labels)
-        self.export_warning = _cue_external_warning(external_count)
+            return [], []
+        per_cat, _ext = _cue_replay_assets_full(self._paths.original_root, self._paths.game_id, labels)
+        marker_arcnames = list(per_cat.get(CueImportCategory.MARKERS, []))
         selected = []
-
         for cat in CUE_IMPORT_CATEGORY_ORDER:
             if self.file_types == CueExportFileTypes.SPECIFIC:
                 if not self.is_checked(cat):
                     continue
             selected.extend(per_cat.get(cat, []))
-        return selected
+        return selected, marker_arcnames
+
+    def allowed_categories(self):
+        # type: () -> Set[int]
+        """CueImportCategory values the current export is allowed to pack.
+        Everything in All File Types mode; only the checked categories in
+        Specific mode.  The external bake honors this so an unchecked category
+        never sneaks its media (or ref rewrite) into the zip."""
+        if self.file_types == CueExportFileTypes.ALL:
+            return set(CUE_IMPORT_CATEGORY_ORDER)
+        return set(cat for cat in CUE_IMPORT_CATEGORY_ORDER if self.is_checked(cat))
 
     def clear_status(self):
         # type: () -> None
         self.export_status = ""
         self.export_error = ""
-        self.export_warning = ""
 
     # ------------------------------------------------------------------
     # export -- the zip build runs on a background thread so a large import
@@ -270,14 +274,14 @@ class CueExportManager(object):
         if self.is_exporting:
             return
         self.clear_status()
-        selected = self.selected_contents()
+        selected, marker_arcnames = self._selection()
 
         if not selected:
             self.export_error = "Nothing selected to export."
             return
         base = self.name.strip() or self._paths.game_id
         safe = _cue_sanitize_filename(base)
-        exports_dir = self.exports_dir()
+        exports_dir = self._paths.exports_dir
 
         if not os.path.isdir(exports_dir):
             os.makedirs(exports_dir)
@@ -296,27 +300,41 @@ class CueExportManager(object):
         self.is_exporting = True
         self.export_fraction = 0.0
 
-        thread = threading.Thread(target=self._build_zip_thread, args=(selected, zip_path, name, author, description))
+        thread = threading.Thread(
+            target=self._build_zip_thread, args=(selected, marker_arcnames, zip_path, name, author, description)
+        )
         thread.daemon = True
         self._export_thread = thread
         thread.start()
 
-    def _build_zip_thread(self, contents, zip_path, name, author, description):
-        # type: (Any, str, str, str, str) -> None
+    def _build_zip_thread(self, contents, marker_arcnames, zip_path, name, author, description):
+        # type: (Any, Any, str, str, str, str) -> None
         """The off-thread zip write.  Sets export_status / export_error and
         clears is_exporting when done; a failure mid-write is caught and
         reported (the .tmp it was writing is left for the next build to
-        overwrite)."""
+        overwrite).  External refs are baked first (copy to a portable
+        relative namespace + rewrite the marker JSONs) so the recipient's
+        import needs no knowledge of the exporter's absolute paths."""
         try:
+            extra_roots = _cue_external_roots(self._paths.shared_config_path)
+            add_contents, overrides, rewrites = _cue_external_bake(
+                self._paths.original_root, self._paths.game_id, marker_arcnames, extra_roots, self.allowed_categories()
+            )
+            full = list(contents)
+            for arc in add_contents:
+                if arc not in full:
+                    full.append(arc)
             _cue_build_import_zip(
                 self._paths.original_root,
                 self._paths.game_id,
                 name,
                 author,
                 description,
-                contents,
+                full,
                 zip_path,
                 progress=self._set_export_progress,
+                overrides=overrides,
+                rewrites=rewrites,
             )
         except Exception as e:
             self.export_error = "Export failed: {}".format(e)

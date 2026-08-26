@@ -3,6 +3,7 @@
 # selected_contents, and zip export with collision-safe filenames.
 
 import hashlib
+import json
 import os
 import zipfile
 
@@ -688,111 +689,43 @@ def test_refresh_keeps_last_snapshot_on_failure(cue_env, export_threads, monkeyp
 
 
 # ---------------------------------------------------------------------------
-# export warning -- external (e:) refs can't be packed into the zip
+# external bake -- abs refs are baked into the bundle as portable relative refs
 # ---------------------------------------------------------------------------
 
 
-def test_cue_external_warning_phrasing():
-    assert _exporter._cue_external_warning(0) == ""
-    assert _exporter._cue_external_warning(1).startswith("1 file(s) are in external folders")
-    assert _exporter._cue_external_warning(7).startswith("7 file(s) are in external folders")
+def _write_shared_config(cue_env, sfx=None, music=None):
+    """Write the shared config with external folder roots so
+    _cue_external_roots() picks them up during the zip build."""
+    cfg = {}
+    if sfx is not None:
+        cfg["sfx_folders"] = sfx
+    if music is not None:
+        cfg["music_folders"] = music
+    _write(cue_env.paths.original_root, "data/cue_config.json", json.dumps(cfg))
 
 
-def test_export_warning_counts_external_sfx_refs(cue_env):
-    ext = "E:/SFX/g1/drip.ogg"
-    _seed(
-        cue_env,
-        [
-            ("audio/g1/boom.ogg", "b"),
-            (
-                "data/markers/{}/a.json".format(GAME_ID),
-                '{{"replay": "Run 1", "pools": [{{"files": ["g1/boom.ogg", "{}"]}}]}}'.format(ext),
-            ),
-        ],
-    )
-    mgr = CueExportManager(cue_env.paths)
-    _refresh_and_join(mgr)
-    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
-
-    sel = mgr.selected_contents()
-
-    # The built-in ref is packed; the external one is dropped, not turned into
-    # a bogus audio/e:... arcname, and the count lands on the warning.
-    assert "audio/g1/boom.ogg" in sel
-    assert not any("E:/SFX" in s or s.startswith("audio/e:") for s in sel)
-    assert mgr.export_warning == (
-        "1 file(s) are in external folders and won't be included in this export. "
-        "Copy them into your shared music/ or audio/ folder to make it portable."
-    )
+def _baked_ns(arcname):
+    """The per-source namespace (e.g. 'ext_sfx-abc123') of a baked arcname."""
+    return arcname.split("/_external/", 1)[1].split("/", 1)[0]
 
 
-def test_export_warning_counts_external_music_song(cue_env):
-    ext = "E:/Music/artist/a.ogg"
-    _seed(
-        cue_env,
-        [("data/markers/{}/a.json".format(GAME_ID), '{{"replay": "Run 1", "pools": [], "music": ["{}"]}}'.format(ext))],
-    )
-    mgr = CueExportManager(cue_env.paths)
-    _refresh_and_join(mgr)
-    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
-
-    mgr.selected_contents()
-
-    assert mgr.export_warning.startswith("1 file(s) are in external folders")
-
-
-def test_export_warning_empty_when_no_external_refs(cue_env):
-    _seed(
-        cue_env,
-        [
-            ("audio/g1/boom.ogg", "b"),
-            ("data/markers/{}/a.json".format(GAME_ID), '{"replay": "Run 1", "pools": [{"files": ["g1/boom.ogg"]}]}'),
-        ],
-    )
-    mgr = CueExportManager(cue_env.paths)
-    _refresh_and_join(mgr)
-    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
-
-    mgr.selected_contents()
-
-    assert mgr.export_warning == ""
-
-
-def test_export_warning_cleared_in_whole_game_scope(cue_env):
-    ext = "E:/SFX/g1/drip.ogg"
+def test_external_bake_sfx_ref_exported_relative(tmp_path, cue_env):
+    # An abs SFX ref under a configured external root ships as a portable
+    # audio/_external/<ns>/<rel> arcname, and the bundled marker references the
+    # baked-relative path instead of the exporter's machine-local abs path.
+    ext = str(tmp_path / "ext_sfx")
+    _write(ext, "g1/drip.ogg", "drip")
     _seed(
         cue_env,
         [
             (
                 "data/markers/{}/a.json".format(GAME_ID),
-                '{{"replay": "Run 1", "pools": [{{"files": ["{}"]}}]}}'.format(ext),
+                '{{"replay": "Run 1", "pools": [{{"files": ["{}"]}}]}}'.format(ext + "/g1/drip.ogg"),
             )
         ],
     )
-    mgr = CueExportManager(cue_env.paths)
-    _refresh_and_join(mgr)
-    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
-    mgr.selected_contents()
-    assert mgr.export_warning != ""
+    _write_shared_config(cue_env, sfx=[ext])
 
-    mgr.set_scope(CueExportScope.ALL_REPLAYS)
-    mgr.selected_contents()
-
-    assert mgr.export_warning == ""
-
-
-def test_export_excludes_external_refs_and_warns(cue_env):
-    ext = "E:/SFX/g1/drip.ogg"
-    _seed(
-        cue_env,
-        [
-            ("audio/g1/boom.ogg", "b"),
-            (
-                "data/markers/{}/a.json".format(GAME_ID),
-                '{{"replay": "Run 1", "pools": [{{"files": ["g1/boom.ogg", "{}"]}}]}}'.format(ext),
-            ),
-        ],
-    )
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
@@ -800,11 +733,156 @@ def test_export_excludes_external_refs_and_warns(cue_env):
 
     _export_and_join(mgr)
 
-    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Replay.zip")) as zf:
+    zip_path = os.path.join(mgr.exports_dir(), "Replay.zip")
+    with zipfile.ZipFile(zip_path) as zf:
         names = set(zf.namelist())
-    assert "audio/g1/boom.ogg" in names
-    assert not any("E:/SFX" in n or n.startswith("audio/e:") for n in names)
-    assert mgr.export_warning.startswith("1 file(s) are in external folders")
+        marker = json.loads(zf.read("data/markers/{}/a.json".format(GAME_ID)))
+
+    baked = [n for n in names if n.startswith("audio/_external/")]
+    assert len(baked) == 1
+    ns = _baked_ns(baked[0])
+    assert ns.startswith("ext_sfx-")
+    assert baked[0].endswith("g1/drip.ogg")
+    # The marker's pool ref is now the portable relative path (no abs root).
+    assert marker["pools"][0]["files"] == ["_external/{}/g1/drip.ogg".format(ns)]
+
+
+def test_external_bake_music_ref_exported_relative(tmp_path, cue_env):
+    # A music entry ships as music/_external/... and keeps the u: music/ prefix
+    # so _cue_music_rel still resolves it on import.
+    ext = str(tmp_path / "ext_music")
+    _write(ext, "artist/song.ogg", "song")
+    _seed(
+        cue_env,
+        [
+            (
+                "data/markers/{}/a.json".format(GAME_ID),
+                '{{"replay": "Run 1", "pools": [], "music": ["{}"]}}'.format(ext + "/artist/song.ogg"),
+            )
+        ],
+    )
+    _write_shared_config(cue_env, music=[ext])
+
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+    mgr.name = "Music"
+
+    _export_and_join(mgr)
+
+    zip_path = os.path.join(mgr.exports_dir(), "Music.zip")
+    with zipfile.ZipFile(zip_path) as zf:
+        names = set(zf.namelist())
+        marker = json.loads(zf.read("data/markers/{}/a.json".format(GAME_ID)))
+
+    baked = [n for n in names if n.startswith("music/_external/")]
+    assert len(baked) == 1
+    ns = _baked_ns(baked[0])
+    assert ns.startswith("ext_music-")
+    assert baked[0].endswith("artist/song.ogg")
+    assert marker["music"] == ["u:music/_external/{}/artist/song.ogg".format(ns)]
+
+
+def test_external_bake_folder_ref_expands_files(tmp_path, cue_env):
+    # A folder ref (trailing '/') under an external root expands to every file
+    # beneath it, each baked individually under the same per-source namespace.
+    ext_root = str(tmp_path / "ext_hits")
+    ext_folder = str(tmp_path / "ext_hits" / "impacts") + "/"  # folder ref keeps the trailing '/'
+    _write(str(tmp_path / "ext_hits" / "impacts"), "a.ogg", "a")
+    _write(str(tmp_path / "ext_hits" / "impacts"), "b.ogg", "b")
+    _seed(
+        cue_env,
+        [
+            (
+                "data/markers/{}/a.json".format(GAME_ID),
+                '{{"replay": "Run 1", "pools": [{{"files": ["{}"]}}]}}'.format(ext_folder),
+            )
+        ],
+    )
+    _write_shared_config(cue_env, sfx=[ext_root])
+
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+    mgr.name = "Folder"
+
+    _export_and_join(mgr)
+
+    zip_path = os.path.join(mgr.exports_dir(), "Folder.zip")
+    with zipfile.ZipFile(zip_path) as zf:
+        names = set(zf.namelist())
+        marker = json.loads(zf.read("data/markers/{}/a.json".format(GAME_ID)))
+
+    baked = sorted(n for n in names if n.startswith("audio/_external/"))
+    assert len(baked) == 2
+    ns = _baked_ns(baked[0])
+    assert ns.startswith("ext_hits-")
+    assert baked == ["audio/_external/{}/impacts/a.ogg".format(ns), "audio/_external/{}/impacts/b.ogg".format(ns)]
+    # The folder ref is rewritten to a folder ref under the baked namespace.
+    assert marker["pools"][0]["files"] == ["_external/{}/impacts/".format(ns)]
+
+
+def test_external_bake_respects_unchecked_category(tmp_path, cue_env):
+    # Specific File Types with SFX unchecked must NOT bake the external SFX ref
+    # nor rewrite the marker -- an unchecked category never sneaks its media in.
+    ext = str(tmp_path / "ext_sfx")
+    _write(ext, "g1/drip.ogg", "drip")
+    _seed(
+        cue_env,
+        [
+            (
+                "data/markers/{}/a.json".format(GAME_ID),
+                '{{"replay": "Run 1", "pools": [{{"files": ["{}"]}}]}}'.format(ext + "/g1/drip.ogg"),
+            )
+        ],
+    )
+    _write_shared_config(cue_env, sfx=[ext])
+
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+    mgr.set_file_types(CueExportFileTypes.SPECIFIC)
+    mgr.toggle_category(CueImportCategory.SFX)  # off
+    mgr.name = "NoSfx"
+
+    _export_and_join(mgr)
+
+    zip_path = os.path.join(mgr.exports_dir(), "NoSfx.zip")
+    with zipfile.ZipFile(zip_path) as zf:
+        names = set(zf.namelist())
+        marker = json.loads(zf.read("data/markers/{}/a.json".format(GAME_ID)))
+
+    assert not any(n.startswith("audio/_external/") for n in names)
+    # Marker ships, unchanged -- the abs ref is left as-is.
+    assert marker["pools"][0]["files"] == [ext + "/g1/drip.ogg"]
+
+
+def test_external_bake_whole_game_scope(tmp_path, cue_env):
+    # Whole-game export bakes external refs too (markers are all in scope).
+    ext = str(tmp_path / "ext_sfx")
+    _write(ext, "g1/drip.ogg", "drip")
+    _seed(
+        cue_env,
+        [("data/markers/{}/a.json".format(GAME_ID), '{{"pools": [{{"files": ["{}"]}}]}}'.format(ext + "/g1/drip.ogg"))],
+    )
+    _write_shared_config(cue_env, sfx=[ext])
+
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    assert mgr.scope == CueExportScope.ALL_REPLAYS
+    mgr.name = "Whole"
+
+    _export_and_join(mgr)
+
+    zip_path = os.path.join(mgr.exports_dir(), "Whole.zip")
+    with zipfile.ZipFile(zip_path) as zf:
+        names = set(zf.namelist())
+        marker = json.loads(zf.read("data/markers/{}/a.json".format(GAME_ID)))
+
+    baked = [n for n in names if n.startswith("audio/_external/")]
+    assert len(baked) == 1
+    ns = _baked_ns(baked[0])
+    assert marker["pools"][0]["files"] == ["_external/{}/g1/drip.ogg".format(ns)]
 
 
 # intensity groups -- a hooked pool ships the WHOLE group (JSON + audio)

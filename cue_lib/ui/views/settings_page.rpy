@@ -146,6 +146,7 @@ screen cue_backup_restore():
                     _cue.paths.auto_backups_dir.replace("\\", "/")))
             hbox:
                 spacing 8
+                use cue_open_in_explorer_btn(_cue.paths.backups_dir, "Open Backups Folder")
                 use cue_checkbox(
                     _cue.backups.auto.enabled,
                     "Auto Backups",

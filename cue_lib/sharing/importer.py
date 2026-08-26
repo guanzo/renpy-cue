@@ -132,9 +132,9 @@ class CueImportManager(object):
 
     def imports_dir(self):
         # type: () -> str
-        """Where dropped .zips live -- always under original_root, never the
-        active import, so activation can't hide the import folder."""
-        return os.path.join(self._paths.original_root, "imports").replace("\\", "/")
+        """Where dropped .zips live -- under the live shared tree, never the
+        active import.  Owned by paths.py; delegation only."""
+        return self._paths.imports_dir
 
     def imports_unzip_dir(self):
         # type: () -> str

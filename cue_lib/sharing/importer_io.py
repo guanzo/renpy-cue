@@ -7,6 +7,7 @@
 # (zip build/extract, merge copy).  It imports only stdlib + cue_lib helpers
 # -- never runtime or state -- so managers can use it without import cycles.
 
+import copy as _copy
 import hashlib as _hashlib
 import json as _json
 import os
@@ -18,6 +19,7 @@ import zipfile as _zipfile
 from cue_lib.backup import CUE_BAK_DIR, _safe_extract_path
 from cue_lib.constants import (
     CUE_AUDIO_EXTS,
+    CUE_EXTERNAL_HASH_LEN,
     CUE_HASH_TRUNC_LEN,
     CUE_MUSIC_GAME_TAG,
     CUE_MUSIC_PREFIX,
@@ -26,6 +28,8 @@ from cue_lib.constants import (
     CUE_IMPORT_MANIFEST_NAME,
     CUE_INTENSITY_PRESET_TYPE,
     CUE_VID_KEY_PREFIX,
+    CUE_SHARED_KEY_MUSIC_FOLDERS,
+    CUE_SHARED_KEY_SFX_FOLDERS,
     CueImportCategory,
     CueImportMatch,
 )
@@ -514,6 +518,240 @@ def _cue_add_referenced_asset(root, result, ref):
         _cue_add_asset(result, cat, ref)
 
 
+# --------------------------------------------------------------------------
+# external bake -- turn absolute external media refs into portable content
+# --------------------------------------------------------------------------
+
+
+def _cue_utf8_byte(text):
+    # type: (str) -> bytes
+    """Coerce a str/unicode path to bytes for hashing (py2/py3 safe)."""
+    if isinstance(text, bytes):
+        return text
+    return text.encode("utf-8")
+
+
+def _cue_breadcrumb(abs_root):
+    # type: (str) -> str
+    """Display basename of an external source root (empty -> 'External')."""
+    base = abs_root.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+    return base if base else "External"
+
+
+def _cue_source_root(abs_ref, extra_roots):
+    # type: (str, List[str]) -> Tuple[Optional[str], str]
+    """(source_root, rel) when abs_ref sits under one of extra_roots.
+
+    abs_ref is the stored bare absolute ref (optionally a folder ref with a
+    trailing '/').  Returns the longest matching root with the ref's remainder
+    as rel (rel keeps a trailing '/' for a folder ref); (None, '') if it
+    matches no root."""
+    ref = abs_ref.replace("\\", "/")
+    best = None  # type: Optional[str]
+    for root in extra_roots:
+        r = root.replace("\\", "/").rstrip("/")
+        if ref == r or ref.startswith(r + "/"):
+            if best is None or len(r) > len(best):
+                best = r
+    if best is None:
+        return None, ""
+    if ref == best:
+        return best, ""
+    return best, ref[len(best) + 1 :]
+
+
+def _cue_collect_external_refs(data):
+    # type: (Dict[str, Any]) -> List[Tuple[Tuple[Any, ...], str]]
+    """All absolute external media refs in a marker dict, as (loc_path, ref).
+
+    loc_path is a tuple of keys/indices tracing from data to the ref so it can
+    be swapped in place on rewrite.  Covers the SFX pool files, the entry's own
+    files, and its music list -- the refs the exporter used to drop."""
+    out = []  # type: List[Tuple[Tuple[Any, ...], str]]
+    for pi, pool in enumerate(data.get("pools") or []):
+        if not isinstance(pool, dict):
+            continue
+        for fi, ref in enumerate(pool.get("files") or []):
+            if hasattr(ref, "startswith") and _cue_is_abs_path(ref):
+                out.append((("pools", pi, "files", fi), ref))
+    for fi, ref in enumerate(data.get("files") or []):
+        if hasattr(ref, "startswith") and _cue_is_abs_path(ref):
+            out.append((("files", fi), ref))
+    for mi, song in enumerate(data.get("music") or []):
+        if hasattr(song, "startswith") and _cue_is_abs_path(song):
+            out.append((("music", mi), song))
+    return out
+
+
+def _cue_rewrite_marker(data, swaps):
+    # type: (Dict[str, Any], List[Tuple[Tuple[Any, ...], str, str]]) -> Dict[str, Any]
+    """A shallow copy of data with each swap's ref text replaced in place.
+
+    swaps are (loc_path, old_ref, new_ref); loc_path traces to the ref within
+    data.  The original dict is never mutated."""
+    result = _copy.deepcopy(data)
+    for loc, _old, new in swaps:
+        node = result
+        for key in loc[:-1]:
+            node = node[key]
+        node[loc[-1]] = new
+    return result
+
+
+def _cue_walk_abs(abs_folder, source_root):
+    # type: (str, str) -> List[str]
+    """Every file under abs_folder as a '/'-separated rel path from
+    source_root.  Tolerates a missing folder (yields nothing)."""
+    rels = []
+    if not os.path.isdir(abs_folder):
+        return rels
+    for dirpath, _dirs, filenames in os.walk(abs_folder):
+        for name in filenames:
+            full = os.path.join(dirpath, name)
+            rels.append(os.path.relpath(full, source_root).replace("\\", "/"))
+    return rels
+
+
+def _cue_ref_category(loc):
+    # type: (Tuple[Any, ...]) -> int
+    """CueImportCategory a marker ref location belongs to."""
+    return CueImportCategory.MUSIC if (loc and loc[0] == "music") else CueImportCategory.SFX
+
+
+def _cue_external_roots(config_path):
+    # type: (str) -> List[str]
+    """The user's configured external Music/SFX folder roots, in config order.
+
+    These absolute paths are the candidate source roots a marker's abs ref must
+    sit under for the export to bake it.  Missing or unreadable config yields
+    [] (nothing to bake)."""
+    try:
+        with open(config_path, "r") as fh:
+            config = _to_str(_json.load(fh))
+    except Exception:
+        return []
+    out = []
+    for key in (CUE_SHARED_KEY_MUSIC_FOLDERS, CUE_SHARED_KEY_SFX_FOLDERS):
+        val = config.get(key)
+        if isinstance(val, list):
+            out.extend(str(v) for v in val)
+    return out
+
+
+def _cue_external_bake(root, game_id, marker_arcnames, extra_roots, allowed):
+    # type: (str, str, List[str], List[str], Set[int]) -> Tuple[List[str], Dict[str, str], Dict[str, Any]]
+    """Bake absolute external media refs referenced by marker JSONs into the
+    export bundle as portable relative refs.
+
+    marker_arcnames are the in-scope marker arcs (data/markers/<gid>/x.json);
+    extra_roots the configured external Music/SFX folder roots; allowed the set
+    of CueImportCategory being exported (baking honors category checkboxes).
+
+    Returns (add_contents, overrides, rewrites):
+      * add_contents -- arcnames to append to the zip contents
+        (audio/_external/<ns>/<rel> and music/_external/<ns>/<rel>).
+      * overrides -- {arcname: abs_source_path} telling the zip builder to copy
+        from the external file rather than <root>/<arcname>.
+      * rewrites -- {marker_arcname: rewritten-dict} for markers whose abs refs
+        were swapped for baked-relative refs (re-serialized on zip write).
+
+    A baked source missing on disk is dropped from the override map but its
+    arcname stays in add_contents, so the importer's missing-file flow flags
+    it (warn-and-proceed).  Only marker-level refs are baked -- SFX pool files,
+    entry files, entry music."""
+    if not marker_arcnames or not extra_roots:
+        return [], {}, {}
+    if CueImportCategory.MARKERS not in allowed:
+        return [], {}, {}
+    markers = [a for a in marker_arcnames if a.endswith(".json")]
+    if not markers:
+        return [], {}, {}
+
+    # source_root -> {"files": {rel: abs_path}}
+    sources = {}  # type: Dict[str, Dict[str, Any]]
+    found_by_marker = {}  # type: Dict[str, List[Tuple[Tuple[Any, ...], str]]]
+    data_by_marker = {}  # type: Dict[str, Dict[str, Any]]
+
+    for arc in markers:
+        data = _cue_read_json_file(os.path.join(root, arc.replace("/", os.sep)))
+        if not isinstance(data, dict):
+            continue
+        found = [f for f in _cue_collect_external_refs(data) if _cue_ref_category(f[0]) in allowed]
+        if not found:
+            continue
+        found_by_marker[arc] = found
+        data_by_marker[arc] = data
+        for loc, ref in found:
+            sroot, rel = _cue_source_root(ref, extra_roots)
+            if sroot is None:
+                continue
+            src = sources.setdefault(sroot, {"files": {}})
+            # A folder ref is flagged by the original abs ref's trailing '/'
+            # (the derived rel can be "" when the ref is the whole root), not
+            # by rel.endswith("/").
+            if ref.endswith("/"):
+                for frel in _cue_walk_abs(sroot + "/" + rel, sroot):
+                    src["files"][frel] = sroot + "/" + frel
+            else:
+                src["files"][rel] = sroot + "/" + rel
+
+    if not sources:
+        return [], {}, {}
+
+    # Per-source namespace: SHA1 over sorted (rel + bytes) of the baked files.
+    for sroot, src in sources.items():
+        h = _hashlib.sha1()
+        for rel in sorted(src["files"]):
+            h.update(_cue_utf8_byte(rel) + b"\x00")
+            try:
+                with open(src["files"][rel].replace("/", os.sep), "rb") as fh:
+                    for chunk in iter(lambda: fh.read(65536), b""):
+                        h.update(chunk)
+            except Exception:
+                pass
+        src["ns"] = "_external/" + _cue_breadcrumb(sroot) + "-" + h.hexdigest()[:CUE_EXTERNAL_HASH_LEN]
+
+    add_contents = []  # type: List[str]
+    overrides = {}  # type: Dict[str, str]
+    rewrites = {}  # type: Dict[str, Any]
+
+    for arc, found in found_by_marker.items():
+        swaps = []  # type: List[Tuple[Tuple[Any, ...], str, str]]
+        for loc, ref in found:
+            sroot, rel = _cue_source_root(ref, extra_roots)
+            if sroot is None:
+                continue
+            src = sources[sroot]
+            ns = src["ns"]
+            is_music = loc[0] == "music"
+            prefix = "music/" if is_music else "audio/"
+            # SFX refs are stored audio-dir-relative (pool refs index the flat
+            # list) so _cue_audio_rel adds the audio/ prefix on import; music
+            # refs carry the music/ prefix in stored form, so it is baked in.
+            if is_music:
+                new_ref = "u:" + prefix + ns + "/" + rel
+            else:
+                new_ref = ns + "/" + rel
+            swaps.append((loc, ref, new_ref))
+            if ref.endswith("/"):
+                for frel, fabs in src["files"].items():
+                    if not frel.startswith(rel):
+                        continue
+                    farc = prefix + ns + "/" + frel
+                    if farc not in overrides:
+                        overrides[farc] = fabs
+                        add_contents.append(farc)
+            else:
+                arcname = prefix + ns + "/" + rel
+                if arcname not in overrides:
+                    overrides[arcname] = sroot + "/" + rel
+                    add_contents.append(arcname)
+        if swaps:
+            rewrites[arc] = _cue_rewrite_marker(data_by_marker[arc], swaps)
+
+    return add_contents, overrides, rewrites
+
+
 def _cue_preset_rel(subdir, preset_name):
     # type: (str, str) -> str
     """Rel path of a stored preset file named preset_name -- mirrors
@@ -579,13 +817,20 @@ def _cue_read_json_file(path):
 # --------------------------------------------------------------------------
 
 
-def _cue_build_import_zip(root, game_id, name, author, description, contents, zip_path, progress=None):
-    # type: (str, str, str, str, str, List[str], str, Optional[Any]) -> int
+def _cue_build_import_zip(
+    root, game_id, name, author, description, contents, zip_path, progress=None, overrides=None, rewrites=None
+):
+    # type: (str, str, str, str, str, List[str], str, Optional[Any], Optional[Dict[str, str]], Optional[Dict[str, Any]]) -> int
     """Write an import zip at zip_path: manifest.json + each content file
     (arcname = its shared-root-relative path).  Writes a temp file first, then
     moves it over zip_path.  Returns the number of content files packed.  When
     progress is given, it is called as progress(written_bytes, total_bytes)
-    after each file; total is pre-computed over the files that exist."""
+    after each file; total is pre-computed over the files that exist.
+
+    overrides maps an arcname to an absolute source path -- used for baked
+    external files that live outside the shared root.  rewrites maps an arcname
+    to a dict that is serialized as the zip entry instead of copying the file
+    (markers whose external refs were rewritten)."""
     manifest = _cue_build_manifest(
         game_id, name, author, description, contents, _cue_manifest_replays(root, game_id, contents)
     )
@@ -594,7 +839,10 @@ def _cue_build_import_zip(root, game_id, name, author, description, contents, zi
     total = 0
     if progress is not None:
         for rel in contents:
-            src = _safe_extract_path(root, rel)
+            if rewrites is not None and rel in rewrites:
+                total += len(_json.dumps(rewrites[rel], sort_keys=True))
+                continue
+            src = _cue_zip_source(root, rel, overrides)
             if src is None or not os.path.isfile(src):
                 continue
             total += os.path.getsize(src)
@@ -602,7 +850,15 @@ def _cue_build_import_zip(root, game_id, name, author, description, contents, zi
         zf.writestr(CUE_IMPORT_MANIFEST_NAME, _json.dumps(manifest, sort_keys=True, indent=2))
         written = 0
         for rel in contents:
-            src = _safe_extract_path(root, rel)
+            if rewrites is not None and rel in rewrites:
+                data = _json.dumps(rewrites[rel], sort_keys=True, indent=2)
+                zf.writestr(rel, data)
+                count += 1
+                if progress is not None:
+                    written += len(data)
+                    progress(written, total)
+                continue
+            src = _cue_zip_source(root, rel, overrides)
             if src is None or not os.path.isfile(src):
                 _cue_log("EXPORT: missing {}, skipping".format(rel))
                 continue
@@ -613,6 +869,15 @@ def _cue_build_import_zip(root, game_id, name, author, description, contents, zi
                 progress(written, total)
     _cue_replace_file(tmp_path, zip_path)
     return count
+
+
+def _cue_zip_source(root, rel, overrides):
+    # type: (str, str, Optional[Dict[str, str]]) -> Optional[str]
+    """Absolute source path to copy for a zip arcname: an overridden baked
+    external file, else <root>/<rel> (None if the path is unsafe)."""
+    if overrides is not None and rel in overrides:
+        return overrides[rel]
+    return _safe_extract_path(root, rel)
 
 
 def _cue_extract_import_zip(zip_path, out_dir, progress=None):

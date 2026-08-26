@@ -466,3 +466,94 @@ def test_replay_export_import_roundtrip_includes_intensity_group(tmp_path):
     for rel in flat:
         assert _read(os.path.join(out, rel)) == _read(os.path.join(root, rel))
     assert _walk_rel(out) == set(flat) | {CUE_IMPORT_MANIFEST_NAME}
+
+
+# ---------------------------------------------------------------------------
+# external bake -- abs external refs baked into portable relative refs
+# ---------------------------------------------------------------------------
+
+
+def test_external_roots_empty_when_no_config(tmp_path):
+    root = str(tmp_path / "root")
+    assert _imp._cue_external_roots(root + "/data/cue_config.json") == []
+
+
+def test_external_roots_reads_music_and_sfx_in_order(tmp_path):
+    root = str(tmp_path / "root")
+    _write(root, "data/cue_config.json", _json.dumps({"sfx_folders": ["S2", "S1"], "music_folders": ["M1", "M2"]}))
+    assert _imp._cue_external_roots(root + "/data/cue_config.json") == ["M1", "M2", "S2", "S1"]
+
+
+def test_external_bake_sfx_single_file(tmp_path):
+    root = str(tmp_path / "root")
+    ext = str(tmp_path / "ext_sfx")
+    _write(ext, "g1/drip.ogg", "drip")
+    arc = "data/markers/{}/a.json".format(GAME_ID)
+    _write(root, arc, _json.dumps({"pools": [{"files": [ext + "/g1/drip.ogg"]}]}))
+
+    add, ov, rw = _imp._cue_external_bake(root, GAME_ID, [arc], [ext], set([0, 1, 2, 3, 4]))
+
+    assert len(add) == 1
+    baked = add[0]
+    assert baked.startswith("audio/_external/ext_sfx-")
+    assert baked.endswith("g1/drip.ogg")
+    assert ov[baked] == ext + "/g1/drip.ogg"
+    # The rewritten ref resolves back to the baked arcname through _cue_audio_rel.
+    ref = rw[arc]["pools"][0]["files"][0]
+    assert ref.startswith("_external/ext_sfx-")
+    assert _imp._cue_audio_rel(ref) == baked
+
+
+def test_external_bake_music_ref_roundtrips(tmp_path):
+    root = str(tmp_path / "root")
+    ext = str(tmp_path / "ext_music")
+    _write(ext, "artist/song.ogg", "song")
+    arc = "data/markers/{}/a.json".format(GAME_ID)
+    _write(root, arc, _json.dumps({"pools": [], "music": [ext + "/artist/song.ogg"]}))
+
+    add, ov, rw = _imp._cue_external_bake(root, GAME_ID, [arc], [ext], set([0, 1, 2, 3, 4]))
+
+    assert len(add) == 1
+    baked = add[0]
+    assert baked.startswith("music/_external/ext_music-")
+    assert ov[baked] == ext + "/artist/song.ogg"
+    # The rewritten music ref resolves through _cue_music_rel to the arcname.
+    ref = rw[arc]["music"][0]
+    assert ref.startswith("u:music/_external/ext_music-")
+    assert _imp._cue_music_rel(ref) == baked
+
+
+def test_external_bake_respects_allowed_categories(tmp_path):
+    root = str(tmp_path / "root")
+    ext = str(tmp_path / "ext_sfx")
+    _write(ext, "g1/drip.ogg", "drip")
+    arc = "data/markers/{}/a.json".format(GAME_ID)
+    _write(root, arc, _json.dumps({"pools": [{"files": [ext + "/g1/drip.ogg"]}]}))
+
+    # Allowed excludes SFX -> the ref is not baked and the marker is not rewritten.
+    add, ov, rw = _imp._cue_external_bake(root, GAME_ID, [arc], [ext], set([0, 2, 3, 4]))
+    assert add == []
+    assert ov == {}
+    assert rw == {}
+
+
+def test_external_bake_empty_on_no_markers_or_roots(tmp_path):
+    root = str(tmp_path / "root")
+    ext = str(tmp_path / "ext_sfx")
+    _write(ext, "a.ogg", "a")
+    assert _imp._cue_external_bake(root, GAME_ID, [], [ext], set([0, 1, 2, 3, 4])) == ([], {}, {})
+    assert _imp._cue_external_bake(root, GAME_ID, ["data/markers/x.json"], [], set([0, 1, 2, 3, 4])) == ([], {}, {})
+
+
+def test_external_bake_drops_ref_outside_any_root(tmp_path):
+    root = str(tmp_path / "root")
+    ext = str(tmp_path / "ext_sfx")
+    _write(ext, "g1/drip.ogg", "drip")
+    arc = "data/markers/{}/a.json".format(GAME_ID)
+    # Ref points at a path NOT under the configured root -> not baked (no match).
+    _write(root, arc, _json.dumps({"pools": [{"files": ["E:/other/g1/drip.ogg"]}]}))
+
+    add, ov, rw = _imp._cue_external_bake(root, GAME_ID, [arc], [ext], set([0, 1, 2, 3, 4]))
+    assert add == []
+    assert ov == {}
+    assert rw == {}

@@ -14,7 +14,7 @@ screen cue_export_section():
 
     $ _exporter = _cue.exporter
 
-    $ _exports_hint = ("Exports are saved to:\n{}").format(_exporter.exports_dir())
+    $ _exports_hint = ("Exports are saved to:\n{}").format(_cue.paths.exports_dir.replace("\\", "/"))
 
     use cue_section_frame("Export", tt=_exports_hint):
         vbox:
@@ -27,6 +27,7 @@ screen cue_export_section():
             $ _exports_source = ("Exports always come from your data, "
                                  "not from a previewed import.")
             etext _exports_source
+            use cue_open_in_explorer_btn(_cue.paths.exports_dir, "Open Exports Folder")
 
             null height 5
 
@@ -165,15 +166,13 @@ screen cue_export_section():
                 if _exporter.is_exporting:
                     $ _export_pct = int(_exporter.export_fraction * 100)
                     etext ("Exporting ({}%)".format(_export_pct)) color _cue_color_text_muted
-                elif _exporter.export_error:
-                    etext _exporter.export_error color _cue_color_error
-                elif _exporter.export_status:
-                    etext _exporter.export_status color _cue_color_green
+            
+            if _exporter.export_error:
+                etext _exporter.export_error color _cue_color_error
+            elif _exporter.export_status:
+                etext _exporter.export_status color _cue_color_green
 
             null height 4
-
-            if _exporter.export_warning:
-                etext _exporter.export_warning color _cue_color_warn size 11
 
 
 screen cue_import_imports():
@@ -185,6 +184,8 @@ screen cue_import_imports():
         etext ("Imports can be previewed, which will temporarily replace your data (except your Settings). "
             "If you like the preview, you can copy it into your data folder with \"Merge\".")
 
+        use cue_open_in_explorer_btn(_cue.importer.imports_dir(), "Open Imports Folder")
+
         null height 4
         use cue_url_downloader()
         null height 2
@@ -193,7 +194,7 @@ screen cue_import_imports():
             etext _cue.importer.scan_error color _cue_color_error
         if _cue.importer.is_importing:
             $ _imp_pct = int(_cue.importer.import_fraction * 100)
-            etext ("Extracting {} ({}%)...".format(
+            etext ("Importing {} ({}%)...".format(
                 _cue.importer.import_label, _imp_pct)) color _cue_color_text_muted
         elif not _cue.importer.imports:
             etext "No imports found yet."
