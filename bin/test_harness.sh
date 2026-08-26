@@ -341,6 +341,11 @@ if [ "$DSL" = "legacy" ]; then
             rc=1
         fi
     done
+    if [ "$rc" -eq 0 ]; then
+        echo "[cue] Status: PASSED"
+    else
+        echo "[cue] Status: FAILED" >&2
+    fi
     exit $rc
 fi
 

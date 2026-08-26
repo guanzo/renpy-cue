@@ -73,6 +73,7 @@ CUE_SHARED_KEY_SFX_FOLDERS: Final = "sfx_folders"
 CUE_MANUAL_BACKUP_NAME: Final = "renpy_cue_backup.zip"
 CUE_IMPORT_MANIFEST_NAME: Final = "manifest.json"
 CUE_HASH_TRUNC_LEN: Final = 8
+CUE_EXTERNAL_HASH_LEN: Final = 12
 CUE_IMPORT_CATEGORY_ORDER: Final = (0, 1, 2, 3, 4)
 CUE_IMPORT_CATEGORY_LABELS: Final = {
     0: "Markers",

@@ -239,6 +239,12 @@ CUE_IMPORT_MANIFEST_NAME = "manifest.json"
 # db._preset_path and sharing.importer_io._cue_preset_files -- keep in sync.
 CUE_HASH_TRUNC_LEN = 8
 
+# Characters kept from the per-source SHA1 content hex digest used as the
+# external-bake namespace key.  Full-length refs embed this once per external
+# file, so we truncate; 12 hex (48 bits) keeps collision odds negligible over
+# the dozens-hundreds of distinct external sources a recipient sees.
+CUE_EXTERNAL_HASH_LEN = 12
+
 # Canonical checkbox order and labels for the 5 categories.  Labels are
 # user-facing; keep them in sync with the order here.
 CUE_IMPORT_CATEGORY_ORDER = (
