@@ -397,15 +397,12 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # Per-source scan state, mirroring CueMusicTree.  builtin_* is the
         # shared {shared}/audio/ source; external_* comes from the configured
         # external SFX folders (Settings > Data Folder).  library.files stays
-        # the flat ref list -- built-in audio-relative refs plus e:-tagged
-        # absolute payloads -- so _cue_resolve_files / _cue_pick_file /
-        # _cue_keep_sfx and the [+] index path keep working unchanged.
+        # the flat ref list -- built-in audio-relative refs plus bare absolute
+        # payloads -- so _cue_resolve_files / _cue_pick_file / _cue_keep_sfx
+        # and the [+] index path keep working unchanged.
         self.builtin_files = []  # type: List[str]
         self.builtin_tree = []  # type: List[Dict[str, Any]]
         self.builtin_scan_error = ""  # type: str
-        self.external_folders = []  # type: List[str]
-        self.external_files = []  # type: List[str]
-        self.external_sources = []  # type: List[Dict[str, Any]]
 
     # ------------------------------------------------------------------
     # Scanning
@@ -467,10 +464,9 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         builders feed untagged paths in tests and for legacy trees)."""
         if display_path.startswith(CUE_SFX_FOLDER):
             return display_path[len(CUE_SFX_FOLDER) :]
-        for source in self.external_sources:
-            label = source["label"]
-            if display_path.startswith(label + "/"):
-                return source["abs_root"] + "/" + display_path[len(label) + 1 :]
+        payload = self._external_payload_for_display(display_path)
+        if payload is not None:
+            return payload
         return display_path
 
     def resolve_path(self, ref):
@@ -487,19 +483,6 @@ class CueSfxLibraryTree(CueAudioTreeManager):
     # ------------------------------------------------------------------
     # Tree building
     # ------------------------------------------------------------------
-
-    def _rebuild_merged(self):
-        # type: () -> None
-        """Re-merge the per-source trees and rebuild the visible rows.
-
-        Called by scan() after every source is scanned; tests seed the
-        per-source trees and call this directly."""
-        self.tree = self._merged_tree()
-        if self._auto_expand_roots and not self._has_expanded_roots and self.tree:
-            self._expand_roots()
-            self._has_expanded_roots = True
-        self._restore_expansion()
-        CueAudioTreeManager.rebuild_tree(self)
 
     def _merged_tree(self):
         # type: () -> List[Dict[str, Any]]
@@ -520,16 +503,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
                     "abs_root": self._paths.audio_dir,
                 }
             )
-        for source in self.external_sources:
-            result.append(
-                {
-                    "type": "folder",
-                    "name": source["label"] + "/",
-                    "children": source["tree"],
-                    "has_files": False,
-                    "abs_root": source["abs_root"],
-                }
-            )
+        self._append_external_sources(result)
         return result
 
     def _file_node(self, item, full, depth):

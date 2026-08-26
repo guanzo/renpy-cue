@@ -14,7 +14,7 @@ from cue_lib.util import _cue_log, _cue_ui_refresh
 
 MYPY = False
 if MYPY:
-    from typing import Any, List  # pyright: ignore[reportUnusedImport]
+    from typing import Any, List, Tuple  # pyright: ignore[reportUnusedImport]
 
 
 class CueSettings(object):
@@ -68,87 +68,31 @@ class CueSettings(object):
     # ------------------------------------------------------------------
 
     @_cue_ui_refresh
-    def add_music_folder(self):
-        # type: () -> None
-        """Append an empty Music folder row (committed by Enter)."""
-        self.music_folders.append("")
-        self.music_folder_drafts.append("")
-        self.music_folder_errors.append("")
+    def _add_folder(self, kind):
+        # type: (str) -> None
+        """Append an empty folder row for a kind (committed by Enter)."""
+        folders, drafts, errors = self._folder_lists(kind)
+        folders.append("")
+        drafts.append("")
+        errors.append("")
 
     @_cue_ui_refresh
-    def add_sfx_folder(self):
-        # type: () -> None
-        """Append an empty SFX folder row (committed by Enter)."""
-        self.sfx_folders.append("")
-        self.sfx_folder_drafts.append("")
-        self.sfx_folder_errors.append("")
-
-    @_cue_ui_refresh
-    def commit_music_folder(self, index):
-        # type: (int) -> None
-        """Validate + persist music_folders[index], then apply + rescan."""
-        self._commit_folder(
-            index,
-            self.music_folders,
-            self.music_folder_drafts,
-            self.music_folder_errors,
-            CUE_SHARED_KEY_MUSIC_FOLDERS,
-            self._builtin_dir("music"),
-            "music",
-        )
-
-    @_cue_ui_refresh
-    def commit_sfx_folder(self, index):
-        # type: (int) -> None
-        """Validate + persist sfx_folders[index], then apply + rescan."""
-        self._commit_folder(
-            index,
-            self.sfx_folders,
-            self.sfx_folder_drafts,
-            self.sfx_folder_errors,
-            CUE_SHARED_KEY_SFX_FOLDERS,
-            self._builtin_dir("sfx"),
-            "sfx",
-        )
-
-    @_cue_ui_refresh
-    def remove_music_folder(self, index):
-        # type: (int) -> None
-        """Remove music_folders[index], persist, then apply + rescan."""
-        self.music_folders.pop(index)
-        self.music_folder_drafts.pop(index)
-        self.music_folder_errors.pop(index)
-        self._persist_folders(CUE_SHARED_KEY_MUSIC_FOLDERS, self.music_folders)
-        self._apply("music", self.music_folders)
-
-    @_cue_ui_refresh
-    def remove_sfx_folder(self, index):
-        # type: (int) -> None
-        """Remove sfx_folders[index], persist, then apply + rescan."""
-        self.sfx_folders.pop(index)
-        self.sfx_folder_drafts.pop(index)
-        self.sfx_folder_errors.pop(index)
-        self._persist_folders(CUE_SHARED_KEY_SFX_FOLDERS, self.sfx_folders)
-        self._apply("sfx", self.sfx_folders)
-
-    # ------------------------------------------------------------------
-    # Shared helpers
-    # ------------------------------------------------------------------
-
-    def _commit_folder(self, index, folders, drafts, errors, key, builtin, kind):
-        # type: (int, List[str], List[str], List[str], str, str, str) -> None
-        """Validate drafts[index]; on success promote it to folders[index],
-        then persist + apply the committed rows.
+    def _commit_folder(self, kind, index):
+        # type: (str, int) -> None
+        """Validate + persist the kind's folders[index], then apply + rescan.
 
         On failure only the row's error line is set -- the raw text stays in
-        drafts[index] so the user can fix it without retyping.  Only rows the
-        user validated are folded into `folders`, so a sibling's partial text
-        never reaches config or the loader roots."""
+        the draft so the user can fix it without retyping.  Only rows the user
+        validated are folded into `folders`, so a sibling's partial text never
+        reaches config or the loader roots."""
+        folders, drafts, errors = self._folder_lists(kind)
+        key = CUE_SHARED_KEY_MUSIC_FOLDERS if kind == "music" else CUE_SHARED_KEY_SFX_FOLDERS
+        builtin = self._builtin_dir(kind)
+
         text = (drafts[index] or "").strip()
         if not text:
             errors[index] = "Path cannot be empty."
             return
-
         path = _os.path.abspath(_os.path.normpath(_os.path.expanduser(text))).replace("\\", "/")
         if path == builtin:
             errors[index] = "That folder is already built in."
@@ -163,12 +107,60 @@ class CueSettings(object):
         if path in _others:
             errors[index] = "Folder already in the list."
             return
-
         folders[index] = path
         drafts[index] = path
         errors[index] = ""
         self._persist_folders(key, folders)
         self._apply(kind, folders)
+
+    @_cue_ui_refresh
+    def _remove_folder(self, kind, index):
+        # type: (str, int) -> None
+        """Remove the kind's folders[index], persist, then apply + rescan."""
+        folders, drafts, errors = self._folder_lists(kind)
+        folders.pop(index)
+        drafts.pop(index)
+        errors.pop(index)
+        key = CUE_SHARED_KEY_MUSIC_FOLDERS if kind == "music" else CUE_SHARED_KEY_SFX_FOLDERS
+        self._persist_folders(key, folders)
+        self._apply(kind, folders)
+
+    def _folder_lists(self, kind):
+        # type: (str) -> Tuple[List[str], List[str], List[str]]
+        """The three parallel folder lists for a kind (folders, drafts, errors)."""
+        if kind == "music":
+            return self.music_folders, self.music_folder_drafts, self.music_folder_errors
+        return self.sfx_folders, self.sfx_folder_drafts, self.sfx_folder_errors
+
+    # Public names bound by settings_page.rpy screen actions; thin dispatch to
+    # the kind-parameterised helpers above.
+    def add_music_folder(self):
+        # type: () -> None
+        self._add_folder("music")
+
+    def add_sfx_folder(self):
+        # type: () -> None
+        self._add_folder("sfx")
+
+    def commit_music_folder(self, index):
+        # type: (int) -> None
+        self._commit_folder("music", index)
+
+    def commit_sfx_folder(self, index):
+        # type: (int) -> None
+        self._commit_folder("sfx", index)
+
+    def remove_music_folder(self, index):
+        # type: (int) -> None
+        self._remove_folder("music", index)
+
+    def remove_sfx_folder(self, index):
+        # type: (int) -> None
+        self._remove_folder("sfx", index)
+
+    # ------------------------------------------------------------------
+    # Shared helpers
+    # ------------------------------------------------------------------
 
     def _builtin_dir(self, kind):
         # type: (str) -> str

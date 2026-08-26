@@ -246,6 +246,58 @@ class CueAudioTreeManager(object):
             if item["type"] == "folder":
                 self.expanded_folders[item["name"]] = True
 
+    def _merged_tree(self):
+        # type: () -> List[Dict[str, Any]]
+        """Build the combined nested tree from the per-source trees.
+
+        Subclasses override (the Music and SFX trees merge their built-in and
+        external sources under synthetic root folders).  The base single-source
+        tree returns itself unchanged."""
+        return self.tree
+
+    def _rebuild_merged(self):
+        # type: () -> None
+        """Re-merge the per-source trees and rebuild the visible rows.
+
+        Called by scan() after every source is scanned; tests seed the
+        per-source trees and call this directly.  The one-time root expansion
+        (gated by _has_expanded_roots) opens the synthetic root folders on the
+        first non-empty rebuild, then the user's toggles are left alone."""
+        self.tree = self._merged_tree()
+        if self._auto_expand_roots and not self._has_expanded_roots and self.tree:
+            self._expand_roots()
+            self._has_expanded_roots = True
+        self._restore_expansion()
+        self.rebuild_tree()
+
+    def _append_external_sources(self, result):
+        # type: (List[Dict[str, Any]]) -> None
+        """Append the external source folder nodes to a merged tree result.
+
+        A source with no files (missing folder) still appears so its warning
+        row stays reachable.  Shared by the Music and SFX merged trees."""
+        for source in self.external_sources:
+            result.append(
+                {
+                    "type": "folder",
+                    "name": source["label"] + "/",
+                    "children": source["tree"],
+                    "has_files": False,
+                    "abs_root": source["abs_root"],
+                }
+            )
+
+    def _external_payload_for_display(self, display_path):
+        # type: (str) -> Optional[str]
+        """Absolute payload for display_path if it points into an external
+        source tree, else None.  Label prefix matching is exact (label + "/"),
+        so "ExtA2/..." never matches a source labelled "ExtA"."""
+        for source in self.external_sources:
+            label = source["label"]
+            if display_path.startswith(label + "/"):
+                return source["abs_root"] + "/" + display_path[len(label) + 1 :]
+        return None
+
     def clear_search(self):
         # type: () -> None
         """Clear the search query and rebuild the full, unexpanded tree.

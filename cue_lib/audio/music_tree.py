@@ -72,9 +72,6 @@ class CueMusicTree(CueAudioTreeManager):
         # populates external_sources (per-root dict) and external_files (the
         # flat list of absolute payloads, used by folder expansion + recent
         # membership).  External payloads are stored as bare absolute paths.
-        self.external_folders = []  # type: List[str]
-        self.external_files = []  # type: List[str]
-        self.external_sources = []  # type: List[Dict[str, Any]]
 
     # ------------------------------------------------------------------
     # Scanning
@@ -146,23 +143,6 @@ class CueMusicTree(CueAudioTreeManager):
     # Tree building
     # ------------------------------------------------------------------
 
-    def _rebuild_merged(self):
-        # type: () -> None
-        """Re-merge the per-source trees and rebuild the visible rows.
-
-        Called by scan() after both sources are scanned; tests seed the
-        per-source trees and call this directly.  The one-time root expansion
-        (gated by _has_expanded_roots) opens both synthetic folders on the
-        first non-empty rebuild."""
-        self.tree = self._merged_tree()
-        if self._auto_expand_roots and not self._has_expanded_roots and self.tree:
-            self._expand_roots()
-            self._has_expanded_roots = True
-        # Overlay persisted toggles: saved keys win, untouched roots keep
-        # their default-open view.
-        self._restore_expansion()
-        CueAudioTreeManager.rebuild_tree(self)
-
     def _merged_tree(self):
         # type: () -> List[Dict[str, Any]]
         """Build the combined nested tree from the two per-source trees.
@@ -195,16 +175,7 @@ class CueMusicTree(CueAudioTreeManager):
         # External sources render as additional top-level entries after the
         # built-ins.  A source with no files (missing folder) still appears so
         # its warning row is reachable.
-        for source in self.external_sources:
-            result.append(
-                {
-                    "type": "folder",
-                    "name": source["label"] + "/",
-                    "children": source["tree"],
-                    "has_files": False,
-                    "abs_root": source["abs_root"],
-                }
-            )
+        self._append_external_sources(result)
         return result
 
     # ------------------------------------------------------------------
@@ -222,11 +193,7 @@ class CueMusicTree(CueAudioTreeManager):
         """Absolute payload for display_path if it points into an external
         source tree, else None.  Label prefix matching is exact (label + "/"),
         so "ExtA2/..." never matches a source labelled "ExtA"."""
-        for source in self.external_sources:
-            label = source["label"]
-            if display_path.startswith(label + "/"):
-                return source["abs_root"] + "/" + display_path[len(label) + 1 :]
-        return None
+        return self._external_payload_for_display(display_path)
 
     def add_song_to_trigger(self, display_path, record=True):
         # type: (str, bool) -> None

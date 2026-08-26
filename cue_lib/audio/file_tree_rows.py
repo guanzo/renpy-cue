@@ -96,6 +96,38 @@ def _cue_action_row(key, label, action=None, tt=None, depth=0, explorer=None):
     return row
 
 
+def _cue_external_empty_rows(tree, kind_word):
+    # type: (Any, str) -> List[Dict[str, Any]]
+    """Per-source empty/error rows for external folders with no files.
+
+    A source appears even when its folder is missing or errored so its
+    warning/empty row stays reachable.  kind_word is the folder description
+    used in the empty text ("audio files" for SFX, "music" for music)."""
+    rows = []
+    for src in tree.external_sources:
+        if src["tree"]:
+            continue
+        if src["scan_error"]:
+            rows.append(
+                _cue_help_row(
+                    "ext:{}:scan_error".format(src["label"]),
+                    src["scan_error"],
+                    color=getattr(renpy.store, "_cue_color_error", None),
+                    plain=True,
+                )
+            )
+        else:
+            rows.append(
+                _cue_help_row(
+                    "ext:{}:empty".format(src["label"]),
+                    "No {} found in: {}".format(kind_word, src["abs_root"]),
+                    plain=True,
+                )
+            )
+            rows.append(_cue_action_row("ext:{}:open".format(src["label"]), "Open folder", explorer=src["abs_root"]))
+    return rows
+
+
 def _cue_section_rows(key, label, toggle_fn, expanded, searching, has_any, child_fn, auto_show=True):
     # type: (str, str, Any, bool, bool, Any, Any, bool) -> List[Dict[str, Any]]
     """Collapsible-section header + children-when-open.
@@ -774,29 +806,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                     "builtin:settings_tip", "Add additional folder locations in Settings > Data Folder.", plain=True
                 )
             )
-        for src in tree.external_sources:
-            if src["tree"]:
-                continue
-            if src["scan_error"]:
-                rows.append(
-                    _cue_help_row(
-                        "ext:{}:scan_error".format(src["label"]),
-                        src["scan_error"],
-                        color=getattr(renpy.store, "_cue_color_error", None),
-                        plain=True,
-                    )
-                )
-            else:
-                rows.append(
-                    _cue_help_row(
-                        "ext:{}:empty".format(src["label"]),
-                        "No audio files found in: {}".format(src["abs_root"]),
-                        plain=True,
-                    )
-                )
-                rows.append(
-                    _cue_action_row("ext:{}:open".format(src["label"]), "Open folder", explorer=src["abs_root"])
-                )
+        rows.extend(_cue_external_empty_rows(tree, "audio files"))
         # -- no-results guard + file tree ------------------------------------
         if (
             searching
@@ -1070,27 +1080,7 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
                     )
                 )
             rows.append(_cue_help_row("game:empty", "No music found in game directory.", plain=True))
-        for src in self._tree.external_sources:
-            if src["tree"]:
-                continue
-            if src["scan_error"]:
-                rows.append(
-                    _cue_help_row(
-                        "ext:{}:scan_error".format(src["label"]),
-                        src["scan_error"],
-                        color=getattr(renpy.store, "_cue_color_error", None),
-                        plain=True,
-                    )
-                )
-            else:
-                rows.append(
-                    _cue_help_row(
-                        "ext:{}:empty".format(src["label"]), "No music found in: {}".format(src["abs_root"]), plain=True
-                    )
-                )
-                rows.append(
-                    _cue_action_row("ext:{}:open".format(src["label"]), "Open folder", explorer=src["abs_root"])
-                )
+        rows.extend(_cue_external_empty_rows(self._tree, "music"))
         # -- no-results guard + tree -----------------------------------------
         if self._tree.user_tree or self._tree.game_tree or self._tree.external_sources:
             if searching and not recent_entries and not preset_names and not self._tree.visible_tree:
