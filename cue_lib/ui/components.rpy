@@ -535,7 +535,10 @@ screen cue_tree_rows(rows):
                         use cue_txt_button(_row["label"], _row["action"], tt=_row.get("tt"))
                 elif _row["type"] == "help":
                     if _row.get("plain"):
-                        etext _row["label"]
+                        if _row.get("color"):
+                            etext _row["label"] color _row["color"]
+                        else:
+                            etext _row["label"]
                     elif _row.get("color"):
                         etext _row["label"] style "cue_help" color _row["color"]
                     else:

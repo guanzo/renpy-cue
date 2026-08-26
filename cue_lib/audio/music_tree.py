@@ -212,3 +212,10 @@ class CueCombinedMusicTree(CueAudioTreeManager):
         """Flat row stream for the cue_tree_rows renderer.  Music button logic
         lives in CueMusicTreeRows; this just forwards *state (current_file)."""
         return self._rows.tree_rows(*state)
+
+    def content_rows(self, search_query, preset_names, current_file):
+        # type: (str, List[str], object) -> List[Dict[str, Any]]
+        """Full Music Library section row stream for the cue_tree_rows renderer
+        (recent + music presets + per-source empty states + file tree).  All
+        builder logic lives in CueMusicTreeRows; this just forwards."""
+        return self._rows.content_rows(search_query, preset_names, current_file)

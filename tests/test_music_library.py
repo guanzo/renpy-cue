@@ -10,6 +10,8 @@
 
 import types
 
+import renpy
+
 from cue_lib.audio.music import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
 from cue_lib.audio.music_tree import CueCombinedMusicTree
 from cue_lib.constants import CUE_GAME_MUSIC_FOLDER, CUE_MY_MUSIC_FOLDER, CUE_MUSIC_PREFIX
@@ -416,7 +418,7 @@ def test_music_row_buttons_plus_play_order():
     assert file_row["buttons"][0]["action"]._args[0] == lib.add_song_to_trigger
     assert file_row["buttons"][1]["tt"] == "Play song"
     assert file_row["buttons"][1]["action"]._args[0] == lib.preview
-    assert file_row["gap"] == 2  # music gap override
+    assert file_row["gap"] == 1  # music matches SFX's label gap
 
 
 def test_music_row_buttons_gates_on_selection_or_current_file():
@@ -437,3 +439,161 @@ def test_music_folder_without_files_has_no_buttons():
     lib = _row_lib(has_files=False)
     rows = lib.tree_rows("")
     assert rows[0]["buttons"] == []
+
+
+# ==========================================================================
+# content_rows (music section stream)
+# ==========================================================================
+
+
+def _content_lib(
+    user_paths=("music/a.ogg",),
+    game_paths=("bgm/x.ogg",),
+    sel_label="S1",
+    selected_key="replay:r",
+    user_scan="",
+    game_scan="",
+):
+    # type: (tuple, tuple, str, object, str, str) -> CueCombinedMusicTree
+    """Lib with a full fake music manager for content_rows: presets, recent,
+    selection, per-source empty/scan states."""
+    user = types.SimpleNamespace(tree=_fake_tree(user_paths), files=list(user_paths), scan_error=user_scan)
+    game = types.SimpleNamespace(tree=_fake_tree(game_paths), files=list(game_paths), scan_error=game_scan)
+    music = types.SimpleNamespace(
+        selected_trigger_label=lambda: sel_label,
+        selected_key=selected_key,
+        _paths=types.SimpleNamespace(music_dir="/music/"),
+        presets_expanded=True,
+        expanded_presets={},
+        toggle_presets_expand=lambda: None,
+        toggle_preset_expand=lambda n: None,
+        get_preset=lambda n: {"files": ["a.ogg", "b.ogg"]},
+        preset_display_files=lambda p: ["a.ogg", "b.ogg"],
+        apply_preset=lambda n: None,
+        preset_remove_file=lambda n, f: None,
+        add_user_song_to_trigger=lambda *a, **k: None,
+        add_game_song_to_trigger=lambda *a, **k: None,
+        add_user_folder_to_trigger=lambda *a, **k: None,
+        add_game_folder_to_trigger=lambda *a, **k: None,
+        play_untracked=lambda *a, **k: None,
+        _resolve_music_path=lambda p: "ABS:" + p,
+        _split_ref_tag=_fake_split_tag,
+    )
+    return CueCombinedMusicTree(music, user, game)
+
+
+def _content_rows(lib, query="", presets=(), current_file=None, recent_entries=(), recent_expanded=False):
+    # type: (CueCombinedMusicTree, str, tuple, object, tuple, bool) -> list
+    """Full Music section stream via the builder.  recent_entries None wires
+    no recent manager; otherwise the fake returns the given (type, ref) pairs."""
+    import cue_lib.audio.tree_rows as tree_rows_mod
+
+    music = lib._music
+    if recent_entries is None:
+        music._recent = None
+    else:
+        music._recent = types.SimpleNamespace(
+            expanded=recent_expanded,
+            entries=lambda: [{"type": t, "ref": r} for t, r in recent_entries],
+            toggle=lambda: None,
+        )
+    return tree_rows_mod.CueMusicTreeRows(lib).content_rows(query, list(presets), current_file)
+
+
+def test_music_content_rows_recent_children_when_expanded():
+    lib = _content_lib()
+    rows = _content_rows(lib, recent_entries=[("file", "u:music/a.ogg"), ("folder", "g:bgm/")], recent_expanded=True)
+    # The recent header, then the two recent rows (file + folder).
+    assert rows[0]["type"] == "folder"
+    assert rows[0]["label"] == "Recently Used/"
+    file_row, folder_row = rows[1], rows[2]
+    assert file_row["type"] == "file"
+    assert file_row["label"] == "My Music/a.ogg"
+    assert file_row["depth"] == 1
+    assert file_row["gap"] == 1  # matches SFX file rows
+    assert [b["icon"] for b in file_row["buttons"]] == ["plus", "play"]
+    assert file_row["buttons"][0]["action"]._args[0] == lib.add_song_to_trigger
+    assert folder_row["type"] == "file"
+    assert folder_row["label"] == "Game Music/bgm/"
+    assert [b["icon"] for b in folder_row["buttons"]] == ["plus"]
+    assert folder_row["buttons"][0]["action"]._args[0] == lib.add_folder_to_trigger
+
+
+def test_music_content_rows_recent_empty_help():
+    lib = _content_lib()
+    rows = _content_rows(lib, recent_entries=(), recent_expanded=True)
+    assert any(r["type"] == "help" and r["label"] == "Songs you add to a trigger show up here." for r in rows)
+
+
+def test_music_content_rows_preset_folder_and_children():
+    lib = _content_lib()
+    lib._music.expanded_presets = {"p1": True}
+    rows = _content_rows(lib, presets=["p1"], recent_entries=None)
+    labels = [r["label"] for r in rows]
+    assert "Music Presets/" in labels
+    pname_idx = labels.index("p1")
+    assert rows[pname_idx]["type"] == "folder"
+    assert rows[pname_idx]["depth"] == 1
+    assert [b["icon"] for b in rows[pname_idx]["buttons"]] == ["xmark", "plus", "play"]
+    child = rows[pname_idx + 1]
+    assert child["label"] == "a.ogg"
+    assert child["depth"] == 1
+    assert child["gap"] == 1
+    assert child.get("size") == 11
+    assert [b["icon"] for b in child["buttons"]] == ["xmark", "play"]
+
+
+def test_music_content_rows_preset_empty_help():
+    lib = _content_lib()
+    rows = _content_rows(lib, presets=(), recent_entries=None)
+    assert any(
+        r["type"] == "help" and r["label"] == "No music presets yet. Save a trigger's song list to fill this."
+        for r in rows
+    )
+
+
+def test_music_content_rows_preset_children_do_not_auto_show_on_search():
+    # Music preset files only render while the preset is expanded -- no
+    # search auto-show (unlike SFX).  A search that matches the preset name
+    # keeps the header and the folder row, but not the files.
+    lib = _content_lib()
+    lib._music.expanded_presets = {"p1": False}
+    rows = _content_rows(lib, query="p1", presets=["p1"], recent_entries=None)
+    assert any(r["type"] == "folder" and r["label"] == "p1" for r in rows)
+    assert not any(r["label"] == "a.ogg" for r in rows)
+
+
+def test_music_content_rows_per_source_empty_states(monkeypatch):
+    monkeypatch.setattr(renpy.store, "_cue_color_error", "#f00", raising=False)
+    lib = _content_lib(user_paths=(), game_paths=("bgm/x.ogg",), user_scan="scan broke")
+    rows = _content_rows(lib, recent_entries=None)
+    labels = [r["label"] for r in rows]
+    assert "scan broke" in labels
+    assert "No music found in: /music/" in labels
+    assert "Add .ogg, .mp3, .wav, .opus files there and click the refresh button." in labels
+    # The open-folder action row resolves the explorer variant.
+    open_row = next(r for r in rows if r["label"] == "Open Music folder")
+    assert open_row["type"] == "action"
+    assert open_row["explorer"] == "/music/"
+    # scan-error line is plain (unstyled) with the error color.
+    scan_row = next(r for r in rows if r["label"] == "scan broke")
+    assert scan_row["plain"] is True
+    assert scan_row["color"] == "#f00"
+    # Game source has files, so no game empty state.
+    assert not any(r["label"] == "No music found in game directory." for r in rows)
+
+
+def test_music_content_rows_no_results_guard():
+    lib = _content_lib()
+    lib.visible_tree = []
+    rows = _content_rows(lib, query="zzz", recent_entries=(), presets=())
+    labels = [r["label"] for r in rows]
+    assert 'No files found for "zzz".' in labels
+    assert not any(r.get("explorer") for r in rows)
+
+
+def test_music_tree_file_gap_matches_sfx():
+    # Music file rows use the same 1px label gap as SFX (was 2).
+    lib = _row_lib()
+    rows = lib.tree_rows("x.ogg")
+    assert rows[1]["gap"] == 1
