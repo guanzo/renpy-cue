@@ -52,7 +52,7 @@ screen cue_data_dir():
             etext ("Add more folders to check for SFX.")
             for _i in range(len(_cue.settings.sfx_folders)):
                 use cue_folder_row(
-                    "_cue.settings.sfx_folders[{}]".format(_i),
+                    "_cue.settings.sfx_folder_drafts[{}]".format(_i),
                     Function(_cue.settings.commit_sfx_folder, _i),
                     Function(_cue.settings.remove_sfx_folder, _i))
                 if _i < len(_cue.settings.sfx_folder_errors):
@@ -66,7 +66,7 @@ screen cue_data_dir():
             etext ("Add more folders to check for music.")
             for _i in range(len(_cue.settings.music_folders)):
                 use cue_folder_row(
-                    "_cue.settings.music_folders[{}]".format(_i),
+                    "_cue.settings.music_folder_drafts[{}]".format(_i),
                     Function(_cue.settings.commit_music_folder, _i),
                     Function(_cue.settings.remove_music_folder, _i))
                 if _i < len(_cue.settings.music_folder_errors):

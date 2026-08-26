@@ -8,6 +8,8 @@ class CueSettings:
     shared_dir_success: str
     music_folders: List[str]
     sfx_folders: List[str]
+    music_folder_drafts: List[str]
+    sfx_folder_drafts: List[str]
     music_folder_errors: List[str]
     sfx_folder_errors: List[str]
 

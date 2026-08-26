@@ -30,10 +30,14 @@ class CueSettings(object):
 
         # External folder lists (Settings > Data Folder).  The *_folders lists
         # hold committed absolute paths (mirror of the shared-config lists the
-        # trees consume); *_folder_errors parallel them by index.  Row inputs
-        # bind directly to *_folders elements (components._CueFieldValue).
+        # trees consume); *_folder_drafts hold the live row text the inputs
+        # bind to (components._CueFieldValue), so an uncommitted draft never
+        # reaches config or the loader roots; *_folder_errors parallel the
+        # drafts by index.
         self.music_folders = []  # type: List[str]
         self.sfx_folders = []  # type: List[str]
+        self.music_folder_drafts = []  # type: List[str]
+        self.sfx_folder_drafts = []  # type: List[str]
         self.music_folder_errors = []  # type: List[str]
         self.sfx_folder_errors = []  # type: List[str]
 
@@ -52,6 +56,10 @@ class CueSettings(object):
         _config = _cue.db.load_shared_config()
         self.music_folders = list(_config.get(CUE_SHARED_KEY_MUSIC_FOLDERS, []) or [])
         self.sfx_folders = list(_config.get(CUE_SHARED_KEY_SFX_FOLDERS, []) or [])
+        # Drafts start as a copy of the committed list so committed rows show
+        # their canonical path; a row is re-validated on Enter.
+        self.music_folder_drafts = list(self.music_folders)
+        self.sfx_folder_drafts = list(self.sfx_folders)
         self.music_folder_errors = ["" for _ in self.music_folders]
         self.sfx_folder_errors = ["" for _ in self.sfx_folders]
 
@@ -64,6 +72,7 @@ class CueSettings(object):
         # type: () -> None
         """Append an empty Music folder row (committed by Enter)."""
         self.music_folders.append("")
+        self.music_folder_drafts.append("")
         self.music_folder_errors.append("")
 
     @_cue_ui_refresh
@@ -71,6 +80,7 @@ class CueSettings(object):
         # type: () -> None
         """Append an empty SFX folder row (committed by Enter)."""
         self.sfx_folders.append("")
+        self.sfx_folder_drafts.append("")
         self.sfx_folder_errors.append("")
 
     @_cue_ui_refresh
@@ -80,6 +90,7 @@ class CueSettings(object):
         self._commit_folder(
             index,
             self.music_folders,
+            self.music_folder_drafts,
             self.music_folder_errors,
             CUE_SHARED_KEY_MUSIC_FOLDERS,
             self._builtin_dir("music"),
@@ -91,7 +102,13 @@ class CueSettings(object):
         # type: (int) -> None
         """Validate + persist sfx_folders[index], then apply + rescan."""
         self._commit_folder(
-            index, self.sfx_folders, self.sfx_folder_errors, CUE_SHARED_KEY_SFX_FOLDERS, self._builtin_dir("sfx"), "sfx"
+            index,
+            self.sfx_folders,
+            self.sfx_folder_drafts,
+            self.sfx_folder_errors,
+            CUE_SHARED_KEY_SFX_FOLDERS,
+            self._builtin_dir("sfx"),
+            "sfx",
         )
 
     @_cue_ui_refresh
@@ -99,6 +116,7 @@ class CueSettings(object):
         # type: (int) -> None
         """Remove music_folders[index], persist, then apply + rescan."""
         self.music_folders.pop(index)
+        self.music_folder_drafts.pop(index)
         self.music_folder_errors.pop(index)
         self._persist_folders(CUE_SHARED_KEY_MUSIC_FOLDERS, self.music_folders)
         self._apply("music", self.music_folders)
@@ -108,6 +126,7 @@ class CueSettings(object):
         # type: (int) -> None
         """Remove sfx_folders[index], persist, then apply + rescan."""
         self.sfx_folders.pop(index)
+        self.sfx_folder_drafts.pop(index)
         self.sfx_folder_errors.pop(index)
         self._persist_folders(CUE_SHARED_KEY_SFX_FOLDERS, self.sfx_folders)
         self._apply("sfx", self.sfx_folders)
@@ -116,13 +135,16 @@ class CueSettings(object):
     # Shared helpers
     # ------------------------------------------------------------------
 
-    def _commit_folder(self, index, folders, errors, key, builtin, kind):
-        # type: (int, List[str], List[str], str, str, str) -> None
-        """Validate folders[index]; on success persist + apply + rescan.
+    def _commit_folder(self, index, folders, drafts, errors, key, builtin, kind):
+        # type: (int, List[str], List[str], List[str], str, str, str) -> None
+        """Validate drafts[index]; on success promote it to folders[index],
+        then persist + apply the committed rows.
 
-        On failure only the row's error line is set -- the raw text stays so
-        the user can fix it without retyping."""
-        text = (folders[index] or "").strip()
+        On failure only the row's error line is set -- the raw text stays in
+        drafts[index] so the user can fix it without retyping.  Only rows the
+        user validated are folded into `folders`, so a sibling's partial text
+        never reaches config or the loader roots."""
+        text = (drafts[index] or "").strip()
         if not text:
             errors[index] = "Path cannot be empty."
             return
@@ -143,6 +165,7 @@ class CueSettings(object):
             return
 
         folders[index] = path
+        drafts[index] = path
         errors[index] = ""
         self._persist_folders(key, folders)
         self._apply(kind, folders)
@@ -158,18 +181,20 @@ class CueSettings(object):
 
     def _persist_folders(self, key, folders):
         # type: (str, List[str]) -> None
-        """Write one folder list into the shared config."""
-        _cue.db.update_shared_config({key: list(folders)})
+        """Write the committed rows (drop empty placeholders) to shared config."""
+        _cue.db.update_shared_config({key: [f for f in folders if f]})
 
     def _apply(self, kind, folders):
         # type: (str, List[str]) -> None
-        """Fan out a committed list to the runtime apply helper (rescan)."""
+        """Fan out the committed rows (drop empty placeholders) to the runtime
+        apply helper (rescan)."""
         from cue_lib import runtime
 
+        _committed = [f for f in folders if f]
         if kind == "music":
-            runtime._cue_apply_music_folders(folders)
+            runtime._cue_apply_music_folders(_committed)
         else:
-            runtime._cue_apply_sfx_folders(folders)
+            runtime._cue_apply_sfx_folders(_committed)
 
     @_cue_ui_refresh
     def confirm_shared_dir(self):
