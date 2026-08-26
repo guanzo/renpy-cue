@@ -1,12 +1,16 @@
 ---
 name: release
-description: Stamp a new version and publish it — bump CUE_VERSION, run the gates, build the mod + SFX assets, cut a vX.Y.Z tag, and attach a GitHub release. Use when the user types /release or asks to publish a release.
+description: Stamp a new version and publish it — bump CUE_VERSION, run the gates, build the mod + SFX assets, cut a vX.Y.Z tag, and attach a GitHub release. `/release sfx` rebuilds only the SFX pack and overwrites it on the latest release. Use when the user types /release (or /release sfx) or asks to publish a release.
 ---
 
 # /release
 
 Publish a release. `CUE_VERSION` in `cue_lib/constants.py` is the single source
 of truth; never retype the number.
+
+Invoked as **`/release sfx`**, skip the full flow below and run the
+[SFX-only flow](#sfx-only-flow) instead: no version bump, no gates, no
+changelog, no mod asset, no new tag.
 
 ## Before you start
 
@@ -55,7 +59,7 @@ of truth; never retype the number.
 
    ```bash
    source .env   # sets CUE_SFX_SOURCE_DIR
-   python3 bin/build_sfx_asset.py "$CUE_SFX_SOURCE_DIR" --out "renpy_cue_sfx_<ver>.zip"
+   python3 bin/build_sfx_asset.py "$CUE_SFX_SOURCE_DIR" --out "/tmp/renpy_cue_sfx_<ver>.zip"
    ```
    Verify `test_bad` is not in the zip.
 
@@ -74,12 +78,52 @@ of truth; never retype the number.
     - Swap in the categorized notes:
       `gh release edit v<ver> --notes-file <notes-file>`
     - Upload the SFX asset:
-      `gh release upload v<ver> renpy_cue_sfx_<ver>.zip --clobber`
+      `gh release upload v<ver> /tmp/renpy_cue_sfx_<ver>.zip --clobber`
 
 11. **Report.** Print the release URL and confirm both assets are attached.
+
+## SFX-only flow
+
+Run when the skill is invoked as `/release sfx` — the SFX source changed but no
+code did. Rebuilds the pack and overwrites the asset on the latest release.
+Standalone: never touches the full-release steps above.
+
+1. **Read the current version.**
+
+   ```bash
+   grep -E '^CUE_VERSION = ' cue_lib/constants.py
+   ```
+
+2. **Source the source dir.** `source .env` sets `CUE_SFX_SOURCE_DIR` (WSL
+   path, e.g. `/mnt/e/Porn/pGames/renpy_cue_data/audio`). If it's unset, stop
+   and ask the user to add it — never guess or hardcode the path.
+
+3. **Build the pack.**
+
+   ```bash
+   python3 bin/build_sfx_asset.py "$CUE_SFX_SOURCE_DIR" --out "/tmp/renpy_cue_sfx_<ver>.zip"
+   ```
+
+4. **Verify the zip** has the category folders and no `test_bad`.
+
+5. **Resolve the latest release.** `gh release list --limit 1` → tag name.
+   If its tag ≠ `v<ver>`, surface the mismatch before continuing.
+
+6. **STOP — confirm.** Show the target tag and the zip name. Publishing is
+   outward-facing; wait for explicit confirmation.
+
+7. **Upload** (in-place overwrite of the existing pack):
+
+   ```bash
+   gh release upload <tag> /tmp/renpy_cue_sfx_<ver>.zip --clobber
+   ```
+
+8. **Report.** Print the release URL and confirm the SFX asset is attached.
 
 ## Notes
 
 - The SFX asset comes from the local machine (its source is not in git), so the
   skill uploads it after CI creates the release. The mod zip is CI-built.
 - First-release detection: `git tag --list 'v*'` is empty, or no prior release.
+- `/release sfx` overwrites `renpy_cue_sfx_<ver>.zip` in place — users must
+  re-download the pack from the same release page to pick up the change.
