@@ -5,6 +5,11 @@
 import os
 
 
+# The published release version. Read by bin/build_release_asset.py and the
+# /release skill; single source of truth for the tag + asset names.
+CUE_VERSION = "0.1.0"
+
+
 # Debug flag from the RENPY_CUE_DEBUG env var; read at import, so set it
 # before the game launches.
 def _cue_env_flag(name, default=False):

@@ -41,6 +41,7 @@ class CueContext:
 
 class Cue:
     initialized: bool
+    VERSION: str
     is_overlay_visible: bool
     overlay_active_page: int
     collapsed_sections: Dict[str, bool]

@@ -58,7 +58,7 @@ init -999 python:
         CuePage, CueLoopFrequency, CueContextType,
         CueImportCategory, CueImportMatch, CueExportScope,
         CueExportFileTypes,
-        CUE_DEBUG, CUE_SFX_CHANNEL_COUNT,
+        CUE_DEBUG, CUE_SFX_CHANNEL_COUNT, CUE_VERSION,
         CUE_DEFAULT_VIDEO_SPEED,
         CUE_INTENSITY_IDEAL_LEVELS,
         CUE_INTENSITY_VOLUME_MAX, CUE_INTENSITY_FREQ_MAX,
@@ -305,6 +305,7 @@ init -900 python:
             "recent_music_entries",
             lambda kind, ref: _cue_keep_music(kind, ref, music.user_music, music.game_music))
 
+        _cue.VERSION = CUE_VERSION
         _cue.paths = paths
         _cue.db = db
         _cue.intensity = intensity
