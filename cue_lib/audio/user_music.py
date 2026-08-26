@@ -6,7 +6,7 @@
 # Instantiated once as _cue.music.user_music; lives on the NoRollback
 # _cue object.
 
-from cue_lib.audio.audio_tree import CueAudioTreeManager
+from cue_lib.audio.file_tree import CueAudioTreeManager
 from cue_lib.constants import CUE_MUSIC_PREFIX
 from cue_lib.state import _cue
 
@@ -16,21 +16,18 @@ if MYPY:
 
 
 class CueUserMusic(CueAudioTreeManager):
-    """Scan state and folder/file tree UI for the My Music section.
+    """Scan state and nested tree for the My Music section.
 
-    The files / tree / scan_error / visible_tree / expanded_folders caches
-    live here (inherited from CueAudioTreeManager) instead of on _cue.  A
-    leaner sibling of CueSfxManager: no disabled files, presets, overlay
-    mode, or pool folder refs -- just the music tree rows rendered on the
-    Music page.  Section collapse reuses _cue.collapsed_sections via
-    cue_section_frame."""
+    The files / tree / scan_error caches live here (inherited from
+    CueAudioTreeManager) instead of on _cue.  A leaner sibling of
+    CueSfxManager: no disabled files, presets, overlay mode, or pool folder
+    refs.  Scan-only -- the combined tree (_cue.music.library) owns the
+    visible rows; this manager only supplies the scan source.  Section
+    collapse reuses _cue.collapsed_sections via cue_section_frame."""
 
     _scan_label = "music folder"
     _log_tag = "MUSIC"
-    # The My Music tree is rooted at a synthesized "music/" folder (see
-    # _discover); open it by default so dropped-in files are visible.  The
-    # user's toggles win after this one-time default.
-    _auto_expand_roots = True
+    _build_visible = False
 
     # ------------------------------------------------------------------
     # Scanning

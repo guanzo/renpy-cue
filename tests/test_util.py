@@ -384,7 +384,6 @@ def test_build_tree_folders_before_files_nested():
     assert [n["name"] for n in tree] == ["a/", "z.ogg"]
     a = tree[0]
     assert a["type"] == "folder"
-    assert a["expanded"] is False
     assert a["has_files"] is True
     assert [c["name"] for c in a["children"]] == ["b/", "x.ogg"]
     b = a["children"][0]

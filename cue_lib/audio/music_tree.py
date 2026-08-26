@@ -6,8 +6,8 @@
 # top-level folders so the UI shows one tree with a single shared search bar.
 # Instantiated once as _cue.music.library; lives on the NoRollback _cue object.
 
-from cue_lib.audio.audio_tree import CueAudioTreeManager
-from cue_lib.audio.tree_rows import CueMusicTreeRows
+from cue_lib.audio.file_tree import CueAudioTreeManager
+from cue_lib.audio.file_tree_rows import CueMusicTreeRows
 from cue_lib.constants import CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_GAME_TAG, CUE_MY_MUSIC_FOLDER, CUE_MUSIC_PREFIX
 
 MYPY = False
@@ -94,27 +94,11 @@ class CueCombinedMusicTree(CueAudioTreeManager):
             else:
                 children = user_tree
                 has_files = False
-            result.append(
-                {
-                    "type": "folder",
-                    "name": CUE_MY_MUSIC_FOLDER,
-                    "children": children,
-                    "expanded": False,
-                    "has_files": has_files,
-                }
-            )
+            result.append({"type": "folder", "name": CUE_MY_MUSIC_FOLDER, "children": children, "has_files": has_files})
 
         game_tree = self.game_music.tree
         if game_tree:
-            result.append(
-                {
-                    "type": "folder",
-                    "name": CUE_GAME_MUSIC_FOLDER,
-                    "children": game_tree,
-                    "expanded": False,
-                    "has_files": False,
-                }
-            )
+            result.append({"type": "folder", "name": CUE_GAME_MUSIC_FOLDER, "children": game_tree, "has_files": False})
         return result
 
     def maybe_rebuild(self):

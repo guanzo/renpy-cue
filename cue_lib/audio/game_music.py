@@ -9,7 +9,7 @@
 
 import renpy
 
-from cue_lib.audio.audio_tree import CueAudioTreeManager
+from cue_lib.audio.file_tree import CueAudioTreeManager
 from cue_lib.constants import CUE_AUDIO_EXTS
 
 # Directory-name heuristic for Game Music discovery: a game file whose path
@@ -22,21 +22,19 @@ if MYPY:
 
 
 class CueGameMusic(CueAudioTreeManager):
-    """Scan state and folder/file tree UI for the Game Music section.
+    """Scan state and nested tree for the Game Music section.
 
-    Same shape as CueUserMusic -- the files / tree / scan_error /
-    visible_tree / expanded_folders caches are inherited.  The difference is
-    the scan source: instead of os.walk over a shared dir, _discover()
-    enumerates renpy.list_files() (the game's virtual filesystem, archives
-    included) and keeps audio files whose path passes the directory-name
-    heuristic.  No disabled files, presets, or pool refs -- just the tree
-    rows rendered on the Music page."""
+    Same shape as CueUserMusic -- the files / tree / scan_error caches are
+    inherited.  The difference is the scan source: instead of os.walk over a
+    shared dir, _discover() enumerates renpy.list_files() (the game's
+    virtual filesystem, archives included) and keeps audio files whose path
+    passes the directory-name heuristic.  Scan-only -- the combined tree
+    (_cue.music.library) owns the visible rows.  No disabled files, presets,
+    or pool refs."""
 
     _scan_label = "game music"
     _log_tag = "GAME-MUSIC"
-    # Open the tree at its top-level folders so the game's music is visible
-    # without a click; the user's toggles win after this one-time default.
-    _auto_expand_roots = True
+    _build_visible = False
 
     # ------------------------------------------------------------------
     # Scanning

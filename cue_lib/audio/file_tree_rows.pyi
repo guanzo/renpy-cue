@@ -1,4 +1,4 @@
-# Type stub for cue_lib.audio.tree_rows
+# Type stub for cue_lib.audio.file_tree_rows
 from typing import Any, Dict, List, Optional
 
 def _cue_file_row(

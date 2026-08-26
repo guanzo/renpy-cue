@@ -77,6 +77,8 @@ def test_merged_tree_wraps_both_sources():
         user_paths=("music/a.ogg", "music/sub/b.ogg"), game_paths=("bgm/x.ogg", "music/y.ogg")
     )
     lib.rebuild_tree()
+    # Both synthetic roots get the one-time default expansion.
+    assert lib.expanded_folders == {USER: True, GAME: True}
     # Only the two synthetic roots are expanded by default; expand the inner
     # sub-folders so their child rows are rendered.
     lib.toggle_folder(USER + "sub/")
@@ -85,12 +87,10 @@ def test_merged_tree_wraps_both_sources():
     rows = _rows(lib)
     # User "music/" root is hoisted under the synthetic "My Music/" folder.
     assert rows[USER]["type"] == "folder"
-    assert rows[USER]["expanded"] is True
     assert rows[USER + "a.ogg"]["full_path"] == USER + "a.ogg"
     assert rows[USER + "sub/b.ogg"]["full_path"] == USER + "sub/b.ogg"
     # Game tree is wrapped under the synthetic "Game Music/" folder.
     assert rows[GAME]["type"] == "folder"
-    assert rows[GAME]["expanded"] is True
     assert rows[GAME + "bgm/x.ogg"]["full_path"] == GAME + "bgm/x.ogg"
     assert rows[GAME + "music/y.ogg"]["full_path"] == GAME + "music/y.ogg"
 
@@ -136,10 +136,10 @@ def test_search_filters_across_both_sources():
     lib.search_query = "bgm"
     lib.rebuild_tree()
     rows = _rows(lib)
+    # The bgm/ folder is default-collapsed, so its match appearing proves
+    # search force-expands every folder.
     assert GAME + "bgm/song.ogg" in rows
     assert USER + "song.ogg" not in rows
-    # Matching folders are force-expanded during a search.
-    assert rows[GAME + "bgm/"]["expanded"] is True
 
 
 def test_search_matches_both_sources():
@@ -174,8 +174,10 @@ def test_clear_search_restores_collapsed_tree():
     assert lib.search_query == ""
     rows = _rows(lib)
     assert USER + "a.ogg" in rows
-    # Non-root folders are collapsed again once the search is cleared.
-    assert rows[USER + "sub/"]["expanded"] is False
+    # Non-root folders are collapsed again once the search is cleared: the
+    # sub-folder's match is hidden and no saved expansion was left behind.
+    assert USER + "sub/b.ogg" not in rows
+    assert lib.expanded_folders.get(USER + "sub/", False) is False
 
 
 # ==========================================================================
@@ -189,11 +191,11 @@ def test_toggle_folder_collapses_and_expands():
     # A sub-folder starts collapsed; the first toggle expands it, the second
     # collapses it.
     lib.toggle_folder(USER + "sub/")
-    assert _rows(lib)[USER + "sub/"]["expanded"] is True
+    assert lib.expanded_folders.get(USER + "sub/", False) is True
     assert USER + "sub/b.ogg" in _rows(lib)
     lib.toggle_folder(USER + "sub/")
     rows = _rows(lib)
-    assert rows[USER + "sub/"]["expanded"] is False
+    assert lib.expanded_folders.get(USER + "sub/", False) is False
     assert USER + "sub/b.ogg" not in rows
 
 
@@ -203,7 +205,10 @@ def test_toggle_folder_noop_during_search():
     lib.search_query = "b"
     lib.rebuild_tree()
     lib.toggle_folder(USER + "sub/")
-    assert _rows(lib)[USER + "sub/"]["expanded"] is True
+    # Toggle is a no-op during search: the match stays force-expanded and no
+    # saved expansion state is recorded.
+    assert USER + "sub/b.ogg" in _rows(lib)
+    assert lib.expanded_folders.get(USER + "sub/", False) is False
 
 
 # ==========================================================================
@@ -391,14 +396,7 @@ def _row_lib(sel_label="", selected_key=None, has_files=True):
     music = types.SimpleNamespace(selected_trigger_label=lambda: sel_label, selected_key=selected_key)
     lib = CueCombinedMusicTree(music, user, game)
     lib.visible_tree = [
-        {
-            "type": "folder",
-            "name": "My Music/",
-            "full_path": "My Music/",
-            "depth": 0,
-            "expanded": True,
-            "has_files": has_files,
-        },
+        {"type": "folder", "name": "My Music/", "full_path": "My Music/", "depth": 0, "has_files": has_files},
         {"type": "file", "name": "a.ogg", "full_path": "My Music/a.ogg", "depth": 1},
     ]
     return lib
@@ -486,7 +484,7 @@ def _content_rows(lib, query="", presets=(), current_file=None, recent_entries=(
     # type: (CueCombinedMusicTree, str, tuple, object, tuple, bool) -> list
     """Full Music section stream via the builder.  recent_entries None wires
     no recent manager; otherwise the fake returns the given (type, ref) pairs."""
-    import cue_lib.audio.tree_rows as tree_rows_mod
+    import cue_lib.audio.file_tree_rows as tree_rows_mod
 
     music = lib._music
     if recent_entries is None:

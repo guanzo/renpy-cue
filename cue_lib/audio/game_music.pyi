@@ -1,7 +1,7 @@
 # Type stub for cue_lib.audio.game_music
 from typing import Final, Set
 
-from cue_lib.audio.audio_tree import CueAudioTreeManager
+from cue_lib.audio.file_tree import CueAudioTreeManager
 
 CUE_GAME_MUSIC_DIRS: Final = ("music", "bgm", "ost", "soundtrack")
 

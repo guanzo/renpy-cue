@@ -267,7 +267,7 @@ def _cue_build_tree(flat_files):
     relative paths.
 
     Folder nodes: {"type": "folder", "name": <name + "/">, "children": [...],
-    "expanded": False, "has_files": bool} -- folders first, then files.
+    "has_files": bool} -- folders first, then files.
     File nodes: {"type": "file", "name": <basename>}.
     """
     root = {}
@@ -291,15 +291,7 @@ def _cue_build_tree(flat_files):
                 continue
             children = _build(node[name])
             has_direct_files = len(node[name].get("__files__", [])) > 0
-            items.append(
-                {
-                    "type": "folder",
-                    "name": name + "/",
-                    "children": children,
-                    "expanded": False,
-                    "has_files": has_direct_files,
-                }
-            )
+            items.append({"type": "folder", "name": name + "/", "children": children, "has_files": has_direct_files})
         # Then files
         for name in sorted(node.get("__files__", [])):
             items.append({"type": "file", "name": name})
@@ -402,7 +394,6 @@ def _cue_filter_tree(tree, query):
                             "type": "folder",
                             "name": item["name"],
                             "children": item.get("children", []) if folder_matches else children,
-                            "expanded": item.get("expanded", False),
                             "has_files": item.get("has_files", False),
                         }
                     )

@@ -17,13 +17,13 @@ import renpy as _renpy
 
 from renpy.store import Function, persistent
 
-import cue_lib.audio.audio_tree as _tree
+import cue_lib.audio.file_tree as _tree
 import cue_lib.audio.game_music as _game
 import cue_lib.audio.sfx_manager as _sfx_mod
-import cue_lib.audio.tree_rows as _tree_rows
+import cue_lib.audio.file_tree_rows as _tree_rows
 import cue_lib.audio.user_music as _user
 import cue_lib.util as _util
-from cue_lib.audio.audio_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
+from cue_lib.audio.file_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
 from cue_lib.audio.game_music import CueGameMusic
 from cue_lib.audio.sfx_manager import CueSfxLibraryTree, CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name
 from cue_lib.audio.user_music import CueUserMusic
@@ -223,10 +223,9 @@ def test_rebuild_tree_search_filters_and_expands_all():
     mgr.tree = _cue_build_tree(FILES)
     mgr.search_query = "intense"
     mgr.rebuild_tree()
-    folders = [row for row in mgr.visible_tree if row["type"] == "folder"]
-    assert folders
-    assert all(row["expanded"] for row in folders)
     files = [row["full_path"] for row in mgr.visible_tree if row["type"] == "file"]
+    # Search force-expands every folder: matches inside default-collapsed
+    # subfolders all appear, and non-matches are pruned.
     assert files == ["v2/agrat/02_IntenseMo.mp3", "v2/anya/04_IntenseMo.mp3", "v2/nora/03_IntenseMo.mp3"]
 
 
@@ -270,8 +269,9 @@ def test_clear_search_restores_tree_and_expansion_state():
     # idle one; the invariants are that unrelated branches are pruned and
     # the saved user expansion state is never touched.
     search_files = [row["full_path"] for row in mgr.visible_tree if row["type"] == "file"]
-    assert "v2/amira/01_NormalMo.mp3" not in search_files
-    assert all(row["expanded"] for row in mgr.visible_tree if row["type"] == "folder")
+    # Search force-expands every folder: exactly the matches appear (matches
+    # in collapsed folders shown, non-match branches pruned).
+    assert search_files == ["v2/agrat/02_IntenseMo.mp3", "v2/anya/04_IntenseMo.mp3", "v2/nora/03_IntenseMo.mp3"]
     assert mgr.expanded_folders == {"v2/": True, "v2/amira/": True}
 
     mgr.clear_search()
@@ -699,13 +699,8 @@ def test_scan_expands_roots_once_when_opted_in():
     mgr.scan()
     # Only depth-0 folders get the default; subfolders stay collapsed.
     assert mgr.expanded_folders == {"music/": True, "audio/": True}
-    root_rows = [r for r in mgr.visible_tree if r["type"] == "folder" and r["depth"] == 0]
-    assert all(r["expanded"] for r in root_rows)
-    # The subfolder is rendered as a collapsed row, not force-expanded.
-    sub_rows = [r for r in mgr.visible_tree if r["type"] == "folder" and r["depth"] == 1]
-    assert sub_rows and all(not r["expanded"] for r in sub_rows)
     # Files under the expanded roots are visible; the collapsed subfolder's
-    # file stays hidden.
+    # file (music/sub/b.mp3) stays hidden.
     file_paths = [r["full_path"] for r in mgr.visible_tree if r["type"] == "file"]
     assert file_paths == ["audio/c.mp3", "music/a.mp3"]
 
@@ -746,11 +741,11 @@ def test_scan_empty_first_scan_does_not_consume_root_expansion():
     assert mgr.expanded_folders == {"music/": True}
 
 
-def test_music_managers_opt_into_root_expansion():
-    assert CueUserMusic._auto_expand_roots is True
-    assert CueGameMusic._auto_expand_roots is True
-    # The base default (shared with the SFX library) is off.
-    assert CueAudioTreeManager._auto_expand_roots is False
+def test_music_managers_are_scan_only():
+    assert CueUserMusic._build_visible is False
+    assert CueGameMusic._build_visible is False
+    # The base default (shared with the SFX library) builds its own tree.
+    assert CueAudioTreeManager._build_visible is True
 
 
 # ==========================================================================
@@ -817,7 +812,7 @@ def _sfx_tree_rows(sfx, target_ok=True, target_tt="Add to pool", unplayable=None
     # type: (CueSfxLibraryTree, bool, str, object) -> list
     """Row stream for a two-row SFX tree (folder + file) with default state."""
     sfx.visible_tree = [
-        {"type": "folder", "name": "v2/", "full_path": "v2/", "depth": 0, "expanded": True, "has_files": True},
+        {"type": "folder", "name": "v2/", "full_path": "v2/", "depth": 0, "has_files": True},
         {"type": "file", "name": "a.wav", "full_path": "v2/a.wav", "depth": 1, "index": 0},
     ]
     return sfx.tree_rows(target_ok, target_tt, unplayable or {})
@@ -877,9 +872,7 @@ def test_sfx_row_buttons_add_mode_dup_gates(sfx, monkeypatch):
 def test_sfx_folder_without_files_has_only_plus(sfx):
     # The whole folder button block (play + add) is gated on has_files, so an
     # empty folder shows no buttons -- exactly like the current screen.
-    sfx.visible_tree = [
-        {"type": "folder", "name": "empty/", "full_path": "empty/", "depth": 0, "expanded": False, "has_files": False}
-    ]
+    sfx.visible_tree = [{"type": "folder", "name": "empty/", "full_path": "empty/", "depth": 0, "has_files": False}]
     rows = sfx.tree_rows(False, "tt", {})
     assert rows[0]["buttons"] == []
 

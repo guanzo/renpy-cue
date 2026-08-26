@@ -1,8 +1,8 @@
 # Type stub for cue_lib.audio.sfx_manager
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from cue_lib.audio.audio_tree import CueAudioTreeManager
-from cue_lib.audio.tree_rows import CueSfxTreeRows
+from cue_lib.audio.file_tree import CueAudioTreeManager
+from cue_lib.audio.file_tree_rows import CueSfxTreeRows
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.db import CueDatabase
 from cue_lib.markers import CueMarkerManager

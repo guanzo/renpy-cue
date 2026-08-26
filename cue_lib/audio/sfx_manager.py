@@ -14,8 +14,8 @@ import renpy.audio.music as _music
 
 from renpy.store import persistent
 
-from cue_lib.audio.audio_tree import CueAudioTreeManager
-from cue_lib.audio.tree_rows import CueSfxTreeRows
+from cue_lib.audio.file_tree import CueAudioTreeManager
+from cue_lib.audio.file_tree_rows import CueSfxTreeRows
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.constants import (
     CUE_SFX_CHANNEL_COUNT,

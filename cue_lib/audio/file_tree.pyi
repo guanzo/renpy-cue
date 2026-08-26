@@ -1,4 +1,4 @@
-# Type stub for cue_lib.audio.audio_tree
+# Type stub for cue_lib.audio.file_tree
 from typing import Any, Dict, List, Optional, Set
 
 from cue_lib.audio.recent import CueRecentManager
