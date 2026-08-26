@@ -2,9 +2,7 @@
   <img src="./cue_lib/images/branding/cue-wordmark.png" alt="Ren'Py Cue" width="200">
 </p>
 
-# Ren'Py Cue
-
-Ren'Py Cue lets you add your own sound effects, music, and video effects to [Ren'Py](https://www.renpy.org/) visual novels while you play, without editing the game's scripts.
+Cue lets you add your own sound effects, music, and video effects to [Ren'Py](https://www.renpy.org/) visual novels while you play, without editing the game's scripts.
 
 
 **Need help, want to share your setup, or just hang out? [Join the Cue Discord](https://discord.gg/kAVtFGcQYm)**
