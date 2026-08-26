@@ -344,18 +344,30 @@ if [ "$DSL" = "legacy" ]; then
     exit $rc
 fi
 
-# 8.x: one suite run. The test `exit` statement raises QuitException so the
-# process exits 0 regardless of pass/fail -- parse the reporter summary.
+# 8.x: one suite run. On the pinned 8.x SDKs the engine exits 0 on pass and
+# nonzero on a failing testcase; the PASSED marker stays as a backstop for
+# SDKs that always exit 0. A 124 exit is the timeout firing (a hang -- no
+# summary, indistinguishable from a crash by the log alone).
 LOG="$(mktemp -t cue_testcases.XXXXXX.log)"
-timeout "$CUE_ENGINE_TIMEOUT" $RUN_PREFIX "$LAUNCHER" --savedir "$SAVEDIR" "$GAME" test "$@" > "$LOG" 2>&1 || true
+if timeout "$CUE_ENGINE_TIMEOUT" $RUN_PREFIX "$LAUNCHER" --savedir "$SAVEDIR" "$GAME" test "$@" > "$LOG" 2>&1; then
+    _rc=0
+else
+    _rc=$?
+fi
 cat "$LOG"
 
-if grep -q "Status: PASSED" "$LOG"; then
+if [ "$_rc" -eq 124 ]; then
+    echo "[cue] engine timed out after ${CUE_ENGINE_TIMEOUT}s -- hung (no summary)" >&2
+    rm -f "$LOG"
+    exit 1
+fi
+
+if [ "$_rc" -eq 0 ] && grep -q "Status: PASSED" "$LOG"; then
     rm -f "$LOG"
     exit 0
 fi
 
-echo "[cue] test run did not pass (see summary above)" >&2
+echo "[cue] test run did not pass (engine exit $_rc, see summary above)" >&2
 if [ -f "$MOD/debug.log" ]; then
     echo "[cue] renpy_cue/debug.log:" >&2
     cat "$MOD/debug.log" >&2
