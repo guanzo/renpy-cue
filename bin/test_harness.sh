@@ -283,6 +283,8 @@ if [ "$DSL" = "legacy" ]; then
         find "$WMODE/cue_lib" -name '*.rpyc' -delete 2>/dev/null || true
         WSAVEDIR="$WGAME/game/saves"
         rc=0
+        _passed=0
+        _failed=0
         for _name in $_slice; do
             echo "[cue] running testcase: $_name (worker $_w)"
             rm -f "$WMODE/debug.log"
@@ -294,6 +296,7 @@ if [ "$DSL" = "legacy" ]; then
             # mutable data tree + persistent before every launch.
             rm -rf "$WDATA/data" "$WDATA/backups" "$WDATA/video" "$WGAME/game/saves"
             if ! timeout "$CUE_ENGINE_TIMEOUT" $_run "$LAUNCHER" --savedir "$WSAVEDIR" "$WGAME" test "$_name"; then
+                _failed=$((_failed + 1))
                 echo "[cue] worker $_w testcase FAILED: $_name" >&2
                 if [ -f "$WMODE/debug.log" ]; then
                     echo "[cue] worker $_w renpy_cue/debug.log:" >&2
@@ -304,8 +307,12 @@ if [ "$DSL" = "legacy" ]; then
                     cat "$WMODE/error.log" >&2
                 fi
                 rc=1
+            else
+                _passed=$((_passed + 1))
+                echo "[cue] worker $_w testcase PASSED: $_name"
             fi
         done
+        echo "[cue] worker $_w: $_passed passed, $_failed failed"
         return "$rc"
     }
 
