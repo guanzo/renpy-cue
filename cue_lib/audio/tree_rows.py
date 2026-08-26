@@ -11,15 +11,17 @@ import renpy
 
 from renpy.store import Function
 
-from cue_lib.constants import CUE_HELP_SHIFT_SKIP_DELETE
-from cue_lib.markers import _cue_markers_send
+from cue_lib.constants import CUE_HELP_SHIFT_SKIP_DELETE, CUE_INTENSITY_IDEAL_LEVELS
+from cue_lib.markers import _cue_markers_send, _cue_send_level_to_target
+from cue_lib.state import _cue
 from cue_lib.ui.dialogs import (
+    _cue_confirm_delete_igroup,
     _cue_confirm_delete_preset,
     _cue_confirm_delete_video_preset,
     _cue_confirm_remove_video_preset_pool,
     _cue_maybe_apply_video_preset,
 )
-from cue_lib.util import _cue_filter_preset_files, _cue_format_time, _cue_resolve_files
+from cue_lib.util import _cue_filter_igroup_folders, _cue_filter_preset_files, _cue_format_time, _cue_resolve_files
 
 MYPY = False
 if MYPY:
@@ -48,14 +50,29 @@ def _cue_file_row(key, label, depth, buttons, warn=None, gap=1, size=None):
     return row
 
 
-def _cue_help_row(key, label, color=None, v_gap=None):
-    # type: (str, str, Optional[str], Optional[int]) -> Dict[str, Any]
-    """A muted help/empty-state line (depth 0, no buttons)."""
-    row = {"key": key, "type": "help", "label": label, "depth": 0}
+def _cue_help_row(key, label, color=None, v_gap=None, depth=0):
+    # type: (str, str, Optional[str], Optional[int], int) -> Dict[str, Any]
+    """A muted help/empty-state line, indented to depth (0 = flush left)."""
+    row = {"key": key, "type": "help", "label": label, "depth": depth}
     if color:
         row["color"] = color
     if v_gap:
         row["v_gap"] = v_gap
+    return row
+
+
+def _cue_action_row(key, label, action=None, tt=None, depth=0, explorer=None):
+    # type: (str, str, Any, Optional[str], int, Optional[str]) -> Dict[str, Any]
+    """A clickable text-button row.  explorer fills the renderer's
+    open-in-explorer variant (music per-source empty states); otherwise the
+    row runs action."""
+    row = {"key": key, "type": "action", "label": label, "depth": depth}
+    if action:
+        row["action"] = action
+    if tt:
+        row["tt"] = tt
+    if explorer:
+        row["explorer"] = explorer
     return row
 
 
@@ -75,11 +92,16 @@ def _cue_section_rows(key, label, toggle_fn, expanded, searching, has_any, child
     return rows
 
 
-def _cue_folder_rows(key, label, depth, toggle_fn, expanded, searching, buttons, children):
-    # type: (str, str, int, Any, bool, bool, List[Dict[str, Any]], List[Dict[str, Any]]) -> List[Dict[str, Any]]
+def _cue_folder_rows(key, label, depth, toggle_fn, expanded, searching, buttons, children, hover_buttons=None):
+    # type: (str, str, int, Any, bool, bool, List[Dict[str, Any]], List[Dict[str, Any]], Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]
     """A collapsible folder row + its children while open (or during a
-    search, when children auto-show like the tree)."""
-    rows = [{"key": key, "type": "folder", "label": label, "depth": depth, "buttons": buttons, "toggle": toggle_fn}]
+    search, when children auto-show like the tree).  hover_buttons (e.g. a
+    level's move-up/down chevrons) render beside the label only while the
+    row is hovered."""
+    row = {"key": key, "type": "folder", "label": label, "depth": depth, "buttons": buttons, "toggle": toggle_fn}
+    if hover_buttons:
+        row["hover_buttons"] = hover_buttons
+    rows = [row]
     if expanded or searching:
         rows.extend(children)
     return rows
@@ -415,6 +437,212 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                 )
             )
         return rows
+
+    def _intensity_rows(self, igroup_names, search_query, lv_hook_ok, lv_tt):
+        # type: (List[str], str, bool, str) -> List[Dict[str, Any]]
+        """Intensity-group rows: the + Group action, then per group a
+        collapsible folder with + Level, empty-state help, and level rows.
+        Level rows carry move-up/down chevrons as hover_buttons; the level
+        edit buttons (xmark, chevrons, + Level) hide while searching, like the
+        screen's filter guard.  The level [+] hooks the level to a pool
+        (lv_hook_ok = video/loop target only)."""
+        searching = bool(search_query.strip())
+        rows = [
+            _cue_action_row(
+                "intensity:+group", "+ Group", _cue.dialogs.intensity.open, tt="Create a new intensity group.", depth=1
+            )
+        ]
+        if not igroup_names and not searching:
+            rows.append(_cue_help_row("intensity:empty", "No intensity groups yet.", depth=1))
+            rows.append(
+                _cue_help_row(
+                    "intensity:empty-hint",
+                    "An intensity group is a soft-to-hard level list; each level is a pool of files.",
+                    depth=1,
+                )
+            )
+        for gname in igroup_names:
+            group_expanded = self._tree.expanded_igroups.get(gname, False)
+            g_levels = _cue_filter_igroup_folders(gname, search_query)
+            children = []
+            if not searching:
+                children.append(
+                    _cue_action_row(
+                        "intensity:+level:" + gname,
+                        "+ Level",
+                        Function(self._tree.add_level, gname),
+                        tt="Add a new level to this group.",
+                        depth=2,
+                    )
+                )
+                if not g_levels:
+                    children.append(
+                        _cue_help_row(
+                            "intensity:nolevels:" + gname, "No levels yet. Click + Level to add one.", depth=1
+                        )
+                    )
+                    children.append(
+                        _cue_help_row(
+                            "intensity:ideal:" + gname,
+                            "Add up to ~{} levels for the best experience.".format(CUE_INTENSITY_IDEAL_LEVELS),
+                            depth=1,
+                            v_gap=2,
+                        )
+                    )
+            for idx, lv in enumerate(g_levels):
+                lv_id = lv["id"]
+                lv_files = lv["files"]
+                lv_expanded = lv_id in self._tree.expanded_ilevels.get(gname, set())
+                in_add = self._tree.ilevel_add_target == (gname, lv_id)
+                buttons = []
+                if not searching:
+                    buttons.append(
+                        {
+                            "icon": "xmark",
+                            "action": Function(self._tree._intensity.remove_level, gname, idx),
+                            "tt": "Remove this level",
+                        }
+                    )
+                buttons.append(
+                    {
+                        "icon": "play",
+                        "action": Function(self._tree._sfx.preview_level, gname, lv_id),
+                        "tt": "Play a random file from this level",
+                    }
+                )
+                buttons.append(
+                    {
+                        "icon": "folder-open" if in_add else "folder-plus",
+                        "action": Function(self._tree.toggle_ilevel_add_mode, gname, lv_id),
+                        "tt": "Click again to stop adding files" if in_add else "Add files to this level",
+                        "bg": (getattr(renpy.store, "_cue_color_selected_alt", None) if in_add else None),
+                    }
+                )
+                buttons.append(
+                    {
+                        "icon": "plus",
+                        "action": Function(_cue_send_level_to_target, gname, lv_id),
+                        "tt": lv_tt,
+                        "enabled": lv_hook_ok,
+                    }
+                )
+                hover = []
+                if not searching:
+                    bg_dialog = getattr(renpy.store, "_cue_color_bg_dialog", None)
+                    hover = [
+                        {
+                            "icon": "chevron-up",
+                            "action": Function(self._tree._intensity.move_level, gname, idx, -1),
+                            "tt": "Move level up",
+                            "bg": (bg_dialog if idx == 0 else None),
+                        },
+                        {
+                            "icon": "chevron-down",
+                            "action": Function(self._tree._intensity.move_level, gname, idx, 1),
+                            "tt": "Move level down",
+                            "bg": (bg_dialog if idx == len(g_levels) - 1 else None),
+                        },
+                    ]
+                level_children = []
+                if not lv_files:
+                    level_children.append(
+                        _cue_help_row(
+                            "intensity:levelempty:" + gname + "/" + str(lv_id),
+                            "Click the folder icon to add files",
+                            depth=3,
+                        )
+                    )
+                for file_ref in lv_files:
+                    level_children.extend(self._ilevel_file_rows(gname, lv_id, file_ref))
+                children.extend(
+                    _cue_folder_rows(
+                        "intensity:level:" + gname + "/" + str(lv_id),
+                        "Level {}/".format(idx + 1),
+                        2,
+                        Function(self._tree.toggle_ilevel_expand, gname, lv_id),
+                        lv_expanded,
+                        searching,
+                        buttons,
+                        level_children,
+                        hover,
+                    )
+                )
+            rows.extend(
+                _cue_folder_rows(
+                    "intensity:group:" + gname,
+                    gname,
+                    1,
+                    Function(self._tree.toggle_igroup_expand, gname),
+                    group_expanded,
+                    searching,
+                    [
+                        {
+                            "icon": "xmark",
+                            "action": Function(_cue_confirm_delete_igroup, gname),
+                            "tt": "Delete intensity group" + CUE_HELP_SHIFT_SKIP_DELETE,
+                        }
+                    ],
+                    children,
+                )
+            )
+        return rows
+
+    def _ilevel_file_rows(self, gname, lv_id, file_ref):
+        # type: (str, object, str) -> List[Dict[str, Any]]
+        """One level-file row (list form: a single row, or a folder ref's
+        folder row + its expanded children).  Folder refs (trailing '/') are
+        expandable folders whose children strip the folder prefix; plain files
+        are size-11 leaves."""
+        if file_ref.endswith("/"):
+            expanded = self._tree.expanded_file_refs.get(file_ref, False)
+            children = [
+                _cue_file_row(
+                    "intensity:irefchild:" + gname + "/" + str(lv_id) + "/" + child,
+                    child[len(file_ref) :],
+                    4,
+                    [{"icon": "play", "action": Function(self._tree._sfx.preview_sfx, child), "tt": "Preview audio"}],
+                    gap=0,
+                    size=11,
+                )
+                for child in _cue_resolve_files([file_ref])
+            ]
+            return _cue_folder_rows(
+                "intensity:iref:" + gname + "/" + str(lv_id) + "/" + file_ref,
+                file_ref,
+                3,
+                Function(self._tree.toggle_file_ref_expand, file_ref),
+                expanded,
+                False,
+                [
+                    {
+                        "icon": "xmark",
+                        "action": Function(self._tree._intensity.remove_level_file, gname, lv_id, file_ref),
+                        "tt": "Remove folder from level",
+                    },
+                    {
+                        "icon": "play",
+                        "action": Function(self._tree._sfx.preview_folder, file_ref),
+                        "tt": "Play random file from folder",
+                    },
+                ],
+                children,
+            )
+        return [
+            _cue_file_row(
+                "intensity:file:" + gname + "/" + str(lv_id) + "/" + file_ref,
+                file_ref,
+                3,
+                [
+                    {
+                        "icon": "xmark",
+                        "action": Function(self._tree._intensity.remove_level_file, gname, lv_id, file_ref),
+                        "tt": "Remove file from level",
+                    },
+                    {"icon": "play", "action": Function(self._tree._sfx.preview_sfx, file_ref), "tt": "Preview audio"},
+                ],
+                size=11,
+            )
+        ]
 
     def warn_reason(self, item, target_ok, target_tt, unplayable):  # pyright: ignore[reportIncompatibleMethodOverride]
         # type: (Dict[str, Any], bool, str, Dict[str, str]) -> str

@@ -1,10 +1,21 @@
 # Type stub for cue_lib.audio.tree_rows
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 def _cue_file_row(
-    key: str, label: str, depth: int, buttons: List[Dict[str, Any]], warn: str = ..., gap: int = ..., size: int = ...
+    key: str,
+    label: str,
+    depth: int,
+    buttons: List[Dict[str, Any]],
+    warn: Optional[str] = ...,
+    gap: Optional[int] = ...,
+    size: Optional[int] = ...,
 ) -> Dict[str, Any]: ...
-def _cue_help_row(key: str, label: str, color: str = ..., v_gap: int = ...) -> Dict[str, Any]: ...
+def _cue_help_row(
+    key: str, label: str, color: Optional[str] = ..., v_gap: Optional[int] = ..., depth: int = ...
+) -> Dict[str, Any]: ...
+def _cue_action_row(
+    key: str, label: str, action: Any = ..., tt: Optional[str] = ..., depth: int = ..., explorer: Optional[str] = ...
+) -> Dict[str, Any]: ...
 def _cue_section_rows(
     key: str,
     label: str,
@@ -24,6 +35,7 @@ def _cue_folder_rows(
     searching: bool,
     buttons: List[Dict[str, Any]],
     children: List[Dict[str, Any]],
+    hover_buttons: Optional[List[Dict[str, Any]]] = ...,
 ) -> List[Dict[str, Any]]: ...
 
 class CueTreeRowsBuilder:
@@ -45,6 +57,10 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         self, preset_names: List[str], search_query: str, target_ok: bool, target_tt: str
     ) -> List[Dict[str, Any]]: ...
     def _video_preset_rows(self, video_preset_names: List[str], is_video: bool) -> List[Dict[str, Any]]: ...
+    def _intensity_rows(
+        self, igroup_names: List[str], search_query: str, lv_hook_ok: bool, lv_tt: str
+    ) -> List[Dict[str, Any]]: ...
+    def _ilevel_file_rows(self, gname: str, lv_id: object, file_ref: str) -> List[Dict[str, Any]]: ...
     def warn_reason(  # pyright: ignore[reportIncompatibleMethodOverride]
         self, item: Dict[str, Any], target_ok: bool, target_tt: str, unplayable: Dict[str, str]
     ) -> str: ...

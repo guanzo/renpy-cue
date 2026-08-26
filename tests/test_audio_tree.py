@@ -1180,3 +1180,136 @@ def test_sfx_video_preset_rows_pool_collapsed_no_files(sfx):
     sfx.expanded_video_pools = {"vp": {0: False}}
     rows = _video_preset_rows(sfx, ["vp"])
     assert len(rows) == 2  # preset folder + pool row, no file rows
+
+
+def _sfx_intensity_rows(sfx, names, query="", lv_hook_ok=True, lv_tt="Hook to pool"):
+    # type: (CueSfxLibraryTree, list, str, bool, str) -> list
+    """Intensity row stream via the SFX builder, with manager/dialog stubs."""
+    sfx._intensity = types.SimpleNamespace(
+        remove_level=lambda n, i: None, remove_level_file=lambda n, i, f: None, move_level=lambda n, i, d: None
+    )
+    import cue_lib.util as util_mod
+
+    util_mod._cue.intensity = types.SimpleNamespace(
+        get_igroup=lambda n: {"levels": [{"id": 1, "files": ["a.ogg", "pool/"]}]}
+    )
+    util_mod._cue.sfx = types.SimpleNamespace(library=types.SimpleNamespace(files=["pool/a.ogg"], disabled_files=set()))
+    util_mod._cue.dialogs = types.SimpleNamespace(intensity=types.SimpleNamespace(open=lambda: None))
+    return _tree_rows.CueSfxTreeRows(sfx)._intensity_rows(names, query, lv_hook_ok, lv_tt)
+
+
+def test_sfx_intensity_rows_empty(sfx):
+    rows = _sfx_intensity_rows(sfx, [])
+    assert len(rows) == 3
+    plus_group = rows[0]
+    assert plus_group["type"] == "action"
+    assert plus_group["label"] == "+ Group"
+    assert plus_group["depth"] == 1
+    assert plus_group["action"] is _tree_rows._cue.dialogs.intensity.open
+    assert plus_group["tt"] == "Create a new intensity group."
+    assert rows[1]["type"] == "help"
+    assert rows[1]["depth"] == 1
+    assert rows[1]["label"] == "No intensity groups yet."
+    assert rows[2]["label"].startswith("An intensity group is a soft-to-hard")
+
+
+def test_sfx_intensity_rows_group_and_level(sfx, monkeypatch):
+    monkeypatch.setattr(renpy.store, "_cue_color_selected_alt", "#sa", raising=False)
+    monkeypatch.setattr(renpy.store, "_cue_color_bg_dialog", "#bd", raising=False)
+    sfx.expanded_igroups = {"g": True}
+    sfx.expanded_ilevels = {"g": {1}}
+    rows = _sfx_intensity_rows(sfx, ["g"])
+    assert rows[0]["label"] == "+ Group"
+    group = rows[1]
+    assert group["type"] == "folder"
+    assert group["label"] == "g"
+    assert group["depth"] == 1
+    assert [b["icon"] for b in group["buttons"]] == ["xmark"]
+    assert group["buttons"][0]["action"]._args[0] is _tree_rows._cue_confirm_delete_igroup
+    assert group["toggle"]._args[0] == sfx.toggle_igroup_expand
+    add_level = rows[2]
+    assert add_level["type"] == "action"
+    assert add_level["label"] == "+ Level"
+    assert add_level["depth"] == 2
+    assert add_level["action"]._args[0] == sfx.add_level
+    level = rows[3]
+    assert level["type"] == "folder"
+    assert level["label"] == "Level 1/"
+    assert level["depth"] == 2
+    assert [b["icon"] for b in level["buttons"]] == ["xmark", "play", "folder-plus", "plus"]
+    assert level["buttons"][0]["action"]._args[0] == sfx._intensity.remove_level
+    assert level["buttons"][0]["action"]._args[1:3] == ("g", 0)
+    assert level["buttons"][1]["action"]._args[0] == sfx._sfx.preview_level
+    assert level["buttons"][1]["action"]._args[1:3] == ("g", 1)
+    assert level["buttons"][2]["action"]._args[0] == sfx.toggle_ilevel_add_mode
+    assert level["buttons"][3]["action"]._args[0] is _tree_rows._cue_send_level_to_target
+    assert level["buttons"][3]["tt"] == "Hook to pool"
+    assert level["buttons"][3]["enabled"] is True
+    assert level["toggle"]._args[0] == sfx.toggle_ilevel_expand
+    assert level["toggle"]._args[1:3] == ("g", 1)
+    assert [hb["icon"] for hb in level["hover_buttons"]] == ["chevron-up", "chevron-down"]
+    file_row = rows[4]
+    assert file_row["type"] == "file"
+    assert file_row["label"] == "a.ogg"
+    assert file_row["depth"] == 3
+    assert file_row["size"] == 11
+    pool_folder = rows[5]
+    assert pool_folder["type"] == "folder"
+    assert pool_folder["label"] == "pool/"
+    assert pool_folder["depth"] == 3
+    assert [b["icon"] for b in pool_folder["buttons"]] == ["xmark", "play"]
+
+
+def test_sfx_intensity_rows_chevron_bg_edges(sfx, monkeypatch):
+    monkeypatch.setattr(renpy.store, "_cue_color_bg_dialog", "#bd", raising=False)
+    sfx.expanded_igroups = {"g": True}
+    sfx.expanded_ilevels = {"g": {1}}
+    rows = _sfx_intensity_rows(sfx, ["g"])
+    level = rows[3]
+    assert level["hover_buttons"][0]["bg"] == "#bd"  # idx 0 == first
+    assert level["hover_buttons"][1]["bg"] == "#bd"  # idx 0 == last
+
+
+def test_sfx_intensity_rows_search_hides_edit_buttons(sfx):
+    sfx.expanded_igroups = {}
+    rows = _sfx_intensity_rows(sfx, ["g"], query="a")
+    assert rows[0]["label"] == "+ Group"
+    group = rows[1]
+    assert group["type"] == "folder"
+    level = rows[2]
+    assert level["type"] == "folder"
+    assert [b["icon"] for b in level["buttons"]] == ["play", "folder-plus", "plus"]  # no xmark
+    assert "hover_buttons" not in level  # no chevrons while searching
+    assert rows[3]["label"] == "a.ogg"  # content match auto-shown
+
+
+def test_sfx_intensity_rows_add_mode(sfx, monkeypatch):
+    monkeypatch.setattr(renpy.store, "_cue_color_selected_alt", "#sa", raising=False)
+    sfx.expanded_igroups = {"g": True}
+    sfx.expanded_ilevels = {"g": {1}}
+    sfx.ilevel_add_target = ("g", 1)
+    rows = _sfx_intensity_rows(sfx, ["g"])
+    folder_btn = rows[3]["buttons"][2]
+    assert folder_btn["icon"] == "folder-open"
+    assert folder_btn["tt"] == "Click again to stop adding files"
+    assert folder_btn["bg"] == "#sa"
+
+
+def test_sfx_intensity_rows_level_hook_disabled(sfx):
+    sfx.expanded_igroups = {"g": True}
+    sfx.expanded_ilevels = {"g": {1}}
+    rows = _sfx_intensity_rows(sfx, ["g"], lv_hook_ok=False)
+    assert rows[3]["buttons"][3]["enabled"] is False
+
+
+def test_sfx_intensity_rows_folder_ref_children(sfx):
+    sfx.expanded_igroups = {"g": True}
+    sfx.expanded_ilevels = {"g": {1}}
+    sfx.expanded_file_refs = {"pool/": True}
+    rows = _sfx_intensity_rows(sfx, ["g"])
+    pool_folder = rows[5]
+    assert pool_folder["toggle"]._args[0] == sfx.toggle_file_ref_expand
+    pool_child = rows[6]
+    assert pool_child["label"] == "a.ogg"
+    assert [b["icon"] for b in pool_child["buttons"]] == ["play"]
+    assert pool_child["buttons"][0]["action"]._args[0] == sfx._sfx.preview_sfx
