@@ -251,6 +251,14 @@ A breaking change is marked with `!` after the type or a `BREAKING CHANGE:`
 footer, e.g. `feat!: drop 7.x support`. This convention drives the `git-cliff`
 release notes and changelog in `/release`.
 
+# Release Tooling
+
+- `git-cliff` (Rust binary) generates release notes + the changelog: install via
+  `cargo install git-cliff` or `brew install git-cliff`. The `/release` skill
+  runs `git-cliff -u` (unreleased) to draft the next version's notes.
+- `gh` (GitHub CLI) is used by the release skill to create/upload a release; it
+  must be authenticated (`gh auth login`).
+
 # Maintaining This Document
 
 Keep this document concise and action-oriented.

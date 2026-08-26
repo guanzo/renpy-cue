@@ -1,0 +1,29 @@
+# git-cliff config -- reads the commit history to produce release notes and a
+# CHANGELOG. Run by the /release skill. The commit *convention* is documented in
+# CLAUDE.md; tune the categorization/render here.
+
+[remote.github]
+repo = "guanzo/renpy-cue"
+
+[changelog]
+header = "## Ren'Py Cue Changelog\n"
+body = """
+### Release {{ version }} — {{ timestamp | date(format="%Y-%m-%d") }}
+"""
+footer = ""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+split_commits = false
+commit_parsers = [
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Bug Fixes" },
+  { message = "^docs", group = "Documentation" },
+  { message = "^refactor", group = "Refactoring" },
+  { message = "^perf", group = "Performance" },
+  { message = "^test", group = "Tests" },
+  { message = "^chore|^build", group = "Chores" },
+  { message = ".*", group = "Other" },
+]
