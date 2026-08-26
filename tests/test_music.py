@@ -81,7 +81,7 @@ def mgr(cue_env, monkeypatch):
     _music_mock._reset_all()
     monkeypatch.setattr(_music_mod, "_ORIGINALS", None)
     monkeypatch.setattr(_renpy, "in_rollback", lambda: False)
-    _store._in_replay = False
+    _store._in_replay = None
     store = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
     m = CueMusicManager(CueContext(), store, cue_env.db, cue_env.paths)
     return m
@@ -308,7 +308,7 @@ def test_on_play_records_and_forwards(mgr):
     assert mgr.last_event["type"] == "play"
     assert mgr.last_event["channel"] == CUE_DEFAULT_MUSIC_CHANNEL
     assert mgr.last_event["filenames"] == "song.ogg"
-    assert mgr.last_event["in_replay"] is False
+    assert mgr.last_event["in_replay"] is None
     assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == "song.ogg"
 
 

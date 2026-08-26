@@ -394,3 +394,75 @@ def test_replay_export_import_roundtrip_matches_source(tmp_path):
     assert _walk_rel(out) == set(flat) | {CUE_IMPORT_MANIFEST_NAME}
     assert "audio/unused.ogg" not in flat
     assert "data/markers/{}/no_replay.json".format(GAME_ID) not in flat
+
+
+# ---------------------------------------------------------------------------
+# intensity groups -- a hooked pool must pull the WHOLE group into the export
+# ---------------------------------------------------------------------------
+
+
+def test_replay_assets_includes_hooked_intensity_group(tmp_path):
+    """A pool that hooks an igroup clears its own files and sets igroup/
+    ilevel_id.  _cue_replay_assets must detect the hook and bring the WHOLE
+    group: the preset JSON (all levels, for recipient speed banding) plus every
+    file every level references (folder refs expanded to their files)."""
+    root = str(tmp_path / "root")
+    igroup = {
+        "_key": "Impacts",
+        "levels": [{"id": 1, "files": ["soft/"]}, {"id": 2, "files": ["hard/c.ogg"]}],
+        "next_ilevel_id": 3,
+    }
+    _write(root, _preset_rel("Impacts", "intensity"), _json.dumps(igroup))
+    for rel, content in [
+        ("audio/soft/a.ogg", "a"),
+        ("audio/soft/b.ogg", "b"),
+        ("audio/hard/c.ogg", "c"),
+        (
+            "data/markers/{}/scene.json".format(GAME_ID),
+            _json.dumps({"replay": "Run 1", "pools": [{"igroup": "Impacts", "ilevel_id": 1}]}),
+        ),
+    ]:
+        _write(root, rel, content)
+
+    assets = _imp._cue_replay_assets(root, GAME_ID, ["Run 1"])
+    flat = [f for fs in assets.values() for f in fs]
+
+    assert _preset_rel("Impacts", "intensity") in flat
+    assert "data/markers/{}/scene.json".format(GAME_ID) in flat
+    assert "audio/soft/a.ogg" in flat
+    assert "audio/soft/b.ogg" in flat
+    assert "audio/hard/c.ogg" in flat
+
+
+def test_replay_export_import_roundtrip_includes_intensity_group(tmp_path):
+    """Replay-scoped export of an intensity-hooked marker round-trips the full
+    igroup (preset JSON + every level's referenced files) byte-for-byte."""
+    root = str(tmp_path / "src")
+    igroup = {
+        "_key": "Impacts",
+        "levels": [{"id": 1, "files": ["soft/"]}, {"id": 2, "files": ["hard/c.ogg"]}],
+        "next_ilevel_id": 3,
+    }
+    _write(root, _preset_rel("Impacts", "intensity"), _json.dumps(igroup))
+    for rel, content in [
+        ("audio/soft/a.ogg", "a"),
+        ("audio/soft/b.ogg", "b"),
+        ("audio/hard/c.ogg", "c"),
+        (
+            "data/markers/{}/scene.json".format(GAME_ID),
+            _json.dumps({"replay": "Run 1", "pools": [{"igroup": "Impacts", "ilevel_id": 1}]}),
+        ),
+    ]:
+        _write(root, rel, content)
+
+    assets = _imp._cue_replay_assets(root, GAME_ID, ["Run 1"])
+    flat = [f for fs in assets.values() for f in fs]
+    zip_path = str(tmp_path / "imp.zip")
+    _imp._cue_build_import_zip(root, GAME_ID, "Pack", "author", "d", flat, zip_path)
+
+    out = str(tmp_path / "out")
+    _imp._cue_extract_import_zip(zip_path, out)
+
+    for rel in flat:
+        assert _read(os.path.join(out, rel)) == _read(os.path.join(root, rel))
+    assert _walk_rel(out) == set(flat) | {CUE_IMPORT_MANIFEST_NAME}

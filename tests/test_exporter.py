@@ -2,6 +2,7 @@
 # Tests for cue_lib.sharing.exporter -- CueExportManager: category selection state,
 # selected_contents, and zip export with collision-safe filenames.
 
+import hashlib
 import os
 import zipfile
 
@@ -9,7 +10,13 @@ import pytest
 
 import cue_lib.sharing.exporter as _exporter
 
-from cue_lib.constants import CUE_IMPORT_MANIFEST_NAME, CueExportFileTypes, CueExportScope, CueImportCategory
+from cue_lib.constants import (
+    CUE_HASH_TRUNC_LEN,
+    CUE_IMPORT_MANIFEST_NAME,
+    CueExportFileTypes,
+    CueExportScope,
+    CueImportCategory,
+)
 from cue_lib.sharing.exporter import CueExportManager
 
 GAME_ID = "test_game"
@@ -798,3 +805,75 @@ def test_export_excludes_external_refs_and_warns(cue_env):
     assert "audio/g1/boom.ogg" in names
     assert not any("E:/SFX" in n or n.startswith("audio/e:") for n in names)
     assert mgr.export_warning.startswith("1 file(s) are in external folders")
+
+
+# intensity groups -- a hooked pool ships the WHOLE group (JSON + audio)
+# ---------------------------------------------------------------------------
+
+
+def _igroup_rel(name):
+    digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:CUE_HASH_TRUNC_LEN]
+    return "data/presets/intensity/{}_{}.json".format(name, digest)
+
+
+def test_export_ships_intensity_group_content(cue_env):
+    # A whole-game export ships the igroup JSON (Presets) and the audio files
+    # its level refs point at (SFX).
+    name = "Impacts"
+    _seed(
+        cue_env,
+        [
+            (_igroup_rel(name), '{"_key": "Impacts", "levels": [{"id": 1, "files": ["soft/"]}]}'),
+            ("audio/soft/a.ogg", "a"),
+            ("audio/soft/b.ogg", "b"),
+        ],
+    )
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    mgr.name = "FullI"
+    assert mgr.counts[CueImportCategory.PRESETS] == 1
+
+    _export_and_join(mgr)
+
+    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "FullI.zip")) as zf:
+        names = set(zf.namelist())
+    assert _igroup_rel(name) in names
+    assert "audio/soft/a.ogg" in names
+    assert "audio/soft/b.ogg" in names
+
+
+def test_export_replay_packs_intensity_group(cue_env):
+    # A hooked pool: replay export must detect the igroup and pull the WHOLE
+    # group (JSON + every level's referenced files, not just the pinned level).
+    name = "Impacts"
+    _seed(
+        cue_env,
+        [
+            (
+                _igroup_rel(name),
+                '{"_key": "Impacts", "levels": [{"id": 1, "files": ["soft/"]}, '
+                '{"id": 2, "files": ["hard/c.ogg"]}], "next_ilevel_id": 3}',
+            ),
+            ("audio/soft/a.ogg", "a"),
+            ("audio/soft/b.ogg", "b"),
+            ("audio/hard/c.ogg", "c"),
+            (
+                "data/markers/{}/r1.json".format(GAME_ID),
+                '{"replay": "Run 1", "pools": [{"igroup": "Impacts", "ilevel_id": 1}]}',
+            ),
+        ],
+    )
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+    mgr.name = "Intensity"
+
+    _export_and_join(mgr)
+
+    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Intensity.zip")) as zf:
+        names = set(zf.namelist())
+    assert "data/markers/{}/r1.json".format(GAME_ID) in names
+    assert _igroup_rel(name) in names
+    assert "audio/soft/a.ogg" in names
+    assert "audio/soft/b.ogg" in names
+    assert "audio/hard/c.ogg" in names

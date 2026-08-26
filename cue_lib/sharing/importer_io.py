@@ -24,6 +24,7 @@ from cue_lib.constants import (
     CUE_MUSIC_USER_TAG,
     CUE_IMPORT_CATEGORY_ORDER,
     CUE_IMPORT_MANIFEST_NAME,
+    CUE_INTENSITY_PRESET_TYPE,
     CUE_VID_KEY_PREFIX,
     CueImportCategory,
     CueImportMatch,
@@ -390,6 +391,8 @@ def _cue_replay_assets_full(root, game_id, replay_labels):
             if pool.get("preset"):
                 for rel in _cue_preset_files(root, pool["preset"]):
                     _cue_add_asset(result, CueImportCategory.PRESETS, rel)
+            if pool.get("igroup"):
+                _cue_igroup_assets(root, result, pool["igroup"])
 
         for ref in entry.get("files") or []:
             _cue_add_referenced_asset(root, result, _cue_audio_rel(ref))
@@ -511,20 +514,53 @@ def _cue_add_referenced_asset(root, result, ref):
         _cue_add_asset(result, cat, ref)
 
 
+def _cue_preset_rel(subdir, preset_name):
+    # type: (str, str) -> str
+    """Rel path of a stored preset file named preset_name -- mirrors
+    db._preset_path's on-disk naming ({safe}_{sha1:8}.json) so every consumer
+    resolves the same file the db writes."""
+    safe = preset_name.replace("/", "_").replace("\\", "_")
+    digest = _hashlib.sha1(preset_name.encode("utf-8")).hexdigest()[:CUE_HASH_TRUNC_LEN]
+    return "data/presets/{}/{}_{}.json".format(subdir, safe, digest)
+
+
 def _cue_preset_files(root, preset_name):
     # type: (str, str) -> List[str]
     """Rel path(s) of the stored preset file named preset_name, across the
     audio/video/music preset dirs.  Mirrors db._preset_path's on-disk naming
     ({safe}_{sha1:8}.json) so referenced presets resolve exactly."""
-    safe = preset_name.replace("/", "_").replace("\\", "_")
-    digest = _hashlib.sha1(preset_name.encode("utf-8")).hexdigest()[:CUE_HASH_TRUNC_LEN]
-    fname = "{}_{}.json".format(safe, digest)
     found = []
     for sub in ("audio", "video", "music"):
-        rel = "data/presets/{}/{}".format(sub, fname)
+        rel = _cue_preset_rel(sub, preset_name)
         if os.path.isfile(os.path.join(root, rel.replace("/", os.sep))):
             found.append(rel)
     return found
+
+
+def _cue_igroup_assets(root, result, igroup_name):
+    # type: (str, Dict[int, List[str]], str) -> None
+    """Add the intensity group named igroup_name and every file it references.
+
+    A pool hooks an igroup by name (store-time the pool's ``files`` is cleared
+    and its ``igroup``/``ilevel_id`` set).  The group is a shared preset JSON
+    under data/presets/intensity/; each level's folders/direct refs are
+    audio-dir-relative, the same shape as a marker pool's ``files``.  The WHOLE
+    group travels -- every level, not just the pinned one -- so the recipient
+    can re-run speed banding for the level a playback lands on.  A group that
+    has been deleted (no JSON on disk) is skipped: nothing to bring."""
+    rel = _cue_preset_rel(CUE_INTENSITY_PRESET_TYPE, igroup_name)
+    fpath = _safe_extract_path(root, rel)
+    if fpath is None or not os.path.isfile(fpath):
+        return
+    _cue_add_asset(result, CueImportCategory.PRESETS, rel)
+    data = _cue_read_json_file(fpath)
+    if not isinstance(data, dict):
+        return
+    for level in data.get("levels") or []:
+        if not isinstance(level, dict):
+            continue
+        for ref in level.get("files") or []:
+            _cue_add_referenced_asset(root, result, _cue_audio_rel(ref))
 
 
 def _cue_read_json_file(path):
