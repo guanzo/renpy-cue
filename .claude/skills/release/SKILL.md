@@ -59,7 +59,7 @@ changelog, no mod asset, no new tag.
 
    ```bash
    source .env   # sets CUE_SFX_SOURCE_DIR
-   python3 bin/build_sfx_asset.py "$CUE_SFX_SOURCE_DIR" --out "/tmp/renpy_cue_sfx_<ver>.zip"
+   python3 bin/build_sfx_asset.py "$CUE_SFX_SOURCE_DIR" --out "/tmp/cue_sfx.zip"
    ```
    Verify `test_bad` is not in the zip.
 
@@ -78,7 +78,11 @@ changelog, no mod asset, no new tag.
     - Swap in the categorized notes:
       `gh release edit v<ver> --notes-file <notes-file>`
     - Upload the SFX asset:
-      `gh release upload v<ver> /tmp/renpy_cue_sfx_<ver>.zip --clobber`
+      `gh release upload v<ver> /tmp/cue_sfx.zip --clobber`
+    - Publish the release (CI created it as a draft; drafts are invisible to
+      `releases/latest`, so the stable SFX link never 404s before the pack is
+      attached):
+      `gh release edit v<ver> --draft=false`
 
 11. **Report.** Print the release URL and confirm both assets are attached.
 
@@ -101,7 +105,7 @@ Standalone: never touches the full-release steps above.
 3. **Build the pack.**
 
    ```bash
-   python3 bin/build_sfx_asset.py "$CUE_SFX_SOURCE_DIR" --out "/tmp/renpy_cue_sfx_<ver>.zip"
+   python3 bin/build_sfx_asset.py "$CUE_SFX_SOURCE_DIR" --out "/tmp/cue_sfx.zip"
    ```
 
 4. **Verify the zip** has the category folders and no `test_bad`.
@@ -115,7 +119,7 @@ Standalone: never touches the full-release steps above.
 7. **Upload** (in-place overwrite of the existing pack):
 
    ```bash
-   gh release upload <tag> /tmp/renpy_cue_sfx_<ver>.zip --clobber
+   gh release upload <tag> /tmp/cue_sfx.zip --clobber
    ```
 
 8. **Report.** Print the release URL and confirm the SFX asset is attached.
@@ -125,5 +129,11 @@ Standalone: never touches the full-release steps above.
 - The SFX asset comes from the local machine (its source is not in git), so the
   skill uploads it after CI creates the release. The mod zip is CI-built.
 - First-release detection: `git tag --list 'v*'` is empty, or no prior release.
-- `/release sfx` overwrites `renpy_cue_sfx_<ver>.zip` in place — users must
+- `/release sfx` overwrites `cue_sfx.zip` in place — users must
   re-download the pack from the same release page to pick up the change.
+- The SFX asset name is deliberately versionless so the README link
+  `https://github.com/guanzo/renpy-cue/releases/latest/download/cue_sfx.zip`
+  stays stable across releases. `releases/latest` resolves only to published
+  releases, not drafts. The release workflow creates each release as a draft
+  and the full flow publishes it after the SFX upload, so the link never
+  resolves to a release missing the pack.

@@ -40,7 +40,7 @@ def main():
     if not os.path.isdir(args.src):
         sys.exit(f"source dir not found: {args.src}")
     if args.out is None:
-        args.out = "renpy_cue_sfx.zip"
+        args.out = "cue_sfx.zip"
     print(f"built {build_zip(args.src, args.out, set(args.exclude))} (excluded {', '.join(args.exclude)})")
 
 

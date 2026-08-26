@@ -1,43 +1,56 @@
+<p align="center">
+  <img src="./cue_lib/images/branding/cue-wordmark.png" alt="Ren'Py Cue" width="200">
+</p>
+
 # Ren'Py Cue
 
-Ren'Py Cue lets you add your own sound effects, music, and video effects to [Ren'Py](https://www.renpy.org/) visual novels while you play — without editing the game's scripts.
+Ren'Py Cue lets you add your own sound effects, music, and video effects to [Ren'Py](https://www.renpy.org/) visual novels while you play, without editing the game's scripts.
 
-Open Cue over the game, add sounds to the current image, dialogue, video, or other trigger, and Cue remembers your setup and plays them automatically when that trigger happens again.
 
-<sub>Cue was built with AVNs in mind, and the official SFX pack contains NSFW audio. Cue itself works the same on any Ren'Py game, and you can load your own SFX instead if you'd rather keep things SFW.</sub>
+**Need help, want to share your setup, or just hang out? [Join the Cue Discord](https://discord.gg/kAVtFGcQYm)**
+
+## Contents
+
+* [Getting Started](#getting-started)
+* [How Cue Works](#how-cue-works)
+* [What You Can Do](#what-you-can-do)
+* [Video Speed & Effects](#video-speed--effects)
+* [Intensity Groups](#intensity-groups)
+* [Using Cue With Multiple Games](#using-cue-with-multiple-games)
+* [Settings and Your Data](#settings-and-your-data)
+* [Requirements](#requirements)
+* [For Developers](#for-developers)
 
 ## Getting Started
 
 ### 1. Install Cue
 
-1. Download and extract Cue.
-2. Open the game's `game` folder.
-3. Copy the `renpy_cue` folder into it.
+1. Download and extract the [latest release](https://github.com/guanzo/renpy-cue/releases/latest).
+2. Drop the `renpy_cue` folder into the game's `game` folder.
 
 ```text
 Your Game/
-└── game/
-    └── renpy_cue/
-        └── cue_lib/
+└─ game/
+   └─ renpy_cue/
 ```
 
 ### 2. Add some sounds
 
-Cue needs sound files before it can play anything. Download the Cue SFX pack and extract it. Then open Cue, go to **SFX Library**, and click **Open SFX Folder**. Copy the extracted audio files into the folder that opens.
+Cue needs sound files before it can play anything. You can start with either of these:
+
+- **[Cue NSFW SFX Pack](https://github.com/guanzo/renpy-cue/releases/latest/download/cue_sfx.zip)**: A curated collection selected for Cue.
+- **[OPENNSFW](https://opennsfw.carrd.co/)**: High quality SFX + Voice Pack. Contains Free and Paid versions.
+
+Download and extract the pack you want to use. Then run the game, open Cue, go to **SFX Library**, and click **Open SFX Folder**. Copy the extracted audio files into the folder that opens.
+
+Cue was built with AVNs in mind, but Cue itself works the same on any Ren'Py game.
 
 ### 3. Add your first sound effect
 
-1. Play until you reach an image where you want a sound.
+1. Start a replay and play until you reach an image where you want a sound.
 2. Press `` ` `` (backtick) or `Shift+Alt+E` to open Cue.
-3. Find a sound in **SFX Library**.
-4. Click  the **+** button.
-5. If the current image doesn't have a pool yet, Cue creates one automatically.
-
-**[Screenshot: the game with the Cue overlay open, sitting on an image.]** Annotate ① the Image SFX pool / active pool, and ② the SFX Library panel.
-
-### 4. Keep playing
-
-Close Cue and continue playing. When the same image appears again, Cue plays sounds from its pool automatically.
+3. Find a sound in **SFX Library** and click the **+** button.
+4. The next time this image appears on screen, your chosen sound will play.
 
 ## How Cue Works
 
@@ -45,30 +58,42 @@ Cue attaches **SFX pools** to triggers in a game.
 
 A pool is a collection of sound files and folders. When its trigger occurs, Cue plays from that pool. A trigger can be:
 
-- an image
-- a dialogue line
-- a video timestamp
-- a repeating loop
-- a screen shake
+* an image
+* a dialogue line
+* a video timestamp
+* a repeating loop
+* a screen shake
 
-A trigger can have more than one pool. The **active pool** is the one you're currently editing and the one new sounds are added to.
+A trigger can have more than one pool.
 
-Pools can also overlap when they play — more than one sound can sound at once, and each pool can be set to overlap freely, cross-fade, or wait for a quiet moment before playing. This is an advanced setting you can leave alone until you need it.
+Pools can overlap when they play. More than one sound can play at once, and each pool can be set to overlap freely, cross-fade, or wait for a quiet moment before playing. This is an advanced setting you can leave alone until you need it.
+
+<b>You can add individual files to a pool, but folders are recommended.</b> Any changes you make to a folder's contents are automatically reflected in the pool, so you can add or remove files later without updating the pool itself.
+
+Some games simulate video using sequences of images rather than actual video files. These sequences cannot currently be used as triggers, but support is planned for a future version.
 
 ## What You Can Do
 
-- **Add sound effects** to images, dialogue, videos, loops, and screen shakes.
-- **Build reusable SFX pools** from your own files and folders, and save common setups as **presets**.
-- **Customize replay music** with your own music or the game's existing tracks.
-- **Add sounds to videos** with draggable timeline markers.
-- **Create video speed variants** and switch or sequence between speeds while playing.
-- **Reuse your setup across games** with shared audio, music, presets, and configuration.
+* **Add sound effects** to triggers.
+* **Build reusable SFX pools** from your own files and folders, and save common setups as **presets**.
+* **Customize replay music** with your own music or the game's existing tracks.
+* **Create video speed variants** and switch or sequence between speeds while playing.
+* **Reuse your setup across games** with shared audio, music, presets, and configuration.
+* **Export and import** your Cue setup to share it with others or move it to different machines.
 
 ## Video Speed & Effects
 
 **Requires ffmpeg.**
 
-Cue can pre-render slow-motion or fast-motion copies of any movie, then let you switch speeds while playing — including multi-speed sequences and procedural **auto-speed** rhythms (roller_coaster, build_up, edge, tease, and more) that vary each playthrough.
+Cue can create slow-motion or fast-motion copies of any movie, then let you switch speeds while playing. You can also create multi-speed sequences and use procedural **auto-speed** rhythms such as `roller_coaster`, `build_up`, `edge`, and `tease` that vary each playthrough.
+
+You only need to place Video SFX markers once, on the original video. When you switch to a speed variant, Cue automatically scales every marker's timestamp to match, so there's no need to re-time or re-place anything for each speed.
+
+## Intensity Groups
+
+Intensity Groups tie your sound effects to video speed. As a video speeds up or slows down, Cue automatically swaps in sounds that match, so slower speeds can use softer, sparser sounds while faster speeds use louder and more frequent ones.
+
+It's the feature that brings everything together: video SFX, loop SFX, loop SFX frequency, and volume can all react alongside video speed instead of feeling like separate effects layered on top of each other.
 
 ## Using Cue With Multiple Games
 
@@ -83,31 +108,26 @@ If you have Cue installed in several games and want one copy of the code to serv
 <game2>/game/renpy_cue/cue_lib  ->  <your shared copy of cue_lib>
 ```
 
-An update to the shared copy then propagates to every game at once. On Windows, use a directory junction (`mklink /J …`). Your **data** — markers, presets, audio, music — is already shared machine-wide through the data directory below, so only the code needs the symlink.
+An update to the shared copy then propagates to every game at once. On Windows, use a directory junction (`mklink /J …`).
 
-## Settings and Your Data
+Your **data** (markers, presets, audio, music, and other configuration) is already shared machine-wide through Cue's data directory, so only the code needs to be shared.
 
-Press `` ` `` (backtick) or `Shift+Alt+E` to open the Cue overlay. **Settings** is where you can:
+## Cue Data Folder
 
-- relocate the **Cue Data Directory**;
-- view, rebind, or reset every hotkey.
-
-Cue keeps your SFX and music, pools and markers, presets, and generated video variants in one shared data folder, used by every game where Cue is installed. 
-
-Cue also keeps **automatic hourly and manual backups** as zip files, and supports **undo/redo** (up to 20 steps) and **copy/paste** of a pool's configuration, so you can experiment without losing your setup.
+Cue keeps your SFX and music, pools and markers, presets, and generated video variants in one shared data folder used by every game where Cue is installed.
 
 ### Default locations
 
-- **Windows**: `%APPDATA%\renpy_cue`
-- **macOS**: `~/Library/Application Support/renpy_cue`
-- **Linux**: `$XDG_DATA_HOME/renpy_cue`, or `~/.local/share/renpy_cue`
+* **Windows:** `%APPDATA%\renpy_cue`
+* **macOS:** `~/Library/Application Support/renpy_cue`
+* **Linux:** `$XDG_DATA_HOME/renpy_cue`, or `~/.local/share/renpy_cue`
 
-You can also override the location with the `RENPY_CUE_DIR` environment variable.
+You can change the data folder location in Cue's settings, or override it with the `RENPY_CUE_DIR` environment variable.
 
 ## Requirements
 
-- **Ren'Py 7.4 or newer** — works on both the 7.x (Python 2) and 8.x (Python 3) engine generations.
-- **ffmpeg 5 or newer** — only required for creating video speed variants. Must be on `PATH`, or pointed to with the `RENPY_CUE_FFMPEG` / `RENPY_CUE_FFPROBE` environment variables.
+* **Ren'Py 7.4 or newer:** works on both the 7.x (Python 2) and 8.x (Python 3) engine generations.
+* **ffmpeg 5 or newer:** only required for creating video speed variants. It must be on `PATH`, or pointed to with the `RENPY_CUE_FFMPEG` and `RENPY_CUE_FFPROBE` environment variables.
 
 ## For Developers
 
@@ -121,15 +141,15 @@ You can also override the location with the `RENPY_CUE_DIR` environment variable
 
 ### Compatibility
 
-Code must work on **Ren'Py 7.4.x and up**, which means both the 7.x (Python 2) and 8.x (Python 3) engine generations. The 7.x constraint forbids f-strings, type hints, and other Python 3-only syntax in `.py` files. The full rules are in `CLAUDE.md`.
+Code must work on **Ren'Py 7.4.x and up** — both the 7.x (Python 2) and 8.x (Python 3) engine generations. The 7.x constraint forbids f-strings, type hints, and other Python 3-only syntax in `.py` files. Full rules are in `CLAUDE.md`.
 
 ### Tooling
 
 - `bin/lint.sh` — runs pyright on `cue_lib/` plus a 120-character line-length check. Prints `CLEAN` or exits nonzero.
-- `bin/test.sh` — `poetry run pytest tests/ -q` (headless unit tests against the mock runtime).
-- `bin/test_harness.sh <sdk>/renpy.sh` — runs the in-engine testcases harness against a real Ren'Py SDK (screen/engine code that pytest's mock can't drive). Picks `testcases_modern.rpy` (8.x) or `testcases_legacy.rpy` (7.x) based on the SDK version.
+- `bin/test.sh` — `poetry run pytest tests/ -q`, the headless unit suite against the mock runtime.
+- `bin/test_harness.sh <sdk>/renpy.sh` — runs the in-engine testcase harness against a real Ren'Py SDK, for screen/engine code the pytest mock can't drive. Picks `testcases_modern.rpy` (8.x) or `testcases_legacy.rpy` (7.x) based on the SDK version.
 
-CI runs the harness against pinned Ren'Py **7.4.10** and **8.5.3** SDKs, plus lint and pytest on every push/PR.
+CI runs the harness against pinned Ren'Py **7.4.10** and **8.5.3** SDKs, plus lint and pytest, on every push and pull request.
 
 ### Local Setup
 
@@ -143,4 +163,4 @@ bin/test.sh
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

@@ -79,4 +79,5 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --title "Ren'Py Cue $GITHUB_REF_NAME" \
             --generate-notes \
+            --draft \
             "renpy_cue_${GITHUB_REF_NAME#v}.zip"
