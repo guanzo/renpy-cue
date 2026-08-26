@@ -395,6 +395,7 @@ def _cue_filter_tree(tree, query):
                             "name": item["name"],
                             "children": item.get("children", []) if folder_matches else children,
                             "has_files": item.get("has_files", False),
+                            "abs_root": item.get("abs_root"),
                         }
                     )
         return result

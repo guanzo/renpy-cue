@@ -148,7 +148,7 @@ CUE_MUSIC_GAME_TAG = "g:"
 # Tag for stored external-file refs; the payload is the absolute path
 # ("e:E:/Music/artist/song.ogg"), so external refs resolve independent of the
 # folder list.  Shared by music.py, music_tree.py, and sfx_manager.py.
-CUE_EXT_TAG = "e:"
+CUE_EXTERNAL_TAG = "e:"
 
 # Display-only synthetic root for built-in SFX files in the SFX Library tree,
 # so the audio dir renders like an external folder (sfx_manager.py).

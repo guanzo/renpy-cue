@@ -19,7 +19,7 @@ from renpy.store import persistent
 from cue_lib.audio.music import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
 from cue_lib.audio.music_tree import CueMusicTree
 from cue_lib.constants import (
-    CUE_EXT_TAG,
+    CUE_EXTERNAL_TAG,
     CUE_GAME_MUSIC_FOLDER,
     CUE_MUSIC_PREFIX,
     CUE_MY_MUSIC_FOLDER,
@@ -40,7 +40,7 @@ def _clean_persistent(monkeypatch):
 def _fake_split_tag(ref):
     # type: (str) -> tuple
     """Mirror of CueMusicManager._split_ref_tag for the fake manager."""
-    for tag in (CUE_MUSIC_USER_TAG, CUE_MUSIC_GAME_TAG, CUE_EXT_TAG):
+    for tag in (CUE_MUSIC_USER_TAG, CUE_MUSIC_GAME_TAG, CUE_EXTERNAL_TAG):
         if ref.startswith(tag):
             return tag, ref[len(tag) :]
     return None, ref
@@ -531,7 +531,7 @@ def test_ref_display_path_external(tmp_path):
     (d1 / "artist").mkdir(parents=True)
     (d1 / "artist" / "song.ogg").write_bytes(b"x")
     lib = _scan_lib(tmp_path, [d1])
-    ref = CUE_EXT_TAG + lib.external_sources[0]["files"][0]
+    ref = CUE_EXTERNAL_TAG + lib.external_sources[0]["files"][0]
     assert lib.ref_display_path(ref) == "ExtA/artist/song.ogg"
 
 

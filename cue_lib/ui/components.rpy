@@ -35,16 +35,16 @@ init -900 python:
             # of a list attribute instead of a scalar field (Settings folder
             # rows).  FieldInputValue can't address "folders[i]" via setattr,
             # so the list case routes get_text/set_text through the element.
-            _lb = self._field.rfind("[")
-            if _lb == -1:
+            _attr, _sep, _rest = self._field.partition("[")
+            if not _sep:
                 self._is_list = False
                 self._list = None
                 self._index = 0
                 FieldInputValue.__init__(self, _obj, self._field, default=default)
             else:
                 self._is_list = True
-                self._list = getattr(_obj, self._field[:_lb])
-                self._index = int(self._field[_lb + 1 : self._field.rfind("]")])
+                self._list = getattr(_obj, _attr)
+                self._index = int(_rest.rstrip("]"))
             self.enter_action = enter_action
 
         def get_text(self):
@@ -125,14 +125,12 @@ init -900 python:
         setattr(_pair[0], _pair[1], _clip)
         renpy.restart_interaction()
 
-    def _cue_clear_list_element(value_path):
+    def _cue_clear_field_value(field_name):
         # type: (str) -> None
-        """Empty a list-element field ("settings.folders[i]").  The clear
-        action for Settings folder rows -- _CueFieldValue binds the element
-        and set_text writes it (restart included)."""
-        _CueFieldValue(value_path).set_text("")
-
-
+        """Empty the field addressed by a dotted path (a scalar attribute or
+        a list-element path like "settings.folders[i]").  A Function action,
+        not SetField, because a list element has no settable attribute."""
+        _CueFieldValue(field_name).set_text("")
 
 # Vertical divider: thin line for visual separation between controls.
 screen cue_v_divider(height=14, width=2, color=None):
@@ -384,15 +382,13 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=200,
     else:
         $ _enter = _exit_edit
 
-    $ _pair = _cue_split_dotted_path(field_name)
-    $ _obj = _pair[0]
-    $ _field = _pair[1]
-    $ _has_text = bool(getattr(_obj, _field, ""))
     if clear_action is not None:
         $ _clear_core = clear_action
     else:
-        # Default clear: empty the field value.
-        $ _clear_core = SetField(_obj, _field, "")
+        # Default clear: empty the field value.  A Function, not SetField,
+        # because a list-element path ("settings.folders[i]") has no settable
+        # attribute -- _CueFieldValue routes both through the right setter.
+        $ _clear_core = Function(_cue_clear_field_value, field_name)
     $ _clear = [_clear_core, _exit_edit]
 
 
@@ -417,7 +413,7 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=200,
             # Enter is handled by the value's enter_action, not a key.
             frame:
                 style "empty"
-                background _cue_color_bg_input
+                background _cue_color_bg_input_active
                 padding (6, 0)
                 xsize xsize
                 yminimum ysize
@@ -519,7 +515,7 @@ screen cue_tree_rows(rows):
 
     default _hovered_key = None
     vbox:
-        spacing 2
+        spacing 4
         for _row in rows:
             hbox:
                 spacing 2
@@ -540,6 +536,7 @@ screen cue_tree_rows(rows):
                         use cue_txt_button(
                             _row["label"],
                             _row["toggle"],
+                            tt=_row.get("tt"),
                             hovered=SetLocalVariable("_hovered_key", _row["key"]),
                             unhovered=SetLocalVariable("_hovered_key", None))
                         for _hb in _row.get("hover_buttons", []):

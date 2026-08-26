@@ -151,16 +151,17 @@ class CueTreeRowsBuilder(object):
         rows = []
         for item in self._tree.visible_tree:
             if item["type"] == "folder":
-                rows.append(
-                    {
-                        "key": "tree:" + item["full_path"],
-                        "type": "folder",
-                        "label": item["name"],
-                        "depth": item["depth"],
-                        "buttons": self.row_buttons(item, *state),
-                        "toggle": Function(self._tree.toggle_folder, item["full_path"]),
-                    }
-                )
+                row = {
+                    "key": "tree:" + item["full_path"],
+                    "type": "folder",
+                    "label": item["name"],
+                    "depth": item["depth"],
+                    "buttons": self.row_buttons(item, *state),
+                    "toggle": Function(self._tree.toggle_folder, item["full_path"]),
+                }
+                if item.get("abs_root"):
+                    row["tt"] = item["abs_root"]
+                rows.append(row)
             else:
                 rows.append(
                     {

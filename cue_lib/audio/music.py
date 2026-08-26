@@ -13,7 +13,7 @@ from cue_lib.state import _cue
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.audio.music_tree import CueMusicTree
 from cue_lib.constants import (
-    CUE_EXT_TAG,
+    CUE_EXTERNAL_TAG,
     CUE_GAME_MUSIC_FOLDER,
     CUE_MUSIC_GAME_TAG,
     CUE_MUSIC_PREFIX,
@@ -530,11 +530,11 @@ class CueMusicManager(object):
             sources = [self.library.user_files]
         elif tag == CUE_MUSIC_GAME_TAG:
             sources = [self.library.game_files]
-        elif tag == CUE_EXT_TAG:
+        elif tag == CUE_EXTERNAL_TAG:
             # External files hold absolute payloads; re-tag the expanded paths
             # so they resolve through _resolve_music_path's e: branch.
             for f in _cue_expand_folder_ref(self.library.external_files, ref):
-                expanded = CUE_EXT_TAG + f
+                expanded = CUE_EXTERNAL_TAG + f
                 if expanded not in result:
                     result.append(expanded)
             return
@@ -553,8 +553,8 @@ class CueMusicManager(object):
             return CUE_MUSIC_USER_TAG, ref[len(CUE_MUSIC_USER_TAG) :]
         if ref.startswith(CUE_MUSIC_GAME_TAG):
             return CUE_MUSIC_GAME_TAG, ref[len(CUE_MUSIC_GAME_TAG) :]
-        if ref.startswith(CUE_EXT_TAG):
-            return CUE_EXT_TAG, ref[len(CUE_EXT_TAG) :]
+        if ref.startswith(CUE_EXTERNAL_TAG):
+            return CUE_EXTERNAL_TAG, ref[len(CUE_EXTERNAL_TAG) :]
         return None, ref
 
     def ref_path(self, ref):
@@ -578,7 +578,7 @@ class CueMusicManager(object):
             return self._paths.music_dir + path
         if tag == CUE_MUSIC_GAME_TAG:
             return path
-        if tag == CUE_EXT_TAG:
+        if tag == CUE_EXTERNAL_TAG:
             # External payload is already absolute.
             return path
         # Legacy untagged entry -- probe the disk to tell user from game.
@@ -652,7 +652,7 @@ class CueMusicManager(object):
         """Add an external-folder song (already absolute) to the trigger.
 
         Stored as an e: ref so it survives the external list changing order."""
-        self._add_ref_to_trigger(CUE_EXT_TAG + abs_path, record)
+        self._add_ref_to_trigger(CUE_EXTERNAL_TAG + abs_path, record)
 
     @_cue_ui_refresh
     def add_external_folder_to_trigger(self, abs_folder, record=True):
@@ -660,7 +660,7 @@ class CueMusicManager(object):
         """Add a whole external-folder subfolder (a trailing-'/' e: ref).
 
         record=False (recently-used rows) suppresses the use feed."""
-        self._add_ref_to_trigger(CUE_EXT_TAG + abs_folder.rstrip("/") + "/", record)
+        self._add_ref_to_trigger(CUE_EXTERNAL_TAG + abs_folder.rstrip("/") + "/", record)
 
     def _add_ref_to_trigger(self, ref, record=True):
         # type: (str, bool) -> None

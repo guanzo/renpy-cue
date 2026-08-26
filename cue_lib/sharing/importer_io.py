@@ -18,7 +18,7 @@ import zipfile as _zipfile
 from cue_lib.backup import CUE_BAK_DIR, _safe_extract_path
 from cue_lib.constants import (
     CUE_AUDIO_EXTS,
-    CUE_EXT_TAG,
+    CUE_EXTERNAL_TAG,
     CUE_HASH_TRUNC_LEN,
     CUE_MUSIC_GAME_TAG,
     CUE_MUSIC_PREFIX,
@@ -384,7 +384,7 @@ def _cue_replay_assets_full(root, game_id, replay_labels):
             if not isinstance(pool, dict):
                 continue
             for ref in pool.get("files") or []:
-                if ref.startswith(CUE_EXT_TAG):
+                if ref.startswith(CUE_EXTERNAL_TAG):
                     external_refs.add(ref)
                 else:
                     _cue_add_referenced_asset(root, result, _cue_audio_rel(ref))
@@ -396,7 +396,7 @@ def _cue_replay_assets_full(root, game_id, replay_labels):
             _cue_add_referenced_asset(root, result, _cue_audio_rel(ref))
 
         for song in entry.get("music") or []:
-            if hasattr(song, "startswith") and song.startswith(CUE_EXT_TAG):
+            if hasattr(song, "startswith") and song.startswith(CUE_EXTERNAL_TAG):
                 external_refs.add(song)
             else:
                 rel = _cue_music_rel(song)

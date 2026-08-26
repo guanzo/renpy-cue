@@ -10,7 +10,7 @@ import pytest
 import cue_lib.sharing.exporter as _exporter
 
 from cue_lib.constants import (
-    CUE_EXT_TAG,
+    CUE_EXTERNAL_TAG,
     CUE_IMPORT_MANIFEST_NAME,
     CueExportFileTypes,
     CueExportScope,
@@ -698,7 +698,7 @@ def test_cue_external_warning_phrasing():
 
 
 def test_export_warning_counts_external_sfx_refs(cue_env):
-    ext = CUE_EXT_TAG + "E:/SFX/g1/drip.ogg"
+    ext = CUE_EXTERNAL_TAG + "E:/SFX/g1/drip.ogg"
     _seed(
         cue_env,
         [
@@ -726,7 +726,7 @@ def test_export_warning_counts_external_sfx_refs(cue_env):
 
 
 def test_export_warning_counts_external_music_song(cue_env):
-    ext = CUE_EXT_TAG + "E:/Music/artist/a.ogg"
+    ext = CUE_EXTERNAL_TAG + "E:/Music/artist/a.ogg"
     _seed(
         cue_env,
         [("data/markers/{}/a.json".format(GAME_ID), '{{"replay": "Run 1", "pools": [], "music": ["{}"]}}'.format(ext))],
@@ -758,7 +758,7 @@ def test_export_warning_empty_when_no_external_refs(cue_env):
 
 
 def test_export_warning_cleared_in_whole_game_scope(cue_env):
-    ext = CUE_EXT_TAG + "E:/SFX/g1/drip.ogg"
+    ext = CUE_EXTERNAL_TAG + "E:/SFX/g1/drip.ogg"
     _seed(
         cue_env,
         [
@@ -781,7 +781,7 @@ def test_export_warning_cleared_in_whole_game_scope(cue_env):
 
 
 def test_export_excludes_external_refs_and_warns(cue_env):
-    ext = CUE_EXT_TAG + "E:/SFX/g1/drip.ogg"
+    ext = CUE_EXTERNAL_TAG + "E:/SFX/g1/drip.ogg"
     _seed(
         cue_env,
         [

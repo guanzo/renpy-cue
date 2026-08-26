@@ -25,7 +25,7 @@ from cue_lib.audio.file_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
 from cue_lib.audio.music_tree import CueMusicTree
 from cue_lib.audio.sfx_manager import CueSfxLibraryTree, CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name
 from cue_lib.constants import (
-    CUE_EXT_TAG,
+    CUE_EXTERNAL_TAG,
     CUE_GAME_MUSIC_FOLDER,
     CUE_HELP_SHIFT_SKIP_DELETE,
     CUE_MY_MUSIC_FOLDER,
@@ -495,13 +495,13 @@ def test_sfx_scan_builds_per_source_and_merged(sfx, tmp_path):
     assert sfx.external_files == [ext1 + "/sub/y.mp3", ext1 + "/x.ogg", ext2 + "/w.wav"]
     # Flat ref list: built-in audio-relative + external e: tagged, sorted (the
     # bisect-based folder expansion depends on the sort).
-    assert sfx.files == sorted(["a.ogg", "g1/drip.ogg"] + [CUE_EXT_TAG + f for f in sfx.external_files])
+    assert sfx.files == sorted(["a.ogg", "g1/drip.ogg"] + [CUE_EXTERNAL_TAG + f for f in sfx.external_files])
     # Merged display tree: synthetic root first, then external sources.
     assert [n["name"] for n in sfx.tree] == [CUE_SFX_FOLDER, "ExtA/", "ExtB/"]
     assert sfx.builtin_scan_error == ""
     # _file_index keys refs, so built-in AND external rows get valid indices.
     assert sfx._file_index["g1/drip.ogg"] >= 0
-    assert sfx._file_index[CUE_EXT_TAG + ext1 + "/x.ogg"] >= 0
+    assert sfx._file_index[CUE_EXTERNAL_TAG + ext1 + "/x.ogg"] >= 0
 
 
 def test_sfx_scan_missing_external_folder_keeps_warning(sfx, tmp_path):
@@ -527,8 +527,8 @@ def test_sfx_external_label_disambiguated(sfx):
 def test_sfx_ref_from_display(sfx):
     sfx.external_sources = [{"label": "ExtA", "abs_root": "E:/SFX/A", "tree": [], "files": [], "scan_error": ""}]
     assert sfx.ref_from_display("SFX Folder/g1/drip.ogg") == "g1/drip.ogg"
-    assert sfx.ref_from_display("ExtA/g1/drip.ogg") == CUE_EXT_TAG + "E:/SFX/A/g1/drip.ogg"
-    assert sfx.ref_from_display("ExtA/g1/") == CUE_EXT_TAG + "E:/SFX/A/g1/"
+    assert sfx.ref_from_display("ExtA/g1/drip.ogg") == CUE_EXTERNAL_TAG + "E:/SFX/A/g1/drip.ogg"
+    assert sfx.ref_from_display("ExtA/g1/") == CUE_EXTERNAL_TAG + "E:/SFX/A/g1/"
     # Unknown paths (legacy / unqualified rows) pass through unchanged.
     assert sfx.ref_from_display("legacy/x.ogg") == "legacy/x.ogg"
 
@@ -536,25 +536,25 @@ def test_sfx_ref_from_display(sfx):
 def test_sfx_resolve_path(sfx):
     audio = sfx._paths.audio_dir
     assert sfx.resolve_path("g1/drip.ogg") == audio + "g1/drip.ogg"
-    assert sfx.resolve_path(CUE_EXT_TAG + "E:/SFX/A/g1/drip.ogg") == "E:/SFX/A/g1/drip.ogg"
+    assert sfx.resolve_path(CUE_EXTERNAL_TAG + "E:/SFX/A/g1/drip.ogg") == "E:/SFX/A/g1/drip.ogg"
 
 
 def test_sfx_file_node_ref_index_enabled(sfx):
     sfx.external_sources = [{"label": "ExtA", "abs_root": "E:/SFX/A", "tree": [], "files": [], "scan_error": ""}]
-    sfx._file_index = {"g1/drip.ogg": 2, CUE_EXT_TAG + "E:/SFX/A/x.ogg": 3}
-    sfx.disabled_files = {CUE_EXT_TAG + "E:/SFX/A/x.ogg"}
+    sfx._file_index = {"g1/drip.ogg": 2, CUE_EXTERNAL_TAG + "E:/SFX/A/x.ogg": 3}
+    sfx.disabled_files = {CUE_EXTERNAL_TAG + "E:/SFX/A/x.ogg"}
     builtin = sfx._file_node({"name": "drip.ogg"}, "SFX Folder/g1/drip.ogg", 1)
     assert builtin["ref"] == "g1/drip.ogg"
     assert builtin["index"] == 2
     assert builtin["enabled"] is True
     external = sfx._file_node({"name": "x.ogg"}, "ExtA/x.ogg", 1)
-    assert external["ref"] == CUE_EXT_TAG + "E:/SFX/A/x.ogg"
+    assert external["ref"] == CUE_EXTERNAL_TAG + "E:/SFX/A/x.ogg"
     assert external["index"] == 3
     assert external["enabled"] is False
 
 
 def test_sfx_toggle_file_enabled_external(sfx):
-    ref = CUE_EXT_TAG + "E:/SFX/A/x.ogg"
+    ref = CUE_EXTERNAL_TAG + "E:/SFX/A/x.ogg"
     sfx.toggle_file_enabled(ref)
     assert ref in sfx.disabled_files
     assert sfx._db.saved[-1]["disabled_files"] == [ref]
@@ -564,9 +564,9 @@ def test_sfx_toggle_file_enabled_external(sfx):
 
 def test_sfx_expand_folder_ref_sorted_files(sfx):
     ext = "E:/SFX/A"
-    files = sorted(["g1/a.ogg", CUE_EXT_TAG + ext + "/g1/x.ogg", CUE_EXT_TAG + ext + "/g1/y.ogg"])
-    out = _util._cue_expand_folder_ref(files, CUE_EXT_TAG + ext + "/g1/")
-    assert out == [CUE_EXT_TAG + ext + "/g1/x.ogg", CUE_EXT_TAG + ext + "/g1/y.ogg"]
+    files = sorted(["g1/a.ogg", CUE_EXTERNAL_TAG + ext + "/g1/x.ogg", CUE_EXTERNAL_TAG + ext + "/g1/y.ogg"])
+    out = _util._cue_expand_folder_ref(files, CUE_EXTERNAL_TAG + ext + "/g1/")
+    assert out == [CUE_EXTERNAL_TAG + ext + "/g1/x.ogg", CUE_EXTERNAL_TAG + ext + "/g1/y.ogg"]
 
 
 def test_sfx_file_node_index_and_enabled(sfx):
@@ -1020,8 +1020,8 @@ def test_sfx_row_buttons_use_refs(sfx):
     rows = sfx.tree_rows(True, "tt", {})
     ext_folder, builtin_file = rows
     # External folder play + add dispatch the e: ref, not the display path.
-    assert ext_folder["buttons"][0]["action"]._args[1] == CUE_EXT_TAG + "E:/SFX/A/"
-    assert ext_folder["buttons"][1]["action"]._args[2] == CUE_EXT_TAG + "E:/SFX/A/"
+    assert ext_folder["buttons"][0]["action"]._args[1] == CUE_EXTERNAL_TAG + "E:/SFX/A/"
+    assert ext_folder["buttons"][1]["action"]._args[2] == CUE_EXTERNAL_TAG + "E:/SFX/A/"
     # Built-in file preview strips the synthetic wrapper back to the ref.
     assert builtin_file["buttons"][0]["action"]._args[1] == "g1/drip.ogg"
 
@@ -1034,7 +1034,7 @@ def test_sfx_row_buttons_external_add_mode(sfx, monkeypatch):
     rows = sfx.tree_rows(True, "tt", {})
     fplus = rows[0]["buttons"][1]
     assert fplus["action"]._args[0] == sfx.ilevel_add_folder
-    assert fplus["action"]._args[3] == CUE_EXT_TAG + "E:/SFX/A/"
+    assert fplus["action"]._args[3] == CUE_EXTERNAL_TAG + "E:/SFX/A/"
 
 
 def test_sfx_warn_reason_external(sfx):
@@ -1736,13 +1736,13 @@ def test_sfx_toggle_folder_persists(sfx):
     assert persistent._cue[CUE_PERSIST_SFX_TREE_EXPANDED] == {"sfx/": False}
 
 
-def test_sfx_scan_default_closed(sfx, monkeypatch):
+def test_sfx_scan_default_open(sfx, monkeypatch):
     def _discover(results):
         results.update(["a.ogg", "sub/b.ogg"])
 
     monkeypatch.setattr(sfx, "_discover", _discover)
     sfx.scan()
-    assert sfx.expanded_folders == {}
+    assert sfx.expanded_folders == {"SFX Folder/": True}
 
 
 def test_sfx_scan_restores_expansion(sfx, monkeypatch):
@@ -1752,7 +1752,7 @@ def test_sfx_scan_restores_expansion(sfx, monkeypatch):
     monkeypatch.setattr(sfx, "_discover", _discover)
     persistent._cue[CUE_PERSIST_SFX_TREE_EXPANDED] = {"sub/": True}
     sfx.scan()
-    assert sfx.expanded_folders == {"sub/": True}
+    assert sfx.expanded_folders == {"SFX Folder/": True, "sub/": True}
 
 
 def test_sfx_file_ref_expand_persists(sfx):

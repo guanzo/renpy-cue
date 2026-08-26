@@ -29,7 +29,7 @@ from cue_lib.audio.music import (
     _SUPPRESS_MUSIC,
     CueMusicManager,
 )
-from cue_lib.constants import CUE_EXT_TAG
+from cue_lib.constants import CUE_EXTERNAL_TAG
 
 
 def _wav24(src, data_bytes):
@@ -742,31 +742,31 @@ def test_resolve_music_path_legacy_disk_missing(mgr):
 
 
 def test_split_ref_tag_external(mgr):
-    assert mgr._split_ref_tag(CUE_EXT_TAG + "E:/Music/a.ogg") == (CUE_EXT_TAG, "E:/Music/a.ogg")
+    assert mgr._split_ref_tag(CUE_EXTERNAL_TAG + "E:/Music/a.ogg") == (CUE_EXTERNAL_TAG, "E:/Music/a.ogg")
 
 
 def test_ref_path_strips_external_tag(mgr):
-    assert mgr.ref_path(CUE_EXT_TAG + "E:/Music/a.ogg") == "E:/Music/a.ogg"
+    assert mgr.ref_path(CUE_EXTERNAL_TAG + "E:/Music/a.ogg") == "E:/Music/a.ogg"
 
 
 def test_resolve_music_path_external_verbatim(mgr):
     # External payload is already absolute -- returned unchanged.
-    assert mgr._resolve_music_path(CUE_EXT_TAG + "E:/Music/song.ogg") == "E:/Music/song.ogg"
+    assert mgr._resolve_music_path(CUE_EXTERNAL_TAG + "E:/Music/song.ogg") == "E:/Music/song.ogg"
 
 
 def test_resolve_music_files_external_folder(mgr):
     root = "E:/Music"
     mgr.library.external_files = [root + "/artist/a.ogg", root + "/artist/b.ogg"]
-    assert mgr.resolve_music_files([CUE_EXT_TAG + root + "/artist/"]) == [
-        CUE_EXT_TAG + root + "/artist/a.ogg",
-        CUE_EXT_TAG + root + "/artist/b.ogg",
+    assert mgr.resolve_music_files([CUE_EXTERNAL_TAG + root + "/artist/"]) == [
+        CUE_EXTERNAL_TAG + root + "/artist/a.ogg",
+        CUE_EXTERNAL_TAG + root + "/artist/b.ogg",
     ]
 
 
 def test_music_pool_for_external(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     mgr._triggers["replay1"] = [{"key_after": "i_a.ogv", "filepaths": ["music/default.ogg"]}]
-    mgr._store["i_a.ogv"] = {"music": [CUE_EXT_TAG + "E:/Music/custom.ogg"]}
+    mgr._store["i_a.ogv"] = {"music": [CUE_EXTERNAL_TAG + "E:/Music/custom.ogg"]}
     assert mgr.music_pool_for("i_a.ogv") == ["music/default.ogg", "E:/Music/custom.ogg"]
 
 
@@ -837,7 +837,7 @@ def test_add_external_song_to_trigger(mgr, monkeypatch):
     _set_scene(mgr, "scene.ogv", "image")
     mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     mgr.add_external_song_to_trigger("E:/Music/song.ogg")
-    assert mgr._store.get("i_scene.ogv")["music"] == [CUE_EXT_TAG + "E:/Music/song.ogg"]
+    assert mgr._store.get("i_scene.ogv")["music"] == [CUE_EXTERNAL_TAG + "E:/Music/song.ogg"]
 
 
 def test_add_external_folder_to_trigger(mgr, monkeypatch):
@@ -845,7 +845,7 @@ def test_add_external_folder_to_trigger(mgr, monkeypatch):
     _set_scene(mgr, "scene.ogv", "image")
     mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     mgr.add_external_folder_to_trigger("E:/Music/artist")
-    assert mgr._store.get("i_scene.ogv")["music"] == [CUE_EXT_TAG + "E:/Music/artist/"]
+    assert mgr._store.get("i_scene.ogv")["music"] == [CUE_EXTERNAL_TAG + "E:/Music/artist/"]
 
 
 def test_add_ref_to_trigger_no_scene(mgr):

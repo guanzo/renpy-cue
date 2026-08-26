@@ -21,12 +21,13 @@ screen cue_sfx_library(_is_video):
         "tt": _ov_tt
     }]
 
+    $ add_folder_tip = "Add additional folder locations in Settings > Data Folder."
+
     $ sfx_tt = (
         "Add {} files to\n{}\n\n"
         "Click the + button to add files to the selected \"Target\"\n\n"
-        "Prefer adding folders over single files.\n\n"
-        "Add additional folder locations in Settings > Data Folder."
-    ).format(", ".join(CUE_AUDIO_EXTS), _cue.paths.audio_dir)
+        "Prefer adding folders over single files.\n\n{}"
+    ).format(", ".join(CUE_AUDIO_EXTS), _cue.paths.audio_dir, add_folder_tip)
 
     use cue_section_frame(CUE_SFX_LIBRARY_HEADER, tt=sfx_tt, icons=_icons):
         if not _cue.sfx.library.tree:
@@ -36,7 +37,7 @@ screen cue_sfx_library(_is_video):
             etext ("Add {} files there "
                 "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS))
             use cue_open_in_explorer_btn(_cue.paths.audio_dir, "Open Audio folder")
-            etext "Add additional folder locations in Settings > Data Folder." size 11
+            etext add_folder_tip size 11
         else:
             use cue_target_context()
             if _cue.sfx.library.add_to_pool_warning:

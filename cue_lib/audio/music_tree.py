@@ -13,7 +13,7 @@ from cue_lib.audio.file_tree import CueAudioTreeManager
 from cue_lib.audio.file_tree_rows import CueMusicTreeRows
 from cue_lib.constants import (
     CUE_AUDIO_EXTS,
-    CUE_EXT_TAG,
+    CUE_EXTERNAL_TAG,
     CUE_GAME_MUSIC_FOLDER,
     CUE_MUSIC_GAME_TAG,
     CUE_MY_MUSIC_FOLDER,
@@ -52,6 +52,7 @@ class CueMusicTree(CueAudioTreeManager):
     # sources are visible without a click.
     _auto_expand_roots = True
     _persist_key = CUE_PERSIST_MUSIC_TREE_EXPANDED
+    _reserved_labels = (CUE_MY_MUSIC_FOLDER, CUE_GAME_MUSIC_FOLDER)
 
     def __init__(self, music):
         # type: (CueMusicManager) -> None
@@ -72,7 +73,7 @@ class CueMusicTree(CueAudioTreeManager):
         # is the configured list (absolute paths, from shared config); the scan
         # populates external_sources (per-root dict) and external_files (the
         # flat list of absolute payloads, used by folder expansion + recent
-        # membership).  Stored trigger refs add the CUE_EXT_TAG at add time.
+        # membership).  Stored trigger refs add the CUE_EXTERNAL_TAG at add time.
         self.external_folders = []  # type: List[str]
         self.external_files = []  # type: List[str]
         self.external_sources = []  # type: List[Dict[str, Any]]
@@ -143,65 +144,6 @@ class CueMusicTree(CueAudioTreeManager):
             if any(d in CUE_GAME_MUSIC_DIRS for d in dirs):
                 results_set.add(path)
 
-    def _scan_external(self):
-        # type: () -> None
-        """Scan configured external folders into per-source trees.
-
-        Each configured abs_root becomes an external source (label, files,
-        tree, scan_error).  A missing folder keeps its entry with a warning
-        and an empty tree.  Stored refs are built at add time from the
-        abs_root + relative path; the flat external_files here are the
-        absolute payloads for expansion and membership checks."""
-        self.external_files = []
-        self.external_sources = []
-        used_labels = []  # type: List[str]
-        for abs_root in self.external_folders:
-            source = self._scan_external_root(abs_root, used_labels)
-            used_labels.append(source["label"])
-            self.external_sources.append(source)
-            self.external_files += source["files"]
-
-    def _scan_external_root(self, abs_root, used_labels):
-        # type: (str, List[str]) -> Dict[str, Any]
-        """Scan one configured external folder into an external source dict.
-
-        files hold absolute payloads (the untagged form, mirroring how
-        user_files/game_files are untagged); the display tree is built from the
-        relative paths so it renders under the source label."""
-        abs_root = abs_root.replace("\\", "/").rstrip("/")
-        rel_files = []  # type: List[str]
-        scan_error = ""  # type: str
-        if os.path.isdir(abs_root):
-            try:
-                sub = set()
-                self._discover_walk_dir(sub, abs_root)
-                rel_files = sorted(sub)
-            except Exception as err:
-                rel_files = []
-                scan_error = "Failed to scan external folder: {}".format(err)
-        else:
-            scan_error = "Folder not found: {}".format(abs_root)
-        return {
-            "abs_root": abs_root,
-            "label": self._external_label(abs_root, used_labels),
-            "files": [abs_root + "/" + rel for rel in rel_files],
-            "tree": _cue_build_tree(rel_files),
-            "scan_error": scan_error,
-        }
-
-    def _external_label(self, abs_root, used_labels):
-        # type: (str, List[str]) -> str
-        """Display label for an external folder: its basename, disambiguated
-        against the built-in synthetic folders and other external labels."""
-        base = abs_root.rstrip("/").rsplit("/", 1)[-1] or "External"
-        reserved = (CUE_MY_MUSIC_FOLDER.rstrip("/"), CUE_GAME_MUSIC_FOLDER.rstrip("/"))
-        label = base
-        n = 2
-        while label in reserved or label in used_labels:
-            label = "{} ({})".format(base, n)
-            n += 1
-        return label
-
     # ------------------------------------------------------------------
     # Tree building
     # ------------------------------------------------------------------
@@ -243,7 +185,13 @@ class CueMusicTree(CueAudioTreeManager):
             else:
                 children = user_tree
                 has_files = False
-            my_music = {"type": "folder", "name": CUE_MY_MUSIC_FOLDER, "children": children, "has_files": has_files}
+            my_music = {
+                "type": "folder",
+                "name": CUE_MY_MUSIC_FOLDER,
+                "children": children,
+                "has_files": has_files,
+                "abs_root": _cue.paths.music_dir,
+            }
             result.append(my_music)
 
         game_tree = self.game_tree
@@ -255,7 +203,13 @@ class CueMusicTree(CueAudioTreeManager):
         # its warning row is reachable.
         for source in self.external_sources:
             result.append(
-                {"type": "folder", "name": source["label"] + "/", "children": source["tree"], "has_files": False}
+                {
+                    "type": "folder",
+                    "name": source["label"] + "/",
+                    "children": source["tree"],
+                    "has_files": False,
+                    "abs_root": source["abs_root"],
+                }
             )
         return result
 
@@ -328,7 +282,7 @@ class CueMusicTree(CueAudioTreeManager):
         tag, path = self._music._split_ref_tag(ref)
         if tag == CUE_MUSIC_GAME_TAG:
             return CUE_GAME_MUSIC_FOLDER + path
-        if tag == CUE_EXT_TAG:
+        if tag == CUE_EXTERNAL_TAG:
             for source in self.external_sources:
                 root = source["abs_root"]
                 if path.startswith(root + "/"):

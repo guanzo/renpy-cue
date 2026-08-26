@@ -16,7 +16,7 @@ from cue_lib.util import _cue_build_tree, _cue_filter_tree, _cue_log, _cue_unwra
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List, Set
+    from typing import Any, Dict, List, Optional, Set, Tuple
 
 # Broad search queries ("a" matches most files) can force-expand thousands of
 # rows, which is slow to render.  Search results are capped at this many rows;
@@ -47,6 +47,9 @@ class CueAudioTreeManager(object):
     # persist folder expansion.  Subclasses that persist set the CUE_PERSIST_*
     # key (SFX tree, Music Library tree).
     _persist_key = None
+    # Basenames that must never become an external source's display label
+    # (the synthetic built-in roots).  Subclasses reserve their own.
+    _reserved_labels = ()  # type: Tuple[str, ...]
 
     def __init__(self):
         self._recent = None  # CueRecentManager, wired after construction
@@ -134,6 +137,63 @@ class CueAudioTreeManager(object):
                         rel_path = rel_path.replace("\\", "/")
                         results_set.add(rel_path)
 
+    def _scan_external(self):
+        # type: () -> None
+        """Scan configured external folders into per-source trees.
+
+        Each configured abs_root becomes an external source dict (label,
+        files, tree, scan_error).  A missing folder keeps its entry with a
+        warning and an empty tree so the warning row stays reachable."""
+        self.external_files = []
+        self.external_sources = []
+        used_labels = []  # type: List[str]
+        for abs_root in self.external_folders:
+            source = self._scan_external_root(abs_root, used_labels)
+            used_labels.append(source["label"])
+            self.external_sources.append(source)
+            self.external_files += source["files"]
+
+    def _scan_external_root(self, abs_root, used_labels):
+        # type: (str, List[str]) -> Dict[str, Any]
+        """Scan one configured external folder into an external source dict.
+
+        files hold the absolute payloads (the untagged form); the display
+        tree is built from the relative paths so it renders under the source
+        label."""
+        abs_root = abs_root.replace("\\", "/").rstrip("/")
+        rel_files = []  # type: List[str]
+        scan_error = ""  # type: str
+        if os.path.isdir(abs_root):
+            try:
+                sub = set()
+                self._discover_walk_dir(sub, abs_root)
+                rel_files = sorted(sub)
+            except Exception as err:
+                rel_files = []
+                scan_error = "Failed to scan external folder: {}".format(err)
+        else:
+            scan_error = "Folder not found: {}".format(abs_root)
+        return {
+            "abs_root": abs_root,
+            "label": self._external_label(abs_root, used_labels),
+            "files": [abs_root + "/" + rel for rel in rel_files],
+            "tree": _cue_build_tree(rel_files),
+            "scan_error": scan_error,
+        }
+
+    def _external_label(self, abs_root, used_labels):
+        # type: (str, List[str]) -> str
+        """Display label for an external folder: its basename, disambiguated
+        against the reserved built-in roots and other external labels."""
+        base = abs_root.rstrip("/").rsplit("/", 1)[-1] or "External"
+        reserved = tuple(x.rstrip("/") for x in self._reserved_labels)
+        label = base
+        n = 2
+        while label in reserved or label in used_labels:
+            label = "{} ({})".format(base, n)
+            n += 1
+        return label
+
     # ------------------------------------------------------------------
     # Tree building
     # ------------------------------------------------------------------
@@ -200,27 +260,33 @@ class CueAudioTreeManager(object):
         self.rebuild_tree()
         self._search_applied = q
 
-    def _walk_tree(self, items, prefix, depth, result, force_expand=False):
-        # type: (List[Dict[str, Any]], str, int, List[Dict[str, Any]], bool) -> None
+    def _walk_tree(self, items, prefix, depth, result, force_expand=False, abs_root=None):
+        # type: (List[Dict[str, Any]], str, int, List[Dict[str, Any]], bool, Optional[str]) -> None
         """Recursively walk tree, only descending into expanded folders.
 
         force_expand (search mode) treats every folder as expanded so all
-        filtered rows are produced; otherwise self.expanded_folders decides."""
+        filtered rows are produced; otherwise self.expanded_folders decides.
+        abs_root threads an external source's absolute path down its subtree
+        so folder rows under one can show it as their tooltip."""
         for item in items:
             full = prefix + item["name"]
             if item["type"] == "folder":
+                node_abs = item.get("abs_root")
+                if node_abs is None and abs_root is not None:
+                    node_abs = abs_root + "/" + item["name"].rstrip("/")
                 expanded = force_expand or self.expanded_folders.get(full, False)
-                result.append(
-                    {
-                        "type": "folder",
-                        "name": item["name"],
-                        "full_path": full,
-                        "depth": depth,
-                        "has_files": item.get("has_files", False),
-                    }
-                )
+                node = {
+                    "type": "folder",
+                    "name": item["name"],
+                    "full_path": full,
+                    "depth": depth,
+                    "has_files": item.get("has_files", False),
+                }
+                if node_abs is not None:
+                    node["abs_root"] = node_abs
+                result.append(node)
                 if expanded:
-                    self._walk_tree(item.get("children", []), full, depth + 1, result, force_expand)
+                    self._walk_tree(item.get("children", []), full, depth + 1, result, force_expand, node_abs)
             else:
                 result.append(self._file_node(item, full, depth))
 

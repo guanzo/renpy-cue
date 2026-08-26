@@ -10,7 +10,7 @@
 
 from renpy.store import persistent
 
-from cue_lib.constants import CUE_EXT_TAG, CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
+from cue_lib.constants import CUE_EXTERNAL_TAG, CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
 from cue_lib.util import _cue_unwrap_persistent
 
 # Maximum entries in a "Recently Used" list.
@@ -113,7 +113,7 @@ def _cue_music_ref_tag(ref):
 
     Mirrors CueMusicManager._split_ref_tag so recent.py can stay independent
     of the music manager."""
-    for tag in (CUE_MUSIC_USER_TAG, CUE_MUSIC_GAME_TAG, CUE_EXT_TAG):
+    for tag in (CUE_MUSIC_USER_TAG, CUE_MUSIC_GAME_TAG, CUE_EXTERNAL_TAG):
         if ref.startswith(tag):
             return tag, ref[len(tag) :]
     return None, ref
@@ -129,7 +129,7 @@ def _cue_keep_music(kind, ref, library):
         files = library.user_files
     elif tag == CUE_MUSIC_GAME_TAG:
         files = library.game_files
-    elif tag == CUE_EXT_TAG:
+    elif tag == CUE_EXTERNAL_TAG:
         files = library.external_files
     else:
         files = library.user_files + library.game_files

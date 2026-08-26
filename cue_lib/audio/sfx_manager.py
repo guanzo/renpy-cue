@@ -20,7 +20,7 @@ from cue_lib.audio.file_tree import CueAudioTreeManager
 from cue_lib.audio.file_tree_rows import CueSfxTreeRows
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.constants import (
-    CUE_EXT_TAG,
+    CUE_EXTERNAL_TAG,
     CUE_SFX_CHANNEL_COUNT,
     CUE_SFX_FOLDER,
     CUE_SIDEBAR_DEFAULT_WIDTH,
@@ -345,10 +345,11 @@ class CueSfxLibraryTree(CueAudioTreeManager):
 
     _scan_label = "audio folder"
     _log_tag = "AUDIO"
-    # The synthetic "SFX Folder" root stays collapsed by default (unlike
-    # music's roots, which open to show their two sources).
-    _auto_expand_roots = False
+    # The synthetic "SFX Folder" root opens by default like music's roots;
+    # persisted toggles still win via _restore_expansion.
+    _auto_expand_roots = True
     _persist_key = CUE_PERSIST_SFX_TREE_EXPANDED
+    _reserved_labels = (CUE_SFX_FOLDER,)
 
     def __init__(self, paths, db):
         # type: (CuePaths, CueDatabase) -> None
@@ -442,7 +443,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         self._scan_external()
 
         # Flat ref list, sorted for the bisect-based folder expansion.
-        external_refs = [CUE_EXT_TAG + f for f in self.external_files]
+        external_refs = [CUE_EXTERNAL_TAG + f for f in self.external_files]
         self.files = sorted(self.builtin_files + external_refs)
         self._file_index = {ref: i for i, ref in enumerate(self.files)}
 
@@ -457,63 +458,6 @@ class CueSfxLibraryTree(CueAudioTreeManager):
             )
         )
 
-    def _scan_external(self):
-        # type: () -> None
-        """Scan configured external folders into per-source trees.
-
-        Each configured abs_root becomes an external source dict (label,
-        files, tree, scan_error).  A missing folder keeps its entry with a
-        warning and an empty tree so the warning row stays reachable."""
-        self.external_files = []
-        self.external_sources = []
-        used_labels = []  # type: List[str]
-        for abs_root in self.external_folders:
-            source = self._scan_external_root(abs_root, used_labels)
-            used_labels.append(source["label"])
-            self.external_sources.append(source)
-            self.external_files += source["files"]
-
-    def _scan_external_root(self, abs_root, used_labels):
-        # type: (str, List[str]) -> Dict[str, Any]
-        """Scan one configured external folder into an external source dict.
-
-        files hold the absolute payloads (the untagged form); the display
-        tree is built from the relative paths so it renders under the source
-        label."""
-        abs_root = abs_root.replace("\\", "/").rstrip("/")
-        rel_files = []  # type: List[str]
-        scan_error = ""  # type: str
-        if os.path.isdir(abs_root):
-            try:
-                sub = set()
-                self._discover_walk_dir(sub, abs_root)
-                rel_files = sorted(sub)
-            except Exception as err:
-                rel_files = []
-                scan_error = "Failed to scan external folder: {}".format(err)
-        else:
-            scan_error = "Folder not found: {}".format(abs_root)
-        return {
-            "abs_root": abs_root,
-            "label": self._external_label(abs_root, used_labels),
-            "files": [abs_root + "/" + rel for rel in rel_files],
-            "tree": _cue_build_tree(rel_files),
-            "scan_error": scan_error,
-        }
-
-    def _external_label(self, abs_root, used_labels):
-        # type: (str, List[str]) -> str
-        """Display label for an external folder: its basename, disambiguated
-        against the synthetic "SFX Folder" root and other external labels."""
-        base = abs_root.rstrip("/").rsplit("/", 1)[-1] or "External"
-        reserved = (CUE_SFX_FOLDER.rstrip("/"),)
-        label = base
-        n = 2
-        while label in reserved or label in used_labels:
-            label = "{} ({})".format(base, n)
-            n += 1
-        return label
-
     def ref_from_display(self, display_path):
         # type: (str) -> str
         """Stored ref for a merged display path.
@@ -527,7 +471,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         for source in self.external_sources:
             label = source["label"]
             if display_path.startswith(label + "/"):
-                return CUE_EXT_TAG + source["abs_root"] + "/" + display_path[len(label) + 1 :]
+                return CUE_EXTERNAL_TAG + source["abs_root"] + "/" + display_path[len(label) + 1 :]
         return display_path
 
     def resolve_path(self, ref):
@@ -537,8 +481,8 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         Built-in refs are audio-relative; external refs embed their absolute
         payload after the e: tag.  Shared by playback, WAV warming, and the
         unplayable-warning lookup."""
-        if ref.startswith(CUE_EXT_TAG):
-            return ref[len(CUE_EXT_TAG) :]
+        if ref.startswith(CUE_EXTERNAL_TAG):
+            return ref[len(CUE_EXTERNAL_TAG) :]
         return self._paths.audio_dir + ref
 
     # ------------------------------------------------------------------
@@ -568,10 +512,24 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         reachable."""
         result = []
         if self.builtin_tree:
-            result.append({"type": "folder", "name": CUE_SFX_FOLDER, "children": self.builtin_tree, "has_files": False})
+            result.append(
+                {
+                    "type": "folder",
+                    "name": CUE_SFX_FOLDER,
+                    "children": self.builtin_tree,
+                    "has_files": False,
+                    "abs_root": self._paths.audio_dir,
+                }
+            )
         for source in self.external_sources:
             result.append(
-                {"type": "folder", "name": source["label"] + "/", "children": source["tree"], "has_files": False}
+                {
+                    "type": "folder",
+                    "name": source["label"] + "/",
+                    "children": source["tree"],
+                    "has_files": False,
+                    "abs_root": source["abs_root"],
+                }
             )
         return result
 
