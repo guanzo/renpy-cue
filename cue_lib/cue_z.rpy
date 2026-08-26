@@ -299,11 +299,11 @@ init -900 python:
 
         # Music's "Recently Used" list lives on the music manager: it records
         # add-to-trigger attempts through music's own _add_ref_to_trigger funnel.
-        # Its prune existence check reads the two sub-managers' .files at call
+        # Its prune existence check reads the library's per-source files at call
         # time, so it is built here and only loaded once both scans ran.
         music._recent = CueRecentManager(
             "recent_music_entries",
-            lambda kind, ref: _cue_keep_music(kind, ref, music.user_music, music.game_music))
+            lambda kind, ref: _cue_keep_music(kind, ref, music.library))
 
         _cue.VERSION = CUE_VERSION
         _cue.paths = paths

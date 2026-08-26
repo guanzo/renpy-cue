@@ -1,8 +1,7 @@
 # Type stub for cue_lib.audio.recent
 from typing import Callable, Final, List
 
-from cue_lib.audio.user_music import CueUserMusic
-from cue_lib.audio.game_music import CueGameMusic
+from cue_lib.audio.music_tree import CueMusicTree
 
 CUE_RECENT_MAX_ENTRIES: Final = 8
 
@@ -23,4 +22,4 @@ class CueRecentManager:
 
 def _cue_keep_sfx(kind: str, ref: str, sfx_files: list, preset_names: list) -> bool: ...
 def _cue_music_ref_tag(ref: str) -> tuple: ...
-def _cue_keep_music(kind: str, ref: str, user_music: CueUserMusic, game_music: CueGameMusic) -> bool: ...
+def _cue_keep_music(kind: str, ref: str, library: CueMusicTree) -> bool: ...

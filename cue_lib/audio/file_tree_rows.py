@@ -981,13 +981,13 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
             )
         )
         # -- Per-source empty/error states ------------------------------------
-        user = self._tree.user_music
-        if not user.tree:
-            if user.scan_error:
+        user = self._tree.user_tree
+        if not user:
+            if self._tree.user_scan_error:
                 rows.append(
                     _cue_help_row(
                         "user:scan_error",
-                        user.scan_error,
+                        self._tree.user_scan_error,
                         color=getattr(renpy.store, "_cue_color_error", None),
                         plain=True,
                     )
@@ -1001,20 +1001,20 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
                 )
             )
             rows.append(_cue_action_row("user:open", "Open Music folder", explorer=music._paths.music_dir))
-        game = self._tree.game_music
-        if not game.tree:
-            if game.scan_error:
+        game = self._tree.game_tree
+        if not game:
+            if self._tree.game_scan_error:
                 rows.append(
                     _cue_help_row(
                         "game:scan_error",
-                        game.scan_error,
+                        self._tree.game_scan_error,
                         color=getattr(renpy.store, "_cue_color_error", None),
                         plain=True,
                     )
                 )
             rows.append(_cue_help_row("game:empty", "No music found in game directory.", plain=True))
         # -- no-results guard + tree -----------------------------------------
-        if self._tree.user_music.tree or self._tree.game_music.tree:
+        if self._tree.user_tree or self._tree.game_tree:
             if searching and not recent_entries and not preset_names and not self._tree.visible_tree:
                 rows.append(_cue_help_row("no_results", 'No files found for "{}".'.format(search_query), plain=True))
             else:

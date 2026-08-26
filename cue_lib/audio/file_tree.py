@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 # CueAudioTreeManager -- shared folder/file tree state and scan pattern for
-# the audio-library managers (SFX library, My Music, Game Music): flat sorted
-# file list, nested tree, scan error, expand/collapse state, and visible-row
+# the audio-library managers (SFX library, Music Library): flat sorted file
+# list, nested tree, scan error, expand/collapse state, and visible-row
 # building.  Subclasses supply the scan source via _discover() plus a couple
-# of class attrs for the error message and log tag.  Base of CueSfxManager,
-# CueUserMusic, and CueGameMusic; the concrete managers hang off _cue.
+# of class attrs for the error message and log tag.  Base of CueSfxManager and
+# CueMusicTree; the concrete managers hang off _cue.
 
 import os
 import time
@@ -33,8 +33,7 @@ class CueAudioTreeManager(object):
     rebuilds the visible rows, and logs.  Class attrs _scan_label (error text)
     and _log_tag (log prefix) customize those two outputs.  _file_node() may
     be overridden to add per-file fields -- the SFX library adds index and
-    enabled.  Scan-only subclasses (My Music, Game Music) set _build_visible
-    to False so scan()/rebuild_tree() skip the visible-tree work."""
+    enabled."""
 
     _scan_label = "audio"
     _log_tag = "AUDIO"
@@ -42,9 +41,6 @@ class CueAudioTreeManager(object):
     # _auto_expand_roots) so a tree's root level is open by default.  After
     # that one-time default the user's toggle state is left untouched.
     _auto_expand_roots = False
-    # Build visible_tree/expand state (False for scan-only managers that feed
-    # a combined tree and never render their own rows).
-    _build_visible = True
 
     def __init__(self):
         self._recent = None  # CueRecentManager, wired after construction
@@ -89,20 +85,17 @@ class CueAudioTreeManager(object):
         # Empty is fine -- nothing found yet
         self.scan_error = ""
 
-        # Visible-tree work is skipped for scan-only managers; their trees
-        # are walked through the combined tree instead.
-        if self._build_visible:
-            self._file_index = {path: i for i, path in enumerate(results)}
+        self._file_index = {path: i for i, path in enumerate(results)}
 
-            # One-time default: open the tree at its root folders (opt-in), so
-            # the top level is visible without a click.  Only the first non-empty
-            # scan does this -- every later scan leaves the user's toggles alone.
-            if self._auto_expand_roots and not self._has_expanded_roots and self.tree:
-                self._expand_roots()
-                self._has_expanded_roots = True
+        # One-time default: open the tree at its root folders (opt-in), so
+        # the top level is visible without a click.  Only the first non-empty
+        # scan does this -- every later scan leaves the user's toggles alone.
+        if self._auto_expand_roots and not self._has_expanded_roots and self.tree:
+            self._expand_roots()
+            self._has_expanded_roots = True
 
-            # Rebuild visible tree
-            self.rebuild_tree()
+        # Rebuild visible tree
+        self.rebuild_tree()
 
         _cue_log("SCAN-{}: {:.3f}s {} files".format(self._log_tag, time.time() - _t0, len(results)))
 
@@ -146,9 +139,6 @@ class CueAudioTreeManager(object):
         restores the exact pre-search view.  During a search the rows are
         capped at CUE_SEARCH_MAX_ROWS and the overflow count is left in
         search_truncated (0 when under the cap or not searching)."""
-        if not self._build_visible:
-            return
-
         query = self.search_query.strip()
 
         if query:

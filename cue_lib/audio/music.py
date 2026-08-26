@@ -8,10 +8,8 @@ import renpy
 import renpy.audio.music as _music
 
 from cue_lib.state import _cue
-from cue_lib.audio.user_music import CueUserMusic
-from cue_lib.audio.game_music import CueGameMusic
 from cue_lib.audio.wav_playable import CueWavPlayable
-from cue_lib.audio.music_tree import CueCombinedMusicTree
+from cue_lib.audio.music_tree import CueMusicTree
 from cue_lib.constants import (
     CUE_GAME_MUSIC_FOLDER,
     CUE_MUSIC_GAME_TAG,
@@ -80,12 +78,9 @@ class CueMusicManager(object):
         self._last_auto_scene = None  # type: Optional[str]
         # Trigger-box folder refs: folder_ref -> bool (expand/collapse).
         self.expanded_file_refs = {}  # type: Dict[str, bool]
-        # My Music page: tree expand/collapse state.
-        self.user_music = CueUserMusic()
-        # Game Music page: discovered game audio, tree expand/collapse state.
-        self.game_music = CueGameMusic()
-        # Combined "Music Library" display tree (UI-only merge of the two).
-        self.library = CueCombinedMusicTree(self, self.user_music, self.game_music)  # pyright: ignore[reportArgumentType]
+        # Music Library: scans both My Music and Game Music and merges them
+        # for display.  Owns the per-source trees and scan errors too.
+        self.library = CueMusicTree(self)  # pyright: ignore[reportArgumentType]
         # CueRecentManager, wired after construction (records add-to-trigger
         # attempts; None before wiring so add_* stays safe).
         self._recent = None
@@ -525,12 +520,12 @@ class CueMusicManager(object):
         """Expand a single folder ref into concrete file paths."""
         tag, ref = self._split_ref_tag(folder_ref)
         if tag == CUE_MUSIC_USER_TAG:
-            sources = [self.user_music.files]
+            sources = [self.library.user_files]
         elif tag == CUE_MUSIC_GAME_TAG:
-            sources = [self.game_music.files]
+            sources = [self.library.game_files]
         else:
             # Legacy untagged ref -- ambiguous, match both caches.
-            sources = [self.user_music.files, self.game_music.files]
+            sources = [self.library.user_files, self.library.game_files]
         for files in sources:
             for f in _cue_expand_folder_ref(files, ref):
                 if f not in result:

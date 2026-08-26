@@ -562,14 +562,8 @@ def make_runtime_cue(root="", audio_dir=""):
         ),
     )
 
-    # music -- user_music/game_music subtrees + driver methods
+    # music -- library scans both sources + driver methods
     cue.music = types.SimpleNamespace(
-        user_music=types.SimpleNamespace(
-            files=[], scan=_rec("music.user_music", "scan"), maybe_rebuild=_rec("music.user_music", "maybe_rebuild")
-        ),
-        game_music=types.SimpleNamespace(
-            scan=_rec("music.game_music", "scan"), maybe_rebuild=_rec("music.game_music", "maybe_rebuild")
-        ),
         _recent=types.SimpleNamespace(load=_rec("music._recent", "load")),
         capture_display=_rec("music", "capture_display"),
         play_custom_music=_rec("music", "play_custom_music"),
@@ -577,7 +571,11 @@ def make_runtime_cue(root="", audio_dir=""):
         reload_presets=_rec("music", "reload_presets"),
         _resolve_music_path=lambda filename: filename,
         library=types.SimpleNamespace(
-            rebuild_tree=_rec("music.library", "rebuild_tree"), maybe_rebuild=_rec("music.library", "maybe_rebuild")
+            user_files=[],
+            game_files=[],
+            scan=_rec("music.library", "scan"),
+            rebuild_tree=_rec("music.library", "rebuild_tree"),
+            maybe_rebuild=_rec("music.library", "maybe_rebuild"),
         ),
     )
 

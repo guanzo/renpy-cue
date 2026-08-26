@@ -658,18 +658,18 @@ def test_resolve_music_files_dedupes_direct(mgr):
 
 
 def test_resolve_music_files_user_folder(mgr):
-    mgr.user_music.files = ["music/song.ogg", "music/sub/t.ogg"]
+    mgr.library.user_files = ["music/song.ogg", "music/sub/t.ogg"]
     assert mgr.resolve_music_files([CUE_MUSIC_USER_TAG + "music/"]) == ["music/song.ogg", "music/sub/t.ogg"]
 
 
 def test_resolve_music_files_game_folder(mgr):
-    mgr.game_music.files = ["music/bgm.ogg"]
+    mgr.library.game_files = ["music/bgm.ogg"]
     assert mgr.resolve_music_files([CUE_MUSIC_GAME_TAG + "music/"]) == ["music/bgm.ogg"]
 
 
 def test_resolve_music_files_legacy_folder_both(mgr):
-    mgr.user_music.files = ["music/user.ogg"]
-    mgr.game_music.files = ["music/game.ogg"]
+    mgr.library.user_files = ["music/user.ogg"]
+    mgr.library.game_files = ["music/game.ogg"]
     assert mgr.resolve_music_files(["music/"]) == ["music/user.ogg", "music/game.ogg"]
 
 
@@ -914,7 +914,7 @@ def test_music_toggle_file_ref_expand(mgr):
 
 
 def test_remove_song_from_folder_ref(mgr):
-    mgr.user_music.files = ["music/a.ogg", "music/b.ogg"]
+    mgr.library.user_files = ["music/a.ogg", "music/b.ogg"]
     mgr._store["i_a.ogv"] = {"music": [CUE_MUSIC_USER_TAG + "music/"]}
     mgr.remove_song_from_folder_ref("i_a.ogv", 0, "music/a.ogg")
     assert mgr._store.get("i_a.ogv")["music"] == [CUE_MUSIC_USER_TAG + "music/b.ogg"]
@@ -1053,7 +1053,7 @@ def test_preset_remove_file_direct(mgr):
 
 
 def test_preset_remove_file_folder_ref(mgr):
-    mgr.user_music.files = ["music/a.ogg", "music/b.ogg", "music/c.ogg"]
+    mgr.library.user_files = ["music/a.ogg", "music/b.ogg", "music/c.ogg"]
     mgr.create_preset("T", [CUE_MUSIC_USER_TAG + "music/"])
     mgr.preset_remove_file("T", CUE_MY_MUSIC_FOLDER + "a.ogg")
     assert mgr.get_preset("T") == {"files": [CUE_MUSIC_USER_TAG + "music/b.ogg", CUE_MUSIC_USER_TAG + "music/c.ogg"]}
@@ -1068,8 +1068,8 @@ def test_preset_remove_file_noop(mgr):
 
 
 def test_preset_display_files(mgr):
-    mgr.user_music.files = ["music/a.ogg"]
-    mgr.game_music.files = ["bgm/b.ogg"]
+    mgr.library.user_files = ["music/a.ogg"]
+    mgr.library.game_files = ["bgm/b.ogg"]
     mgr.create_preset(
         "T", [CUE_MUSIC_USER_TAG + "music/a.ogg", CUE_MUSIC_GAME_TAG + "bgm/b.ogg", CUE_MUSIC_USER_TAG + "music/"]
     )

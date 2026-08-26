@@ -130,7 +130,7 @@ CUE_HELP_SHIFT_SKIP_DELETE = "\nShift+Click to skip delete confirmation"
 CUE_AUDIO_EXTS = (".ogg", ".mp3", ".wav", ".opus")
 
 # Prefix for My Music files stored under the shared root
-# ("music/Folder/song.ogg").  user_music.py adds it; music.py strips it.
+# ("music/Folder/song.ogg").  music_tree.py adds it; music.py strips it.
 CUE_MUSIC_PREFIX = "music/"
 
 # Display-only top-level folders in the combined Music Library tree, so the

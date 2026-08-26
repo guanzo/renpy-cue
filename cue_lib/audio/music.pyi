@@ -3,9 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from cue_lib._types import DefaultMusicTrigger
 from cue_lib.audio.recent import CueRecentManager
-from cue_lib.audio.user_music import CueUserMusic
-from cue_lib.audio.game_music import CueGameMusic
-from cue_lib.audio.music_tree import CueCombinedMusicTree
+from cue_lib.audio.music_tree import CueMusicTree
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.state import CueContext
@@ -26,9 +24,7 @@ class CueMusicManager:
     _music_presets: Dict[str, Any]
     presets_expanded: bool
     expanded_presets: Dict[str, bool]
-    user_music: CueUserMusic
-    game_music: CueGameMusic
-    library: CueCombinedMusicTree
+    library: CueMusicTree
     _recent: CueRecentManager
     _store: CueMarkerStore
     _ctx: CueContext

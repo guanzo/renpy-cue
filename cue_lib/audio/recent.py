@@ -19,8 +19,7 @@ CUE_RECENT_MAX_ENTRIES = 8
 MYPY = False
 if MYPY:
     from typing import Callable
-    from cue_lib.audio.user_music import CueUserMusic
-    from cue_lib.audio.game_music import CueGameMusic
+    from cue_lib.audio.music_tree import CueMusicTree
 
 
 class CueRecentManager(object):
@@ -114,18 +113,18 @@ def _cue_music_ref_tag(ref):
     return None, ref
 
 
-def _cue_keep_music(kind, ref, user_music, game_music):
-    # type: (str, str, CueUserMusic, CueGameMusic) -> bool
+def _cue_keep_music(kind, ref, library):
+    # type: (str, str, CueMusicTree) -> bool
     """Existence check for music refs: files are exact members of the tagged
     source's files, folders are prefixes of at least one file there.  An
     untagged legacy ref matches either source.  Unknown kinds are never kept."""
     tag, path = _cue_music_ref_tag(ref)
     if tag == CUE_MUSIC_USER_TAG:
-        files = user_music.files
+        files = library.user_files
     elif tag == CUE_MUSIC_GAME_TAG:
-        files = game_music.files
+        files = library.game_files
     else:
-        files = user_music.files + game_music.files
+        files = library.user_files + library.game_files
     if kind == "file":
         return path in files
     if kind == "folder":

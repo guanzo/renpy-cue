@@ -88,7 +88,7 @@ screen cue_music_page():
                 ", ".join(CUE_AUDIO_EXTS), _cue.paths.music_dir)
         
         use cue_section_frame("Music Library", tt=music_lib_tt):
-            if _cue.music.user_music.tree or _cue.music.game_music.tree:
+            if _cue.music.library.user_tree or _cue.music.library.game_tree:
                 use cue_search_bar("_cue.music.library.search_query", _cue.music.library)
     
             viewport:
@@ -193,7 +193,8 @@ screen trigger_list(triggers):
                                                 _idx,
                                                 _child),
                                             "Remove file from the folder")
-                                        $ _child_display = _cue.music.library.ref_display_path(_child)[len(_song_path):]
+                                        $ _child_path = _cue.music.library.ref_display_path(_child)
+                                        $ _child_display = _child_path[len(_song_path):]
                                         etext _child_display
                         else:
                             # Show the full path under the synthetic My/Game

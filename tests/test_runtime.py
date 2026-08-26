@@ -69,21 +69,21 @@ def test_toggle_overlay_shows_when_hidden(cue, monkeypatch):
 
 def test_show_overlay_scans_empty_libraries(cue):
     cue.sfx.library.files = []
-    cue.music.user_music.files = []
+    cue.music.library.user_files = []
     _runtime._cue_show_overlay()
     assert cue.is_overlay_visible is True
     assert cue.calls["sfx_manager.scan"] == [((), {})]
-    assert cue.calls["music.user_music.scan"] == [((), {})]
+    assert cue.calls["music.library.scan"] == [((), {})]
     assert cue.calls["sfx_manager.maybe_rebuild"] == [((), {})]
     assert cue.calls["video_editor.refresh"] == [((), {})]
 
 
 def test_show_overlay_skips_scan_when_populated(cue):
     cue.sfx.library.files = ["a.ogg"]
-    cue.music.user_music.files = ["m.ogg"]
+    cue.music.library.user_files = ["m.ogg"]
     _runtime._cue_show_overlay()
     assert "sfx_manager.scan" not in cue.calls
-    assert "music.user_music.scan" not in cue.calls
+    assert "music.library.scan" not in cue.calls
     assert cue.is_overlay_visible is True
 
 
@@ -103,7 +103,7 @@ def test_full_reload_scans_and_reloads(cue):
     assert cue.calls["markers.load_persistent"] == [((), {})]
     assert cue.calls["music.reload_presets"] == [((), {})]
     assert cue.calls["sfx_manager.scan"] == [((), {})]
-    assert cue.calls["music.user_music.scan"] == [((), {})]
+    assert cue.calls["music.library.scan"] == [((), {})]
 
 
 def test_full_reload_migrates_intensity_hooks(cue):
@@ -1122,9 +1122,7 @@ def _install_tick_collaborators(trigger=None):
     _cue.volume = SimpleNamespace(flush_pending_saves=lambda: None)
     _cue.video_editor = SimpleNamespace(processing=False)
     _cue.sfx = SimpleNamespace(library=SimpleNamespace(maybe_rebuild=lambda: None))
-    _cue.music = SimpleNamespace(
-        user_music=SimpleNamespace(maybe_rebuild=lambda: None), game_music=SimpleNamespace(maybe_rebuild=lambda: None)
-    )
+    _cue.music = SimpleNamespace(library=SimpleNamespace(maybe_rebuild=lambda: None))
     # Force the slow lane to fire so it's exercised too.
     _runtime._cue_slow_tick_last = 0.0
 
@@ -1143,9 +1141,7 @@ def test_tick_guard_contains_slow_lane_error(isolated_cue, captured_log):
     _cue.volume = SimpleNamespace(flush_pending_saves=lambda: None)
     _cue.video_editor = SimpleNamespace(processing=True, job_queue=SimpleNamespace(poll=lambda: None))
     _cue.sfx = SimpleNamespace(library=SimpleNamespace(maybe_rebuild=lambda: None))
-    _cue.music = SimpleNamespace(
-        user_music=SimpleNamespace(maybe_rebuild=_boom), game_music=SimpleNamespace(maybe_rebuild=lambda: None)
-    )
+    _cue.music = SimpleNamespace(library=SimpleNamespace(maybe_rebuild=_boom))
 
     _cue_tick_trigger = _runtime._cue_tick_trigger
     _cue_tick_trigger()  # slow-lane maybe_rebuild raises -> must not propagate

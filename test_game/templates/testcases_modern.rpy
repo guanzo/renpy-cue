@@ -218,12 +218,14 @@ testcase empty_library_open_folder_btn:
     # scan may carry fixtures other testcases created).
     $ _sfx_files = _cue.sfx.library.files
     $ _sfx_tree = _cue.sfx.library.tree
-    $ _mu_files = _cue.music.user_music.files
-    $ _mu_tree = _cue.music.user_music.tree
+    $ _mu_user_files = _cue.music.library.user_files
+    $ _mu_user_tree = _cue.music.library.user_tree
+    $ _mu_game_tree = _cue.music.library.game_tree
     $ _cue.sfx.library.files = []
     $ _cue.sfx.library.tree = []
-    $ _cue.music.user_music.files = []
-    $ _cue.music.user_music.tree = []
+    $ _cue.music.library.user_files = []
+    $ _cue.music.library.user_tree = []
+    $ _cue.music.library.game_tree = []
     run Function(_cue_set_page, CuePage.SFX)
     assert eval (_cue.overlay_active_page == CuePage.SFX)
     run Function(_cue_set_page, CuePage.MUSIC)
@@ -233,8 +235,9 @@ testcase empty_library_open_folder_btn:
     assert eval (_cue.overlay_active_page == CuePage.SETTINGS)
     $ _cue.sfx.library.files = _sfx_files
     $ _cue.sfx.library.tree = _sfx_tree
-    $ _cue.music.user_music.files = _mu_files
-    $ _cue.music.user_music.tree = _mu_tree
+    $ _cue.music.library.user_files = _mu_user_files
+    $ _cue.music.library.user_tree = _mu_user_tree
+    $ _cue.music.library.game_tree = _mu_game_tree
 
 testcase sfx_file_tree_expand:
     run Jump("start")
@@ -243,8 +246,8 @@ testcase sfx_file_tree_expand:
 
 testcase music_my_music_rows:
     run Jump("start")
-    assert eval (len(_cue.music.user_music.files) >= 1)
-    assert eval (_cue.music.user_music.files[0].startswith("music/"))
+    assert eval (len(_cue.music.library.user_files) >= 1)
+    assert eval (_cue.music.library.user_files[0].startswith("music/"))
 
 testcase audio_presets_list:
     run Jump("start")

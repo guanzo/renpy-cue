@@ -341,8 +341,9 @@ testcase empty_library_open_folder_btn:
     # testcase forks a fresh process, so no restore is needed.
     $ _cue.sfx.library.files = []
     $ _cue.sfx.library.tree = []
-    $ _cue.music.user_music.files = []
-    $ _cue.music.user_music.tree = []
+    $ _cue.music.library.user_files = []
+    $ _cue.music.library.user_tree = []
+    $ _cue.music.library.game_tree = []
     run Function(_cue_set_page, CuePage.SFX)
     pause 0.5
     $ _ok = _cue.overlay_active_page == CuePage.SFX
@@ -368,8 +369,8 @@ testcase music_my_music_rows:
     $ _cue.is_overlay_visible = True
     run Jump("start")
     pause 2.0
-    $ _ok = len(_cue.music.user_music.files) >= 1
-    $ _ok = _ok and _cue.music.user_music.files[0].startswith("music/")
+    $ _ok = len(_cue.music.library.user_files) >= 1
+    $ _ok = _ok and _cue.music.library.user_files[0].startswith("music/")
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 

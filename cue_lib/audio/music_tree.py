@@ -1,82 +1,156 @@
 # -*- coding: utf-8 -*-
-# CueCombinedMusicTree -- display-only merge of the separate My Music and Game
-# Music trees into one "Music Library" tree for the Music page.  The two
-# sub-managers stay untouched (their scans, files, trees, and u:/g: ref tags
-# are the data model); this class only wraps them under two synthetic
-# top-level folders so the UI shows one tree with a single shared search bar.
-# Instantiated once as _cue.music.library; lives on the NoRollback _cue object.
+# CueMusicTree -- the Music Library: scans both My Music (shared dir) and Game
+# Music (game VFS), keeps their per-source trees and scan errors, and merges
+# them under two synthetic folders for display.  Instantiated once as
+# _cue.music.library; lives on the NoRollback _cue object.
+
+import time
+
+import renpy
 
 from cue_lib.audio.file_tree import CueAudioTreeManager
 from cue_lib.audio.file_tree_rows import CueMusicTreeRows
-from cue_lib.constants import CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_GAME_TAG, CUE_MY_MUSIC_FOLDER, CUE_MUSIC_PREFIX
+from cue_lib.constants import (
+    CUE_AUDIO_EXTS,
+    CUE_GAME_MUSIC_FOLDER,
+    CUE_MUSIC_GAME_TAG,
+    CUE_MY_MUSIC_FOLDER,
+    CUE_MUSIC_PREFIX,
+)
+from cue_lib.state import _cue
+from cue_lib.util import _cue_build_tree, _cue_log
+
+# Directory-name heuristic for Game Music discovery: a game file whose path
+# contains one of these segments (case-insensitive) is classified as music.
+CUE_GAME_MUSIC_DIRS = ("music", "bgm", "ost", "soundtrack")
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List
-    from cue_lib.audio.game_music import CueGameMusic
+    from typing import Any, Callable, Dict, List, Set
     from cue_lib.audio.music import CueMusicManager
-    from cue_lib.audio.user_music import CueUserMusic
 
 
-class CueCombinedMusicTree(CueAudioTreeManager):
-    """Combined file-tree display for My Music + Game Music.
+class CueMusicTree(CueAudioTreeManager):
+    """The combined "Music Library" tree: My Music + Game Music in one view.
 
-    Subclasses CueAudioTreeManager so the search-bar contract (search_query,
-    clear_search, toggle_folder, search truncation) and the one-time root
-    expansion are inherited.  scan() is not used -- the sub-managers scan
-    independently, and rebuild_tree()/maybe_rebuild() re-merge their trees on
-    demand.  The user "music/" data root is renamed to a synthetic "My Music"
-    display folder; game files are wrapped under a synthetic "Game Music"
-    folder, so the display always has exactly two top-level folders regardless
-    of how many top-level dirs the Game Music heuristic finds."""
+    Single owner of both music-tree data sources.  scan() runs the two
+    discoveries, keeps per-source files / tree / scan_error, and merges them
+    under the synthetic "My Music"/"Game Music" folders for display.  The
+    search-bar contract (search_query, clear_search, toggle_folder, search
+    truncation) and the one-time root expansion are inherited from the base.
+    The user "music/" data root is renamed to a synthetic "My Music" display
+    folder; game files are wrapped under a synthetic "Game Music" folder, so
+    the display always has exactly two top-level folders regardless of how
+    many top-level dirs the Game Music heuristic finds."""
 
-    _scan_label = "music"
+    _scan_label = "music library"
     _log_tag = "MUSIC-LIB"
     # Open both synthetic top folders by default (one-time), so the two
     # sources are visible without a click.
     _auto_expand_roots = True
 
-    def __init__(self, music, user_music, game_music):
-        # type: (CueMusicManager, CueUserMusic, CueGameMusic) -> None
+    def __init__(self, music):
+        # type: (CueMusicManager) -> None
         CueAudioTreeManager.__init__(self)
         self._music = music
-        self.user_music = user_music
-        self.game_music = game_music
 
         # Row builder for the cue_tree_rows renderer (tree_rows delegates).
         self._rows = CueMusicTreeRows(self)
-        # Source tree object ids at the last rebuild, for maybe_rebuild's
-        # rescan detection (a re-scan replaces the sub-manager's tree list).
-        self._user_tree_id = None
-        self._game_tree_id = None
+        # Per-source scan state, read by ref resolution (_resolve_folder_ref,
+        # _cue_keep_music) and the per-source empty/error rows.
+        self.user_files = []  # type: List[str]
+        self.game_files = []  # type: List[str]
+        self.user_tree = []  # type: List[Dict[str, Any]]
+        self.game_tree = []  # type: List[Dict[str, Any]]
+        self.user_scan_error = ""  # type: str
+        self.game_scan_error = ""  # type: str
+
+    # ------------------------------------------------------------------
+    # Scanning
+    # ------------------------------------------------------------------
+
+    def scan(self):
+        # type: () -> None
+        """Scan both sources, then merge and rebuild the visible rows.
+
+        Each source scans independently: a failure sets that source's empty
+        files/tree and its scan_error, and the other source still contributes.
+        The merged self.tree then drives the visible rows (the one-time root
+        expansion opens both synthetic folders on the first non-empty scan)."""
+        _t0 = time.time()
+
+        self.user_files, self.user_scan_error = self._scan_source(self._discover_user, "music folder")
+        self.game_files, self.game_scan_error = self._scan_source(self._discover_game, "game music")
+        self.user_tree = _cue_build_tree(self.user_files)
+        self.game_tree = _cue_build_tree(self.game_files)
+
+        self._rebuild_merged()
+
+        _cue_log(
+            "SCAN-{}: {:.3f}s {} + {} files".format(
+                self._log_tag, time.time() - _t0, len(self.user_files), len(self.game_files)
+            )
+        )
+
+    def _scan_source(self, discover, label):
+        # type: (Callable[[Set[str]], None], str) -> tuple
+        """Run one source scan; return (sorted files, scan_error)."""
+        results = set()
+        try:
+            discover(results)
+        except Exception as err:
+            return [], "Failed to scan {}: {}".format(label, err)
+        return sorted(results), ""
+
+    def _discover_user(self, results_set):
+        # type: (Set[str]) -> None
+        """Scan the My Music dir -- files the user drops in for music.
+
+        Paths are stored relative to the shared root, prefixed with "music/",
+        so the tree gains a natural "music/" root folder that can be added to
+        a trigger as one ref."""
+        _sub = set()
+        self._discover_walk_dir(_sub, _cue.paths.music_dir)
+        for _rel in _sub:
+            results_set.add(CUE_MUSIC_PREFIX + _rel)
+
+    def _discover_game(self, results_set):
+        # type: (Set[str]) -> None
+        """Scan the game's virtual filesystem for music.
+
+        A file counts as music when its path has a directory segment matching
+        CUE_GAME_MUSIC_DIRS and it ends with an audio extension.  Paths are
+        kept game-relative so they play directly on the music channel."""
+        for f in renpy.list_files():
+            path = f.replace("\\", "/")
+            if not path.lower().endswith(CUE_AUDIO_EXTS):
+                continue
+            parts = path.split("/")
+            dirs = [p.lower() for p in parts[:-1]]
+            if any(d in CUE_GAME_MUSIC_DIRS for d in dirs):
+                results_set.add(path)
 
     # ------------------------------------------------------------------
     # Tree building
     # ------------------------------------------------------------------
 
-    def rebuild_tree(self):
+    def _rebuild_merged(self):
         # type: () -> None
-        """Re-merge the two source trees and rebuild the visible rows.
+        """Re-merge the per-source trees and rebuild the visible rows.
 
-        The merged self.tree wraps each non-empty source under a synthetic
-        top folder.  The one-time root expansion (gated by _has_expanded_roots)
-        opens both synthetic folders on the first non-empty rebuild."""
+        Called by scan() after both sources are scanned; tests seed the
+        per-source trees and call this directly.  The one-time root expansion
+        (gated by _has_expanded_roots) opens both synthetic folders on the
+        first non-empty rebuild."""
         self.tree = self._merged_tree()
-
         if self._auto_expand_roots and not self._has_expanded_roots and self.tree:
             self._expand_roots()
             self._has_expanded_roots = True
-
         CueAudioTreeManager.rebuild_tree(self)
-
-        # Stamp the source-tree ids so the tick loop's maybe_rebuild skips until
-        # a source re-scans or the query changes (mirrors _search_applied).
-        self._user_tree_id = id(self.user_music.tree)
-        self._game_tree_id = id(self.game_music.tree)
 
     def _merged_tree(self):
         # type: () -> List[Dict[str, Any]]
-        """Build the combined nested tree from the two source trees.
+        """Build the combined nested tree from the two per-source trees.
 
         The user tree is always rooted at a single "music/" folder (every
         user file carries that data prefix), so its children are hoisted under
@@ -85,7 +159,7 @@ class CueCombinedMusicTree(CueAudioTreeManager):
         folders (music/, bgm/, ost/), which is exactly why the synthetic
         wrapper is needed.  Empty sources contribute nothing."""
         result = []
-        user_tree = self.user_music.tree
+        user_tree = self.user_tree
 
         if user_tree:
             if len(user_tree) == 1 and user_tree[0]["type"] == "folder" and user_tree[0]["name"] == CUE_MUSIC_PREFIX:
@@ -94,33 +168,13 @@ class CueCombinedMusicTree(CueAudioTreeManager):
             else:
                 children = user_tree
                 has_files = False
-            result.append({"type": "folder", "name": CUE_MY_MUSIC_FOLDER, "children": children, "has_files": has_files})
+            my_music = {"type": "folder", "name": CUE_MY_MUSIC_FOLDER, "children": children, "has_files": has_files}
+            result.append(my_music)
 
-        game_tree = self.game_music.tree
+        game_tree = self.game_tree
         if game_tree:
             result.append({"type": "folder", "name": CUE_GAME_MUSIC_FOLDER, "children": game_tree, "has_files": False})
         return result
-
-    def maybe_rebuild(self):
-        # type: () -> None
-        """Rebuild only when the query changed or either source re-scanned.
-
-        Search keystrokes are debounced via _search_applied (inherited).  A
-        re-scan replaces the sub-manager's tree object, so its id changing is
-        the cheap rescan signal -- this keeps the combined tree fresh without
-        re-merging on every frame."""
-        q = self.search_query
-        if (
-            q == self._search_applied
-            and id(self.user_music.tree) == self._user_tree_id
-            and id(self.game_music.tree) == self._game_tree_id
-        ):
-            return
-
-        self.rebuild_tree()
-        self._search_applied = q
-        self._user_tree_id = id(self.user_music.tree)
-        self._game_tree_id = id(self.game_music.tree)
 
     # ------------------------------------------------------------------
     # Dispatch: display path -> data path

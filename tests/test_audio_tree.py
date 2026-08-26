@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Tests for the audio-library tree managers: the pure _cue_filter_tree search
 # helper (util.py), CueAudioTreeManager (scan, tree walk, search cap,
-# debounced rebuild), CueUserMusic / CueGameMusic (scan sources), and
+# debounced rebuild), CueMusicTree (scan sources + merged library), and
 # CueSfxLibraryTree (file enable toggle, preset/folder expand state, pool-ref
 # rows, sidebar mode).
 
@@ -17,18 +17,17 @@ import renpy as _renpy
 
 from renpy.store import Function, persistent
 
-import cue_lib.audio.file_tree as _tree
-import cue_lib.audio.game_music as _game
+import cue_lib.audio.music_tree as _tree
 import cue_lib.audio.sfx_manager as _sfx_mod
 import cue_lib.audio.file_tree_rows as _tree_rows
-import cue_lib.audio.user_music as _user
 import cue_lib.util as _util
 from cue_lib.audio.file_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
-from cue_lib.audio.game_music import CueGameMusic
+from cue_lib.audio.music_tree import CueMusicTree
 from cue_lib.audio.sfx_manager import CueSfxLibraryTree, CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name
-from cue_lib.audio.user_music import CueUserMusic
 from cue_lib.constants import (
+    CUE_GAME_MUSIC_FOLDER,
     CUE_HELP_SHIFT_SKIP_DELETE,
+    CUE_MY_MUSIC_FOLDER,
     CUE_PERSIST_SIDEBAR_MODE,
     CUE_SIDEBAR_DEFAULT_WIDTH,
     CUE_SIDEBAR_MIN_WIDTH,
@@ -344,7 +343,7 @@ def test_clear_search_resets_debounce_state():
 
 
 # ==========================================================================
-# CueUserMusic
+# CueMusicTree scan sources
 # ==========================================================================
 
 
@@ -356,17 +355,11 @@ def test_user_music_discover_prefixes(monkeypatch, tmp_path):
         if not os.path.isdir(d):
             os.makedirs(d)
         open(p, "w").close()
-    fake = types.SimpleNamespace(paths=types.SimpleNamespace(music_dir=music_dir))
-    monkeypatch.setattr(_user, "_cue", fake)
-    m = CueUserMusic()
+    monkeypatch.setattr(_tree, "_cue", types.SimpleNamespace(paths=types.SimpleNamespace(music_dir=music_dir)))
+    m = CueMusicTree(types.SimpleNamespace())
     results = set()
-    m._discover(results)
+    m._discover_user(results)
     assert results == {"music/song.ogg", "music/sub/track.mp3"}
-
-
-# ==========================================================================
-# CueGameMusic
-# ==========================================================================
 
 
 def test_game_music_discover_filters(monkeypatch):
@@ -381,10 +374,52 @@ def test_game_music_discover_filters(monkeypatch):
         "music/notes.txt",  # not an audio ext
     ]
     monkeypatch.setattr(_renpy, "list_files", lambda: files)
-    m = CueGameMusic()
+    m = CueMusicTree(types.SimpleNamespace())
     results = set()
-    m._discover(results)
+    m._discover_game(results)
     assert results == {"music/bgm.ogg", "Bgm/Upper.OGG", "bgm/intro.mp3", "ost/track.wav", "soundtrack/t.opus"}
+
+
+# ==========================================================================
+# CueMusicTree scan
+# ==========================================================================
+
+
+def test_music_tree_scan_builds_per_source_and_merged(monkeypatch, tmp_path):
+    music_dir = str(tmp_path / "music") + "/"
+    for rel in ("song.ogg", "sub/track.mp3"):
+        p = os.path.join(music_dir, rel)
+        d = os.path.dirname(p)
+        if not os.path.isdir(d):
+            os.makedirs(d)
+        open(p, "w").close()
+    monkeypatch.setattr(_tree, "_cue", types.SimpleNamespace(paths=types.SimpleNamespace(music_dir=music_dir)))
+    monkeypatch.setattr(_renpy, "list_files", lambda: ["music/bgm.ogg", "sfx/shot.ogg", "images/bg.png"])
+    m = _tree.CueMusicTree(types.SimpleNamespace())
+    m.scan()
+    assert m.user_files == ["music/song.ogg", "music/sub/track.mp3"]
+    assert m.game_files == ["music/bgm.ogg"]
+    assert m.user_scan_error == ""
+    assert m.game_scan_error == ""
+    # Merged tree has both synthetic roots (auto-expanded once), rows built.
+    assert m.tree[0]["name"] == CUE_MY_MUSIC_FOLDER
+    assert m.tree[1]["name"] == CUE_GAME_MUSIC_FOLDER
+    assert m.expanded_folders == {CUE_MY_MUSIC_FOLDER: True, CUE_GAME_MUSIC_FOLDER: True}
+    assert m.visible_tree
+
+    # A re-scan picks up new files and rebuilds the merged rows (the old
+    # object-id rescan detection in maybe_rebuild is gone; scan() is the
+    # single writer and calls _rebuild_merged itself).
+    open(os.path.join(music_dir, "new.ogg"), "w").close()
+    monkeypatch.setattr(
+        _renpy, "list_files", lambda: ["music/bgm.ogg", "sfx/shot.ogg", "images/bg.png", "ost/loop.ogg"]
+    )
+    m.scan()
+    assert m.user_files == ["music/new.ogg", "music/song.ogg", "music/sub/track.mp3"]
+    assert m.game_files == ["music/bgm.ogg", "ost/loop.ogg"]
+    assert any(r["full_path"] == CUE_MY_MUSIC_FOLDER + "new.ogg" for r in m.visible_tree)
+    # Game Music root stays expanded; the new ost/ sub-folder shows as a row.
+    assert any(r["full_path"] == CUE_GAME_MUSIC_FOLDER + "ost/" for r in m.visible_tree)
 
 
 # ==========================================================================
@@ -739,13 +774,6 @@ def test_scan_empty_first_scan_does_not_consume_root_expansion():
     mgr._files_in = ["music/a.mp3"]
     mgr.scan()
     assert mgr.expanded_folders == {"music/": True}
-
-
-def test_music_managers_are_scan_only():
-    assert CueUserMusic._build_visible is False
-    assert CueGameMusic._build_visible is False
-    # The base default (shared with the SFX library) builds its own tree.
-    assert CueAudioTreeManager._build_visible is True
 
 
 # ==========================================================================

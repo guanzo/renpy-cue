@@ -40,24 +40,17 @@ GAME_ID = "test_game"
 class FakeMusicRestore(object):
     """Music-manager stand-in for _cue_full_reload's re-scan + re-merge.
     The real manager is always wired by the time a restore runs (overlay button
-    after init), so user_music/library/game_music/_recent must exist here too."""
+    after init), so library/_recent must exist here too."""
 
     def __init__(self):
-        self.user_music = types.SimpleNamespace(scan_calls=0)
-        self.library = types.SimpleNamespace(maybe_rebuild_calls=0)
-        self.game_music = types.SimpleNamespace(scan_calls=0)
+        self.library = types.SimpleNamespace(scan_calls=0, maybe_rebuild_calls=0)
         self.reload_presets_calls = 0
         self._recent = types.SimpleNamespace(load_calls=0)
 
         def _scan():
-            self.user_music.scan_calls += 1
+            self.library.scan_calls += 1
 
-        self.user_music.scan = _scan
-
-        def _game_music_scan():
-            self.game_music.scan_calls += 1
-
-        self.game_music.scan = _game_music_scan
+        self.library.scan = _scan
 
         def _maybe_rebuild():
             self.library.maybe_rebuild_calls += 1
@@ -186,7 +179,7 @@ def test_restore_reloads_store_from_zip(cue_env, mgr, backups, _fake_singletons)
     assert mgr._store._data["v_scene.ogv"]["pools"][0]["files"] == ["a.ogg"]
     # Post-restore side effects all fired.
     assert mgr._sfx_manager.scan_calls == 1
-    assert _fake_singletons.music.user_music.scan_calls == 1
+    assert _fake_singletons.music.library.scan_calls == 1
     assert _fake_singletons.music.library.maybe_rebuild_calls == 1
     assert mgr._video_editor.refresh_calls == 1
     assert _markers._cue.undo.reset_calls == 1
@@ -241,7 +234,7 @@ def test_restore_scans_restored_music(cue_env, backups, _fake_singletons):
     zip_path = _backup_zip(cue_env)
 
     scanned = []
-    _fake_singletons.music.user_music.scan = lambda: scanned.append(1)
+    _fake_singletons.music.library.scan = lambda: scanned.append(1)
     backups._restore_worker(zip_path)
     backups._finish_reload()
     assert scanned == [1]

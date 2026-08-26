@@ -2,7 +2,7 @@
 # CueSfxManager -- SFX playback (shared _cue_ channels) plus the SFX library
 # orchestration around it.  The library tree (audio scan, folder/preset tree
 # UI state, disabled files) lives in CueSfxLibraryTree, owned here as
-# ``library`` -- mirroring how CueMusicManager owns its CueCombinedMusicTree.
+# ``library`` -- mirroring how CueMusicManager owns its CueMusicTree.
 # Collaborators (paths/db/volume/ctx) are constructor-injected; markers is
 # late-bound via bind_markers (construction cycle with CueMarkerManager).
 # Instantiated once at _cue.sfx, lives on the NoRollback _cue object.

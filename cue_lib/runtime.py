@@ -110,8 +110,8 @@ def _cue_show_overlay():
     _cue.is_overlay_visible = True
     if not _cue.sfx.library.files:
         _cue.sfx.library.scan()
-    if not _cue.music.user_music.files:
-        _cue.music.user_music.scan()
+    if not _cue.music.library.user_files:
+        _cue.music.library.scan()
     _cue.sfx.warm_cache()
 
     _cue_refresh_context()
@@ -148,8 +148,7 @@ def _cue_full_reload():
     _cue.music.reload_presets()
 
     _cue.sfx.library.scan()
-    _cue.music.user_music.scan()
-    _cue.music.game_music.scan()
+    _cue.music.library.scan()
     _cue.sfx.warm_cache()
     _cue.sfx.library._recent.load()  # pyright: ignore[reportOptionalMemberAccess]
     _cue.music._recent.load()
