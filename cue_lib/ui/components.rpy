@@ -599,7 +599,6 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                 use cue_txt_button(
                     folder_label,
                     Function(_cue.sfx.library.toggle_file_ref_expand, folder_label))
-                etext "({} files)".format(_count) style "cue_help"
 
             if _is_expanded and folder_children:
                 for _child in folder_children:
@@ -626,7 +625,6 @@ screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spaci
                         Function(_cue.sfx.preview_folder, f, preview_vol),
                         "Play random file from folder")
                     use cue_txt_button(f, Function(_cue.sfx.library.toggle_file_ref_expand, f))
-                    etext "({} files)".format(_count) style "cue_help"
 
                 if _is_expanded:
                     for _child in _cue_resolve_files([f]):
@@ -825,7 +823,6 @@ screen _cue_igroup_pool_files_vbox(_ilevel_files, preview_vol, igroup, ilevel_id
                             _f,
                             Function(_cue.sfx.library.toggle_file_ref_expand, _f),
                             tt=_hook_tt)
-                    etext "({} files)".format(_count) style "cue_help"
                 if _is_expanded:
                     for _child in _cue_resolve_files([_f]):
                         hbox:

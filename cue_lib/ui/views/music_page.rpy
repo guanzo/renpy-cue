@@ -180,7 +180,6 @@ screen trigger_list(triggers):
                                 use cue_txt_button(
                                     _song_path,
                                     Function(_cue.music.toggle_file_ref_expand, _song))
-                                etext ("({} files)".format(len(_folder_files))) style "cue_help"
                             if _folder_expanded:
                                 for _child in _folder_files:
                                     hbox:

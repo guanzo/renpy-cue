@@ -128,13 +128,19 @@ class CueSfxManager(object):
         persisted index, so a repeat launch warm fast."""
         if self._warm_thread is not None and self._warm_thread.is_alive():
             return
-        # library.files holds refs (built-in audio-relative + external e:); the
-        # converter needs absolute paths, so resolve here with an empty dir.
+        # library.files holds refs (built-in audio-relative + bare absolute
+        # external); the converter needs absolute paths, so resolve here with an
+        # empty dir.
         abs_paths = [self.library.resolve_path(r) for r in list(self.library.files)]
         wav_playable = self._wav_playable
 
         def _run():
-            wav_playable.warm(abs_paths, "")
+            try:
+                wav_playable.warm(abs_paths, "")
+            finally:
+                # Release the finished thread so it (and the abs_paths list it
+                # closes over) is not pinned for the session.
+                self._warm_thread = None
 
         self._warm_thread = threading.Thread(target=_run)
         self._warm_thread.daemon = True
