@@ -41,6 +41,13 @@ of truth; never retype the number.
    - **Later releases**: run `git-cliff -u` to draft the categorized notes for
      the unreleased range; regenerate `CHANGELOG.md` with `git-cliff`. Save the
      draft to a temp file for step 9.
+   - The repo is **private**, so git-cliff cannot fetch GitHub metadata
+     unauthenticated. Run it with the token exported:
+
+     ```bash
+     export GITHUB_TOKEN="$(gh auth token)"
+     git-cliff -u
+     ```
 
 6. **Dry-run the mod asset** (verify contents, don't ship it):
 

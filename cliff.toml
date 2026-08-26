@@ -3,27 +3,50 @@
 # CLAUDE.md; tune the categorization/render here.
 
 [remote.github]
-repo = "guanzo/renpy-cue"
+owner = "guanzo"
+repo = "renpy-cue"
 
 [changelog]
-header = "## Ren'Py Cue Changelog\n"
+# Tera template rendered per release. `{% if version %}` guards the date so an
+# unreleased run (no tag yet) doesn't try to format a null timestamp.
 body = """
-### Release {{ version }} — {{ timestamp | date(format="%Y-%m-%d") }}
+{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## [unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
+            {% if commit.breaking %}[**breaking**] {% endif %}\
+            {{ commit.message | upper_first }}\
+    {% endfor %}
+{% endfor %}
 """
 footer = ""
+# Trim leading/trailing whitespace from the rendered body.
 trim = true
+# Render the changelog even when there are no releases/tags yet.
+render_always = true
 
 [git]
+# Parse commits per the Conventional Commits spec (see CLAUDE.md).
 conventional_commits = true
-filter_unconventional = false
+# Drop commits that aren't conventional -- keeps the notes clean.
+filter_unconventional = true
 split_commits = false
 commit_parsers = [
   { message = "^feat", group = "Features" },
   { message = "^fix", group = "Bug Fixes" },
-  { message = "^docs", group = "Documentation" },
-  { message = "^refactor", group = "Refactoring" },
   { message = "^perf", group = "Performance" },
+  { message = "^refactor", group = "Refactoring" },
+  { message = "^docs", group = "Documentation" },
+  { message = "^style", group = "Styling" },
   { message = "^test", group = "Tests" },
-  { message = "^chore|^build", group = "Chores" },
+  { message = "^chore|^build|^ci", group = "Chores" },
+  { message = "^revert", group = "Revert" },
   { message = ".*", group = "Other" },
 ]
+filter_commits = false
+fail_on_unmatched_commit = false
