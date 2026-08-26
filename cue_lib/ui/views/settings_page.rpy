@@ -192,6 +192,7 @@ screen cue_about():
             etext "Version {}".format(CUE_VERSION)
             text ("{a=" + CUE_GITHUB + "}Report bugs or request features{/a}") style "cue_about_link"
             text ("{a=" + CUE_DISCORD + "}Join the Cue Discord{/a}") style "cue_about_link"
+            text ("{a=" + CUE_KOFI + "}Support me{/a}") style "cue_about_link"
 
 # -----------------------------------------------------------------------------
 # Keybind-capture modal — shown while waiting for the user to press a key

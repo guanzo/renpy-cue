@@ -95,6 +95,7 @@ class CueContextType(object):
 CUE_VERSION = "0.1.0"
 CUE_DISCORD = "https://discord.gg/kAVtFGcQYm"
 CUE_GITHUB = "https://github.com/guanzo/renpy-cue/issues"
+CUE_KOFI = "https://ko-fi.com/guanzo"
 
 # Marker trigger key prefixes; db.py and util.py helpers key on these strings.
 CUE_IMG_KEY_PREFIX = "i_"
