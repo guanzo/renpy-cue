@@ -1,5 +1,7 @@
 from typing import Final
 
+CUE_VERSION: Final = "0.1.0"
+
 CUE_IMG_KEY_PREFIX: Final = "i_"
 CUE_LOOP_KEY_PREFIX: Final = "l_"
 CUE_DLG_KEY_PREFIX: Final = "d_"
