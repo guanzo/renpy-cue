@@ -243,6 +243,14 @@ Use this for public functions whose `.pyi` signatures reference TypedDicts. Buil
 * The single canonical definition for each TypedDict.
 * Located at `cue_lib/_types.py`.
 
+# Commit Convention
+
+Use Conventional Commits. Prefix a commit with one of: `feat`, `fix`, `refactor`,
+`perf`, `docs`, `style`, `test`, `build`, `chore`, `revert`, optionally `(scope)`.
+A breaking change is marked with `!` after the type or a `BREAKING CHANGE:`
+footer, e.g. `feat!: drop 7.x support`. This convention drives the `git-cliff`
+release notes and changelog in `/release`.
+
 # Maintaining This Document
 
 Keep this document concise and action-oriented.
