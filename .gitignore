@@ -40,3 +40,9 @@ tests/fixtures/data/imports/
 __pycache__/
 tools/beat_extractor/output/
 tools/beat_extractor/samples/
+
+# host-side cron anomaly monitor -- hardcodes a local GAMES_ROOT, not for public
+tools/trigger_monitor.py
+
+# Superpowers agentic planning/design artifacts -- not product docs
+docs/superpowers/

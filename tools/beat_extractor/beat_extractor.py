@@ -7,8 +7,8 @@ tail plays out) plus a CSV audit report. See SPEC.md for the design.
 
 Dev tool, system Python 3. Deps: numpy + ffmpeg on PATH.
 
-Windows paths (e.g. E:\\Porn\\VR\\spatial\\song.mp4) are converted to WSL
-paths (/mnt/e/Porn/VR/spatial/song.mp4) automatically.
+Windows paths (e.g. E:\\media\\song.mp4) are converted to WSL
+paths (/mnt/e/media/song.mp4) automatically.
 
 Example:
 python3 beat_extractor.py "song.mp4" --start 00:13:10 --end 00:13:12
@@ -16,7 +16,7 @@ python3 beat_extractor.py "song.mp4" --start 00:13:10 --end 00:13:12
 Batch mode -- windows come from an Audacity label export (start<TAB>end per
 line); beats across every window are numbered sequentially and land flat in
 beats/ next to _raw/:
-python3 beat_extractor.py "song.mp4" --labels "E:\\Labels 1.txt"
+python3 beat_extractor.py "song.mp4" --labels "E:\\labels.txt"
 """
 
 from __future__ import print_function
@@ -49,7 +49,7 @@ from intensity import copy_tiers as _intensity_copy
 def win_to_wsl(path):
     """Convert a Windows path to a WSL path so ffmpeg can open it.
 
-    'E:\\test\\haha\\a b.mp4' -> '/mnt/e/test/haha/a b.mp4'.
+    'E:\\media\\a b.mp4' -> '/mnt/e/media/a b.mp4'.
     POSIX paths (already absolute) and relative paths pass through, with stray
     backslashes fixed to forward slashes; a trailing double-quote from a sloppy
     copy-paste is dropped.
