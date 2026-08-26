@@ -489,8 +489,8 @@ def test_merged_tree_appends_external_wrappers(tmp_path):
     (d1 / "artist" / "song.ogg").write_bytes(b"x")
     lib = _scan_lib(tmp_path, [d1], user_paths=("music/a.ogg",), game_paths=("bgm/x.ogg",))
     lib._rebuild_merged()
-    assert [n["name"] for n in lib.tree] == ["My Music/", "Game Music/", "ExtA/"]
-    ext = lib.tree[-1]
+    assert [n["name"] for n in lib.tree] == ["My Music/", "ExtA/", "Game Music/"]
+    ext = lib.tree[1]
     assert ext["has_files"] is False
     assert ext["children"][0]["name"] == "artist/"
 

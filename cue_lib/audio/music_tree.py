@@ -168,14 +168,16 @@ class CueMusicTree(CueAudioTreeManager):
                 my_music["abs_root"] = _cue.paths.music_dir
             result.append(my_music)
 
+        # External sources render between the built-ins: folders the user adds
+        # via Settings > Data Folder.  A source with no files (missing folder)
+        # still appears so its warning row is reachable.
+        self._append_external_sources(result)
+
+        # Game Music is always last, below any user-added external folders.
         game_tree = self.game_tree
         if game_tree:
             result.append({"type": "folder", "name": CUE_GAME_MUSIC_FOLDER, "children": game_tree, "has_files": False})
 
-        # External sources render as additional top-level entries after the
-        # built-ins.  A source with no files (missing folder) still appears so
-        # its warning row is reachable.
-        self._append_external_sources(result)
         return result
 
     # ------------------------------------------------------------------

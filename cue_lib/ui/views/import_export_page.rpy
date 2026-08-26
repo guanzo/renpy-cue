@@ -25,7 +25,7 @@ screen cue_export_section():
 
 
             $ _exports_source = ("Exports always come from your data, "
-                                 "not from an active import.")
+                                 "not from a previewed import.")
             etext _exports_source
 
             null height 5
