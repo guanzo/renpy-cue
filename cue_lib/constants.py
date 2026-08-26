@@ -148,7 +148,7 @@ CUE_MUSIC_GAME_TAG = "g:"
 
 # Display-only synthetic root for built-in SFX files in the SFX Library tree,
 # so the audio dir renders like an external folder (sfx_manager.py).
-CUE_SFX_FOLDER = "SFX Folder/"
+CUE_SFX_FOLDER = "SFX/"
 
 # Default pool / preset volume (1.0 = identity).  CueVolumeManager.VOL_DEFAULT
 # aliases this for legacy _cue.volume.VOL_DEFAULT references.

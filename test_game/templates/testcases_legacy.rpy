@@ -1641,7 +1641,7 @@ testcase sfx_external_tree_renders:
     $ _cue.is_overlay_visible = True
     run Jump("start")
     pause 2.0
-    # The SFX library wraps built-ins in the synthetic "SFX Folder/" root and
+    # The SFX library wraps built-ins in the synthetic "SFX/" root and
     # appends external folders below it; rendering the SFX page under that
     # state exercises the per-source tree rows.
     $ _md, _sd = _cue_external_dirs()
@@ -1650,7 +1650,7 @@ testcase sfx_external_tree_renders:
     $ _ok = len(_cue.sfx.library.external_files) == 1
     $ _ok = _ok and _cue.sfx.library.external_sources[0]["label"] == "ExtSfx"
     $ _ok = _ok and len(_cue.sfx.library.tree) >= 2
-    $ _ok = _ok and _cue.sfx.library.tree[0]["name"] == "SFX Folder/"
+    $ _ok = _ok and _cue.sfx.library.tree[0]["name"] == "SFX/"
     $ _ok = _ok and any(_e.get("name") == "ExtSfx/" for _e in _cue.sfx.library.tree)
     run Function(_cue_set_page, CuePage.SFX)
     pause 0.5

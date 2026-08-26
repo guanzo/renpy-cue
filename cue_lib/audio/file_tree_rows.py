@@ -230,7 +230,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         in intensity add-mode appends to the active (group, level).  An empty
         folder gets no buttons (matches the current tree UI).
 
-        Display paths carry the synthetic wrapper ("SFX Folder/..." for
+        Display paths carry the synthetic wrapper ("SFX/..." for
         built-in, "ExtA/..." for external); every action that feeds a path
         uses ref_from_display to get the stored ref.  The file [+] is
         index-based and stays."""

@@ -350,7 +350,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
 
     _scan_label = "audio folder"
     _log_tag = "AUDIO"
-    # The synthetic "SFX Folder" root opens by default like music's roots;
+    # The synthetic "SFX" root opens by default like music's roots;
     # persisted toggles still win via _restore_expansion.
     _auto_expand_roots = True
     _persist_key = CUE_PERSIST_SFX_TREE_EXPANDED
@@ -422,7 +422,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
     def scan(self):
         # type: () -> None
         """Scan every source (built-in audio dir + external folders), then
-        merge the per-source trees under a synthetic "SFX Folder" root.
+        merge the per-source trees under a synthetic "SFX" root.
 
         Mirror of CueMusicTree.scan.  A built-in scan failure leaves that
         source's files/tree empty and sets its scan_error; external folders
@@ -464,7 +464,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # type: (str) -> str
         """Stored ref for a merged display path.
 
-        Inverts the merged tree: the synthetic "SFX Folder" root maps back to
+        Inverts the merged tree: the synthetic "SFX" root maps back to
         the audio-relative ref; an external source label maps to the bare
         absolute payload.  Any other path passes through unchanged (row
         builders feed untagged paths in tests and for legacy trees)."""
@@ -494,7 +494,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # type: () -> List[Dict[str, Any]]
         """Build the combined nested tree from the per-source trees.
 
-        Built-in files wrap under the synthetic "SFX Folder" root; external
+        Built-in files wrap under the synthetic "SFX" root; external
         sources render as additional top-level entries below it.  A source
         with no files (missing folder) still appears so its warning row is
         reachable."""
@@ -516,7 +516,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # type: (Dict[str, Any], str, int) -> Dict[str, Any]
         """File row with ref/index/enabled for the SFX Library.
 
-        ``full`` is the merged display path ("SFX Folder/g1/x.ogg" for
+        ``full`` is the merged display path ("SFX/g1/x.ogg" for
         built-in, "ExtA/g1/x.ogg" for external); the stored ref inverts it so
         both built-in AND external rows get valid indices and disabled
         membership without changing the [+] index path."""

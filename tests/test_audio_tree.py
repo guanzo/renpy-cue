@@ -518,14 +518,14 @@ def test_sfx_scan_missing_external_folder_keeps_warning(sfx, tmp_path):
 
 
 def test_sfx_external_label_disambiguated(sfx):
-    assert sfx._external_label("E:/SFX Folder", []) == "SFX Folder (2)"
+    assert sfx._external_label("E:/SFX", []) == "SFX (2)"
     assert sfx._external_label("E:/Music", []) == "Music"
     assert sfx._external_label("E:/Music", ["Music"]) == "Music (2)"
 
 
 def test_sfx_ref_from_display(sfx):
     sfx.external_sources = [{"label": "ExtA", "abs_root": "E:/SFX/A", "tree": [], "files": [], "scan_error": ""}]
-    assert sfx.ref_from_display("SFX Folder/g1/drip.ogg") == "g1/drip.ogg"
+    assert sfx.ref_from_display(CUE_SFX_FOLDER + "g1/drip.ogg") == "g1/drip.ogg"
     assert sfx.ref_from_display("ExtA/g1/drip.ogg") == "E:/SFX/A/g1/drip.ogg"
     assert sfx.ref_from_display("ExtA/g1/") == "E:/SFX/A/g1/"
     # Unknown paths (legacy / unqualified rows) pass through unchanged.
@@ -542,7 +542,7 @@ def test_sfx_file_node_ref_index_enabled(sfx):
     sfx.external_sources = [{"label": "ExtA", "abs_root": "E:/SFX/A", "tree": [], "files": [], "scan_error": ""}]
     sfx._file_index = {"g1/drip.ogg": 2, "E:/SFX/A/x.ogg": 3}
     sfx.disabled_files = {"E:/SFX/A/x.ogg"}
-    builtin = sfx._file_node({"name": "drip.ogg"}, "SFX Folder/g1/drip.ogg", 1)
+    builtin = sfx._file_node({"name": "drip.ogg"}, CUE_SFX_FOLDER + "g1/drip.ogg", 1)
     assert builtin["ref"] == "g1/drip.ogg"
     assert builtin["index"] == 2
     assert builtin["enabled"] is True
@@ -1014,7 +1014,7 @@ def test_sfx_row_buttons_use_refs(sfx):
     sfx.external_sources = [{"label": "ExtA", "abs_root": "E:/SFX/A", "tree": [], "files": [], "scan_error": ""}]
     sfx.visible_tree = [
         {"type": "folder", "name": "ExtA/", "full_path": "ExtA/", "depth": 0, "has_files": True},
-        {"type": "file", "name": "drip.ogg", "full_path": "SFX Folder/g1/drip.ogg", "depth": 1, "index": 0},
+        {"type": "file", "name": "drip.ogg", "full_path": CUE_SFX_FOLDER + "g1/drip.ogg", "depth": 1, "index": 0},
     ]
     rows = sfx.tree_rows(True, "tt", {})
     ext_folder, builtin_file = rows
@@ -1742,7 +1742,7 @@ def test_sfx_scan_default_open(sfx, monkeypatch):
 
     monkeypatch.setattr(sfx, "_discover", _discover)
     sfx.scan()
-    assert sfx.expanded_folders == {"SFX Folder/": True}
+    assert sfx.expanded_folders == {CUE_SFX_FOLDER: True}
 
 
 def test_sfx_scan_restores_expansion(sfx, monkeypatch):
@@ -1752,7 +1752,7 @@ def test_sfx_scan_restores_expansion(sfx, monkeypatch):
     monkeypatch.setattr(sfx, "_discover", _discover)
     persistent._cue[CUE_PERSIST_SFX_TREE_EXPANDED] = {"sub/": True}
     sfx.scan()
-    assert sfx.expanded_folders == {"SFX Folder/": True, "sub/": True}
+    assert sfx.expanded_folders == {CUE_SFX_FOLDER: True, "sub/": True}
 
 
 def test_sfx_file_ref_expand_persists(sfx):

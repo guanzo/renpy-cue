@@ -1356,7 +1356,7 @@ testcase music_external_tree_renders:
 testcase sfx_external_tree_renders:
     run Jump("start")
     $ _cue_test_reset()
-    # The SFX library wraps built-ins in the synthetic "SFX Folder/" root and
+    # The SFX library wraps built-ins in the synthetic "SFX/" root and
     # appends external folders below it; rendering the SFX page under that
     # state exercises the per-source tree rows.
     $ _md, _sd = _cue_external_dirs()
@@ -1365,7 +1365,7 @@ testcase sfx_external_tree_renders:
     assert eval (len(_cue.sfx.library.external_files) == 1)
     assert eval (_cue.sfx.library.external_sources[0]["label"] == "ExtSfx")
     assert eval (len(_cue.sfx.library.tree) >= 2)
-    assert eval (_cue.sfx.library.tree[0]["name"] == "SFX Folder/")
+    assert eval (_cue.sfx.library.tree[0]["name"] == "SFX/")
     assert eval (any(_e.get("name") == "ExtSfx/" for _e in _cue.sfx.library.tree))
     run Function(_cue_set_page, CuePage.SFX)
     assert eval (_cue.overlay_active_page == CuePage.SFX)

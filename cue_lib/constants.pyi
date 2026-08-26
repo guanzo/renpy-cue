@@ -22,7 +22,7 @@ CUE_MY_MUSIC_FOLDER: Final = "My Music/"
 CUE_GAME_MUSIC_FOLDER: Final = "Game Music/"
 CUE_MUSIC_USER_TAG: Final = "u:"
 CUE_MUSIC_GAME_TAG: Final = "g:"
-CUE_SFX_FOLDER: Final = "SFX Folder/"
+CUE_SFX_FOLDER: Final = "SFX/"
 CUE_VOLUME_DEFAULT: Final = 1.0
 
 CUE_INTENSITY_PRESET_TYPE: Final = "intensity"
