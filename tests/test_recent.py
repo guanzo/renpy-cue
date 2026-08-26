@@ -224,15 +224,16 @@ def test_keep_music_untagged_checks_both():
 
 
 def test_keep_music_external_file():
+    # External refs are bare absolute paths (untagged).
     lib = _music_lib([], [], external_files=["E:/Music/artist/song.ogg"])
-    assert _cue_keep_music("file", "e:E:/Music/artist/song.ogg", lib)
-    assert not _cue_keep_music("file", "e:E:/Music/artist/miss.ogg", lib)
+    assert _cue_keep_music("file", "E:/Music/artist/song.ogg", lib)
+    assert not _cue_keep_music("file", "E:/Music/artist/miss.ogg", lib)
 
 
 def test_keep_music_external_folder():
     lib = _music_lib([], [], external_files=["E:/Music/artist/a.ogg"])
-    assert _cue_keep_music("folder", "e:E:/Music/artist/", lib)
-    assert not _cue_keep_music("folder", "e:E:/Music/other/", lib)
+    assert _cue_keep_music("folder", "E:/Music/artist/", lib)
+    assert not _cue_keep_music("folder", "E:/Music/other/", lib)
 
 
 def test_keep_music_unknown_kind_never_kept():

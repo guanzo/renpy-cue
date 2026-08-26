@@ -29,7 +29,6 @@ from cue_lib.audio.music import (
     _SUPPRESS_MUSIC,
     CueMusicManager,
 )
-from cue_lib.constants import CUE_EXTERNAL_TAG
 
 
 def _wav24(src, data_bytes):
@@ -684,19 +683,27 @@ def test_resolve_music_files_dedupes_direct(mgr):
 
 
 def test_resolve_music_files_user_folder(mgr):
+    # Folder expansion yields stored-form children (tagged), so the result is
+    # directly re-insertable as trigger/preset refs.
     mgr.library.user_files = ["music/song.ogg", "music/sub/t.ogg"]
-    assert mgr.resolve_music_files([CUE_MUSIC_USER_TAG + "music/"]) == ["music/song.ogg", "music/sub/t.ogg"]
+    assert mgr.resolve_music_files([CUE_MUSIC_USER_TAG + "music/"]) == [
+        CUE_MUSIC_USER_TAG + "music/song.ogg",
+        CUE_MUSIC_USER_TAG + "music/sub/t.ogg",
+    ]
 
 
 def test_resolve_music_files_game_folder(mgr):
     mgr.library.game_files = ["music/bgm.ogg"]
-    assert mgr.resolve_music_files([CUE_MUSIC_GAME_TAG + "music/"]) == ["music/bgm.ogg"]
+    assert mgr.resolve_music_files([CUE_MUSIC_GAME_TAG + "music/"]) == [CUE_MUSIC_GAME_TAG + "music/bgm.ogg"]
 
 
 def test_resolve_music_files_legacy_folder_both(mgr):
     mgr.library.user_files = ["music/user.ogg"]
     mgr.library.game_files = ["music/game.ogg"]
-    assert mgr.resolve_music_files(["music/"]) == ["music/user.ogg", "music/game.ogg"]
+    assert mgr.resolve_music_files(["music/"]) == [
+        CUE_MUSIC_USER_TAG + "music/user.ogg",
+        CUE_MUSIC_GAME_TAG + "music/game.ogg",
+    ]
 
 
 def test_split_ref_tag(mgr):
@@ -736,37 +743,47 @@ def test_resolve_music_path_legacy_music_prefix(mgr):
     assert mgr._resolve_music_path("music/song.ogg") == music_dir + "song.ogg"
 
 
-def test_resolve_music_path_legacy_disk_missing(mgr):
-    stored = "music/nope.ogg"
-    assert mgr._resolve_music_path(stored) == stored
+def test_resolve_music_path_legacy_default_music_dir(mgr):
+    # No probing: an untagged legacy ref defaults to the My Music layout.
+    assert mgr._resolve_music_path("music/nope.ogg") == mgr._paths.music_dir + "nope.ogg"
 
 
-def test_split_ref_tag_external(mgr):
-    assert mgr._split_ref_tag(CUE_EXTERNAL_TAG + "E:/Music/a.ogg") == (CUE_EXTERNAL_TAG, "E:/Music/a.ogg")
+def test_resolve_music_path_no_disk_probe(mgr, monkeypatch):
+    # Regression: resolution is decided purely by tag/absolute shape and must
+    # never probe the filesystem.  A g: child and an external abs path both
+    # resolve even though nothing matching exists on disk.
+    def _no_probe(path):
+        raise AssertionError("resolved path probed the disk: {}".format(path))
+
+    monkeypatch.setattr("os.path.exists", _no_probe)
+    assert mgr._resolve_music_path(CUE_MUSIC_GAME_TAG + "bgm/ghost.ogg") == "bgm/ghost.ogg"
+    assert mgr._resolve_music_path("E:/Nowhere/ghost.ogg") == "E:/Nowhere/ghost.ogg"
 
 
-def test_ref_path_strips_external_tag(mgr):
-    assert mgr.ref_path(CUE_EXTERNAL_TAG + "E:/Music/a.ogg") == "E:/Music/a.ogg"
+def test_split_ref_tag_external_is_untagged(mgr):
+    # External refs are bare absolute paths, not tagged; tag is None.
+    assert mgr._split_ref_tag("E:/Music/a.ogg") == (None, "E:/Music/a.ogg")
+
+
+def test_ref_path_external_verbatim(mgr):
+    assert mgr.ref_path("E:/Music/a.ogg") == "E:/Music/a.ogg"
 
 
 def test_resolve_music_path_external_verbatim(mgr):
     # External payload is already absolute -- returned unchanged.
-    assert mgr._resolve_music_path(CUE_EXTERNAL_TAG + "E:/Music/song.ogg") == "E:/Music/song.ogg"
+    assert mgr._resolve_music_path("E:/Music/song.ogg") == "E:/Music/song.ogg"
 
 
 def test_resolve_music_files_external_folder(mgr):
     root = "E:/Music"
     mgr.library.external_files = [root + "/artist/a.ogg", root + "/artist/b.ogg"]
-    assert mgr.resolve_music_files([CUE_EXTERNAL_TAG + root + "/artist/"]) == [
-        CUE_EXTERNAL_TAG + root + "/artist/a.ogg",
-        CUE_EXTERNAL_TAG + root + "/artist/b.ogg",
-    ]
+    assert mgr.resolve_music_files([root + "/artist/"]) == [root + "/artist/a.ogg", root + "/artist/b.ogg"]
 
 
 def test_music_pool_for_external(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     mgr._triggers["replay1"] = [{"key_after": "i_a.ogv", "filepaths": ["music/default.ogg"]}]
-    mgr._store["i_a.ogv"] = {"music": [CUE_EXTERNAL_TAG + "E:/Music/custom.ogg"]}
+    mgr._store["i_a.ogv"] = {"music": ["E:/Music/custom.ogg"]}
     assert mgr.music_pool_for("i_a.ogv") == ["music/default.ogg", "E:/Music/custom.ogg"]
 
 
@@ -837,7 +854,7 @@ def test_add_external_song_to_trigger(mgr, monkeypatch):
     _set_scene(mgr, "scene.ogv", "image")
     mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     mgr.add_external_song_to_trigger("E:/Music/song.ogg")
-    assert mgr._store.get("i_scene.ogv")["music"] == [CUE_EXTERNAL_TAG + "E:/Music/song.ogg"]
+    assert mgr._store.get("i_scene.ogv")["music"] == ["E:/Music/song.ogg"]
 
 
 def test_add_external_folder_to_trigger(mgr, monkeypatch):
@@ -845,7 +862,7 @@ def test_add_external_folder_to_trigger(mgr, monkeypatch):
     _set_scene(mgr, "scene.ogv", "image")
     mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     mgr.add_external_folder_to_trigger("E:/Music/artist")
-    assert mgr._store.get("i_scene.ogv")["music"] == [CUE_EXTERNAL_TAG + "E:/Music/artist/"]
+    assert mgr._store.get("i_scene.ogv")["music"] == ["E:/Music/artist/"]
 
 
 def test_add_ref_to_trigger_no_scene(mgr):
@@ -987,7 +1004,7 @@ def test_music_toggle_file_ref_expand(mgr):
 def test_remove_song_from_folder_ref(mgr):
     mgr.library.user_files = ["music/a.ogg", "music/b.ogg"]
     mgr._store["i_a.ogv"] = {"music": [CUE_MUSIC_USER_TAG + "music/"]}
-    mgr.remove_song_from_folder_ref("i_a.ogv", 0, "music/a.ogg")
+    mgr.remove_song_from_folder_ref("i_a.ogv", 0, CUE_MUSIC_USER_TAG + "music/a.ogg")
     assert mgr._store.get("i_a.ogv")["music"] == [CUE_MUSIC_USER_TAG + "music/b.ogg"]
 
 
@@ -1000,6 +1017,26 @@ def test_remove_song_from_folder_ref_index_oob(mgr):
     mgr._store["i_a.ogv"] = {"music": [CUE_MUSIC_USER_TAG + "music/"]}
     mgr.remove_song_from_folder_ref("i_a.ogv", 5, "music/a.ogg")
     assert mgr._store.get("i_a.ogv")["music"] == [CUE_MUSIC_USER_TAG + "music/"]
+
+
+def test_remove_external_folder_child_no_double_tag(mgr):
+    # External folder refs expand to bare-absolute (untagged) children.  Removing
+    # one must splice those survivors back as-is -- the old e:e: double-tag bug
+    # re-tagged them and broke resolution.
+    root = "E:/Music/artist"
+    mgr.library.external_files = [root + "/a.ogg", root + "/b.ogg"]
+    mgr._store["i_a.ogv"] = {"music": [root + "/"]}
+    mgr.remove_song_from_folder_ref("i_a.ogv", 0, root + "/a.ogg")
+    assert mgr._store.get("i_a.ogv")["music"] == [root + "/b.ogg"]
+
+
+def test_remove_game_folder_child_stays_tagged(mgr):
+    # A g: folder child keeps its source tag after removal (not re-tagged,
+    # not stripped) -- stored-form is preserved exactly.
+    mgr.library.game_files = ["bgm/a.ogg", "bgm/b.ogg"]
+    mgr._store["i_a.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "bgm/"]}
+    mgr.remove_song_from_folder_ref("i_a.ogv", 0, CUE_MUSIC_GAME_TAG + "bgm/a.ogg")
+    assert mgr._store.get("i_a.ogv")["music"] == [CUE_MUSIC_GAME_TAG + "bgm/b.ogg"]
 
 
 # ==========================================================================
@@ -1128,6 +1165,17 @@ def test_preset_remove_file_folder_ref(mgr):
     mgr.create_preset("T", [CUE_MUSIC_USER_TAG + "music/"])
     mgr.preset_remove_file("T", CUE_MY_MUSIC_FOLDER + "a.ogg")
     assert mgr.get_preset("T") == {"files": [CUE_MUSIC_USER_TAG + "music/b.ogg", CUE_MUSIC_USER_TAG + "music/c.ogg"]}
+
+
+def test_preset_remove_external_folder_child_no_double_tag(mgr):
+    # Same e:e: double-tag regression via the preset path: an external folder
+    # child in a preset splices back as a bare-absolute ref, never re-tagged.
+    root = "E:/Music/artist"
+    mgr.library.external_files = [root + "/a.ogg", root + "/b.ogg"]
+    mgr.library.external_sources = [{"label": "ExtA", "abs_root": root, "tree": [], "files": [], "scan_error": ""}]
+    mgr.create_preset("T", [root + "/"])
+    mgr.preset_remove_file("T", "ExtA/a.ogg")
+    assert mgr.get_preset("T") == {"files": [root + "/b.ogg"]}
 
 
 def test_preset_remove_file_noop(mgr):

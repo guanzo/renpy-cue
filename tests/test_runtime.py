@@ -967,22 +967,23 @@ def test_play_sfx_external_resolves_abs(cue, sfx_mgr, monkeypatch):
     sfx_mgr._supports_relative_volume = False
     monkeypatch.setattr(_sfx_manager._random, "uniform", lambda a, b: 1.0)
     sfx_mgr._next_sfx_channel = 0
-    ch = sfx_mgr.play_sfx("e:E:/SFX/A/g1/drip.ogg", "preview")
+    ch = sfx_mgr.play_sfx("E:/SFX/A/g1/drip.ogg", "preview")
     assert ch == "_cue_1"
-    # e: refs resolve to their absolute payload, independent of audio_dir.
+    # Bare-absolute external refs resolve to their payload, independent of
+    # audio_dir.
     assert _music_mock._registry["_cue_1"]["playing"] == "E:/SFX/A/g1/drip.ogg"
 
 
 def test_play_sfx_folder_external(cue, sfx_mgr, monkeypatch):
     ext = "E:/SFX/A"
-    cue.sfx.library.files = ["e:" + ext + "/g1/x.ogg", "g1/a.ogg"]
+    cue.sfx.library.files = [ext + "/g1/x.ogg", "g1/a.ogg"]
     picked = []
     monkeypatch.setattr(_sfx_manager._random, "choice", lambda files: picked.append(files) or files[0])
     monkeypatch.setattr(_sfx_manager._random, "uniform", lambda a, b: 1.0)
     monkeypatch.setattr(sfx_mgr, "preview_sfx", lambda f, volume=1.0: None)
-    sfx_mgr.preview_folder("e:" + ext + "/g1/")
-    # Folder preview resolves the e: folder ref against library.files.
-    assert picked == [["e:" + ext + "/g1/x.ogg"]]
+    sfx_mgr.preview_folder(ext + "/g1/")
+    # Folder preview resolves the external folder ref against library.files.
+    assert picked == [[ext + "/g1/x.ogg"]]
 
 
 def test_play_sfx_round_robin_when_all_busy(cue, sfx_mgr, monkeypatch):

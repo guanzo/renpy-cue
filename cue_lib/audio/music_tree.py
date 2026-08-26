@@ -12,7 +12,6 @@ from cue_lib.audio.file_tree import CueAudioTreeManager
 from cue_lib.audio.file_tree_rows import CueMusicTreeRows
 from cue_lib.constants import (
     CUE_AUDIO_EXTS,
-    CUE_EXTERNAL_TAG,
     CUE_GAME_MUSIC_FOLDER,
     CUE_MUSIC_GAME_TAG,
     CUE_MY_MUSIC_FOLDER,
@@ -20,7 +19,7 @@ from cue_lib.constants import (
     CUE_PERSIST_MUSIC_TREE_EXPANDED,
 )
 from cue_lib.state import _cue
-from cue_lib.util import _cue_build_tree, _cue_log
+from cue_lib.util import _cue_build_tree, _cue_is_abs_path, _cue_log
 
 # Directory-name heuristic for Game Music discovery: a game file whose path
 # contains one of these segments (case-insensitive) is classified as music.
@@ -72,7 +71,7 @@ class CueMusicTree(CueAudioTreeManager):
         # is the configured list (absolute paths, from shared config); the scan
         # populates external_sources (per-root dict) and external_files (the
         # flat list of absolute payloads, used by folder expansion + recent
-        # membership).  Stored trigger refs add the CUE_EXTERNAL_TAG at add time.
+        # membership).  External payloads are stored as bare absolute paths.
         self.external_folders = []  # type: List[str]
         self.external_files = []  # type: List[str]
         self.external_sources = []  # type: List[Dict[str, Any]]
@@ -277,7 +276,9 @@ class CueMusicTree(CueAudioTreeManager):
         tag, path = self._music._split_ref_tag(ref)
         if tag == CUE_MUSIC_GAME_TAG:
             return CUE_GAME_MUSIC_FOLDER + path
-        if tag == CUE_EXTERNAL_TAG:
+        if _cue_is_abs_path(ref):
+            # External: bare absolute path; show under its source label when
+            # the source is still configured, else the absolute path itself.
             for source in self.external_sources:
                 root = source["abs_root"]
                 if path.startswith(root + "/"):

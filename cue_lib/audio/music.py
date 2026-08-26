@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 # CueMusicManager -- detect music play/queue/stop by wrapping renpy.audio.music.
 
-import os
 import random
 
 import renpy
@@ -13,7 +12,6 @@ from cue_lib.state import _cue
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.audio.music_tree import CueMusicTree
 from cue_lib.constants import (
-    CUE_EXTERNAL_TAG,
     CUE_GAME_MUSIC_FOLDER,
     CUE_MUSIC_GAME_TAG,
     CUE_MUSIC_PREFIX,
@@ -23,6 +21,7 @@ from cue_lib.constants import (
 )
 from cue_lib.util import (
     _cue_expand_folder_ref,
+    _cue_is_abs_path,
     _cue_log,
     _cue_shift_held,
     _cue_strip_key_prefix,
@@ -524,37 +523,42 @@ class CueMusicManager(object):
 
     def _resolve_folder_ref(self, folder_ref, result):
         # type: (str, List[str]) -> None
-        """Expand a single folder ref into concrete file paths."""
+        """Expand a single folder ref into concrete stored-form file paths."""
         tag, ref = self._split_ref_tag(folder_ref)
         if tag == CUE_MUSIC_USER_TAG:
-            sources = [self.library.user_files]
+            self._expand_into(result, self.library.user_files, ref, CUE_MUSIC_USER_TAG)
         elif tag == CUE_MUSIC_GAME_TAG:
-            sources = [self.library.game_files]
-        elif tag == CUE_EXTERNAL_TAG:
-            # External files hold absolute payloads; re-tag the expanded paths
-            # so they resolve through _resolve_music_path's e: branch.
+            self._expand_into(result, self.library.game_files, ref, CUE_MUSIC_GAME_TAG)
+        elif _cue_is_abs_path(folder_ref):
+            # External folder: no tag, expand the absolute path under the
+            # external payload list (which holds bare absolute paths).
             for f in _cue_expand_folder_ref(self.library.external_files, ref):
-                expanded = CUE_EXTERNAL_TAG + f
-                if expanded not in result:
-                    result.append(expanded)
-            return
-        else:
-            # Legacy untagged ref -- ambiguous, match both caches.
-            sources = [self.library.user_files, self.library.game_files]
-        for files in sources:
-            for f in _cue_expand_folder_ref(files, ref):
                 if f not in result:
                     result.append(f)
+        else:
+            # Legacy untagged ref -- ambiguous, match both caches (tagged so
+            # every expanded child is stored-form).
+            self._expand_into(result, self.library.user_files, ref, CUE_MUSIC_USER_TAG)
+            self._expand_into(result, self.library.game_files, ref, CUE_MUSIC_GAME_TAG)
+
+    def _expand_into(self, result, files, ref, tag):
+        # type: (List[str], List[str], str, str) -> None
+        """Append the files under `ref` in `files`, each tagged as stored-form."""
+        for f in _cue_expand_folder_ref(files, ref):
+            expanded = tag + f
+            if expanded not in result:
+                result.append(expanded)
 
     def _split_ref_tag(self, ref):
         # type: (str) -> Tuple[Optional[str], str]
-        """Split a stored ref into (tag, path); tag is None if untagged."""
+        """Split a stored ref into (tag, path); tag is None if untagged.
+
+        External refs carry no tag -- they are bare absolute paths, recognised
+        by _cue_is_abs_path at the call sites that need to distinguish them."""
         if ref.startswith(CUE_MUSIC_USER_TAG):
             return CUE_MUSIC_USER_TAG, ref[len(CUE_MUSIC_USER_TAG) :]
         if ref.startswith(CUE_MUSIC_GAME_TAG):
             return CUE_MUSIC_GAME_TAG, ref[len(CUE_MUSIC_GAME_TAG) :]
-        if ref.startswith(CUE_EXTERNAL_TAG):
-            return CUE_EXTERNAL_TAG, ref[len(CUE_EXTERNAL_TAG) :]
         return None, ref
 
     def ref_path(self, ref):
@@ -566,11 +570,11 @@ class CueMusicManager(object):
         # type: (str) -> str
         """Turn a stored music entry into a playable path.
 
-        Tagged refs resolve by source: "u:" (My Music) is root-relative under
-        the shared music dir, "g:" (Game Music) is game-relative and plays
-        directly -- no disk check needed.  Untagged legacy refs fall back to
-        the on-disk probe: a shared file exists under the music dir, a game
-        file does not (it lives in the game's archive)."""
+        Ref sources are resolved by tag: "u:" (My Music) is root-relative
+        under the shared music dir, "g:" (Game Music) is game-relative and
+        plays directly.  A bare absolute path is an external ref and plays
+        as-is.  No disk probing -- every ref is tagged or absolute, and the
+        last branch is a non-probing fallback for stray legacy data."""
         tag, path = self._split_ref_tag(stored)
         if tag == CUE_MUSIC_USER_TAG:
             if path.startswith(CUE_MUSIC_PREFIX):
@@ -578,24 +582,13 @@ class CueMusicManager(object):
             return self._paths.music_dir + path
         if tag == CUE_MUSIC_GAME_TAG:
             return path
-        if tag == CUE_EXTERNAL_TAG:
+        if _cue_is_abs_path(stored):
             # External payload is already absolute.
-            return path
-        # Legacy untagged entry -- probe the disk to tell user from game.
-        root = self._paths.root
-        music_dir = self._paths.music_dir
-        root_prefix = root.rstrip("/") + "/"
-        if stored.startswith(root_prefix):
-            stored = stored[len(root_prefix) :]
-        candidates = []
-        if stored.startswith(CUE_MUSIC_PREFIX):
-            candidates.append(stored[len(CUE_MUSIC_PREFIX) :])
-        candidates.append(stored)
-        for rel in candidates:
-            abs_path = music_dir + rel
-            if os.path.isfile(abs_path):
-                return abs_path
-        return stored
+            return stored
+        # Untagged relative -- legacy only; default to the My Music layout.
+        if path.startswith(CUE_MUSIC_PREFIX):
+            path = path[len(CUE_MUSIC_PREFIX) :]
+        return self._paths.music_dir + path
 
     def music_pool_for(self, scene_key):
         # type: (str) -> List[str]
@@ -651,16 +644,17 @@ class CueMusicManager(object):
         # type: (str, bool) -> None
         """Add an external-folder song (already absolute) to the trigger.
 
-        Stored as an e: ref so it survives the external list changing order."""
-        self._add_ref_to_trigger(CUE_EXTERNAL_TAG + abs_path, record)
+        Stored as a bare absolute path (no tag) so it resolves regardless of
+        the external list's order."""
+        self._add_ref_to_trigger(abs_path, record)
 
     @_cue_ui_refresh
     def add_external_folder_to_trigger(self, abs_folder, record=True):
         # type: (str, bool) -> None
-        """Add a whole external-folder subfolder (a trailing-'/' e: ref).
+        """Add a whole external-folder subfolder (a trailing-'/' ref).
 
         record=False (recently-used rows) suppresses the use feed."""
-        self._add_ref_to_trigger(CUE_EXTERNAL_TAG + abs_folder.rstrip("/") + "/", record)
+        self._add_ref_to_trigger(abs_folder.rstrip("/") + "/", record)
 
     def _add_ref_to_trigger(self, ref, record=True):
         # type: (str, bool) -> None
@@ -737,12 +731,11 @@ class CueMusicManager(object):
         folder_ref = music[file_index]
         if not folder_ref.endswith("/"):
             return
-        tag, _ = self._split_ref_tag(folder_ref)
+        # resolve_music_files returns stored-form children (u:/g: tagged,
+        # external bare absolute), ready to splice back in as-is.
         resolved = self.resolve_music_files([folder_ref])
         if child_file in resolved:
             resolved.remove(child_file)
-        if tag:
-            resolved = [tag + f for f in resolved]
         music[file_index : file_index + 1] = resolved
         self._store.save_marker(key)
 
@@ -993,10 +986,11 @@ class CueMusicManager(object):
                 return
         for i, ref in enumerate(files):
             if ref.endswith("/") and display_path in self._folder_display_children(ref):
-                tag, _ = self._split_ref_tag(ref)
-                resolved = [r for r in self.resolve_music_files([ref]) if self._display_for_raw(tag, r) != display_path]
-                if tag:
-                    resolved = [tag + f for f in resolved]
+                # Children are stored-form; the display path drives the match,
+                # and the surviving children splice back in as-is (no re-tag).
+                resolved = [
+                    r for r in self.resolve_music_files([ref]) if self.library.ref_display_path(r) != display_path
+                ]
                 files[i : i + 1] = resolved
                 self._db_save_music_preset(name)
                 return
@@ -1005,15 +999,14 @@ class CueMusicManager(object):
         # type: (Dict[str, Any]) -> List[str]
         """A preset's stored refs as concrete display paths, for its rows.
 
-        Folder refs expand into their children (each re-tagged so the display
-        path keeps its My/Game Music source).  Matches the rows the
-        Music Presets/ section renders."""
+        Folder refs expand into their stored-form children, each rendered
+        through ref_display_path.  Matches the rows the Music Presets/
+        section renders."""
         out = []
         for ref in preset.get("files", []):
             if ref.endswith("/"):
-                tag, _ = self._split_ref_tag(ref)
                 for child in self.resolve_music_files([ref]):
-                    out.append(self._display_for_raw(tag, child))
+                    out.append(self.library.ref_display_path(child))
             else:
                 out.append(self.library.ref_display_path(ref))
         return out
@@ -1021,17 +1014,7 @@ class CueMusicManager(object):
     def _folder_display_children(self, folder_ref):
         # type: (str) -> List[str]
         """Display paths of the files a stored folder ref resolves to."""
-        tag, _ = self._split_ref_tag(folder_ref)
-        return [self._display_for_raw(tag, f) for f in self.resolve_music_files([folder_ref])]
-
-    def _display_for_raw(self, tag, raw):
-        # type: (Optional[str], str) -> str
-        """Turn a resolved (untagged) cache file into a display path."""
-        if tag == CUE_MUSIC_GAME_TAG:
-            return CUE_GAME_MUSIC_FOLDER + raw
-        if raw.startswith(CUE_MUSIC_PREFIX):
-            raw = raw[len(CUE_MUSIC_PREFIX) :]
-        return CUE_MY_MUSIC_FOLDER + raw
+        return [self.library.ref_display_path(f) for f in self.resolve_music_files([folder_ref])]
 
     @_cue_ui_refresh
     def toggle_presets_expand(self):

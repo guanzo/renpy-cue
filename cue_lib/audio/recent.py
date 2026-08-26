@@ -10,8 +10,8 @@
 
 from renpy.store import persistent
 
-from cue_lib.constants import CUE_EXTERNAL_TAG, CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
-from cue_lib.util import _cue_unwrap_persistent
+from cue_lib.constants import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
+from cue_lib.util import _cue_is_abs_path, _cue_unwrap_persistent
 
 # Maximum entries in a "Recently Used" list.
 CUE_RECENT_MAX_ENTRIES = 8
@@ -112,8 +112,9 @@ def _cue_music_ref_tag(ref):
     """Split a stored music ref into (tag, path); tag is None if untagged.
 
     Mirrors CueMusicManager._split_ref_tag so recent.py can stay independent
-    of the music manager."""
-    for tag in (CUE_MUSIC_USER_TAG, CUE_MUSIC_GAME_TAG, CUE_EXTERNAL_TAG):
+    of the music manager.  External refs are bare absolute paths (no tag);
+    the caller detects them via _cue_is_abs_path."""
+    for tag in (CUE_MUSIC_USER_TAG, CUE_MUSIC_GAME_TAG):
         if ref.startswith(tag):
             return tag, ref[len(tag) :]
     return None, ref
@@ -123,13 +124,14 @@ def _cue_keep_music(kind, ref, library):
     # type: (str, str, CueMusicTree) -> bool
     """Existence check for music refs: files are exact members of the tagged
     source's files, folders are prefixes of at least one file there.  An
-    untagged legacy ref matches either source.  Unknown kinds are never kept."""
+    untagged legacy ref matches either source, and an external (bare absolute)
+    ref matches the external source.  Unknown kinds are never kept."""
     tag, path = _cue_music_ref_tag(ref)
     if tag == CUE_MUSIC_USER_TAG:
         files = library.user_files
     elif tag == CUE_MUSIC_GAME_TAG:
         files = library.game_files
-    elif tag == CUE_EXTERNAL_TAG:
+    elif _cue_is_abs_path(path):
         files = library.external_files
     else:
         files = library.user_files + library.game_files

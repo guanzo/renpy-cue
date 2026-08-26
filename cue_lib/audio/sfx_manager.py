@@ -19,7 +19,6 @@ from cue_lib.audio.file_tree import CueAudioTreeManager
 from cue_lib.audio.file_tree_rows import CueSfxTreeRows
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.constants import (
-    CUE_EXTERNAL_TAG,
     CUE_SFX_CHANNEL_COUNT,
     CUE_SFX_FOLDER,
     CUE_SIDEBAR_DEFAULT_WIDTH,
@@ -32,6 +31,7 @@ from cue_lib.constants import (
 )
 from cue_lib.util import (
     _cue_build_tree,
+    _cue_is_abs_path,
     _cue_log,
     _cue_resolve_files,
     _cue_pick_file,
@@ -442,7 +442,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         self._scan_external()
 
         # Flat ref list, sorted for the bisect-based folder expansion.
-        external_refs = [CUE_EXTERNAL_TAG + f for f in self.external_files]
+        external_refs = list(self.external_files)
         self.files = sorted(self.builtin_files + external_refs)
         self._file_index = {ref: i for i, ref in enumerate(self.files)}
 
@@ -462,7 +462,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         """Stored ref for a merged display path.
 
         Inverts the merged tree: the synthetic "SFX Folder" root maps back to
-        the audio-relative ref; an external source label maps to the e:-tagged
+        the audio-relative ref; an external source label maps to the bare
         absolute payload.  Any other path passes through unchanged (row
         builders feed untagged paths in tests and for legacy trees)."""
         if display_path.startswith(CUE_SFX_FOLDER):
@@ -470,18 +470,18 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         for source in self.external_sources:
             label = source["label"]
             if display_path.startswith(label + "/"):
-                return CUE_EXTERNAL_TAG + source["abs_root"] + "/" + display_path[len(label) + 1 :]
+                return source["abs_root"] + "/" + display_path[len(label) + 1 :]
         return display_path
 
     def resolve_path(self, ref):
         # type: (str) -> str
         """Absolute filesystem path for a stored SFX ref.
 
-        Built-in refs are audio-relative; external refs embed their absolute
-        payload after the e: tag.  Shared by playback, WAV warming, and the
-        unplayable-warning lookup."""
-        if ref.startswith(CUE_EXTERNAL_TAG):
-            return ref[len(CUE_EXTERNAL_TAG) :]
+        Built-in refs are audio-relative; external refs are bare absolute
+        paths (their absolute payload is the ref itself).  Shared by playback,
+        WAV warming, and the unplayable-warning lookup."""
+        if _cue_is_abs_path(ref):
+            return ref
         return self._paths.audio_dir + ref
 
     # ------------------------------------------------------------------

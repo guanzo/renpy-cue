@@ -660,6 +660,21 @@ def _cue_log(msg):
 # --------------------------------------------------------------------------
 
 
+def _cue_is_abs_path(path):
+    # type: (str) -> bool
+    """True if path is absolute on Windows, POSIX, or UNC.
+
+    External audio refs are stored as bare paths (no tag), so "is this
+    external" is decided by absolute shape, not a source tag.  os.path.isabs
+    is not used: on POSIX it returns False for Windows drive paths like
+    "E:/SFX/a.ogg", which is exactly the kind of path external refs carry."""
+    p = path.replace("\\", "/")
+    if p.startswith("/"):
+        return True
+    # Windows drive letter ("E:/" / "E:\\" normalizes to "E:/").
+    return len(p) >= 3 and p[1] == ":" and p[0].isalpha() and p[2] == "/"
+
+
 def _cue_expand_folder_ref(files_list, folder_ref, disabled=None):
     # type: (List[str], str, Optional[Set[str]]) -> List[str]
     """Files under `folder_ref` in the sorted `files_list`, skipping `disabled`.
