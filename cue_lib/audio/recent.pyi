@@ -7,6 +7,7 @@ CUE_RECENT_MAX_ENTRIES: Final = 8
 
 class CueRecentManager:
     key: str
+    _expanded_key: str
     _keep: Callable[[str, str], bool]
     _entries: List[dict]
     expanded: bool

@@ -153,6 +153,11 @@ def _cue_full_reload():
     _cue.sfx.library._recent.load()  # pyright: ignore[reportOptionalMemberAccess]
     _cue.music._recent.load()
 
+    # Restore the audio-library folder-UI toggle state (presets/pools/recent
+    # sections).  The file-tree folder expansion restores inside scan().
+    _cue.sfx.library.restore_ui_state()
+    _cue.music.restore_ui_state()
+
     _cue.sfx.library.maybe_rebuild()
     _cue.music.library.maybe_rebuild()
     _cue.undo.reset()

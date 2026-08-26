@@ -35,6 +35,11 @@ CUE_SIDEBAR_MAX_WIDTH_RATIO: Final = 0.5
 CUE_PERSIST_SIDEBAR_MODE: Final = "sfx_sidebar_mode"
 CUE_PERSIST_SIDEBAR_WIDTH: Final = "sfx_sidebar_width"
 
+CUE_PERSIST_SFX_TREE_EXPANDED: Final = "sfx_tree_expanded"
+CUE_PERSIST_MUSIC_TREE_EXPANDED: Final = "music_tree_expanded"
+CUE_PERSIST_SFX_UI_STATE: Final = "sfx_ui_state"
+CUE_PERSIST_MUSIC_UI_STATE: Final = "music_ui_state"
+
 CUE_SIDEBAR_ZORDER: Final = 8000
 CUE_DIALOG_ZORDER: Final = 9000
 

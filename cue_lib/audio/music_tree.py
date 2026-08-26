@@ -16,6 +16,7 @@ from cue_lib.constants import (
     CUE_MUSIC_GAME_TAG,
     CUE_MY_MUSIC_FOLDER,
     CUE_MUSIC_PREFIX,
+    CUE_PERSIST_MUSIC_TREE_EXPANDED,
 )
 from cue_lib.state import _cue
 from cue_lib.util import _cue_build_tree, _cue_log
@@ -48,6 +49,7 @@ class CueMusicTree(CueAudioTreeManager):
     # Open both synthetic top folders by default (one-time), so the two
     # sources are visible without a click.
     _auto_expand_roots = True
+    _persist_key = CUE_PERSIST_MUSIC_TREE_EXPANDED
 
     def __init__(self, music):
         # type: (CueMusicManager) -> None
@@ -146,6 +148,9 @@ class CueMusicTree(CueAudioTreeManager):
         if self._auto_expand_roots and not self._has_expanded_roots and self.tree:
             self._expand_roots()
             self._has_expanded_roots = True
+        # Overlay persisted toggles: saved keys win, untouched roots keep
+        # their default-open view.
+        self._restore_expansion()
         CueAudioTreeManager.rebuild_tree(self)
 
     def _merged_tree(self):

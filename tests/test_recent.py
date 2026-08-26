@@ -222,3 +222,32 @@ def test_keep_music_untagged_checks_both():
 def test_keep_music_unknown_kind_never_kept():
     lib = _music_lib(["music/a.ogg"], [])
     assert not _cue_keep_music("preset", CUE_MUSIC_USER_TAG + "music/a.ogg", lib)
+
+
+# ---------------------------------------------------------------------------
+# expand-state persistence (toggle / load)
+# ---------------------------------------------------------------------------
+
+
+def test_toggle_persists_expanded():
+    m = CueRecentManager("recent_entries", _all_keep)
+    m.toggle()
+    assert m.expanded is True
+    assert persistent._cue["recent_entries_expanded"] is True
+    m.toggle()
+    assert m.expanded is False
+    assert persistent._cue["recent_entries_expanded"] is False
+
+
+def test_load_restores_expanded():
+    persistent._cue["recent_entries"] = [{"type": "file", "ref": "a.ogg"}]
+    persistent._cue["recent_entries_expanded"] = True
+    m = CueRecentManager("recent_entries", _all_keep)
+    m.load()
+    assert m.expanded is True
+
+
+def test_load_defaults_collapsed():
+    m = CueRecentManager("recent_entries", _all_keep)
+    m.load()
+    assert m.expanded is False

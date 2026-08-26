@@ -25,21 +25,22 @@ if MYPY:
 class CueRecentManager(object):
     """Most-recent-first persistent list of heterogeneous used entries.
 
-    expand-state (toggle) is session-local -- only the entries are persisted.
-    The list opens only when the user toggles it; recording a use or loading
-    persisted entries never auto-expands.  prune only collapses a list that
-    has been emptied of valid refs.
+    Both the entries and the expand-state (toggle) are persisted, under
+    <key> and <key>_expanded.  The list opens only when the user toggles it;
+    recording a use or loading persisted entries never auto-expands.  prune
+    only collapses a list that has been emptied of valid refs.
     """
 
     def __init__(self, key, keep):
         # type: (str, Callable[[str, str], bool]) -> None
         self.key = key
+        self._expanded_key = key + "_expanded"
         self._keep = keep
         self._entries = []  # type: list
         self.expanded = False
 
     def load(self):
-        """Read persisted entries, then drop refs that no longer exist.
+        """Read persisted entries and expand state, then drop stale refs.
 
         The keep callable checks existence against current scan state, so load
         must run after the relevant files are populated.  Loading is always a
@@ -49,13 +50,17 @@ class CueRecentManager(object):
         value = raw.get(self.key)
         self._entries = _cue_unwrap_persistent(value) if value is not None else []
         self._entries = [e for e in self._entries if isinstance(e, dict) and "type" in e and "ref" in e]
+        expanded = raw.get(self._expanded_key)
+        if isinstance(expanded, bool):
+            self.expanded = expanded
         self.prune()
 
     def save(self):
-        """Write entries back to persistent (used after record and prune)."""
+        """Write entries and expand state back to persistent."""
         if persistent._cue is None:
             persistent._cue = {}
         persistent._cue[self.key] = list(self._entries)
+        persistent._cue[self._expanded_key] = self.expanded
 
     def record(self, kind, ref):
         # type: (str, str) -> None
@@ -77,6 +82,7 @@ class CueRecentManager(object):
 
     def toggle(self):
         self.expanded = not self.expanded
+        self.save()
 
     def prune(self):
         """Drop entries whose ref no longer exists; collapse when empty."""

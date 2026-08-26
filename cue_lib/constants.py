@@ -179,6 +179,14 @@ CUE_SIDEBAR_MAX_WIDTH_RATIO = 0.3  # max width % of screen width
 CUE_PERSIST_SIDEBAR_MODE = "sfx_sidebar_mode"
 CUE_PERSIST_SIDEBAR_WIDTH = "sfx_sidebar_width"
 
+# persistent._cue keys for audio-library folder-UI expand/collapse state: the
+# file-tree folders (_TREE_EXPANDED, per tree) and the rest of the folder UI
+# (presets/pools/recent sections, one _UI_STATE blob per library).
+CUE_PERSIST_SFX_TREE_EXPANDED = "sfx_tree_expanded"
+CUE_PERSIST_MUSIC_TREE_EXPANDED = "music_tree_expanded"
+CUE_PERSIST_SFX_UI_STATE = "sfx_ui_state"
+CUE_PERSIST_MUSIC_UI_STATE = "music_ui_state"
+
 # Z-order within cue_layer: sidebar sits below the mod's dialogs and the
 # overlay so dialogs always paint on top of the sidebar.
 CUE_SIDEBAR_ZORDER = 8000

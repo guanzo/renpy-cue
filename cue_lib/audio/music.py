@@ -7,6 +7,8 @@ import random
 import renpy
 import renpy.audio.music as _music
 
+from renpy.store import persistent
+
 from cue_lib.state import _cue
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.audio.music_tree import CueMusicTree
@@ -16,6 +18,7 @@ from cue_lib.constants import (
     CUE_MUSIC_PREFIX,
     CUE_MUSIC_USER_TAG,
     CUE_MY_MUSIC_FOLDER,
+    CUE_PERSIST_MUSIC_UI_STATE,
 )
 from cue_lib.util import (
     _cue_expand_folder_ref,
@@ -23,6 +26,7 @@ from cue_lib.util import (
     _cue_shift_held,
     _cue_strip_key_prefix,
     _cue_ui_refresh,
+    _cue_unwrap_persistent,
     create_img_key,
     create_vid_key,
 )
@@ -682,6 +686,7 @@ class CueMusicManager(object):
             self.expanded_file_refs[folder_ref] = not self.expanded_file_refs[folder_ref]
         else:
             self.expanded_file_refs[folder_ref] = True
+        self.save_ui_state()
 
     @_cue_ui_refresh
     def remove_song_from_folder_ref(self, key, file_index, child_file):
@@ -1001,6 +1006,7 @@ class CueMusicManager(object):
         # type: () -> None
         """Flip the Music Presets/ folder in the Music Library."""
         self.presets_expanded = not self.presets_expanded
+        self.save_ui_state()
 
     @_cue_ui_refresh
     def toggle_preset_expand(self, name):
@@ -1010,3 +1016,29 @@ class CueMusicManager(object):
             self.expanded_presets[name] = not self.expanded_presets[name]
         else:
             self.expanded_presets[name] = True
+        self.save_ui_state()
+
+    def save_ui_state(self):
+        # type: () -> None
+        """Persist the Music Library's folder-UI toggle state."""
+        if persistent._cue is None:
+            persistent._cue = {}
+        persistent._cue[CUE_PERSIST_MUSIC_UI_STATE] = {
+            "expanded_file_refs": dict(self.expanded_file_refs),
+            "presets_expanded": self.presets_expanded,
+            "expanded_presets": dict(self.expanded_presets),
+        }
+
+    def restore_ui_state(self):
+        # type: () -> None
+        """Overlay persisted Music Library folder-UI toggle state onto the attrs."""
+        raw = (persistent._cue or {}).get(CUE_PERSIST_MUSIC_UI_STATE)
+        blob = _cue_unwrap_persistent(raw) if raw is not None else None
+        if not isinstance(blob, dict):
+            return
+        if isinstance(blob.get("expanded_file_refs"), dict):
+            self.expanded_file_refs = dict(blob["expanded_file_refs"])
+        if isinstance(blob.get("presets_expanded"), bool):
+            self.presets_expanded = blob["presets_expanded"]
+        if isinstance(blob.get("expanded_presets"), dict):
+            self.expanded_presets = dict(blob["expanded_presets"])

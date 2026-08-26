@@ -45,6 +45,7 @@ class FakeMusicRestore(object):
     def __init__(self):
         self.library = types.SimpleNamespace(scan_calls=0, maybe_rebuild_calls=0)
         self.reload_presets_calls = 0
+        self.restore_ui_state_calls = 0
         self._recent = types.SimpleNamespace(load_calls=0)
 
         def _scan():
@@ -61,6 +62,11 @@ class FakeMusicRestore(object):
             self.reload_presets_calls += 1
 
         self.reload_presets = _reload_presets
+
+        def _restore_ui_state():
+            self.restore_ui_state_calls += 1
+
+        self.restore_ui_state = _restore_ui_state
 
         def _recent_load():
             self._recent.load_calls += 1

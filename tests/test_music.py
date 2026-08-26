@@ -20,7 +20,8 @@ import renpy.store as _store
 
 import cue_lib.audio.music as _music_mod
 from cue_lib.audio.wav_playable import CueWavPlayable
-from cue_lib.constants import CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_PREFIX, CUE_MY_MUSIC_FOLDER
+from cue_lib.constants import CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_PREFIX, CUE_MY_MUSIC_FOLDER, CUE_PERSIST_MUSIC_UI_STATE
+from renpy.store import persistent
 from cue_lib.audio.music import (
     CUE_DEFAULT_MUSIC_CHANNEL,
     CUE_MUSIC_GAME_TAG,
@@ -64,6 +65,12 @@ _MUSIC_STOP_ORIG = _music_mock.stop
 def _set_scene(mgr, file, layer):
     mgr._ctx.current_file = file
     mgr._ctx.top_layer_type = layer
+
+
+@pytest.fixture(autouse=True)
+def _clean_persistent(monkeypatch):
+    """Fresh persistent._cue for every test (folder-UI toggles write it)."""
+    monkeypatch.setattr(persistent, "_cue", {})
 
 
 @pytest.fixture
@@ -1244,3 +1251,32 @@ def test_play_custom_music_skips_default_trigger_scene(mgr, monkeypatch):
     mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "music/c.ogg"]}
     mgr.play_custom_music()
     assert CUE_DEFAULT_MUSIC_CHANNEL not in _music_mock._registry
+
+
+# ==========================================================================
+# Music Library folder-UI persistence (presets, trigger-box folder refs)
+# ==========================================================================
+
+
+def test_music_toggle_presets_persists(mgr):
+    mgr.toggle_preset_expand("Ambient")
+    assert persistent._cue[CUE_PERSIST_MUSIC_UI_STATE]["expanded_presets"] == {"Ambient": True}
+    mgr.toggle_presets_expand()
+    assert persistent._cue[CUE_PERSIST_MUSIC_UI_STATE]["presets_expanded"] is True
+
+
+def test_music_toggle_file_ref_persists(mgr):
+    mgr.toggle_file_ref_expand("bgm/")
+    assert persistent._cue[CUE_PERSIST_MUSIC_UI_STATE]["expanded_file_refs"] == {"bgm/": True}
+
+
+def test_music_restore_ui_state(mgr):
+    persistent._cue[CUE_PERSIST_MUSIC_UI_STATE] = {
+        "expanded_file_refs": {"bgm/": True},
+        "presets_expanded": True,
+        "expanded_presets": {"Ambient": True},
+    }
+    mgr.restore_ui_state()
+    assert mgr.expanded_file_refs == {"bgm/": True}
+    assert mgr.presets_expanded is True
+    assert mgr.expanded_presets == {"Ambient": True}

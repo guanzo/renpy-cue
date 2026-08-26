@@ -10,15 +10,30 @@
 
 import types
 
+import pytest
+
 import renpy
+
+from renpy.store import persistent
 
 from cue_lib.audio.music import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
 from cue_lib.audio.music_tree import CueMusicTree
-from cue_lib.constants import CUE_GAME_MUSIC_FOLDER, CUE_MY_MUSIC_FOLDER, CUE_MUSIC_PREFIX
+from cue_lib.constants import (
+    CUE_GAME_MUSIC_FOLDER,
+    CUE_MUSIC_PREFIX,
+    CUE_MY_MUSIC_FOLDER,
+    CUE_PERSIST_MUSIC_TREE_EXPANDED,
+)
 from cue_lib.util import _cue_build_tree
 
 USER = CUE_MY_MUSIC_FOLDER
 GAME = CUE_GAME_MUSIC_FOLDER
+
+
+@pytest.fixture(autouse=True)
+def _clean_persistent(monkeypatch):
+    """Fresh persistent._cue for every test (tree toggle state writes it)."""
+    monkeypatch.setattr(persistent, "_cue", {})
 
 
 def _fake_split_tag(ref):
@@ -585,3 +600,29 @@ def test_music_tree_file_gap_matches_sfx():
     lib = _row_lib()
     rows = lib.tree_rows("x.ogg")
     assert rows[1]["gap"] == 1
+
+
+# ==========================================================================
+# Folder-expansion persistence
+# ==========================================================================
+
+
+def test_music_toggle_folder_persists():
+    lib, _calls = _make_lib(user_paths=("music/a.ogg",))
+    lib.toggle_folder(USER)  # USER is default-open -> collapse -> False
+    assert persistent._cue[CUE_PERSIST_MUSIC_TREE_EXPANDED] == {USER: False}
+
+
+def test_music_restore_overlays_default():
+    persistent._cue[CUE_PERSIST_MUSIC_TREE_EXPANDED] = {USER: False}
+    lib, _calls = _make_lib(user_paths=("music/a.ogg",), game_paths=("bgm/x.ogg",))
+    # Restore ran inside _make_lib's _rebuild_merged: the untouched GAME root
+    # keeps the default-open view while USER is explicitly collapsed.
+    assert lib.expanded_folders == {USER: False, GAME: True}
+
+
+def test_music_restore_expands_subfolder():
+    persistent._cue[CUE_PERSIST_MUSIC_TREE_EXPANDED] = {USER + "sub/": True}
+    lib, _calls = _make_lib(user_paths=("music/a.ogg", "music/sub/b.ogg"), game_paths=("bgm/x.ogg",))
+    assert lib.expanded_folders[USER] is True
+    assert lib.expanded_folders[USER + "sub/"] is True

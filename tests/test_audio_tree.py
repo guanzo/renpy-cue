@@ -29,6 +29,8 @@ from cue_lib.constants import (
     CUE_HELP_SHIFT_SKIP_DELETE,
     CUE_MY_MUSIC_FOLDER,
     CUE_PERSIST_SIDEBAR_MODE,
+    CUE_PERSIST_SFX_TREE_EXPANDED,
+    CUE_PERSIST_SFX_UI_STATE,
     CUE_SIDEBAR_DEFAULT_WIDTH,
     CUE_SIDEBAR_MIN_WIDTH,
     CUE_SIDEBAR_MAX_WIDTH_RATIO,
@@ -425,6 +427,12 @@ def test_music_tree_scan_builds_per_source_and_merged(monkeypatch, tmp_path):
 # ==========================================================================
 # CueSfxLibraryTree
 # ==========================================================================
+
+
+@pytest.fixture(autouse=True)
+def _clean_persistent(monkeypatch):
+    """Fresh persistent._cue for every test (tree toggle state writes it)."""
+    monkeypatch.setattr(persistent, "_cue", {})
 
 
 @pytest.fixture
@@ -1549,3 +1557,83 @@ def test_sfx_content_rows_appends_file_tree(sfx, tmp_path):
     rows = _content_rows(sfx, presets=["p"])
     tree_labels = [r["label"] for r in rows if r.get("key", "").startswith("tree:")]
     assert tree_labels == ["sub/", "a.ogg"]
+
+
+# ==========================================================================
+# Folder-expansion persistence
+# ==========================================================================
+
+
+def test_sfx_toggle_folder_persists(sfx):
+    sfx.toggle_folder("sfx/")
+    assert persistent._cue[CUE_PERSIST_SFX_TREE_EXPANDED] == {"sfx/": True}
+    sfx.toggle_folder("sfx/")
+    assert persistent._cue[CUE_PERSIST_SFX_TREE_EXPANDED] == {"sfx/": False}
+
+
+def test_sfx_scan_default_closed(sfx, monkeypatch):
+    def _discover(results):
+        results.update(["a.ogg", "sub/b.ogg"])
+
+    monkeypatch.setattr(sfx, "_discover", _discover)
+    sfx.scan()
+    assert sfx.expanded_folders == {}
+
+
+def test_sfx_scan_restores_expansion(sfx, monkeypatch):
+    def _discover(results):
+        results.update(["a.ogg", "sub/b.ogg"])
+
+    monkeypatch.setattr(sfx, "_discover", _discover)
+    persistent._cue[CUE_PERSIST_SFX_TREE_EXPANDED] = {"sub/": True}
+    sfx.scan()
+    assert sfx.expanded_folders == {"sub/": True}
+
+
+def test_sfx_file_ref_expand_persists(sfx):
+    sfx.toggle_file_ref_expand("pool/")
+    assert persistent._cue[CUE_PERSIST_SFX_UI_STATE]["expanded_file_refs"] == {"pool/": True}
+
+
+def test_sfx_preset_expand_persists(sfx):
+    sfx.toggle_preset_expand("Combat")
+    assert persistent._cue[CUE_PERSIST_SFX_UI_STATE]["expanded_presets"] == {"Combat": True}
+    sfx.toggle_presets_expand()
+    assert persistent._cue[CUE_PERSIST_SFX_UI_STATE]["presets_expanded"] is True
+
+
+def test_sfx_video_pool_persists_int_keys(sfx):
+    sfx.toggle_video_pool_expand("Vid", 0)
+    assert persistent._cue[CUE_PERSIST_SFX_UI_STATE]["expanded_video_pools"] == {"Vid": {"0": True}}
+
+
+def test_sfx_intensity_expand_persists(sfx):
+    sfx.expanded_ilevels.setdefault("grp", set()).add(2)
+    sfx.toggle_igroup_expand("grp")
+    blob = persistent._cue[CUE_PERSIST_SFX_UI_STATE]
+    assert blob["expanded_igroups"] == {"grp": True}
+    assert blob["expanded_ilevels"] == {"grp": [2]}
+
+
+def test_sfx_restore_ui_state(sfx):
+    persistent._cue[CUE_PERSIST_SFX_UI_STATE] = {
+        "expanded_file_refs": {"pool/": True},
+        "presets_expanded": True,
+        "expanded_presets": {"Combat": True},
+        "video_presets_expanded": True,
+        "expanded_video_presets": {"Vid": True},
+        "expanded_video_pools": {"Vid": {"0": True, "2": False}},
+        "igroups_expanded": True,
+        "expanded_igroups": {"grp": True},
+        "expanded_ilevels": {"grp": [1, 3]},
+    }
+    sfx.restore_ui_state()
+    assert sfx.expanded_file_refs == {"pool/": True}
+    assert sfx.presets_expanded is True
+    assert sfx.expanded_presets == {"Combat": True}
+    assert sfx.video_presets_expanded is True
+    assert sfx.expanded_video_presets == {"Vid": True}
+    assert sfx.expanded_video_pools == {"Vid": {0: True, 2: False}}
+    assert sfx.igroups_expanded is True
+    assert sfx.expanded_igroups == {"grp": True}
+    assert sfx.expanded_ilevels == {"grp": set([1, 3])}

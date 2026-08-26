@@ -64,13 +64,17 @@ screen cue_keybinds():
             # otherwise there's some weird layout shift bug with tooltips.
             hbox:
                 spacing 10
-                ysize 16
+                xsize 250
+                ysize 12
                 hbox:
                     xsize 150
+                    ysize 12
                     etext _kb["label"] yalign 0.5
 
                 hbox:
                     spacing 8
+                    xsize 100
+                    ysize 12
                     use cue_txt_button(
                         _label,
                         Function(_cue_keybind_start, _kb["id"]),

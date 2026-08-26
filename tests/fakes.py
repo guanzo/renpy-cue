@@ -362,10 +362,12 @@ class FakeSfxManager(object):
             _recent=None,  # type: Optional[FakeRecent]  # set by recording tests
             scan_calls=0,
             rebuild_calls=0,
+            restore_ui_state_calls=0,
         )
         self.library.scan = self._scan
         self.library.maybe_rebuild = self._maybe_rebuild
         self.library.set_sidebar_width = self._set_sidebar_width
+        self.library.restore_ui_state = self._restore_ui_state
 
     def _scan(self):
         self.library.scan_calls += 1
@@ -375,6 +377,9 @@ class FakeSfxManager(object):
 
     def _set_sidebar_width(self, width):
         self.library.sidebar_width = width
+
+    def _restore_ui_state(self):
+        self.library.restore_ui_state_calls += 1
 
     def warm_cache(self):
         """No-op: the real manager pre-generates 24->16 cache on a thread."""
@@ -559,6 +564,7 @@ def make_runtime_cue(root="", audio_dir=""):
             scan=_rec("sfx_manager", "scan"),
             rebuild_tree=_rec("sfx_manager", "rebuild_tree"),
             maybe_rebuild=_rec("sfx_manager", "maybe_rebuild"),
+            restore_ui_state=_rec("sfx_manager", "restore_ui_state"),
         ),
     )
 
@@ -569,6 +575,7 @@ def make_runtime_cue(root="", audio_dir=""):
         play_custom_music=_rec("music", "play_custom_music"),
         play_untracked=_rec("music", "play_untracked"),
         reload_presets=_rec("music", "reload_presets"),
+        restore_ui_state=_rec("music", "restore_ui_state"),
         _resolve_music_path=lambda filename: filename,
         library=types.SimpleNamespace(
             user_files=[],

@@ -9,8 +9,10 @@
 import os
 import time
 
+from renpy.store import persistent
+
 from cue_lib.constants import CUE_AUDIO_EXTS
-from cue_lib.util import _cue_build_tree, _cue_filter_tree, _cue_log
+from cue_lib.util import _cue_build_tree, _cue_filter_tree, _cue_log, _cue_unwrap_persistent
 
 MYPY = False
 if MYPY:
@@ -41,6 +43,10 @@ class CueAudioTreeManager(object):
     # _auto_expand_roots) so a tree's root level is open by default.  After
     # that one-time default the user's toggle state is left untouched.
     _auto_expand_roots = False
+    # persistent._cue key for expanded_folders; None = this tree does not
+    # persist folder expansion.  Subclasses that persist set the CUE_PERSIST_*
+    # key (SFX tree, Music Library tree).
+    _persist_key = None
 
     def __init__(self):
         self._recent = None  # CueRecentManager, wired after construction
@@ -93,6 +99,10 @@ class CueAudioTreeManager(object):
         if self._auto_expand_roots and not self._has_expanded_roots and self.tree:
             self._expand_roots()
             self._has_expanded_roots = True
+
+        # Overlay persisted toggles: saved keys win, untouched folders keep
+        # their default (the one-time root view above).
+        self._restore_expansion()
 
         # Rebuild visible tree
         self.rebuild_tree()
@@ -237,3 +247,27 @@ class CueAudioTreeManager(object):
         else:
             self.expanded_folders[folder_path] = True
         self.rebuild_tree()
+        self._save_expansion()
+
+    def _save_expansion(self):
+        # type: () -> None
+        """Write expanded_folders to persistent._cue (no-op if not persisted)."""
+        if self._persist_key is None:
+            return
+        if persistent._cue is None:
+            persistent._cue = {}
+        persistent._cue[self._persist_key] = dict(self.expanded_folders)
+
+    def _restore_expansion(self):
+        # type: () -> None
+        """Overlay persisted folder-expansion state onto expanded_folders.
+
+        Keys the saved dict holds override the current values; keys it omits
+        keep their defaults, so an untouched tree keeps its first-run view
+        while explicitly-toggled folders restore."""
+        if self._persist_key is None:
+            return
+        raw = (persistent._cue or {}).get(self._persist_key)
+        if raw is None:
+            return
+        self.expanded_folders.update(_cue_unwrap_persistent(raw))

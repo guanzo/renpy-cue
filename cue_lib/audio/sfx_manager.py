@@ -24,11 +24,14 @@ from cue_lib.constants import (
     CUE_SIDEBAR_MAX_WIDTH_RATIO,
     CUE_PERSIST_SIDEBAR_MODE,
     CUE_PERSIST_SIDEBAR_WIDTH,
+    CUE_PERSIST_SFX_TREE_EXPANDED,
+    CUE_PERSIST_SFX_UI_STATE,
 )
 from cue_lib.util import (
     _cue_log,
     _cue_resolve_files,
     _cue_pick_file,
+    _cue_unwrap_persistent,
     is_vid_key,
     is_img_key,
     is_dlg_key,
@@ -336,6 +339,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
 
     _scan_label = "audio folder"
     _log_tag = "AUDIO"
+    _persist_key = CUE_PERSIST_SFX_TREE_EXPANDED
 
     def __init__(self, paths, db):
         # type: (CuePaths, CueDatabase) -> None
@@ -442,6 +446,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
             self.expanded_file_refs[folder_ref] = not self.expanded_file_refs[folder_ref]
         else:
             self.expanded_file_refs[folder_ref] = True
+        self.save_ui_state()
 
     def count_file_list_rows(self, folder_label, folder_children, files):
         # type: (Optional[str], Optional[List[str]], List[str]) -> int
@@ -466,6 +471,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # type: () -> None
         """Toggle expand/collapse for the Presets/ folder in the SFX Library."""
         self.presets_expanded = not self.presets_expanded
+        self.save_ui_state()
 
     def toggle_preset_expand(self, preset_name):
         # type: (str) -> None
@@ -474,6 +480,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
             self.expanded_presets[preset_name] = not self.expanded_presets[preset_name]
         else:
             self.expanded_presets[preset_name] = True
+        self.save_ui_state()
 
     # ------------------------------------------------------------------
     # Toggle: Video Presets/ folder
@@ -483,6 +490,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # type: () -> None
         """Toggle expand/collapse for the Video Presets/ folder in the SFX Library."""
         self.video_presets_expanded = not self.video_presets_expanded
+        self.save_ui_state()
 
     def toggle_video_preset_expand(self, preset_name):
         # type: (str) -> None
@@ -491,6 +499,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
             self.expanded_video_presets[preset_name] = not self.expanded_video_presets[preset_name]
         else:
             self.expanded_video_presets[preset_name] = True
+        self.save_ui_state()
 
     def toggle_video_pool_expand(self, preset_name, pool_index):
         # type: (str, int) -> None
@@ -500,6 +509,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
             pools[pool_index] = not pools[pool_index]
         else:
             pools[pool_index] = True
+        self.save_ui_state()
 
     # ------------------------------------------------------------------
     # Toggle: sidebar mode
@@ -513,6 +523,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # type: () -> None
         """Toggle expand/collapse for the Intensity Groups/ block."""
         self.igroups_expanded = not self.igroups_expanded
+        self.save_ui_state()
 
     def toggle_igroup_expand(self, group_name):
         # type: (str) -> None
@@ -521,6 +532,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
             self.expanded_igroups[group_name] = not self.expanded_igroups[group_name]
         else:
             self.expanded_igroups[group_name] = True
+        self.save_ui_state()
 
     def add_level(self, group_name):
         # type: (str) -> None
@@ -532,6 +544,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         if new_id is not None:
             self.expanded_igroups[group_name] = True
             self.expanded_ilevels.setdefault(group_name, set()).add(new_id)
+            self.save_ui_state()
 
     def toggle_ilevel_add_mode(self, group_name, ilevel_id):
         # type: (str, int) -> None
@@ -546,6 +559,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
             self.ilevel_add_target = target
             self.expanded_igroups[group_name] = True
             self.expanded_ilevels.setdefault(group_name, set()).add(ilevel_id)
+        self.save_ui_state()
 
     def toggle_ilevel_expand(self, group_name, ilevel_id):
         # type: (str, int) -> None
@@ -555,6 +569,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
             expanded.discard(ilevel_id)
         else:
             expanded.add(ilevel_id)
+        self.save_ui_state()
 
     def _ilevel_target_valid(self, group_name, ilevel_id):
         # type: (str, int) -> bool
@@ -631,3 +646,76 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         """Clamp and store the sidebar width (logical px, pre-zoom)."""
         max_w = int(renpy.config.screen_width * CUE_SIDEBAR_MAX_WIDTH_RATIO)
         self.sidebar_width = max(CUE_SIDEBAR_MIN_WIDTH, min(width, max_w))
+
+    # ------------------------------------------------------------------
+    # Folder-UI toggle state persistence (presets, video presets, pools,
+    # intensity groups).  The file-tree folder toggles persist separately
+    # through the base manager (see _save_expansion/_restore_expansion).
+    # ------------------------------------------------------------------
+
+    def _encode_ui_state(self):
+        # type: () -> Dict[str, Any]
+        """Plain dict of the folder-UI toggle state, ready for persistent.
+
+        Ren'Py persistent can't round-trip int dict keys or sets as-is:
+        expanded_video_pools uses int pool indexes (serialized as str keys)
+        and expanded_ilevels uses sets (serialized as sorted lists)."""
+        return {
+            "expanded_file_refs": dict(self.expanded_file_refs),
+            "presets_expanded": self.presets_expanded,
+            "expanded_presets": dict(self.expanded_presets),
+            "video_presets_expanded": self.video_presets_expanded,
+            "expanded_video_presets": dict(self.expanded_video_presets),
+            "expanded_video_pools": dict(
+                (name, dict((str(idx), val) for idx, val in pools.items()))
+                for name, pools in self.expanded_video_pools.items()
+            ),
+            "igroups_expanded": self.igroups_expanded,
+            "expanded_igroups": dict(self.expanded_igroups),
+            "expanded_ilevels": dict((name, sorted(ids)) for name, ids in self.expanded_ilevels.items()),
+        }
+
+    def save_ui_state(self):
+        # type: () -> None
+        """Persist the SFX Library's folder-UI toggle state."""
+        if persistent._cue is None:
+            persistent._cue = {}
+        persistent._cue[CUE_PERSIST_SFX_UI_STATE] = self._encode_ui_state()
+
+    def _apply_ui_state(self, blob):
+        # type: (Optional[Dict[str, Any]]) -> None
+        """Apply a decoded UI-state blob to the toggle attributes."""
+        if not isinstance(blob, dict):
+            return
+        if isinstance(blob.get("expanded_file_refs"), dict):
+            self.expanded_file_refs = dict(blob["expanded_file_refs"])
+        if isinstance(blob.get("presets_expanded"), bool):
+            self.presets_expanded = blob["presets_expanded"]
+        if isinstance(blob.get("expanded_presets"), dict):
+            self.expanded_presets = dict(blob["expanded_presets"])
+        if isinstance(blob.get("video_presets_expanded"), bool):
+            self.video_presets_expanded = blob["video_presets_expanded"]
+        if isinstance(blob.get("expanded_video_presets"), dict):
+            self.expanded_video_presets = dict(blob["expanded_video_presets"])
+        if isinstance(blob.get("expanded_video_pools"), dict):
+            pools = {}
+            for name, raw_pools in blob["expanded_video_pools"].items():
+                if isinstance(raw_pools, dict):
+                    pools[name] = dict((int(idx), val) for idx, val in raw_pools.items() if isinstance(val, bool))
+            self.expanded_video_pools = pools
+        if isinstance(blob.get("igroups_expanded"), bool):
+            self.igroups_expanded = blob["igroups_expanded"]
+        if isinstance(blob.get("expanded_igroups"), dict):
+            self.expanded_igroups = dict(blob["expanded_igroups"])
+        if isinstance(blob.get("expanded_ilevels"), dict):
+            levels = {}
+            for name, ids in blob["expanded_ilevels"].items():
+                if isinstance(ids, (list, tuple, set)):
+                    levels[name] = set(int(i) for i in ids)
+            self.expanded_ilevels = levels
+
+    def restore_ui_state(self):
+        # type: () -> None
+        """Overlay persisted SFX Library folder-UI toggle state onto the attrs."""
+        raw = (persistent._cue or {}).get(CUE_PERSIST_SFX_UI_STATE)
+        self._apply_ui_state(_cue_unwrap_persistent(raw) if raw is not None else None)
