@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    name: build + attach mod asset
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        id: python
+        with:
+          python-version: "3.12"
+
+      # Same poetry-venv cache + install as the ci.yml `check` job (the lint
+      # step shells out to bare `pyright`, so the project venv's bin must be on
+      # PATH) -- see ci.yml for why the key pins the Python patch.
+      - name: Cache poetry venv
+        uses: actions/cache@v4
+        id: cache-venv
+        with:
+          path: .venv
+          key: poetry-venv-${{ runner.os }}-${{ steps.python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
+
+      - name: Install poetry + deps
+        run: |
+          python -m pip install --upgrade pip "poetry==2.4.1"
+          poetry config virtualenvs.in-project true
+          poetry install
+
+      # pyrightconfig.json's extraPaths reference ./sdk (and machine-local
+      # paths that won't exist here). Download the 8.5.3 SDK and symlink it so
+      # pyright resolves renpy.* on this clean runner.
+      - name: Cache Ren'Py SDK for pyright
+        uses: actions/cache@v4
+        id: cache-sdk
+        with:
+          path: renpy-8.5.3-sdk
+          key: renpy-sdk-8.5.3-${{ runner.os }}
+
+      - name: Download Ren'Py SDK for pyright
+        if: steps.cache-sdk.outputs.cache-hit != 'true'
+        run: |
+          curl -fL "https://www.renpy.org/dl/8.5.3/renpy-8.5.3-sdk.tar.bz2" -o sdk.tar.bz2
+          tar xjf sdk.tar.bz2
+
+      - name: Symlink SDK
+        run: ln -s "$PWD/renpy-8.5.3-sdk" sdk
+
+      - name: Lint
+        run: |
+          export PATH="$(poetry env info -p)/bin:$PATH"
+          bash bin/lint.sh
+
+      - name: Test
+        run: bash bin/test.sh
+
+      # A tag that doesn't match CUE_VERSION must not ship -- the version string
+      # is the single source of truth, and mismatched builds only confuse users.
+      - name: Assert tag matches CUE_VERSION
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VER="$(python3 -c 'import re,sys; print(re.search(r"^CUE_VERSION = \"([^\"]+)\"", open("cue_lib/constants.py").read(), re.MULTILINE).group(1))')"
+          if [ "$TAG" != "$VER" ]; then
+            echo "tag v$TAG != CUE_VERSION $VER"; exit 1
+          fi
+
+      - name: Build mod asset
+        run: python3 bin/build_release_asset.py --out "renpy_cue_${GITHUB_REF_NAME#v}.zip"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Ren'Py Cue $GITHUB_REF_NAME" \
+            --generate-notes \
+            "renpy_cue_${GITHUB_REF_NAME#v}.zip"
