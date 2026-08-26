@@ -1,5 +1,5 @@
 # Type stub for cue_lib.audio.music_tree
-from typing import Any, Callable, Dict, Final, List, Optional, Set
+from typing import Any, Callable, Dict, Final, List, Optional, Set, Tuple
 
 from cue_lib.audio.file_tree import CueAudioTreeManager
 from cue_lib.audio.file_tree_rows import CueMusicTreeRows

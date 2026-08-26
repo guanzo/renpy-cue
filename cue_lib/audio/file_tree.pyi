@@ -6,6 +6,9 @@ from cue_lib.audio.recent import CueRecentManager
 CUE_SEARCH_MAX_ROWS: int
 
 class CueAudioTreeManager:
+    external_folders: List[str]
+    external_files: List[str]
+    external_sources: List[Dict[str, Any]]
     files: List[str]
     _file_index: Dict[str, int]
     tree: List[Dict[str, Any]]

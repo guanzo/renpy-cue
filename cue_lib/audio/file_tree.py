@@ -53,6 +53,9 @@ class CueAudioTreeManager(object):
 
     def __init__(self):
         self._recent = None  # CueRecentManager, wired after construction
+        self.external_folders = []  # configured external abs paths
+        self.external_files = []  # absolute payloads from _scan_external
+        self.external_sources = []  # per-root scan dicts from _scan_external
         self.files = []  # flat sorted relative paths
         self._file_index = {}  # path -> position in files (rebuilt in scan)
         self.tree = []  # nested folder/file nodes from _cue_build_tree

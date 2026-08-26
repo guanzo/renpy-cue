@@ -4,7 +4,6 @@
 # them under two synthetic folders for display.  Instantiated once as
 # _cue.music.library; lives on the NoRollback _cue object.
 
-import os
 import time
 
 import renpy
@@ -185,13 +184,9 @@ class CueMusicTree(CueAudioTreeManager):
             else:
                 children = user_tree
                 has_files = False
-            my_music = {
-                "type": "folder",
-                "name": CUE_MY_MUSIC_FOLDER,
-                "children": children,
-                "has_files": has_files,
-                "abs_root": _cue.paths.music_dir,
-            }
+            my_music = {"type": "folder", "name": CUE_MY_MUSIC_FOLDER, "children": children, "has_files": has_files}
+            if _cue.paths is not None:
+                my_music["abs_root"] = _cue.paths.music_dir
             result.append(my_music)
 
         game_tree = self.game_tree

@@ -7,7 +7,6 @@
 # late-bound via bind_markers (construction cycle with CueMarkerManager).
 # Instantiated once at _cue.sfx, lives on the NoRollback _cue object.
 
-import os
 import random as _random
 import threading
 import time
