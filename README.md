@@ -37,7 +37,7 @@ Your Game/
 Cue needs sound files before it can play anything. You can start with either of these:
 
 - **[Cue NSFW SFX Pack](https://github.com/guanzo/renpy-cue/releases/latest/download/cue_sfx.zip)**: A curated collection selected for Cue.
-- **[OPENNSFW](https://opennsfw.carrd.co/)**: High quality SFX + Voice Pack. Contains Free and Paid versions.
+- **<a href="https://opennsfw.carrd.co/" target="_blank" rel="noopener noreferrer">OPENNSFW</a>**: High quality SFX + Voice Pack. Contains Free and Paid versions.
 
 Download and extract the pack you want to use. Then run the game, open Cue, go to **SFX Library**, and click **Open SFX Folder**. Copy the extracted audio files into the folder that opens.
 
