@@ -538,7 +538,7 @@ def test_sequence_start_first_play_force(env):
     env.seq.start(env.tag)
     assert env.seq.active_tag == env.tag
     assert env.seq.last_playing is None
-    assert env.seq.last_elapsed == -1.0
+    assert env.vid.last_elapsed == 0.0
     assert env.seq._step_index == 0
 
 
@@ -660,6 +660,7 @@ def test_tick_auto_wrap_calls_on_wrap_around(env):
     _set_movie(env, variants[1.5])
     env.seq.tick()  # step 1
     _set_movie(env, env.base_fs, pos=0.05)
+    env.vid.is_restart = True  # the real poll_restart() SSoT, via the fake
     env.seq.tick()  # AUTO wrap -> on_wrap_around
     assert fake.wrap_calls == 1
     assert env.seq._step_index == 1  # tick returned before advancing
@@ -1482,7 +1483,7 @@ def test_sequence_tick_playback_query_failure(env, monkeypatch):
     env.seq.tick()
     assert any("playback query failed" in m for m in logs)
     assert env.seq.last_playing is None
-    assert env.seq.last_elapsed == 0.0
+    assert env.vid.last_elapsed == 0.0
 
 
 def test_sequence_handle_auto_starts_auto(env):

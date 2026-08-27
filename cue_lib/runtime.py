@@ -354,9 +354,9 @@ def _cue_tick_trigger_impl():
 
     _cue.vid_manager.sync_paused()
     _cue.vid_manager.poll_autopause()
+    _cue.vid_manager.poll_restart()
     _cue.video_sequence.tick()
     _cue.trigger.tick(_cue.current_file, _cue.top_layer_type or "")
-    # Tick cadence + body-cost measurement live in the trigger-debug module.
     _cue.trigger._debug.tick_end(_t0)
 
     # Slow lane: work that doesn't need the 20ms cadence runs at most every

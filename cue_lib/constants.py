@@ -168,6 +168,12 @@ CUE_INTENSITY_FREQ_MAX = 1.5
 CUE_INTENSITY_DELAY_MIN = 0.2
 CUE_INTENSITY_DELAY_MAX = 6.0
 
+# Backward-jump threshold meaning "playback restarted".  Ren'Py can't seek
+# backward on a movie channel, so a large backward jump in get_pos() is the
+# loop/restart signal.  Shared by the speed sequence and video trigger so both
+# advance on the same tick (otherwise the first marker fires the old level).
+CUE_RESTART_JUMP_SECONDS = 0.3
+
 # Intensity-hint accent: the 2px bar drawn on intensity-hooked UI (video
 # marker tabs, level folders in a hooked pool's file list).
 CUE_INTENSITY_HINT_COLOR = "#ff8800"

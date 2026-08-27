@@ -329,14 +329,19 @@ class FakeSpeedResolver(object):
 
 class FakeVidManager(object):
     """Video-manager stand-in for the tick surface (channel / get_elapsed /
-    last_elapsed) plus the duration seam markers.py reads.  last_elapsed is
-    written by the engine each tick."""
+    last_elapsed / is_restart) plus the duration seam markers.py reads.
+
+    is_restart is the single-source-of-truth verdict poll_restart() computes;
+    tests drive it directly (or call poll_restart) to exercise the restart
+    re-arm path."""
 
     def __init__(self, channel="cue_vid", elapsed=0.0, duration=0.0):
         self.channel = channel
         self._elapsed = elapsed
         self.last_elapsed = 0
         self.is_reset_pending = False
+        self.is_restart = False
+        self.sfx_breadcrumbs = []
         self.duration = duration
 
     def get_elapsed(self):
@@ -344,6 +349,21 @@ class FakeVidManager(object):
 
     def get_duration(self):
         return self.duration
+
+    def poll_restart(self):
+        # type: () -> bool
+        """No-op stand-in: tests set .is_restart directly or drive the real one."""
+        return self.is_restart
+
+    def record_sfx_breadcrumb(self, frac):
+        # type: (float) -> None
+        """Append a fire-breadcrumb frac (timeline sync debug trail)."""
+        self.sfx_breadcrumbs.append(frac)
+
+    def clear_sfx_breadcrumbs(self):
+        # type: () -> None
+        """Drop the fire-breadcrumb trail (called on each loop restart)."""
+        self.sfx_breadcrumbs = []
 
 
 class FakeSfxManager(object):
@@ -558,6 +578,7 @@ def make_runtime_cue(root="", audio_dir=""):
         set_fps=_rec("vid_manager", "set_fps"),
         sync_paused=_rec("vid_manager", "sync_paused"),
         poll_autopause=_rec("vid_manager", "poll_autopause"),
+        poll_restart=_rec("vid_manager", "poll_restart"),
     )
 
     # sfx_manager -- library subtree holds the tree state (_cue_resolve_files

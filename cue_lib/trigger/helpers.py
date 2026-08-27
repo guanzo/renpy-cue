@@ -16,13 +16,20 @@ if MYPY:
     from cue_lib.intensity import CueIntensityResolution  # pyright: ignore[reportUnusedImport]
     from cue_lib.marker_store import CueMarkerStore  # pyright: ignore[reportUnusedImport]
 
-# Max lead (seconds) to fire a video marker before its time.  Lead is half the
-# expected per-tick position advance -- wall-clock tick interval * speed --
-# which centers deltas around 0 instead of always firing a tick late.  The cap
-# allows full centering even at high speed with coarse get_pos() steps (~43ms
-# audio-buffer chunks * 1.6x ~= 69ms) while bounding how early a marker can fire
-# after a dropped frame or focus-loss gap.
-CUE_MARKER_LEAD_MAX = 0.04
+# Lead (seconds, REFERENCE time) to fire a video marker before its time.  Two
+# contributions:
+#   * Half the expected per-tick position advance (wall-clock tick interval *
+#     speed) centers deltas around 0 instead of always firing a tick late.
+#   * CUE_SFX_AUDIBLE_LEAD compensates the wall-clock delay between a marker's
+#     play call and its audible onset (output buffer / channel start).  Without
+#     it every SFX is HEARD lead-time late, which reads worse as speed rises
+#     because the marker spacing shrinks while the latency stays fixed.
+# The cap is high enough for the audible lead at max speed (~0.18 ref at 2x)
+# while still bounding how far a marker can fire after a dropped frame or
+# focus-loss gap.
+CUE_MARKER_LEAD_MAX = 0.2
+# Real-seconds audible-path latency to counter (tune by ear: play call -> heard).
+CUE_SFX_AUDIBLE_LEAD = 0.09
 
 
 def _cue_loop_still_playing(channels):
@@ -57,18 +64,21 @@ def _cue_pick_deduped(files, picked, max_tries=3):
 
 def _cue_marker_lead(tick_interval, speed):
     # type: (float, float) -> float
-    """Seconds to fire a video marker early: half the expected per-tick
-    position advance (wall-clock tick interval * speed), clamped to
-    CUE_MARKER_LEAD_MAX.  Zero when the cadence is unknown (first tick).  Sized
-    from the real frame cadence -- not the previous tick's position jump -- so
-    it stays stable through get_pos() chunking and the position jumps at
-    speed-variant changes, which a position-derived lead misreads."""
+    """Seconds (REFERENCE time) to fire a video marker early.
+
+    Half the expected per-tick position advance (wall-clock tick interval *
+    speed) centers deltas on 0, plus CUE_SFX_AUDIBLE_LEAD * speed compensates
+    the fixed play-call-to-audible latency so each SFX is HEARD on its marker
+    instead of behind it.  Clamped to CUE_MARKER_LEAD_MAX; zero when the
+    cadence is unknown (first tick).  Sized from the real frame cadence -- not
+    the previous tick's position jump -- so it stays stable through get_pos()
+    chunking and speed-variant changes, which a position-derived lead misreads."""
     if tick_interval <= 0.0:
         return 0.0
-    lead = 0.5 * tick_interval * speed
+    lead = (0.5 * tick_interval + CUE_SFX_AUDIBLE_LEAD) * speed
     if lead > CUE_MARKER_LEAD_MAX:
         return CUE_MARKER_LEAD_MAX
-    return lead
+    return min(lead, CUE_MARKER_LEAD_MAX)
 
 
 def _cue_marker_reached(mt, effective_elapsed, prev_eff, marker_tolerance, lead=0.0):

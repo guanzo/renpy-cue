@@ -681,6 +681,7 @@ def test_tick_video_restart_clears_played(play_stub):
     # loop, so the time-0 marker fires again on this same tick.
     vid.last_elapsed = 5.0
     vid._elapsed = 0.05
+    vid.is_restart = True  # the restart verdict now flows through is_restart (poll_restart SSoT)
     eng.video.tick("scene.ogv", "movie", 1.0, None)
     assert len(play_stub) == 2
     assert "v_scene.ogv@0.000#1" in eng.video.played_keys
@@ -688,6 +689,7 @@ def test_tick_video_restart_clears_played(play_stub):
     # next tick: steady playback, marker already fired this round -> no re-fire.
     vid.last_elapsed = 0.05
     vid._elapsed = 0.05
+    vid.is_restart = False
     eng.video.tick("scene.ogv", "movie", 1.0, None)
     assert len(play_stub) == 2
     assert "v_scene.ogv@0.000#1" in eng.video.played_keys
@@ -709,6 +711,7 @@ def test_tick_video_wrap_to_coarse_position_still_fires_time_zero(play_stub):
     # outside the window on the next tick).
     vid.last_elapsed = 5.0
     vid._elapsed = 0.5
+    vid.is_restart = True  # wrap verdict flows through is_restart (poll_restart SSoT)
     eng.video.tick("scene.ogv", "movie", 1.0, None)
     assert len(play_stub) == 2
     assert "v_scene.ogv@0.000#1" in eng.video.played_keys

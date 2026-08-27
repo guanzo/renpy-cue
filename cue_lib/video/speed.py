@@ -583,7 +583,6 @@ class CueVidSpeedSequence(object):
         self._auto_speed = None  # type: Optional[CueAutoSpeedGenerator]
         self.active_tag = None
         self.last_playing = None
-        self.last_elapsed = 0.0
         self.play_count = 0
         self._step_index = -1
         # Generated AUTO sequences live here only, never in the stored
@@ -838,10 +837,8 @@ class CueVidSpeedSequence(object):
         _first = paths[0] if paths else None
         if now and _first and os.path.normpath(now) == os.path.normpath(_first):
             self.last_playing = None
-            self.last_elapsed = -1.0
         else:
             self.last_playing = now
-            self.last_elapsed = 0.0
 
         _cue_log("VQ-START tag={} paths=[{}]".format(tag, "][".join(os.path.basename(p) for p in paths)))
 
@@ -883,47 +880,70 @@ class CueVidSpeedSequence(object):
         try:
             ch = self._vid_manager.channel
             now_playing = _music.get_playing(channel=ch)
-            now_elapsed = _music.get_pos(channel=ch) or 0.0
         except Exception:
             _cue_log("SPEED-TICK: playback query failed")
             now_playing = None
-            now_elapsed = 0.0
 
-        is_wrap_around = now_playing and now_elapsed < 0.2 and self.last_elapsed - now_elapsed > 0.2
-        is_new_play = now_playing != self.last_playing or is_wrap_around
-        if is_new_play:
-            _old_step = self._step_index
-            if self.play_count > 0:
-                seq = self.speeds_for(self.active_tag)
-                if seq:
-                    new_index = (self._step_index + 1) % len(seq)
-                    # AUTO mode: wrap-around triggers regeneration
-                    if (
-                        self.get_mode(self.active_tag) == CueSpeedMode.AUTO
-                        and new_index == 0
-                        and self._auto_speed is not None
-                    ):
-                        self._auto_speed.on_wrap_around()
-                        # on_wrap_around() calls start() which resets all
-                        # tick state -- bail out so we don't overwrite it
-                        return
-                    else:
-                        self._step_index = new_index
+        if not now_playing:
+            self.last_playing = None
+            return
+
+        _old_step = self._step_index
+        seq = self.speeds_for(self.active_tag)
+
+        is_restart = self._vid_manager.is_restart
+        if is_restart:
+            if self.play_count > 0 and seq:
+                new_index = (self._step_index + 1) % len(seq)
+                # AUTO mode: full-playlist wrap triggers regeneration.
+                if (
+                    self.get_mode(self.active_tag) == CueSpeedMode.AUTO
+                    and new_index == 0
+                    and self._auto_speed is not None
+                ):
+                    self._auto_speed.on_wrap_around()
+                    # on_wrap_around() calls start() which resets all
+                    # tick state -- bail out so we don't overwrite it
+                    return
+                self._step_index = new_index
             self.play_count += 1
-            if self._step_index != _old_step:
-                # A new speed is current; refresh screens so `$`-computed
-                # readouts (intensity level, current-speed highlight) follow.
-                renpy.restart_interaction()
+        else:
+            _matched = self._match_step_index(now_playing, seq)
+            if _matched is not None:
+                self._step_index = _matched
+            self.play_count += 1
 
-            # _cue_log(
-            #     "VQ-PLAY #{} step={}->{} wrap={} file={}".format(
-            #         self.play_count, _old_step, self._step_index,
-            #         1 if is_wrap_around else 0,
-            #         os.path.basename(now_playing) if now_playing else "-"))
+        if self._step_index != _old_step:
+            # A new speed is current; refresh screens so `$`-computed
+            # readouts (intensity level, current-speed highlight) follow.
+            renpy.restart_interaction()
 
         self._debug_verify_step(now_playing)
         self.last_playing = now_playing
-        self.last_elapsed = now_elapsed
+
+    def _match_step_index(self, playing_file, seq):
+        # type: (Optional[str], Optional[List[float]]) -> Optional[int]
+        """Index of the playing variant file in `seq`, or None if it's not a match.
+
+        The variant file is the step's ground truth.  Keeps the current index
+        when speeds are duplicated (avoids a one-tick flicker); otherwise
+        returns the first matching index."""
+        if not playing_file or not seq or not self.active_tag or self._speed_resolver is None:
+            return None
+        _base = self._speed_resolver.base_path_for(self.active_tag)
+        if not _base:
+            return None
+        _now_name = os.path.basename(playing_file)
+        _matches = []
+        for _i, _sp in enumerate(seq):
+            _vp = self._speed_resolver.variant_path(_base, _sp)
+            if os.path.basename(_vp) == _now_name:
+                _matches.append(_i)
+        if not _matches:
+            return None
+        if self._step_index in _matches:
+            return self._step_index
+        return _matches[0]
 
     def start_auto(self, tag):
         # type: (str) -> None

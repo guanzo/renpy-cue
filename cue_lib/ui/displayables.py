@@ -11,7 +11,7 @@ from renpy.display.core import Displayable, IgnoreEvent
 
 from cue_lib.state import _cue
 from cue_lib.util import _cue_escape_text, _cue_format_time, create_vid_key
-from cue_lib.constants import CUE_INTENSITY_HINT_COLOR, CUE_INTENSITY_NOTE
+from cue_lib.constants import CUE_DEBUG, CUE_INTENSITY_HINT_COLOR, CUE_INTENSITY_NOTE
 
 MYPY = False
 if MYPY:
@@ -313,6 +313,15 @@ class CueVideoTimeline(Displayable):
         bg = "#3a3a3a" if hovered else "#333333"
         canvas = r.canvas()
         canvas.rect(bg, (0, bar_y, width, self.BAR_H))
+
+        # SFX-fire breadcrumb trail: static ticks at the file-frac where each
+        # SFX fired, for comparing the fire point against the moving playhead.
+        # Debug-only (CUE_DEBUG); off in production so players don't see them.
+        if CUE_DEBUG:
+            for bc in vs.sfx_breadcrumbs:
+                bpx = int(bc * width)
+                if 0 <= bpx < width:
+                    canvas.rect("#33ff88", (bpx, bar_y, 1, self.BAR_H))
 
         if dur > 0 and width > 0:
             frac = max(0.0, min(1.0, elapsed / float(dur)))

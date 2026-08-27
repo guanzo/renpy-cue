@@ -114,17 +114,25 @@ def test_marker_reached_lead_cross_check():
 
 
 def test_marker_lead_half_advance():
-    # 16.7ms cadence at 1.0x -> half a tick's position advance
-    assert _trigger.helpers._cue_marker_lead(0.0167, 1.0) == pytest.approx(0.00835)
+    # 16.7ms cadence at 1.0x -> half a tick's advance plus the audible lead.
+    # Reference the constant so tuning CUE_SFX_AUDIBLE_LEAD doesn't break this.
+    assert _trigger.helpers._cue_marker_lead(0.0167, 1.0) == pytest.approx(
+        (0.5 * 0.0167 + _trigger.helpers.CUE_SFX_AUDIBLE_LEAD) * 1.0
+    )
 
 
 def test_marker_lead_scales_with_speed():
-    assert _trigger.helpers._cue_marker_lead(0.0167, 1.6) == pytest.approx(0.01336)
+    assert _trigger.helpers._cue_marker_lead(0.0167, 1.6) == pytest.approx(
+        (0.5 * 0.0167 + _trigger.helpers.CUE_SFX_AUDIBLE_LEAD) * 1.6
+    )
 
 
 def test_marker_lead_slow_cadence_centers():
-    # the 20fps/1.6x case: full centering (half of the 0.08 advance) = the cap
-    assert _trigger.helpers._cue_marker_lead(0.05, 1.6) == pytest.approx(_trigger.helpers.CUE_MARKER_LEAD_MAX)
+    # 20fps/1.6x: below the cap, so the lead stays half the advance plus the
+    # audible lead (deltas still center around 0).  Reference both constants.
+    assert _trigger.helpers._cue_marker_lead(0.05, 1.6) == pytest.approx(
+        (0.5 * 0.05 + _trigger.helpers.CUE_SFX_AUDIBLE_LEAD) * 1.6
+    )
 
 
 def test_marker_lead_unknown_cadence_zero():

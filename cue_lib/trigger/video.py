@@ -55,34 +55,20 @@ class CueVideoTrigger(object):
         # variant elapsed to reference time when speed != 1.0.
         effective_elapsed = elapsed * speed
 
-        # Detect video restart BEFORE firing.  Clearing after firing is one
-        # tick too late for a marker at t=0: on the wrap tick its key is still
-        # in the dedup set (skipped), and by the next tick the position has
-        # already passed the tolerance window (missed entirely).
-        #   1) is_reset_pending: video manager was just reset (new channel or
-        #      fresh playback).  A one-shot flag, set by reset() and consumed
-        #      here -- not a last_elapsed==0 sentinel, because a tick reading
-        #      elapsed=0 writes last_elapsed=0 back and would re-trigger the
-        #      reset next tick (re-firing a marker at t~0).
-        #   2) elapsed < last_elapsed: playback looped/restarted (Ren'Py
-        #      can't seek backwards, so a large backward jump means restart).
-        is_fresh_reset = vm.is_reset_pending
-        if is_fresh_reset:
-            vm.is_reset_pending = False
-        is_backward_jump = vm.last_elapsed > 0 and elapsed < vm.last_elapsed - 0.3
-        if is_fresh_reset or is_backward_jump:
+        if vm.is_restart:
             self.played_keys.clear()
             self._prev_eff_elapsed = -1.0
             self._last_fire_eff = None
             self._last_fired_mt = None
             self._engine._debug.note_restart()
+            vm.clear_sfx_breadcrumbs()
 
         self._fire_markers(
             current_file, effective_elapsed, self._prev_eff_elapsed, speed, variants, tick_interval, vid_scale
         )
 
-        vm.last_elapsed = elapsed
-        # Store for next tick's cross-between-ticks detection
+        # Store for next tick's cross-between-ticks detection.  vm.last_elapsed
+        # is written by vm.poll_restart() (the restart source of truth).
         self._prev_eff_elapsed = effective_elapsed
 
     def _fire_markers(
@@ -109,6 +95,12 @@ class CueVideoTrigger(object):
 
         if not markers:
             return
+
+        # Breadcrumb axis: the playhead paints at get_elapsed()/get_duration()
+        # (file-frac), so stamp each fire at that same frac to compare against
+        # the moving playhead.  Dur read once per call (fires are sparse).
+        vid = self._engine._vid_manager
+        dur = vid.get_duration()
 
         flags = _cue.intensity.flags_from_entry(vid_entry)
         # Per-time counter so same-time markers get unique stable keys.  Keyed
@@ -171,9 +163,15 @@ class CueVideoTrigger(object):
                 # Overwrites any stale entry on the reused channel (dlg loops
                 # etc.), which is what makes the immunity deterministic.
                 self._engine.excl.track_channel(f, CUE_EXCL_KIND_VIDEO, current_file, None, False)
+
                 self.played_keys.add(ts_key)
                 self._last_fire_eff = effective_elapsed
                 self._last_fired_mt = ts
+
+                # Stamp the playhead position this SFX fired at (file-frac), so
+                # the timeline trail can be compared to the moving playhead.
+                if speed > 0 and dur > 0:
+                    vid.record_sfx_breadcrumb((effective_elapsed / speed) / dur)
                 self._engine._debug.note_fire(ts, effective_elapsed, current_file)
             elif not is_preview:
                 # Reached but playback produced nothing (empty intensity

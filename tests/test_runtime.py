@@ -779,6 +779,7 @@ def test_tick_no_mismatch(cue, monkeypatch):
     assert "music.capture_display" not in cue.calls  # no refresh_context
     assert cue.calls["vid_manager.sync_paused"] == [((), {})]
     assert cue.calls["vid_manager.poll_autopause"] == [((), {})]
+    assert cue.calls["vid_manager.poll_restart"] == [((), {})]
     assert cue.calls["video_sequence.tick"] == [((), {})]
     assert cue.calls["trigger.tick"] == [(("scene.ogv", "image"), {})]
 
