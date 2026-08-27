@@ -22,6 +22,7 @@ import cue_lib.logger as _logger_mod
 import cue_lib.markers as _markers
 import cue_lib.runtime as _runtime
 import cue_lib.settings as _settings
+import cue_lib.ui.overlay as _overlay
 import cue_lib.util as _util
 from cue_lib.audio.sfx_manager import CueSfxManager
 from cue_lib.constants import CuePage, CUE_SFX_CHANNEL_COUNT, CUE_SHARED_KEY_MUSIC_FOLDERS, CUE_SHARED_KEY_SFX_FOLDERS
@@ -36,6 +37,7 @@ def cue(monkeypatch, tmp_path):
     root = str(tmp_path / "cue_root")
     c = make_runtime_cue(root=root, audio_dir=root + "/audio/")
     monkeypatch.setattr(_runtime, "_cue", c)
+    monkeypatch.setattr(_overlay, "_cue", c)  # overlay actions read overlay._cue
     monkeypatch.setattr(_markers, "_cue", c)  # _cue_full_reload reads markers._cue
     monkeypatch.setattr(_util, "_cue", c)  # _cue_resolve_files/_cue_pick_file
     monkeypatch.setattr(_settings, "_cue", c)  # CueSettings methods read _cue
@@ -54,16 +56,16 @@ def cue(monkeypatch, tmp_path):
 def test_toggle_overlay_hides_when_visible(cue, monkeypatch):
     cue.is_overlay_visible = True
     hidden = []
-    monkeypatch.setattr(_runtime, "_cue_hide_overlay", lambda: hidden.append(1))
-    _runtime._cue_toggle_overlay()
+    monkeypatch.setattr(_overlay, "_cue_hide_overlay", lambda: hidden.append(1))
+    _overlay._cue_toggle_overlay()
     assert hidden == [1]
 
 
 def test_toggle_overlay_shows_when_hidden(cue, monkeypatch):
     cue.is_overlay_visible = False
     shown = []
-    monkeypatch.setattr(_runtime, "_cue_show_overlay", lambda: shown.append(1))
-    _runtime._cue_toggle_overlay()
+    monkeypatch.setattr(_overlay, "_cue_show_overlay", lambda: shown.append(1))
+    _overlay._cue_toggle_overlay()
     assert shown == [1]
 
 
@@ -72,7 +74,7 @@ def test_show_overlay_never_scans(cue):
     # open stays on the cheap path even for empty libraries.
     cue.sfx.library.files = []
     cue.music.library.user_files = []
-    _runtime._cue_show_overlay()
+    _overlay._cue_show_overlay()
     assert cue.is_overlay_visible is True
     assert "sfx_manager.scan" not in cue.calls
     assert "music.library.scan" not in cue.calls
@@ -84,8 +86,8 @@ def test_show_overlay_never_scans(cue):
 def test_hide_overlay(cue, monkeypatch):
     cue.is_overlay_visible = True
     calls = []
-    monkeypatch.setattr(_runtime.CueVideoMarkerTimeline, "reset_timeline_drag", lambda: calls.append(None))
-    _runtime._cue_hide_overlay()
+    monkeypatch.setattr(_overlay.CueVideoMarkerTimeline, "reset_timeline_drag", lambda: calls.append(None))
+    _overlay._cue_hide_overlay()
     assert cue.is_overlay_visible is False
     # Hide aborts an in-flight marker drag so a stale one doesn't resurface
     # on the next show (the timeline outlives the overlay).
@@ -179,7 +181,7 @@ def test_full_reload_serves_markers_from_effective_root(cue, tmp_path):
 
 def test_set_page_same_page_noop(cue):
     cue.overlay_active_page = CuePage.SFX
-    _runtime._cue_set_page(CuePage.SFX)
+    _overlay._cue_set_page(CuePage.SFX)
     assert cue.overlay_active_page == CuePage.SFX
 
 
@@ -187,7 +189,7 @@ def test_set_page_settings_preps_shared_dir_input(cue):
     cue.overlay_active_page = CuePage.SFX
     cue.settings.shared_dir_error = "stale error"
     cue.settings.shared_dir_success = "stale success"
-    _runtime._cue_set_page(CuePage.SETTINGS)
+    _overlay._cue_set_page(CuePage.SETTINGS)
     assert cue.overlay_active_page == CuePage.SETTINGS
     assert cue.settings.setup_dir_text == cue.paths.root
     assert cue.settings.shared_dir_error == ""
@@ -197,14 +199,14 @@ def test_set_page_settings_preps_shared_dir_input(cue):
 def test_set_page_plain_page_switch(cue):
     cue.overlay_active_page = CuePage.SFX
     cue.settings.setup_dir_text = "SHOULD-NOT-LEAK"
-    _runtime._cue_set_page(CuePage.MUSIC)
+    _overlay._cue_set_page(CuePage.MUSIC)
     assert cue.overlay_active_page == CuePage.MUSIC
     assert cue.settings.setup_dir_text == "SHOULD-NOT-LEAK"  # no settings prep
 
 
 def test_set_page_import_refreshes_importer_and_exporter(cue):
     cue.overlay_active_page = CuePage.SFX
-    _runtime._cue_set_page(CuePage.IMPORT)
+    _overlay._cue_set_page(CuePage.IMPORT)
     assert cue.overlay_active_page == CuePage.IMPORT
     assert cue.calls["importer.scan"] == [((), {})]
     assert cue.calls["exporter.refresh"] == [((), {})]
@@ -265,13 +267,13 @@ def test_confirm_shared_dir_save_failure(cue, monkeypatch, tmp_path):
 
 def test_toggle_video_mute_no_current_file(cue):
     cue.current_file = ""
-    _runtime._cue_toggle_video_mute()
+    _markers._cue_toggle_video_mute()
     assert cue.calls == {}
 
 
 def test_toggle_video_mute_no_entry_noop(cue):
     cue.current_file = "scene.ogv"
-    _runtime._cue_toggle_video_mute()  # markers.get returns None -> no entry
+    _markers._cue_toggle_video_mute()  # markers.get returns None -> no entry
     assert "markers.save_marker" not in cue.calls
 
 
@@ -281,10 +283,10 @@ def test_toggle_video_mute_mutes_then_unmutes(cue):
     entry = {"video_file_muted": False}
     cue.markers.get = lambda key, default=None: entry if key == "v_scene.ogv" else default
     cue.vid_manager.channel = "movie"
-    _runtime._cue_toggle_video_mute()
+    _markers._cue_toggle_video_mute()
     assert _music_mock._registry["movie"]["volume"] == 0.0
     assert cue.calls["markers.save_marker"] == [(("v_scene.ogv",), {})]
-    _runtime._cue_toggle_video_mute()
+    _markers._cue_toggle_video_mute()
     assert _music_mock._registry["movie"]["volume"] == 1.0
 
 
@@ -292,7 +294,7 @@ def test_toggle_video_mute_no_channel_skips_volume(cue):
     cue.current_file = "scene.ogv"
     cue.markers.get = lambda key, default=None: {"video_file_muted": False}
     cue.vid_manager.channel = None
-    _runtime._cue_toggle_video_mute()
+    _markers._cue_toggle_video_mute()
     assert "movie" not in _music_mock._registry  # set_volume never called
     assert cue.calls["markers.save_marker"] == [(("v_scene.ogv",), {})]
 
@@ -1197,13 +1199,13 @@ def test_refresh_context_guard_contains_collaborator_error(isolated_cue, capture
 
 def test_toggle_intensity_flag_no_current_file(cue):
     cue.current_file = ""
-    _runtime._cue_toggle_intensity_flag("enabled")
+    _markers._cue_toggle_intensity_flag("enabled")
     assert cue.calls == {}
 
 
 def test_toggle_intensity_flag_no_entry_noop(cue):
     cue.current_file = "scene.ogv"
-    _runtime._cue_toggle_intensity_flag("enabled")
+    _markers._cue_toggle_intensity_flag("enabled")
     assert "markers.save_marker" not in cue.calls
 
 
@@ -1211,10 +1213,10 @@ def test_toggle_intensity_flag_toggles_then_back(cue):
     cue.current_file = "scene.ogv"
     entry = {"intensity": {"enabled": True}}
     cue.markers.get = lambda key, default=None: entry if key == "v_scene.ogv" else default
-    _runtime._cue_toggle_intensity_flag("enabled")
+    _markers._cue_toggle_intensity_flag("enabled")
     assert entry["intensity"]["enabled"] is False
     assert cue.calls["markers.save_marker"] == [(("v_scene.ogv",), {})]
-    _runtime._cue_toggle_intensity_flag("enabled")
+    _markers._cue_toggle_intensity_flag("enabled")
     assert entry["intensity"]["enabled"] is True
 
 
@@ -1223,7 +1225,7 @@ def test_toggle_intensity_flag_absent_defaults_on(cue):
     # A real video entry; the flag field itself is absent (reads as on).
     entry = {"volume": 1.0}
     cue.markers.get = lambda key, default=None: entry if key == "v_scene.ogv" else default
-    _runtime._cue_toggle_intensity_flag("volume")
+    _markers._cue_toggle_intensity_flag("volume")
     # The default is on, so the first toggle flips it off.
     assert entry["intensity"]["volume"] is False
     assert "frequency" not in entry["intensity"]

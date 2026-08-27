@@ -10,7 +10,6 @@
 
 import pytest
 
-import cue_lib.runtime as _runtime
 import cue_lib.settings as _settings
 from cue_lib.constants import CUE_SHARED_KEY_MUSIC_FOLDERS, CUE_SHARED_KEY_SFX_FOLDERS
 from tests.fakes import make_runtime_cue
@@ -22,8 +21,8 @@ def cue(monkeypatch):
     c = make_runtime_cue(root="/cue_root", audio_dir="/cue_root/audio/")
     monkeypatch.setattr(_settings, "_cue", c)
     c.applied = {"music": [], "sfx": []}
-    monkeypatch.setattr(_runtime, "_cue_apply_music_folders", lambda folders: c.applied["music"].append(list(folders)))
-    monkeypatch.setattr(_runtime, "_cue_apply_sfx_folders", lambda folders: c.applied["sfx"].append(list(folders)))
+    monkeypatch.setattr(_settings, "_cue_apply_music_folders", lambda folders: c.applied["music"].append(list(folders)))
+    monkeypatch.setattr(_settings, "_cue_apply_sfx_folders", lambda folders: c.applied["sfx"].append(list(folders)))
     return c
 
 

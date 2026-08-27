@@ -11,6 +11,7 @@
 
 import copy as _copy
 import renpy
+import renpy.audio.music as _music
 
 from renpy.store import persistent
 
@@ -700,14 +701,14 @@ def _cue_load_scalars_from_persistent():
 
     # Hydrate the external Music/SFX folder lists (Settings > Data Folder) and
     # push them into the loader roots.  The caller's scan() runs after this,
-    # so the trees pick the fresh lists up.  Lazy import avoids the runtime
-    # <-> markers module cycle (runtime imports this function).
+    # so the trees pick the fresh lists up.  Lazy import avoids the markers ->
+    # settings -> runtime -> markers cycle (settings imports runtime at load).
     _cue.music.library.external_folders = list(shared.get(CUE_SHARED_KEY_MUSIC_FOLDERS, []) or [])
     _cue.sfx.library.external_folders = list(shared.get(CUE_SHARED_KEY_SFX_FOLDERS, []) or [])
 
-    from cue_lib import runtime
+    from cue_lib import settings
 
-    runtime._cue_refresh_loader_roots()
+    settings._cue_refresh_loader_roots()
 
     # Coalesce None to the default: see _cue_coalesce_bool.
     _cue.trigger.active = _cue_coalesce_bool(_cue_dict.get("triggers_active"), True)
@@ -722,6 +723,40 @@ def _cue_load_scalars_from_persistent():
         _cue.sfx.library.set_sidebar_width(_sw)
     else:
         _cue.sfx.library.sidebar_width = CUE_SIDEBAR_DEFAULT_WIDTH
+
+
+def _cue_toggle_video_mute():
+    # type: () -> None
+    if not _cue.current_file:
+        return
+    vid_key = create_vid_key(_cue.current_file)
+    entry = _cue.markers.get(vid_key, {})
+    if not entry:
+        return
+    video_file_muted = not entry.get("video_file_muted", False)
+    entry["video_file_muted"] = video_file_muted
+    _cue.markers.save_marker(vid_key)
+    ch = _cue.vid_manager.channel
+    if ch:
+        _music.set_volume(0.0 if video_file_muted else 1.0, delay=0, channel=ch)
+    renpy.restart_interaction()
+
+
+def _cue_toggle_intensity_flag(flag_key):
+    # type: (str) -> None
+    """Toggle one per-video intensity flag (enabled, sfx_levels, volume,
+    frequency).  Absent fields read as on, so the first toggle turns the
+    flag off."""
+    if not _cue.current_file:
+        return
+    vid_key = create_vid_key(_cue.current_file)
+    entry = _cue.markers.get(vid_key, {})
+    if not entry:
+        return
+    flags = entry.setdefault("intensity", {})
+    flags[flag_key] = not flags.get(flag_key, True)
+    _cue.markers.save_marker(vid_key)
+    renpy.restart_interaction()
 
 
 def _cue_markers_send(kind, ref, record=True):

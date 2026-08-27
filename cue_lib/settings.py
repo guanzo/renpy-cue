@@ -9,6 +9,7 @@ import renpy
 from cue_lib.constants import CUE_SHARED_KEY_MUSIC_FOLDERS, CUE_SHARED_KEY_SFX_FOLDERS
 from cue_lib.db import CueDatabase
 from cue_lib.paths import CuePaths
+from cue_lib.runtime import _cue_full_reload
 from cue_lib.state import _cue
 from cue_lib.util import _cue_log, _cue_ui_refresh
 
@@ -178,15 +179,13 @@ class CueSettings(object):
 
     def _apply(self, kind, folders):
         # type: (str, List[str]) -> None
-        """Fan out the committed rows (drop empty placeholders) to the runtime
-        apply helper (rescan)."""
-        from cue_lib import runtime
-
+        """Fan out the committed rows (drop empty placeholders) to the apply
+        helper (rescan)."""
         _committed = [f for f in folders if f]
         if kind == "music":
-            runtime._cue_apply_music_folders(_committed)
+            _cue_apply_music_folders(_committed)
         else:
-            runtime._cue_apply_sfx_folders(_committed)
+            _cue_apply_sfx_folders(_committed)
 
     @_cue_ui_refresh
     def confirm_shared_dir(self):
@@ -225,3 +224,38 @@ class CueSettings(object):
         self.shared_dir_error = ""
         self.setup_dir_text = path
         self.shared_dir_success = "Success. If you have any data in the old dir, move it to the new dir and relaunch."
+
+
+def _cue_apply_music_folders(folders):
+    # type: (List[str]) -> None
+    """Apply the external Music folder list (Settings > Data Folder).
+
+    Seeds the music tree's external sources, pushes the combined external
+    roots into the loader, and rescans.  Called on settings commit/remove
+    and at boot via _cue_load_scalars_from_persistent."""
+    _cue.music.library.external_folders = list(folders)
+    _cue_refresh_loader_roots()
+    _cue_full_reload()
+
+
+def _cue_apply_sfx_folders(folders):
+    # type: (List[str]) -> None
+    """Apply the external SFX folder list (Settings > Data Folder).
+
+    Mirrors _cue_apply_music_folders for the SFX tree."""
+    _cue.sfx.library.external_folders = list(folders)
+    _cue_refresh_loader_roots()
+    _cue_full_reload()
+
+
+def _cue_refresh_loader_roots():
+    # type: () -> None
+    """Push the combined external-folder lists into CuePaths loader roots.
+
+    The paths graph exposes the setter (real CuePaths and the runtime-cue
+    fake); test graphs without a paths slot just skip the loader update."""
+    roots = list(getattr(_cue.sfx.library, "external_folders", []) or [])
+    roots += list(getattr(_cue.music.library, "external_folders", []) or [])
+    _paths = getattr(_cue, "paths", None)
+    if _paths is not None and hasattr(_paths, "set_extra_loader_roots"):
+        _paths.set_extra_loader_roots(roots)

@@ -1,19 +1,16 @@
 # -*- coding: utf-8 -*-
-# Runtime drivers -- overlay show/hide, context detection, tick engine.
+# Runtime engine drivers -- context detection, movie-channel detection, tick.
 # Extracted from cue_z.rpy Section 3 (init python: free functions).
 
-import random as _random
 import renpy
 import renpy.audio.music as _music
 import renpy.audio.audio as _aaudio
 import time as _time
 
-from cue_lib.constants import CuePage
 from cue_lib.logger import _cue_logger
 from cue_lib.marker_store import _cue_migrate_intensity_hooks
 from cue_lib.markers import _cue_load_scalars_from_persistent
 from cue_lib.state import _cue
-from cue_lib.ui.displayables import CueVideoMarkerTimeline
 from cue_lib.util import (
     _cue_log,
     _cue_unwrap_displayable,
@@ -25,7 +22,7 @@ from cue_lib.util import (
 
 MYPY = False
 if MYPY:
-    from typing import Any, List, Optional, Tuple  # pyright: ignore[reportUnusedImport]
+    from typing import Any, Optional, Tuple  # pyright: ignore[reportUnusedImport]
 
 
 # Dedup set for the TOP-LAYER-UNKNOWN debug log (which displayables have
@@ -36,96 +33,6 @@ _cue_logged_unknown_displayables = set()
 # CUE_SLOW_TICK_INTERVAL seconds.
 CUE_SLOW_TICK_INTERVAL = 0.25
 _cue_slow_tick_last = 0.0
-
-# Quick cross-fade duration for exclusive cut-in sweeps.
-CUE_EXCLUSIVE_FADE = 0.1
-
-
-# --------------------------------------------------------------------------
-# Visibility
-# --------------------------------------------------------------------------
-
-
-def _cue_toggle_overlay():
-    # type: () -> None
-    if _cue.is_overlay_visible:
-        _cue_hide_overlay()
-    else:
-        _cue_show_overlay()
-
-
-def _cue_set_page(page):
-    # type: (int) -> None
-    """Switch the overlay sidebar to the given page.
-
-    Clicking the page that is already open is a no-op.
-    """
-    if _cue.overlay_active_page == page:
-        return
-    if page == CuePage.SETTINGS:
-        _cue.settings.prepare_for_page()
-    elif page == CuePage.IMPORT:
-        _cue.importer.scan()
-        _cue.exporter.refresh()
-
-    _cue.overlay_active_page = page
-
-
-def _cue_toggle_video_mute():
-    # type: () -> None
-    if not _cue.current_file:
-        return
-    vid_key = create_vid_key(_cue.current_file)
-    entry = _cue.markers.get(vid_key, {})
-    if not entry:
-        return
-    video_file_muted = not entry.get("video_file_muted", False)
-    entry["video_file_muted"] = video_file_muted
-    _cue.markers.save_marker(vid_key)
-    ch = _cue.vid_manager.channel
-    if ch:
-        _music.set_volume(0.0 if video_file_muted else 1.0, delay=0, channel=ch)
-    renpy.restart_interaction()
-
-
-def _cue_toggle_intensity_flag(flag_key):
-    # type: (str) -> None
-    """Toggle one per-video intensity flag (enabled, sfx_levels, volume,
-    frequency).  Absent fields read as on, so the first toggle turns the
-    flag off."""
-    if not _cue.current_file:
-        return
-    vid_key = create_vid_key(_cue.current_file)
-    entry = _cue.markers.get(vid_key, {})
-    if not entry:
-        return
-    flags = entry.setdefault("intensity", {})
-    flags[flag_key] = not flags.get(flag_key, True)
-    _cue.markers.save_marker(vid_key)
-    renpy.restart_interaction()
-
-
-def _cue_show_overlay():
-    # type: () -> None
-    _cue.is_overlay_visible = True
-
-    _cue_refresh_context()
-    _cue.music.library.maybe_rebuild()
-    _cue.sfx.library.maybe_rebuild()
-    _cue.video_editor.refresh(restart_interaction=False)
-
-    renpy.show_screen("cue_overlay", _layer="cue_layer")
-    renpy.restart_interaction()
-
-
-def _cue_hide_overlay():
-    # type: () -> None
-    _cue.is_overlay_visible = False
-    # The marker timeline outlives the overlay (built once as a class
-    # singleton), so a hide mid-drag would otherwise leave a stale in-flight
-    # drag on the next show.
-    CueVideoMarkerTimeline.reset_timeline_drag()
-    renpy.hide_screen("cue_overlay", layer="cue_layer")
 
 
 def _cue_full_reload():
@@ -169,42 +76,6 @@ def _cue_full_reload():
     _cue.video_editor.refresh()
 
     _cue_refresh_context()
-
-
-def _cue_apply_music_folders(folders):
-    # type: (List[str]) -> None
-    """Apply the external Music folder list (Settings > Data Folder).
-
-    Seeds the music tree's external sources, pushes the combined external
-    roots into the loader, and rescans everything.  Called on settings
-    commit/remove and at boot via _cue_load_scalars_from_persistent."""
-    _cue.music.library.external_folders = list(folders)
-    _cue_refresh_loader_roots()
-    _cue_full_reload()
-
-
-def _cue_apply_sfx_folders(folders):
-    # type: (List[str]) -> None
-    """Apply the external SFX folder list (Settings > Data Folder).
-
-    Mirrors _cue_apply_music_folders for the SFX tree."""
-    _cue.sfx.library.external_folders = list(folders)
-    _cue_refresh_loader_roots()
-    _cue_full_reload()
-
-
-def _cue_refresh_loader_roots():
-    # type: () -> None
-    """Push the current external-folder lists into CuePaths loader roots.
-
-    Combined here so music/sfx changes stay in sync.  The paths graph exposes
-    the setter (real CuePaths and the runtime-cue fake); test graphs without
-    a paths slot just skip the loader update."""
-    roots = list(getattr(_cue.sfx.library, "external_folders", []) or [])
-    roots += list(getattr(_cue.music.library, "external_folders", []) or [])
-    _paths = getattr(_cue, "paths", None)
-    if _paths is not None and hasattr(_paths, "set_extra_loader_roots"):
-        _paths.set_extra_loader_roots(roots)
 
 
 # --------------------------------------------------------------------------
@@ -507,15 +378,3 @@ def _cue_tick_trigger_impl():
 
         for _m in (_cue.sfx.library, _cue.music.library):
             _m.maybe_rebuild()
-
-
-def _cue_preview_music_preset(preset_name):
-    # type: (str) -> None
-    """Preview a random song from a music preset."""
-    preset = _cue.music.get_preset(preset_name)
-    if preset is None:
-        return
-    files = _cue.music.preset_display_files(preset)
-    if files:
-        f = _random.choice(files)
-        _cue.music.library.preview(f)

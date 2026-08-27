@@ -27,7 +27,6 @@ from cue_lib.ui.dialogs import (
     _cue_confirm_remove_video_preset_pool,
     _cue_maybe_apply_video_preset,
 )
-from cue_lib.runtime import _cue_preview_music_preset
 from cue_lib.util import (
     _cue_escape_text,
     _cue_filter_igroup_folders,
@@ -47,6 +46,16 @@ if MYPY:
 # Shared row helpers: every section/leaf row the content_rows builders emit is
 # one of these four shapes, so the renderer's data contract has a single
 # construction site.
+
+
+def _cue_preview_music_preset(preset_name):
+    # type: (str) -> None
+    """Play a random song from a preset.
+
+    Lazy _cue.music bind: Function() builds rows before the singleton's music
+    manager is wired in unit tests, so dereferencing it here (at click time)
+    instead of in the row's action keeps row construction manager-free."""
+    _cue.music.preview_preset(preset_name)
 
 
 def _cue_file_row(key, label, depth, buttons, warn=None, gap=1, size=None):

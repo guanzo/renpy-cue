@@ -25,6 +25,7 @@ import renpy.store as _store
 import cue_lib.backup as _backup
 import cue_lib.markers as _markers
 import cue_lib.runtime as _runtime
+import cue_lib.settings as _settings
 from cue_lib.backup import zip_shared_tree
 from cue_lib.constants import CUE_MANUAL_BACKUP_NAME, CUE_SIDEBAR_DEFAULT_WIDTH
 from cue_lib.paths import CUE_BACKUP_DIR
@@ -138,6 +139,8 @@ def _fake_singletons(monkeypatch):
     monkeypatch.setattr(_markers, "_cue", fake)
     monkeypatch.setattr(_markers, "persistent", _store.persistent)
     monkeypatch.setattr(_runtime, "_cue", fake)  # _cue_full_reload lives in runtime.py
+    # _cue_refresh_loader_roots now lives in settings.py and reads settings._cue.
+    monkeypatch.setattr(_settings, "_cue", fake)
     # Full reload's tail re-derives the current context; that is runtime's
     # concern (exercised in test_runtime.py), so no-op it here to keep the
     # restore tests focused on the reload plumbing.

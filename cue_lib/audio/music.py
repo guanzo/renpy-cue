@@ -1046,6 +1046,17 @@ class CueMusicManager(object):
             "expanded_presets": dict(self.expanded_presets),
         }
 
+    def preview_preset(self, preset_name):
+        # type: (str) -> None
+        """Preview a random song from a music preset."""
+        preset = self.get_preset(preset_name)
+        if preset is None:
+            return
+        files = self.preset_display_files(preset)
+        if files:
+            f = random.choice(files)
+            self.library.preview(f)
+
     def restore_ui_state(self):
         # type: () -> None
         """Overlay persisted Music Library folder-UI toggle state onto the attrs."""

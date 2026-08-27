@@ -100,14 +100,14 @@ init -999 python:
     )
 
     from cue_lib.runtime import (
-        _cue_toggle_overlay, _cue_show_overlay, _cue_hide_overlay,
         _cue_full_reload,
         _cue_refresh_context, _cue_log_context, _cue_get_top_layer,
         _cue_refresh_channel, _cue_tick_trigger,
-        _cue_preview_music_preset,
+    )
+
+    from cue_lib.ui.overlay import (
+        _cue_toggle_overlay, _cue_show_overlay, _cue_hide_overlay,
         _cue_set_page,
-        _cue_toggle_video_mute,
-        _cue_toggle_intensity_flag,
     )
 
     from cue_lib.video.speed import (
@@ -119,6 +119,8 @@ init -999 python:
         _cue_markers_send,
         _cue_send_level_to_target, _cue_send_level_to_target_tt,
         _cue_target_assign_tt,
+        _cue_toggle_video_mute,
+        _cue_toggle_intensity_flag,
     )
 
     from cue_lib.ui.dialogs import (
