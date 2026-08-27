@@ -11,6 +11,7 @@ class CueVideoManager:
     refreshing: bool
     fps: int
     last_elapsed: float
+    is_reset_pending: bool
 
     def __init__(self, ctx: CueContext, channel: Optional[str] = None) -> None: ...
     def reset(self, channel: Optional[str] = None) -> None: ...

@@ -78,7 +78,7 @@ def test_show_overlay_never_scans(cue):
     assert "music.library.scan" not in cue.calls
     assert "sfx_manager.warm_cache" not in cue.calls
     assert cue.calls["sfx_manager.maybe_rebuild"] == [((), {})]
-    assert cue.calls["video_editor.refresh"] == [((), {})]
+    assert cue.calls["video_editor.refresh"] == [((), {"restart_interaction": False})]
 
 
 def test_hide_overlay(cue, monkeypatch):

@@ -336,6 +336,7 @@ class FakeVidManager(object):
         self.channel = channel
         self._elapsed = elapsed
         self.last_elapsed = 0
+        self.is_reset_pending = False
         self.duration = duration
 
     def get_elapsed(self):

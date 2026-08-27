@@ -360,6 +360,24 @@ def _cue_get_top_layer():
 # --------------------------------------------------------------------------
 
 
+def _cue_holding_movie(displayable):
+    # type: (Any) -> bool
+    """True if the top layer is still the current movie -- a blink, not a real
+    stop, so hold the channel instead of dropping it into a re-acquire."""
+    if displayable is not None:
+        try:
+            import renpy.display.video as _video
+
+            if isinstance(displayable, _video.Movie):
+                play = _cue_get_movie_play(displayable)
+                target = _cue.speed_resolver.base_path_for(_cue.current_file)
+                if play and target:
+                    return (play == target) or _cue.speed_resolver.is_variant_of(play, target)
+        except Exception:
+            pass
+    return False
+
+
 def _cue_refresh_channel(displayable=None):
     # type: (Any) -> None
     if _cue.vid_manager.refreshing:
@@ -395,12 +413,15 @@ def _cue_refresh_channel(displayable=None):
                         if path == target_path or _cue.speed_resolver.is_variant_of(path, target_path):
                             _cue_apply_channel(ch_name, ch_obj, old_ch)
                             return
-                _cue.vid_manager.channel = None
+                if _cue.vid_manager.channel:
+                    _cue.vid_manager.channel = None
             else:
                 ch_name, ch_obj, _ = candidates[0]
                 _cue_apply_channel(ch_name, ch_obj, old_ch)
         else:
-            _cue.vid_manager.channel = None
+            ch = _cue.vid_manager.channel
+            if ch and not _cue_holding_movie(displayable):
+                _cue.vid_manager.channel = None
     finally:
         _cue.vid_manager.refreshing = False
 

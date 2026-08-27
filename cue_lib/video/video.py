@@ -38,6 +38,11 @@ class CueVideoManager(object):
         self.refreshing = False
         self.fps = 30
         self.last_elapsed = 0.0
+        # One-shot "fresh video" signal: set here, consumed (cleared) by the
+        # first trigger tick after the reset.  Uses a flag, not <0.0> last_elapsed,
+        # because a tick reading elapsed=0 writes last_elapsed=0 back and would
+        # otherwise re-trigger the reset next tick.
+        self.is_reset_pending = True
         self.time_offset = 0.0
         self.step_target = 0.0
         self.pause_target = 0.0
