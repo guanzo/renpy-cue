@@ -239,7 +239,7 @@ if [ "$DSL" = "legacy" ]; then
                 fi
             done
             _claim="/tmp/.cue_xvfb_claim_${_d}"
-            Xvfb ":$((_d))" -screen 0 1280x800x24 >/dev/null 2>&1 &
+            Xvfb ":$((_d))" -screen 0 1280x800x24 -ac >/dev/null 2>&1 &
             XVPID=$!
             export DISPLAY=":$((_d))"
             # Xvfb creates its lock/socket asynchronously -- wait for it so the
