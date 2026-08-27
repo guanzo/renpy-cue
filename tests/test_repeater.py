@@ -175,6 +175,12 @@ def test_open_default_interval_zero_anchor_falls_back_one(env):
     assert env.rep.interval_text == "1.00"
 
 
+def test_open_default_interval_single_marker_near_start_floors_one(env):
+    _open(env, [0.3], selected=[0], dur=10.0)
+    assert env.rep.interval_text == "1.00"
+    assert env.rep.count_text == "9"  # (10 - 0.3) / 1.0, not ~32 at 0.3s
+
+
 def test_open_default_count_fits_duration(env):
     _open(env, [1.0, 2.0], selected=[0, 1], dur=10.0)
     # (10 - anchor 1.0 - max_offset 1.0) / interval 2.0 == 4
@@ -261,6 +267,17 @@ def test_sync_not_visible_noop(env):
     assert env.rep.sel_count == 0
 
 
+def test_sync_carries_igroup_in_offset(env):
+    pools = _open(env, [1.0, 2.0], selected=[0, 1])
+    pools[0]["igroup"] = "groove"
+    pools[0]["ilevel_id"] = 3
+    env.rep._sync_tracked()
+    assert env.rep.offsets[0]["igroup"] == "groove"
+    assert env.rep.offsets[0]["ilevel_id"] == 3
+    assert env.rep.offsets[0]["files"] == ["a.ogg"]
+    assert env.rep.offsets[1]["igroup"] is None
+
+
 def test_sync_after_video_change_back_returns_early(env):
     _open(env, [1.0, 2.0], selected=[0, 1])
     env.ctx.current_file = "other"
@@ -342,6 +359,33 @@ def test_apply_persists_via_save_marker(env):
     assert env.store._data[create_vid_key(env.tag)]["pools"][1]["time"] == 3.0
 
 
+def test_apply_carries_igroup_to_clones(env):
+    pools = _open(env, [1.0, 2.0], selected=[0, 1])
+    pools[0]["igroup"] = "groove"
+    pools[0]["ilevel_id"] = 3
+    env.rep.interval_text = "2.00"
+    env.rep.count_text = "2"
+    env.rep.apply()
+    assert pools[2]["time"] == 3.0
+    assert pools[2]["igroup"] == "groove"
+    assert pools[2]["ilevel_id"] == 3
+    assert pools[3]["time"] == 4.0
+    assert "igroup" not in pools[3]
+    assert pools[4]["time"] == 5.0
+    assert pools[4]["igroup"] == "groove"
+    assert pools[4]["ilevel_id"] == 3
+
+
+def test_apply_omits_igroup_when_source_has_none(env):
+    pools = _open(env, [1.0], selected=[0])
+    env.rep.interval_text = "2.00"
+    env.rep.count_text = "1"
+    env.rep.apply()
+    assert len(pools) == 2
+    assert "igroup" not in pools[1]
+    assert pools[1]["files"] == ["a.ogg"]
+
+
 # ==========================================================================
 # compute_preview_times / compute_preview_pools / preview_text
 # ==========================================================================
@@ -402,6 +446,20 @@ def test_compute_preview_pools_shape(env):
     assert [p["time"] for p in pools] == [3.0, 4.0]
     assert pools[0]["files"] == ["a.ogg"]
     assert pools[0]["volume"] == 1.0
+
+
+def test_compute_preview_pools_carries_igroup(env):
+    pools = _open(env, [1.0, 2.0], selected=[0, 1])
+    pools[0]["igroup"] = "groove"
+    pools[0]["ilevel_id"] = 3
+    env.rep.interval_text = "2.00"
+    env.rep.count_text = "1"
+    result = env.rep.compute_preview_pools()
+    assert result[0]["time"] == 3.0
+    assert result[0]["igroup"] == "groove"
+    assert result[0]["ilevel_id"] == 3
+    assert result[1]["time"] == 4.0
+    assert "igroup" not in result[1]
 
 
 def test_compute_preview_pools_hidden_empty(env):

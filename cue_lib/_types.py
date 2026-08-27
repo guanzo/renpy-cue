@@ -11,7 +11,7 @@
 # across cue_lib. .pyi stubs import from here rather than redeclaring.
 
 from __future__ import annotations
-from typing import Dict, List, Set, Tuple, TypedDict, Union
+from typing import Dict, List, Optional, Set, Tuple, TypedDict, Union
 
 # typing_extensions is safe here -- _types.py is never imported at runtime
 # (see header comment).  Pyright understands NotRequired natively.
@@ -69,6 +69,8 @@ class VideoPoolDict(TypedDict):
     files: NotRequired[List[str]]
     volume: NotRequired[float]
     preset: NotRequired[str]
+    igroup: NotRequired[str]
+    ilevel_id: NotRequired[int]
 
 
 # =========================================================================
@@ -161,6 +163,8 @@ class RepeaterOffset(TypedDict):
     offset: float
     files: List[str]
     volume: float
+    igroup: Optional[str]
+    ilevel_id: Optional[int]
 
 
 # =========================================================================
