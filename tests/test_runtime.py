@@ -67,24 +67,18 @@ def test_toggle_overlay_shows_when_hidden(cue, monkeypatch):
     assert shown == [1]
 
 
-def test_show_overlay_scans_empty_libraries(cue):
+def test_show_overlay_never_scans(cue):
+    # Scans (and the WAV warm) run at init via _cue_full_reload; an overlay
+    # open stays on the cheap path even for empty libraries.
     cue.sfx.library.files = []
     cue.music.library.user_files = []
     _runtime._cue_show_overlay()
     assert cue.is_overlay_visible is True
-    assert cue.calls["sfx_manager.scan"] == [((), {})]
-    assert cue.calls["music.library.scan"] == [((), {})]
-    assert cue.calls["sfx_manager.maybe_rebuild"] == [((), {})]
-    assert cue.calls["video_editor.refresh"] == [((), {})]
-
-
-def test_show_overlay_skips_scan_when_populated(cue):
-    cue.sfx.library.files = ["a.ogg"]
-    cue.music.library.user_files = ["m.ogg"]
-    _runtime._cue_show_overlay()
     assert "sfx_manager.scan" not in cue.calls
     assert "music.library.scan" not in cue.calls
-    assert cue.is_overlay_visible is True
+    assert "sfx_manager.warm_cache" not in cue.calls
+    assert cue.calls["sfx_manager.maybe_rebuild"] == [((), {})]
+    assert cue.calls["video_editor.refresh"] == [((), {})]
 
 
 def test_hide_overlay(cue, monkeypatch):

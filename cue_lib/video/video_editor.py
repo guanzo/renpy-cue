@@ -22,7 +22,7 @@ from cue_lib.util import _cue_log, _cue_ui_refresh
 
 MYPY = False
 if MYPY:
-    from typing import Optional
+    from typing import Dict, Optional
     from cue_lib.video.ffmpeg import CueFFmpeg  # pyright: ignore[reportUnusedImport]
     from cue_lib.video.speed import CueVidSpeedResolver  # pyright: ignore[reportUnusedImport]
     from cue_lib.video.video import CueVideoManager  # pyright: ignore[reportUnusedImport]
@@ -79,6 +79,10 @@ class CueVideoEditor(object):
         self._states = {}
         self._current = None
         self._current_has_audio = None  # type: Optional[bool]
+        # vpath -> probe result.  The ffprobe audio probe is a synchronous
+        # subprocess; run it once per video (lazily, on the Create tab) instead
+        # of on every refresh/overlay open.
+        self._has_audio_cache = {}  # type: Dict[str, Optional[bool]]
         self.tab = CueVideoEditorTab.SPEED
         self._ready = False
         self._warm_cache_error = ""
@@ -435,21 +439,17 @@ class CueVideoEditor(object):
             )
         )
 
-    def refresh(self):
-        # type: () -> None
+    def refresh(self, restart_interaction=True):
+        # type: (bool) -> None
         vp = self._get_video_vpath()
         if vp:
             self._current = self._ensure_state(vp)
             self._current.last_error = ""
-            fs = self._get_video_fspath()
-            if fs and self._ffmpeg.ffprobe_available():
-                # A probe hang must not escape to the main thread; degrade to
-                # "has audio" (today's ffprobe-missing default) on timeout.
-                try:
-                    self._current_has_audio = self._ffmpeg.probe_has_audio(fs)
-                except CueSubprocessTimeout:
-                    _cue_log("REFRESH: audio probe timed out, assuming has audio")
-                    self._current_has_audio = True
+            # The audio probe spawns a synchronous ffprobe subprocess, so it
+            # only runs while the Create tab (its sole consumer) is shown.
+            # show_tab(CREATE) lands here with tab already set.
+            if self.tab == CueVideoEditorTab.CREATE:
+                self._probe_has_audio(vp)
             else:
                 self._current_has_audio = None
         else:
@@ -463,7 +463,33 @@ class CueVideoEditor(object):
             self._ready = True
         if self.processing:
             self.last_error = ""
-        renpy.restart_interaction()
+        if restart_interaction:
+            renpy.restart_interaction()
+
+    def _probe_has_audio(self, vp):
+        # type: (str) -> None
+        """Fill _current_has_audio for the Create tab, once per video.
+
+        The ffprobe call is a blocking subprocess (CUE_SUBPROC_TIMEOUT); the
+        per-vpath cache keeps it to one spawn per video instead of one per
+        overlay open / tab switch."""
+        cached = self._has_audio_cache.get(vp)
+        if cached is not None:
+            self._current_has_audio = cached
+            return
+        fs = self._get_video_fspath()
+        if fs and self._ffmpeg.ffprobe_available():
+            # A probe hang must not escape to the main thread; degrade to
+            # "has audio" (today's ffprobe-missing default) on timeout.
+            try:
+                result = self._ffmpeg.probe_has_audio(fs)
+            except CueSubprocessTimeout:
+                _cue_log("REFRESH: audio probe timed out, assuming has audio")
+                result = True
+        else:
+            result = None
+        self._has_audio_cache[vp] = result
+        self._current_has_audio = result
 
 
 # ==================================================================

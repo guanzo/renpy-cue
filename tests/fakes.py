@@ -566,7 +566,7 @@ def make_runtime_cue(root="", audio_dir=""):
     cue.sfx = types.SimpleNamespace(
         _next_sfx_channel=0,
         _preview_channel=None,
-        warm_cache=lambda: None,
+        warm_cache=_rec("sfx_manager", "warm_cache"),
         library=types.SimpleNamespace(
             files=[],
             disabled_files=set(),

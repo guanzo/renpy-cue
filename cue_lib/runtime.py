@@ -108,19 +108,24 @@ def _cue_toggle_intensity_flag(flag_key):
 def _cue_show_overlay():
     # type: () -> None
     _cue.is_overlay_visible = True
-    if not _cue.sfx.library.files and not getattr(_cue.sfx.library, "external_sources", None):
-        _cue.sfx.library.scan()
-    if not _cue.music.library.user_files and not getattr(_cue.music.library, "external_sources", None):
-        _cue.music.library.scan()
-    _cue.sfx.warm_cache()
 
     _cue_refresh_context()
     _cue.music.library.maybe_rebuild()
     _cue.sfx.library.maybe_rebuild()
-    _cue.video_editor.refresh()
+    _cue.video_editor.refresh(restart_interaction=False)
 
     renpy.show_screen("cue_overlay", _layer="cue_layer")
     renpy.restart_interaction()
+
+
+def _cue_hide_overlay():
+    # type: () -> None
+    _cue.is_overlay_visible = False
+    # The marker timeline outlives the overlay (built once as a class
+    # singleton), so a hide mid-drag would otherwise leave a stale in-flight
+    # drag on the next show.
+    CueVideoMarkerTimeline.reset_timeline_drag()
+    renpy.hide_screen("cue_overlay", layer="cue_layer")
 
 
 def _cue_full_reload():
@@ -202,16 +207,6 @@ def _cue_refresh_loader_roots():
         _paths.set_extra_loader_roots(roots)
 
 
-def _cue_hide_overlay():
-    # type: () -> None
-    _cue.is_overlay_visible = False
-    # The marker timeline outlives the overlay (built once as a class
-    # singleton), so a hide mid-drag would otherwise leave a stale in-flight
-    # drag on the next show.
-    CueVideoMarkerTimeline.reset_timeline_drag()
-    renpy.hide_screen("cue_overlay", layer="cue_layer")
-
-
 # --------------------------------------------------------------------------
 # Context Detection
 # --------------------------------------------------------------------------
@@ -260,7 +255,7 @@ def _cue_refresh_context_impl():
         _cue.music.play_custom_music()
         _cue.trigger.reset()
         if _cue.is_overlay_visible:
-            _cue.video_editor.refresh()
+            _cue.video_editor.refresh(restart_interaction=False)
         _cue.video_sequence.handle(_cue.current_file)
         _cue.speed_resolver.clear_pending()
 

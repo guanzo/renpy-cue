@@ -1193,6 +1193,7 @@ def test_editor_show_create_tab_ready(ve):
 
 def test_editor_refresh_has_audio(ve, tmp_path):
     write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve.tab = CueVideoEditorTab.CREATE
     ve.refresh()
     assert ve._current_has_audio is True
 
@@ -1200,14 +1201,41 @@ def test_editor_refresh_has_audio(ve, tmp_path):
 def test_editor_refresh_no_ffprobe(ve, tmp_path):
     write_file(tmp_path / "movies" / "scene.webm", b"v")
     ve._ffmpeg = FakeFFmpeg(ffprobe_ok=False, cache=0)
+    ve.tab = CueVideoEditorTab.CREATE
     ve.refresh()
     assert ve._current_has_audio is None
 
 
 def test_editor_refresh_no_video(ve):
     ve._vid_manager._vpath = ""
+    ve.tab = CueVideoEditorTab.CREATE
     ve.refresh()
     assert ve._current_has_audio is None
+
+
+def test_editor_refresh_skips_probe_outside_create(ve, tmp_path):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve.tab = CueVideoEditorTab.SPEED
+    calls = []
+    orig = ve._ffmpeg.probe_has_audio
+    ve._ffmpeg.probe_has_audio = lambda fspath: calls.append(fspath) or orig(fspath)
+    ve.refresh()
+    assert ve._current_has_audio is None
+    assert calls == []
+
+
+def test_editor_refresh_probes_once_per_video(ve, tmp_path):
+    write_file(tmp_path / "movies" / "scene.webm", b"v")
+    ve.tab = CueVideoEditorTab.CREATE
+    calls = []
+    orig = ve._ffmpeg.probe_has_audio
+    ve._ffmpeg.probe_has_audio = lambda fspath: calls.append(fspath) or orig(fspath)
+    ve.refresh()
+    ve.refresh()
+    ve.show_tab(CueVideoEditorTab.SPEED)
+    ve.show_tab(CueVideoEditorTab.CREATE)
+    assert ve._current_has_audio is True
+    assert len(calls) == 1
 
 
 def test_editor_show_speed_tab(ve):
