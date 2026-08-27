@@ -30,21 +30,13 @@ screen cue_sfx_library(_is_video):
     ).format(", ".join(CUE_AUDIO_EXTS), _cue.paths.audio_dir, add_folder_tip)
 
     use cue_section_frame(CUE_SFX_LIBRARY_HEADER, tt=sfx_tt, icons=_icons):
-        if not _cue.sfx.library.tree:
-            if _cue.sfx.library.scan_error:
-                etext _cue.sfx.library.scan_error color _cue_color_error
-            etext "No audio files found in: {}".format(_cue.paths.audio_dir)
-            etext ("Add {} files there "
-                "and click the refresh button.").format(", ".join(CUE_AUDIO_EXTS))
-            use cue_open_in_explorer_btn(_cue.paths.audio_dir, "Open SFX folder")
-            etext add_folder_tip size 11
-        else:
+        if _cue.sfx.library.tree:
             use cue_target_context()
             if _cue.sfx.library.add_to_pool_warning:
                 etext _cue.sfx.library.add_to_pool_warning color _cue_color_error size 11
             null height 1
             use cue_search_bar("_cue.sfx.library.search_query", _cue.sfx.library)
-            use cue_sfx_library_content(_is_video)
+        use cue_sfx_library_content(_is_video)
 
 # Target-context bar: the [1]..[4] chips select where [+] rows dispatch.
 # Current target highlighted; unavailable targets grayed (loop never grays).

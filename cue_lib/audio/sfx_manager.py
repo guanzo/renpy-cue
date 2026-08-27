@@ -17,6 +17,7 @@ from renpy.store import persistent
 
 from cue_lib.audio.file_tree import CueAudioTreeManager
 from cue_lib.audio.file_tree_rows import CueSfxTreeRows
+from cue_lib.audio.cue_sfx_pack import CueSfxPackDownloader
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.constants import (
     CUE_SFX_CHANNEL_COUNT,
@@ -428,6 +429,11 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # or as a section frame inside the overlay page (mode off).
         self.is_sidebar_mode = False
         self.sidebar_width = CUE_SIDEBAR_DEFAULT_WIDTH
+
+        # Curated-pack bootstrap for the empty library: fetch+extract runs on a
+        # background thread; the empty-state screen polls sfx_pack.poll_sfx_pack
+        # to finish (rescan on success) and show progress.
+        self.sfx_pack = CueSfxPackDownloader(self, self._paths.audio_dir)
 
         # Per-source scan state, mirroring CueMusicTree.  builtin_* is the
         # shared {shared}/audio/ source; external_* comes from the configured

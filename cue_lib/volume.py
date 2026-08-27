@@ -31,6 +31,7 @@ class CueVolumeManager(object):
         self._ctx = ctx
         self._pending_saves = set()
 
+    # Avoid saving on every slider drag callback.
     def marker_queue_save(self, key):
         # type: (str) -> None
         self._pending_saves.add(key)

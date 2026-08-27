@@ -923,6 +923,54 @@ def _cue_extract_import_zip(zip_path, out_dir, progress=None):
     return count
 
 
+def _cue_extract_zip_to(zip_path, out_dir, progress=None, unwrap_root=False):
+    # type: (str, str, Optional[Any], bool) -> int
+    """Extract every entry of a zip into out_dir, no content filtering.
+
+    Unlike _cue_extract_import_zip this keeps all files -- used to unpack a
+    plain archive (the curated SFX pack) into a drop folder.  Traversal names
+    are skipped via _safe_extract_path.  Returns the file count; when progress
+    is given it fires as progress(written_bytes, total_bytes) after each file.
+    unwrap_root=True drops a single top-level directory that every file entry
+    shares (an archive-wrapper dir) so its contents land directly in out_dir;
+    a mixed archive is left untouched."""
+    count = 0
+    with _zipfile.ZipFile(zip_path, "r") as zf:
+        infos = zf.infolist()
+        # py2-compatible dir test: ZipInfo.is_dir() is py3.6+ only.
+        names = [info.filename for info in infos if not info.filename.endswith("/")]
+        unwrap_prefix = None  # type: Optional[str]
+        if unwrap_root and names:
+            top = names[0].split("/", 1)[0]
+            if top and all(name.split("/", 1)[0] == top for name in names):
+                unwrap_prefix = top + "/"
+        total = 0
+        if progress is not None:
+            total = sum(info.file_size for info in infos if not info.filename.endswith("/"))
+        written = 0
+        for info in infos:
+            name = info.filename
+            if name.endswith("/"):
+                continue
+            if unwrap_prefix is not None and name.startswith(unwrap_prefix):
+                name = name[len(unwrap_prefix) :]
+            dest = _safe_extract_path(out_dir, name)
+            if dest is None:
+                _cue_log("EXTRACT: blocked unsafe path: {}".format(name))
+                continue
+            parent = os.path.dirname(dest)
+            if not os.path.isdir(parent):
+                os.makedirs(parent)
+            with zf.open(info) as src_f:
+                with open(dest, "wb") as dst_f:
+                    _shutil.copyfileobj(src_f, dst_f)
+            count += 1
+            if progress is not None:
+                written += info.file_size
+                progress(written, total)
+    return count
+
+
 # --------------------------------------------------------------------------
 # merge -- copy selected import files into a live root, data_bak safety net
 # --------------------------------------------------------------------------

@@ -99,8 +99,7 @@ screen cue_music_page():
                 scrollbars "vertical"
                 vscrollbar_unscrollable "hide"
                 $pass # https://github.com/renpy/renpy/issues/3474
-                # All Music Library rows (recent, presets, per-source empty
-                # states, file tree) come from the combined tree's builder.
+                
                 use cue_tree_rows(_cue.music.library.content_rows(
                     _cue.music.library.search_query,
                     _cue.music.list_presets(),

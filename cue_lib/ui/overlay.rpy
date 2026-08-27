@@ -61,6 +61,13 @@ screen cue_runtime_timers():
     if _cue.is_overlay_visible and _is_busy:
         timer 0.25 repeat True action Function(renpy.restart_interaction, _update_screens=False)
 
+    $ _sfx_dl = _cue.sfx.library.sfx_pack
+    if _cue.is_overlay_visible and _sfx_dl.state in ("downloading", "done"):
+        timer 0.25 repeat True action [
+            Function(_sfx_dl.poll_sfx_pack),
+            Function(renpy.restart_interaction, _update_screens=False),
+        ]
+
     if _cue.overlay_active_page == CuePage.IMPORT:
         timer 2.0 repeat True action Function(_cue.importer.scan)
     elif _cue.overlay_active_page == CuePage.SETTINGS:

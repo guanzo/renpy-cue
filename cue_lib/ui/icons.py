@@ -54,6 +54,7 @@ CUE_ICON_MAP = {
     "clipboard": ("clipboard-regular.png", False),
     "clone": ("clone-regular.png", False),
     "copy": ("copy-regular.png", False),
+    "download": ("download-solid.png", False),
     "file": ("file-solid.png", False),
     "file-circle-minus": ("file-circle-minus-solid.png", False),
     "file-zipper": ("file-zipper-solid.png", False),

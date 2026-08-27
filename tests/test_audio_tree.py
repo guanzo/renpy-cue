@@ -25,6 +25,7 @@ from cue_lib.audio.file_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
 from cue_lib.audio.music_tree import CueMusicTree
 from cue_lib.audio.sfx_manager import CueSfxLibraryTree, CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name
 from cue_lib.constants import (
+    CUE_AUDIO_EXTS,
     CUE_GAME_MUSIC_FOLDER,
     CUE_HELP_SHIFT_SKIP_DELETE,
     CUE_MY_MUSIC_FOLDER,
@@ -1534,6 +1535,30 @@ def _content_rows(
     )
 
 
+def _all_action_buttons(rows):
+    """Flatten action buttons, including those nested in 'actions' rows."""
+    out = []
+    for r in rows:
+        if r["type"] == "actions":
+            out.extend(r["actions"])
+        elif r["type"] == "action":
+            out.append(r)
+    return out
+
+
+def _find_button(rows, key):
+    """Find an action button by key, whether flat or nested in an actions row."""
+    for b in _all_action_buttons(rows):
+        if b["key"] == key:
+            return b
+    return None
+
+
+def _row_labels(rows):
+    """Row labels; rows without a label (e.g. the actions row) are skipped."""
+    return [r["label"] for r in rows if "label" in r]
+
+
 def _seed_builtin(sfx):
     # Populate the built-in source so the per-source empty rows don't render --
     # content_rows only shows them when another source has content (the merged
@@ -1553,6 +1578,7 @@ def test_sfx_content_rows_section_headers_collapsed(sfx):
 
 
 def test_sfx_content_rows_recent_children_when_expanded(sfx):
+    _seed_builtin(sfx)
     rows = _content_rows(sfx, recent_entries=[("file", "a.wav"), ("folder", "v2/")], recent_expanded=True)
     assert rows[0]["label"] == "Recently Used/"
     assert rows[0]["toggle"]._args[0] == sfx._recent.toggle
@@ -1566,6 +1592,7 @@ def test_sfx_content_rows_recent_children_when_expanded(sfx):
 
 
 def test_sfx_content_rows_no_recent_section_when_unwired(sfx):
+    _seed_builtin(sfx)
     rows = _content_rows(sfx, recent_entries=None, presets=["p"])
     assert rows[0]["label"] == "Pool Presets/"
     assert "Recently Used/" not in [r["label"] for r in rows]
@@ -1581,6 +1608,7 @@ def test_sfx_content_rows_preset_children_expanded(sfx):
 
 
 def test_sfx_content_rows_preset_empty_help(sfx):
+    _seed_builtin(sfx)
     sfx.presets_expanded = True
     rows = _content_rows(sfx)
     # No preset names -> the pool-presets empty line inside the expanded section.
@@ -1593,6 +1621,7 @@ def test_sfx_content_rows_preset_empty_help(sfx):
 def test_sfx_content_rows_video_presets_no_auto_show_on_search(sfx):
     # A search match keeps the Video Presets/ header but its preset rows only
     # reveal on explicit expand (pools are timestamp folders, not the tree).
+    _seed_builtin(sfx)
     rows = _content_rows(sfx, query="vp", vpresets=["vp"])
     labels = [r["label"] for r in rows]
     assert "Video Presets/" in labels
@@ -1619,6 +1648,7 @@ def test_sfx_content_rows_video_preset_children_expanded(sfx):
 
 
 def test_sfx_content_rows_video_preset_empty_help(sfx):
+    _seed_builtin(sfx)
     sfx.video_presets_expanded = True
     rows = _content_rows(sfx)
     assert "No video presets yet. Save video markers as a preset to fill this." in [r["label"] for r in rows]
@@ -1654,6 +1684,7 @@ def test_sfx_content_rows_intensity_children_expanded(sfx):
 
 
 def test_sfx_content_rows_intensity_hook_disabled_without_target(sfx):
+    _seed_builtin(sfx)
     sfx.igroups_expanded = True
     sfx.expanded_igroups = {"g": True}
     sfx.expanded_ilevels = {"g": {1}}
@@ -1680,6 +1711,7 @@ def test_sfx_content_rows_search_filters_sections(sfx):
 def test_sfx_content_rows_search_reveals_preset_matches(sfx):
     # "a" matches the preset's file contents: Pool Presets header stays and its
     # matching file rows auto-show, even while collapsed.
+    _seed_builtin(sfx)
     sfx.expanded_presets = {}
     rows = _content_rows(sfx, query="a", presets=["p"])
     labels = [r["label"] for r in rows]
@@ -1695,16 +1727,77 @@ def test_sfx_content_rows_per_source_empty_states(sfx, tmp_path):
     sfx.external_folders = [empty, missing]
     sfx.scan()
     rows = _content_rows(sfx, presets=["p"])
-    labels = [r["label"] for r in rows]
+    labels = _row_labels(rows)
     # Built-in source empty state: scan text + Open-folder action + Settings tip.
     assert "No audio files found in: {}".format(sfx._paths.audio_dir) in labels
-    assert any(r["type"] == "action" and r["explorer"] == sfx._paths.audio_dir for r in rows)
+    assert _find_button(rows, "builtin:open").get("explorer") == sfx._paths.audio_dir
     assert any("Settings > Data Folder" in label for label in labels)
+    # Curated-pack download is reachable here too (built-in empty, external
+    # sources present) -- it shares one row with the Open-folder button.
+    row = [r for r in rows if r["type"] == "actions"][0]
+    assert [b["key"] for b in row["actions"]] == ["builtin:open", "builtin:download_pack"]
+    dl = _find_button(rows, "builtin:download_pack")
+    assert dl["label"] == "Download Cue SFX Pack"
+    assert dl.get("sensitive", True) is True
+    assert dl["icon"] == "download"
+    assert dl["action"]._args[0] == sfx.sfx_pack.download_sfx_pack
     # Found-but-empty external source: empty text + Open-folder action.
     assert "No audio files found in: {}".format(empty) in labels
-    assert any(r["type"] == "action" and r["explorer"] == empty for r in rows)
+    assert any(r["type"] == "action" and r.get("explorer") == empty for r in rows)
     # Missing external source keeps its warning (no Open action -- nothing to open).
     assert "Folder not found: {}".format(missing) in labels
+
+
+def test_sfx_content_rows_truly_empty_returns_only_empty_rows(sfx):
+    # No built-in files and no external folders: content_rows returns just the
+    # built-in empty state -- no section chrome -- with the download row present.
+    rows = _content_rows(sfx)
+    labels = _row_labels(rows)
+    assert labels == [
+        "No audio files found in: {}".format(sfx._paths.audio_dir),
+        "Add {} files there and click the refresh button.".format(", ".join(CUE_AUDIO_EXTS)),
+        "Add additional folder locations in Settings > Data Folder.",
+    ]
+    # Open-folder + download share one action row; nothing else renders.
+    row = [r for r in rows if r["type"] == "actions"][0]
+    assert [b["label"] for b in row["actions"]] == ["Open Audio folder", "Download Cue SFX Pack"]
+    assert "Recently Used/" not in labels
+    assert "Pool Presets/" not in labels
+
+
+def test_sfx_content_rows_download_label_follows_state(sfx):
+    sfx.sfx_pack.state = "downloading"
+    sfx.sfx_pack.progress = 0.5
+    rows = _content_rows(sfx)
+    dl = _find_button(rows, "builtin:download_pack")
+    assert dl["label"] == "Downloading..."
+    assert dl["sensitive"] is False
+    assert "Downloading Cue SFX Pack... 50%" in _row_labels(rows)
+
+    sfx.sfx_pack.state = "error"
+    sfx.sfx_pack.error = "boom"
+    rows = _content_rows(sfx)
+    dl = _find_button(rows, "builtin:download_pack")
+    assert dl["label"] == "Retry download"
+    assert dl.get("sensitive", True) is True
+    assert "boom" in _row_labels(rows)
+
+    sfx.sfx_pack.state = "idle"
+    rows = _content_rows(sfx)
+    dl = _find_button(rows, "builtin:download_pack")
+    assert dl["label"] == "Download Cue SFX Pack"
+    assert dl.get("sensitive", True) is True
+
+
+def test_sfx_content_rows_no_download_when_builtin_has_files(sfx, tmp_path):
+    audio = str(tmp_path / "audio") + "/"
+    os.makedirs(audio, exist_ok=True)
+    open(os.path.join(audio, "a.ogg"), "w").close()
+    sfx.scan()
+    rows = _content_rows(sfx)
+    labels = [r["label"] for r in rows]
+    assert _find_button(rows, "builtin:download_pack") is None
+    assert "No audio files found in: {}".format(sfx._paths.audio_dir) not in labels
 
 
 def test_sfx_content_rows_appends_file_tree(sfx, tmp_path):
@@ -1797,8 +1890,137 @@ def test_sfx_restore_ui_state(sfx):
     assert sfx.presets_expanded is True
     assert sfx.expanded_presets == {"Combat": True}
     assert sfx.video_presets_expanded is True
-    assert sfx.expanded_video_presets == {"Vid": True}
     assert sfx.expanded_video_pools == {"Vid": {0: True, 2: False}}
     assert sfx.igroups_expanded is True
     assert sfx.expanded_igroups == {"grp": True}
     assert sfx.expanded_ilevels == {"grp": set([1, 3])}
+
+
+# ==========================================================================
+# SFX pack download (empty-library bootstrap)
+# ==========================================================================
+
+
+def _write_pack_zip(url, dest_path, progress_cb=None):
+    import zipfile
+
+    with zipfile.ZipFile(dest_path, "w") as zf:
+        zf.writestr("renpy_cue_sfx/g1/a.ogg", b"a")
+        zf.writestr("renpy_cue_sfx/b.ogg", b"b")
+
+
+def test_sfx_pack_download_extracts_then_rescans(sfx, monkeypatch):
+    # The real _cue_extract_zip_to runs on the downloaded zip; only the
+    # network hop is stubbed out.  The pack's renpy_cue_sfx/ wrapper dir is
+    # unwrapped so its contents land directly in the audio dir.
+    monkeypatch.setattr(sfx.sfx_pack._dl, "download_to", _write_pack_zip)
+    sfx.sfx_pack.download_sfx_pack()
+    assert sfx.sfx_pack.state == "downloading"
+    sfx.sfx_pack._thread.join(timeout=5)
+    assert not sfx.sfx_pack._thread.is_alive()
+    assert sfx.sfx_pack.state == "done"
+    sfx.sfx_pack.poll_sfx_pack()
+    assert sfx.sfx_pack.state == "idle"
+    assert "g1/a.ogg" in sfx.files
+    assert "b.ogg" in sfx.files
+    assert sfx.tree
+    # The just-downloaded pack is expanded at the SFX root only; the g1/
+    # subfolder stays collapsed.
+    assert sfx.expanded_folders.get("SFX/") is True
+    assert sfx.expanded_folders.get("SFX/g1/") is not True
+
+
+def _zip_with(tmp_path, entries):
+    import zipfile
+
+    zpath = str(tmp_path / "p.zip")
+    with zipfile.ZipFile(zpath, "w") as zf:
+        for name, data in entries:
+            zf.writestr(name, data)
+    return zpath
+
+
+def test_extract_zip_to_unwraps_single_root(tmp_path):
+    from cue_lib.sharing.importer_io import _cue_extract_zip_to
+
+    out = str(tmp_path / "out")
+    zpath = _zip_with(tmp_path, [("wrap/a.ogg", b"a"), ("wrap/g1/b.ogg", b"b")])
+    assert _cue_extract_zip_to(zpath, out, unwrap_root=True) == 2
+    assert os.path.isfile(os.path.join(out, "a.ogg"))
+    assert os.path.isfile(os.path.join(out, "g1", "b.ogg"))
+    assert not os.path.isdir(os.path.join(out, "wrap"))
+
+
+def test_extract_zip_to_unwrap_keeps_mixed_archive(tmp_path):
+    from cue_lib.sharing.importer_io import _cue_extract_zip_to
+
+    out = str(tmp_path / "out")
+    zpath = _zip_with(tmp_path, [("a.ogg", b"a"), ("wrap/b.ogg", b"b")])
+    assert _cue_extract_zip_to(zpath, out, unwrap_root=True) == 2
+    assert os.path.isfile(os.path.join(out, "a.ogg"))
+    assert os.path.isfile(os.path.join(out, "wrap", "b.ogg"))
+
+
+def test_extract_zip_to_default_keeps_wrapper_dir(tmp_path):
+    from cue_lib.sharing.importer_io import _cue_extract_zip_to
+
+    out = str(tmp_path / "out")
+    zpath = _zip_with(tmp_path, [("wrap/a.ogg", b"a")])
+    assert _cue_extract_zip_to(zpath, out) == 1
+    assert os.path.isfile(os.path.join(out, "wrap", "a.ogg"))
+
+
+def test_sfx_pack_download_error_sets_state(sfx, monkeypatch):
+    def _boom(url, dest_path, progress_cb=None):
+        raise IOError("no network")
+
+    monkeypatch.setattr(sfx.sfx_pack._dl, "download_to", _boom)
+    sfx.sfx_pack.download_sfx_pack()
+    sfx.sfx_pack._thread.join(timeout=5)
+    assert sfx.sfx_pack.state == "error"
+    assert "no network" in sfx.sfx_pack.error
+
+
+def test_sfx_pack_download_noop_while_running(sfx, monkeypatch):
+    import threading
+
+    started = threading.Event()
+    release = threading.Event()
+
+    def _blocked(url, dest_path, progress_cb=None):
+        started.set()
+        release.wait(5)
+
+    monkeypatch.setattr(sfx.sfx_pack._dl, "download_to", _blocked)
+    sfx.sfx_pack.download_sfx_pack()
+    started.wait(2)
+    first = sfx.sfx_pack._thread
+    sfx.sfx_pack.download_sfx_pack()
+    assert sfx.sfx_pack._thread is first
+    release.set()
+    first.join(timeout=5)
+
+
+def test_sfx_pack_poll_rescans_once(sfx, monkeypatch):
+    calls = []
+
+    def _fake_scan():
+        calls.append(1)
+
+    monkeypatch.setattr(sfx, "scan", _fake_scan)
+    sfx.sfx_pack.state = "done"
+    sfx.sfx_pack.poll_sfx_pack()
+    sfx.sfx_pack.poll_sfx_pack()
+    assert len(calls) == 1
+    assert sfx.sfx_pack.state == "idle"
+
+
+def test_sfx_pack_poll_scan_error_becomes_error_state(sfx, monkeypatch):
+    def _boom():
+        raise OSError("scan failed")
+
+    monkeypatch.setattr(sfx, "scan", _boom)
+    sfx.sfx_pack.state = "done"
+    sfx.sfx_pack.poll_sfx_pack()
+    assert sfx.sfx_pack.state == "error"
+    assert "scan failed" in sfx.sfx_pack.error

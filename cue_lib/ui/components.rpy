@@ -269,21 +269,35 @@ screen cue_txt_button(label, action, bg=None, hover_bg=None, tt=None,
         if ysize is not None and ysize > 0:
             ysize ysize
 
+# Icon+label text button: an icon-manager PNG beside a label on one button.
+# Used by action rows that want an icon (e.g. the SFX-pack download button).
+screen cue_icon_txt_btn(icon, label, action, tt=None, sensitive=True):
+    style_group "cue"
+
+    $ _btn_icon = _cue.icons.displayable_for(icon) if _cue.icons is not None else None
+    button:
+        style "cue_button"
+        action action
+        sensitive sensitive
+        if tt is not None:
+            tooltip tt
+        hbox:
+            spacing 4
+            if _btn_icon is not None:
+                if sensitive:
+                    add _btn_icon yalign 0.5
+                else:
+                    add _btn_icon yalign 0.5 alpha 0.35
+            etext label style "cue_button_text"
+
 # Open-folder button: folder icon + label that opens dir_path in the OS file
 # explorer.  Used by the empty Music/SFX library states so users can jump
 # straight to the drop-folder.
 screen cue_open_in_explorer_btn(dir_path, label):
-    style_group "cue"
-
-    $ _folder_icon = _cue.icons.displayable_for("folder-open") if _cue.icons is not None else None
-    button:
-        style "cue_button"
-        action Function(_cue_open_in_os_file_explorer, dir_path)
-        hbox:
-            spacing 4
-            if _folder_icon is not None:
-                add _folder_icon yalign 0.5
-            etext label style "cue_button_text"
+    use cue_icon_txt_btn(
+        "folder-open",
+        label,
+        Function(_cue_open_in_os_file_explorer, dir_path))
 
 # Selectable textbutton: highlights when selected, dims when not.
 # active_color overrides the highlight (default: _cue_color_active).
@@ -570,7 +584,28 @@ screen cue_tree_rows(rows):
                     if _row.get("explorer"):
                         use cue_open_in_explorer_btn(_row["explorer"], _row["label"])
                     else:
-                        use cue_txt_button(_row["label"], _row["action"], tt=_row.get("tt"))
+                        use cue_txt_button(
+                            _row["label"],
+                            _row["action"],
+                            tt=_row.get("tt"),
+                            sensitive=_row.get("sensitive", True))
+                elif _row["type"] == "actions":
+                    for _a in _row["actions"]:
+                        if _a.get("explorer"):
+                            use cue_open_in_explorer_btn(_a["explorer"], _a["label"])
+                        elif _a.get("icon"):
+                            use cue_icon_txt_btn(
+                                _a["icon"],
+                                _a["label"],
+                                _a["action"],
+                                tt=_a.get("tt"),
+                                sensitive=_a.get("sensitive", True))
+                        else:
+                            use cue_txt_button(
+                                _a["label"],
+                                _a["action"],
+                                tt=_a.get("tt"),
+                                sensitive=_a.get("sensitive", True))
                 elif _row["type"] == "help":
                     if _row.get("plain"):
                         if _row.get("color"):

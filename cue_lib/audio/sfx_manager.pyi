@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from cue_lib.audio.file_tree import CueAudioTreeManager
 from cue_lib.audio.file_tree_rows import CueSfxTreeRows
+from cue_lib.audio.cue_sfx_pack import CueSfxPackDownloader
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.db import CueDatabase
 from cue_lib.markers import CueMarkerManager
@@ -40,6 +41,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
     _sfx: CueSfxManager
     _rows: CueSfxTreeRows
     _reserved_labels: Tuple[str, ...]
+    sfx_pack: CueSfxPackDownloader
 
     def __init__(self, paths: CuePaths, db: CueDatabase) -> None: ...
     def scan(self) -> None: ...

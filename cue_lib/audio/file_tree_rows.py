@@ -42,6 +42,9 @@ MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional
 
+# Empty-library tip shared by the SFX and music empty states.
+CUE_SETTINGS_FOLDER_TIP = "Add additional folder locations in Settings > Data Folder."
+
 
 # Shared row helpers: every section/leaf row the content_rows builders emit is
 # one of these four shapes, so the renderer's data contract has a single
@@ -90,11 +93,12 @@ def _cue_help_row(key, label, color=None, v_gap=None, depth=0, plain=False):
     return row
 
 
-def _cue_action_row(key, label, action=None, tt=None, depth=0, explorer=None):
-    # type: (str, str, Any, Optional[str], int, Optional[str]) -> Dict[str, Any]
+def _cue_action_row(key, label, action=None, tt=None, depth=0, explorer=None, sensitive=True, icon=None):
+    # type: (str, str, Any, Optional[str], int, Optional[str], bool, Optional[str]) -> Dict[str, Any]
     """A clickable text-button row.  explorer fills the renderer's
     open-in-explorer variant (music per-source empty states); otherwise the
-    row runs action."""
+    row runs action.  icon names an icon-manager PNG to render beside the
+    label (e.g. the SFX-pack download button)."""
     row = {"key": key, "type": "action", "label": label, "depth": depth}
     if action:
         row["action"] = action
@@ -102,7 +106,17 @@ def _cue_action_row(key, label, action=None, tt=None, depth=0, explorer=None):
         row["tt"] = tt
     if explorer:
         row["explorer"] = explorer
+    if icon:
+        row["icon"] = icon
+    if not sensitive:
+        row["sensitive"] = False
     return row
+
+
+def _cue_actions_row(key, actions, depth=0):
+    # type: (str, List[Dict[str, Any]], int) -> Dict[str, Any]
+    """A row that lays its action buttons out horizontally (same line)."""
+    return {"key": key, "type": "actions", "actions": actions, "depth": depth}
 
 
 def _cue_external_empty_rows(tree, kind_word):
@@ -717,6 +731,12 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         tree's own CueRecentManager.  tgt_tt and the intensity hook state are
         resolved from the marker context here."""
         searching = bool(search_query.strip())
+        tree = self._tree
+        # Truly-empty library (no built-in files, no external folders): only the
+        # built-in empty state -- message, open-folder, curated-pack download.
+        # The screen hides the section chrome (target/search) in this case too.
+        if not tree.builtin_tree and not tree.external_sources:
+            return self._builtin_empty_rows(tree)
         tgt_tt = _cue_target_assign_tt()
         rows = []
         # -- Recently Used ---------------------------------------------------
@@ -788,33 +808,8 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
             )
         )
         # -- Per-source empty/error states ------------------------------------
-        tree = self._tree
         if not tree.builtin_tree:
-            if tree.builtin_scan_error:
-                rows.append(
-                    _cue_help_row(
-                        "builtin:scan_error",
-                        tree.builtin_scan_error,
-                        color=getattr(renpy.store, "_cue_color_error", None),
-                        plain=True,
-                    )
-                )
-            rows.append(
-                _cue_help_row("builtin:empty", "No audio files found in: {}".format(tree._paths.audio_dir), plain=True)
-            )
-            rows.append(
-                _cue_help_row(
-                    "builtin:add",
-                    "Add {} files there and click the refresh button.".format(", ".join(CUE_AUDIO_EXTS)),
-                    plain=True,
-                )
-            )
-            rows.append(_cue_action_row("builtin:open", "Open Audio folder", explorer=tree._paths.audio_dir))
-            rows.append(
-                _cue_help_row(
-                    "builtin:settings_tip", "Add additional folder locations in Settings > Data Folder.", plain=True
-                )
-            )
+            rows.extend(self._builtin_empty_rows(tree))
         rows.extend(_cue_external_empty_rows(tree, "audio files"))
         # -- no-results guard + file tree ------------------------------------
         if (
@@ -828,6 +823,90 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
             rows.append(_cue_help_row("no_results", 'No files found for "{}".'.format(search_query), plain=True))
         else:
             rows.extend(self.tree_rows(tgt_ok, tgt_tt, unplayable))
+        return rows
+
+    def _builtin_empty_rows(self, tree):
+        # type: (Any) -> List[Dict[str, Any]]
+        """Built-in source empty rows: scan error, no-files message, add hint,
+        an Open-folder + curated-pack download action row, and the settings
+        tip.  Shared by the truly-empty early return and the per-source empty
+        block so the SFX empty state has a single construction site."""
+        rows = []
+        if tree.builtin_scan_error:
+            rows.append(
+                _cue_help_row(
+                    "builtin:scan_error",
+                    tree.builtin_scan_error,
+                    color=getattr(renpy.store, "_cue_color_error", None),
+                    plain=True,
+                )
+            )
+        rows.append(
+            _cue_help_row("builtin:empty", "No audio files found in: {}".format(tree._paths.audio_dir), plain=True)
+        )
+        rows.append(
+            _cue_help_row(
+                "builtin:add",
+                "Add {} files there and click the refresh button.".format(", ".join(CUE_AUDIO_EXTS)),
+                plain=True,
+            )
+        )
+        rows.append(_cue_help_row("builtin:settings_tip", CUE_SETTINGS_FOLDER_TIP, plain=True))
+        rows.append(
+            _cue_actions_row(
+                "builtin:open_dl",
+                [
+                    _cue_action_row("builtin:open", "Open Audio folder", explorer=tree._paths.audio_dir),
+                    self._download_pack_button(tree),
+                ],
+            )
+        )
+
+        rows.extend(self._download_pack_status_rows(tree))
+        return rows
+
+    def _download_pack_button(self, tree):
+        # type: (Any) -> Dict[str, Any]
+        """The curated-pack download button (icon + label).  Label and
+        sensitivity follow the pack state; purely presentational -- the state
+        poll timer lives in cue_runtime_timers, gated on the pack state."""
+        pack = tree.sfx_pack
+        st = pack.state
+        if st == "downloading":
+            label, sensitive = "Downloading...", False
+        elif st == "done":
+            label, sensitive = "Loading pack...", False
+        else:
+            label = "Retry download" if st == "error" else "Download Cue SFX Pack"
+            sensitive = True
+        return _cue_action_row(
+            "builtin:download_pack", label, Function(pack.download_sfx_pack), sensitive=sensitive, icon="download"
+        )
+
+    def _download_pack_status_rows(self, tree):
+        # type: (Any) -> List[Dict[str, Any]]
+        """Progress / loading / error lines under the pack download button."""
+        pack = tree.sfx_pack
+        st = pack.state
+        if st == "downloading":
+            rows = [
+                _cue_help_row(
+                    "builtin:download_progress", "Downloading Cue SFX Pack... {:.0%}".format(pack.progress), plain=True
+                )
+            ]
+        elif st == "done":
+            rows = [_cue_help_row("builtin:download_loading", "Pack downloaded - loading sounds...", plain=True)]
+        elif st == "error":
+            rows = [
+                _cue_help_row(
+                    "builtin:download_error",
+                    pack.error,
+                    color=getattr(renpy.store, "_cue_color_error", None),
+                    plain=True,
+                )
+            ]
+        else:
+            rows = []
         return rows
 
     def _preset_children(self, preset_names, search_query, target_ok, target_tt):
@@ -1076,6 +1155,7 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
                     plain=True,
                 )
             )
+            rows.append(_cue_help_row("user:settings_tip", CUE_SETTINGS_FOLDER_TIP, plain=True))
             rows.append(_cue_action_row("user:open", "Open Music folder", explorer=music._paths.music_dir))
         game = self._tree.game_tree
         if not game:

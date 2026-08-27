@@ -799,6 +799,10 @@ def test_music_content_rows_per_source_empty_states(monkeypatch):
     open_row = next(r for r in rows if r["label"] == "Open Music folder")
     assert open_row["type"] == "action"
     assert open_row["explorer"] == "/music/"
+    # The Settings > Data Folder tip follows it, matching the SFX empty state.
+    tip_row = next(r for r in rows if r["key"] == "user:settings_tip")
+    assert tip_row["plain"] is True
+    assert tip_row["label"] == "Add additional folder locations in Settings > Data Folder."
     # scan-error line is plain (unstyled) with the error color.
     scan_row = next(r for r in rows if r["label"] == "scan broke")
     assert scan_row["plain"] is True

@@ -1,6 +1,8 @@
 # Type stub for cue_lib.audio.file_tree_rows
 from typing import Any, Dict, List, Optional
 
+CUE_SETTINGS_FOLDER_TIP: str
+
 def _cue_file_row(
     key: str,
     label: str,
@@ -14,8 +16,16 @@ def _cue_help_row(
     key: str, label: str, color: Optional[str] = ..., v_gap: Optional[int] = ..., depth: int = ..., plain: bool = ...
 ) -> Dict[str, Any]: ...
 def _cue_action_row(
-    key: str, label: str, action: Any = ..., tt: Optional[str] = ..., depth: int = ..., explorer: Optional[str] = ...
+    key: str,
+    label: str,
+    action: Any = ...,
+    tt: Optional[str] = ...,
+    depth: int = ...,
+    explorer: Optional[str] = ...,
+    sensitive: bool = ...,
+    icon: Optional[str] = ...,
 ) -> Dict[str, Any]: ...
+def _cue_actions_row(key: str, actions: List[Dict[str, Any]], depth: int = ...) -> Dict[str, Any]: ...
 def _cue_section_rows(
     key: str,
     label: str,
@@ -71,6 +81,9 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         tgt_ok: bool,
         unplayable: Dict[str, str],
     ) -> List[Dict[str, Any]]: ...
+    def _builtin_empty_rows(self, tree: Any) -> List[Dict[str, Any]]: ...
+    def _download_pack_button(self, tree: Any) -> Dict[str, Any]: ...
+    def _download_pack_status_rows(self, tree: Any) -> List[Dict[str, Any]]: ...
     def _preset_children(
         self, preset_names: List[str], search_query: str, target_ok: bool, target_tt: str
     ) -> List[Dict[str, Any]]: ...

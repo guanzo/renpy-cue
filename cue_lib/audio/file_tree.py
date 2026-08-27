@@ -374,6 +374,16 @@ class CueAudioTreeManager(object):
         self.rebuild_tree()
         self._save_expansion()
 
+    def expand_folder(self, folder_path):
+        # type: (str) -> None
+        """Force-expand a single folder and save the state.
+
+        Unlike toggle_folder this never collapses -- used to reveal a folder
+        that just became populated (e.g. the SFX root after a pack download)."""
+        self.expanded_folders[folder_path] = True
+        self.rebuild_tree()
+        self._save_expansion()
+
     def _save_expansion(self):
         # type: () -> None
         """Write expanded_folders to persistent._cue (no-op if not persisted)."""

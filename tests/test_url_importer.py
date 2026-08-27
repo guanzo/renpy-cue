@@ -4,10 +4,10 @@
 # cancel), naming/collision, and the size/duration formatters.
 
 import os
-import ssl
 
 import pytest
 
+import cue_lib.download as _download
 import cue_lib.sharing.url_importer as _url
 from cue_lib.sharing.url_importer import CueUrlImporter
 from cue_lib.util import _cue_format_duration, _cue_format_size
@@ -36,27 +36,6 @@ def test_format_duration():
     assert _cue_format_duration(3600) == "01:00:00"
     assert _cue_format_duration(-5) == "00:00"
     assert _cue_format_duration(None) == "00:00"
-
-
-def test_is_private_ip_public():
-    assert not _url._cue_is_private_ip("8.8.8.8")
-    assert not _url._cue_is_private_ip("1.2.3.4")
-    assert not _url._cue_is_private_ip("172.32.0.1")
-    assert not _url._cue_is_private_ip("example.com")
-    assert not _url._cue_is_private_ip("2001:db8::1")
-
-
-def test_is_private_ip_private():
-    assert _url._cue_is_private_ip("127.0.0.1")
-    assert _url._cue_is_private_ip("10.1.2.3")
-    assert _url._cue_is_private_ip("172.16.0.1")
-    assert _url._cue_is_private_ip("192.168.1.1")
-    assert _url._cue_is_private_ip("169.254.1.1")
-    assert _url._cue_is_private_ip("100.64.0.1")
-    assert _url._cue_is_private_ip("0.0.0.0")
-    assert _url._cue_is_private_ip("::1")
-    assert _url._cue_is_private_ip("fd00::1")
-    assert _url._cue_is_private_ip("fe80::1")
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +138,7 @@ def _make_mgr(tmp_path, resolver=None):
     imports_dir = os.path.join(str(tmp_path), "imports")
     importer = _FakeImporter(imports_dir)
     mgr = CueUrlImporter(importer)
-    mgr._resolve = resolver if resolver is not None else _public_resolver
+    mgr._dl._resolve = resolver if resolver is not None else _public_resolver
     return mgr, importer
 
 
@@ -215,10 +194,10 @@ def test_rejects_private_resolved_host(tmp_path, url_threads):
 
 def test_check_url_syntax():
     mgr, _imp = _make_mgr(".")
-    assert mgr._check_url("https://h.com/x.zip") is None
-    assert "http" in mgr._check_url("ftp://h.com/x.zip")
-    assert "credentials" in mgr._check_url("https://u:p@h.com/x.zip")
-    assert "host" in mgr._check_url("https:///x.zip")
+    assert mgr._dl.check_url("https://h.com/x.zip") is None
+    assert "http" in mgr._dl.check_url("ftp://h.com/x.zip")
+    assert "credentials" in mgr._dl.check_url("https://u:p@h.com/x.zip")
+    assert "host" in mgr._dl.check_url("https:///x.zip")
 
 
 # ---------------------------------------------------------------------------
@@ -232,7 +211,7 @@ def test_download_success(tmp_path, url_threads):
     resp = _FakeResponse(200, {"Content-Length": "5"}, b"hello")
     fetcher = _fetcher({"https://h.com/pack.zip": resp})
     mgr = CueUrlImporter(importer, fetcher=fetcher)
-    mgr._resolve = _public_resolver
+    mgr._dl._resolve = _public_resolver
     _run(url_threads, mgr, "https://h.com/pack.zip")
 
     assert not mgr.is_downloading
@@ -250,7 +229,7 @@ def test_download_appends_zip_extension(tmp_path, url_threads):
     importer = _FakeImporter(imports_dir)
     fetcher = _fetcher({"https://h.com/download": _FakeResponse(200, {}, b"zipdata")})
     mgr = CueUrlImporter(importer, fetcher=fetcher)
-    mgr._resolve = _public_resolver
+    mgr._dl._resolve = _public_resolver
     _run(url_threads, mgr, "https://h.com/download")
     assert os.path.isfile(os.path.join(imports_dir, "download.zip"))
 
@@ -262,7 +241,7 @@ def test_collision_dedupes(tmp_path, url_threads):
     importer = _FakeImporter(imports_dir)
     fetcher = _fetcher({"https://h.com/pack.zip": _FakeResponse(200, {}, b"x")})
     mgr = CueUrlImporter(importer, fetcher=fetcher)
-    mgr._resolve = _public_resolver
+    mgr._dl._resolve = _public_resolver
     _run(url_threads, mgr, "https://h.com/pack.zip")
     assert os.path.isfile(os.path.join(imports_dir, "pack (2).zip"))
     assert mgr.download_status.startswith("Downloaded pack (2).zip")
@@ -273,7 +252,7 @@ def test_download_404(tmp_path, url_threads):
     importer = _FakeImporter(imports_dir)
     fetcher = _fetcher({"https://h.com/missing.zip": _FakeResponse(404)})
     mgr = CueUrlImporter(importer, fetcher=fetcher)
-    mgr._resolve = _public_resolver
+    mgr._dl._resolve = _public_resolver
     _run(url_threads, mgr, "https://h.com/missing.zip")
     assert "404" in mgr.download_error
     assert not mgr.is_downloading
@@ -283,9 +262,9 @@ def test_download_404(tmp_path, url_threads):
 def test_connect_failure(tmp_path, url_threads):
     imports_dir = os.path.join(str(tmp_path), "imports")
     importer = _FakeImporter(imports_dir)
-    fetcher = _fetcher({"https://h.com/x.zip": _url._CueUrlError("Could not reach URL: down.")})
+    fetcher = _fetcher({"https://h.com/x.zip": _download._CueDownloadError("Could not reach URL: down.")})
     mgr = CueUrlImporter(importer, fetcher=fetcher)
-    mgr._resolve = _public_resolver
+    mgr._dl._resolve = _public_resolver
     _run(url_threads, mgr, "https://h.com/x.zip")
     assert "Could not reach URL" in mgr.download_error
     assert not mgr.is_downloading
@@ -298,7 +277,7 @@ def test_follows_redirect(tmp_path, url_threads):
     final = _FakeResponse(200, {}, b"realdata")
     fetcher = _fetcher({"https://h.com/dl": redirect, "https://h.com/real.zip": final})
     mgr = CueUrlImporter(importer, fetcher=fetcher)
-    mgr._resolve = _public_resolver
+    mgr._dl._resolve = _public_resolver
     _run(url_threads, mgr, "https://h.com/dl")
     assert os.path.isfile(os.path.join(imports_dir, "real.zip"))
     assert mgr.download_status.startswith("Downloaded real.zip")
@@ -310,7 +289,7 @@ def test_redirect_to_private_blocked(tmp_path, url_threads):
     redirect = _FakeResponse(302, {"Location": "http://127.0.0.1/evil.zip"})
     fetcher = _fetcher({"https://h.com/dl": redirect})
     mgr = CueUrlImporter(importer, fetcher=fetcher)
-    mgr._resolve = _public_resolver
+    mgr._dl._resolve = _public_resolver
     _run(url_threads, mgr, "https://h.com/dl")
     assert "reachable" in mgr.download_error
     assert not mgr.is_downloading
@@ -321,7 +300,7 @@ def test_redirect_without_location(tmp_path, url_threads):
     importer = _FakeImporter(imports_dir)
     fetcher = _fetcher({"https://h.com/dl": _FakeResponse(302, {})})
     mgr = CueUrlImporter(importer, fetcher=fetcher)
-    mgr._resolve = _public_resolver
+    mgr._dl._resolve = _public_resolver
     _run(url_threads, mgr, "https://h.com/dl")
     assert "Location" in mgr.download_error
     assert not mgr.is_downloading
@@ -341,7 +320,7 @@ def test_cancel_deletes_partial(tmp_path, url_threads):
     resp = _FakeResponse(200, {"Content-Length": str(len(body))}, body=body, on_read=_on_read)
     fetcher = _fetcher({"https://h.com/big.zip": resp})
     mgr = CueUrlImporter(importer, fetcher=fetcher)
-    mgr._resolve = _public_resolver
+    mgr._dl._resolve = _public_resolver
     _run(url_threads, mgr, "https://h.com/big.zip")
 
     assert mgr.download_status == "Cancelled."
@@ -356,7 +335,7 @@ def test_unknown_total(tmp_path, url_threads):
     importer = _FakeImporter(imports_dir)
     fetcher = _fetcher({"https://h.com/x.zip": _FakeResponse(200, {}, b"data")})
     mgr = CueUrlImporter(importer, fetcher=fetcher)
-    mgr._resolve = _public_resolver
+    mgr._dl._resolve = _public_resolver
     _run(url_threads, mgr, "https://h.com/x.zip")
     assert mgr.download_total is None
     assert mgr.download_done == 4
@@ -416,34 +395,3 @@ def test_name_from_url():
     assert mgr._name_from_url("https://h.com/download") == "download.zip"
     assert mgr._name_from_url("https://h.com/") == "cue_import.zip"
     assert mgr._name_from_url("https://h.com/my%20pack.zip") == "my pack.zip"
-
-
-# ---------------------------------------------------------------------------
-# transport (user agent + TLS context)
-# ---------------------------------------------------------------------------
-
-
-def test_opener_sends_browser_user_agent():
-    # CDNs (Discord etc.) 403 urllib's default "Python-urllib" UA, so the
-    # shared opener must attach a regular browser UA to every request.
-    assert _url.CUE_URL_USER_AGENT.startswith("Mozilla/5.0")
-    assert ("User-Agent", _url.CUE_URL_USER_AGENT) in _url._CUE_OPENER.addheaders
-
-
-def test_https_context_verified_with_certifi(monkeypatch):
-    try:
-        import certifi as _certifi
-    except ImportError:
-        pytest.skip("certifi not installed in this test env")
-
-    monkeypatch.setattr(_url, "_cue_find_cacert", lambda: _certifi.where())
-    handler = _url._cue_https_context()
-    assert handler._context.verify_mode == ssl.CERT_REQUIRED
-
-
-def test_https_context_unverified_without_certifi(monkeypatch):
-    # Ren'Py 8.x's bundled python has no default CA paths, and 7.x's urllib2
-    # never verified certs -- the fallback must keep downloads working.
-    monkeypatch.setattr(_url, "_cue_find_cacert", lambda: None)
-    handler = _url._cue_https_context()
-    assert handler._context.verify_mode == ssl.CERT_NONE
