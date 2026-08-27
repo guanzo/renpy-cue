@@ -28,14 +28,15 @@ class CueVideoTrigger(object):
     def __init__(self, engine):
         # type: (CueTriggerEngine) -> None
         self._engine = engine
-        self.played_keys = set()
-        self._prev_eff_elapsed = -1.0
+        self.reset()
 
     def reset(self):
         # type: () -> None
         """Drop video trigger state on a file change."""
         self.played_keys = set()
         self._prev_eff_elapsed = -1.0
+        self._last_fire_eff = None
+        self._last_fired_mt = None
 
     def tick(self, current_file, top_layer_type, speed, variants, tick_interval=0.0, vid_scale=1.0):
         # type: (str, str, float, Optional[List[float]], float, float) -> None
@@ -45,7 +46,7 @@ class CueVideoTrigger(object):
         intensity group (computed by the engine from the per-tick resolution)."""
         vm = self._engine._vid_manager
         ch = vm.channel
-        if not ch or top_layer_type != 'movie':
+        if not ch or top_layer_type != 'movie' or not current_file:
             return
 
         elapsed = vm.get_elapsed()
@@ -58,45 +59,42 @@ class CueVideoTrigger(object):
         # tick too late for a marker at t=0: on the wrap tick its key is still
         # in the dedup set (skipped), and by the next tick the position has
         # already passed the tolerance window (missed entirely).
-        #   1) last_elapsed == 0: video manager was just reset (new channel
-        #      or fresh playback, e.g. after editing the multi-speed queue).
+        #   1) is_reset_pending: video manager was just reset (new channel or
+        #      fresh playback).  A one-shot flag, set by reset() and consumed
+        #      here -- not a last_elapsed==0 sentinel, because a tick reading
+        #      elapsed=0 writes last_elapsed=0 back and would re-trigger the
+        #      reset next tick (re-firing a marker at t~0).
         #   2) elapsed < last_elapsed: playback looped/restarted (Ren'Py
         #      can't seek backwards, so a large backward jump means restart).
-        is_fresh_reset = vm.last_elapsed == 0
+        is_fresh_reset = vm.is_reset_pending
+        if is_fresh_reset:
+            vm.is_reset_pending = False
         is_backward_jump = vm.last_elapsed > 0 and elapsed < vm.last_elapsed - 0.3
         if is_fresh_reset or is_backward_jump:
             self.played_keys.clear()
             self._prev_eff_elapsed = -1.0
+            self._last_fire_eff = None
+            self._last_fired_mt = None
             self._engine._debug.note_restart()
 
-        if current_file:
-            self._fire_markers(
-                current_file,
-                effective_elapsed,
-                self._prev_eff_elapsed,
-                elapsed,
-                speed,
-                variants,
-                tick_interval,
-                vid_scale,
-            )
+        self._fire_markers(
+            current_file, effective_elapsed, self._prev_eff_elapsed, speed, variants, tick_interval, vid_scale
+        )
 
         vm.last_elapsed = elapsed
         # Store for next tick's cross-between-ticks detection
         self._prev_eff_elapsed = effective_elapsed
 
     def _fire_markers(
-        self, current_file, effective_elapsed, prev_eff, elapsed, speed, variants, tick_interval=0.0, vid_scale=1.0
+        self, current_file, effective_elapsed, prev_eff, speed, variants, tick_interval=0.0, vid_scale=1.0
     ):
-        # type: (str, float, float, float, float, Optional[List[float]], float, float) -> None
+        # type: (str, float, float, float, Optional[List[float]], float, float) -> None
         """Fire SFX for this video's markers passed since the last tick.
 
         Preview markers from the repeat dialog ride along as extra pools.
         Skips markers already fired (played_keys) and pools missing a
         time (logged, not crashed).  The dedup set and prev_eff bookkeeping
-        live in tick().  elapsed is the raw media position at this tick
-        (effective_elapsed = elapsed * speed), passed through so the
-        PLAY-SFX log can report trigger accuracy."""
+        live in tick()."""
         vid_key = create_vid_key(current_file)
         markers = self._engine._markers_ctx().video.get_markers()
         vid_entry = self._engine._store.get(vid_key)
@@ -132,21 +130,28 @@ class CueVideoTrigger(object):
                     _cue_log("MISSING TIME " + vid_key + " " + str(vid_entry) + " " + str(pool_entry))
                 continue
 
-            t = pool_entry["time"]
-            count = time_counts.setdefault(t, 0) + 1
-            time_counts[t] = count
-            ts_key = "{}@{:.3f}#{}".format(vid_key, t, count)
+            ts = pool_entry["time"]
+            count = time_counts.setdefault(ts, 0) + 1
+            time_counts[ts] = count
+            ts_key = "{}@{:.3f}#{}".format(vid_key, ts, count)
 
             if ts_key in self.played_keys:
                 continue
 
-            if not _cue_marker_reached(t, effective_elapsed, prev_eff, marker_tolerance, marker_lead):
+            if not _cue_marker_reached(ts, effective_elapsed, prev_eff, marker_tolerance, marker_lead):
                 continue
 
             resolved = self._engine._store.resolve_pool(pool_entry, speed, variants, flags=flags, expand=True)
             files = resolved.files or []
             vol_mult = resolved.volume_mult if resolved.intensity is not None else vid_scale
             f = _cue_pick_file(files, avoid_repeats=False)
+            # gap is the reference-time spacing consumed since the previous
+            # fire; None on the first marker of a loop (no predecessor).  In a
+            # double-fire w/o a restart, gap collapses to ~0 -- the tell.
+            gap = (effective_elapsed - self._last_fire_eff) if self._last_fire_eff is not None else None
+            # Expected gap is the marker-time spacing (ts_now - ts_prev), the
+            # value gap% in the log is measured against.
+            expected_gap = (ts - self._last_fired_mt) if self._last_fired_mt is not None else None
             if f is not None:
                 f = _cue.sfx.play_pool(
                     entry,  # pyright: ignore[reportArgumentType]
@@ -155,9 +160,11 @@ class CueVideoTrigger(object):
                     pool_index,
                     file=f,
                     volume_mult=vol_mult,
-                    marker_time=t,
-                    marker_elapsed=elapsed,
-                    marker_delta=effective_elapsed - t,
+                    marker_time=ts,
+                    marker_elapsed=effective_elapsed,
+                    marker_err=effective_elapsed - ts,
+                    marker_gap=gap,
+                    marker_gap_expected=expected_gap,
                 )
             if f:
                 # Track as its own kind so exclusive cut-ins spare it.
@@ -165,13 +172,15 @@ class CueVideoTrigger(object):
                 # etc.), which is what makes the immunity deterministic.
                 self._engine.excl.track_channel(f, CUE_EXCL_KIND_VIDEO, current_file, None, False)
                 self.played_keys.add(ts_key)
-                self._engine._debug.note_fire(t, effective_elapsed, current_file)
+                self._last_fire_eff = effective_elapsed
+                self._last_fired_mt = ts
+                self._engine._debug.note_fire(ts, effective_elapsed, current_file)
             elif not is_preview:
                 # Reached but playback produced nothing (empty intensity
                 # folder / play_sfx exception).  Mark it fired so it doesn't
                 # retry every tick and noisily re-enter the missed check; the
                 # play-failed report carries the accuracy signal.
                 self.played_keys.add(ts_key)
-                self._engine._debug.note_failed_fire(t, effective_elapsed, current_file)
+                self._engine._debug.note_failed_fire(ts, effective_elapsed, current_file)
 
         self._engine._debug.end_fire_loop(current_file, effective_elapsed, self.played_keys, markers, preview_count)

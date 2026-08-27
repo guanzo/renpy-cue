@@ -118,7 +118,9 @@ class CueSfxManager(object):
         volume: float = 1.0,
         marker_time: Optional[float] = None,
         marker_elapsed: Optional[float] = None,
-        marker_delta: Optional[float] = None,
+        marker_err: Optional[float] = None,
+        marker_gap: Optional[float] = None,
+        marker_gap_expected: Optional[float] = None,
     ) -> Optional[str]: ...
     def preview_sfx(self, filename: str, volume: float = 1.0) -> None: ...
     def play_pool(
@@ -132,7 +134,9 @@ class CueSfxManager(object):
         volume_mult: Optional[float] = None,
         marker_time: Optional[float] = None,
         marker_elapsed: Optional[float] = None,
-        marker_delta: Optional[float] = None,
+        marker_err: Optional[float] = None,
+        marker_gap: Optional[float] = None,
+        marker_gap_expected: Optional[float] = None,
     ) -> Optional[str]: ...
     def fade_out(
         self, exclude_channels: Optional[List[str]] = None, only_channels: Optional[List[str]] = None

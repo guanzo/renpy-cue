@@ -603,6 +603,70 @@ def test_tick_video_preview_marker(play_stub):
     assert play_stub == [("v_scene.ogv", 0, "p.ogg")]
 
 
+def test_tick_video_no_refire_after_zero_elapsed_frame(play_stub):
+    # A marker at t=0.010 must fire exactly once even when tick A reads
+    # elapsed=0 (video just started/looped to 0) and tick B reads elapsed=0.043.
+    # Regression: tick A writes last_elapsed=0 back, and the OLD fresh-reset
+    # check (last_elapsed == 0) misread tick B as a fresh reset, wiping the
+    # dedup round and re-firing the same marker (the "double fire" at mt 0.010).
+    store = FakeMarkerStore({"v_scene.ogv": {"pools": []}})
+    markers = FakeMarkers(markers=[{"time": 0.010, "files": ["a.ogg"]}])
+    vid = FakeVidManager(elapsed=0.0)
+    vid.last_elapsed = 0.0
+    vid.is_reset_pending = True  # fresh video / channel change
+    eng = make_engine(store=store, vid=vid, markers=markers)
+    tick = 0.033  # 30fps cadence -> marker_lead ~16.5ms, so a t=0.010 marker is reachable at elapsed 0
+
+    eng.video.tick("scene.ogv", "movie", 1.0, None, tick_interval=tick)
+    assert play_stub == [("v_scene.ogv", 0, "a.ogg")]
+
+    vid._elapsed = 0.043
+    eng.video.tick("scene.ogv", "movie", 1.0, None, tick_interval=tick)
+    assert play_stub == [("v_scene.ogv", 0, "a.ogg")]  # no re-fire
+
+
+def test_tick_video_reports_marker_err_and_gap(sfx_playback):
+    """The PLAY-SFX accuracy fields: err is the reference-time fire error
+    (effective - mt), gap is the reference-time spacing to the previous fire
+    (effective_elapsed diff) -- speed-invariant, matching mt.  At 2x a raw
+    elapsed gap is 0.25 but the reference gap is 0.5, matching the mt spacing.
+    First marker of a loop has gap None."""
+    mgr, calls = sfx_playback
+    kw = []
+
+    def fake_play(entry, key, pool, pool_index, **k):
+        kw.append(k)
+        return "cue_sfx_1"
+
+    mgr.play_pool = fake_play
+
+    store = FakeMarkerStore({"v_scene.ogv": {"pools": []}})
+    markers = FakeMarkers(markers=[{"time": 0.5, "files": ["a.ogg"]}, {"time": 1.0, "files": ["a.ogg"]}])
+    vid = FakeVidManager(elapsed=0.25)  # 2x: effective 0.5
+    vid.last_elapsed = 0.25
+    eng = make_engine(store=store, vid=vid, markers=markers)
+
+    eng.video.tick("scene.ogv", "movie", 2.0, None, tick_interval=0.0)
+    assert len(kw) == 1
+    assert kw[0]["marker_time"] == 0.5
+    assert kw[0]["marker_elapsed"] == 0.5  # effective position, not raw 0.25
+    assert kw[0]["marker_err"] == 0.0  # effective 0.5 - mt 0.5
+    assert kw[0]["marker_gap"] is None  # first fire: no predecessor
+    assert kw[0]["marker_gap_expected"] is None  # no prior marker
+
+    vid._elapsed = 0.5  # 2x: effective 1.0
+    vid.last_elapsed = 0.25
+    eng.video.tick("scene.ogv", "movie", 2.0, None, tick_interval=0.0)
+    assert len(kw) == 2
+    assert kw[1]["marker_time"] == 1.0
+    assert kw[1]["marker_elapsed"] == 1.0  # effective position, not raw 0.5
+    # Reference gap 1.0 - 0.5 = 0.5 (matches mt spacing), NOT the raw elapsed
+    # gap 0.25 -- proves gap is speed-invariant reference-time, not raw clock.
+    assert kw[1]["marker_gap"] == 0.5
+    # Expected gap = marker-time spacing 1.0 - 0.5 -- so gap% is 0 on a clean fire.
+    assert kw[1]["marker_gap_expected"] == 0.5
+
+
 def test_tick_video_restart_clears_played(play_stub):
     store = FakeMarkerStore({"v_scene.ogv": {"pools": []}})
     vid = FakeVidManager(elapsed=0.05)
