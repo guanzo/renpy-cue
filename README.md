@@ -11,9 +11,6 @@ Cue lets you add your own sound effects, music, and video effects to [Ren'Py](ht
 
 * [Getting Started](#getting-started)
 * [How Cue Works](#how-cue-works)
-* [What You Can Do](#what-you-can-do)
-* [Video Speed & Effects](#video-speed--effects)
-* [Intensity Groups](#intensity-groups)
 * [Using Cue With Multiple Games](#using-cue-with-multiple-games)
 * [Settings and Your Data](#settings-and-your-data)
 * [Requirements](#requirements)
@@ -70,7 +67,7 @@ Pools can overlap when they play. More than one sound can play at once, and each
 
 Some games simulate video using sequences of images rather than actual video files. These sequences cannot currently be used as triggers, but support is planned for a future version.
 
-## What You Can Do
+### What You Can Do
 
 * **Add sound effects** to triggers.
 * **Build reusable SFX pools** from your own files and folders, and save common setups as **presets**.
@@ -79,7 +76,7 @@ Some games simulate video using sequences of images rather than actual video fil
 * **Reuse your setup across games** with shared audio, music, presets, and configuration.
 * **Export and import** your Cue setup to share it with others or move it to different machines.
 
-## Video Speed & Effects
+### Video Speed & Effects
 
 **Requires ffmpeg.**
 
@@ -87,7 +84,7 @@ Cue can create slow-motion or fast-motion copies of any movie, then let you swit
 
 You only need to place Video SFX markers once, on the original video. When you switch to a speed variant, Cue automatically scales every marker's timestamp to match, so there's no need to re-time or re-place anything for each speed.
 
-## Intensity Groups
+### Intensity Groups
 
 Intensity Groups tie your sound effects to video speed. As a video speeds up or slows down, Cue automatically swaps in sounds that match, so slower speeds can use softer, sparser sounds while faster speeds use louder and more frequent ones.
 
@@ -139,7 +136,7 @@ You can change the data folder location in Cue's settings, or override it with t
 
 ### Compatibility
 
-Code must work on **Ren'Py 7.4.x and up** — both the 7.x (Python 2) and 8.x (Python 3) engine generations. The 7.x constraint forbids f-strings, type hints, and other Python 3-only syntax in `.py` files. Full rules are in `CLAUDE.md`.
+Code must work on **Ren'Py 7.4.x and up**. Full rules are in `CLAUDE.md`.
 
 ### Tooling
 
