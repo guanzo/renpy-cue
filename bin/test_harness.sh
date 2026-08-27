@@ -151,9 +151,50 @@ echo "[cue] runtime: $DSL testcases DSL ($LAUNCHER)"
 # CI already wraps the whole invocation in xvfb-run, so skip the inner wrap
 # there (a nested Xvfb server is wasted). Opt out with RENPY_HEADLESS=0 to
 # see the engine window.
+#
+# A worker that dies on a signal (dash drops EXIT traps on signal death) or a
+# run that is SIGKILLed leaves its Xvfb behind, reparented to init, and
+# nothing reaps it -- servers accumulate across interrupted runs. Sweep before
+# launching: kill any Xvfb whose ancestry has no live test_harness.sh. A
+# concurrent run's servers always have one, so they're never touched. Skipped
+# under CI because the whole invocation runs inside CI's own xvfb-run, whose
+# Xvfb has no harness ancestor and must be spared.
+_sweep_orphan_xvfb() {
+    _has_harness_ancestor() {
+        _p=$1
+        while [ "$_p" -gt 1 ]; do
+            case "$(tr '\0' ' ' < "/proc/$_p/cmdline" 2>/dev/null)" in
+                *test_harness.sh*) return 0 ;;
+            esac
+            _p=$(awk '{print $4}' "/proc/$_p/stat" 2>/dev/null)
+            [ -n "$_p" ] && [ "$_p" -gt 1 ] || break
+        done
+        return 1
+    }
+    for _xvp in $(pgrep -x Xvfb 2>/dev/null); do
+        if ! _has_harness_ancestor "$_xvp"; then
+            echo "[cue] sweeping orphaned Xvfb (pid $_xvp)" >&2
+            kill "$_xvp" 2>/dev/null || true
+        fi
+    done
+    # xvfb-run auth temp dirs outlive their server the same way; drop stale ones.
+    for _d in /tmp/xvfb-run.*; do
+        [ -e "$_d" ] || continue
+        _inuse=0
+        for _xvp in $(pgrep -x Xvfb 2>/dev/null); do
+            if tr '\0' ' ' < "/proc/$_xvp/cmdline" 2>/dev/null | grep -q -- "-auth $_d/"; then
+                _inuse=1
+                break
+            fi
+        done
+        [ "$_inuse" = "0" ] && rm -rf "$_d"
+    done
+}
+
 HEADLESS="${RENPY_HEADLESS:-1}"
 RUN_PREFIX=""
 if [ "$HEADLESS" = "1" ] && [ -z "${CI:-}" ]; then
+    _sweep_orphan_xvfb
     if command -v xvfb-run >/dev/null 2>&1; then
         RUN_PREFIX="xvfb-run -a "
         export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-dummy}"
@@ -261,7 +302,18 @@ if [ "$DSL" = "legacy" ]; then
         # already-removed claim, kill of a dead pid) overrides the subshell's
         # exit status, so a passing worker would exit 1. `|| true` per chain
         # keeps the trap exit status 0.
-        trap 'rm -rf "$WGAME" "$WDATA"; [ -n "$_claim" ] && rmdir "$_claim" 2>/dev/null || true; [ -n "$XVPID" ] && kill "$XVPID" 2>/dev/null || true' EXIT
+        # EXIT alone is not enough: dash drops EXIT traps when the subshell
+        # dies on a signal, orphaning this worker's Xvfb. Trap the signals too
+        # -- dash does run those -- and exit after cleanup so a killed worker
+        # doesn't just continue its slice. The 0 trap re-runs the same
+        # idempotent cleanup when the `exit` below triggers it.
+        _worker_cleanup() {
+            rm -rf "$WGAME" "$WDATA"
+            [ -n "$_claim" ] && rmdir "$_claim" 2>/dev/null || true
+            [ -n "$XVPID" ] && kill "$XVPID" 2>/dev/null || true
+        }
+        trap '_worker_cleanup' 0
+        trap '_worker_cleanup; exit 1' 1 2 15
         # Seed from the main path's already-prepared /tmp trees: cue_lib is a
         # real copy there, and /tmp avoids the concurrent-read race on the slow
         # Windows-mounted source FS that intermittently corrupts .rpy parses.
