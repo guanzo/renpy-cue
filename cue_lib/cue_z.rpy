@@ -82,7 +82,7 @@ init -999 python:
         _cue_preset_search_matches, _cue_igroup_search_matches,
         _cue_filter_preset_files, _cue_filter_igroup_folders,
         _cue_unwrap_displayable, _cue_ui_refresh,
-        _cue_wrap_with_statement, _cue_wrap_config_show,
+        _cue_wrap_with_statement, _cue_wrap_config_show, _cue_wrap_load,
         _cue_strip_key_prefix,
         _cue_top_layer_name, _cue_top_movie_name, _cue_get_movie_play,
         _cue_unwrap_persistent,
@@ -140,6 +140,7 @@ init -999 python:
         CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline,
         CueTooltip, CueVideoMarkerTooltip, CueAutoSpeedChart,
         CueKeyCaptureDisplayable, CueSidebarResizeHandle,
+        _cue_install_focus_pin,
         _cue_sidebar_poll_cursor, _cue_setup_mouse_cursor,
     )
 
@@ -367,43 +368,15 @@ init 999 python:
         Shift+R reload), because Ren'Py rebuilds config fresh on reload."""
 
         import renpy.exports as _rpexp
-        # The `with` statement compiles to renpy.exports.with_statement (ast.py).
-        # renpy.with_statement in the package namespace can be a Python-2
-        # __future__ marker leaked in via the renpy.compat star-import, so wrap
-        # the exports function and point the package alias at the wrapper too.
         _cue_wrapped_ws = _cue_wrap_with_statement(_rpexp.with_statement)
         _rpexp.with_statement = _cue_wrapped_ws
         renpy.with_statement = _cue_wrapped_ws
         renpy.config.show = _cue_wrap_config_show(renpy.config.show)
 
-        import renpy.loader as _rl
-
-        if not getattr(_rl.load, "_cue_loader_wrapped", False):
-            _cue_orig_loader_load = _rl.load
-            _cue_orig_loader_loadable = _rl.loadable
-            _cue_orig_loader_open = _rl.open_file
-
-            # load() strips the leading slash and treats it as game-relative
-            # monkey patch to make absoluate paths to the cue data dir work
-            def _cue_loader_load(name, *args, **kwargs):
-                try:
-                    if _cue.paths._loader_owns(name):
-                        return _cue_orig_loader_open(name, "rb")
-                except (TypeError, ValueError):
-                    pass
-                return _cue_orig_loader_load(name, *args, **kwargs)
-
-            def _cue_loader_loadable(name, *args, **kwargs):
-                try:
-                    if _cue.paths._loader_owns(name):
-                        return True
-                except (TypeError, ValueError):
-                    pass
-                return _cue_orig_loader_loadable(name, *args, **kwargs)
-
-            _rl.load = _cue_loader_load
-            _rl.loadable = _cue_loader_loadable
-            _rl.load._cue_loader_wrapped = True
+        _cue_wrap_load()
+        _cue_install_focus_pin()
+        _cue_setup_mouse_cursor()
+        _cue_install_exception_handler()
 
     def _cue_install_callbacks():
         """SFX channels, the overlay layer, and the game hooks (after-load /
@@ -481,9 +454,7 @@ init 999 python:
     _v = getattr(renpy, "version_tuple", (0, 0, 0))
     _cue_log("INIT: renpy_version={}".format(".".join(str(x) for x in _v)))
 
-    _cue_install_exception_handler()
     _cue_logger.clear_logs()
-    _cue_setup_mouse_cursor()
     _cue.keybinds.setup()
     _cue_patch_runtime()
     _cue_install_callbacks()

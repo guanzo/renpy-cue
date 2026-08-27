@@ -34,7 +34,7 @@ class Cue(_renpy_python.NoRollback):
         self.overlay_active_page = CuePage.SFX
         self.collapsed_sections = {}  # section_name -> bool (cue_section_frame)
         self.ctx = CueContext()  # per-frame scene state (current_file, dialogue, top layer)
-        self.editing_input = ""  # dotted path of the text input in edit mode (cue_text_input)
+        self.active_input = ""  # dotted path of the text input in edit mode (cue_text_input)
 
         # --- Manager slots (wired by cue_z.rpy init -900) ---
         self.db = None

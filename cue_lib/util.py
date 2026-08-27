@@ -937,3 +937,44 @@ def _cue_wrap_config_show(original_config_show):
             return original_config_show(*args, **kwargs)
 
     return _wrapped
+
+
+def _cue_wrap_load():
+    # type: () -> None
+    """Patch renpy.loader so names the cue data dir owns resolve.
+
+    load() strips the leading slash and treats the name as game-relative (so
+    an absolute path into the data dir never matches).  Intercepting load and
+    loadable lets the paths layer serve those names from the cue root, falling
+    back to the real loader for everything else.
+
+    Idempotent: a Shift+R reload restores renpy.loader, so re-running this is
+    required (and the marker prevents a same-init double-wrap)."""
+    import renpy.loader as _rl
+
+    if getattr(_rl.load, "_cue_loader_wrapped", False):
+        return
+
+    _cue_orig_loader_load = _rl.load
+    _cue_orig_loader_loadable = _rl.loadable
+    _cue_orig_loader_open = _rl.open_file
+
+    def _cue_loader_load(name, *args, **kwargs):
+        try:
+            if _cue.paths._loader_owns(name):
+                return _cue_orig_loader_open(name, "rb")
+        except (TypeError, ValueError):
+            pass
+        return _cue_orig_loader_load(name, *args, **kwargs)
+
+    def _cue_loader_loadable(name, *args, **kwargs):
+        try:
+            if _cue.paths._loader_owns(name):
+                return True
+        except (TypeError, ValueError):
+            pass
+        return _cue_orig_loader_loadable(name, *args, **kwargs)
+
+    _rl.load = _cue_loader_load
+    _rl.loadable = _cue_loader_loadable
+    setattr(_rl.load, "_cue_loader_wrapped", True)

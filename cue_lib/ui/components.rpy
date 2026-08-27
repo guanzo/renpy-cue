@@ -313,15 +313,18 @@ screen cue_float_input(field_name, commit_action, display_text,
                        dec_action=None, inc_action=None):
     style_group "cue"
 
-    default editing = False
+    $ editing = (_cue.active_input == field_name)
+    $ _start_edit = SetField(_cue, "active_input", field_name)
+    $ _commit = [commit_action, SetField(_cue, "active_input", "")]
+
     hbox:
         spacing 3
         if dec_action is not None:
             use cue_icon_btn("-", dec_action)
 
         if editing:
-            key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
-            key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
+            key "K_RETURN" action _commit
+            key "K_KP_ENTER" action _commit
             input:
                 value _CueFieldValue(field_name)
                 default True
@@ -329,7 +332,7 @@ screen cue_float_input(field_name, commit_action, display_text,
                 ysize 16
         else:
             use cue_txt_button(display_text,
-                SetLocalVariable("editing", True),
+                _start_edit,
                 ysize=16, tt="Click to edit. Press Enter to confirm.")
 
         if inc_action is not None:
@@ -343,21 +346,24 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
                       inc10_action, inc100_action, display_text):
     style_group "cue"
 
-    default editing = False
+    $ editing = (_cue.active_input == field_name)
+    $ _start_edit = SetField(_cue, "active_input", field_name)
+    $ _commit = [commit_action, SetField(_cue, "active_input", "")]
+
     hbox:
         spacing 3
         #use cue_icon_btn("--", dec100_action, None, 22)
         use cue_icon_btn("-", dec10_action)
 
         if editing:
-            key "K_RETURN" action [commit_action, SetLocalVariable("editing", False)]
-            key "K_KP_ENTER" action [commit_action, SetLocalVariable("editing", False)]
+            key "K_RETURN" action _commit
+            key "K_KP_ENTER" action _commit
             input:
                 value _CueFieldValue(field_name)
                 default True
         else:
             use cue_txt_button(display_text,
-                [SetLocalVariable("editing", True), Function(_cue.markers.video.sync_text)],
+                [_start_edit, Function(_cue.markers.video.sync_text)],
                 tt="Click to edit. Press Enter to confirm.")
 
         use cue_icon_btn("+", inc10_action)
@@ -369,13 +375,13 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=200,
     style_group "cue"
 
     $ ysize = 16
-    # Each input derives its own editing flag from the shared _cue.editing_input
+    # Each input derives its own editing flag from the shared _cue.active_input
     # (holds this field's dotted path while it's being edited, "" = none), so
     # only one field is in edit mode at a time.
-    $ editing = (_cue.editing_input == field_name)
-    $ _start_edit = SetField(_cue, "editing_input", field_name)
-    $ _commit = [commit_action, SetField(_cue, "editing_input", "")]
-    $ _exit_edit = SetField(_cue, "editing_input", "")
+    $ editing = (_cue.active_input == field_name)
+    $ _start_edit = SetField(_cue, "active_input", field_name)
+    $ _commit = [commit_action, SetField(_cue, "active_input", "")]
+    $ _exit_edit = SetField(_cue, "active_input", "")
 
     if commit_on_enter:
         $ _enter = _commit

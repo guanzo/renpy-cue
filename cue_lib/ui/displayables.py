@@ -159,6 +159,39 @@ def _cue_setup_mouse_cursor():
     renpy.config.mouse = mouse
 
 
+def _cue_install_focus_pin():
+    # type: () -> None
+    """Pin keyboard focus to the field being edited so mouse hover doesn't steal it.
+
+    Ren'Py's keyboard focus follows the mouse (there is no config.keyboard_focus
+    toggle since 7.4), so while a text input is in edit mode, hovering any other
+    focusable -- an overlay control or a focusable on the game screen behind --
+    moves focus off the field and typing stops until the cursor sits over nothing
+    focusable.  Wrapping the focus engine's mouse handler pins focus to the
+    edited field during hover; a click still lands normally (ending the edit).
+    """
+    focus = getattr(renpy.display, "focus")
+
+    if getattr(focus.mouse_handler, "_cue_focus_pin", False):
+        return
+
+    orig = focus.mouse_handler
+
+    def _cue_pin_focus(ev, x, y, default=False):
+        # Only pin while one of Cue's own fields is in edit mode.
+        editing = getattr(_cue, "active_input", "")
+
+        # Hover keeps focus where it is; a click still moves it so it can land on
+        # another control or field (ending the edit normally).
+        is_hover = editing and ev is not None and ev.type == pygame.MOUSEMOTION
+        if is_hover:
+            return None
+        return orig(ev, x, y, default=default)
+
+    setattr(_cue_pin_focus, "_cue_focus_pin", True)
+    focus.mouse_handler = _cue_pin_focus
+
+
 # ---------------------------------------------------------------------------
 # Tooltip + intensity color helpers
 # ---------------------------------------------------------------------------

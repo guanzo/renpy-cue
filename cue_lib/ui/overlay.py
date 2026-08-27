@@ -39,6 +39,10 @@ def _cue_set_page(page):
 def _cue_show_overlay():
     # type: () -> None
     _cue.is_overlay_visible = True
+    # A field may have been left mid-edit when the overlay was hidden; clear the
+    # sticky editing state so the focus pin doesn't start the next open already
+    # "editing" a field that isn't focused.
+    _cue.active_input = ""
 
     _cue_refresh_context()
     _cue.music.library.maybe_rebuild()
@@ -52,6 +56,7 @@ def _cue_show_overlay():
 def _cue_hide_overlay():
     # type: () -> None
     _cue.is_overlay_visible = False
+    _cue.active_input = ""
     # The marker timeline outlives the overlay (built once as a class
     # singleton), so a hide mid-drag would otherwise leave a stale in-flight
     # drag on the next show.
