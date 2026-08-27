@@ -112,6 +112,9 @@ Bridge enums into the store through `cue_z.rpy` when screens need them.
 
 # Code Organization
 
+* Before writing a new function or module, search the codebase for existing
+  logic that already does the job and reuse it. Add a new helper only when no existing one
+  fits.
 * Encapsulate substantial features in classes that own their state and logic.
 * Prefer `_cue.feature = FeatureManager()` over scattered state and global helpers.
 * Put substantial standalone classes in their own `cue_lib/*.py` file.

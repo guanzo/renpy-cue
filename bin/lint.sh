@@ -21,6 +21,7 @@
 # findings (unlike bare pyright/awk, which always exit 0) so CI can fail a
 # job; the skill interprets the same output.
 
+ROOT="$(cd "$(dirname "$0")/.."; pwd)"
 status=0
 
 # --- 1. pyright ---
@@ -112,6 +113,21 @@ if [ -n "$PY2_COMMA" ]; then
     printf '%s\n' "$PY2_COMMA"
     echo "lint: trailing comma after *args/**kwargs is a SyntaxError under Python 2.7; wrap the def in # fmt: off / # fmt: on and drop the comma" >&2
     status=1
+fi
+
+# --- 5. Python 2.7 compatibility (cue_lib runtime) ---
+# pytest runs under py3, so it cannot catch py2-only breaks: py3.6+ stdlib
+# APIs (e.g. zipfile.ZipInfo.is_dir) and py2-invalid syntax. bin/py2_check.sh
+# compiles every cue_lib module, boots import cue_lib, and runs targeted
+# smokes under the bundled 7.4.10 interpreter. CI runs it on the 7.4.10
+# harness leg; here it runs when the SDK is present locally and is skipped
+# loudly otherwise.
+if [ -x "$ROOT/.local/renpy-7.4.10-sdk/lib/linux-x86_64/python" ]; then
+    if ! bash "$ROOT/bin/py2_check.sh"; then
+        status=1
+    fi
+else
+    echo "lint: py2 check skipped (no .local/renpy-7.4.10-sdk)"
 fi
 
 if [ "$status" -eq 0 ]; then

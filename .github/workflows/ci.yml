@@ -80,6 +80,16 @@ jobs:
             bash bin/test_harness.sh "$SDK_DIR/renpy.sh"
           fi
 
+      # Python 2.7 (Ren'Py 7.x) is the base runtime requirement, but pytest runs
+      # under py3 -- so py3.6+ stdlib APIs (e.g. zipfile.ZipInfo.is_dir) and
+      # py2-invalid syntax slip through the fast gate. The harness testcases
+      # don't exercise every code path, so this explicit py2 gate compiles every
+      # cue_lib module, boots import cue_lib, and runs targeted smokes. Runs on
+      # the 7.4.10 leg where the SDK is present.
+      - name: Python 2.7 compatibility check
+        if: matrix.renpy == '7.4.10'
+        run: bash bin/py2_check.sh "$SDK_DIR"
+
   # Fast gate: pyright + 120-char lint, then the pytest suite, under the
   # modern toolchain. Mirrors the /lint and /test skills via bin/*.sh.
   check:

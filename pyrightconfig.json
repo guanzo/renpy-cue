@@ -6,7 +6,6 @@
   ],
   "pythonVersion": "3.9",
   "typeCheckingMode": "standard",
-  "exclude": ["**/__pycache__", "audio"],
   "reportMissingModuleSource": false,
   "reportUnusedImport": "warning",
   "reportUnusedVariable": "warning"

@@ -6,10 +6,17 @@ description: Run pyright and report all diagnostics
 # /lint
 
 Run pyright on `cue_lib/`, `ruff format --check` on `cue_lib/` and `tests/`,
-the 120-char line-length check on `cue_lib/` and `tests/`, and the py2
-trailing-comma guard on `cue_lib/`, and report ALL findings. Every pyright
-diagnostic must either be fixed or suppressed with a
-`# pyright: ignore[rule]` comment.
+the 120-char line-length check on `cue_lib/` and `tests/`, the py2
+trailing-comma guard on `cue_lib/`, and the Python 2.7 compatibility gate
+(`bin/py2_check.sh`), and report ALL findings. Every pyright diagnostic must
+either be fixed or suppressed with a `# pyright: ignore[rule]` comment.
+
+The py2 gate is why `bin/lint.sh` needs the 7.4.10 SDK in `.local/`: pytest runs
+under py3, so py3.6+ stdlib APIs (e.g. `zipfile.ZipInfo.is_dir`) and py2-invalid
+syntax slip through the test suite. `bin/py2_check.sh` py2-compiles every
+`cue_lib/**/*.py` (except `_types.py`), boots `import cue_lib` under the bundled
+interpreter, and runs targeted runtime smokes. It is skipped loudly when the SDK
+is absent (the CI `check` job) and enforced on the 7.4.10 harness leg in CI.
 
 `tests/` is deliberately excluded from the pyright pass: the test suite is
 white-box (pokes private seams, injects fakes, patches module aliases), so
