@@ -47,6 +47,7 @@ class Cue:
     collapsed_sections: Dict[str, bool]
     ctx: CueContext
     active_input: str
+    active_input_rect: Optional[Tuple[int, int, int, int]]
     current_file: str
     current_dialogue: str
     prev_dialogue: str

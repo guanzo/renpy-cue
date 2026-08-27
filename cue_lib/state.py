@@ -35,6 +35,7 @@ class Cue(_renpy_python.NoRollback):
         self.collapsed_sections = {}  # section_name -> bool (cue_section_frame)
         self.ctx = CueContext()  # per-frame scene state (current_file, dialogue, top layer)
         self.active_input = ""  # dotted path of the text input in edit mode (cue_text_input)
+        self.active_input_rect = None  # (x, y, w, h) of the field in edit mode, or None
 
         # --- Manager slots (wired by cue_z.rpy init -900) ---
         self.db = None
