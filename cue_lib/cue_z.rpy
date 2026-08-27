@@ -140,9 +140,10 @@ init -999 python:
         CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline,
         CueTooltip, CueVideoMarkerTooltip, CueAutoSpeedChart,
         CueKeyCaptureDisplayable, CueSidebarResizeHandle,
-        _cue_install_focus_pin,
         _cue_sidebar_poll_cursor, _cue_setup_mouse_cursor,
     )
+
+    from cue_lib.ui.focus import _cue_install_focus_pin
 
     from cue_lib.video.speed import (
         CueSpeedMode, CUE_TOAST_DURATION, CUE_TOAST_DURATION_SEAMLESS,
