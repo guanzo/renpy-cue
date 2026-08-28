@@ -2,7 +2,7 @@
   <img src="./cue_lib/images/branding/cue-wordmark.png" alt="Ren'Py Cue" width="200">
 </p>
 
-Cue lets you add your own sound effects, music, and video effects to [Ren'Py](https://www.renpy.org/) visual novels while you play, without editing the game's scripts.
+Cue lets you add sound effects, music, and video effects to [Ren'Py](https://www.renpy.org/) visual novels.
 
 
 **Need help, want to share your setup, or just hang out? [Join the Cue Discord](https://discord.gg/kAVtFGcQYm)**
@@ -105,7 +105,7 @@ An update to the shared copy then propagates to every game at once. On Windows, 
 
 ## Cue Data Folder
 
-Cue keeps your SFX, music, markers, presets, and generated video variants in one shared data folder used by every game where Cue is installed.
+Cue keeps your SFX, music, markers, presets, and video speed variants in one shared data folder used by every game where Cue is installed.
 
 ### Default locations
 
@@ -117,7 +117,7 @@ You can change the data folder location in Cue's settings, or override it with t
 
 ## Requirements
 
-* **Ren'Py 7.4 or newer:** works on both the 7.x (Python 2) and 8.x (Python 3) engine versions.
+* **Ren'Py 7.4 or newer:** works on both the 7.x (Python 2) and 8.x (Python 3) engine versions. 7.2 up to 7.4 is best effort only — compatibility fixes there are limited to simple workarounds or are disabled.
 * **ffmpeg 5 or newer:** only required for creating video speed variants. It must be on `PATH`, or pointed to with the `RENPY_CUE_FFMPEG` and `RENPY_CUE_FFPROBE` environment variables.
 
 ## For Developers
@@ -136,11 +136,9 @@ Code must work on **Ren'Py 7.4.x and up**. Full rules are in `CLAUDE.md`.
 
 ### Tooling
 
-- `bin/lint.sh` — runs pyright on `cue_lib/` plus a 120-character line-length check. Prints `CLEAN` or exits nonzero.
+- `bin/lint.sh` — runs pyright on `cue_lib/`.
 - `bin/test.sh` — `poetry run pytest tests/ -q`, the headless unit suite against the mock runtime.
 - `bin/test_harness.sh <sdk>/renpy.sh` — runs the in-engine testcase harness against a real Ren'Py SDK, for screen/engine code the pytest mock can't drive. Picks `testcases_modern.rpy` (8.x) or `testcases_legacy.rpy` (7.x) based on the SDK version.
-
-CI runs the harness against pinned Ren'Py **7.4.10** and **8.5.3** SDKs, plus lint and pytest, on every push and pull request.
 
 ### Local Setup
 
