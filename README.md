@@ -49,21 +49,19 @@ Cue was built with AVNs in mind, but Cue itself works the same on any Ren'Py gam
 
 ## How Cue Works
 
-Cue attaches **SFX pools** to triggers in a game.
+Cue attaches **pools** to **triggers** in a game.
 
-A pool is a collection of sound files and folders. When its trigger occurs, Cue plays from that pool. A trigger can be:
+A **pool** is a collection of SFX files and folders. 
 
-* an image
-* a dialogue line
-* a video timestamp
-* a repeating loop
-* a screen shake
+A **trigger** can be an image, dialogue line, video timestamp, repeating loop, or a screen shake.
 
-A trigger can have more than one pool.
+A **marker** contains a trigger and one or more pools. 
+
+When a marker's trigger occurs, Cue plays a SFX from its pools.
+
+<b>You can add individual files to a pool, but adding folders is recommended.</b> Any changes you make to a folder's contents are automatically reflected in the pool, so you can add or remove files later without updating the pool itself.
 
 Pools can overlap when they play. More than one sound can play at once, and each pool can be set to overlap freely, cross-fade, or wait for a quiet moment before playing. This is an advanced setting you can leave alone until you need it.
-
-<b>You can add individual files to a pool, but folders are recommended.</b> Any changes you make to a folder's contents are automatically reflected in the pool, so you can add or remove files later without updating the pool itself.
 
 Some games simulate video using sequences of images rather than actual video files. These sequences cannot currently be used as triggers, but support is planned for a future version.
 
@@ -88,7 +86,7 @@ You only need to place Video SFX markers once, on the original video. When you s
 
 Intensity Groups tie your sound effects to video speed. As a video speeds up or slows down, Cue automatically swaps in sounds that match, so slower speeds can use softer, sparser sounds while faster speeds use louder and more frequent ones.
 
-It's the feature that brings everything together: video SFX, loop SFX, loop SFX frequency, and volume can all react alongside video speed instead of feeling like separate effects layered on top of each other.
+It's the feature that brings everything together: video SFX, loop SFX, loop frequency, and volume can all react to video speed, without needing to configure each speed variant individually.
 
 ## Using Cue With Multiple Games
 
@@ -105,11 +103,9 @@ If you have Cue installed in several games and want one copy of the code to serv
 
 An update to the shared copy then propagates to every game at once. On Windows, use a directory junction (`mklink /J …`).
 
-Your **data** (markers, presets, audio, music, and other configuration) is already shared machine-wide through Cue's data directory, so only the code needs to be shared.
-
 ## Cue Data Folder
 
-Cue keeps your SFX and music, pools and markers, presets, and generated video variants in one shared data folder used by every game where Cue is installed.
+Cue keeps your SFX, music, markers, presets, and generated video variants in one shared data folder used by every game where Cue is installed.
 
 ### Default locations
 
