@@ -181,7 +181,7 @@ screen cue_import_imports():
     $ _imports_hint = ("Add export .zip file to:\n{}").format(_cue.importer.imports_dir())
 
     use cue_section_frame("Import", tt=_imports_hint):
-        etext ("Imports can be previewed, which will temporarily replace your data (except your Settings). "
+        etext ("Imports can be previewed, which will temporarily replace your data. "
             "If you like the preview, you can copy it into your data folder with \"Merge\".")
 
         use cue_open_in_explorer_btn(_cue.importer.imports_dir(), "Open Imports Folder")

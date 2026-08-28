@@ -286,7 +286,6 @@ screen cue_sfx_sidebar():
             at Transform(zoom=_z)
             action NullAction()
             padding (0, 4)
-            xalign 0.0
             yalign 0.0
             xpos int(_cue_overlay_panel_width / _z)
             xsize int(_cue.sfx.library.sidebar_width / _z)

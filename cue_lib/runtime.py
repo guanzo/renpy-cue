@@ -257,20 +257,14 @@ def _cue_refresh_channel(displayable=None):
         old_ch = _cue.vid_manager.channel
 
         candidates = []
-        try:
-            for ch_name in _aaudio.channels:
-                try:
-                    ch = _aaudio.channels.get(ch_name)
-                    if ch is None or not getattr(ch, 'movie', False):
-                        continue
-                    path = _music.get_playing(channel=ch_name)
-                    dur = _music.get_duration(channel=ch_name)
-                    if path and dur > 0:
-                        candidates.append((ch_name, ch, path))
-                except Exception:
-                    _cue_log("REFRESH-CHANNEL: scan failed for {}".format(ch_name))
-        except Exception:
-            _cue_log("REFRESH-CHANNEL: outer scan failed")
+        for ch_name in _aaudio.channels:
+            ch = _aaudio.channels.get(ch_name)
+            if ch is None or not getattr(ch, 'movie', False):
+                continue
+            path = _music.get_playing(channel=ch_name)
+            dur = _music.get_duration(channel=ch_name)
+            if path and dur > 0:
+                candidates.append((ch_name, ch, path))
 
         if candidates:
             import renpy.display.video as _video

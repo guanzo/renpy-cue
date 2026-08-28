@@ -248,29 +248,46 @@ class CueSfxManager(object):
                 _music.play(full_path, channel=target_ch, loop=False)
                 _music.set_volume(volume, delay=0, channel=target_ch)
 
-            log = "PLAY-SFX file={} ch={}".format(filename.rsplit("/", 1)[-1], target_ch)
-            if marker_time is not None:
-                # Trigger accuracy: err is the reference-time fire error (signed,
-                # positive = fired late).  gap is the reference-time spacing to
-                # the previous fire -- near 0 on a double-fire.  Each carries a
-                # %-of-expected: err% = err vs the marker time; gap% = gap vs the
-                # marker-time spacing (marker_gap_expected).
-                log += " mt={:.3f} err={:+.3f}".format(marker_time, marker_err)
-                if marker_err is not None and marker_time != 0:
-                    log += " ({:+.1f}%)".format(marker_err / marker_time * 100.0)
-                if marker_gap is not None:
-                    log += " gap={:.3f}".format(marker_gap)
-                    if marker_gap_expected is not None and marker_gap_expected != 0:
-                        log += " ({:+.1f}%)".format((marker_gap - marker_gap_expected) / marker_gap_expected * 100.0)
-            if marker_elapsed is not None:
-                log += " elapsed={:.3f}".format(marker_elapsed)
-            log += " src={}".format(source)
-            _cue_log(log)
+            _cue_log(
+                self._build_play_log(
+                    filename,
+                    target_ch,
+                    source,
+                    marker_time,
+                    marker_err,
+                    marker_gap,
+                    marker_gap_expected,
+                    marker_elapsed,
+                )
+            )
 
             return target_ch
         except Exception as e:
             _cue_log("PLAY-SFX: exception during playback of {}: {}".format(full_path, e))
             return None
+
+    def _build_play_log(
+        self, filename, target_ch, source, marker_time, marker_err, marker_gap, marker_gap_expected, marker_elapsed
+    ):
+        # type: (str, str, str, Optional[float], Optional[float], Optional[float], Optional[float], Optional[float]) -> str
+        # Trigger accuracy: err is the reference-time fire error (signed,
+        # positive = fired late).  gap is the reference-time spacing to
+        # the previous fire -- near 0 on a double-fire.  Each carries a
+        # %-of-expected: err% = err vs the marker time; gap% = gap vs the
+        # marker-time spacing (marker_gap_expected).
+        log = "PLAY-SFX file={} ch={}".format(filename.rsplit("/", 1)[-1], target_ch)
+        if marker_time is not None:
+            log += " mt={:.3f} err={:+.3f}".format(marker_time, marker_err)
+            if marker_err is not None and marker_time != 0:
+                log += " ({:+.1f}%)".format(marker_err / marker_time * 100.0)
+            if marker_gap is not None:
+                log += " gap={:.3f}".format(marker_gap)
+                if marker_gap_expected is not None and marker_gap_expected != 0:
+                    log += " ({:+.1f}%)".format((marker_gap - marker_gap_expected) / marker_gap_expected * 100.0)
+        if marker_elapsed is not None:
+            log += " elapsed={:.3f}".format(marker_elapsed)
+        log += " src={}".format(source)
+        return log
 
     def preview_sfx(self, filename, volume=1.0):
         # type: (str, float) -> None

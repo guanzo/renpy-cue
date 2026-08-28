@@ -117,7 +117,7 @@ You can change the data folder location in Cue's settings, or override it with t
 
 ## Requirements
 
-* **Ren'Py 7.4 or newer:** works on both the 7.x (Python 2) and 8.x (Python 3) engine generations.
+* **Ren'Py 7.4 or newer:** works on both the 7.x (Python 2) and 8.x (Python 3) engine versions.
 * **ffmpeg 5 or newer:** only required for creating video speed variants. It must be on `PATH`, or pointed to with the `RENPY_CUE_FFMPEG` and `RENPY_CUE_FFPROBE` environment variables.
 
 ## For Developers

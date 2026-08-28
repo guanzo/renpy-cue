@@ -52,6 +52,17 @@ class CueSfxManager(object):
         marker_gap: Optional[float] = None,
         marker_gap_expected: Optional[float] = None,
     ) -> Optional[str]: ...
+    def _build_play_log(
+        self,
+        filename: str,
+        target_ch: str,
+        source: str,
+        marker_time: Optional[float],
+        marker_err: Optional[float],
+        marker_gap: Optional[float],
+        marker_gap_expected: Optional[float],
+        marker_elapsed: Optional[float],
+    ) -> str: ...
     def preview_sfx(self, filename: str, volume: float = 1.0) -> None: ...
     def play_pool(
         self,
