@@ -820,7 +820,7 @@ def test_sfx_ilevel_add_mode_switches_level(sfx):
 def test_sfx_ilevel_add_file_calls_intensity(sfx):
     calls = []
     sfx._intensity = types.SimpleNamespace(
-        get_igroup=lambda g: {"levels": [{"id": 1}, {"id": 2}]},
+        _presets=types.SimpleNamespace(get=lambda g: {"levels": [{"id": 1}, {"id": 2}]}),
         add_level_file=lambda g, lid, ref: calls.append((g, lid, ref)),
     )
     sfx.ilevel_add_file("Impacts", 2, "soft/a.ogg")
@@ -830,7 +830,8 @@ def test_sfx_ilevel_add_file_calls_intensity(sfx):
 def test_sfx_ilevel_add_folder_normalizes_ref(sfx):
     calls = []
     sfx._intensity = types.SimpleNamespace(
-        get_igroup=lambda g: {"levels": [{"id": 1}]}, add_level_file=lambda g, lid, ref: calls.append((g, lid, ref))
+        _presets=types.SimpleNamespace(get=lambda g: {"levels": [{"id": 1}]}),
+        add_level_file=lambda g, lid, ref: calls.append((g, lid, ref)),
     )
     sfx.ilevel_add_folder("Impacts", 1, "soft")
     assert calls == [("Impacts", 1, "soft/")]
@@ -839,7 +840,7 @@ def test_sfx_ilevel_add_folder_normalizes_ref(sfx):
 def test_sfx_ilevel_add_clears_stale_group_target(sfx):
     # Deleting the active add-target group leaves a stale target; the next
     # add clears it instead of failing against a deleted group.
-    sfx._intensity = types.SimpleNamespace(get_igroup=lambda g: None)
+    sfx._intensity = types.SimpleNamespace(_presets=types.SimpleNamespace(get=lambda g: None))
     sfx.ilevel_add_target = ("Gone", 1)
     sfx.ilevel_add_file("Gone", 1, "soft/")
     assert sfx.ilevel_add_target is None
@@ -1463,8 +1464,8 @@ def _sfx_intensity_rows(sfx, names, query="", lv_hook_ok=True, lv_tt="Hook to po
     )
     import cue_lib.util as util_mod
 
-    util_mod._cue.intensity = types.SimpleNamespace(
-        get_igroup=lambda n: {"levels": [{"id": 1, "files": ["a.ogg", "pool/"]}]}
+    util_mod._cue.presets = types.SimpleNamespace(
+        intensity=types.SimpleNamespace(get=lambda n: {"levels": [{"id": 1, "files": ["a.ogg", "pool/"]}]})
     )
     util_mod._cue.sfx = types.SimpleNamespace(library=types.SimpleNamespace(files=["pool/a.ogg"], disabled_files=set()))
     util_mod._cue.dialogs = types.SimpleNamespace(intensity=types.SimpleNamespace(open=lambda: None))
@@ -1637,8 +1638,8 @@ def _content_rows(
         image=types.SimpleNamespace(has_pools=lambda: True),
         dialogue=types.SimpleNamespace(has_pools=lambda: True),
     )
-    util_mod._cue.intensity = types.SimpleNamespace(
-        get_igroup=lambda n: {"levels": [{"id": 1, "files": ["a.ogg", "pool/"]}]}
+    util_mod._cue.presets.intensity = types.SimpleNamespace(
+        get=lambda n: {"levels": [{"id": 1, "files": ["a.ogg", "pool/"]}]}
     )
     util_mod._cue.sfx = types.SimpleNamespace(library=types.SimpleNamespace(files=["pool/a.ogg"], disabled_files=set()))
     util_mod._cue.dialogs = types.SimpleNamespace(intensity=types.SimpleNamespace(open=lambda: None))

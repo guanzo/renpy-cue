@@ -144,7 +144,7 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
                     "tt": "Play random song from preset",
                 },
             ]
-            pdata = music.get_preset(pname)
+            pdata = music._presets.music.get(pname)
             children = [
                 _cue_file_row(
                     "preset:" + pname + "/" + child,

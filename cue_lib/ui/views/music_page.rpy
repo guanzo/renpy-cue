@@ -102,7 +102,7 @@ screen cue_music_page():
                 
                 use cue_tree_rows(_cue.music.library.content_rows(
                     _cue.music.library.search_query,
-                    _cue.music.list_presets(),
+                    _cue.presets.music.list(),
                     _cue.current_file))
 
 screen trigger_list(triggers):

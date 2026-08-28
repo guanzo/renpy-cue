@@ -1103,10 +1103,10 @@ def _intensity_mgr(cue_env):
     mgr = FakeManager({"i_file": {"pools": [{"files": [], "volume": 1.0}]}}, current_file="v")
     mgr._sfx_manager.library._intensity = CueIntensityManager(cue_env.db)
     intensity = mgr._sfx_manager.library._intensity
-    assert intensity.create_igroup("Impacts") is None
+    assert intensity._presets.create("Impacts") is None
     assert intensity.add_level("Impacts") == 1
     assert intensity.add_level_file("Impacts", 1, "soft/") is None
-    assert intensity.create_igroup("Mouth") is None
+    assert intensity._presets.create("Mouth") is None
     assert intensity.add_level("Mouth") == 1
     assert intensity.add_level_file("Mouth", 1, "lip/") is None
     return mgr

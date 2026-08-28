@@ -387,7 +387,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # type: (str, int) -> bool
         """True when the (group, level) add target still exists; clears a stale
         target whose group was deleted."""
-        data = self._intensity.get_igroup(group_name) if self._intensity is not None else None
+        data = self._intensity._presets.get(group_name) if self._intensity is not None else None
         if data is None:
             self.ilevel_add_target = None
             return False

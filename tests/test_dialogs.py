@@ -38,6 +38,8 @@ def ui_cue(monkeypatch):
     presets = types.SimpleNamespace(
         audio=types.SimpleNamespace(create=_rec("create_preset"), delete=_rec("delete_preset")),
         video=types.SimpleNamespace(delete=_rec("delete_video_preset"), get=_rec("get_video_preset")),
+        music=types.SimpleNamespace(create=_rec("music_create_preset"), delete=_rec("music_delete_preset")),
+        intensity=types.SimpleNamespace(create=_rec("intensity_create"), delete=_rec("intensity_delete")),
     )
     markers = types.SimpleNamespace(
         get=lambda key: None,
@@ -50,11 +52,7 @@ def ui_cue(monkeypatch):
     cue = types.SimpleNamespace(
         markers=markers, marker_store=marker_store, presets=presets, dialogs=dialogs, current_file="", calls=calls
     )
-    cue.music = types.SimpleNamespace(
-        songs_for_trigger=lambda key: [],
-        create_preset=_rec("music_create_preset"),
-        delete_preset=_rec("music_delete_preset"),
-    )
+    cue.music = types.SimpleNamespace(songs_for_trigger=lambda key: [])
     cue.vid_manager = types.SimpleNamespace(get_duration=lambda: 12.5)
     monkeypatch.setattr(_dlg, "_cue", cue)
     return cue

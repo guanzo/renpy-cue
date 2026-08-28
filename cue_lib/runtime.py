@@ -54,10 +54,9 @@ def _cue_full_reload():
     # hooked pools have empty files after migration, so a re-run is a no-op.
     # Runs on every reload (boot, import activate/deactivate, post-restore)
     # so a mid-session reload can never persist the legacy form.
-    _cue_migrate_intensity_hooks(_cue.marker_store, _cue.intensity._load())
+    _cue_migrate_intensity_hooks(_cue.marker_store, _cue.presets.intensity._presets)
     _cue_load_scalars_from_persistent()
     _cue.presets.reload_presets()
-    _cue.music.reload_presets()
 
     _cue.sfx.library.scan()
     _cue.music.library.scan()

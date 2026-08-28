@@ -16,10 +16,10 @@ screen cue_runtime_driver():
 
 
 screen cue_runtime_keybinds():
-    key CUE_KEYMAP_TOGGLE_OVERLAY action Function(_cue_toggle_overlay)
     # Hardcoded fallback (not rebindable): some games claim backtick for their
     # own console, so Shift+Alt+E is a guaranteed-free alternative.
     key "alt_shift_K_e" action Function(_cue_toggle_overlay)
+    key CUE_KEYMAP_TOGGLE_OVERLAY action Function(_cue_toggle_overlay)
     key CUE_KEYMAP_COPY_CONTEXT action Function(_cue.markers.copy_context)
     key CUE_KEYMAP_PASTE_CONTEXT action Function(_cue.markers.paste_context)
     key CUE_KEYMAP_TOGGLE_SFX_ACTIVE action Function(_cue.trigger.toggle_active)

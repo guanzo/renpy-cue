@@ -24,7 +24,7 @@ def _resolve(files):
 def _two_level(cue_env):
     """An igroup with two levels: soft (L1) + hard (L2)."""
     m = CueIntensityManager(cue_env.db)
-    assert m.create_igroup("Impacts") is None
+    assert m._presets.create("Impacts") is None
     assert m.add_level("Impacts") == 1
     assert m.add_level_file("Impacts", 1, "soft/") is None
     assert m.add_level("Impacts") == 2
@@ -278,7 +278,7 @@ def test_variant_levels_even_two_bands(cue_env):
 
 def test_variant_levels_even_three_bands(cue_env):
     m = CueIntensityManager(cue_env.db)
-    assert m.create_igroup("Three") is None
+    assert m._presets.create("Three") is None
     assert m.add_level("Three") == 1
     assert m.add_level_file("Three", 1, "soft/") is None
     assert m.add_level("Three") == 2
@@ -305,7 +305,7 @@ def test_variant_levels_unsorted_input_sorted(cue_env):
 
 def test_variant_levels_single_level_none(cue_env):
     m = CueIntensityManager(cue_env.db)
-    assert m.create_igroup("One") is None
+    assert m._presets.create("One") is None
     assert m.add_level("One") == 1
     assert m.add_level_file("One", 1, "soft/") is None
     assert m.variant_levels("One", [0.7, 1.0, 1.3]) is None

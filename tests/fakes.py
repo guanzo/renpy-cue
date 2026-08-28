@@ -613,8 +613,11 @@ def make_runtime_cue(root="", audio_dir=""):
             "presets.video",
             ["create", "delete", "get", "list", "remove_video_preset_pool", "remove_video_preset_pool_file", "save"],
         ),
+        music=_ns("presets.music", ["create", "delete", "get", "list", "save"]),
+        intensity=_ns("presets.intensity", ["create", "delete", "get", "list", "save"]),
         reload_presets=_rec("presets", "reload_presets"),
     )
+    cue.presets.intensity._presets = {}
 
     # marker_store/intensity -- _cue_full_reload runs the one-time folder-hook
     # migration on every reload; the fake defaults are an empty no-op so tests
@@ -623,7 +626,7 @@ def make_runtime_cue(root="", audio_dir=""):
     cue.marker_store._ensure_pool = _rec("marker_store", "_ensure_pool")
     cue.marker_store._db_save_marker = _rec("marker_store", "_db_save_marker")
     cue.marker_store._detach_pool = _rec("marker_store", "_detach_pool")
-    cue.intensity = types.SimpleNamespace(_load=lambda: {})
+    cue.intensity = types.SimpleNamespace()
 
     # db -- shared-config surface read/written by _cue_load_scalars_from_persistent
     # (settings folder actions persist through it).  Stateful FakeDb records

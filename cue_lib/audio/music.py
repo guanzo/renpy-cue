@@ -125,7 +125,7 @@ class CueMusicManager(object):
         # Load the default music trigger log + presets from disk (one-time
         # startup).
         self.load_triggers()
-        self.load_presets()
+        self._presets.music.load_from_db()
 
     def _playable_file(self, path):
         # type: (str) -> str
@@ -887,42 +887,10 @@ class CueMusicManager(object):
             )
 
     # ------------------------------------------------------------------
-    # Music presets -- saved trigger song lists (game-agnostic, like SFX)
+    # Music presets -- behavior over the shared CueMusicPresets collection
+    # (CRUD lives on _cue.presets.music; the manager only adds screen-facing
+    # behavior: apply, display, expand, preview).
     # ------------------------------------------------------------------
-
-    def load_presets(self):
-        # type: () -> None
-        """Load all music presets from disk, replacing the in-memory set."""
-        self._presets.music.load_from_db()
-
-    def reload_presets(self):
-        # type: () -> None
-        """Merge in music presets saved by other games since startup.
-
-        Mirrors marker_store.reload_presets: new/updated presets from disk
-        land, nothing in memory is ever deleted."""
-        self._presets.music.reload()
-
-    @_cue_ui_refresh
-    def create_preset(self, name, songs):
-        # type: (str, List[str]) -> None
-        """Save a trigger's song list as a preset.  `songs` are stored refs."""
-        self._presets.music.create(name, songs)
-
-    def get_preset(self, name):
-        # type: (str) -> Optional[Dict[str, Any]]
-        return self._presets.music.get(name)
-
-    def list_presets(self):
-        # type: () -> List[str]
-        return self._presets.music.list()
-
-    @_cue_ui_refresh
-    def delete_preset(self, name):
-        # type: (str) -> None
-        if self._presets.music.get(name) is not None:
-            self._presets.music.delete(name)
-            self.expanded_presets.pop(name, None)
 
     def songs_for_trigger(self, key):
         # type: (str) -> List[str]
@@ -1052,7 +1020,7 @@ class CueMusicManager(object):
     def preview_preset(self, preset_name):
         # type: (str) -> None
         """Preview a random song from a music preset."""
-        preset = self.get_preset(preset_name)
+        preset = self._presets.music.get(preset_name)
         if preset is None:
             return
         files = self.preset_display_files(preset)

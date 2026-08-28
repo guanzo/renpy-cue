@@ -94,7 +94,7 @@ screen cue_sfx_library_content(_is_video):
             _q,
             _cue.presets.audio.list(),
             _cue.presets.video.list(),
-            _cue.intensity.list_igroups(),
+            _cue.presets.intensity.list(),
             _is_video,
             _tgt_ok,
             _unplayable))

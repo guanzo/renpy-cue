@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-# CuePresetStore -- the preset data leaf: audio + video + music presets shared
-# across games.
+# CuePresetStore -- the preset data leaf: audio + video + music + intensity
+# presets shared across games.
 #
 # CuePresets is the base preset collection: one kind's name->entry dict, the
 # session-created set, and unified CRUD + persistence.  CueAudioPresets /
-# CueVideoPresets / CueMusicPresets specialize the kind (load source,
-# migration passes, kind-specific views and create transforms).  CuePresetStore
-# is the container: it owns the shared session-created set, holds the three
-# collections as self.audio / self.video / self.music, and keeps the store's
-# original method names as one-line delegators so existing callers and tests
-# keep working.
+# CueVideoPresets / CueMusicPresets / CueIntensityPresets specialize the kind
+# (load source, migration passes, kind-specific views and create transforms).
+# CuePresetStore is the thin container: it owns the shared session-created set,
+# holds the collections as self.audio / self.video / self.music /
+# self.intensity, and keeps only cross-kind persistence (load/reload/save_all/
+# delete_removed_files).
 #
 # Lives at _cue.presets (wired in cue_z.rpy) and is injected into CueMarkerStore
 # for the two preset reads it makes (resolve_pool defaults, detach
@@ -362,12 +362,61 @@ class CueMusicPresets(CuePresets):
         return db.load_music_presets()
 
 
+class CueIntensityPresets(CuePresets):
+    """Intensity group presets: a named, ordered level list per igroup.
+
+    Igroups are shared presets like audio/video/music.  The level-editing and
+    speed-band resolution behavior stays on CueIntensityManager; this
+    collection owns the name->igroup dict and its CRUD + load-time migration
+    from the legacy ``folders`` shape."""
+
+    _kind = "intensity"
+
+    def create(self, name):  # pyright: ignore[reportIncompatibleMethodOverride]
+        # type: (str) -> Optional[str]
+        """Create an empty igroup.  Returns an error string, or None.
+
+        ``name`` is stripped; blank and duplicate names are rejected (the
+        save-dialog commit surfaces the error string)."""
+        name = name.strip()
+        if not name:
+            return "Intensity group name can't be empty."
+        if self.get(name) is not None:
+            return "An intensity group named '{}' already exists.".format(name)
+        CuePresets.create(self, name, {"levels": [], "next_ilevel_id": 1})
+        return None
+
+    def _disk(self):
+        # type: () -> Dict[str, Any]
+        db = self._db
+        if db is None or not db.is_open():
+            return {}
+        return db.load_intensity_presets()
+
+    def _migrate(self):
+        # type: () -> None
+        """One-time: a legacy ``folders`` igroup becomes a level list (one
+        folder per level, sequential ids); the multiplier arrays are dropped
+        (the ramp is now derived).  Back-writes so the migration doesn't rerun."""
+        for name, data in list(self._presets.items()):
+            if "levels" not in data and "folders" in data:
+                folders = data.get("folders", [])
+                data["levels"] = [{"id": i + 1, "files": [f]} for i, f in enumerate(folders)]
+                data["next_ilevel_id"] = len(folders) + 1
+                data.pop("folders", None)
+                data.pop("volume_multipliers", None)
+                data.pop("frequency_multipliers", None)
+                db = self._db
+                if db is not None and db.is_open():
+                    db.save_preset(self._kind, name, data)
+
+
 class CuePresetStore(object):
-    """Container over the three preset collections.
+    """Container over the preset collections.
 
     Owns the shared session-created set and the cross-kind persistence
     (load/reload/save_all/delete_removed_files).  Per-kind CRUD lives on
-    ``self.audio`` / ``self.video`` / ``self.music``.
+    ``self.audio`` / ``self.video`` / ``self.music`` / ``self.intensity``.
 
     ``on_save`` is called once after every DB write; the coordinator uses it to
     capture an undo snapshot."""
@@ -376,10 +425,11 @@ class CuePresetStore(object):
         # type: (CueDatabase, Optional[Callable[[], None]]) -> None
         self._db = db
         self._on_save = on_save
-        self._session_created = set()  # ("audio"|"video"|"music", name)
+        self._session_created = set()  # ("audio"|"video"|"music"|"intensity", name)
         self.audio = CueAudioPresets(db, self._session_created, on_save)
         self.video = CueVideoPresets(db, self._session_created, on_save)
         self.music = CueMusicPresets(db, self._session_created, None)
+        self.intensity = CueIntensityPresets(db, self._session_created, None)
 
     def reload_presets(self):
         # type: () -> None
@@ -392,14 +442,16 @@ class CuePresetStore(object):
         self.audio.reload(audio)
         self.video.reload(video)
         self.music.reload()
+        self.intensity.reload()
 
     def save_all(self):
         # type: () -> None
         """Full save of all presets to DB. Used by migration, restore, and
-        undo/redo. Fires on_save once across all three kinds."""
+        undo/redo. Fires on_save once across all four kinds."""
         self.audio._db_save_all()
         self.video._db_save_all()
         self.music._db_save_all()
+        self.intensity._db_save_all()
         self._post_save()
 
     def _post_save(self):
@@ -428,8 +480,10 @@ class CuePresetStore(object):
             self.audio._presets = {}
             self.video._presets = {}
             self.music._presets = {}
+            self.intensity._presets = {}
             return
         audio, video = db.load_presets()
         self.audio.load_from_db(audio)
         self.video.load_from_db(video)
         self.music.load_from_db()
+        self.intensity.load_from_db()

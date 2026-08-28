@@ -97,7 +97,7 @@ def test_hide_overlay(cue, monkeypatch):
 def test_full_reload_scans_and_reloads(cue):
     _runtime._cue_full_reload()
     assert cue.calls["markers.load_persistent"] == [((), {})]
-    assert cue.calls["music.reload_presets"] == [((), {})]
+    assert cue.calls["presets.reload_presets"] == [((), {})]
     assert cue.calls["sfx_manager.scan"] == [((), {})]
     assert cue.calls["music.library.scan"] == [((), {})]
 
@@ -118,7 +118,7 @@ def test_full_reload_migrates_intensity_hooks(cue):
     and post-restore all funnel through _cue_full_reload, so a legacy pool a
     user saves mid-session is converted before the next save persists it."""
     cue.marker_store = SimpleNamespace(_data={"v_scene.ogv": {"pools": [{"files": ["intensity/light/"]}]}})
-    cue.intensity = SimpleNamespace(_load=lambda: {"Light": {"levels": [{"id": 1, "files": ["intensity/light/"]}]}})
+    cue.presets.intensity._presets = {"Light": {"levels": [{"id": 1, "files": ["intensity/light/"]}]}}
     _runtime._cue_full_reload()
     pool = cue.marker_store._data["v_scene.ogv"]["pools"][0]
     assert pool["igroup"] == {"name": "Light", "level": 1}

@@ -643,7 +643,7 @@ def _content_lib(
         expanded_presets={},
         toggle_presets_expand=lambda: None,
         toggle_preset_expand=lambda n: None,
-        get_preset=lambda n: {"files": ["a.ogg", "b.ogg"]},
+        _presets=types.SimpleNamespace(music=types.SimpleNamespace(get=lambda n: {"files": ["a.ogg", "b.ogg"]})),
         preset_display_files=lambda p: ["a.ogg", "b.ogg"],
         apply_preset=lambda n: None,
         preset_remove_file=lambda n, f: None,

@@ -456,7 +456,7 @@ def _cue_igroup_search_matches(name, query):
     level file inside the group matches."""
     if _cue_query_matches(name, query):
         return True
-    data = _cue.intensity.get_igroup(name)
+    data = _cue.presets.intensity.get(name)
     if not data:
         return False
     files = []
@@ -488,7 +488,7 @@ def _cue_filter_igroup_folders(name, query):
     per-level rows.  No search or a name match keeps every level with all its
     files; a content-only match keeps just the levels with matching files and
     only those files (same semantics as _cue_filter_preset_files)."""
-    data = _cue.intensity.get_igroup(name)
+    data = _cue.presets.intensity.get(name)
     levels = data.get("levels", []) if data else []
     if not query.strip() or _cue_query_matches(name, query):
         return [{"id": level.get("id", i + 1), "files": level.get("files", [])} for i, level in enumerate(levels)]

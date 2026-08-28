@@ -773,7 +773,7 @@ def _igroup_engine(
     from cue_lib.intensity import CueIntensityManager
 
     m = CueIntensityManager(cue_env.db)
-    assert m.create_igroup("Impacts") is None
+    assert m._presets.create("Impacts") is None
     assert m.add_level("Impacts") == 1
     assert m.add_level_file("Impacts", 1, "soft/") is None
     assert m.add_level("Impacts") == 2

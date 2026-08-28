@@ -414,9 +414,9 @@ testcase audio_presets_list:
     $ _cue.is_overlay_visible = True
     run Jump("start")
     pause 2.0
-    run Function(_cue.presets.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
-    $ _ok = "Test Preset" in _cue.presets.list_presets()
-    $ _ok = _ok and _cue.presets.get_preset("Test Preset")["files"] == ["sfx_001.ogg"]
+    run Function(_cue.presets.audio.create, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    $ _ok = "Test Preset" in _cue.presets.audio.list()
+    $ _ok = _ok and _cue.presets.audio.get("Test Preset")["files"] == ["sfx_001.ogg"]
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
@@ -426,18 +426,18 @@ testcase intensity_groups_crud:
     pause 2.0
     # Registry CRUD + level editing: [+ Level] creates an empty level and
     # auto-expands group + level; add-files mode appends tree refs per level.
-    run Function(_cue.intensity.create_igroup, "Test Impacts")
-    $ _ok = "Test Impacts" in _cue.intensity.list_igroups()
-    $ _ok = _ok and _cue.intensity.get_igroup("Test Impacts")["levels"] == []
-    $ _ok = _ok and _cue.intensity.get_igroup("Test Impacts")["next_ilevel_id"] == 1
+    run Function(_cue.presets.intensity.create, "Test Impacts")
+    $ _ok = "Test Impacts" in _cue.presets.intensity.list()
+    $ _ok = _ok and _cue.presets.intensity.get("Test Impacts")["levels"] == []
+    $ _ok = _ok and _cue.presets.intensity.get("Test Impacts")["next_ilevel_id"] == 1
     run Function(_cue.sfx.library.add_level, "Test Impacts")
-    $ _ok = _ok and _cue.intensity.get_igroup("Test Impacts")["levels"] == [{"id": 1, "files": []}]
+    $ _ok = _ok and _cue.presets.intensity.get("Test Impacts")["levels"] == [{"id": 1, "files": []}]
     $ _ok = _ok and _cue.sfx.library.expanded_igroups.get("Test Impacts", False)
     $ _ok = _ok and (1 in _cue.sfx.library.expanded_ilevels.get("Test Impacts", set()))
     run Function(_cue.sfx.library.toggle_ilevel_add_mode, "Test Impacts", 1)
     $ _ok = _ok and _cue.sfx.library.ilevel_add_target == ("Test Impacts", 1)
     run Function(_cue.sfx.library.ilevel_add_folder, "Test Impacts", 1, "Sub/")
-    $ _ok = _ok and _cue.intensity.get_igroup("Test Impacts")["levels"][0]["files"] == ["Sub/"]
+    $ _ok = _ok and _cue.presets.intensity.get("Test Impacts")["levels"][0]["files"] == ["Sub/"]
     $ _ok = _ok and _cue.sfx.library.level_has_file("Test Impacts", 1, "Sub/")
     # Level folder refs render as expandable folder UI (shared with the tree).
     run Function(_cue.sfx.library.toggle_file_ref_expand, "Sub/")
@@ -448,7 +448,7 @@ testcase intensity_groups_crud:
     # button via level_has_file, so a direct call surfaces the guard).
     $ _err = _cue.intensity.add_level_file("Test Impacts", 1, "Sub/")
     $ _ok = _ok and _err is not None
-    $ _ok = _ok and _cue.intensity.get_igroup("Test Impacts")["levels"][0]["files"] == ["Sub/"]
+    $ _ok = _ok and _cue.presets.intensity.get("Test Impacts")["levels"][0]["files"] == ["Sub/"]
     run Function(_cue.sfx.library.toggle_ilevel_add_mode, "Test Impacts", 1)
     $ _ok = _ok and _cue.sfx.library.ilevel_add_target is None
     # Block + group rows compile and render on the SFX page.  Entering add
@@ -476,7 +476,7 @@ testcase intensity_groups_crud:
     $ _ok = _ok and _os.path.isdir(_cue.paths.intensity_preset_dir)
     $ _ok = _ok and len([f for f in _os.listdir(_cue.paths.intensity_preset_dir) if f.startswith("Test")]) == 1
     $ if not _ok: renpy.quit(status=1)
-    run Function(_cue.intensity.delete_igroup, "Test Impacts")
+    run Function(_cue.presets.intensity.delete, "Test Impacts")
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
@@ -487,7 +487,7 @@ testcase intensity_resolves_level_folders:
     $ _cue_test_reset()
     # Real 3-level group; band [0.7, 1.0, 1.3] lands one speed per level.
     $ _cue_intensity_folders()
-    run Function(_cue.intensity.create_igroup, "Resolve Test")
+    run Function(_cue.presets.intensity.create, "Resolve Test")
     run Function(_cue.sfx.library.add_level, "Resolve Test")
     run Function(_cue.sfx.library.ilevel_add_folder, "Resolve Test", 1, "soft/")
     run Function(_cue.sfx.library.add_level, "Resolve Test")
@@ -509,7 +509,7 @@ testcase intensity_resolves_level_folders:
     $ _ok = _ok and _r3.files == []
     # A pool not hooked to any group resolves to nothing.
     $ _ok = _ok and _cue.intensity.resolve_pool_intensity(None, None, 1.0, [0.7, 1.0, 1.3]) is None
-    run Function(_cue.intensity.delete_igroup, "Resolve Test")
+    run Function(_cue.presets.intensity.delete, "Resolve Test")
     $ _cue_intensity_cleanup()
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
@@ -521,7 +521,7 @@ testcase intensity_loop_fire_path:
     $ _cue_test_reset()
     # Real 3-level group; the loop pool hooks Level 1 (soft/).
     $ _cue_intensity_folders()
-    run Function(_cue.intensity.create_igroup, "Fire Test")
+    run Function(_cue.presets.intensity.create, "Fire Test")
     run Function(_cue.sfx.library.add_level, "Fire Test")
     run Function(_cue.sfx.library.ilevel_add_folder, "Fire Test", 1, "soft/")
     run Function(_cue.sfx.library.add_level, "Fire Test")
@@ -542,7 +542,7 @@ testcase intensity_loop_fire_path:
     $ _ok = _cue_played_from("hard/")
     $ _cue.markers.pop("l_cueimg_a", None)
     $ _cue.markers.pop("v_cueimg_a", None)
-    run Function(_cue.intensity.delete_igroup, "Fire Test")
+    run Function(_cue.presets.intensity.delete, "Fire Test")
     $ _cue_intensity_cleanup()
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
@@ -556,7 +556,7 @@ testcase intensity_toggle_master_off:
     # level's files (Level 1 = soft/) instead of the active level (hard/),
     # unscaled.  soft/ gets two files so the pick is recorded.
     $ _cue_intensity_toggle_folders()
-    run Function(_cue.intensity.create_igroup, "Toggle Test")
+    run Function(_cue.presets.intensity.create, "Toggle Test")
     run Function(_cue.sfx.library.add_level, "Toggle Test")
     run Function(_cue.sfx.library.ilevel_add_folder, "Toggle Test", 1, "soft/")
     run Function(_cue.sfx.library.add_level, "Toggle Test")
@@ -578,7 +578,7 @@ testcase intensity_toggle_master_off:
     $ _ok = _ok and _cue.trigger._vid_intensity is None
     $ _cue.markers.pop("l_cueimg_a", None)
     $ _cue.markers.pop("v_cueimg_a", None)
-    run Function(_cue.intensity.delete_igroup, "Toggle Test")
+    run Function(_cue.presets.intensity.delete, "Toggle Test")
     $ _cue_intensity_cleanup()
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
@@ -592,7 +592,7 @@ testcase intensity_toggle_sfx_levels_off:
     # (soft/) while the active level still drives volume -- intensity mode
     # stays live (the video gate is a resolution, not None).
     $ _cue_intensity_toggle_folders()
-    run Function(_cue.intensity.create_igroup, "Toggle Test")
+    run Function(_cue.presets.intensity.create, "Toggle Test")
     run Function(_cue.sfx.library.add_level, "Toggle Test")
     run Function(_cue.sfx.library.ilevel_add_folder, "Toggle Test", 1, "soft/")
     run Function(_cue.sfx.library.add_level, "Toggle Test")
@@ -613,7 +613,7 @@ testcase intensity_toggle_sfx_levels_off:
     $ _ok = _ok and _cue.trigger._vid_intensity is not None
     $ _cue.markers.pop("l_cueimg_a", None)
     $ _cue.markers.pop("v_cueimg_a", None)
-    run Function(_cue.intensity.delete_igroup, "Toggle Test")
+    run Function(_cue.presets.intensity.delete, "Toggle Test")
     $ _cue_intensity_cleanup()
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
@@ -626,7 +626,7 @@ testcase intensity_tab_view:
     # Video VFX Intensity tab: tri-state view switch, hook + mapping from the
     # live video, and the screen's flag-toggle write path.
     $ _cue_intensity_folders()
-    run Function(_cue.intensity.create_igroup, "Tab Test")
+    run Function(_cue.presets.intensity.create, "Tab Test")
     run Function(_cue.sfx.library.add_level, "Tab Test")
     run Function(_cue.sfx.library.ilevel_add_folder, "Tab Test", 1, "soft/")
     run Function(_cue.sfx.library.add_level, "Tab Test")
@@ -686,7 +686,7 @@ testcase intensity_tab_view:
     $ _ok = _ok and _cue.video_editor.tab == CueVideoEditorTab.CREATE
     run Function(_cue.video_editor.show_tab, CueVideoEditorTab.SPEED)
     $ _cue.markers.pop(_vidk, None)
-    run Function(_cue.intensity.delete_igroup, "Tab Test")
+    run Function(_cue.presets.intensity.delete, "Tab Test")
     $ _cue_intensity_cleanup()
     $ _cue_intensity_variant_cleanup()
     $ if not _ok: renpy.quit(status=1)
@@ -701,7 +701,7 @@ testcase intensity_hook_level_to_target:
     # _cue_send_level_to_target: video/loop pools get igroup + ilevel_id (files
     # cleared); image pools are one-shot and can't hold a hook -- a no-op there.
     $ _cue_intensity_folders()
-    run Function(_cue.intensity.create_igroup, "Guard A")
+    run Function(_cue.presets.intensity.create, "Guard A")
     run Function(_cue.sfx.library.add_level, "Guard A")
     run Function(_cue.sfx.library.ilevel_add_folder, "Guard A", 1, "soft/")
     run Function(_cue.sfx.library.add_level, "Guard A")
@@ -730,7 +730,7 @@ testcase intensity_hook_level_to_target:
     # Restore the default target (each legacy testcase is its own process, but
     # keep symmetric with the modern suite).
     $ _cue.markers.set_target_context(CueContextType.VIDEO)
-    run Function(_cue.intensity.delete_igroup, "Guard A")
+    run Function(_cue.presets.intensity.delete, "Guard A")
     $ _cue_intensity_cleanup()
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
@@ -744,7 +744,7 @@ testcase intensity_hook_pool_renders:
     # (preview button only -- no remove) on the Loop and Video SFX sections.
     # A render crash here fails the interaction.
     $ _cue_intensity_folders()
-    run Function(_cue.intensity.create_igroup, "Hook Render")
+    run Function(_cue.presets.intensity.create, "Hook Render")
     run Function(_cue.sfx.library.add_level, "Hook Render")
     run Function(_cue.sfx.library.ilevel_add_folder, "Hook Render", 1, "soft/")
     $ _ok = True
@@ -777,7 +777,7 @@ testcase intensity_hook_pool_renders:
     $ _cue.markers.pop(_loop_key, None)
     $ _cue.markers.pop(_vidk, None)
     $ _cue.markers.set_target_context(CueContextType.VIDEO)
-    run Function(_cue.intensity.delete_igroup, "Hook Render")
+    run Function(_cue.presets.intensity.delete, "Hook Render")
     $ _cue_intensity_cleanup()
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
@@ -794,7 +794,7 @@ testcase sfx_recently_used:
     run Function(_cue.markers.image.send_folder, "Sub/")
     $ _ok = _ok and _cue.sfx.library._recent.entries()[0] == {"type": "folder", "ref": "Sub/"}
     $ _ok = _ok and len(_cue.sfx.library._recent.entries()) == 2
-    run Function(_cue.presets.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    run Function(_cue.presets.audio.create, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
     run Function(_cue.markers.image.send_preset, "Test Preset")
     $ _ok = _ok and len(_cue.sfx.library._recent.entries()) == 3
     run Function(_cue.markers.image.send_preset, "Test Preset")
@@ -853,7 +853,7 @@ testcase sfx_target_context:
     pause 0.5
     $ if not (_cue.markers.target_context == CueContextType.VIDEO): renpy.quit(status=1)
     # Compile the preset + video preset + recently-used list rows.
-    run Function(_cue.presets.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    run Function(_cue.presets.audio.create, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
     run Function(_cue.sfx.library.toggle_presets_expand)
     run Function(_cue.sfx.library.toggle_video_presets_expand)
     # Image on screen: video target falls back to image; [+] routes there.
@@ -889,11 +889,11 @@ testcase music_presets:
     pause 2.0
     $ _ok = True
     # Create a preset from stored u:/g: refs and read it back.
-    run Function(_cue.music.create_preset, "Test Music Preset", ["u:music/song_001.ogg", "g:bgm/song_002.ogg"])
-    $ _ok = _ok and "Test Music Preset" in _cue.music.list_presets()
-    $ _ok = _ok and _cue.music.get_preset("Test Music Preset")["files"] == ["u:music/song_001.ogg", "g:bgm/song_002.ogg"]
+    run Function(_cue.presets.music.create, "Test Music Preset", ["u:music/song_001.ogg", "g:bgm/song_002.ogg"])
+    $ _ok = _ok and "Test Music Preset" in _cue.presets.music.list()
+    $ _ok = _ok and _cue.presets.music.get("Test Music Preset")["files"] == ["u:music/song_001.ogg", "g:bgm/song_002.ogg"]
     # Display rows resolve each stored ref to a My/Game Music path.
-    $ _ok = _ok and _cue.music.preset_display_files(_cue.music.get_preset("Test Music Preset")) == ["My Music/song_001.ogg", "Game Music/bgm/song_002.ogg"]
+    $ _ok = _ok and _cue.music.preset_display_files(_cue.presets.music.get("Test Music Preset")) == ["My Music/song_001.ogg", "Game Music/bgm/song_002.ogg"]
     # Expand + render the Music page so the preset rows compile and display.
     run Function(_cue.music.toggle_presets_expand)
     $ _ok = _ok and _cue.music.presets_expanded
@@ -902,8 +902,8 @@ testcase music_presets:
     run Function(_cue_set_page, CuePage.MUSIC)
     pause 0.5
     # Deleting removes it from memory and disk.
-    run Function(_cue.music.delete_preset, "Test Music Preset")
-    $ _ok = _ok and "Test Music Preset" not in _cue.music.list_presets()
+    run Function(_cue.presets.music.delete, "Test Music Preset")
+    $ _ok = _ok and "Test Music Preset" not in _cue.presets.music.list()
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
@@ -973,7 +973,7 @@ testcase video_multi_edit_fans_out:
     $ _vpools = _cue.markers.get(_vkey)["pools"]
     $ _ok = _vpools[0].get("volume") == 0.3
     $ _ok = _ok and _vpools[1].get("volume") == 0.3
-    run Function(_cue.presets.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    run Function(_cue.presets.audio.create, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
     $ _cue.markers.video.apply_preset_active("Test Preset")
     $ _vpools = _cue.markers.get(_vkey)["pools"]
     $ _ok = _ok and _vpools[0].get("preset") == "Test Preset"
@@ -1464,7 +1464,7 @@ testcase pages_render_data:
     $ _ok = True
     # Seed pool + video presets, an intensity group, recents and an expanded
     # tree folder so each section's data-driven branches actually run.
-    run Function(_cue.presets.create_preset, "Render Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    run Function(_cue.presets.audio.create, "Render Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
     run Function(_cue.markers.create_video_preset, "Render Video Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
     run Function(_cue.sfx.library.toggle_presets_expand)
     run Function(_cue.sfx.library.toggle_video_presets_expand)
@@ -1472,13 +1472,13 @@ testcase pages_render_data:
     # In-memory recents (no persistent write) so the row render runs.
     $ _cue.sfx.library._recent._entries = [{"type": "file", "ref": "sfx_001.ogg"}]
     $ _cue.sfx.library._recent.expanded = True
-    run Function(_cue.intensity.create_igroup, "Render IGroup")
+    run Function(_cue.presets.intensity.create, "Render IGroup")
     run Function(_cue.sfx.library.add_level, "Render IGroup")
     run Function(_cue.sfx.library.ilevel_add_folder, "Render IGroup", 1, "Sub/")
     run Function(_cue.sfx.library.toggle_igroups_expand)
     run Function(_cue.sfx.library.toggle_igroup_expand, "Render IGroup")
     # Music preset + recent for the Music page rows.
-    run Function(_cue.music.create_preset, "Render Music Preset", ["u:music/song_001.ogg"])
+    run Function(_cue.presets.music.create, "Render Music Preset", ["u:music/song_001.ogg"])
     run Function(_cue.music.toggle_presets_expand)
     run Function(_cue.music.toggle_preset_expand, "Render Music Preset")
     $ _cue.music._recent._entries = [{"type": "file", "ref": "u:music/song_001.ogg"}]
@@ -1496,10 +1496,10 @@ testcase pages_render_data:
     $ _ok = _ok and renpy.get_screen("cue_overlay", layer="cue_layer") is not None
     $ _ok = _ok and _cue.overlay_active_page == CuePage.SETTINGS
     # Cleanup (fresh process per legacy testcase, symmetric with modern).
-    run Function(_cue.presets.delete_preset, "Render Preset")
-    run Function(_cue.presets.delete_video_preset, "Render Video Preset")
-    run Function(_cue.intensity.delete_igroup, "Render IGroup")
-    run Function(_cue.music.delete_preset, "Render Music Preset")
+    run Function(_cue.presets.audio.delete, "Render Preset")
+    run Function(_cue.presets.video.delete, "Render Video Preset")
+    run Function(_cue.presets.intensity.delete, "Render IGroup")
+    run Function(_cue.presets.music.delete, "Render Music Preset")
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 

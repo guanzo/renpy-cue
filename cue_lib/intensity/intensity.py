@@ -10,12 +10,13 @@
 #
 # Igroups are shared presets -- one JSON per igroup under data/presets/
 # intensity/ via the db's preset store (save/delete/atomic write/_key
-# injection).  The manager keeps an in-memory registry mirroring
-# CueMarkerStore._presets and writes through to the db, which also writes the
-# disk file.
+# injection).  The name->igroup dict and its CRUD live on CueIntensityPresets
+# (injected as _cue.presets.intensity); this manager adds level editing and
+# the speed-band resolution chain on top.
 
-from cue_lib.constants import CUE_INTENSITY_FREQ_MAX, CUE_INTENSITY_PRESET_TYPE, CUE_INTENSITY_VOLUME_MAX
+from cue_lib.constants import CUE_INTENSITY_FREQ_MAX, CUE_INTENSITY_VOLUME_MAX
 from cue_lib.intensity.banding import _cue_band_speeds, _cue_resolve_level
+from cue_lib.preset_store import CueIntensityPresets
 from cue_lib.util import _cue_resolve_files
 
 MYPY = False
@@ -75,80 +76,18 @@ class CueIntensityResolution(object):
 
 
 class CueIntensityManager(object):
-    """Registry + persistence for intensity groups.
+    """Behavior over the shared CueIntensityPresets collection.
 
-    Create/rename/delete igroups and add/remove/reorder their levels.  Reads
-    go through an in-memory registry (write-invalidated, mirroring the marker
-    store's preset cache); every write also lands one JSON file on disk under
-    data/presets/intensity/ so the files are the durable source of truth."""
+    Igroups are shared presets (one JSON per igroup under data/presets/
+    intensity/ via the db's preset store).  CRUD lives on
+    _cue.presets.intensity; this manager adds level editing and the speed-band
+    resolution chain."""
 
-    def __init__(self, db):
-        # type: (CueDatabase) -> None
-        self._db = db
-        self._igroups = None  # type: Optional[Dict[str, IgroupDict]]
+    def __init__(self, db, presets=None):
+        # type: (CueDatabase, Optional[CueIntensityPresets]) -> None
+        self._presets = presets if presets is not None else CueIntensityPresets(db, set())
+        self._presets.load_from_db()
         self._band_cache = {}  # type: Dict[Any, Any]
-
-    # ------------------------------------------------------------------
-    # Reads
-    # ------------------------------------------------------------------
-
-    def _load(self):
-        # type: () -> Dict[str, IgroupDict]
-        """The registry, loaded from the db's preset store on first use.
-
-        One-time migration from the legacy ``folders`` shape: a folder list
-        becomes the level list (sequential ids, one folder per level) and the
-        two multiplier arrays are dropped (the ramp is now derived).  The
-        back-write persists the migrated shape so the migration doesn't rerun."""
-        if self._igroups is None:
-            loaded = self._db.load_intensity_presets()
-            for name, data in loaded.items():
-                if "levels" not in data and "folders" in data:
-                    folders = data.get("folders", [])
-                    data["levels"] = [{"id": i + 1, "files": [f]} for i, f in enumerate(folders)]
-                    data["next_ilevel_id"] = len(folders) + 1
-                    data.pop("folders", None)
-                    data.pop("volume_multipliers", None)
-                    data.pop("frequency_multipliers", None)
-                    self._db.save_preset(CUE_INTENSITY_PRESET_TYPE, name, data)
-            self._igroups = loaded
-        return self._igroups
-
-    def _invalidate(self):
-        # type: () -> None
-        self._igroups = None
-        self._band_cache = {}
-
-    def list_igroups(self):
-        # type: () -> List[str]
-        """Sorted igroup names."""
-        return sorted(self._load().keys())
-
-    def get_igroup(self, name):
-        # type: (str) -> Optional[IgroupDict]
-        """Stored igroup definition (includes the db's _key field), or None."""
-        return self._load().get(name)
-
-    # ------------------------------------------------------------------
-    # CRUD
-    # ------------------------------------------------------------------
-
-    def create_igroup(self, name):
-        # type: (str) -> Optional[str]
-        """Create an empty igroup.  Returns an error string, or None."""
-        name = name.strip()
-        if not name:
-            return "Intensity group name can't be empty."
-        if self.get_igroup(name) is not None:
-            return "An intensity group named '{}' already exists.".format(name)
-        data = {"levels": [], "next_ilevel_id": 1}  # type: IgroupDict
-        self._save(name, data)
-        return None
-
-    def delete_igroup(self, name):
-        # type: (str) -> None
-        self._db.delete_preset(CUE_INTENSITY_PRESET_TYPE, name)
-        self._invalidate()
 
     # ------------------------------------------------------------------
     # Level editing -- the level list IS the pool list
@@ -162,14 +101,14 @@ class CueIntensityManager(object):
 
     def add_level(self, name):
         # type: (str) -> Optional[int]
-        data = self.get_igroup(name)
+        data = self._presets.get(name)
         if data is None:
             return None
         levels = list(data.get("levels", []))
         new_id = self._new_ilevel_id(data)
         levels.append({"id": new_id, "files": []})
         data["levels"] = levels
-        self._save(name, data)
+        self._save(name)
         return new_id
 
     def _find_level(self, data, ilevel_id):
@@ -181,7 +120,7 @@ class CueIntensityManager(object):
 
     def add_level_file(self, name, ilevel_id, file_ref):
         # type: (str, int, str) -> Optional[str]
-        data = self.get_igroup(name)
+        data = self._presets.get(name)
         if data is None:
             return "No intensity group named '{}'.".format(name)
         level = self._find_level(data, ilevel_id)
@@ -191,12 +130,12 @@ class CueIntensityManager(object):
         if file_ref in files:
             return "'{}' is already in this level.".format(file_ref)
         files.append(file_ref)
-        self._save(name, data)
+        self._save(name)
         return None
 
     def remove_level_file(self, name, ilevel_id, file_ref):
         # type: (str, int, str) -> None
-        data = self.get_igroup(name)
+        data = self._presets.get(name)
         if data is None:
             return
         level = self._find_level(data, ilevel_id)
@@ -205,22 +144,22 @@ class CueIntensityManager(object):
         files = level.get("files", [])
         if file_ref in files:
             files.remove(file_ref)
-            self._save(name, data)
+            self._save(name)
 
     def remove_level(self, name, index):
         # type: (str, int) -> None
-        data = self.get_igroup(name)
+        data = self._presets.get(name)
         if data is None:
             return
         levels = list(data.get("levels", []))
         if 0 <= index < len(levels):
             del levels[index]
             data["levels"] = levels
-            self._save(name, data)
+            self._save(name)
 
     def move_level(self, name, index, delta):
         # type: (str, int, int) -> None
-        data = self.get_igroup(name)
+        data = self._presets.get(name)
         if data is None:
             return
         levels = list(data.get("levels", []))
@@ -228,11 +167,11 @@ class CueIntensityManager(object):
         if 0 <= index < len(levels) and 0 <= new_index < len(levels):
             levels[index], levels[new_index] = levels[new_index], levels[index]
             data["levels"] = levels
-            self._save(name, data)
+            self._save(name)
 
     def level_files(self, name, level_index):
         # type: (str, int) -> Optional[List[str]]
-        data = self.get_igroup(name)
+        data = self._presets.get(name)
         if data is None:
             return None
         levels = data.get("levels", [])
@@ -243,7 +182,7 @@ class CueIntensityManager(object):
 
     def level_files_by_id(self, name, ilevel_id):
         # type: (str, int) -> Optional[List[str]]
-        data = self.get_igroup(name)
+        data = self._presets.get(name)
         if data is None:
             return None
         levels = data.get("levels", [])
@@ -256,7 +195,7 @@ class CueIntensityManager(object):
 
     def level_multipliers(self, name, level_index):
         # type: (str, int) -> Tuple[float, float]
-        data = self.get_igroup(name)
+        data = self._presets.get(name)
         if data is None:
             return (1.0, 1.0)
         count = len(data.get("levels", []))
@@ -290,7 +229,7 @@ class CueIntensityManager(object):
         # type: (Optional[str], Optional[int], float, Optional[List[float]], Optional[CueIntensityFlags], Optional[Callable[[List[str]], List[str]]]) -> Optional[CueIntensityResolution]
         if igroup is None:
             return None
-        data = self.get_igroup(igroup)
+        data = self._presets.get(igroup)
         if data is None:
             return None
         levels = data.get("levels", [])
@@ -346,7 +285,7 @@ class CueIntensityManager(object):
             igroup = hook.get("name") if hook else None
             if not igroup:
                 continue
-            data = self.get_igroup(igroup)
+            data = self._presets.get(igroup)
             if data is None:
                 continue
             count = len(data.get("levels", []))
@@ -379,7 +318,7 @@ class CueIntensityManager(object):
         # type: (str, List[float]) -> Optional[List[Tuple[float, int]]]
         if not variants:
             return None
-        data = self.get_igroup(group_name)
+        data = self._presets.get(group_name)
         if data is None:
             return None
         level_count = len(data.get("levels", []))
@@ -392,7 +331,9 @@ class CueIntensityManager(object):
     # Writes
     # ------------------------------------------------------------------
 
-    def _save(self, name, data):
-        # type: (str, IgroupDict) -> None
-        self._db.save_preset(CUE_INTENSITY_PRESET_TYPE, name, data)
-        self._invalidate()
+    def _save(self, name):
+        # type: (str) -> None
+        """Persist a level-edit (data was mutated in place) and drop the band
+        cache so the new level count reshapes speed banding."""
+        self._presets.save(name)
+        self._band_cache = {}

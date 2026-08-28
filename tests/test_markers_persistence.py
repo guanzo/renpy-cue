@@ -100,9 +100,10 @@ def _make_fake_cue():
         # reload; these no-op defaults keep the restore tests focused on the
         # reload plumbing.
         marker_store=types.SimpleNamespace(_data={}),
-        intensity=types.SimpleNamespace(_load=lambda: {}),
-        # _cue_full_reload calls presets.reload_presets() after a restore
-        presets=types.SimpleNamespace(reload_presets=lambda: None),
+        intensity=types.SimpleNamespace(),
+        # _cue_full_reload calls presets.reload_presets() after a restore and
+        # runs the folder-hook migration over presets.intensity._presets
+        presets=types.SimpleNamespace(reload_presets=lambda: None, intensity=types.SimpleNamespace(_presets={})),
         markers=None,
     )
 

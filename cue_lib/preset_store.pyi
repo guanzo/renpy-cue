@@ -1,7 +1,6 @@
 # Type stub for cue_lib.preset_store
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from cue_lib._types import PoolDict, VideoPreset
 from cue_lib.db import CueDatabase
 from cue_lib.pool import CueAudioPreset, CueVideoPresetPool
 
@@ -105,6 +104,23 @@ class CueMusicPresets(CuePresets):
     def _disk(self) -> Dict[str, Any]: ...
 
 # =========================================================================
+# CueIntensityPresets
+# =========================================================================
+
+class CueIntensityPresets(CuePresets):
+    _kind: str
+
+    def __init__(
+        self,
+        db: Optional[CueDatabase],
+        session_created: Set[Tuple[str, str]],
+        on_save: Optional[Callable[[], None]] = None,
+    ) -> None: ...
+    def create(self, name: str) -> Optional[str]: ...  # pyright: ignore[reportIncompatibleMethodOverride]
+    def _disk(self) -> Dict[str, Any]: ...
+    def _migrate(self) -> None: ...
+
+# =========================================================================
 # CuePresetStore (container)
 # =========================================================================
 
@@ -114,6 +130,7 @@ class CuePresetStore:
     audio: CueAudioPresets
     video: CueVideoPresets
     music: CueMusicPresets
+    intensity: CueIntensityPresets
     _session_created: Set[Tuple[str, str]]
 
     def __init__(self, db: Optional[CueDatabase], on_save: Optional[Callable[[], None]] = None) -> None: ...

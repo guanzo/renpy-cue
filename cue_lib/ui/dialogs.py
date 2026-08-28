@@ -141,7 +141,7 @@ class CueMusicPresetDialog(CueDialogBase):
         # type: () -> None
         name = self.name.strip()
         if name and self.music_key is not None:
-            _cue.music.create_preset(name, self.songs)
+            _cue.presets.music.create(name, self.songs)
         self._reset()
         self._hide()
 
@@ -210,7 +210,7 @@ class CueIntensityGroupDialog(CueDialogBase):
 
     def commit(self):
         # type: () -> None
-        error = _cue.intensity.create_igroup(self.name)
+        error = _cue.presets.intensity.create(self.name)
         if error is None:
             self._hide()
             self._reset()
@@ -378,14 +378,14 @@ def _cue_confirm_remove_video_preset_pool(preset_name, pool_index):
 def _cue_confirm_delete_igroup(igroup_name):
     # type: (str) -> None
     _cue.dialogs.confirm.show_or_run(
-        "Delete intensity group '{}'?".format(igroup_name), Function(_cue.intensity.delete_igroup, igroup_name)
+        "Delete intensity group '{}'?".format(igroup_name), Function(_cue.presets.intensity.delete, igroup_name)
     )
 
 
 def _cue_confirm_delete_music_preset(preset_name):
     # type: (str) -> None
     _cue.dialogs.confirm.show_or_run(
-        "Delete music preset '{}'?".format(preset_name), Function(_cue.music.delete_preset, preset_name)
+        "Delete music preset '{}'?".format(preset_name), Function(_cue.presets.music.delete, preset_name)
     )
 
 

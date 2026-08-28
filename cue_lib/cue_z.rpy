@@ -226,14 +226,15 @@ init -900 python:
         db = CueDatabase(paths, backups)
         db.open()
 
-        # The preset store owns preset data (audio + video), and the marker
-        # store owns marker data.  Both on_save lambdas close over the undo
+        # The preset store owns preset data (audio + video + music + intensity),
+        # and the marker store owns marker data.  Both on_save lambdas close
+        # over the undo
         # local (late-bound: undo is built below, but capture only runs on DB
         # writes, after wiring completes).  The marker store also gets the
         # intensity manager now so its resolve_pool igroup fold is wired
         # without a late-bind.
-        intensity = CueIntensityManager(db)
         presets = CuePresetStore(db, lambda: undo.capture())
+        intensity = CueIntensityManager(db, presets.intensity)
         marker_store = CueMarkerStore(
             db, paths, lambda: undo.capture(),
             preset_store=presets, intensity=intensity)
