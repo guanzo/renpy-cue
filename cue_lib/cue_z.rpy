@@ -194,7 +194,7 @@ init -900 python:
     from cue_lib.trigger import CueTriggerEngine
     from cue_lib.video.video import CueVideoManager
     from cue_lib.volume import CueVolumeManager
-    from cue_lib.audio.music import CueMusicManager
+    from cue_lib.music.manager import CueMusicManager
     from cue_lib.video.repeater import CueMarkerRepeater
     from cue_lib.video.ffmpeg import CueFFmpeg
     from cue_lib.video.video_editor import CueVideoEditor

@@ -17,6 +17,7 @@ CUE_INTENSITY_IDEAL_LEVELS: Final = 3
 CUE_SFX_LIBRARY_HEADER: Final = "SFX Library"
 CUE_HELP_SHIFT_SKIP_DELETE: Final = "\nShift+Click to skip delete confirmation"
 CUE_AUDIO_EXTS: Final = (".ogg", ".mp3", ".wav", ".opus")
+CUE_DEFAULT_MUSIC_CHANNEL: Final = "music"
 CUE_MUSIC_PREFIX: Final = "music/"
 CUE_MY_MUSIC_FOLDER: Final = "My Music/"
 CUE_GAME_MUSIC_FOLDER: Final = "Game Music/"

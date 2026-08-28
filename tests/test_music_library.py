@@ -16,11 +16,12 @@ import renpy
 
 from renpy.store import persistent
 
-from cue_lib.audio.music import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
 from cue_lib.audio.tree.music_tree import CueMusicTree
 from cue_lib.constants import (
     CUE_GAME_MUSIC_FOLDER,
+    CUE_MUSIC_GAME_TAG,
     CUE_MUSIC_PREFIX,
+    CUE_MUSIC_USER_TAG,
     CUE_MY_MUSIC_FOLDER,
     CUE_PERSIST_MUSIC_TREE_EXPANDED,
 )

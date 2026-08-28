@@ -3,7 +3,7 @@ from typing import Any, Callable, Dict, Final, List, Optional, Set, Tuple
 
 from cue_lib.audio.tree.file_tree import CueAudioTreeManager
 from cue_lib.audio.tree.music_tree_rows import CueMusicTreeRows
-from cue_lib.audio.music import CueMusicManager
+from cue_lib.music.manager import CueMusicManager
 
 CUE_GAME_MUSIC_DIRS: Final = ("music", "bgm", "ost", "soundtrack")
 

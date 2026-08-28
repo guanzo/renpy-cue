@@ -131,6 +131,9 @@ CUE_HELP_SHIFT_SKIP_DELETE = "\nShift+Click to skip delete confirmation"
 # Audio extensions accepted by the SFX library and My Music scans.
 CUE_AUDIO_EXTS = (".ogg", ".mp3", ".wav", ".opus")
 
+# The Ren'Py music channel name detection wraps (renpy.audio.music channel).
+CUE_DEFAULT_MUSIC_CHANNEL = "music"
+
 # Prefix for My Music files stored under the shared root
 # ("music/Folder/song.ogg").  music_tree.py adds it; music.py strips it.
 CUE_MUSIC_PREFIX = "music/"

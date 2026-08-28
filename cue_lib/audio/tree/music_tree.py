@@ -28,7 +28,7 @@ CUE_GAME_MUSIC_DIRS = ("music", "bgm", "ost", "soundtrack")
 MYPY = False
 if MYPY:
     from typing import Any, Callable, Dict, List, Optional, Set
-    from cue_lib.audio.music import CueMusicManager
+    from cue_lib.music.manager import CueMusicManager
 
 
 class CueMusicTree(CueAudioTreeManager):

@@ -21,7 +21,7 @@ from cue_lib.video.video_editor import CueVideoEditor
 from cue_lib.db import CueDatabase
 from cue_lib.backup import CueBackupManager
 from cue_lib.volume import CueVolumeManager
-from cue_lib.audio.music import CueMusicManager
+from cue_lib.music.manager import CueMusicManager
 from cue_lib.settings import CueSettings
 from cue_lib.keybinds import CueKeybindsManager
 from cue_lib.ui.icons import CueIconManager
