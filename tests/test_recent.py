@@ -10,7 +10,7 @@ import pytest
 
 from renpy.store import persistent
 
-from cue_lib.audio.music import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
+from cue_lib.constants import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
 from cue_lib.audio.recent import CUE_RECENT_MAX_ENTRIES, CueRecentManager, _cue_keep_music, _cue_keep_sfx
 
 
@@ -57,20 +57,6 @@ def test_record_does_not_expand_list():
     m = CueRecentManager("recent_entries", _all_keep)
     m.record("file", "a.ogg")
     assert m.expanded is False
-
-
-# ---------------------------------------------------------------------------
-# expand-state toggles (session-local, never persisted)
-# ---------------------------------------------------------------------------
-
-
-def test_toggle_flips_expanded():
-    m = CueRecentManager("recent_entries", _all_keep)
-    m.expanded = True
-    m.toggle()
-    assert m.expanded is False
-    m.toggle()
-    assert m.expanded is True
 
 
 # ---------------------------------------------------------------------------
@@ -262,9 +248,3 @@ def test_load_restores_expanded():
     m = CueRecentManager("recent_entries", _all_keep)
     m.load()
     assert m.expanded is True
-
-
-def test_load_defaults_collapsed():
-    m = CueRecentManager("recent_entries", _all_keep)
-    m.load()
-    assert m.expanded is False

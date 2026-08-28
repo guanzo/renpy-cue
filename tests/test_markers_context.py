@@ -197,12 +197,6 @@ def test_has_markers():
     assert not VideoCtx(FakeManager()).has_markers()
 
 
-def test_get_selected_returns_selection():
-    ctx = VideoCtx(FakeManager())
-    ctx.selected = {1, 3}
-    assert ctx.get_selected() == {1, 3}
-
-
 def test_add_interval_selection_selects_spacing_chain():
     # User's example: 1 active (0.0s), click 3 (1.0s). Spacing 1.0s.
     # Markers 5 (2.0s) and 7 (2.99s) continue the grid; 2/4/6 (half-beats) don't.

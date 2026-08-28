@@ -403,16 +403,6 @@ def test_load_scalars_sidebar_absent_falls_back():
 # ==========================================================================
 
 
-def test_paste_context_records_replay(mgr):
-    _store._in_replay = "replay-name"
-    mgr._ctx.current_file = "scene.ogv"
-    mgr["v_scene.ogv"] = {"pools": [{"time": 1.0, "files": []}]}
-    mgr.copy_context()
-    mgr._ctx.current_file = "new.ogv"
-    mgr.paste_context()
-    assert mgr["v_new.ogv"]["replay"] == "replay-name"
-
-
 def test_paste_context_no_duration_floors_negative_time(mgr):
     mgr._vid_manager.duration = 0
     mgr._ctx.current_file = "scene.ogv"

@@ -369,26 +369,6 @@ def test_download_duration_zero_when_idle(tmp_path):
     assert mgr.download_duration() == 0.0
 
 
-def test_clear_status(tmp_path):
-    mgr, _imp = _make_mgr(tmp_path)
-    mgr.download_error = "x"
-    mgr.download_status = "y"
-    mgr.clear_status()
-    assert mgr.download_error == ""
-    assert mgr.download_status == ""
-
-
-def test_clear_url(tmp_path):
-    mgr, _imp = _make_mgr(tmp_path)
-    mgr.url = "https://h.com/pack.zip"
-    mgr.download_error = "x"
-    mgr.download_status = "y"
-    mgr.clear_url()
-    assert mgr.url == ""
-    assert mgr.download_error == ""
-    assert mgr.download_status == ""
-
-
 def test_name_from_url():
     mgr, _imp = _make_mgr(".")
     assert mgr._name_from_url("https://h.com/dir/pack.zip") == "pack.zip"

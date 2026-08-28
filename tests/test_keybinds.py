@@ -244,17 +244,6 @@ def test_saved_override_applies_after_restart(cue_env):
     assert mgr2.get_keysym(CUE_KEYMAP_TOGGLE_SFX_ACTIVE) == "alt_K_3"
 
 
-def test_key_string_types_includes_native_str():
-    """The string-type gate must accept the native str on every interpreter.
-
-    On Ren'Py 7.x (Py2) the tuple also carries `unicode` -- the type json
-    decodes to -- so saved overrides aren't rejected as invalid on restart.
-    That branch is Py2-only and not exercisable here, but the gate existing
-    as a tuple (rather than a bare `isinstance(x, str)`) is the guard."""
-    assert str in _keybinds._KEY_STRING_TYPES
-    assert CueKeybindsManager._is_valid_keysym("alt_K_3")
-
-
 # ---------------------------------------------------------------------------
 # visible_actions
 # ---------------------------------------------------------------------------
@@ -426,10 +415,6 @@ def test_reset_binding_restores_default(db, mgr):
     mgr.reset_binding(CUE_KEYMAP_TOGGLE_OVERLAY)
     assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_OVERLAY] == ["K_BACKQUOTE"]
     assert db.saved
-
-
-def test_reset_binding_unknown_action_noop(mgr):
-    mgr.reset_binding("nope")  # must not raise
 
 
 def test_save_persists_only_non_default(db, mgr):

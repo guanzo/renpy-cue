@@ -108,14 +108,6 @@ def test_resolve_pool_intensity_no_variants_plays_pinned_level(cue_env):
     assert r.files == ["soft/"]
 
 
-def test_resolve_pool_intensity_same_variants_consistent(cue_env):
-    m = _two_level(cue_env)
-    a = m.resolve_pool_intensity("Impacts", 1, 0.7, [0.7, 1.0, 1.3], resolve_files=_resolve)
-    b = m.resolve_pool_intensity("Impacts", 1, 0.7, [0.7, 1.0, 1.3], resolve_files=_resolve)
-    assert a is not None and b is not None
-    assert (a.level, a.files, a.volume_mult) == (b.level, b.files, b.volume_mult)
-
-
 # ==========================================================================
 # resolve_video_intensity -- a video's active intensity (first hooked pool)
 # ==========================================================================

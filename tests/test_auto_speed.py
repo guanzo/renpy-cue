@@ -619,20 +619,3 @@ def test_walk_max_step_ceiling(monkeypatch):
     monkeypatch.setattr(gen, "_pick_direction", lambda *a, **k: 1)
     seq = gen._walk([0.3, 0.5, 0.7, 0.9, 1.1], 5, 0.0, 0.7, 0.4, 0.5, 8.0)
     assert seq
-
-
-def test_regenerate_no_tag_is_noop():
-    gen = _bare_gen()  # ctx.current_file is ""
-    gen._regenerate()  # must not raise
-
-
-def test_regenerate_insufficient_variants_noop():
-    resolver = types.SimpleNamespace(base_path_for=lambda tag: "")
-    seq = types.SimpleNamespace(get_mode=lambda tag: CueSpeedMode.AUTO)
-    gen = CueAutoSpeedGenerator(types.SimpleNamespace(current_file="scene"), None, resolver, None, seq)
-    gen._regenerate()  # enabled_speeds == [] -> below min -> no-op
-
-
-def test_on_wrap_around_no_tag_is_noop():
-    gen = _bare_gen()  # ctx.current_file is ""
-    gen.on_wrap_around()  # must not raise

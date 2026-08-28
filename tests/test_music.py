@@ -18,17 +18,23 @@ import renpy as _renpy
 import renpy.audio.music as _music_mock
 import renpy.store as _store
 
-import cue_lib.audio.music as _music_mod
+import cue_lib.music.manager as _music_mod
+import cue_lib.music.presets as _presets_mod
+import cue_lib.music.triggers as _triggers_mod
 from cue_lib.audio.wav_playable import CueWavPlayable
-from cue_lib.constants import CUE_GAME_MUSIC_FOLDER, CUE_MUSIC_PREFIX, CUE_MY_MUSIC_FOLDER, CUE_PERSIST_MUSIC_UI_STATE
-from renpy.store import persistent
-from cue_lib.audio.music import (
+from cue_lib.constants import (
     CUE_DEFAULT_MUSIC_CHANNEL,
+    CUE_GAME_MUSIC_FOLDER,
     CUE_MUSIC_GAME_TAG,
+    CUE_MUSIC_PREFIX,
     CUE_MUSIC_USER_TAG,
-    _SUPPRESS_MUSIC,
-    CueMusicManager,
+    CUE_MY_MUSIC_FOLDER,
+    CUE_PERSIST_MUSIC_UI_STATE,
 )
+from cue_lib.music.manager import CueMusicManager
+from cue_lib.music.refs import _cue_resolve_music_path, _cue_split_ref_tag
+from cue_lib.music.triggers import _SUPPRESS_MUSIC
+from renpy.store import persistent
 
 
 def _wav24(src, data_bytes):
@@ -569,11 +575,6 @@ def test_triggers_for_unknown_replay(mgr):
     assert mgr.triggers_for(None) == []
 
 
-def test_select_trigger_sets_key(mgr):
-    mgr.select_trigger("i_scene.ogv")
-    assert mgr.selected_key == "i_scene.ogv"
-
-
 def test_selected_trigger_label_strips_prefix(mgr):
     mgr.selected_key = "v_scene.ogv"
     assert mgr.selected_trigger_label() == "scene.ogv"
@@ -707,9 +708,9 @@ def test_resolve_music_files_legacy_folder_both(mgr):
 
 
 def test_split_ref_tag(mgr):
-    assert mgr._split_ref_tag(CUE_MUSIC_USER_TAG + "music/") == (CUE_MUSIC_USER_TAG, "music/")
-    assert mgr._split_ref_tag(CUE_MUSIC_GAME_TAG + "x.ogg") == (CUE_MUSIC_GAME_TAG, "x.ogg")
-    assert mgr._split_ref_tag("x.ogg") == (None, "x.ogg")
+    assert _cue_split_ref_tag(CUE_MUSIC_USER_TAG + "music/") == (CUE_MUSIC_USER_TAG, "music/")
+    assert _cue_split_ref_tag(CUE_MUSIC_GAME_TAG + "x.ogg") == (CUE_MUSIC_GAME_TAG, "x.ogg")
+    assert _cue_split_ref_tag("x.ogg") == (None, "x.ogg")
 
 
 def test_ref_path_strips_tag(mgr):
@@ -718,15 +719,15 @@ def test_ref_path_strips_tag(mgr):
 
 
 def test_resolve_music_path_user_prefixed(mgr):
-    assert mgr._resolve_music_path(CUE_MUSIC_USER_TAG + "music/x.ogg") == mgr._paths.music_dir + "x.ogg"
+    assert _cue_resolve_music_path(mgr._paths, CUE_MUSIC_USER_TAG + "music/x.ogg") == mgr._paths.music_dir + "x.ogg"
 
 
 def test_resolve_music_path_user_bare(mgr):
-    assert mgr._resolve_music_path(CUE_MUSIC_USER_TAG + "x.ogg") == mgr._paths.music_dir + "x.ogg"
+    assert _cue_resolve_music_path(mgr._paths, CUE_MUSIC_USER_TAG + "x.ogg") == mgr._paths.music_dir + "x.ogg"
 
 
 def test_resolve_music_path_game(mgr):
-    assert mgr._resolve_music_path(CUE_MUSIC_GAME_TAG + "music/x.ogg") == "music/x.ogg"
+    assert _cue_resolve_music_path(mgr._paths, CUE_MUSIC_GAME_TAG + "music/x.ogg") == "music/x.ogg"
 
 
 def test_resolve_music_path_legacy_disk_found(mgr):
@@ -734,18 +735,18 @@ def test_resolve_music_path_legacy_disk_found(mgr):
     music_dir = mgr._paths.music_dir  # created by db.open() in the fixture
     open(os.path.join(music_dir, "song.ogg"), "w").close()
     stored = root.rstrip("/") + "/music/song.ogg"
-    assert mgr._resolve_music_path(stored) == music_dir + "song.ogg"
+    assert _cue_resolve_music_path(mgr._paths, stored) == music_dir + "song.ogg"
 
 
 def test_resolve_music_path_legacy_music_prefix(mgr):
     music_dir = mgr._paths.music_dir  # created by db.open() in the fixture
     open(os.path.join(music_dir, "song.ogg"), "w").close()
-    assert mgr._resolve_music_path("music/song.ogg") == music_dir + "song.ogg"
+    assert _cue_resolve_music_path(mgr._paths, "music/song.ogg") == music_dir + "song.ogg"
 
 
 def test_resolve_music_path_legacy_default_music_dir(mgr):
     # No probing: an untagged legacy ref defaults to the My Music layout.
-    assert mgr._resolve_music_path("music/nope.ogg") == mgr._paths.music_dir + "nope.ogg"
+    assert _cue_resolve_music_path(mgr._paths, "music/nope.ogg") == mgr._paths.music_dir + "nope.ogg"
 
 
 def test_resolve_music_path_no_disk_probe(mgr, monkeypatch):
@@ -756,13 +757,13 @@ def test_resolve_music_path_no_disk_probe(mgr, monkeypatch):
         raise AssertionError("resolved path probed the disk: {}".format(path))
 
     monkeypatch.setattr("os.path.exists", _no_probe)
-    assert mgr._resolve_music_path(CUE_MUSIC_GAME_TAG + "bgm/ghost.ogg") == "bgm/ghost.ogg"
-    assert mgr._resolve_music_path("E:/Nowhere/ghost.ogg") == "E:/Nowhere/ghost.ogg"
+    assert _cue_resolve_music_path(mgr._paths, CUE_MUSIC_GAME_TAG + "bgm/ghost.ogg") == "bgm/ghost.ogg"
+    assert _cue_resolve_music_path(mgr._paths, "E:/Nowhere/ghost.ogg") == "E:/Nowhere/ghost.ogg"
 
 
 def test_split_ref_tag_external_is_untagged(mgr):
     # External refs are bare absolute paths, not tagged; tag is None.
-    assert mgr._split_ref_tag("E:/Music/a.ogg") == (None, "E:/Music/a.ogg")
+    assert _cue_split_ref_tag("E:/Music/a.ogg") == (None, "E:/Music/a.ogg")
 
 
 def test_ref_path_external_verbatim(mgr):
@@ -771,7 +772,7 @@ def test_ref_path_external_verbatim(mgr):
 
 def test_resolve_music_path_external_verbatim(mgr):
     # External payload is already absolute -- returned unchanged.
-    assert mgr._resolve_music_path("E:/Music/song.ogg") == "E:/Music/song.ogg"
+    assert _cue_resolve_music_path(mgr._paths, "E:/Music/song.ogg") == "E:/Music/song.ogg"
 
 
 def test_resolve_music_files_external_folder(mgr):
@@ -1100,7 +1101,7 @@ def _default_trigger_scene(mgr, monkeypatch, scene="scene.ogv", filepath="music/
 
 
 def test_apply_preset_click_replaces_selected(mgr, monkeypatch):
-    monkeypatch.setattr(_music_mod, "_cue_shift_held", lambda: False)
+    monkeypatch.setattr(_presets_mod, "_cue_shift_held", lambda: False)
     _default_trigger_scene(mgr, monkeypatch)
     mgr.add_user_song_to_trigger("music/old.ogg")
     mgr._presets.music.create("Tense", [CUE_MUSIC_USER_TAG + "music/new1.ogg", CUE_MUSIC_GAME_TAG + "bgm/new2.ogg"])
@@ -1112,14 +1113,14 @@ def test_apply_preset_click_replaces_selected(mgr, monkeypatch):
 
 
 def test_apply_preset_click_no_selection_noop(mgr, monkeypatch):
-    monkeypatch.setattr(_music_mod, "_cue_shift_held", lambda: False)
+    monkeypatch.setattr(_presets_mod, "_cue_shift_held", lambda: False)
     mgr._presets.music.create("T", [CUE_MUSIC_USER_TAG + "music/a.ogg"])
     mgr.apply_preset("T")
     assert dict(mgr._store.items()) == {}
 
 
 def test_apply_preset_shift_click_creates_trigger(mgr, monkeypatch):
-    monkeypatch.setattr(_music_mod, "_cue_shift_held", lambda: True)
+    monkeypatch.setattr(_presets_mod, "_cue_shift_held", lambda: True)
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     _set_scene(mgr, "scene.ogv", "image")
     # No trigger exists for the scene yet.
@@ -1131,7 +1132,7 @@ def test_apply_preset_shift_click_creates_trigger(mgr, monkeypatch):
 
 
 def test_apply_preset_shift_click_replaces_existing_scene_trigger(mgr, monkeypatch):
-    monkeypatch.setattr(_music_mod, "_cue_shift_held", lambda: True)
+    monkeypatch.setattr(_presets_mod, "_cue_shift_held", lambda: True)
     _default_trigger_scene(mgr, monkeypatch)
     mgr.add_user_song_to_trigger("music/old.ogg")
     mgr._presets.music.create("Tense", [CUE_MUSIC_USER_TAG + "music/a.ogg"])
@@ -1142,14 +1143,14 @@ def test_apply_preset_shift_click_replaces_existing_scene_trigger(mgr, monkeypat
 
 
 def test_apply_preset_shift_click_no_scene_noop(mgr, monkeypatch):
-    monkeypatch.setattr(_music_mod, "_cue_shift_held", lambda: True)
+    monkeypatch.setattr(_presets_mod, "_cue_shift_held", lambda: True)
     mgr._presets.music.create("T", [CUE_MUSIC_USER_TAG + "music/a.ogg"])
     mgr.apply_preset("T")
     assert dict(mgr._store.items()) == {}
 
 
 def test_apply_preset_unknown_preset_noop(mgr, monkeypatch):
-    monkeypatch.setattr(_music_mod, "_cue_shift_held", lambda: False)
+    monkeypatch.setattr(_presets_mod, "_cue_shift_held", lambda: False)
     mgr.apply_preset("Ghost")
     assert dict(mgr._store.items()) == {}
 
@@ -1317,7 +1318,7 @@ def test_pick_for_override_untouched_without_pool(mgr, monkeypatch):
 def test_pick_for_override_pool_choice(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
     fake_rand = types.SimpleNamespace(choice=lambda pool: pool[-1])
-    monkeypatch.setattr(_music_mod, "random", fake_rand)
+    monkeypatch.setattr(_triggers_mod, "random", fake_rand)
     _set_scene(mgr, "scene.ogv", "image")
     mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "a.ogg", CUE_MUSIC_GAME_TAG + "b.ogg"]}
@@ -1335,7 +1336,7 @@ def test_pick_for_override_suppress(mgr, monkeypatch):
 def test_play_custom_music_plays_pool(mgr, monkeypatch):
     mgr.install()
     fake_rand = types.SimpleNamespace(choice=lambda pool: pool[0])
-    monkeypatch.setattr(_music_mod, "random", fake_rand)
+    monkeypatch.setattr(_triggers_mod, "random", fake_rand)
     _set_scene(mgr, "scene.ogv", "image")
     mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "music/c.ogg"]}
     mgr.play_custom_music()

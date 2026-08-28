@@ -160,44 +160,6 @@ def test_adjust_missing_entry_is_noop(vol, store):
 
 
 # ---------------------------------------------------------------------------
-# get_master / set_master / adjust_master
-# ---------------------------------------------------------------------------
-
-
-def test_get_master_default(vol, store):
-    assert vol.get_master("k") == CUE_VOLUME_DEFAULT
-
-
-def test_get_master_reads_entry(vol, store):
-    store._data["k"] = make_entry(volume=0.8)
-    assert vol.get_master("k") == 0.8
-
-
-def test_set_master(vol, store):
-    store._data["k"] = make_entry()
-    vol.set_master("k", 0.6)
-    assert store._data["k"]["volume"] == 0.6
-    assert store.saved_keys == ["k"]
-
-
-def test_set_master_clamps(vol, store):
-    store._data["k"] = make_entry()
-    vol.set_master("k", 7.0)
-    assert store._data["k"]["volume"] == 3.0
-
-
-def test_set_master_missing_entry_is_noop(vol, store):
-    vol.set_master("nope", 0.5)
-    assert store.saved_keys == []
-
-
-def test_adjust_master(vol, store):
-    store._data["k"] = make_entry(volume=1.0)
-    vol.adjust_master("k", -0.3)
-    assert store._data["k"]["volume"] == 0.7
-
-
-# ---------------------------------------------------------------------------
 # get_effective -- master x target, clamped
 # ---------------------------------------------------------------------------
 

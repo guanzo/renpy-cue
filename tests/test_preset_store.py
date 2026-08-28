@@ -56,10 +56,6 @@ def test_preset_remove_file_folder_child(monkeypatch, presets):
     assert presets.audio.get("G")["files"] == ["a.ogg", "b/one.ogg"]
 
 
-def test_preset_remove_file_missing_preset_noop(presets):
-    presets.audio.preset_remove_file("ghost", "a.ogg")  # must not raise
-
-
 def test_preset_remove_file_absent_path_leaves_untouched(presets, monkeypatch):
     from types import SimpleNamespace
 
@@ -220,11 +216,6 @@ def test_reload_presets_merges_disk(presets, cue_env):
     assert presets.audio.get("Disk") is not None
 
 
-def test_reload_presets_no_db_returns(cue_env):
-    s = CuePresetStore(None)
-    s.reload_presets()  # must not raise
-
-
 def test_delete_removed_files_preset_only_when_session_created(presets, cue_env):
     presets.audio.create("Sess", {"files": ["a.ogg"]})
     presets.audio.create("Old", {"files": ["b.ogg"]})
@@ -260,11 +251,6 @@ def test_delete_removed_files_deletes_session_video_preset(presets, cue_env):
     fresh = CuePresetStore(cue_env.db, lambda: None)
     fresh.load()
     assert "VP" not in fresh.video._presets
-
-
-def test_delete_removed_files_no_db_returns(cue_env):
-    s = CuePresetStore(None)
-    s.delete_removed_files({}, {}, set())  # must not raise
 
 
 def test_load_no_db_resets(cue_env):

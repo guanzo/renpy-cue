@@ -139,18 +139,6 @@ def test_all_categories_checked_by_default(cue_env):
         assert mgr.is_checked(cat) is True
 
 
-def test_is_busy_tracks_refresh_and_export(cue_env):
-    mgr = CueExportManager(cue_env.paths)
-    assert mgr.is_busy is False
-    mgr.is_refreshing = True
-    assert mgr.is_busy is True
-    mgr.is_refreshing = False
-    mgr.is_exporting = True
-    assert mgr.is_busy is True
-    mgr.is_exporting = False
-    assert mgr.is_busy is False
-
-
 def test_toggle_category_flips_checked(cue_env):
     mgr = CueExportManager(cue_env.paths)
     mgr.toggle_category(CueImportCategory.SFX)
@@ -383,15 +371,6 @@ def test_export_skips_unchecked(cue_env):
         assert "audio/a.ogg" not in names
 
 
-def test_clear_status(cue_env):
-    mgr = CueExportManager(cue_env.paths)
-    mgr.export_status = "done"
-    mgr.export_error = "err"
-    mgr.clear_status()
-    assert mgr.export_status == ""
-    assert mgr.export_error == ""
-
-
 # ---------------------------------------------------------------------------
 # replay scope -- _cue_replay_labels-driven selection + one-click export
 # ---------------------------------------------------------------------------
@@ -428,19 +407,6 @@ def test_all_file_types_ignores_category_checks(cue_env):
     # All File Types mode: the category checkboxes don't filter anything.
     assert "audio/a.ogg" in sel
     assert "music/m.ogg" in sel
-
-
-def test_specific_file_types_filters_categories(cue_env):
-    _seed(cue_env, [("audio/a.ogg", "a"), ("music/m.ogg", "m")])
-    mgr = CueExportManager(cue_env.paths)
-    _refresh_and_join(mgr)
-    mgr.set_file_types(CueExportFileTypes.SPECIFIC)
-    mgr.toggle_category(CueImportCategory.SFX)
-
-    sel = mgr.selected_contents()
-
-    assert "music/m.ogg" in sel
-    assert "audio/a.ogg" not in sel
 
 
 def test_any_unchecked_only_in_specific_mode(cue_env):

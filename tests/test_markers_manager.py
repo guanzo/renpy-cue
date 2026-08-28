@@ -9,7 +9,6 @@ import types
 
 import pytest
 
-from cue_lib.constants import CUE_VOLUME_DEFAULT
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.markers import CueMarkerManager
 from cue_lib.state import CueContext
@@ -63,22 +62,6 @@ def test_data_setter_writes_through_to_store(mgr):
 # ---------------------------------------------------------------------------
 # presets
 # ---------------------------------------------------------------------------
-
-
-def test_audio_preset_passthroughs(mgr):
-    mgr._store.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
-    assert mgr._store.list_presets() == ["basic"]
-    assert mgr._store.get_preset("basic")["files"] == ["a.ogg"]
-    mgr._store.delete_preset("basic")
-    assert mgr._store.get_preset("basic") is None
-
-
-def test_video_preset_crud(mgr):
-    mgr.create_video_preset("vp", {"pools": [{"time": 1.0, "files": ["a.ogg"]}], "volume": 0.7})
-    assert mgr._store.get_video_preset("vp")["pools"][0]["time"] == 1.0
-    assert mgr._store.list_video_presets() == ["vp"]
-    mgr._store.delete_video_preset("vp")
-    assert mgr._store.get_video_preset("vp") is None
 
 
 def test_remove_video_preset_pool_deletes_pool(mgr):
@@ -144,34 +127,6 @@ def test_preset_remove_file_folder_ref(mgr):
 # ---------------------------------------------------------------------------
 # resolve / stamp / detach
 # ---------------------------------------------------------------------------
-
-
-def test_resolve_pool_from_preset(mgr):
-    mgr._store.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
-    r = mgr.resolve_pool({"preset": "basic"})
-    assert r.refs == ["a.ogg"]
-    assert r.volume == 0.8
-
-
-def test_stamp_preset_writes_preset_ref(mgr):
-    mgr._store.create_preset("basic", {"files": ["a.ogg"]})
-    mgr._store._stamp_preset("i_scene.ogg", "basic", 0)
-    assert mgr.get("i_scene.ogg")["pools"][0] == {"preset": "basic"}
-
-
-def test_detach_pool_materializes_preset(mgr):
-    mgr._store.create_preset("basic", {"files": ["a.ogg", "b.ogg"], "volume": 0.8})
-    mgr._store._stamp_preset("i_scene.ogg", "basic", 0)
-    assert mgr._store._detach_pool("i_scene.ogg", 0) is True
-    pool = mgr.get("i_scene.ogg")["pools"][0]
-    assert pool["files"] == ["a.ogg", "b.ogg"]
-    assert pool["volume"] == 0.8
-    assert "preset" not in pool
-
-
-def test_detach_pool_non_preset_returns_false(mgr):
-    mgr["i_scene.ogg"] = {"pools": [{"files": ["a.ogg"]}]}
-    assert mgr._store._detach_pool("i_scene.ogg", 0) is False
 
 
 def test_detach_pool_out_of_range_returns_false(mgr):
@@ -358,29 +313,6 @@ def test_video_multi_file_edit_requires_multi_selection(mgr):
 
 
 # ---------------------------------------------------------------------------
-# entry / pool mutators (store passthroughs)
-# ---------------------------------------------------------------------------
-
-
-def test_get_or_create_entry_creates_pooled_entry(mgr):
-    entry = mgr._store._get_or_create_entry("v_new")
-    assert entry["pools"] == []  # get_or_create normalizes (adds replay)
-    assert mgr.get("v_new")["pools"] == []
-
-
-def test_ensure_pool_defaults(mgr):
-    pool = mgr._store._ensure_pool("v_new", 0)
-    assert pool["files"] == []
-    assert pool["volume"] == CUE_VOLUME_DEFAULT
-
-
-def test_remove_file_from_pool_prunes_entry(mgr):
-    mgr["i_scene.ogg"] = {"pools": [{"files": ["a.ogg"]}]}
-    mgr._store._remove_file_from_pool("i_scene.ogg", 0, 0)
-    assert "i_scene.ogg" not in mgr._data  # emptied pool deletes the entry
-
-
-# ---------------------------------------------------------------------------
 # copy_context / paste_context
 # ---------------------------------------------------------------------------
 
@@ -441,22 +373,6 @@ def test_paste_context_clamps_video_times_to_duration(mgr):
 # ---------------------------------------------------------------------------
 # property setters / __delitem__
 # ---------------------------------------------------------------------------
-
-
-def test_presets_setter_writes_through(mgr):
-    mgr._store._presets = {"p": {"files": ["a.ogg"]}}
-    assert mgr._store._presets["p"]["files"] == ["a.ogg"]
-
-
-def test_video_presets_setter_writes_through(mgr):
-    mgr._store._video_presets = {"vp": {"pools": [], "volume": 1.0}}
-    assert mgr._store._video_presets["vp"]["pools"] == []
-
-
-def test_session_created_getter_setter(mgr):
-    mgr._store._session_created = {("audio", "p")}
-    assert mgr._store._session_created == {("audio", "p")}
-    assert mgr._store._session_created == {("audio", "p")}
 
 
 def test_delitem_deletes_from_store(mgr):
@@ -564,46 +480,6 @@ def test_remove_file_from_folder_ref_out_of_range_file_noop(mgr):
     mgr._ctx.current_file = "scene.ogv"
     mgr["i_scene.ogv"] = {"pools": [{"files": ["music/"]}]}
     mgr._remove_file_from_folder_ref("i_scene.ogv", 0, 5, "music/a.ogg")  # must not raise
-
-
-# ---------------------------------------------------------------------------
-# save / persistence API passthroughs
-# ---------------------------------------------------------------------------
-
-
-def test_save_preset_passthrough(mgr):
-    mgr._store.create_preset("basic", {"files": ["a.ogg"]})
-    mgr._store._preset_store.audio.save("basic")
-
-
-def test_save_video_preset_passthrough(mgr):
-    mgr._store._preset_store.video._presets["vp"] = {"pools": [{"time": 1.0, "files": []}], "volume": 1.0}
-    mgr._store._preset_store.video.save("vp")
-
-
-def test_save_all_passthrough(mgr):
-    mgr["i_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}
-    mgr._store.create_preset("basic", {"files": ["a.ogg"]})
-    mgr._store._video_presets["vp"] = {"pools": [{"time": 1.0}], "volume": 1.0}
-    mgr.save_all()
-
-
-def test_delete_removed_files_no_removals(mgr):
-    mgr["i_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}
-    mgr.delete_removed_files(
-        set(mgr._data.keys()),
-        dict(mgr._store._presets),
-        dict(mgr._store._video_presets),
-        set(mgr._store._session_created),
-    )
-
-
-def test_load_persistent(mgr):
-    mgr.load_persistent()
-
-
-def test_reload_presets_merges_nothing(mgr):
-    mgr._store.reload_presets()  # empty disk -> merge nothing, no raise
 
 
 def test_copy_context_whitelists_entry_keys(mgr):

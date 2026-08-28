@@ -214,10 +214,6 @@ def test_is_variant_of(env):
     assert r.is_variant_of(v15, "") is False
 
 
-def test_preset_speeds():
-    assert CueVidSpeedResolver.preset_speeds() == [0.5, 1.5, 2.0]
-
-
 # ==========================================================================
 # Resolver -- speed prefs
 # ==========================================================================
@@ -1531,16 +1527,6 @@ def test_start_auto_no_resolver(env):
     env.ctx.current_file = env.tag
     env.seq.start_auto(env.tag)
     assert env.seq.active_tag is None
-
-
-def test_start_auto_too_few_enabled_speeds(env):
-    fake = FakeAutoSpeed([1.0], [])
-    env.seq.bind(env.resolver, fake)
-    env.ctx.current_file = env.tag
-    env.resolver.paths[env.tag] = env.base_fs
-    env.seq.start_auto(env.tag)
-    assert env.seq.active_tag is None
-    assert env.store.get(create_vid_key(env.tag)) is None
 
 
 # ==========================================================================

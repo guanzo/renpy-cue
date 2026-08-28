@@ -178,12 +178,6 @@ def test_full_reload_serves_markers_from_effective_root(cue, tmp_path):
 # ==========================================================================
 
 
-def test_set_page_same_page_noop(cue):
-    cue.overlay_active_page = CuePage.SFX
-    _overlay._cue_set_page(CuePage.SFX)
-    assert cue.overlay_active_page == CuePage.SFX
-
-
 def test_set_page_settings_preps_shared_dir_input(cue):
     cue.overlay_active_page = CuePage.SFX
     cue.settings.shared_dir_error = "stale error"

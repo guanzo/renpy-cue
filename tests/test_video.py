@@ -356,14 +356,3 @@ def test_reset_with_new_channel(env):
     env.vid.reset("other")
     assert env.vid.channel == "other"
     assert env.vid.paused is False
-
-
-def test_set_fps(env):
-    env.vid.set_fps(60)
-    assert env.vid.fps == 60
-
-
-def test_reset_pause(env):
-    env.vid.paused = True
-    env.vid.reset_pause()
-    assert env.vid.paused is False

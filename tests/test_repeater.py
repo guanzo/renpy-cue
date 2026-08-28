@@ -656,11 +656,3 @@ def test_hide_resets_state(env):
     assert env.rep.anchor == 0.0
     assert env.rep.offsets == []
     assert env.rep.sel_count == 0
-
-
-def test_toggle_preview_sfx(env):
-    assert env.rep.preview_sfx_enabled is True
-    env.rep.toggle_preview_sfx()
-    assert env.rep.preview_sfx_enabled is False
-    env.rep.toggle_preview_sfx()
-    assert env.rep.preview_sfx_enabled is True

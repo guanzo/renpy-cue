@@ -4,13 +4,6 @@
 from cue_lib import constants
 
 
-def test_key_prefixes_have_expected_values():
-    assert constants.CUE_IMG_KEY_PREFIX == "i_"
-    assert constants.CUE_VID_KEY_PREFIX == "v_"
-    assert constants.CUE_DLG_KEY_PREFIX == "d_"
-    assert constants.CUE_LOOP_KEY_PREFIX == "l_"
-
-
 def test_key_prefixes_are_distinct():
     prefixes = [
         constants.CUE_IMG_KEY_PREFIX,

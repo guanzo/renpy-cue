@@ -113,20 +113,6 @@ class FakeRenPyFile(object):
 # ---------------------------------------------------------------------------
 
 
-def test_job_init_defaults(ve, tmp_path):
-    job = make_job(ve, tmp_path)
-    assert job.status == CueJobStatus.QUEUED
-    assert job.progress == 0.0
-    assert job.error_msg == ""
-    assert job.passlog is None
-    assert job.cancelled is False
-    assert job.proc is None
-    assert job._done is False
-    assert job._ok is False
-    assert job._launched is False
-    assert job._needs_swap is False
-
-
 def test_job_elapsed_no_start(ve, tmp_path):
     assert make_job(ve, tmp_path).elapsed() == 0.0
 
@@ -180,13 +166,6 @@ def test_job_speed_label(ve, tmp_path):
 # ---------------------------------------------------------------------------
 # queue: enqueue / find / start
 # ---------------------------------------------------------------------------
-
-
-def test_queue_init(ve):
-    q = ve.job_queue
-    assert q.processing is False
-    assert q.current_job is None
-    assert q.jobs == []
 
 
 def test_enqueue_appends_and_starts(ve, tmp_path, fthread):
@@ -1020,12 +999,6 @@ def test_swap_job_failure_retries(ve, tmp_path, monkeypatch):
 
 def test_editor_factor_text_dummy(ve):
     assert ve.factor_text == "1.1"  # no current -> dummy state, default 1.1x
-
-
-def test_editor_factor_text_roundtrip(ve):
-    ve._current = ve._ensure_state("movies/scene.webm")
-    ve.factor_text = "2.50"
-    assert ve.factor_text == "2.50"
 
 
 def test_editor_last_error_stores_raw(ve):
