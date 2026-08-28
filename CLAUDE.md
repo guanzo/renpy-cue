@@ -1,6 +1,6 @@
 # Ren'Py Compatibility
 
-Code must support Ren'Py 7.4+ (both 7.x and 8.x).
+Code must support Ren'Py 7.4+ (both 7.x and 8.x). 7.2–7.3.x is best effort only: compatibility fixes there are limited to simple workarounds or the feature is disabled.
 
 ## Python Restrictions
 

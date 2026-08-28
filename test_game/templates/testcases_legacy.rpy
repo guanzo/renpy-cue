@@ -305,6 +305,39 @@ testcase import_banner_render:
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
+testcase overlay_render_sweep:
+    $ _cue.is_overlay_visible = True
+    run Jump("start")
+    pause 2.0
+    # Render smoke for every sidebar page: a screen error in any page fails
+    # its interaction, so the pauses are the real assertions. The explicit
+    # checks guard against a page that renders but never activates.
+    $ _ok = True
+    run Function(_cue_set_page, CuePage.SFX)
+    pause 0.5
+    $ _ok = _ok and (_cue.overlay_active_page == CuePage.SFX)
+    run Function(_cue_set_page, CuePage.MUSIC)
+    pause 0.5
+    $ _ok = _ok and (_cue.overlay_active_page == CuePage.MUSIC)
+    run Function(_cue_set_page, CuePage.IMPORT)
+    pause 0.5
+    $ _ok = _ok and (_cue.overlay_active_page == CuePage.IMPORT)
+    run Function(_cue_set_page, CuePage.SETTINGS)
+    pause 0.5
+    $ _ok = _ok and (_cue.overlay_active_page == CuePage.SETTINGS)
+    # Sidebar mode re-renders the SFX page as the compact library sidebar.
+    run Function(_cue_set_page, CuePage.SFX)
+    pause 0.5
+    run Function(_cue.sfx.library.toggle_sidebar_mode)
+    pause 0.5
+    $ _ok = _ok and (_cue.sfx.library.is_sidebar_mode is True)
+    $ _ok = _ok and (renpy.get_screen("cue_overlay", layer="cue_layer") is not None)
+    run Function(_cue.sfx.library.toggle_sidebar_mode)
+    pause 0.5
+    $ _ok = _ok and (_cue.sfx.library.is_sidebar_mode is False)
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
 testcase import_export_roundtrip:
     $ _cue.is_overlay_visible = True
     run Jump("start")

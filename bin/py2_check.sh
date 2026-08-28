@@ -1,6 +1,6 @@
 #!/bin/sh
 # Usage: bin/py2_check.sh [SDK_DIR]
-#   SDK_DIR defaults to .local/renpy-7.4.10-sdk (repo-relative).
+#   SDK_DIR defaults to .local/renpy-sdk/renpy-7.4.10-sdk (repo-relative).
 #
 # Python 2.7 (Ren'Py 7.x) is the base runtime requirement for cue_lib. pytest
 # runs under py3 with a mock renpy, so it cannot catch py2-only breaks: py3.6+
@@ -20,7 +20,7 @@
 ROOT="$(cd "$(dirname "$0")/.."; pwd)"
 cd "$ROOT"
 
-SDK="${1:-$ROOT/.local/renpy-7.4.10-sdk}"
+SDK="${1:-$ROOT/.local/renpy-sdk/renpy-7.4.10-sdk}"
 case "$SDK" in
     /*) ;;
     *)  SDK="$ROOT/$SDK" ;;

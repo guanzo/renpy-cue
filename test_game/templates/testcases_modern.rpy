@@ -198,6 +198,28 @@ testcase import_banner_render:
     run Function(_cue.importer.deactivate)
     assert eval (not _cue.importer.is_active)
 
+testcase overlay_render_sweep:
+    run Jump("start")
+    # Render smoke for every sidebar page: a screen error in any page fails
+    # its interaction, so the run Function calls are the real assertions. The
+    # asserts guard against a page that renders but never activates.
+    run Function(_cue_set_page, CuePage.SFX)
+    assert eval (_cue.overlay_active_page == CuePage.SFX)
+    run Function(_cue_set_page, CuePage.MUSIC)
+    assert eval (_cue.overlay_active_page == CuePage.MUSIC)
+    run Function(_cue_set_page, CuePage.IMPORT)
+    assert eval (_cue.overlay_active_page == CuePage.IMPORT)
+    run Function(_cue_set_page, CuePage.SETTINGS)
+    assert eval (_cue.overlay_active_page == CuePage.SETTINGS)
+    assert screen "cue_overlay" layer "cue_layer"
+    # Sidebar mode re-renders the SFX page as the compact library sidebar.
+    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.sfx.library.toggle_sidebar_mode)
+    assert eval (_cue.sfx.library.is_sidebar_mode is True)
+    assert screen "cue_overlay" layer "cue_layer"
+    run Function(_cue.sfx.library.toggle_sidebar_mode)
+    assert eval (_cue.sfx.library.is_sidebar_mode is False)
+
 testcase import_export_roundtrip:
     run Jump("start")
     $ _cue_test_reset()

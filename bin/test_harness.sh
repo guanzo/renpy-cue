@@ -32,7 +32,7 @@ if [ "$1" = "--both" ]; then
     shift
     MODERN=""
     LEGACY=""
-    for d in "$ROOT"/.local/renpy-*-sdk; do
+    for d in "$ROOT"/.local/renpy-sdk/renpy-*-sdk; do
         [ -d "$d" ] || continue
         if grep -q 'version_tuple = (7,' "$d/renpy/__init__.py" 2>/dev/null; then
             LEGACY="$d/renpy.sh"
@@ -41,7 +41,7 @@ if [ "$1" = "--both" ]; then
         fi
     done
     if [ -z "$MODERN" ] || [ -z "$LEGACY" ]; then
-        echo "need both a 7.x and an 8.x renpy-*-sdk under .local/ for --both" >&2
+        echo "need both a 7.x and an 8.x renpy-*-sdk under .local/renpy-sdk/ for --both" >&2
         exit 2
     fi
 
@@ -136,6 +136,13 @@ mkdir -p "$MOD"
 rm -rf "$MOD/cue_lib"
 cp -r "$ROOT/cue_lib" "$MOD/cue_lib"
 find "$MOD/cue_lib" -name '*.rpyc' -delete
+
+# 7.2.x rejects two idioms the modern screen parser accepts (multi-line
+# statement calls, Transform xsize/ysize). Rewrite the per-run copy so the
+# sub-7.4 leg boots; the repo source stays on the modern form.
+if [ "$DSL" = "legacy" ] && grep -q 'version_tuple = (7, [0-3]' "$LAUNCHER_DIR/renpy/__init__.py"; then
+    python3 "$ROOT/bin/transform_legacy_screens.py" "$MOD/cue_lib"
+fi
 
 # Point saves + persistent at the per-run game/saves dir.  Without --savedir,
 # save_directory sends persistent to the user-data dir (~/.renpy/...), which

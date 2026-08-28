@@ -1,8 +1,8 @@
 {
   "stubPath": "typings",
   "extraPaths": [
-    ".local/renpy-8.5.3-sdk/renpy",
-    ".local/renpy-8.5.3-sdk"
+    ".local/renpy-sdk/renpy-8.5.3-sdk/renpy",
+    ".local/renpy-sdk/renpy-8.5.3-sdk"
   ],
   "pythonVersion": "3.9",
   "typeCheckingMode": "standard",

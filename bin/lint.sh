@@ -122,12 +122,12 @@ fi
 # smokes under the bundled 7.4.10 interpreter. CI runs it on the 7.4.10
 # harness leg; here it runs when the SDK is present locally and is skipped
 # loudly otherwise.
-if [ -x "$ROOT/.local/renpy-7.4.10-sdk/lib/linux-x86_64/python" ]; then
+if [ -x "$ROOT/.local/renpy-sdk/renpy-7.4.10-sdk/lib/linux-x86_64/python" ]; then
     if ! bash "$ROOT/bin/py2_check.sh"; then
         status=1
     fi
 else
-    echo "lint: py2 check skipped (no .local/renpy-7.4.10-sdk)"
+    echo "lint: py2 check skipped (no .local/renpy-sdk/renpy-7.4.10-sdk)"
 fi
 
 if [ "$status" -eq 0 ]; then

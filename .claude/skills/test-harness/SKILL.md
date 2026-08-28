@@ -20,7 +20,9 @@ bin/test_harness.sh --both
 
 Runs the modern (8.x) and legacy (7.x) suites **concurrently**, each in its
 own temp dirs (per-run isolation -- they never share mutable state). SDKs are
-discovered under `.local/` (`renpy-8.5.3-sdk`, `renpy-7.4.10-sdk`). Pass a
+discovered under `.local/renpy-sdk/` (`renpy-8.5.3-sdk`, `renpy-7.4.10-sdk`,
+`renpy-7.2.2-sdk`). `--both` picks the newest 7.x as its legacy leg (7.4.10 when
+all three are present); 7.2.2 runs explicitly by SDK path or in CI. Pass a
 testcase name to filter both runs:
 
 ```bash
@@ -36,11 +38,28 @@ bin/test_harness.sh --both pages_render_data
 ## Single-SDK runs
 
 ```bash
-bin/test_harness.sh .local/renpy-8.5.3-sdk/renpy.sh                          # modern
-bin/test_harness.sh .local/renpy-7.4.10-sdk/renpy.sh pages_render_data       # legacy
+bin/test_harness.sh .local/renpy-sdk/renpy-8.5.3-sdk/renpy.sh                # modern
+bin/test_harness.sh .local/renpy-sdk/renpy-7.4.10-sdk/renpy.sh pages_render_data  # legacy
+bin/test_harness.sh .local/renpy-sdk/renpy-7.2.2-sdk/renpy.sh                # sub-7.4 leg
 ```
 
 Headless by default via xvfb; `RENPY_HEADLESS=0` to show the window.
+
+## Sub-7.4 legacy leg (7.2.2)
+
+The committed cue_lib targets 7.4+ / 8.x screen syntax, but the harness also
+boots 7.2.2 (CI + explicit local runs). Two accommodations, both on the
+per-run temp copy only:
+
+- `bin/transform_legacy_screens.py` rewrites the copied `.rpy` sources before
+  boot: rejoins multi-line statement calls (`use foo(` with indented args) and
+  folds `Transform(xsize=.., ysize=..)` into `size=(..)`. The repo source is
+  never touched.
+- `test_game/game/script.rpy` appends a `config.needs_redraw_callbacks` that
+  returns True when `renpy.version_tuple < (7, 4)`. 7.2.2's test driver
+  (`renpy.test.testexecution.execute`) only advances while the screen
+  redraws; a static headless scene never does, so the driver stalls forever
+  without it. 7.4+ schedules its own redraws -- do not extend the gate.
 
 ## Testcase layout
 

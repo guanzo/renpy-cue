@@ -124,8 +124,8 @@ the smallest change that fits and reads like the file around it.
    The directives must be EXACTLY `# fmt: off` / `# fmt: on` on their own
    lines -- any trailing text makes ruff ignore them. Precedent: popper.py
    `CuePopper.__init__`. Verify with the SDK's py2 interpreter
-   (`PYTHONHOME=$PWD/.local/renpy-7.4.10-sdk/lib
-   .local/renpy-7.4.10-sdk/lib/linux-x86_64/python -c "import py_compile;
+   (`PYTHONHOME=$PWD/.local/renpy-sdk/renpy-7.4.10-sdk/lib
+   .local/renpy-sdk/renpy-7.4.10-sdk/lib/linux-x86_64/python -c "import py_compile;
    py_compile.compile('cue_lib/...', doraise=True)"`).
 
 ## Review step: blank lines
