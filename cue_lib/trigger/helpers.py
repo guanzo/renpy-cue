@@ -16,17 +16,10 @@ if MYPY:
     from cue_lib.intensity import CueIntensityResolution  # pyright: ignore[reportUnusedImport]
     from cue_lib.marker_store import CueMarkerStore  # pyright: ignore[reportUnusedImport]
 
-# Lead (seconds, REFERENCE time) to fire a video marker before its time.  Two
-# contributions:
-#   * Half the expected per-tick position advance (wall-clock tick interval *
-#     speed) centers deltas around 0 instead of always firing a tick late.
-#   * CUE_SFX_AUDIBLE_LEAD compensates the wall-clock delay between a marker's
-#     play call and its audible onset (output buffer / channel start).  Without
-#     it every SFX is HEARD lead-time late, which reads worse as speed rises
-#     because the marker spacing shrinks while the latency stays fixed.
-# The cap is high enough for the audible lead at max speed (~0.18 ref at 2x)
-# while still bounding how far a marker can fire after a dropped frame or
-# focus-loss gap.
+# Max lead (REFERENCE secs) to fire a video marker early. Half a tick centers
+# deltas on 0; CUE_SFX_AUDIBLE_LEAD * speed makes SFX HEARD on their marker
+# (fixed latency reads worse as speed rises because spacing shrinks). Cap
+# bounds overshoot after a dropped frame.
 CUE_MARKER_LEAD_MAX = 0.2
 # Real-seconds audible-path latency to counter (tune by ear: play call -> heard).
 CUE_SFX_AUDIBLE_LEAD = 0.09
