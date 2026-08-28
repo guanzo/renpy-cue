@@ -57,8 +57,8 @@ screen cue_repeat_markers_dialog():
                 $ _commit = Function(_cue.dialogs.repeater.commit_interval)
                 $ _display = _cue.dialogs.repeater.interval_text
                 use cue_float_input("_cue.dialogs.repeater.interval_text", _commit, _display,
-                    dec_action=Function(_cue.dialogs.repeater.nudge_interval, -0.1),
-                    inc_action=Function(_cue.dialogs.repeater.nudge_interval, 0.1))
+                    dec_action=Function(_cue.dialogs.repeater.nudge_interval, -0.05),
+                    inc_action=Function(_cue.dialogs.repeater.nudge_interval, 0.05))
 
             hbox:
                 spacing 3

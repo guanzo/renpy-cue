@@ -642,6 +642,62 @@ def test_commit_count_invalid_resets(env):
 
 
 # ==========================================================================
+# fill mode -- interval edits re-derive count until a count edit takes over
+# ==========================================================================
+
+
+def test_open_starts_in_fill_mode(env):
+    _open(env, [1.0], selected=[0], dur=10.0)
+    assert env.rep.is_fill_mode is True
+    assert env.rep.count_text == "9"
+
+
+def test_nudge_interval_refills_count_in_fill_mode(env):
+    _open(env, [1.0], selected=[0], dur=10.0)
+    assert env.rep.count_text == "9"
+    env.rep.nudge_interval(0.5)  # 1.50 -> fewer slots
+    assert env.rep.interval_text == "1.50"
+    assert env.rep.count_text == "6"  # (10 - 1.0) / 1.5
+    env.rep.nudge_interval(-0.5)  # 1.00 -> slots open back up
+    assert env.rep.count_text == "9"
+
+
+def test_commit_interval_refills_count_in_fill_mode(env):
+    _open(env, [1.0], selected=[0], dur=10.0)
+    env.rep.interval_text = "2.00"
+    env.rep.commit_interval()
+    assert env.rep.count_text == "4"  # (10 - 1.0) / 2.0
+
+
+def test_count_commit_stops_fill(env):
+    _open(env, [1.0], selected=[0], dur=10.0)
+    env.rep.count_text = "3"
+    env.rep.commit_count()
+    assert env.rep.is_fill_mode is False
+    env.rep.nudge_interval(0.5)
+    assert env.rep.count_text == "3"  # untouched by interval edits now
+
+
+def test_count_nudge_stops_fill(env):
+    _open(env, [1.0], selected=[0], dur=10.0)
+    env.rep.nudge_count(1)  # count 10
+    assert env.rep.is_fill_mode is False
+    env.rep.interval_text = "2.00"
+    env.rep.commit_interval()
+    assert env.rep.count_text == "10"
+
+
+def test_reopen_rearms_fill(env):
+    _open(env, [1.0], selected=[0], dur=10.0)
+    env.rep.count_text = "3"
+    env.rep.commit_count()
+    env.rep.hide()
+    env.rep.open()
+    env.rep.nudge_interval(0.5)
+    assert env.rep.count_text == "6"  # fill re-armed on reopen
+
+
+# ==========================================================================
 # hide / toggle_preview_sfx
 # ==========================================================================
 

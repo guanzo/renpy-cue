@@ -46,6 +46,7 @@ class CueMarkerRepeater(CueDialogBase):
         self.count_text = ""
         self.dialog_visible = False
         self.preview_sfx_enabled = True
+        self.is_fill_mode = True
 
     def _video_ctx(self):
         # type: () -> Any
@@ -221,6 +222,7 @@ class CueMarkerRepeater(CueDialogBase):
         anchor_time = anchor_pool.get("time", 0.0)
 
         self.dialog_visible = True
+        self.is_fill_mode = True
         self._sync_tracked()
         if not self.offsets:
             self.dialog_visible = False
@@ -241,14 +243,7 @@ class CueMarkerRepeater(CueDialogBase):
 
         # Max repeats that fit in video duration
         if not self.count_text:
-            dur = self._vid_manager.get_duration()
-            if dur > 0 and default_interval > 0:
-                max_count = int((dur - anchor_time - max_offset) / default_interval)
-                if max_count < 0:
-                    max_count = 0
-            else:
-                max_count = 0
-            self.count_text = str(max_count)
+            self.count_text = str(self._fill_count(default_interval))
 
         self._show()
 
@@ -262,6 +257,29 @@ class CueMarkerRepeater(CueDialogBase):
         if igroup is not None:
             clone["igroup"] = igroup
         return clone  # pyright: ignore[reportReturnType]
+
+    def _fill_count(self, interval):
+        # type: (float) -> int
+        """Repeat count that fills the video duration at *interval* spacing."""
+        dur = self._vid_manager.get_duration()
+        if dur <= 0 or interval <= 0 or not self.offsets:
+            return 0
+        max_offset = max(o["offset"] for o in self.offsets)
+        max_count = int((dur - self.anchor - max_offset) / interval)
+        if max_count < 0:
+            max_count = 0
+        return max_count
+
+    def _refill_count(self):
+        # type: () -> None
+        """Re-derive count to fill the duration while still in fill mode."""
+        if not self.is_fill_mode:
+            return
+        try:
+            interval = float(self.interval_text)
+        except (ValueError, TypeError):
+            return
+        self.count_text = str(self._fill_count(interval))
 
     def apply(self):
         # type: () -> None
@@ -425,6 +443,7 @@ class CueMarkerRepeater(CueDialogBase):
                 self.interval_text = "1.00"
         except (ValueError, TypeError):
             self.interval_text = "1.00"
+        self._refill_count()
         renpy.restart_interaction()
 
     def nudge_interval(self, delta):
@@ -436,6 +455,7 @@ class CueMarkerRepeater(CueDialogBase):
             val = 1.0
         val = max(0.01, val + delta)
         self.interval_text = "{:.2f}".format(val)
+        self._refill_count()
         renpy.restart_interaction()
 
     def nudge_count(self, delta):
@@ -447,6 +467,7 @@ class CueMarkerRepeater(CueDialogBase):
             val = 0
         val = max(0, val + delta)
         self.count_text = str(val)
+        self.is_fill_mode = False
         renpy.restart_interaction()
 
     def commit_count(self):
@@ -458,4 +479,5 @@ class CueMarkerRepeater(CueDialogBase):
                 self.count_text = "0"
         except (ValueError, TypeError):
             self.count_text = "0"
+        self.is_fill_mode = False
         renpy.restart_interaction()
