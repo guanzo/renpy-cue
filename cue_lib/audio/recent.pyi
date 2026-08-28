@@ -1,7 +1,7 @@
 # Type stub for cue_lib.audio.recent
 from typing import Callable, Final, List
 
-from cue_lib.audio.music_tree import CueMusicTree
+from cue_lib.audio.tree.music_tree import CueMusicTree
 
 CUE_RECENT_MAX_ENTRIES: Final = 8
 

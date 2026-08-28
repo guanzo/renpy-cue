@@ -17,13 +17,16 @@ import renpy as _renpy
 
 from renpy.store import Function, persistent
 
-import cue_lib.audio.music_tree as _tree
+import cue_lib.audio.tree.music_tree as _tree
 import cue_lib.audio.sfx_manager as _sfx_mod
-import cue_lib.audio.file_tree_rows as _tree_rows
+import cue_lib.audio.tree.pool_rows as _pool_rows
+import cue_lib.audio.tree.sfx_tree_rows as _sfx_rows
+import cue_lib.audio.tree.tree_rows as _core_rows
 import cue_lib.util as _util
-from cue_lib.audio.file_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
-from cue_lib.audio.music_tree import CueMusicTree
-from cue_lib.audio.sfx_manager import CueSfxLibraryTree, CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name
+from cue_lib.audio.tree.file_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
+from cue_lib.audio.tree.music_tree import CueMusicTree
+from cue_lib.audio.sfx_manager import CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name
+from cue_lib.audio.tree.sfx_tree import CueSfxLibraryTree
 from cue_lib.constants import (
     CUE_AUDIO_EXTS,
     CUE_GAME_MUSIC_FOLDER,
@@ -627,8 +630,8 @@ def _fake_cue_pool_rows(monkeypatch, library, intensity=None, current_file=None)
         ),
         intensity=intensity,
     )
-    monkeypatch.setattr(_tree_rows, "_cue", cue)
-    # _cue_resolve_files (imported into _tree_rows) reads _util._cue.
+    monkeypatch.setattr(_pool_rows, "_cue", cue)
+    # _cue_resolve_files (imported into _pool_rows) reads _util._cue.
     monkeypatch.setattr(_util, "_cue", cue)
     return cue
 
@@ -641,7 +644,7 @@ def test_pool_files_rows_regular_files(monkeypatch):
         toggle_file_ref_expand=lambda *a, **k: None,
     )
     _fake_cue_pool_rows(monkeypatch, library)
-    rows = _tree_rows._cue_pool_files_rows(
+    rows = _pool_rows._cue_pool_files_rows(
         ["hit.ogg", "pool/"], 0.5, None, _remove_ref, ("k", 0), _remove_child, "k", 0, None, None
     )
     # hit.ogg file row, pool/ folder row (collapsed, no children).
@@ -661,7 +664,7 @@ def test_pool_files_rows_expanded_folder_ref(monkeypatch):
         toggle_file_ref_expand=lambda *a, **k: None,
     )
     _fake_cue_pool_rows(monkeypatch, library)
-    rows = _tree_rows._cue_pool_files_rows(
+    rows = _pool_rows._cue_pool_files_rows(
         ["pool/"], 0.5, None, _remove_ref, ("k", 0), _remove_child, "k", 0, None, None
     )
     # Folder row + 2 children; children strip the folder prefix, carry the
@@ -681,7 +684,7 @@ def test_pool_files_rows_preset_virtual(monkeypatch):
         toggle_file_ref_expand=lambda *a, **k: None,
     )
     _fake_cue_pool_rows(monkeypatch, library)
-    rows = _tree_rows._cue_pool_files_rows([], 0.5, "DETACH", None, (), _remove_child, "k", 0, "Preset/", ["a.ogg"])
+    rows = _pool_rows._cue_pool_files_rows([], 0.5, "DETACH", None, (), _remove_child, "k", 0, "Preset/", ["a.ogg"])
     assert [r["type"] for r in rows] == ["folder", "file"]
     assert rows[0]["label"] == "Preset/"
     # Header xmark is the pre-built detach action (no ref index appended).
@@ -702,7 +705,7 @@ def test_pool_files_rows_igroup_readonly(monkeypatch):
         level_files_by_id=lambda group, lv: ["soft/", "hit.ogg"], flags_from_entry=lambda entry: flags
     )
     _fake_cue_pool_rows(monkeypatch, library, intensity=intensity)
-    rows = _tree_rows._cue_pool_files_rows(
+    rows = _pool_rows._cue_pool_files_rows(
         [], 0.5, "DETACH", None, (), None, None, None, None, None, igroup="Impacts", ilevel_id=1
     )
     assert [r["type"] for r in rows] == ["folder", "file", "file", "file"]
@@ -722,7 +725,7 @@ def test_pool_files_rows_igroup_no_files(monkeypatch):
         flags_from_entry=lambda entry: types.SimpleNamespace(enabled=False, sfx_levels=False),
     )
     _fake_cue_pool_rows(monkeypatch, library, intensity=intensity)
-    rows = _tree_rows._cue_pool_files_rows([], 0.5, None, None, (), None, None, None, None, None, igroup="Impacts")
+    rows = _pool_rows._cue_pool_files_rows([], 0.5, None, None, (), None, None, None, None, None, igroup="Impacts")
     assert rows == []
 
 
@@ -984,7 +987,7 @@ def test_scan_empty_first_scan_does_not_consume_root_expansion():
 def _base_rows(tree):
     # type: (CueAudioTreeManager) -> list
     """Row stream via the shared CueTreeRowsBuilder over a data tree."""
-    return _tree_rows.CueTreeRowsBuilder(tree).tree_rows()
+    return _core_rows.CueTreeRowsBuilder(tree).tree_rows()
 
 
 def test_tree_rows_folder_and_file_shape():
@@ -1053,7 +1056,7 @@ def test_sfx_row_buttons_normal_mode(sfx):
     assert folder["buttons"][0]["action"]._args[0] == sfx._sfx.preview_folder
     assert folder["buttons"][1]["tt"] == "Add to pool"
     assert folder["buttons"][1]["enabled"] is True
-    assert folder["buttons"][1]["action"]._args[0] is _tree_rows._cue_markers_send
+    assert folder["buttons"][1]["action"]._args[0] is _sfx_rows._cue_markers_send
     assert folder["buttons"][1]["action"]._args[1] == "folder"
     assert folder["buttons"][1]["action"]._args[2] == "v2/"
     assert [b["icon"] for b in file_row["buttons"]] == ["play", "plus"]
@@ -1156,13 +1159,13 @@ def test_sfx_warn_reason(sfx):
 
 
 def test_section_rows_hidden_during_search_without_match():
-    rows = _tree_rows._cue_section_rows("s", "Recently Used/", lambda: None, False, True, lambda: False, lambda: [1])
+    rows = _core_rows._cue_section_rows("s", "Recently Used/", lambda: None, False, True, lambda: False, lambda: [1])
     assert rows == []
 
 
 def test_section_rows_header_only_when_collapsed():
     toggle = Function("toggle")
-    rows = _tree_rows._cue_section_rows("s", "Recently Used/", toggle, False, False, lambda: True, lambda: [1])
+    rows = _core_rows._cue_section_rows("s", "Recently Used/", toggle, False, False, lambda: True, lambda: [1])
     assert len(rows) == 1
     header = rows[0]
     assert header["type"] == "folder"
@@ -1173,19 +1176,19 @@ def test_section_rows_header_only_when_collapsed():
 
 
 def test_section_rows_children_when_expanded():
-    rows = _tree_rows._cue_section_rows("s", "Recently Used/", lambda: None, True, False, lambda: True, lambda: [1, 2])
+    rows = _core_rows._cue_section_rows("s", "Recently Used/", lambda: None, True, False, lambda: True, lambda: [1, 2])
     assert len(rows) == 3
     assert rows[0]["type"] == "folder"
     assert rows[1:] == [1, 2]
 
 
 def test_section_rows_auto_show_children_on_search():
-    rows = _tree_rows._cue_section_rows("s", "Pool Presets/", lambda: None, False, True, lambda: True, lambda: [1])
+    rows = _core_rows._cue_section_rows("s", "Pool Presets/", lambda: None, False, True, lambda: True, lambda: [1])
     assert len(rows) == 2
 
 
 def test_section_rows_auto_show_disabled():
-    rows = _tree_rows._cue_section_rows(
+    rows = _core_rows._cue_section_rows(
         "s", "Video Presets/", lambda: None, False, True, lambda: True, lambda: [1], auto_show=False
     )
     assert len(rows) == 1
@@ -1195,24 +1198,24 @@ def test_folder_rows_open_and_closed():
     toggle = Function("toggle")
     buttons = [{"icon": "xmark"}]
     children = [1, 2]
-    rows = _tree_rows._cue_folder_rows("p", "p", 1, toggle, True, False, buttons, children)
+    rows = _core_rows._cue_folder_rows("p", "p", 1, toggle, True, False, buttons, children)
     assert len(rows) == 3
     assert rows[0]["type"] == "folder"
     assert rows[0]["depth"] == 1
     assert rows[0]["buttons"] == buttons
     assert rows[0]["toggle"] == toggle
     assert rows[1:] == children
-    closed = _tree_rows._cue_folder_rows("p", "p", 1, toggle, False, False, buttons, children)
+    closed = _core_rows._cue_folder_rows("p", "p", 1, toggle, False, False, buttons, children)
     assert closed == [rows[0]]
 
 
 def test_folder_rows_auto_show_children_on_search():
-    rows = _tree_rows._cue_folder_rows("p", "p", 1, lambda: None, False, True, [], [1])
+    rows = _core_rows._cue_folder_rows("p", "p", 1, lambda: None, False, True, [], [1])
     assert len(rows) == 2
 
 
 def test_file_row_shape():
-    row = _tree_rows._cue_file_row("k", "a.wav", 1, [{"icon": "play"}], warn="bad", gap=2, size=11)
+    row = _core_rows._cue_file_row("k", "a.wav", 1, [{"icon": "play"}], warn="bad", gap=2, size=11)
     assert row["type"] == "file"
     assert row["key"] == "k"
     assert row["label"] == "a.wav"
@@ -1223,14 +1226,14 @@ def test_file_row_shape():
 
 
 def test_file_row_defaults():
-    row = _tree_rows._cue_file_row("k", "a.wav", 1, [])
+    row = _core_rows._cue_file_row("k", "a.wav", 1, [])
     assert row["warn"] == ""
     assert row["gap"] == 1
     assert "size" not in row
 
 
 def test_help_row_shape():
-    row = _tree_rows._cue_help_row("e", "Nothing here.")
+    row = _core_rows._cue_help_row("e", "Nothing here.")
     assert row["type"] == "help"
     assert row["depth"] == 0
     assert "color" not in row
@@ -1238,7 +1241,7 @@ def test_help_row_shape():
 
 
 def test_help_row_color_and_v_gap():
-    row = _tree_rows._cue_help_row("e", "Nothing here.", color="#f00", v_gap=2)
+    row = _core_rows._cue_help_row("e", "Nothing here.", color="#f00", v_gap=2)
     assert row["color"] == "#f00"
     assert row["v_gap"] == 2
 
@@ -1251,7 +1254,7 @@ def test_help_row_color_and_v_gap():
 def _recent_rows(sfx, entries, target_ok=True, target_tt="Add to pool"):
     # type: (CueSfxLibraryTree, list, bool, str) -> list
     """Recently-Used row stream via the SFX builder."""
-    return _tree_rows.CueSfxTreeRows(sfx)._recent_rows(entries, target_ok, target_tt)
+    return _sfx_rows.CueSfxTreeRows(sfx)._recent_rows(entries, target_ok, target_tt)
 
 
 def test_sfx_recent_rows_empty(sfx):
@@ -1275,7 +1278,7 @@ def test_sfx_recent_rows_file(sfx):
     assert "tt" not in row["buttons"][0]  # recent file play has no tooltip
     assert row["buttons"][0]["action"]._args[0] == sfx._sfx.preview_sfx
     plus = row["buttons"][1]
-    assert plus["action"]._args[0] is _tree_rows._cue_markers_send
+    assert plus["action"]._args[0] is _sfx_rows._cue_markers_send
     assert plus["action"]._args[1] == "file"
     assert plus["action"]._args[2] == 2
     assert plus["action"]._args[3] is False
@@ -1323,7 +1326,7 @@ def _preset_rows(sfx, names, query="", target_ok=True, target_tt="Add to pool"):
 
     util_mod._cue.markers = types.SimpleNamespace(get_preset=lambda n: {"files": ["a.ogg", "b.ogg"]})
     util_mod._cue.sfx = types.SimpleNamespace(library=None)
-    return _tree_rows.CueSfxTreeRows(sfx)._preset_rows(names, query, target_ok, target_tt)
+    return _sfx_rows.CueSfxTreeRows(sfx)._preset_rows(names, query, target_ok, target_tt)
 
 
 def test_sfx_preset_rows_expanded(sfx):
@@ -1334,7 +1337,7 @@ def test_sfx_preset_rows_expanded(sfx):
     assert folder["label"] == "p"
     assert folder["depth"] == 1
     assert [b["icon"] for b in folder["buttons"]] == ["xmark", "play", "plus"]
-    assert folder["buttons"][0]["action"]._args[0] is _tree_rows._cue_confirm_delete_preset
+    assert folder["buttons"][0]["action"]._args[0] is _sfx_rows._cue_confirm_delete_preset
     assert folder["buttons"][0]["tt"] == "Delete preset" + CUE_HELP_SHIFT_SKIP_DELETE
     assert folder["buttons"][1]["action"]._args[0] == sfx._sfx.preview_preset
     assert folder["buttons"][2]["action"]._args[1] == "preset"
@@ -1378,7 +1381,7 @@ def _video_preset_rows(sfx, names, is_video=True):
     import cue_lib.util as util_mod
 
     util_mod._cue.sfx = types.SimpleNamespace(library=None)
-    return _tree_rows.CueSfxTreeRows(sfx)._video_preset_rows(names, is_video)
+    return _sfx_rows.CueSfxTreeRows(sfx)._video_preset_rows(names, is_video)
 
 
 def test_sfx_video_preset_rows_expanded(sfx):
@@ -1390,9 +1393,9 @@ def test_sfx_video_preset_rows_expanded(sfx):
     assert folder["label"] == "vp"
     assert folder["depth"] == 1
     assert [b["icon"] for b in folder["buttons"]] == ["xmark", "v"]
-    assert folder["buttons"][0]["action"]._args[0] is _tree_rows._cue_confirm_delete_video_preset
+    assert folder["buttons"][0]["action"]._args[0] is _sfx_rows._cue_confirm_delete_video_preset
     assert folder["buttons"][0]["tt"] == "Delete video preset" + CUE_HELP_SHIFT_SKIP_DELETE
-    assert folder["buttons"][1]["action"]._args[0] is _tree_rows._cue_maybe_apply_video_preset
+    assert folder["buttons"][1]["action"]._args[0] is _sfx_rows._cue_maybe_apply_video_preset
     assert folder["buttons"][1]["enabled"] is True
     assert folder["toggle"]._args[0] == sfx.toggle_video_preset_expand
     pool = rows[1]
@@ -1400,7 +1403,7 @@ def test_sfx_video_preset_rows_expanded(sfx):
     assert pool["label"] == "00:01.50"
     assert pool["depth"] == 1
     assert [b["icon"] for b in pool["buttons"]] == ["xmark", "play"]
-    assert pool["buttons"][0]["action"]._args[0] is _tree_rows._cue_confirm_remove_video_preset_pool
+    assert pool["buttons"][0]["action"]._args[0] is _sfx_rows._cue_confirm_remove_video_preset_pool
     assert pool["buttons"][0]["action"]._args[1:3] == ("vp", 0)
     assert pool["buttons"][1]["action"]._args[0] == sfx._sfx.preview_video_pool
     assert pool["buttons"][1]["action"]._args[1:3] == ("vp", 0)
@@ -1450,7 +1453,7 @@ def _sfx_intensity_rows(sfx, names, query="", lv_hook_ok=True, lv_tt="Hook to po
     )
     util_mod._cue.sfx = types.SimpleNamespace(library=types.SimpleNamespace(files=["pool/a.ogg"], disabled_files=set()))
     util_mod._cue.dialogs = types.SimpleNamespace(intensity=types.SimpleNamespace(open=lambda: None))
-    return _tree_rows.CueSfxTreeRows(sfx)._intensity_rows(names, query, lv_hook_ok, lv_tt)
+    return _sfx_rows.CueSfxTreeRows(sfx)._intensity_rows(names, query, lv_hook_ok, lv_tt)
 
 
 def test_sfx_intensity_rows_empty(sfx):
@@ -1460,7 +1463,7 @@ def test_sfx_intensity_rows_empty(sfx):
     assert plus_group["type"] == "action"
     assert plus_group["label"] == "+ Group"
     assert plus_group["depth"] == 1
-    assert plus_group["action"] is _tree_rows._cue.dialogs.intensity.open
+    assert plus_group["action"] is _sfx_rows._cue.dialogs.intensity.open
     assert plus_group["tt"] == "Create a new intensity group."
     assert rows[1]["type"] == "help"
     assert rows[1]["depth"] == 1
@@ -1480,7 +1483,7 @@ def test_sfx_intensity_rows_group_and_level(sfx, monkeypatch):
     assert group["label"] == "g"
     assert group["depth"] == 1
     assert [b["icon"] for b in group["buttons"]] == ["xmark"]
-    assert group["buttons"][0]["action"]._args[0] is _tree_rows._cue_confirm_delete_igroup
+    assert group["buttons"][0]["action"]._args[0] is _sfx_rows._cue_confirm_delete_igroup
     assert group["toggle"]._args[0] == sfx.toggle_igroup_expand
     add_level = rows[2]
     assert add_level["type"] == "action"
@@ -1497,7 +1500,7 @@ def test_sfx_intensity_rows_group_and_level(sfx, monkeypatch):
     assert level["buttons"][1]["action"]._args[0] == sfx._sfx.preview_level
     assert level["buttons"][1]["action"]._args[1:3] == ("g", 1)
     assert level["buttons"][2]["action"]._args[0] == sfx.toggle_ilevel_add_mode
-    assert level["buttons"][3]["action"]._args[0] is _tree_rows._cue_send_level_to_target
+    assert level["buttons"][3]["action"]._args[0] is _sfx_rows._cue_send_level_to_target
     assert level["buttons"][3]["tt"] == "Hook to pool"
     assert level["buttons"][3]["enabled"] is True
     assert level["toggle"]._args[0] == sfx.toggle_ilevel_expand
@@ -1624,7 +1627,7 @@ def _content_rows(
     )
     util_mod._cue.sfx = types.SimpleNamespace(library=types.SimpleNamespace(files=["pool/a.ogg"], disabled_files=set()))
     util_mod._cue.dialogs = types.SimpleNamespace(intensity=types.SimpleNamespace(open=lambda: None))
-    return _tree_rows.CueSfxTreeRows(sfx).content_rows(
+    return _sfx_rows.CueSfxTreeRows(sfx).content_rows(
         query, list(presets), list(vpresets), list(igroups), is_video, tgt_ok, unplayable or {}
     )
 
@@ -1770,7 +1773,7 @@ def test_sfx_content_rows_intensity_children_expanded(sfx):
         "a.ogg",
     ]
     plus_group = rows[4]
-    assert plus_group["action"] is _tree_rows._cue.dialogs.intensity.open
+    assert plus_group["action"] is _sfx_rows._cue.dialogs.intensity.open
     level = rows[7]
     # video context + available target -> the level [+] hooks to the pool
     assert level["buttons"][3]["enabled"] is True

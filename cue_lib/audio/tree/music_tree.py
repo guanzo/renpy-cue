@@ -8,8 +8,8 @@ import time
 
 import renpy
 
-from cue_lib.audio.file_tree import CueAudioTreeManager
-from cue_lib.audio.file_tree_rows import CueMusicTreeRows
+from cue_lib.audio.tree.file_tree import CueAudioTreeManager
+from cue_lib.audio.tree.music_tree_rows import CueMusicTreeRows
 from cue_lib.constants import (
     CUE_AUDIO_EXTS,
     CUE_GAME_MUSIC_FOLDER,

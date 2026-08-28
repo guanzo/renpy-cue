@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from cue_lib._types import DefaultMusicTrigger
 from cue_lib.audio.recent import CueRecentManager
-from cue_lib.audio.music_tree import CueMusicTree
+from cue_lib.audio.tree.music_tree import CueMusicTree
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.state import CueContext

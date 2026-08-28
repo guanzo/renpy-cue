@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Tests for cue_lib.audio.music_tree: the combined "Music Library" tree that
+# Tests for cue_lib.audio.tree.music_tree: the combined "Music Library" tree that
 # merges the separate My Music / Game Music trees under two synthetic top
 # folders for a single UI tree and one shared search bar.  The underlying
 # data models stay separate; only the display is combined.
@@ -17,7 +17,7 @@ import renpy
 from renpy.store import persistent
 
 from cue_lib.audio.music import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
-from cue_lib.audio.music_tree import CueMusicTree
+from cue_lib.audio.tree.music_tree import CueMusicTree
 from cue_lib.constants import (
     CUE_GAME_MUSIC_FOLDER,
     CUE_MUSIC_PREFIX,
@@ -669,7 +669,7 @@ def _content_rows(lib, query="", presets=(), current_file=None, recent_entries=(
     # type: (CueMusicTree, str, tuple, object, tuple, bool) -> list
     """Full Music section stream via the builder.  recent_entries None wires
     no recent manager; otherwise the fake returns the given (type, ref) pairs."""
-    import cue_lib.audio.file_tree_rows as tree_rows_mod
+    import cue_lib.audio.tree.music_tree_rows as tree_rows_mod
 
     music = lib._music
     if recent_entries is None:

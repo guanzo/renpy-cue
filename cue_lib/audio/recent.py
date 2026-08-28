@@ -19,7 +19,7 @@ CUE_RECENT_MAX_ENTRIES = 8
 MYPY = False
 if MYPY:
     from typing import Callable
-    from cue_lib.audio.music_tree import CueMusicTree
+    from cue_lib.audio.tree.music_tree import CueMusicTree
 
 
 class CueRecentManager(object):

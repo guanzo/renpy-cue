@@ -10,7 +10,7 @@ from renpy.store import persistent
 
 from cue_lib.state import _cue
 from cue_lib.audio.wav_playable import CueWavPlayable
-from cue_lib.audio.music_tree import CueMusicTree
+from cue_lib.audio.tree.music_tree import CueMusicTree
 from cue_lib.constants import (
     CUE_GAME_MUSIC_FOLDER,
     CUE_MUSIC_GAME_TAG,
