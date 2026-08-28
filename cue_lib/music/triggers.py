@@ -8,7 +8,7 @@ import random
 import renpy
 
 from cue_lib.constants import CUE_DEFAULT_MUSIC_CHANNEL, CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
-from cue_lib.music.refs import _cue_ref_path, _cue_resolve_music_files, _cue_resolve_music_path, _cue_split_ref_tag
+from cue_lib.music.refs import _cue_resolve_music_files, _cue_resolve_music_path
 from cue_lib.util import _cue_strip_key_prefix, _cue_ui_refresh, create_img_key, create_vid_key
 
 MYPY = False

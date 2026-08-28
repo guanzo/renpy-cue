@@ -30,6 +30,7 @@ MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Set
 
+    from cue_lib._types import TreeRowDict
     from cue_lib.music.manager import CueMusicManager
 
 
@@ -275,13 +276,13 @@ class CueMusicTree(CueAudioTreeManager):
         self._music.play_untracked(self._music._resolve_music_path(ref), volume=volume)
 
     def tree_rows(self, *state):
-        # type: (*Any) -> List[Dict[str, Any]]
+        # type: (*Any) -> List[TreeRowDict]
         """Flat row stream for the cue_tree_rows renderer.  Music button logic
         lives in CueMusicTreeRows; this just forwards *state (current_file)."""
         return self._rows.tree_rows(*state)
 
     def content_rows(self, search_query, preset_names, current_file):
-        # type: (str, List[str], object) -> List[Dict[str, Any]]
+        # type: (str, List[str], object) -> List[TreeRowDict]
         """Full Music Library section row stream for the cue_tree_rows renderer
         (recent + music presets + per-source empty states + file tree).  All
         builder logic lives in CueMusicTreeRows; this just forwards."""

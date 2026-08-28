@@ -1,20 +1,30 @@
 # Type stub for cue_lib.audio.tree.tree_rows
 from typing import Any, Dict, List, Optional
 
+from cue_lib._types import (
+    TreeActionRowDict,
+    TreeActionsRowDict,
+    TreeButtonDict,
+    TreeFileRowDict,
+    TreeFolderRowDict,
+    TreeHelpRowDict,
+    TreeRowDict,
+)
+
 CUE_SETTINGS_FOLDER_TIP: str
 
 def _cue_file_row(
     key: str,
     label: str,
     depth: int,
-    buttons: List[Dict[str, Any]],
+    buttons: List[TreeButtonDict],
     warn: Optional[str] = ...,
-    gap: Optional[int] = ...,
+    gap: int = ...,
     size: Optional[int] = ...,
-) -> Dict[str, Any]: ...
+) -> TreeFileRowDict: ...
 def _cue_help_row(
     key: str, label: str, color: Optional[str] = ..., v_gap: Optional[int] = ..., depth: int = ..., plain: bool = ...
-) -> Dict[str, Any]: ...
+) -> TreeHelpRowDict: ...
 def _cue_action_row(
     key: str,
     label: str,
@@ -24,9 +34,12 @@ def _cue_action_row(
     explorer: Optional[str] = ...,
     sensitive: bool = ...,
     icon: Optional[str] = ...,
-) -> Dict[str, Any]: ...
-def _cue_actions_row(key: str, actions: List[Dict[str, Any]], depth: int = ...) -> Dict[str, Any]: ...
-def _cue_external_empty_rows(tree: Any, kind_word: str) -> List[Dict[str, Any]]: ...
+) -> TreeActionRowDict: ...
+def _cue_actions_row(key: str, actions: List[TreeActionRowDict], depth: int = ...) -> TreeActionsRowDict: ...
+def _cue_folder_row(
+    key: str, label: str, depth: int, buttons: List[TreeButtonDict], toggle: Any
+) -> TreeFolderRowDict: ...
+def _cue_external_empty_rows(tree: Any, kind_word: str) -> List[TreeRowDict]: ...
 def _cue_section_rows(
     key: str,
     label: str,
@@ -36,7 +49,7 @@ def _cue_section_rows(
     has_any: Any,
     child_fn: Any,
     auto_show: bool = ...,
-) -> List[Dict[str, Any]]: ...
+) -> List[TreeRowDict]: ...
 def _cue_folder_rows(
     key: str,
     label: str,
@@ -44,16 +57,16 @@ def _cue_folder_rows(
     toggle_fn: Any,
     expanded: bool,
     searching: bool,
-    buttons: List[Dict[str, Any]],
-    children: List[Dict[str, Any]],
-    hover_buttons: Optional[List[Dict[str, Any]]] = ...,
-) -> List[Dict[str, Any]]: ...
+    buttons: List[TreeButtonDict],
+    children: List[TreeRowDict],
+    hover_buttons: Optional[List[TreeButtonDict]] = ...,
+) -> List[TreeRowDict]: ...
 
 class CueTreeRowsBuilder:
     file_gap: int
     _tree: Any
 
     def __init__(self, tree: Any) -> None: ...
-    def tree_rows(self, *state: object) -> List[Dict[str, Any]]: ...
-    def row_buttons(self, item: Dict[str, Any], *state: object) -> List[Dict[str, Any]]: ...
+    def tree_rows(self, *state: object) -> List[TreeRowDict]: ...
+    def row_buttons(self, item: Dict[str, Any], *state: object) -> List[TreeButtonDict]: ...
     def warn_reason(self, item: Dict[str, Any], *state: object) -> str: ...

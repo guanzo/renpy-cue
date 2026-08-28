@@ -11,7 +11,7 @@
 # across cue_lib. .pyi stubs import from here rather than redeclaring.
 
 from __future__ import annotations
-from typing import Dict, List, Optional, Set, Tuple, TypedDict, Union
+from typing import Any, Dict, List, Literal, Optional, Set, Tuple, TypedDict, Union
 
 # typing_extensions is safe here -- _types.py is never imported at runtime
 # (see header comment).  Pyright understands NotRequired natively.
@@ -275,3 +275,85 @@ class AudioSourceConfig(TypedDict):
 
 # Type alias for union of node types
 AudioTreeNode = Union[AudioTreeFolderNode, AudioTreeFileNode]
+
+
+# =========================================================================
+# Tree row dicts -- the cue_tree_rows renderer contract
+# =========================================================================
+
+
+class TreeButtonDict(TypedDict):
+    """One icon button in a row's ``buttons``/``hover_buttons`` list."""
+
+    icon: str
+    action: Any  # a Ren'Py action / Function()
+    tt: NotRequired[str]
+    enabled: NotRequired[bool]
+    bg: NotRequired[Optional[str]]  # selected/hint bg; None = default
+
+
+class TreeFileRowDict(TypedDict):
+    """A file leaf row: indent, buttons, gap-null, then the accent label."""
+
+    key: str
+    type: Literal["file"]
+    label: str
+    depth: int
+    buttons: List[TreeButtonDict]
+    warn: str  # invalid-file reason ("" = none)
+    gap: int
+    size: NotRequired[int]  # label font size
+
+
+class TreeHelpRowDict(TypedDict):
+    """A muted help/empty-state line, indented to depth."""
+
+    key: str
+    type: Literal["help"]
+    label: str
+    depth: int
+    color: NotRequired[str]
+    v_gap: NotRequired[int]  # null height after the row
+    plain: NotRequired[bool]  # drop the cue_help style
+
+
+class TreeActionRowDict(TypedDict):
+    """A clickable text-button row; explorer fills the open-in-explorer
+    variant, otherwise the row runs action."""
+
+    key: str
+    type: Literal["action"]
+    label: str
+    depth: int
+    action: NotRequired[Any]
+    tt: NotRequired[str]
+    explorer: NotRequired[str]
+    icon: NotRequired[str]
+    sensitive: NotRequired[bool]
+
+
+class TreeActionsRowDict(TypedDict):
+    """A row that lays its action buttons out horizontally (same line)."""
+
+    key: str
+    type: Literal["actions"]
+    actions: List[TreeActionRowDict]
+    depth: int
+
+
+class TreeFolderRowDict(TypedDict):
+    """A collapsible folder row."""
+
+    key: str
+    type: Literal["folder"]
+    label: str
+    depth: int
+    buttons: List[TreeButtonDict]
+    toggle: Any  # a Ren'Py action / Function()
+    hover_buttons: NotRequired[List[TreeButtonDict]]
+    tt: NotRequired[str]
+    bar_color: NotRequired[str]
+
+
+# Type alias for the flat row stream the cue_tree_rows renderer consumes
+TreeRowDict = Union[TreeFileRowDict, TreeHelpRowDict, TreeActionRowDict, TreeActionsRowDict, TreeFolderRowDict]

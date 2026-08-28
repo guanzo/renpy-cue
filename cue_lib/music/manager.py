@@ -72,8 +72,8 @@ class CueMusicManager(object):
         # attempts; None before wiring so add_* stays safe).
         self._recent = None
         # Trigger log + editing + override, and preset screen behavior.
-        self._triggers_man = CueMusicTriggers(self)
-        self._presets_ui = CueMusicPresetsUi(self)
+        self._triggers_man = CueMusicTriggers(self)  # pyright: ignore[reportArgumentType]
+        self._presets_ui = CueMusicPresetsUi(self)  # pyright: ignore[reportArgumentType]
 
     # ------------------------------------------------------------------
     # Delegated trigger/preset state (flat manager-level access)

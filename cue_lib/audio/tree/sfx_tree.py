@@ -32,6 +32,8 @@ if MYPY:
     from typing import Any, Dict, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
     from cue_lib.db import CueDatabase  # pyright: ignore[reportUnusedImport]
     from cue_lib.intensity import CueIntensityManager  # pyright: ignore[reportUnusedImport]
+
+    from cue_lib._types import TreeRowDict
     from cue_lib.paths import CuePaths  # pyright: ignore[reportUnusedImport]
 
 
@@ -216,13 +218,13 @@ class CueSfxLibraryTree(CueAudioTreeManager):
     # ------------------------------------------------------------------
 
     def tree_rows(self, *state):
-        # type: (*Any) -> List[Dict[str, Any]]
+        # type: (*Any) -> List[TreeRowDict]
         """Flat row stream for the cue_tree_rows renderer.  SFX button/warn
         logic lives in CueSfxTreeRows; this just forwards *state."""
         return self._rows.tree_rows(*state)
 
     def content_rows(self, search_query, preset_names, video_preset_names, igroup_names, is_video, tgt_ok, unplayable):
-        # type: (str, List[str], List[str], List[str], bool, bool, Dict[str, str]) -> List[Dict[str, Any]]
+        # type: (str, List[str], List[str], List[str], bool, bool, Dict[str, str]) -> List[TreeRowDict]
         """Full SFX Library section row stream for the cue_tree_rows renderer
         (recent + pool presets + video presets + intensity + file tree).  All
         builder logic lives in CueSfxTreeRows; this just forwards."""

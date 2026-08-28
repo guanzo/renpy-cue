@@ -49,13 +49,15 @@ MYPY = False
 if MYPY:
     from typing import Any, Dict, List
 
+    from cue_lib._types import TreeActionRowDict, TreeButtonDict, TreeRowDict
+
 
 class CueSfxTreeRows(CueTreeRowsBuilder):
     """SFX Library tree row buttons + warn.  Reaches the library tree (and its
     CueSfxManager back-ref) through _tree."""
 
     def row_buttons(self, item, target_ok, target_tt, unplayable):  # pyright: ignore[reportIncompatibleMethodOverride]
-        # type: (Dict[str, Any], bool, str, Dict[str, str]) -> List[Dict[str, Any]]
+        # type: (Dict[str, Any], bool, str, Dict[str, str]) -> List[TreeButtonDict]
         """SFX row buttons: [play, plus].  Plus adds to the target context, or
         in intensity add-mode appends to the active (group, level).  An empty
         folder gets no buttons (matches the current tree UI).
@@ -64,7 +66,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         built-in, "ExtA/..." for external); every action that feeds a path
         uses ref_from_display to get the stored ref.  The file [+] is
         index-based and stays."""
-        buttons = []
+        buttons = []  # type: List[TreeButtonDict]
         ref = self._tree.ref_from_display(item["full_path"])
         if item["type"] == "folder":
             if item.get("has_files", False):
@@ -84,7 +86,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         return buttons
 
     def _add_row_button(self, item, kind, target_ok, target_tt, ref):
-        # type: (Dict[str, Any], str, bool, str, str) -> Dict[str, Any]
+        # type: (Dict[str, Any], str, bool, str, str) -> TreeButtonDict
         """The tree [+] button.  In intensity add-mode it appends item to the
         active (group, level) -- dup-checked, marked with the selected_alt bg;
         otherwise it sends item to the target context."""
@@ -121,14 +123,14 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         }
 
     def _recent_rows(self, entries, target_ok, target_tt):
-        # type: (List[Dict[str, str]], bool, str) -> List[Dict[str, Any]]
+        # type: (List[Dict[str, str]], bool, str) -> List[TreeRowDict]
         """Recently-Used rows.  Each entry is {"type", "ref"} (file / folder /
         preset).  File rows resolve a concrete _file_index so the [+] can send
         an index; all [+]s send record=False so acting from this list does not
         re-feed it.  Empty list yields the muted empty-state line."""
         if not entries:
             return [_cue_help_row("recent:empty", "Files you add to pools show up here.")]
-        rows = []
+        rows = []  # type: List[TreeRowDict]
         for entry in entries:
             ref = entry["ref"]
             kind = entry["type"]
@@ -142,7 +144,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                         "tt": target_tt,
                         "enabled": target_ok and idx >= 0,
                     },
-                ]
+                ]  # type: List[TreeButtonDict]
             elif kind == "folder":
                 buttons = [
                     {
@@ -156,7 +158,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                         "tt": target_tt,
                         "enabled": target_ok,
                     },
-                ]
+                ]  # type: List[TreeButtonDict]
             else:  # preset
                 buttons = [
                     {
@@ -170,18 +172,18 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                         "tt": target_tt,
                         "enabled": target_ok,
                     },
-                ]
+                ]  # type: List[TreeButtonDict]
             rows.append(_cue_file_row("recent:" + ref, ref, 1, buttons))
         return rows
 
     def _preset_rows(self, preset_names, search_query, target_ok, target_tt):
-        # type: (List[str], str, bool, str) -> List[Dict[str, Any]]
+        # type: (List[str], str, bool, str) -> List[TreeRowDict]
         """Pool Preset rows: one collapsible folder row per preset, then its
         filtered files while expanded or searching.  Files auto-show during a
         search so a content-matched preset reveals what matched (like the
         tree's matching-folder rule)."""
         searching = bool(search_query.strip())
-        rows = []
+        rows = []  # type: List[TreeRowDict]
         for pname in preset_names:
             expanded = self._tree.expanded_presets.get(pname, False)
             buttons = [
@@ -201,7 +203,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                     "tt": target_tt,
                     "enabled": target_ok,
                 },
-            ]
+            ]  # type: List[TreeButtonDict]
             children = [
                 _cue_file_row(
                     "preset:" + pname + "/" + child,
@@ -218,7 +220,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                     size=11,
                 )
                 for child in _cue_filter_preset_files(pname, search_query)
-            ]
+            ]  # type: List[TreeRowDict]
             rows.extend(
                 _cue_folder_rows(
                     "preset:" + pname,
@@ -234,12 +236,12 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         return rows
 
     def _video_preset_rows(self, video_preset_names, is_video):
-        # type: (List[str], bool) -> List[Dict[str, Any]]
+        # type: (List[str], bool) -> List[TreeRowDict]
         """Video Preset rows: preset folder -> timestamp pools (depth 1) ->
         pool files (depth 2, size 11).  Pools reveal only on explicit expand
         (no search auto-show, matching the video preset screen); the apply-v
         button is gated on is_video."""
-        rows = []
+        rows = []  # type: List[TreeRowDict]
         for vpname in video_preset_names:
             data = _cue.presets.video.get(vpname)
             pools = data.get("pools", []) if data else []
@@ -256,8 +258,8 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                     "tt": "Apply video markers to the current video.\nOverwrites existing markers.",
                     "enabled": is_video,
                 },
-            ]
-            pool_rows = []
+            ]  # type: List[TreeButtonDict]
+            pool_rows = []  # type: List[TreeRowDict]
             pool_state = self._tree.expanded_video_pools.get(vpname, {})
             for pool_index, pool in enumerate(pools):
                 pool_label = _cue_format_time(pool.get("time", 0))
@@ -285,7 +287,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                         size=11,
                     )
                     for child in pool_files
-                ]
+                ]  # type: List[TreeRowDict]
                 pool_rows.extend(
                     _cue_folder_rows(
                         "vpreset:" + vpname + "/" + str(pool_index),
@@ -324,7 +326,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         return rows
 
     def _intensity_rows(self, igroup_names, search_query, lv_hook_ok, lv_tt):
-        # type: (List[str], str, bool, str) -> List[Dict[str, Any]]
+        # type: (List[str], str, bool, str) -> List[TreeRowDict]
         """Intensity-group rows: the + Group action, then per group a
         collapsible folder with + Level, empty-state help, and level rows.
         Level rows carry move-up/down chevrons as hover_buttons; the level
@@ -336,7 +338,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
             _cue_action_row(
                 "intensity:+group", "+ Group", _cue.dialogs.intensity.open, tt="Create a new intensity group.", depth=1
             )
-        ]
+        ]  # type: List[TreeRowDict]
         if not igroup_names and not searching:
             rows.append(_cue_help_row("intensity:empty", "No intensity groups yet.", depth=1))
             rows.append(
@@ -349,7 +351,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         for gname in igroup_names:
             group_expanded = self._tree.expanded_igroups.get(gname, False)
             g_levels = _cue_filter_igroup_folders(gname, search_query)
-            children = []
+            children = []  # type: List[TreeRowDict]
             if not searching:
                 children.append(
                     _cue_action_row(
@@ -379,7 +381,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                 lv_files = lv["files"]
                 lv_expanded = lv_id in self._tree.expanded_ilevels.get(gname, set())
                 in_add = self._tree.ilevel_add_target == (gname, lv_id)
-                buttons = []
+                buttons = []  # type: List[TreeButtonDict]
                 if not searching:
                     buttons.append(
                         {
@@ -411,7 +413,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                         "enabled": lv_hook_ok,
                     }
                 )
-                hover = []
+                hover = []  # type: List[TreeButtonDict]
                 if not searching:
                     bg_dialog = getattr(renpy.store, "_cue_color_bg_dialog", None)
                     hover = [
@@ -428,7 +430,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                             "bg": (bg_dialog if idx == len(g_levels) - 1 else None),
                         },
                     ]
-                level_children = []
+                level_children = []  # type: List[TreeRowDict]
                 if not lv_files:
                     level_children.append(
                         _cue_help_row(
@@ -473,7 +475,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         return rows
 
     def _ilevel_file_rows(self, gname, lv_id, file_ref):
-        # type: (str, object, str) -> List[Dict[str, Any]]
+        # type: (str, object, str) -> List[TreeRowDict]
         """One level-file row (list form: a single row, or a folder ref's
         folder row + its expanded children).  Folder refs (trailing '/') are
         expandable folders whose children strip the folder prefix; plain files
@@ -490,7 +492,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                     size=11,
                 )
                 for child in _cue_resolve_files([file_ref])
-            ]
+            ]  # type: List[TreeRowDict]
             return _cue_folder_rows(
                 "intensity:iref:" + gname + "/" + str(lv_id) + "/" + file_ref,
                 file_ref,
@@ -530,7 +532,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         ]
 
     def content_rows(self, search_query, preset_names, video_preset_names, igroup_names, is_video, tgt_ok, unplayable):
-        # type: (str, List[str], List[str], List[str], bool, bool, Dict[str, str]) -> List[Dict[str, Any]]
+        # type: (str, List[str], List[str], List[str], bool, bool, Dict[str, str]) -> List[TreeRowDict]
         """Full SFX Library section stream: Recently Used, Pool Presets, Video
         Presets, Intensity Groups, then the file tree.  Name lists arrive raw
         from the other managers and are search-filtered here (the current
@@ -545,7 +547,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         if not tree.builtin_tree and not tree.external_sources:
             return self._builtin_empty_rows(tree)
         tgt_tt = _cue_target_assign_tt()
-        rows = []
+        rows = []  # type: List[TreeRowDict]
         # -- Recently Used ---------------------------------------------------
         recent_entries = []
         recent = self._tree._recent
@@ -633,12 +635,12 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         return rows
 
     def _builtin_empty_rows(self, tree):
-        # type: (Any) -> List[Dict[str, Any]]
+        # type: (Any) -> List[TreeRowDict]
         """Built-in source empty rows: scan error, no-files message, add hint,
         an Open-folder + curated-pack download action row, and the settings
         tip.  Shared by the truly-empty early return and the per-source empty
         block so the SFX empty state has a single construction site."""
-        rows = []
+        rows = []  # type: List[TreeRowDict]
         if tree.builtin_scan_error:
             rows.append(
                 _cue_help_row(
@@ -673,7 +675,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         return rows
 
     def _download_pack_button(self, tree):
-        # type: (Any) -> Dict[str, Any]
+        # type: (Any) -> TreeActionRowDict
         """The curated-pack download button (icon + label).  Label and
         sensitivity follow the pack state; purely presentational -- the state
         poll timer lives in cue_runtime_timers, gated on the pack state."""
@@ -691,20 +693,21 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         )
 
     def _download_pack_status_rows(self, tree):
-        # type: (Any) -> List[Dict[str, Any]]
+        # type: (Any) -> List[TreeRowDict]
         """Progress / loading / error lines under the pack download button."""
         pack = tree.sfx_pack
         st = pack.state
         if st == "downloading":
-            rows = [
+            rows = [  # type: List[TreeRowDict]
                 _cue_help_row(
                     "builtin:download_progress", "Downloading Cue SFX Pack... {:.0%}".format(pack.progress), plain=True
                 )
             ]
         elif st == "done":
-            rows = [_cue_help_row("builtin:download_loading", "Pack downloaded - loading sounds...", plain=True)]
+            row = _cue_help_row("builtin:download_loading", "Pack downloaded - loading sounds...", plain=True)
+            rows = [row]  # type: List[TreeRowDict]
         elif st == "error":
-            rows = [
+            rows = [  # type: List[TreeRowDict]
                 _cue_help_row(
                     "builtin:download_error",
                     pack.error,
@@ -717,18 +720,18 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         return rows
 
     def _preset_children(self, preset_names, search_query, target_ok, target_tt):
-        # type: (List[str], str, bool, str) -> List[Dict[str, Any]]
+        # type: (List[str], str, bool, str) -> List[TreeRowDict]
         """Pool Presets children: the empty-state line, then the preset rows."""
-        rows = []
+        rows = []  # type: List[TreeRowDict]
         if not preset_names:
             rows.append(_cue_help_row("presets:empty", "No pool presets yet. Save a pool as a preset to fill this."))
         rows.extend(self._preset_rows(preset_names, search_query, target_ok, target_tt))
         return rows
 
     def _video_preset_children(self, video_preset_names, is_video):
-        # type: (List[str], bool) -> List[Dict[str, Any]]
+        # type: (List[str], bool) -> List[TreeRowDict]
         """Video Presets children: the empty-state line, then the preset rows."""
-        rows = []
+        rows = []  # type: List[TreeRowDict]
         if not video_preset_names:
             rows.append(
                 _cue_help_row("vpresets:empty", "No video presets yet. Save video markers as a preset to fill this.")

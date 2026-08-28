@@ -15,7 +15,9 @@ from cue_lib.util import _cue_pick_file, _cue_resolve_files, create_vid_key
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List, Optional
+    from typing import Any, List, Optional
+
+    from cue_lib._types import TreeButtonDict, TreeFolderRowDict, TreeRowDict
 
 
 def _cue_pool_files_rows(
@@ -32,7 +34,7 @@ def _cue_pool_files_rows(
     igroup=None,
     ilevel_id=None,
 ):
-    # type: (List[str], float, Any, Any, tuple, Any, Optional[str], Optional[int], Optional[str], Optional[List[str]], Optional[str], Optional[int]) -> List[Dict[str, Any]]
+    # type: (List[str], float, Any, Any, tuple, Any, Optional[str], Optional[int], Optional[str], Optional[List[str]], Optional[str], Optional[int]) -> List[TreeRowDict]
     """Row dicts for one pool's file area.
 
     detach_action is a pre-built action that removes the pool's hook -- the
@@ -50,7 +52,7 @@ def _cue_pool_files_rows(
         return _cue_pool_igroup_rows(
             level_files, preview_vol, detach_action, hook_tt, bool(flags.enabled and flags.sfx_levels)
         )
-    rows = []
+    rows = []  # type: List[TreeRowDict]
     if folder_label is not None:
         rows.extend(
             _cue_pool_virtual_rows(
@@ -67,11 +69,11 @@ def _cue_pool_files_rows(
 def _cue_pool_virtual_rows(
     folder_label, folder_children, preview_vol, detach_action, marker_key, pool_index, child_remove_fn
 ):
-    # type: (str, Optional[List[str]], float, Any, Optional[str], Optional[int], Any) -> List[Dict[str, Any]]
+    # type: (str, Optional[List[str]], float, Any, Optional[str], Optional[int], Any) -> List[TreeRowDict]
     """Virtual-folder header + expanded children (preset-backed pools)."""
     library = _cue.sfx.library
     expanded = library.expanded_file_refs.get(folder_label, False)
-    buttons = []
+    buttons = []  # type: List[TreeButtonDict]
     if detach_action is not None:
         buttons.append({"icon": "xmark", "action": detach_action, "tt": "Remove preset"})
     buttons.append(
@@ -81,7 +83,7 @@ def _cue_pool_virtual_rows(
             "tt": "Play random file from preset",
         }
     )
-    children = []
+    children = []  # type: List[TreeRowDict]
     if folder_children:
         children = [
             _cue_file_row(
@@ -117,7 +119,7 @@ def _cue_pool_virtual_rows(
 
 
 def _cue_pool_ref_rows(index, ref, preview_vol, remove_fn, remove_args, marker_key, pool_index, child_remove_fn):
-    # type: (int, str, float, Any, tuple, Optional[str], Optional[int], Any) -> List[Dict[str, Any]]
+    # type: (int, str, float, Any, tuple, Optional[str], Optional[int], Any) -> List[TreeRowDict]
     """Rows for one pool ref: an expandable folder (children strip the folder
     prefix) or a plain file, both with an xmark wired through remove_fn."""
     library = _cue.sfx.library
@@ -143,7 +145,7 @@ def _cue_pool_ref_rows(index, ref, preview_vol, remove_fn, remove_args, marker_k
                 size=11,
             )
             for child in _cue_resolve_files([ref])
-        ]
+        ]  # type: List[TreeRowDict]
         return _cue_folder_rows(
             "pf:folder:" + ref,
             ref,
@@ -176,12 +178,12 @@ def _cue_pool_ref_rows(index, ref, preview_vol, remove_fn, remove_args, marker_k
 
 
 def _cue_pool_igroup_rows(level_files, preview_vol, detach_action, hook_tt, hint):
-    # type: (List[str], float, Any, str, bool) -> List[Dict[str, Any]]
+    # type: (List[str], float, Any, str, bool) -> List[TreeRowDict]
     """Read-only rows for an igroup-hooked pool: the level's files/folders
     with preview only, an optional detach xmark on each folder row, and the
     level-folder hint bar."""
     library = _cue.sfx.library
-    rows = []
+    rows = []  # type: List[TreeRowDict]
     for f in level_files:
         if f.endswith("/"):
             expanded = library.expanded_file_refs.get(f, False)
@@ -203,7 +205,7 @@ def _cue_pool_igroup_rows(level_files, preview_vol, detach_action, hook_tt, hint
                 "buttons": buttons,
                 "toggle": Function(library.toggle_file_ref_expand, f),
                 "tt": hook_tt,
-            }
+            }  # type: TreeFolderRowDict
             if hint:
                 row["bar_color"] = CUE_INTENSITY_HINT_COLOR
             rows.append(row)

@@ -1,5 +1,7 @@
 # Type stub for cue_lib.audio.tree.pool_rows
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
+
+from cue_lib._types import TreeRowDict
 
 def _cue_pool_files_rows(
     files: List[str],
@@ -14,7 +16,7 @@ def _cue_pool_files_rows(
     folder_children: Optional[List[str]],
     igroup: Optional[str] = ...,
     ilevel_id: Optional[int] = ...,
-) -> List[Dict[str, Any]]: ...
+) -> List[TreeRowDict]: ...
 def _cue_pool_virtual_rows(
     folder_label: str,
     folder_children: Optional[List[str]],
@@ -23,7 +25,7 @@ def _cue_pool_virtual_rows(
     marker_key: Optional[str],
     pool_index: Optional[int],
     child_remove_fn: Any,
-) -> List[Dict[str, Any]]: ...
+) -> List[TreeRowDict]: ...
 def _cue_pool_ref_rows(
     index: int,
     ref: str,
@@ -33,7 +35,7 @@ def _cue_pool_ref_rows(
     marker_key: Optional[str],
     pool_index: Optional[int],
     child_remove_fn: Any,
-) -> List[Dict[str, Any]]: ...
+) -> List[TreeRowDict]: ...
 def _cue_pool_igroup_rows(
     level_files: List[str], preview_vol: float, detach_action: Any, hook_tt: str, hint: bool
-) -> List[Dict[str, Any]]: ...
+) -> List[TreeRowDict]: ...
