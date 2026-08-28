@@ -164,7 +164,7 @@ screen trigger_list(triggers):
                             # Folder ref: expandable, count + detachable children.
                             # Display under the synthetic My/Game Music root, not
                             # the raw data path ("My Music/x/" not "music/x/").
-                            $ _song_path = _cue.music.library.ref_display_path(_song)
+                            $ _song_path = _cue.music.library.display_for_ref(_song)
                             $ _folder_expanded = _cue.music.expanded_file_refs.get(_song, False)
                             $ _folder_files = _cue.music.resolve_music_files([_song])
                             hbox:
@@ -192,13 +192,13 @@ screen trigger_list(triggers):
                                                 _idx,
                                                 _child),
                                             "Remove file from the folder")
-                                        $ _child_path = _cue.music.library.ref_display_path(_child)
+                                        $ _child_path = _cue.music.library.display_for_ref(_child)
                                         $ _child_display = _child_path[len(_song_path):]
                                         etext _child_display
                         else:
                             # Show the full path under the synthetic My/Game
                             # Music root, matching the folder rows above.
-                            $ _song_path = _cue.music.library.ref_display_path(_song)
+                            $ _song_path = _cue.music.library.display_for_ref(_song)
                             hbox:
                                 spacing 6
                                 use cue_icon_btn(

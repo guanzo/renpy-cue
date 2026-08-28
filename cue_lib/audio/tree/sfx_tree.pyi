@@ -1,6 +1,7 @@
 # Type stub for cue_lib.audio.tree.sfx_tree
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from cue_lib._types import AudioSourceConfig
 from cue_lib.audio.cue_sfx_pack import CueSfxPackDownloader
 from cue_lib.audio.sfx_manager import CueSfxManager
 from cue_lib.audio.tree.file_tree import CueAudioTreeManager
@@ -35,6 +36,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
     _rows: CueSfxTreeRows
     _reserved_labels: Tuple[str, ...]
     sfx_pack: CueSfxPackDownloader
+    CUE_BUILTIN_SOURCES: Tuple[AudioSourceConfig, ...]
 
     def __init__(self, paths: CuePaths, db: CueDatabase) -> None: ...
     def scan(self) -> None: ...

@@ -83,7 +83,7 @@ class CueMusicPresetsUi(object):
         if not files:
             return
         for ref in list(files):
-            if not ref.endswith("/") and self.library.ref_display_path(ref) == display_path:
+            if not ref.endswith("/") and self.library.display_for_ref(ref) == display_path:
                 files.remove(ref)
                 self._presets.music.save(name)
                 return
@@ -94,7 +94,7 @@ class CueMusicPresetsUi(object):
                 resolved = [
                     r
                     for r in _cue_resolve_music_files(self.library, [ref])
-                    if self.library.ref_display_path(r) != display_path
+                    if self.library.display_for_ref(r) != display_path
                 ]
                 files[i : i + 1] = resolved
                 self._presets.music.save(name)
@@ -105,21 +105,21 @@ class CueMusicPresetsUi(object):
         """A preset's stored refs as concrete display paths, for its rows.
 
         Folder refs expand into their stored-form children, each rendered
-        through ref_display_path.  Matches the rows the Music Presets/
+        through display_for_ref.  Matches the rows the Music Presets/
         section renders."""
         out = []
         for ref in preset.get("files", []):
             if ref.endswith("/"):
                 for child in _cue_resolve_music_files(self.library, [ref]):
-                    out.append(self.library.ref_display_path(child))
+                    out.append(self.library.display_for_ref(child))
             else:
-                out.append(self.library.ref_display_path(ref))
+                out.append(self.library.display_for_ref(ref))
         return out
 
     def _folder_display_children(self, folder_ref):
         # type: (str) -> List[str]
         """Display paths of the files a stored folder ref resolves to."""
-        return [self.library.ref_display_path(f) for f in _cue_resolve_music_files(self.library, [folder_ref])]
+        return [self.library.display_for_ref(f) for f in _cue_resolve_music_files(self.library, [folder_ref])]
 
     @_cue_ui_refresh
     def toggle_presets_expand(self):
@@ -144,7 +144,6 @@ class CueMusicPresetsUi(object):
         preset = self._presets.music.get(preset_name)
         if preset is None:
             return
-        files = self.preset_display_files(preset)
+        files = _cue_resolve_music_files(self.library, preset.get("files", []))
         if files:
-            f = random.choice(files)
-            self.library.preview(f)
+            self.library.preview(random.choice(files))

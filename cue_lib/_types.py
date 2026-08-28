@@ -259,5 +259,19 @@ class AudioTreeFileNode(TypedDict):
     enabled: bool
 
 
+class AudioSourceConfig(TypedDict):
+    """One declared built-in source in a tree's CUE_BUILTIN_SOURCES.
+
+    key owns the {key}_files / {key}_tree / {key}_scan_error per-source attrs;
+    discover is the method NAME (string) filling a set with stored-form paths;
+    display_root is the synthetic folder the source's tree wraps under;
+    scan_label is the human label for scan-failure messages."""
+
+    key: str
+    discover: str
+    display_root: str
+    scan_label: str
+
+
 # Type alias for union of node types
 AudioTreeNode = Union[AudioTreeFolderNode, AudioTreeFileNode]

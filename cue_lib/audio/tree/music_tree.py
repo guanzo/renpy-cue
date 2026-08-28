@@ -14,12 +14,13 @@ from cue_lib.constants import (
     CUE_AUDIO_EXTS,
     CUE_GAME_MUSIC_FOLDER,
     CUE_MUSIC_GAME_TAG,
+    CUE_MUSIC_USER_TAG,
     CUE_MY_MUSIC_FOLDER,
     CUE_MUSIC_PREFIX,
     CUE_PERSIST_MUSIC_TREE_EXPANDED,
 )
 from cue_lib.state import _cue
-from cue_lib.util import _cue_build_tree, _cue_is_abs_path, _cue_log
+from cue_lib.util import _cue_is_abs_path, _cue_log
 
 # Directory-name heuristic for Game Music discovery: a game file whose path
 # contains one of these segments (case-insensitive) is classified as music.
@@ -27,7 +28,8 @@ CUE_GAME_MUSIC_DIRS = ("music", "bgm", "ost", "soundtrack")
 
 MYPY = False
 if MYPY:
-    from typing import Any, Callable, Dict, List, Optional, Set
+    from typing import Any, Dict, List, Set
+
     from cue_lib.music.manager import CueMusicManager
 
 
@@ -44,13 +46,26 @@ class CueMusicTree(CueAudioTreeManager):
     the display always has exactly two top-level folders regardless of how
     many top-level dirs the Game Music heuristic finds."""
 
-    _scan_label = "music library"
     _log_tag = "MUSIC-LIB"
     # Open both synthetic top folders by default (one-time), so the two
     # sources are visible without a click.
     _auto_expand_roots = True
     _persist_key = CUE_PERSIST_MUSIC_TREE_EXPANDED
     _reserved_labels = (CUE_MY_MUSIC_FOLDER, CUE_GAME_MUSIC_FOLDER)
+    CUE_BUILTIN_SOURCES = (
+        {
+            "key": "user",
+            "discover": "_discover_user",
+            "display_root": CUE_MY_MUSIC_FOLDER,
+            "scan_label": "music folder",
+        },
+        {
+            "key": "game",
+            "discover": "_discover_game",
+            "display_root": CUE_GAME_MUSIC_FOLDER,
+            "scan_label": "game music",
+        },
+    )
 
     def __init__(self, music):
         # type: (CueMusicManager) -> None
@@ -87,10 +102,7 @@ class CueMusicTree(CueAudioTreeManager):
         expansion opens both synthetic folders on the first non-empty scan)."""
         _t0 = time.time()
 
-        self.user_files, self.user_scan_error = self._scan_source(self._discover_user, "music folder")
-        self.game_files, self.game_scan_error = self._scan_source(self._discover_game, "game music")
-        self.user_tree = _cue_build_tree(self.user_files)
-        self.game_tree = _cue_build_tree(self.game_files)
+        self._scan_builtin_sources()
         self._scan_external()
 
         self._rebuild_merged()
@@ -100,16 +112,6 @@ class CueMusicTree(CueAudioTreeManager):
                 self._log_tag, time.time() - _t0, len(self.user_files), len(self.game_files), len(self.external_files)
             )
         )
-
-    def _scan_source(self, discover, label):
-        # type: (Callable[[Set[str]], None], str) -> tuple
-        """Run one source scan; return (sorted files, scan_error)."""
-        results = set()
-        try:
-            discover(results)
-        except Exception as err:
-            return [], "Failed to scan {}: {}".format(label, err)
-        return sorted(results), ""
 
     def _discover_user(self, results_set):
         # type: (Set[str]) -> None
@@ -174,74 +176,46 @@ class CueMusicTree(CueAudioTreeManager):
         self._append_external_sources(result)
 
         # Game Music is always last, below any user-added external folders.
-        game_tree = self.game_tree
-        if game_tree:
-            result.append({"type": "folder", "name": CUE_GAME_MUSIC_FOLDER, "children": game_tree, "has_files": False})
+        if self.game_tree:
+            result.append(self._wrap_source_tree("game"))
 
         return result
 
     # ------------------------------------------------------------------
-    # Dispatch: display path -> data path
+    # Dispatch: stored ref -> manager (tags route by source)
     # ------------------------------------------------------------------
     #
-    # The visible rows carry merged display paths ("My Music/Folder/song.ogg",
-    # "Game Music/bgm/x.ogg").  Before reaching the stored-ref methods these
-    # are converted back to the data model: a user path re-gains its "music/"
-    # prefix, a game path is the game-relative path unchanged.  Ref tags
-    # (u:/g:) and stored refs are therefore untouched by the UI merge.
+    # The visible rows carry stored refs (item["ref"]: "u:music/x.ogg",
+    # "g:bgm/x.ogg", or a bare absolute path) stashed by the base _file_node.
+    # The tag routing already lives in the manager's add_*_to_trigger family,
+    # so these just split the tag and hand the untagged path to the right
+    # manager method.  ref_from_display / display_for_ref invert each other
+    # and are the only display<->stored conversion in the tree.
 
-    def _display_to_external(self, display_path):
-        # type: (str) -> Optional[str]
-        """Absolute payload for display_path if it points into an external
-        source tree, else None.  Label prefix matching is exact (label + "/"),
-        so "ExtA2/..." never matches a source labelled "ExtA"."""
-        return self._external_payload_for_display(display_path)
+    def ref_from_display(self, display_path):
+        # type: (str) -> str
+        """Stored ref for a merged display path.
 
-    def add_song_to_trigger(self, display_path, record=True):
-        # type: (str, bool) -> None
-        """Add the song under display_path to the selected trigger.
+        Inverts display_for_ref: "My Music/x.ogg" regains its "u:music/x.ogg"
+        stored form, "Game Music/bgm/x.ogg" becomes "g:bgm/x.ogg", and an
+        external label path becomes the bare absolute payload."""
+        payload = self._external_payload_for_display(display_path)
+        if payload is not None:
+            return payload
+        if display_path.startswith(CUE_GAME_MUSIC_FOLDER):
+            return CUE_MUSIC_GAME_TAG + display_path[len(CUE_GAME_MUSIC_FOLDER) :]
+        return CUE_MUSIC_USER_TAG + CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER) :]
 
-        record=False is passed by recently-used rows so acting from the list
-        doesn't re-feed it."""
-        external = self._display_to_external(display_path)
-        if external is not None:
-            self._music.add_external_song_to_trigger(external, record=record)
-        elif display_path.startswith(CUE_GAME_MUSIC_FOLDER):
-            self._music.add_game_song_to_trigger(display_path[len(CUE_GAME_MUSIC_FOLDER) :], record=record)
-        else:
-            self._music.add_user_song_to_trigger(
-                CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER) :], record=record
-            )
-
-    def add_folder_to_trigger(self, display_path, record=True):
-        # type: (str, bool) -> None
-        """Add the folder under display_path to the selected trigger.
-
-        The synthetic "Game Music/" root is skipped -- it groups several real
-        folders and has no single data path.  record=False is passed by
-        recently-used rows so acting from the list doesn't re-feed it."""
-        external = self._display_to_external(display_path)
-        if external is not None:
-            self._music.add_external_folder_to_trigger(external, record=record)
-        elif display_path.startswith(CUE_GAME_MUSIC_FOLDER):
-            if display_path == CUE_GAME_MUSIC_FOLDER:
-                return
-            self._music.add_game_folder_to_trigger(display_path[len(CUE_GAME_MUSIC_FOLDER) :], record=record)
-        else:
-            self._music.add_user_folder_to_trigger(
-                CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER) :], record=record
-            )
-
-    def ref_display_path(self, ref):
+    def display_for_ref(self, ref):
         # type: (str) -> str
         """Display path for a stored (tagged) music ref.
 
-        Inverts the dispatch in add_song_to_trigger/add_folder_to_trigger: a
-        user ref sheds its "music/" data prefix under "My Music/", a game ref
-        keeps its path under "Game Music/", an external ref sheds its absolute
-        root under its source label (or falls back to the absolute path when
-        the source was removed).  An untagged legacy ref is treated as user,
-        which is the round-trip of the user-default dispatch."""
+        Inverts ref_from_display: a user ref sheds its "music/" data prefix
+        under "My Music/", a game ref keeps its path under "Game Music/", an
+        external ref sheds its absolute root under its source label (or falls
+        back to the absolute path when the source was removed).  An untagged
+        legacy ref is treated as user, which is the round-trip of the
+        user-default dispatch."""
         tag, path = self._music._split_ref_tag(ref)
         if tag == CUE_MUSIC_GAME_TAG:
             return CUE_GAME_MUSIC_FOLDER + path
@@ -257,24 +231,48 @@ class CueMusicTree(CueAudioTreeManager):
             path = path[len(CUE_MUSIC_PREFIX) :]
         return CUE_MY_MUSIC_FOLDER + path
 
-    def preview(self, display_path, volume=1.0):
-        # type: (str, float) -> None
-        """Preview the file under display_path on the music channel (untracked).
+    def add_song_to_trigger(self, ref, record=True):
+        # type: (str, bool) -> None
+        """Add the song at stored ref to the selected trigger.
 
-        Mirrors the previous _cue_preview_music/_cue_preview_game_music: user
-        paths resolve through _resolve_music_path (which also tolerates legacy
-        no-prefix entries), game paths play game-relative as-is, external paths
-        play the absolute payload directly."""
-        external = self._display_to_external(display_path)
-        if external is not None:
-            self._music.play_untracked(external, volume=volume)
-        elif display_path.startswith(CUE_GAME_MUSIC_FOLDER):
-            self._music.play_untracked(display_path[len(CUE_GAME_MUSIC_FOLDER) :], volume=volume)
+        record=False is passed by recently-used rows so acting from the list
+        doesn't re-feed it."""
+        if _cue_is_abs_path(ref):
+            self._music.add_external_song_to_trigger(ref, record=record)
+            return
+        tag, path = self._music._split_ref_tag(ref)
+        if tag == CUE_MUSIC_GAME_TAG:
+            self._music.add_game_song_to_trigger(path, record=record)
         else:
-            self._music.play_untracked(
-                self._music._resolve_music_path(CUE_MUSIC_PREFIX + display_path[len(CUE_MY_MUSIC_FOLDER) :]),
-                volume=volume,
-            )
+            self._music.add_user_song_to_trigger(path, record=record)
+
+    def add_folder_to_trigger(self, ref, record=True):
+        # type: (str, bool) -> None
+        """Add the folder at stored ref to the selected trigger.
+
+        The synthetic "Game Music" root (stored ref "g:") is skipped -- it
+        groups several real folders and has no single data path.  record=False
+        is passed by recently-used rows so acting from the list doesn't re-feed
+        it."""
+        if _cue_is_abs_path(ref):
+            self._music.add_external_folder_to_trigger(ref, record=record)
+            return
+        tag, path = self._music._split_ref_tag(ref)
+        if tag == CUE_MUSIC_GAME_TAG:
+            if not path:
+                return
+            self._music.add_game_folder_to_trigger(path, record=record)
+        else:
+            self._music.add_user_folder_to_trigger(path, record=record)
+
+    def preview(self, ref, volume=1.0):
+        # type: (str, float) -> None
+        """Preview the file at stored ref on the music channel (untracked).
+
+        _resolve_music_path handles the source tags: "u:" resolves under the
+        shared music dir, "g:" plays game-relative as-is, absolute payloads
+        play directly."""
+        self._music.play_untracked(self._music._resolve_music_path(ref), volume=volume)
 
     def tree_rows(self, *state):
         # type: (*Any) -> List[Dict[str, Any]]

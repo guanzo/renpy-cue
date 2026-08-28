@@ -73,6 +73,26 @@ class _ScanSrc(CueAudioTreeManager):
         results_set.update(self._files)
 
 
+class _MultiSrcTree(CueAudioTreeManager):
+    """Two declared built-in sources for the base multi-source scan test."""
+
+    CUE_BUILTIN_SOURCES = (
+        {"key": "a", "discover": "_discover_a", "display_root": "A/", "scan_label": "a"},
+        {"key": "b", "discover": "_discover_b", "display_root": "B/", "scan_label": "b"},
+    )
+
+    def scan(self):
+        self._scan_builtin_sources()
+        self._scan_external()
+        self._rebuild_merged()
+
+    def _discover_a(self, results_set):
+        results_set.update(["a/x.ogg", "a/y.ogg"])
+
+    def _discover_b(self, results_set):
+        results_set.update(["b/z.ogg"])
+
+
 def _rows(manager):
     return [(r["type"], r["name"], r["full_path"], r["depth"]) for r in manager.visible_tree]
 
@@ -186,6 +206,53 @@ def test_scan_sorts_and_builds_tree():
     assert [n["name"] for n in m.tree] == ["a/", "z.ogg"]
     # collapsed folder hides children
     assert _rows(m) == [("folder", "a/", "a/", 0), ("file", "z.ogg", "z.ogg", 0)]
+
+
+def test_base_multi_source_scan_fills_per_source_attrs():
+    tree = _MultiSrcTree()
+    tree.scan()
+    assert tree.a_files == ["a/x.ogg", "a/y.ogg"]
+    assert tree.a_scan_error == ""
+    assert tree.b_files == ["b/z.ogg"]
+    assert tree.b_scan_error == ""
+    # Merged tree wraps each non-empty source under its display_root.
+    assert [n["name"] for n in tree.tree] == ["A/", "B/"]
+    assert tree.tree[0]["children"] == [
+        {
+            "type": "folder",
+            "name": "a/",
+            "has_files": True,
+            "children": [{"type": "file", "name": "x.ogg"}, {"type": "file", "name": "y.ogg"}],
+        }
+    ]
+
+
+def test_base_multi_source_scan_isolates_source_error(monkeypatch):
+    tree = _MultiSrcTree()
+    tree.CUE_BUILTIN_SOURCES = (
+        {"key": "a", "discover": "_discover_boom", "display_root": "A/", "scan_label": "a"},
+        {"key": "b", "discover": "_discover_b", "display_root": "B/", "scan_label": "b"},
+    )
+
+    def _boom(results_set):
+        raise RuntimeError("kaput")
+
+    setattr(tree, "_discover_boom", _boom)
+    tree.scan()
+    assert tree.a_files == []
+    assert tree.a_tree == []
+    assert "Failed to scan a: kaput" in tree.a_scan_error
+    assert tree.b_files == ["b/z.ogg"]
+    assert tree.b_scan_error == ""
+    # The healthy source still contributes to the merged tree.
+    assert [n["name"] for n in tree.tree] == ["B/"]
+
+
+def test_file_node_stashes_ref_identity_default():
+    tree = CueAudioTreeManager()
+    node = tree._file_node({"name": "x.ogg"}, "a/x.ogg", 1)
+    assert node["ref"] == "a/x.ogg"
+    assert tree.display_for_ref("a/x.ogg") == "a/x.ogg"
 
 
 def test_discover_walk_dir(tmp_path):
@@ -549,6 +616,20 @@ def test_sfx_resolve_path(sfx):
     audio = sfx._paths.audio_dir
     assert sfx.resolve_path("g1/drip.ogg") == audio + "g1/drip.ogg"
     assert sfx.resolve_path("E:/SFX/A/g1/drip.ogg") == "E:/SFX/A/g1/drip.ogg"
+
+
+def test_sfx_ref_round_trip(sfx, tmp_path):
+    _write_tree(str(tmp_path / "audio") + "/", ["g1/drip.ogg", "a.ogg"])
+    ext = str(tmp_path / "ExtA")
+    _write_tree(ext, ["x.ogg"])
+    sfx.external_folders = [ext]
+    sfx.scan()
+    # Built-in: display "SFX/..." inverts to the audio-relative ref, and back.
+    assert sfx.ref_from_display(CUE_SFX_FOLDER + "g1/drip.ogg") == "g1/drip.ogg"
+    assert sfx.ref_from_display(sfx.display_for_ref("g1/drip.ogg")) == "g1/drip.ogg"
+    # External: the bare absolute payload round-trips through its source label.
+    assert sfx.ref_from_display("ExtA/x.ogg") == ext + "/x.ogg"
+    assert sfx.ref_from_display(sfx.display_for_ref(ext + "/x.ogg")) == ext + "/x.ogg"
 
 
 def test_sfx_file_node_ref_index_enabled(sfx):

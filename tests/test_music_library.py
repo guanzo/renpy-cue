@@ -8,6 +8,7 @@
 # with a pre-built tree) and a fake music manager that records dispatch calls,
 # so merge / flatten / search / dispatch are all asserted headlessly.
 
+import os
 import types
 
 import pytest
@@ -16,6 +17,7 @@ import renpy
 
 from renpy.store import persistent
 
+import cue_lib.audio.tree.music_tree as _tree
 from cue_lib.audio.tree.music_tree import CueMusicTree
 from cue_lib.constants import (
     CUE_GAME_MUSIC_FOLDER,
@@ -133,6 +135,29 @@ def test_merged_tree_skips_empty_source():
     rows = _rows(lib)
     assert USER not in rows
     assert GAME in rows
+
+
+def test_music_source_accessors_parity(monkeypatch, tmp_path):
+    # The base accessors must read the same per-source attrs scan() populates
+    # through _scan_builtin_sources -- the contract recent.py and the rows
+    # builders depend on by name.
+    music_dir = str(tmp_path / "music") + "/"
+    for rel in ("song.ogg",):
+        p = os.path.join(music_dir, rel)
+        d = os.path.dirname(p)
+        if not os.path.isdir(d):
+            os.makedirs(d)
+        open(p, "w").close()
+    monkeypatch.setattr(_tree, "_cue", types.SimpleNamespace(paths=types.SimpleNamespace(music_dir=music_dir)))
+    monkeypatch.setattr(renpy, "list_files", lambda: ["bgm/x.ogg"])
+    lib = CueMusicTree(types.SimpleNamespace())
+    lib.scan()
+    assert lib._source_files("user") == lib.user_files
+    assert lib._source_tree("game") == lib.game_tree
+    assert lib._source_scan_error("user") == lib.user_scan_error
+    assert lib._source_scan_error("game") == lib.game_scan_error
+    assert lib.user_files == ["music/song.ogg"]
+    assert lib.game_files == ["bgm/x.ogg"]
 
 
 def test_merged_tree_empty_when_both_empty():
@@ -276,100 +301,100 @@ def test_folder_rows_has_files():
 # ==========================================================================
 
 
-def test_add_song_user_routes_flattened_path():
+def test_add_song_user_routes_stored_ref():
     lib, calls = _make_lib(user_paths=("music/a.ogg",))
-    lib.add_song_to_trigger(USER + "a.ogg")
-    assert calls == [("add_user_song", (CUE_MUSIC_PREFIX + "a.ogg",), {"record": True})]
+    lib.add_song_to_trigger(CUE_MUSIC_USER_TAG + "music/a.ogg")
+    assert calls == [("add_user_song", ("music/a.ogg",), {"record": True})]
 
 
 def test_add_song_user_nested_folder():
     lib, calls = _make_lib(user_paths=("music/folder/song.ogg",))
-    lib.add_song_to_trigger(USER + "folder/song.ogg")
+    lib.add_song_to_trigger(CUE_MUSIC_USER_TAG + "music/folder/song.ogg")
     assert calls == [("add_user_song", ("music/folder/song.ogg",), {"record": True})]
 
 
 def test_add_song_game_routes():
     lib, calls = _make_lib(game_paths=("bgm/x.ogg",))
-    lib.add_song_to_trigger(GAME + "bgm/x.ogg")
+    lib.add_song_to_trigger(CUE_MUSIC_GAME_TAG + "bgm/x.ogg")
     assert calls == [("add_game_song", ("bgm/x.ogg",), {"record": True})]
 
 
 def test_add_folder_user_routes():
     lib, calls = _make_lib(user_paths=("music/sub/b.ogg",))
-    lib.add_folder_to_trigger(USER + "sub/")
+    lib.add_folder_to_trigger(CUE_MUSIC_USER_TAG + "music/sub/")
     assert calls == [("add_user_folder", ("music/sub/",), {"record": True})]
 
 
 def test_add_folder_user_root_adds_all():
     lib, calls = _make_lib(user_paths=("music/a.ogg",))
-    lib.add_folder_to_trigger(USER)
+    lib.add_folder_to_trigger(CUE_MUSIC_USER_TAG + "music/")
     assert calls == [("add_user_folder", ("music/",), {"record": True})]
 
 
 def test_add_folder_game_routes():
     lib, calls = _make_lib(game_paths=("bgm/x.ogg",))
-    lib.add_folder_to_trigger(GAME + "bgm/")
+    lib.add_folder_to_trigger(CUE_MUSIC_GAME_TAG + "bgm/")
     assert calls == [("add_game_folder", ("bgm/",), {"record": True})]
 
 
 def test_add_folder_game_synthetic_root_noop():
     lib, calls = _make_lib(game_paths=("bgm/x.ogg",))
-    lib.add_folder_to_trigger(GAME)
+    lib.add_folder_to_trigger(CUE_MUSIC_GAME_TAG)
     assert calls == []
 
 
 def test_add_song_record_false_passes_through():
     lib, calls = _make_lib(user_paths=("music/a.ogg",))
-    lib.add_song_to_trigger(USER + "a.ogg", record=False)
-    assert calls == [("add_user_song", (CUE_MUSIC_PREFIX + "a.ogg",), {"record": False})]
+    lib.add_song_to_trigger(CUE_MUSIC_USER_TAG + "music/a.ogg", record=False)
+    assert calls == [("add_user_song", ("music/a.ogg",), {"record": False})]
 
 
 def test_add_folder_record_false_passes_through():
     lib, calls = _make_lib(user_paths=("music/sub/b.ogg",))
-    lib.add_folder_to_trigger(USER + "sub/", record=False)
+    lib.add_folder_to_trigger(CUE_MUSIC_USER_TAG + "music/sub/", record=False)
     assert calls == [("add_user_folder", ("music/sub/",), {"record": False})]
 
 
 def test_preview_user_resolves_music_path():
     lib, calls = _make_lib(user_paths=("music/a.ogg",))
-    lib.preview(USER + "a.ogg", volume=0.5)
-    assert calls == [("play_untracked", ("ABS:music/a.ogg",), {"volume": 0.5})]
+    lib.preview(CUE_MUSIC_USER_TAG + "music/a.ogg", volume=0.5)
+    assert calls == [("play_untracked", ("ABS:u:music/a.ogg",), {"volume": 0.5})]
 
 
 def test_preview_game_passes_path():
     lib, calls = _make_lib(game_paths=("bgm/x.ogg",))
-    lib.preview(GAME + "bgm/x.ogg")
-    assert calls == [("play_untracked", ("bgm/x.ogg",), {"volume": 1.0})]
+    lib.preview(CUE_MUSIC_GAME_TAG + "bgm/x.ogg")
+    assert calls == [("play_untracked", ("ABS:g:bgm/x.ogg",), {"volume": 1.0})]
 
 
 # ==========================================================================
-# stored-ref -> display-path conversion (ref_display_path)
+# stored-ref -> display-path conversion (display_for_ref)
 # ==========================================================================
 
 
 def test_ref_display_path_user():
     lib, _calls = _make_lib()
-    assert lib.ref_display_path(CUE_MUSIC_USER_TAG + "music/song.ogg") == USER + "song.ogg"
+    assert lib.display_for_ref(CUE_MUSIC_USER_TAG + "music/song.ogg") == USER + "song.ogg"
 
 
 def test_ref_display_path_user_folder():
     lib, _calls = _make_lib()
-    assert lib.ref_display_path(CUE_MUSIC_USER_TAG + "music/sub/") == USER + "sub/"
+    assert lib.display_for_ref(CUE_MUSIC_USER_TAG + "music/sub/") == USER + "sub/"
 
 
 def test_ref_display_path_game():
     lib, _calls = _make_lib()
-    assert lib.ref_display_path(CUE_MUSIC_GAME_TAG + "bgm/x.ogg") == GAME + "bgm/x.ogg"
+    assert lib.display_for_ref(CUE_MUSIC_GAME_TAG + "bgm/x.ogg") == GAME + "bgm/x.ogg"
 
 
 def test_ref_display_path_game_folder():
     lib, _calls = _make_lib()
-    assert lib.ref_display_path(CUE_MUSIC_GAME_TAG + "bgm/") == GAME + "bgm/"
+    assert lib.display_for_ref(CUE_MUSIC_GAME_TAG + "bgm/") == GAME + "bgm/"
 
 
 def test_ref_display_path_untagged_treated_as_user():
     lib, _calls = _make_lib()
-    assert lib.ref_display_path("music/song.ogg") == USER + "song.ogg"
+    assert lib.display_for_ref("music/song.ogg") == USER + "song.ogg"
 
 
 def test_ref_display_path_never_leaks_data_prefix():
@@ -383,9 +408,47 @@ def test_ref_display_path_never_leaks_data_prefix():
         CUE_MUSIC_GAME_TAG + "bgm/",
     )
     for ref in refs:
-        disp = lib.ref_display_path(ref)
+        disp = lib.display_for_ref(ref)
         assert not disp.startswith(CUE_MUSIC_PREFIX)
         assert disp.startswith(USER) or disp.startswith(GAME)
+
+
+# ==========================================================================
+# Stored ref round-trip (display <-> stored ref via the base hooks)
+# ==========================================================================
+
+
+def test_music_ref_from_display_user():
+    lib, _calls = _make_lib(user_paths=("music/a.ogg",))
+    assert lib.ref_from_display(USER + "a.ogg") == CUE_MUSIC_USER_TAG + "music/a.ogg"
+
+
+def test_music_ref_from_display_game():
+    lib, _calls = _make_lib(game_paths=("bgm/x.ogg",))
+    assert lib.ref_from_display(GAME + "bgm/x.ogg") == CUE_MUSIC_GAME_TAG + "bgm/x.ogg"
+
+
+def test_music_ref_round_trip():
+    lib, _calls = _make_lib(user_paths=("music/a.ogg",), game_paths=("bgm/x.ogg",))
+    for ref in (CUE_MUSIC_USER_TAG + "music/a.ogg", CUE_MUSIC_GAME_TAG + "bgm/x.ogg"):
+        assert lib.ref_from_display(lib.display_for_ref(ref)) == ref
+
+
+def test_music_ref_round_trip_external(tmp_path):
+    d1 = tmp_path / "ExtA"
+    (d1 / "artist").mkdir(parents=True)
+    (d1 / "artist" / "song.ogg").write_bytes(b"x")
+    lib, _calls = _make_lib()
+    lib.external_folders = [_ext_abs(d1)]
+    lib._scan_external()
+    ref = _ext_abs(d1) + "/artist/song.ogg"
+    assert lib.ref_from_display(lib.display_for_ref(ref)) == ref
+
+
+def test_music_file_node_stashes_ref():
+    lib, _calls = _make_lib(user_paths=("music/a.ogg",))
+    rows = _rows(lib)
+    assert rows[USER + "a.ogg"]["ref"] == CUE_MUSIC_USER_TAG + "music/a.ogg"
 
 
 # ==========================================================================
@@ -510,7 +573,7 @@ def test_add_song_external_routes(tmp_path):
     lib, calls = _make_lib()
     lib.external_folders = [_ext_abs(d1)]
     lib._scan_external()
-    lib.add_song_to_trigger("ExtA/artist/song.ogg")
+    lib.add_song_to_trigger(_ext_abs(d1) + "/artist/song.ogg")
     assert calls[-1][0] == "add_external_song"
     assert calls[-1][1] == (_ext_abs(d1) + "/artist/song.ogg",)
 
@@ -522,9 +585,9 @@ def test_add_folder_external_routes(tmp_path):
     lib, calls = _make_lib()
     lib.external_folders = [_ext_abs(d1)]
     lib._scan_external()
-    lib.add_folder_to_trigger("ExtA/artist")
+    lib.add_folder_to_trigger(_ext_abs(d1) + "/artist/")
     assert calls[-1][0] == "add_external_folder"
-    assert calls[-1][1] == (_ext_abs(d1) + "/artist",)
+    assert calls[-1][1] == (_ext_abs(d1) + "/artist/",)
 
 
 def test_add_folder_external_label_prefix_not_confused(tmp_path):
@@ -536,7 +599,7 @@ def test_add_folder_external_label_prefix_not_confused(tmp_path):
     lib.external_folders = [_ext_abs(d1)]
     lib._scan_external()
     lib.add_song_to_trigger("ExtA2/x.ogg")
-    # No external source matched -> falls through to the user default branch.
+    # Not an absolute path -> untagged user ref (falls through to user default).
     assert calls[-1][0] == "add_user_song"
 
 
@@ -546,13 +609,13 @@ def test_ref_display_path_external(tmp_path):
     (d1 / "artist" / "song.ogg").write_bytes(b"x")
     lib = _scan_lib(tmp_path, [d1])
     ref = lib.external_sources[0]["files"][0]
-    assert lib.ref_display_path(ref) == "ExtA/artist/song.ogg"
+    assert lib.display_for_ref(ref) == "ExtA/artist/song.ogg"
 
 
 def test_ref_display_path_external_no_source_falls_back_to_abs(tmp_path):
     # A stored external ref whose source was removed still renders.
     lib, _calls = _make_lib()
-    assert lib.ref_display_path("E:/Gone/sub/x.ogg") == "E:/Gone/sub/x.ogg"
+    assert lib.display_for_ref("E:/Gone/sub/x.ogg") == "E:/Gone/sub/x.ogg"
 
 
 def test_preview_external_plays_absolute(tmp_path):
@@ -562,8 +625,8 @@ def test_preview_external_plays_absolute(tmp_path):
     lib, calls = _make_lib()
     lib.external_folders = [_ext_abs(d1)]
     lib._scan_external()
-    lib.preview("ExtA/artist/song.ogg")
-    assert calls[-1] == ("play_untracked", (_ext_abs(d1) + "/artist/song.ogg",), {"volume": 1.0})
+    lib.preview(_ext_abs(d1) + "/artist/song.ogg")
+    assert calls[-1] == ("play_untracked", ("ABS:" + _ext_abs(d1) + "/artist/song.ogg",), {"volume": 1.0})
 
 
 # ==========================================================================
@@ -578,7 +641,13 @@ def _row_lib(sel_label="", selected_key=None, has_files=True):
     lib = CueMusicTree(music)
     lib.visible_tree = [
         {"type": "folder", "name": "My Music/", "full_path": "My Music/", "depth": 0, "has_files": has_files},
-        {"type": "file", "name": "a.ogg", "full_path": "My Music/a.ogg", "depth": 1},
+        {
+            "type": "file",
+            "name": "a.ogg",
+            "full_path": "My Music/a.ogg",
+            "depth": 1,
+            "ref": CUE_MUSIC_USER_TAG + "music/a.ogg",
+        },
     ]
     return lib
 
@@ -591,12 +660,14 @@ def test_music_row_buttons_plus_play_order():
     assert folder["buttons"][0]["tt"] == "Add folder to S1"
     assert folder["buttons"][0]["enabled"] is True
     assert folder["buttons"][0]["action"]._args[0] == lib.add_folder_to_trigger
-    assert folder["buttons"][0]["action"]._args[1] == "My Music/"
+    assert folder["buttons"][0]["action"]._args[1] == CUE_MUSIC_USER_TAG + "music/"
     assert [b["icon"] for b in file_row["buttons"]] == ["plus", "play"]
     assert file_row["buttons"][0]["tt"] == "Add song to S1"
     assert file_row["buttons"][0]["action"]._args[0] == lib.add_song_to_trigger
+    assert file_row["buttons"][0]["action"]._args[1] == CUE_MUSIC_USER_TAG + "music/a.ogg"
     assert file_row["buttons"][1]["tt"] == "Play song"
     assert file_row["buttons"][1]["action"]._args[0] == lib.preview
+    assert file_row["buttons"][1]["action"]._args[1] == CUE_MUSIC_USER_TAG + "music/a.ogg"
     assert file_row["gap"] == 1  # music matches SFX's label gap
 
 

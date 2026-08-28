@@ -58,7 +58,7 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
                 buttons.append(
                     {
                         "icon": "plus",
-                        "action": Function(tree.add_folder_to_trigger, item["full_path"]),
+                        "action": Function(tree.add_folder_to_trigger, tree.ref_from_display(item["full_path"])),
                         "tt": "Add folder to " + add_target,
                         "enabled": add_enabled,
                     }
@@ -67,12 +67,12 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
             buttons.append(
                 {
                     "icon": "plus",
-                    "action": Function(tree.add_song_to_trigger, item["full_path"]),
+                    "action": Function(tree.add_song_to_trigger, item["ref"]),
                     "tt": "Add song to " + add_target,
                     "enabled": add_enabled,
                 }
             )
-            buttons.append({"icon": "play", "action": Function(tree.preview, item["full_path"]), "tt": "Play song"})
+            buttons.append({"icon": "play", "action": Function(tree.preview, item["ref"]), "tt": "Play song"})
         return buttons
 
     def _recent_rows(self, entries, current_file):
@@ -92,12 +92,12 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
         rows = []
         for entry in entries:
             ref = entry["ref"]
-            path = tree.ref_display_path(ref)
+            path = tree.display_for_ref(ref)
             if entry["type"] == "folder":
                 buttons = [
                     {
                         "icon": "plus",
-                        "action": Function(tree.add_folder_to_trigger, path, False),
+                        "action": Function(tree.add_folder_to_trigger, ref, False),
                         "tt": "Add folder to " + add_target,
                         "enabled": add_enabled,
                     }
@@ -106,11 +106,11 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
                 buttons = [
                     {
                         "icon": "plus",
-                        "action": Function(tree.add_song_to_trigger, path, False),
+                        "action": Function(tree.add_song_to_trigger, ref, False),
                         "tt": "Add song to " + add_target,
                         "enabled": add_enabled,
                     },
-                    {"icon": "play", "action": Function(tree.preview, path), "tt": "Play song"},
+                    {"icon": "play", "action": Function(tree.preview, ref), "tt": "Play song"},
                 ]
             rows.append(_cue_file_row("recent:" + ref, path, 1, buttons))
         return rows
@@ -156,7 +156,11 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
                             "action": Function(music.preset_remove_file, pname, child),
                             "tt": "Remove file from preset",
                         },
-                        {"icon": "play", "action": Function(self._tree.preview, child), "tt": "Preview song"},
+                        {
+                            "icon": "play",
+                            "action": Function(self._tree.preview, self._tree.ref_from_display(child)),
+                            "tt": "Preview song",
+                        },
                     ],
                     size=11,
                 )
@@ -204,9 +208,7 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
         if recent is not None:
             entries = recent.entries()
             if searching:
-                entries = [
-                    e for e in entries if _cue_query_matches(self._tree.ref_display_path(e["ref"]), search_query)
-                ]
+                entries = [e for e in entries if _cue_query_matches(self._tree.display_for_ref(e["ref"]), search_query)]
             recent_entries = entries
             if not searching or entries:
                 rows.extend(

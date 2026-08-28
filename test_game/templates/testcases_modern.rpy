@@ -21,6 +21,11 @@ init 1000 python:
         _cue.prev_dialogue = ""
         _cue.ctx._shake_just_happened = False
         _cue.vid_manager.last_elapsed = 0.0
+        # Music interception state leaks too: last_event, an uncleared pending
+        # key_after capture, and a fake _in_replay all persist.
+        _cue.music.last_event = None
+        _cue.music._pending = None
+        renpy.store._in_replay = None
         # The test game's start label never clears the scene, so a prior
         # testcase's displayable stays on the master layer.  Re-showing a
         # different image then puts the new one BELOW the stale top entry and
@@ -120,6 +125,19 @@ init 1000 python:
         _cue.sfx.library.external_folders = []
         _cue.music.library.scan()
         _cue.sfx.library.scan()
+
+    def _cue_music_test_cleanup():
+        # Tear down the music interception testcases: trigger-log mirror + DB
+        # file, the seeded marker, the copied fixture, and detection state.
+        import os as _os
+        _cue.music._pending = None
+        _cue.music.last_event = None
+        renpy.store._in_replay = None
+        _cue.music._triggers.pop("test_replay", None)
+        _cue.markers.pop("i_cueimg_a", None)
+        for _p in (_cue.paths.music_trigger_path("test_replay"), _cue.paths.music_dir + "song_002.ogg"):
+            if _os.path.isfile(_p):
+                _os.remove(_p)
 
     # The video_seamless testcase re-enables it itself.
     _cue.speed_resolver.seamless_transition = False
@@ -1098,7 +1116,7 @@ testcase music_play_pause_toggle:
     $ import renpy.audio.music as _music
     # Play the committed silent fixture; the Music page then renders a live
     # play/pause button in the Now Playing row.
-    run Function(_cue.music.library.preview, "My Music/song_001.ogg")
+    run Function(_cue.music.library.preview, "u:music/song_001.ogg")
     pause 0.5
     assert eval (_cue.music.now_playing() is not None)
     run Function(_cue_set_page, CuePage.MUSIC)
@@ -1108,6 +1126,107 @@ testcase music_play_pause_toggle:
     assert eval (_music.get_pause(channel="music") == True)
     run Function(_cue.music.toggle_pause)
     assert eval (_music.get_pause(channel="music") == False)
+
+testcase music_default_trigger_captured:
+    run Jump("start")
+    $ _cue_test_reset()
+    $ import renpy.audio.music as _music
+    $ _default = _cue.paths.music_dir + "song_001.ogg"
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    $ renpy.store._in_replay = "test_replay"
+    $ _music.play(_default, channel="music")
+    pause 0.5
+    # Interception recorded the play event and anchored a default trigger to
+    # the scene on screen; the real engine played the file.
+    assert eval (_cue.music.last_event is not None)
+    assert eval (_cue.music.last_event["type"] == "play")
+    assert eval (_cue.music.last_event["channel"] == "music")
+    assert eval (_cue.music.last_event["in_replay"] == "test_replay")
+    assert eval (len(_cue.music.triggers_for("test_replay")) == 1)
+    assert eval (_cue.music.triggers_for("test_replay")[0]["key_before"] == "i_cueimg_a")
+    assert eval (_cue.music.triggers_for("test_replay")[0]["filepaths"] == [_default])
+    assert eval (_music.get_playing(channel="music") is not None)
+    $ _cue_music_test_cleanup()
+
+testcase music_default_override_replaces:
+    run Jump("start")
+    $ _cue_test_reset()
+    $ import renpy.audio.music as _music
+    $ import shutil as _shutil
+    $ _default = _cue.paths.music_dir + "song_001.ogg"
+    $ _shutil.copy2(_default, _cue.paths.music_dir + "song_002.ogg")
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    $ renpy.store._in_replay = "test_replay"
+    # Capture the scripted default for the scene, then customize it: the first
+    # user song disables the default, so a replay `play music` is replaced.
+    $ _music.play(_default, channel="music")
+    $ _cue.marker_store._get_or_create_entry("i_cueimg_a")["music"] = ["u:music/song_002.ogg"]
+    $ _cue.marker_store._get_or_create_entry("i_cueimg_a")["music_default_disabled"] = True
+    $ _cue.music._pending = None
+    $ _music.play(_default, channel="music")
+    pause 0.5
+    assert eval ("song_002" in (_music.get_playing(channel="music") or ""))
+    assert eval (_cue.music.now_playing() is not None)
+    # The override is skipped for _record: the replacement never re-records
+    # the trigger with the custom path.
+    assert eval (_cue.music.triggers_for("test_replay")[0]["filepaths"] == [_default])
+    $ _cue_music_test_cleanup()
+
+testcase music_default_suppress_when_disabled:
+    run Jump("start")
+    $ _cue_test_reset()
+    $ import renpy.audio.music as _music
+    $ _default = _cue.paths.music_dir + "song_001.ogg"
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    $ renpy.store._in_replay = "test_replay"
+    $ _music.play(_default, channel="music")
+    pause 0.5
+    assert eval (_music.get_playing(channel="music") is not None)
+    # Disable the recorded default with no replacement songs: the replay's
+    # `play music` is silenced, not forwarded.
+    $ _cue.marker_store._get_or_create_entry("i_cueimg_a")["music_default_disabled"] = True
+    $ _cue.music._pending = None
+    $ _music.play(_default, channel="music")
+    pause 0.5
+    assert eval (not _music.get_playing(channel="music"))
+    # The silenced play records nothing -- last_event is still the capture.
+    assert eval (_cue.music.last_event["filenames"] == _default)
+    $ _cue_music_test_cleanup()
+
+testcase music_interceptor_forwards_other_channels:
+    run Jump("start")
+    $ _cue_test_reset()
+    $ import renpy.audio.music as _music
+    $ _default = _cue.paths.music_dir + "song_001.ogg"
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    # Sound/voice funnel through the same wrapped functions; even in replay
+    # they forward untouched and never record a music event or trigger.
+    $ renpy.store._in_replay = "test_replay"
+    $ _music.play(_default, channel="sound")
+    pause 0.5
+    assert eval (_cue.music.last_event is None)
+    assert eval (_cue.music._triggers.get("test_replay") is None)
+    assert eval ("song_001" in (_music.get_playing(channel="sound") or ""))
+    $ _music.stop(channel="sound")
+    $ _cue_music_test_cleanup()
+
+testcase music_custom_auto_plays_on_scene_change:
+    run Jump("start")
+    $ _cue_test_reset()
+    $ import renpy.audio.music as _music
+    # A custom-trigger scene (music list, no recorded default) auto-plays its
+    # pool via the scene-change hook when the player lands on it.
+    $ _cue.marker_store._get_or_create_entry("i_cueimg_a")["music"] = ["u:music/song_001.ogg"]
+    $ renpy.show("cueimg_a")
+    pause 1.0
+    assert eval ("song_001" in (_music.get_playing(channel="music") or ""))
+    # play_custom_music goes straight to the original, so nothing is recorded.
+    assert eval (_cue.music.last_event is None)
+    $ _cue_music_test_cleanup()
 
 # Renders etext with tag + interpolation characters in the value, so the
 # statement compiles and displays them literally (an unescaped value would

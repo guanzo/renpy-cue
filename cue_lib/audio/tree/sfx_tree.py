@@ -25,7 +25,7 @@ from cue_lib.constants import (
     CUE_SIDEBAR_MAX_WIDTH_RATIO,
     CUE_SIDEBAR_MIN_WIDTH,
 )
-from cue_lib.util import _cue_build_tree, _cue_is_abs_path, _cue_log, _cue_unwrap_persistent
+from cue_lib.util import _cue_is_abs_path, _cue_log, _cue_unwrap_persistent
 
 MYPY = False
 if MYPY:
@@ -45,13 +45,15 @@ class CueSfxLibraryTree(CueAudioTreeManager):
     callable via Function() from screen actions.  Owned by CueSfxManager
     as its ``library`` attribute."""
 
-    _scan_label = "audio folder"
     _log_tag = "AUDIO"
     # The synthetic "SFX" root opens by default like music's roots;
     # persisted toggles still win via _restore_expansion.
     _auto_expand_roots = True
     _persist_key = CUE_PERSIST_SFX_TREE_EXPANDED
     _reserved_labels = (CUE_SFX_FOLDER,)
+    CUE_BUILTIN_SOURCES = (
+        {"key": "builtin", "discover": "_discover", "display_root": CUE_SFX_FOLDER, "scan_label": "audio folder"},
+    )
 
     def __init__(self, paths, db):
         # type: (CuePaths, CueDatabase) -> None
@@ -126,24 +128,14 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         """Scan every source (built-in audio dir + external folders), then
         merge the per-source trees under a synthetic "SFX" root.
 
-        Mirror of CueMusicTree.scan.  A built-in scan failure leaves that
-        source's files/tree empty and sets its scan_error; external folders
-        keep their entries (with a warning) even when missing.  library.files
-        is rebuilt as the sorted flat ref list that the resolution helpers
-        (_cue_resolve_files, _cue_expand_folder_ref, _cue_pick_file) depend
-        on."""
+        A built-in scan failure leaves that source's files/tree empty and sets
+        its scan_error; external folders keep their entries (with a warning)
+        even when missing.  library.files is rebuilt as the sorted flat ref
+        list that the resolution helpers (_cue_resolve_files,
+        _cue_expand_folder_ref, _cue_pick_file) depend on."""
         _t0 = time.time()
 
-        results_set = set()
-        builtin_error = ""  # type: str
-        try:
-            self._discover(results_set)
-        except Exception as err:
-            builtin_error = "Failed to scan {}: {}".format(self._scan_label, err)
-        self.builtin_files = sorted(results_set)
-        self.builtin_tree = _cue_build_tree(self.builtin_files)
-        self.builtin_scan_error = builtin_error
-
+        self._scan_builtin_sources()
         self._scan_external()
 
         # Flat ref list, sorted for the bisect-based folder expansion.
@@ -152,7 +144,7 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         self._file_index = {ref: i for i, ref in enumerate(self.files)}
 
         # Whole-tree error, read only when the merged tree is empty.
-        self.scan_error = builtin_error
+        self.scan_error = self.builtin_scan_error
 
         self._rebuild_merged()
 
@@ -202,31 +194,21 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         reachable."""
         result = []
         if self.builtin_tree:
-            result.append(
-                {
-                    "type": "folder",
-                    "name": CUE_SFX_FOLDER,
-                    "children": self.builtin_tree,
-                    "has_files": False,
-                    "abs_root": self._paths.audio_dir,
-                }
-            )
+            result.append(self._wrap_source_tree("builtin", {"abs_root": self._paths.audio_dir}))
         self._append_external_sources(result)
         return result
 
     def _file_node(self, item, full, depth):
         # type: (Dict[str, Any], str, int) -> Dict[str, Any]
-        """File row with ref/index/enabled for the SFX Library.
+        """File row with ref (base) plus index/enabled for the SFX Library.
 
-        ``full`` is the merged display path ("SFX/g1/x.ogg" for
-        built-in, "ExtA/g1/x.ogg" for external); the stored ref inverts it so
+        ``full`` is the merged display path ("SFX/g1/x.ogg" for built-in,
+        "ExtA/g1/x.ogg" for external); the base stashes the stored ref so
         both built-in AND external rows get valid indices and disabled
         membership without changing the [+] index path."""
         node = super(CueSfxLibraryTree, self)._file_node(item, full, depth)
-        ref = self.ref_from_display(full)
-        node["ref"] = ref
-        node["index"] = self._file_index.get(ref, -1)
-        node["enabled"] = ref not in self.disabled_files
+        node["index"] = self._file_index.get(node["ref"], -1)
+        node["enabled"] = node["ref"] not in self.disabled_files
         return node
 
     # ------------------------------------------------------------------

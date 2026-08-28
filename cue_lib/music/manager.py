@@ -261,7 +261,7 @@ class CueMusicManager(object):
                 path = path[len(CUE_MUSIC_PREFIX) :]
             return CUE_MY_MUSIC_FOLDER + path
         if _cue_is_abs_path(path):
-            return self.library.ref_display_path(path)
+            return self.library.display_for_ref(path)
         return CUE_GAME_MUSIC_FOLDER + path
 
     @property

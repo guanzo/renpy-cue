@@ -18,6 +18,8 @@ MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional, Set, Tuple
 
+    from cue_lib._types import AudioSourceConfig
+
 # Broad search queries ("a" matches most files) can force-expand thousands of
 # rows, which is slow to render.  Search results are capped at this many rows;
 # the overflow count is left in search_truncated so the UI can ask for a
@@ -50,6 +52,13 @@ class CueAudioTreeManager(object):
     # Basenames that must never become an external source's display label
     # (the synthetic built-in roots).  Subclasses reserve their own.
     _reserved_labels = ()  # type: Tuple[str, ...]
+    # Declared built-in sources the scan loops over.  Each entry is a dict:
+    #   key         - source id; owns {key}_files / {key}_tree / {key}_scan_error
+    #   discover    - method NAME (string) filling a set with stored-form paths
+    #   display_root- synthetic folder the source's tree wraps under
+    #   scan_label  - human label for the failure message
+    # A subclass that declares none keeps the single-source scan() template.
+    CUE_BUILTIN_SOURCES = ()  # type: Tuple[AudioSourceConfig, ...]
 
     def __init__(self):
         self._recent = None  # CueRecentManager, wired after construction
@@ -139,6 +148,62 @@ class CueAudioTreeManager(object):
                         rel_path = (rel_dir + "/" + fname) if rel_dir else fname
                         rel_path = rel_path.replace("\\", "/")
                         results_set.add(rel_path)
+
+    def _scan_builtin_sources(self):
+        # type: () -> None
+        """Run each declared built-in source into its per-source attrs.
+
+        Each source writes {key}_files / {key}_tree / {key}_scan_error, the
+        naming both trees already expose (user_files, game_files,
+        builtin_files, ...).  A failing source keeps its empty files/tree and
+        sets its scan_error; the other sources still contribute."""
+        for src in self.CUE_BUILTIN_SOURCES:
+            results = set()
+            try:
+                getattr(self, src["discover"])(results)
+            except Exception as err:
+                files = []
+                scan_error = "Failed to scan {}: {}".format(src["scan_label"], err)
+            else:
+                files = sorted(results)
+                scan_error = ""
+            setattr(self, src["key"] + "_files", files)
+            setattr(self, src["key"] + "_tree", _cue_build_tree(files))
+            setattr(self, src["key"] + "_scan_error", scan_error)
+
+    def _source_cfg(self, key):
+        # type: (str) -> AudioSourceConfig
+        """Source config dict for a declared built-in source key."""
+        for src in self.CUE_BUILTIN_SOURCES:
+            if src["key"] == key:
+                return src
+        raise KeyError(key)
+
+    def _source_files(self, key):
+        # type: (str) -> List[str]
+        return getattr(self, key + "_files")
+
+    def _source_tree(self, key):
+        # type: (str) -> List[Dict[str, Any]]
+        return getattr(self, key + "_tree")
+
+    def _source_scan_error(self, key):
+        # type: (str) -> str
+        return getattr(self, key + "_scan_error")
+
+    def ref_from_display(self, display_path):
+        # type: (str) -> str
+        """Display path to stored ref.  Default: identity (no synthetic roots).
+
+        Overridden by the SFX and Music trees, whose display roots invert."""
+        return display_path
+
+    def display_for_ref(self, ref):
+        # type: (str) -> str
+        """Stored ref to display path.  Default: identity.
+
+        Music inverts its tagged refs; SFX shows refs as-is."""
+        return ref
 
     def _scan_external(self):
         # type: () -> None
@@ -251,9 +316,27 @@ class CueAudioTreeManager(object):
         """Build the combined nested tree from the per-source trees.
 
         Subclasses override (the Music and SFX trees merge their built-in and
-        external sources under synthetic root folders).  The base single-source
-        tree returns itself unchanged."""
-        return self.tree
+        external sources under synthetic root folders).  The default returns
+        the single-source tree unchanged; a tree that declares
+        CUE_BUILTIN_SOURCES but no override wraps each source under its
+        display_root."""
+        if not self.CUE_BUILTIN_SOURCES:
+            return self.tree
+        result = []
+        for src in self.CUE_BUILTIN_SOURCES:
+            if self._source_tree(src["key"]):
+                result.append(self._wrap_source_tree(src["key"]))
+        self._append_external_sources(result)
+        return result
+
+    def _wrap_source_tree(self, key, extra=None):
+        # type: (str, Optional[Dict[str, Any]]) -> Dict[str, Any]
+        """Wrap a source's tree under its display_root (synthetic folder)."""
+        src = self._source_cfg(key)
+        node = {"type": "folder", "name": src["display_root"], "children": self._source_tree(key), "has_files": False}
+        if extra:
+            node.update(extra)
+        return node
 
     def _rebuild_merged(self):
         # type: () -> None
@@ -351,8 +434,10 @@ class CueAudioTreeManager(object):
 
     def _file_node(self, item, full, depth):
         # type: (Dict[str, Any], str, int) -> Dict[str, Any]
-        """File row dict for a single file item.  Overridden to add fields."""
-        return {"type": "file", "name": item["name"], "full_path": full, "depth": depth}
+        """File row dict with the stored ref (overridable for extra fields)."""
+        node = {"type": "file", "name": item["name"], "full_path": full, "depth": depth}
+        node["ref"] = self.ref_from_display(full)
+        return node
 
     # ------------------------------------------------------------------
     # Toggle: tree folders
