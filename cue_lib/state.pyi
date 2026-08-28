@@ -27,6 +27,7 @@ from cue_lib.keybinds import CueKeybindsManager
 from cue_lib.ui.icons import CueIconManager
 from cue_lib.paths import CuePaths
 from cue_lib.intensity import CueIntensityManager
+from cue_lib.preset_store import CuePresetStore
 from cue_lib.constants import CuePage  # pyright: ignore[reportUnusedImport]  # re-exported from constants
 
 class CueContext:
@@ -56,6 +57,7 @@ class Cue:
 
     db: CueDatabase
     intensity: CueIntensityManager
+    presets: CuePresetStore
     backups: CueBackupManager
     paths: CuePaths
     marker_store: CueMarkerStore

@@ -188,6 +188,7 @@ init -900 python:
     # does "from cue_lib.state import _cue", so state.py itself must not
     # import them.
     from cue_lib.marker_store import CueMarkerStore
+    from cue_lib.preset_store import CuePresetStore
     from cue_lib.markers import CueMarkerManager
     from cue_lib.undo import CueUndoManager
     from cue_lib.trigger import CueTriggerEngine
@@ -225,10 +226,17 @@ init -900 python:
         db = CueDatabase(paths, backups)
         db.open()
 
-        # The marker store owns the data layer; the manager coordinates around
-        # it.  on_save closes over the undo local (late-bound: undo is built
-        # below, but capture only runs on DB writes, after wiring completes).
-        marker_store = CueMarkerStore(db, paths, lambda: undo.capture())
+        # The preset store owns preset data (audio + video), and the marker
+        # store owns marker data.  Both on_save lambdas close over the undo
+        # local (late-bound: undo is built below, but capture only runs on DB
+        # writes, after wiring completes).  The marker store also gets the
+        # intensity manager now so its resolve_pool igroup fold is wired
+        # without a late-bind.
+        intensity = CueIntensityManager(db)
+        presets = CuePresetStore(db, lambda: undo.capture())
+        marker_store = CueMarkerStore(
+            db, paths, lambda: undo.capture(),
+            preset_store=presets, intensity=intensity)
 
         vid_manager = CueVideoManager(_cue.ctx)
         volume = CueVolumeManager(_cue.ctx, marker_store)
@@ -254,7 +262,7 @@ init -900 python:
         trigger = CueTriggerEngine(
             marker_store, repeater, speed_resolver, vid_manager)
         sfx_manager = CueSfxManager(
-            paths, db, volume, _cue.ctx, _cue._has_relative_volume)
+            paths, db, volume, _cue.ctx, _cue._has_relative_volume, presets)
 
         settings = CueSettings()
         keybinds = CueKeybindsManager(db)
@@ -273,7 +281,6 @@ init -900 python:
         music_preset_dialog = CueMusicPresetDialog()
         video_preset_dialog = CueVideoPresetDialog()
         confirm_dialog = CueConfirmDialog()
-        intensity = CueIntensityManager(db)
         igroup_dialog = CueIntensityGroupDialog()
 
         # markers is the coordinator, wired LAST so every injected collaborator
@@ -300,10 +307,6 @@ init -900 python:
         # intensity manager; late-bound here (same pattern as _recent) so the
         # tree only needs its own constructors at build time.
         sfx_manager.library._intensity = intensity
-        # The marker store's igroup fold (resolve_pool with a speed) needs the
-        # intensity manager too -- late-bound for the same construction-order
-        # reason as the sfx library above.
-        marker_store._intensity = intensity
 
         # Music's "Recently Used" list lives on the music manager: it records
         # add-to-trigger attempts through music's own _add_ref_to_trigger funnel.
@@ -317,6 +320,7 @@ init -900 python:
         _cue.paths = paths
         _cue.db = db
         _cue.intensity = intensity
+        _cue.presets = presets
         _cue.markers = markers
         _cue.marker_store = marker_store
 

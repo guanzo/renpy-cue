@@ -20,7 +20,15 @@ def mgr(cue_env):
     ctx = CueContext()
     vid = FakeVidManager(duration=10.0)
     sfx = FakeSfxManager(files=["a.ogg", "b.ogg"])
-    return CueMarkerManager(ctx, store, vid, sfx, None, None)
+    # _cue_send_level_to_target reads the store through the singleton (markers.py
+    # uses _cue.marker_store, which production wires to the manager's store).
+    from cue_lib.state import _cue
+
+    _cue.marker_store = store
+    try:
+        yield CueMarkerManager(ctx, store, vid, sfx, None, None)
+    finally:
+        _cue.marker_store = None
 
 
 # --- scene-state helpers: the same flags the SFX page derives ---
@@ -164,7 +172,7 @@ def test_send_target_folder_dispatch(mgr):
 
 def test_send_target_preset_dispatch(mgr):
     _set_image(mgr)
-    mgr.create_preset("wub", {"files": ["a.ogg"], "volume": 1.0})
+    mgr._store.create_preset("wub", {"files": ["a.ogg"], "volume": 1.0})
     mgr.set_target_context(CueContextType.IMAGE)
     mgr.send_target("preset", "wub")
     assert mgr.image.get_active_pool().get("preset") == "wub"

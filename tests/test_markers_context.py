@@ -16,6 +16,17 @@ from cue_lib.intensity import CueIntensityManager
 from tests.fakes import FakeManager, FakeRecent, FakeSfxManager
 
 
+@pytest.fixture(autouse=True)
+def _reset_cue_sfx():
+    """FakeManager points _cue.sfx at its own library so the store's folder
+    expansion sees the same files tests set on mgr._sfx_manager; clear it
+    after each test so it doesn't leak into other files."""
+    yield
+    from cue_lib.state import _cue
+
+    _cue.sfx = None
+
+
 class VideoCtx(CueVideoContext):
     """CueVideoContext with _key and get_duration pinned to test values."""
 
@@ -520,7 +531,7 @@ def test_set_selected_volume_preset_pool_gets_override_no_detach():
     # Volume edits on preset-backed pools are overrides (no detach), matching
     # the single-pool behavior -- the preset ref must survive.
     mgr = FakeManager({"v_key": {"pools": [{"preset": "gun", "time": 1.0}, {"time": 3.0}]}})
-    mgr._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
+    mgr._store._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
     ctx = VideoCtx(mgr, duration=10.0)
     ctx.active_pool = 0
     ctx.selected = {0, 1}
@@ -559,12 +570,13 @@ def test_clear_selected_files_multi():
     ctx.clear_selected_files()
     pools = mgr._data["v_key"]["pools"]
     assert pools == [{"time": 1.0, "files": []}, {"time": 2.0, "files": ["c.mp3"]}, {"time": 3.0, "files": []}]
-    assert mgr.saved_keys == ["v_key"]
+    # one save per cleared pool, plus the fan-out's final save
+    assert mgr.saved_keys == ["v_key", "v_key", "v_key"]
 
 
 def test_clear_selected_files_preset_detaches_first():
     mgr = FakeManager({"v_key": {"pools": [{"preset": "gun", "time": 1.0}, {"time": 2.0, "files": ["c.mp3"]}]}})
-    mgr._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
+    mgr._store._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
     ctx = VideoCtx(mgr, duration=10.0)
     ctx.active_pool = 0
     ctx.selected = {0, 1}
@@ -607,12 +619,13 @@ def test_add_file_multi_fans_out_deduped():
     pools = mgr._data["v_key"]["pools"]
     assert pools[0]["files"] == ["b.mp3"]
     assert pools[1]["files"] == ["b.mp3"]
-    assert mgr.saved_keys == ["v_key"]
+    # add_file saves per pool (even the dedupe no-op) plus the fan-out's final save
+    assert mgr.saved_keys == ["v_key", "v_key", "v_key"]
 
 
 def test_add_file_multi_detaches_preset_pool():
     mgr = FakeManager({"v_key": {"pools": [{"preset": "gun", "time": 1.0}, {"time": 2.0, "files": ["c.mp3"]}]}})
-    mgr._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
+    mgr._store._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
     mgr._sfx_manager = FakeSfxManager(files=["a.mp3", "b.mp3"])
     ctx = VideoCtx(mgr, duration=10.0)
     ctx.active_pool = 0
@@ -645,7 +658,7 @@ def test_add_folder_multi_fans_out_folder_ref():
     pools = mgr._data["v_key"]["pools"]
     assert pools[0]["files"] == ["a.mp3", "sfx/"]
     assert pools[1]["files"] == ["sfx/"]
-    assert mgr.saved_keys == ["v_key"]
+    assert mgr.saved_keys == ["v_key", "v_key", "v_key"]
 
 
 def test_remove_file_multi_removes_path_from_all_noop_where_absent():
@@ -667,8 +680,8 @@ def test_remove_file_multi_removes_path_from_all_noop_where_absent():
     pools = mgr._data["v_key"]["pools"]
     assert pools[0]["files"] == ["b.mp3"]
     assert pools[1]["files"] == ["b.mp3", "c.mp3"]  # untouched (not selected)
-    assert pools[2]["files"] == ["d.mp3"]  # "a.mp3" absent -> no-op
-    assert mgr.saved_keys == ["v_key"]
+    assert pools[2]["files"] == ["d.mp3"]  # "a.mp3" absent -> no-op (no save)
+    assert mgr.saved_keys == ["v_key", "v_key"]  # pool 0 remove + final fan-out save
 
 
 def test_remove_path_from_selected_expands_folder_ref():
@@ -707,7 +720,7 @@ def test_remove_file_removes_folder_ref_entry_multi():
     pools = mgr._data["v_key"]["pools"]
     assert pools[0]["files"] == []
     assert pools[1]["files"] == ["a.mp3"]
-    assert mgr.saved_keys == ["v_key"]
+    assert mgr.saved_keys == ["v_key", "v_key", "v_key"]
 
 
 def test_apply_preset_active_multi_stamps_all_selected():
@@ -723,7 +736,7 @@ def test_apply_preset_active_multi_stamps_all_selected():
         },
         current_file="video.mp4",
     )
-    mgr._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
+    mgr._store._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
     ctx = VideoCtx(mgr, duration=10.0)
     ctx.active_pool = 0
     ctx.selected = {0, 2}
@@ -740,7 +753,7 @@ def test_apply_preset_active_single_stamps_active_only():
         {"v_key": {"pools": [{"time": 1.0, "files": ["a.mp3"]}, {"time": 2.0, "files": ["b.mp3"]}]}},
         current_file="video.mp4",
     )
-    mgr._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
+    mgr._store._presets = {"gun": {"files": ["a.mp3"], "volume": 0.8}}
     ctx = VideoCtx(mgr, duration=10.0)
     ctx.active_pool = 1
     ctx.selected = set()
@@ -761,29 +774,29 @@ def test_remove_file_single_selection_does_not_fan_out():
     assert mgr._data["v_key"]["pools"][0]["files"] == ["b.mp3"]
 
 
-def test_add_file_appends_or_dedupes_no_save():
+def test_add_file_appends_or_dedupes():
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0, "files": ["a.mp3"]}, {"time": 2.0, "files": ["b.mp3"]}]}})
     ctx = VideoCtx(mgr, duration=10.0)
-    ctx._add_file("v_key", "a.mp3", 0)  # dup -> no-op
+    ctx._add_file("v_key", "a.mp3", 0)  # dup -> no-op on data, store saves anyway
     ctx._add_file("v_key", "c.mp3", 0)  # append
     ctx._add_file("v_key", "c.mp3", 1)  # append
     pools = mgr._data["v_key"]["pools"]
     assert pools[0]["files"] == ["a.mp3", "c.mp3"]
     assert pools[1]["files"] == ["b.mp3", "c.mp3"]
-    assert mgr.saved_keys == []  # caller owns the save
+    assert mgr.saved_keys == ["v_key", "v_key", "v_key"]  # the store saves per add
 
 
-def test_remove_file_removes_if_present_no_save():
+def test_remove_file_removes_if_present():
     mgr = FakeManager(
         {"v_key": {"pools": [{"time": 1.0, "files": ["a.mp3", "b.mp3"]}, {"time": 2.0, "files": ["a.mp3"]}]}}
     )
     ctx = VideoCtx(mgr, duration=10.0)
     ctx._remove_file("v_key", "a.mp3", 0)
-    ctx._remove_file("v_key", "c.mp3", 0)  # absent -> no-op
+    ctx._remove_file("v_key", "c.mp3", 0)  # absent -> no-op (no save)
     pools = mgr._data["v_key"]["pools"]
     assert pools[0]["files"] == ["b.mp3"]
     assert pools[1]["files"] == ["a.mp3"]  # untouched (only edited pool 0)
-    assert mgr.saved_keys == []
+    assert mgr.saved_keys == ["v_key"]  # one save for the actual removal
 
 
 # ---------------------------------------------------------------------------
@@ -1052,7 +1065,7 @@ def test_send_file_no_recent_is_noop():
     mgr = FakeManager({"i_file": {"pools": []}})
     mgr._sfx_manager.files = ["sfx/a.ogg"]
     ImageCtx(mgr).send_file(0)  # _recent stays None -- must not raise
-    assert mgr.added_files == [("i_file", "sfx/a.ogg", 0)]
+    assert mgr._data["i_file"]["pools"][0]["files"] == ["sfx/a.ogg"]
 
 
 def test_send_file_record_false_skips_record():

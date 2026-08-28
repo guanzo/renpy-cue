@@ -40,8 +40,10 @@ class Cue(_renpy_python.NoRollback):
         # --- Manager slots (wired by cue_z.rpy init -900) ---
         self.db = None
         self.intensity = None
+        self.presets = None  # CuePresetStore
         self.backups = None  # CueBackupManager, injected into db at init -900
         self.markers = None
+        self.marker_store = None
         self.undo = None
         self.trigger = None
         self.vid_manager = None

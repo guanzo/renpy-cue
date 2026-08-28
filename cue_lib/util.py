@@ -13,7 +13,13 @@ import pygame
 import renpy
 import renpy.atl as _atl
 
-from cue_lib.constants import CUE_IMG_KEY_PREFIX, CUE_LOOP_KEY_PREFIX, CUE_DLG_KEY_PREFIX, CUE_VID_KEY_PREFIX
+from cue_lib.constants import (
+    CUE_IMG_KEY_PREFIX,
+    CUE_LOOP_KEY_PREFIX,
+    CUE_DLG_KEY_PREFIX,
+    CUE_VID_KEY_PREFIX,
+    CueExclusiveStart,
+)
 from cue_lib.logger import _cue_logger
 from cue_lib.state import _cue
 from renpy.store import Function
@@ -438,7 +444,7 @@ def _cue_preset_search_matches(name, query):
     list renders them (folder refs expanded, disabled files skipped)."""
     if _cue_query_matches(name, query):
         return True
-    data = _cue.markers.get_preset(name)
+    data = _cue.presets.get_preset(name)
     if not data:
         return False
     return _cue_matches_any(query, _cue_resolve_files(data.get("files", [])))
@@ -467,7 +473,7 @@ def _cue_filter_preset_files(name, query):
     "matching folder keeps all descendants" rule.  A preset that matched only
     by its contents keeps just the matching files, so the search result shows
     why it surfaced."""
-    data = _cue.markers.get_preset(name)
+    data = _cue.presets.get_preset(name)
     files = _cue_resolve_files(data.get("files", [])) if data else []
     if not query.strip() or _cue_query_matches(name, query):
         return files
@@ -719,6 +725,65 @@ def _cue_resolve_files(files):
             seen.add(item)
             result.append(item)
     return result
+
+
+def _cue_remove_ref(files, path, expand_fn=None):
+    # type: (List[str], str, Optional[Callable[[List[str]], List[str]]]) -> Tuple[List[str], bool]
+    """Remove `path` from a ref list, expanding a covering folder ref into
+    its children and dropping the child.
+
+    A ref covering `path` (a trailing-/ folder that path lives under) is
+    replaced by its concrete children minus the dropped child; a direct
+    match pops the ref.  Returns (files, removed).  `expand_fn` resolves one
+    folder ref to its children -- defaults to _cue_resolve_files, the lazy
+    SFX-library expansion shared by pool and preset removal."""
+    if expand_fn is None:
+        expand_fn = _cue_resolve_files
+    for i, item in enumerate(files):
+        if item.endswith("/") and path.startswith(item):
+            if path == item:
+                files.pop(i)
+            else:
+                expanded = expand_fn([item])
+                if path in expanded:
+                    expanded.remove(path)
+                files[i : i + 1] = expanded
+            return files, True
+    if path in files:
+        files.remove(path)
+        return files, True
+    return files, False
+
+
+def _cue_clean_pool_list(pools):
+    # type: (List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], int]
+    """Drop time-less pools from a pool list (malformed video pools); returns
+    (clean_list, stripped_count)."""
+    stripped = 0
+    clean = []
+    for pool in pools:
+        if pool.get("time") is not None:
+            clean.append(pool)
+        else:
+            stripped += 1
+    return clean, stripped
+
+
+def _cue_migrate_exclusive_pool(pool):
+    # type: (Dict[str, Any]) -> bool
+    """Legacy bool 'exclusive' -> nested dict (idempotent).
+
+    Old loop-exclusive pools become G1 + Wait + hold: polite
+    wait-then-reserve, now with G1 membership in the unified system.
+    Legacy False values are cleaned up (absence = plain citizen)."""
+    excl = pool.get("exclusive")
+    if not isinstance(excl, bool):
+        return False
+    if excl:
+        pool["exclusive"] = {"group": 1, "start": CueExclusiveStart.WAIT, "hold": True}
+    else:
+        del pool["exclusive"]
+    return True
 
 
 def _cue_pick_file(files, avoid_repeats=True):

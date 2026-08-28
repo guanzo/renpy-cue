@@ -101,6 +101,8 @@ def _make_fake_cue():
         # reload plumbing.
         marker_store=types.SimpleNamespace(_data={}),
         intensity=types.SimpleNamespace(_load=lambda: {}),
+        # _cue_full_reload calls presets.reload_presets() after a restore
+        presets=types.SimpleNamespace(reload_presets=lambda: None),
         markers=None,
     )
 
@@ -192,7 +194,7 @@ def test_restore_reloads_store_from_zip(cue_env, mgr, backups, _fake_singletons)
     assert _fake_singletons.music.library.maybe_rebuild_calls == 1
     assert mgr._video_editor.refresh_calls == 1
     assert _markers._cue.undo.reset_calls == 1
-    assert mgr._session_created == set()
+    assert mgr._store._session_created == set()
     assert backups.restore_status.startswith("Restored 1 files")
 
 

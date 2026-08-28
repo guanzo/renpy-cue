@@ -5,16 +5,17 @@ import types
 from typing import Optional
 
 from cue_lib.constants import CUE_SIDEBAR_DEFAULT_WIDTH
+from cue_lib.marker_store import CueMarkerStore
 from cue_lib.state import _cue
 from cue_lib.util import _cue_resolve_files
 
 # Shared test doubles for cue_lib managers.
 #
 # The marker context classes receive their data manager through the
-# constructor and only call a narrow, dict-like surface on it (get / pop /
-# __delitem__ / _db_save_marker).  FakeManager provides that surface in
-# isolation, so context logic can be tested headlessly without the real
-# CueMarkerManager (which is wired to _cue and Ren'Py).
+# constructor and only call a narrow surface on it.  FakeManager backs that
+# surface with a real CueMarkerStore (db/on_save None, _db_save_marker
+# redirected to ``saved_keys``) so pool edits exercise the real mutators +
+# CuePool views instead of a copy of the logic.
 
 
 class FakeCtx(object):
@@ -26,136 +27,59 @@ class FakeCtx(object):
 
 
 class FakeManager(object):
-    """Dict-like stand-in for CueMarkerManager's data-facing surface.
+    """Stand-in for CueMarkerManager's data-facing surface, backed by a real
+    CueMarkerStore.
 
-    Also exposes the narrow mutator surface the video context's per-pool edit
-    primitives call (_get_or_create_entry / _detach_pool / _add_file_to_pool /
-    _remove_ref_from_pool / _clear_pool_files) plus the sfx/vid seams add_file
-    dereferences, so context logic runs headlessly without the real manager
-    (which is wired to _cue and Ren'Py)."""
+    The store's db/on_save are None and _db_save_marker is redirected to
+    ``saved_keys``, so pool edits exercise the real store mutators + CuePool
+    views instead of a copy of the logic.  Only the _cue-coupled seams stay
+    fake: ctx, the sfx/vid collaborators, resolve_pool, and the dict-like
+    get/pop surface."""
 
     def __init__(self, data=None, current_file=None):
         # type: (Optional[dict], Optional[str]) -> None
-        self._data = data if data is not None else {}
         self.saved_keys = []
         self._ctx = FakeCtx(current_file)
-        self._sfx_manager = FakeSfxManager()
+        self._sfx_manager = FakeSfxManager()  # property setter wires _cue.sfx
         self._vid_manager = FakeVidManager()
-        self._presets = {}  # type: dict
-        self.added_files = []  # type: list
-        self.stamped_presets = []  # type: list
+        self._store = CueMarkerStore(None, None, None)
+        self._store._data = data if data is not None else {}
+        self._store._db_save_marker = self._record_save
 
-    def get(self, key, default=None):
-        return self._data.get(key, default)
-
-    def pop(self, key, default=None):
-        return self._data.pop(key, default)
-
-    def __delitem__(self, key):
-        del self._data[key]
-
-    def _db_save_marker(self, key):
+    def _record_save(self, key):
         self.saved_keys.append(key)
 
-    def _get_or_create_entry(self, marker_key):
-        entry = self._data.get(marker_key)
-        if entry is None:
-            entry = {"pools": []}
-            self._data[marker_key] = entry
-        return entry
+    @property
+    def _sfx_manager(self):
+        return self._sfx_manager_impl
 
-    def _add_file_to_pool(self, key, filename, pool_index):
-        self.added_files.append((key, filename, pool_index))
-        self._detach_pool(key, pool_index)
-        pool = self._ensure_pool(key, pool_index)
-        if "igroup" in pool:
-            return False
-        files = pool.setdefault("files", [])
-        if filename not in files:
-            files.append(filename)
-        return True
+    @_sfx_manager.setter
+    def _sfx_manager(self, value):
+        self._sfx_manager_impl = value
+        # The store's folder-ref expansion (_cue_resolve_files) reads the
+        # singleton _cue.sfx.library, so the fake points it at its own library.
+        _cue.sfx = value
 
-    def _remove_ref_from_pool(self, key, path, pool_index=0, prune=False):
-        self._detach_pool(key, pool_index)
-        entry = self._data.get(key)
-        if entry is None:
-            return False
-        pools = entry.get("pools")
-        if not pools or not (0 <= pool_index < len(pools)):
-            return False
-        pool = pools[pool_index]
-        if "igroup" in pool:
-            return False
-        files = pool.get("files", [])
-        removed = False
-        for i, item in enumerate(files):
-            if item.endswith("/") and path.startswith(item):
-                if path == item:
-                    files.pop(i)
-                else:
-                    expanded = []
-                    for f in self._sfx_manager.files:
-                        if f.startswith(item) and f not in self._sfx_manager.disabled_files and f not in expanded:
-                            expanded.append(f)
-                    if path in expanded:
-                        expanded.remove(path)
-                    files[i : i + 1] = expanded
-                removed = True
-                break
-        else:
-            if path in files:
-                files.remove(path)
-                removed = True
-        if not removed:
-            return False
-        if prune and not files:
-            pools.pop(pool_index)
-            if not pools:
-                del self._data[key]
-        return True
+    @property
+    def _data(self):
+        return self._store._data
 
-    def _clear_pool_files(self, key, pool_index=0):
-        self._detach_pool(key, pool_index)
-        entry = self._data.get(key)
-        if entry is None:
-            return False
-        pools = entry.get("pools")
-        if not pools or not (0 <= pool_index < len(pools)):
-            return False
-        pool = pools[pool_index]
-        if "igroup" in pool:
-            pool.pop("igroup")
-            pool["files"] = []
-            return True
-        if not pool.get("files", []):
-            return False
-        pool["files"] = []
-        return True
+    @property
+    def _presets(self):
+        return self._store._preset_store._presets
 
-    def _ensure_pool(self, key, pool_index):
-        entry = self._get_or_create_entry(key)
-        while len(entry["pools"]) <= pool_index:
-            entry["pools"].append({"files": []})
-        return entry["pools"][pool_index]
+    @_presets.setter
+    def _presets(self, value):
+        self._store._preset_store._presets = value
 
-    def _stamp_preset(self, key, preset_name, pool_index):
-        self.stamped_presets.append((key, preset_name, pool_index))
+    def get(self, key, default=None):
+        return self._store.get(key, default)
 
-    def _detach_pool(self, marker_key, pool_index):
-        entry = self._data.get(marker_key)
-        if entry is None:
-            return False
-        pools = entry.get("pools")
-        if not pools or pool_index >= len(pools):
-            return False
-        pool = pools[pool_index]
-        if "preset" not in pool:
-            return False
-        preset_name = pool.pop("preset")
-        preset = self._presets.get(preset_name, {})
-        pool["files"] = list(preset.get("files", []))
-        pool["volume"] = preset.get("volume", 1.0)
-        return True
+    def pop(self, key, default=None):
+        return self._store.pop(key, default)
+
+    def __delitem__(self, key):
+        del self._store[key]
 
     def resolve_pool(self, pool):
         # type: (dict) -> FakeResolvedPool
@@ -682,10 +606,31 @@ def make_runtime_cue(root="", audio_dir=""):
     # undo -- _cue_full_reload re-seeds the undo baseline on every reload
     cue.undo = types.SimpleNamespace(reset=_rec("undo", "reset"))
 
+    # presets -- CuePresetStore surface the drivers/rows read directly
+    cue.presets = _ns(
+        "presets",
+        [
+            "create_preset",
+            "delete_preset",
+            "delete_video_preset",
+            "get_preset",
+            "get_video_preset",
+            "list_presets",
+            "list_video_presets",
+            "preset_remove_file",
+            "reload_presets",
+            "remove_video_preset_pool",
+            "remove_video_preset_pool_file",
+        ],
+    )
+
     # marker_store/intensity -- _cue_full_reload runs the one-time folder-hook
     # migration on every reload; the fake defaults are an empty no-op so tests
     # not exercising the migration still pass.
     cue.marker_store = types.SimpleNamespace(_data={})
+    cue.marker_store._ensure_pool = _rec("marker_store", "_ensure_pool")
+    cue.marker_store._db_save_marker = _rec("marker_store", "_db_save_marker")
+    cue.marker_store._detach_pool = _rec("marker_store", "_detach_pool")
     cue.intensity = types.SimpleNamespace(_load=lambda: {})
 
     # db -- shared-config surface read/written by _cue_load_scalars_from_persistent

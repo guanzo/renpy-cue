@@ -66,79 +66,79 @@ def test_data_setter_writes_through_to_store(mgr):
 
 
 def test_audio_preset_passthroughs(mgr):
-    mgr.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
-    assert mgr.list_presets() == ["basic"]
-    assert mgr.get_preset("basic")["files"] == ["a.ogg"]
-    mgr.delete_preset("basic")
-    assert mgr.get_preset("basic") is None
+    mgr._store.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
+    assert mgr._store.list_presets() == ["basic"]
+    assert mgr._store.get_preset("basic")["files"] == ["a.ogg"]
+    mgr._store.delete_preset("basic")
+    assert mgr._store.get_preset("basic") is None
 
 
 def test_video_preset_crud(mgr):
     mgr.create_video_preset("vp", {"pools": [{"time": 1.0, "files": ["a.ogg"]}], "volume": 0.7})
-    assert mgr.get_video_preset("vp")["pools"][0]["time"] == 1.0
-    assert mgr.list_video_presets() == ["vp"]
-    mgr.delete_video_preset("vp")
-    assert mgr.get_video_preset("vp") is None
+    assert mgr._store.get_video_preset("vp")["pools"][0]["time"] == 1.0
+    assert mgr._store.list_video_presets() == ["vp"]
+    mgr._store.delete_video_preset("vp")
+    assert mgr._store.get_video_preset("vp") is None
 
 
 def test_remove_video_preset_pool_deletes_pool(mgr):
     mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg"]}, {"time": 2.0, "files": ["b.ogg"]}]})
-    mgr.remove_video_preset_pool("vp", 0)
-    pools = mgr.get_video_preset("vp")["pools"]
+    mgr._store._preset_store.remove_video_preset_pool("vp", 0)
+    pools = mgr._store.get_video_preset("vp")["pools"]
     assert len(pools) == 1
     assert pools[0]["time"] == 2.0
 
 
 def test_remove_video_preset_pool_last_pool_deletes_preset(mgr):
     mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg"]}]})
-    mgr.remove_video_preset_pool("vp", 0)
-    assert mgr.get_video_preset("vp") is None
-    assert mgr.list_video_presets() == []
+    mgr._store._preset_store.remove_video_preset_pool("vp", 0)
+    assert mgr._store.get_video_preset("vp") is None
+    assert mgr._store.list_video_presets() == []
 
 
 def test_remove_video_preset_pool_missing_or_bad_index_noop(mgr):
-    mgr.remove_video_preset_pool("missing", 0)
+    mgr._store._preset_store.remove_video_preset_pool("missing", 0)
     mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg"]}]})
-    mgr.remove_video_preset_pool("vp", 5)
-    assert mgr.get_video_preset("vp")["pools"]
+    mgr._store._preset_store.remove_video_preset_pool("vp", 5)
+    assert mgr._store.get_video_preset("vp")["pools"]
 
 
 def test_remove_video_preset_pool_file_direct(mgr):
     mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg", "b.ogg"]}]})
-    mgr.remove_video_preset_pool_file("vp", 0, "a.ogg")
-    assert mgr.get_video_preset("vp")["pools"][0]["files"] == ["b.ogg"]
+    mgr._store._preset_store.remove_video_preset_pool_file("vp", 0, "a.ogg")
+    assert mgr._store.get_video_preset("vp")["pools"][0]["files"] == ["b.ogg"]
 
 
 def test_remove_video_preset_pool_file_folder_ref(mgr):
     mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["sfx/"]}]})
     mgr._sfx_manager.library.files = ["sfx/a.ogg", "sfx/b.ogg", "other.ogg"]
-    mgr.remove_video_preset_pool_file("vp", 0, "sfx/a.ogg")
-    assert mgr.get_video_preset("vp")["pools"][0]["files"] == ["sfx/b.ogg"]
+    mgr._store._preset_store.remove_video_preset_pool_file("vp", 0, "sfx/a.ogg")
+    assert mgr._store.get_video_preset("vp")["pools"][0]["files"] == ["sfx/b.ogg"]
 
 
 def test_remove_video_preset_pool_file_missing_or_bad_index_noop(mgr):
-    mgr.remove_video_preset_pool_file("missing", 0, "a.ogg")
+    mgr._store._preset_store.remove_video_preset_pool_file("missing", 0, "a.ogg")
     mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg"]}]})
-    mgr.remove_video_preset_pool_file("vp", 5, "a.ogg")
-    mgr.remove_video_preset_pool_file("vp", 0, "nope.ogg")
-    assert mgr.get_video_preset("vp")["pools"][0]["files"] == ["a.ogg"]
+    mgr._store._preset_store.remove_video_preset_pool_file("vp", 5, "a.ogg")
+    mgr._store._preset_store.remove_video_preset_pool_file("vp", 0, "nope.ogg")
+    assert mgr._store.get_video_preset("vp")["pools"][0]["files"] == ["a.ogg"]
 
 
 def test_preset_remove_file_direct(mgr):
-    mgr.create_preset("basic", {"files": ["a.ogg", "b.ogg"]})
-    mgr.preset_remove_file("basic", "a.ogg")
-    assert mgr.get_preset("basic")["files"] == ["b.ogg"]
+    mgr._store.create_preset("basic", {"files": ["a.ogg", "b.ogg"]})
+    mgr._store._preset_store.preset_remove_file("basic", "a.ogg")
+    assert mgr._store.get_preset("basic")["files"] == ["b.ogg"]
 
 
 def test_preset_remove_file_missing_preset_noop(mgr):
-    mgr.preset_remove_file("nope", "a.ogg")  # must not raise
+    mgr._store._preset_store.preset_remove_file("nope", "a.ogg")  # must not raise
 
 
 def test_preset_remove_file_folder_ref(mgr):
     mgr._sfx_manager.files = ["music/a.ogg", "music/b.ogg", "other.ogg"]
-    mgr.create_preset("fold", {"files": ["music/"]})
-    mgr.preset_remove_file("fold", "music/a.ogg")
-    assert mgr.get_preset("fold")["files"] == ["music/b.ogg"]
+    mgr._store.create_preset("fold", {"files": ["music/"]})
+    mgr._store._preset_store.preset_remove_file("fold", "music/a.ogg")
+    assert mgr._store.get_preset("fold")["files"] == ["music/b.ogg"]
 
 
 # ---------------------------------------------------------------------------
@@ -147,22 +147,22 @@ def test_preset_remove_file_folder_ref(mgr):
 
 
 def test_resolve_pool_from_preset(mgr):
-    mgr.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
+    mgr._store.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
     r = mgr.resolve_pool({"preset": "basic"})
     assert r.refs == ["a.ogg"]
     assert r.volume == 0.8
 
 
 def test_stamp_preset_writes_preset_ref(mgr):
-    mgr.create_preset("basic", {"files": ["a.ogg"]})
-    mgr._stamp_preset("i_scene.ogg", "basic", 0)
+    mgr._store.create_preset("basic", {"files": ["a.ogg"]})
+    mgr._store._stamp_preset("i_scene.ogg", "basic", 0)
     assert mgr.get("i_scene.ogg")["pools"][0] == {"preset": "basic"}
 
 
 def test_detach_pool_materializes_preset(mgr):
-    mgr.create_preset("basic", {"files": ["a.ogg", "b.ogg"], "volume": 0.8})
-    mgr._stamp_preset("i_scene.ogg", "basic", 0)
-    assert mgr._detach_pool("i_scene.ogg", 0) is True
+    mgr._store.create_preset("basic", {"files": ["a.ogg", "b.ogg"], "volume": 0.8})
+    mgr._store._stamp_preset("i_scene.ogg", "basic", 0)
+    assert mgr._store._detach_pool("i_scene.ogg", 0) is True
     pool = mgr.get("i_scene.ogg")["pools"][0]
     assert pool["files"] == ["a.ogg", "b.ogg"]
     assert pool["volume"] == 0.8
@@ -171,16 +171,16 @@ def test_detach_pool_materializes_preset(mgr):
 
 def test_detach_pool_non_preset_returns_false(mgr):
     mgr["i_scene.ogg"] = {"pools": [{"files": ["a.ogg"]}]}
-    assert mgr._detach_pool("i_scene.ogg", 0) is False
+    assert mgr._store._detach_pool("i_scene.ogg", 0) is False
 
 
 def test_detach_pool_out_of_range_returns_false(mgr):
-    assert mgr._detach_pool("i_scene.ogg", 3) is False
+    assert mgr._store._detach_pool("i_scene.ogg", 3) is False
 
 
 def test_detach_pool_at_detaches_and_saves(mgr):
-    mgr.create_preset("basic", {"files": ["a.ogg"]})
-    mgr._stamp_preset("i_scene.ogg", "basic", 0)
+    mgr._store.create_preset("basic", {"files": ["a.ogg"]})
+    mgr._store._stamp_preset("i_scene.ogg", "basic", 0)
     mgr.detach_pool_at("i_scene.ogg", 0)
     pool = mgr.get("i_scene.ogg")["pools"][0]
     assert pool["files"] == ["a.ogg"]
@@ -189,7 +189,7 @@ def test_detach_pool_at_detaches_and_saves(mgr):
 
 def test_detach_active_video_ts(mgr):
     mgr._ctx.current_file = "scene.ogv"
-    mgr.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
+    mgr._store.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
     # Video pools carry "time" (the sanitizer strips time-less video pools on
     # save), so build the stamped marker the way production does.
     mgr["v_scene.ogv"] = {"pools": [{"preset": "basic", "time": 1.0}]}
@@ -203,7 +203,7 @@ def test_detach_active_video_ts(mgr):
 
 def test_detach_active_video_ts_multi_detaches_all_selected(mgr):
     mgr._ctx.current_file = "scene.ogv"
-    mgr.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
+    mgr._store.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
     mgr["v_scene.ogv"] = {
         "pools": [{"preset": "basic", "time": 1.0}, {"preset": "basic", "time": 2.0}, {"time": 3.0, "files": ["c.ogg"]}]
     }
@@ -276,7 +276,7 @@ def test_apply_video_preset_no_current_file_noop(mgr):
 
 
 def test_resolve_video_pools_expands_preset(mgr):
-    mgr.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
+    mgr._store.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
     pools = mgr._resolve_video_pools({"pools": [{"preset": "basic", "time": 1.0}]})
     assert pools[0]["files"] == ["a.ogg"]
     assert pools[0]["volume"] == 0.8
@@ -291,14 +291,14 @@ def test_resolve_video_pools_expands_preset(mgr):
 def test_remove_ref_from_pool_expands_folder_ref(mgr):
     mgr._sfx_manager.files = ["music/a.ogg", "music/b.ogg"]
     mgr._data["i_a"] = {"pools": [{"files": ["music/"]}]}
-    assert mgr._remove_ref_from_pool("i_a", "music/a.ogg", 0)
+    assert mgr._store._remove_ref_from_pool("i_a", "music/a.ogg", 0)
     assert mgr._data["i_a"]["pools"][0]["files"] == ["music/b.ogg"]
 
 
 def test_remove_file_from_preset_pool(mgr):
     mgr._sfx_manager.files = ["music/a.ogg", "music/b.ogg"]
-    mgr.create_preset("fold", {"files": ["music/"]})
-    mgr._stamp_preset("i_scene.ogg", "fold", 0)
+    mgr._store.create_preset("fold", {"files": ["music/"]})
+    mgr._store._stamp_preset("i_scene.ogg", "fold", 0)
     mgr._remove_file_from_preset_pool("i_scene.ogg", 0, 0, "music/a.ogg")
     pool = mgr.get("i_scene.ogg")["pools"][0]
     assert pool["files"] == ["music/b.ogg"]
@@ -307,8 +307,8 @@ def test_remove_file_from_preset_pool(mgr):
 
 def test_remove_file_from_folder_ref(mgr):
     mgr._sfx_manager.files = ["music/a.ogg", "music/b.ogg"]
-    mgr.create_preset("fold", {"files": ["music/"]})
-    mgr._stamp_preset("i_scene.ogg", "fold", 0)
+    mgr._store.create_preset("fold", {"files": ["music/"]})
+    mgr._store._stamp_preset("i_scene.ogg", "fold", 0)
     mgr._remove_file_from_folder_ref("i_scene.ogg", 0, 0, "music/a.ogg")
     pool = mgr.get("i_scene.ogg")["pools"][0]
     assert pool["files"] == ["music/b.ogg"]
@@ -320,7 +320,7 @@ def test_remove_file_from_preset_pool_multi_fans_out(mgr):
     # the child dropped from each.
     mgr._ctx.current_file = "scene.ogv"
     mgr._sfx_manager.files = ["music/a.ogg", "music/b.ogg"]
-    mgr.create_preset("fold", {"files": ["music/a.ogg", "music/b.ogg"]})
+    mgr._store.create_preset("fold", {"files": ["music/a.ogg", "music/b.ogg"]})
     mgr._data["v_scene.ogv"] = {"pools": [{"preset": "fold", "time": 1.0}, {"preset": "fold", "time": 2.0}]}
     mgr.video.active_pool = 0
     mgr.video.selected = {0, 1}
@@ -363,21 +363,20 @@ def test_video_multi_file_edit_requires_multi_selection(mgr):
 
 
 def test_get_or_create_entry_creates_pooled_entry(mgr):
-    entry = mgr._get_or_create_entry("v_new")
+    entry = mgr._store._get_or_create_entry("v_new")
     assert entry["pools"] == []  # get_or_create normalizes (adds replay)
     assert mgr.get("v_new")["pools"] == []
 
 
 def test_ensure_pool_defaults(mgr):
-    pool = mgr._ensure_pool("v_new", 0)
+    pool = mgr._store._ensure_pool("v_new", 0)
     assert pool["files"] == []
     assert pool["volume"] == CUE_VOLUME_DEFAULT
 
 
-def test_add_and_remove_file_from_pool(mgr):
-    mgr._add_file_to_pool("i_scene.ogg", "a.ogg", 0)
-    assert mgr.get("i_scene.ogg")["pools"][0]["files"] == ["a.ogg"]
-    mgr._remove_file_from_pool("i_scene.ogg", 0, 0)
+def test_remove_file_from_pool_prunes_entry(mgr):
+    mgr["i_scene.ogg"] = {"pools": [{"files": ["a.ogg"]}]}
+    mgr._store._remove_file_from_pool("i_scene.ogg", 0, 0)
     assert "i_scene.ogg" not in mgr._data  # emptied pool deletes the entry
 
 
@@ -445,18 +444,18 @@ def test_paste_context_clamps_video_times_to_duration(mgr):
 
 
 def test_presets_setter_writes_through(mgr):
-    mgr._presets = {"p": {"files": ["a.ogg"]}}
+    mgr._store._presets = {"p": {"files": ["a.ogg"]}}
     assert mgr._store._presets["p"]["files"] == ["a.ogg"]
 
 
 def test_video_presets_setter_writes_through(mgr):
-    mgr._video_presets = {"vp": {"pools": [], "volume": 1.0}}
+    mgr._store._video_presets = {"vp": {"pools": [], "volume": 1.0}}
     assert mgr._store._video_presets["vp"]["pools"] == []
 
 
 def test_session_created_getter_setter(mgr):
-    mgr._session_created = {("audio", "p")}
-    assert mgr._session_created == {("audio", "p")}
+    mgr._store._session_created = {("audio", "p")}
+    assert mgr._store._session_created == {("audio", "p")}
     assert mgr._store._session_created == {("audio", "p")}
 
 
@@ -474,7 +473,10 @@ def test_delitem_deletes_from_store(mgr):
 
 def test_apply_video_preset_drops_time_less_pool(mgr):
     mgr._ctx.current_file = "scene.ogv"
-    mgr._video_presets["vp"] = {"pools": [{"time": 5.0, "files": ["a.ogg"]}, {"files": ["x.ogg"]}], "volume": 1.0}
+    mgr._store._video_presets["vp"] = {
+        "pools": [{"time": 5.0, "files": ["a.ogg"]}, {"files": ["x.ogg"]}],
+        "volume": 1.0,
+    }
     mgr.apply_video_preset("vp")
     entry = mgr.get("v_scene.ogv")
     assert [p["time"] for p in entry["pools"]] == [5.0]
@@ -498,8 +500,8 @@ def test_remove_file_from_preset_pool_out_of_range_noop(mgr):
 
 def test_remove_file_from_preset_pool_direct_file(mgr):
     mgr._ctx.current_file = "scene.ogv"
-    mgr.create_preset("basic", {"files": ["a.ogg", "b.ogg"]})
-    mgr._stamp_preset("i_scene.ogv", "basic", 0)
+    mgr._store.create_preset("basic", {"files": ["a.ogg", "b.ogg"]})
+    mgr._store._stamp_preset("i_scene.ogv", "basic", 0)
     mgr._remove_file_from_preset_pool("i_scene.ogv", 0, 0, "a.ogg")
     pool = mgr.get("i_scene.ogv")["pools"][0]
     assert pool["files"] == ["b.ogg"]
@@ -512,7 +514,7 @@ def test_remove_file_from_preset_pool_direct_file(mgr):
 
 def test_remove_ref_from_pool_plain_file_noop(mgr):
     mgr._data["i_a"] = {"pools": [{"files": ["a.ogg"]}]}
-    assert mgr._remove_ref_from_pool("i_a", "a.ogg", 0)
+    assert mgr._store._remove_ref_from_pool("i_a", "a.ogg", 0)
     assert mgr._data["i_a"]["pools"][0]["files"] == []
 
 
@@ -570,28 +572,29 @@ def test_remove_file_from_folder_ref_out_of_range_file_noop(mgr):
 
 
 def test_save_preset_passthrough(mgr):
-    mgr.create_preset("basic", {"files": ["a.ogg"]})
-    mgr.save_preset("basic")
-    mgr._db_save_preset("basic")
+    mgr._store.create_preset("basic", {"files": ["a.ogg"]})
+    mgr._store._preset_store.save_preset("basic")
 
 
 def test_save_video_preset_passthrough(mgr):
-    mgr._video_presets["vp"] = {"pools": [{"time": 1.0, "files": []}], "volume": 1.0}
-    mgr.save_video_preset("vp")
-    mgr._db_save_video_preset("vp")
+    mgr._store._preset_store._video_presets["vp"] = {"pools": [{"time": 1.0, "files": []}], "volume": 1.0}
+    mgr._store._preset_store.save_video_preset("vp")
 
 
 def test_save_all_passthrough(mgr):
     mgr["i_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}
-    mgr.create_preset("basic", {"files": ["a.ogg"]})
-    mgr._video_presets["vp"] = {"pools": [{"time": 1.0}], "volume": 1.0}
+    mgr._store.create_preset("basic", {"files": ["a.ogg"]})
+    mgr._store._video_presets["vp"] = {"pools": [{"time": 1.0}], "volume": 1.0}
     mgr.save_all()
 
 
 def test_delete_removed_files_no_removals(mgr):
     mgr["i_scene.ogv"] = {"pools": [{"files": ["a.ogg"]}]}
     mgr.delete_removed_files(
-        set(mgr._data.keys()), dict(mgr._presets), dict(mgr._video_presets), set(mgr._session_created)
+        set(mgr._data.keys()),
+        dict(mgr._store._presets),
+        dict(mgr._store._video_presets),
+        set(mgr._store._session_created),
     )
 
 
@@ -600,7 +603,7 @@ def test_load_persistent(mgr):
 
 
 def test_reload_presets_merges_nothing(mgr):
-    mgr.reload_presets()  # empty disk -> merge nothing, no raise
+    mgr._store.reload_presets()  # empty disk -> merge nothing, no raise
 
 
 def test_copy_context_whitelists_entry_keys(mgr):

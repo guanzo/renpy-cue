@@ -56,7 +56,7 @@ def _cue_full_reload():
     # so a mid-session reload can never persist the legacy form.
     _cue_migrate_intensity_hooks(_cue.marker_store, _cue.intensity._load())
     _cue_load_scalars_from_persistent()
-    _cue.markers.reload_presets()
+    _cue.presets.reload_presets()
     _cue.music.reload_presets()
 
     _cue.sfx.library.scan()

@@ -3,8 +3,8 @@
 # orchestration around it.  The library tree (audio scan, folder/preset tree
 # UI state, disabled files) lives in CueSfxLibraryTree, owned here as
 # ``library`` -- mirroring how CueMusicManager owns its CueMusicTree.
-# Collaborators (paths/db/volume/ctx) are constructor-injected; markers is
-# late-bound via bind_markers (construction cycle with CueMarkerManager).
+# Collaborators (paths/db/volume/ctx/presets) are constructor-injected; markers
+# is late-bound via bind_markers (construction cycle with CueMarkerManager).
 # Instantiated once at _cue.sfx, lives on the NoRollback _cue object.
 
 import random as _random
@@ -15,6 +15,7 @@ import renpy.audio.music as _music
 from cue_lib.audio.tree.sfx_tree import CueSfxLibraryTree
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
+from cue_lib.preset_store import CuePresetStore
 from cue_lib.util import (
     _cue_log,
     _cue_resolve_files,
@@ -64,8 +65,8 @@ class CueSfxManager(object):
     callable via Function() from screen actions; trigger.py calls play_pool
     / fade_out for exclusive cut-ins."""
 
-    def __init__(self, paths, db, volume, ctx, supports_relative_volume):
-        # type: (CuePaths, CueDatabase, CueVolumeManager, CueContext, bool) -> None
+    def __init__(self, paths, db, volume, ctx, supports_relative_volume, presets):
+        # type: (CuePaths, CueDatabase, CueVolumeManager, CueContext, bool, CuePresetStore) -> None
         self.library = CueSfxLibraryTree(paths, db)
         self.library._sfx = self  # pyright: ignore[reportAttributeAccessIssue]
         self._paths = paths
@@ -73,6 +74,7 @@ class CueSfxManager(object):
         self._volume = volume
         self._ctx = ctx
         self._supports_relative_volume = supports_relative_volume
+        self._presets = presets
         self._markers = None  # type: Optional[CueMarkerManager]
         self._wav_playable = CueWavPlayable()
 
@@ -283,7 +285,7 @@ class CueSfxManager(object):
 
     def preview_preset(self, preset_name):
         # type: (str) -> None
-        preset = self._markers_ctx().get_preset(preset_name)
+        preset = self._presets.get_preset(preset_name)
         if preset is None:
             return
         files = _cue_resolve_files(preset.get("files", []))
@@ -316,7 +318,7 @@ class CueSfxManager(object):
     def preview_video_pool(self, preset_name, pool_index):
         # type: (str, int) -> None
         """Preview a random file from one pool of a video preset."""
-        preset = self._markers_ctx().get_video_preset(preset_name)
+        preset = self._presets.get_video_preset(preset_name)
         if preset is None:
             return
         pools = preset.get("pools", [])

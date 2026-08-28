@@ -27,6 +27,7 @@ from cue_lib.audio.tree.file_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManage
 from cue_lib.audio.tree.music_tree import CueMusicTree
 from cue_lib.audio.sfx_manager import CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name
 from cue_lib.audio.tree.sfx_tree import CueSfxLibraryTree
+from cue_lib.preset_store import CuePresetStore
 from cue_lib.constants import (
     CUE_AUDIO_EXTS,
     CUE_GAME_MUSIC_FOLDER,
@@ -445,9 +446,15 @@ def _clean_persistent(monkeypatch):
 @pytest.fixture
 def sfx(tmp_path):
     audio = str(tmp_path / "audio") + "/"
-    # Library-tree tests only exercise the tree; volume/ctx/markers are unused.
+    # Library-tree tests only exercise the tree; volume/ctx/markers/presets are
+    # unused.
     return CueSfxManager(
-        types.SimpleNamespace(audio_dir=audio), FakeDb(), types.SimpleNamespace(), types.SimpleNamespace(), False
+        types.SimpleNamespace(audio_dir=audio),
+        FakeDb(),
+        types.SimpleNamespace(),
+        types.SimpleNamespace(),
+        False,
+        CuePresetStore(FakeDb(), None),
     ).library
 
 
@@ -877,7 +884,12 @@ def test_sfx_preview_level_plays_random_resolved(monkeypatch):
     from cue_lib.audio.sfx_manager import CueSfxManager
 
     mgr = CueSfxManager(
-        types.SimpleNamespace(audio_dir=""), FakeDb(), types.SimpleNamespace(), types.SimpleNamespace(), False
+        types.SimpleNamespace(audio_dir=""),
+        FakeDb(),
+        types.SimpleNamespace(),
+        types.SimpleNamespace(),
+        False,
+        CuePresetStore(FakeDb(), None),
     )
     mgr.library._intensity = types.SimpleNamespace(level_files_by_id=lambda g, lid: ["soft/", "a.ogg"])
     # _cue_resolve_files reads _cue.sfx.library.files; stub the module _cue.
@@ -1320,11 +1332,12 @@ def test_sfx_recent_rows_preset(sfx):
 
 def _preset_rows(sfx, names, query="", target_ok=True, target_tt="Add to pool"):
     # type: (CueSfxLibraryTree, list, str, bool, str) -> list
-    """Pool Preset row stream via the SFX builder, with markers/pset stubs."""
-    sfx._sfx._markers = types.SimpleNamespace(preset_remove_file=lambda n, f: None)
+    """Pool Preset row stream via the SFX builder, with presets stubs."""
     import cue_lib.util as util_mod
 
-    util_mod._cue.markers = types.SimpleNamespace(get_preset=lambda n: {"files": ["a.ogg", "b.ogg"]})
+    util_mod._cue.presets = types.SimpleNamespace(
+        get_preset=lambda n: {"files": ["a.ogg", "b.ogg"]}, preset_remove_file=lambda n, f: None
+    )
     util_mod._cue.sfx = types.SimpleNamespace(library=None)
     return _sfx_rows.CueSfxTreeRows(sfx)._preset_rows(names, query, target_ok, target_tt)
 
@@ -1350,7 +1363,7 @@ def test_sfx_preset_rows_expanded(sfx):
     assert children[0]["size"] == 11
     assert children[0]["gap"] == 1
     assert [b["icon"] for b in children[0]["buttons"]] == ["xmark", "play"]
-    assert children[0]["buttons"][0]["action"]._args[0] == sfx._sfx._markers.preset_remove_file
+    assert children[0]["buttons"][0]["action"]._args[0] == _sfx_rows._cue.presets.preset_remove_file
     assert children[0]["buttons"][0]["action"]._args[1:3] == ("p", "a.ogg")
     assert children[0]["buttons"][1]["action"]._args[0] == sfx._sfx.preview_sfx
 
@@ -1373,13 +1386,13 @@ def test_sfx_preset_rows_auto_show_children_on_search(sfx):
 
 def _video_preset_rows(sfx, names, is_video=True):
     # type: (CueSfxLibraryTree, list, bool) -> list
-    """Video Preset row stream via the SFX builder, with markers/pset stubs."""
-    sfx._sfx._markers = types.SimpleNamespace(
+    """Video Preset row stream via the SFX builder, with presets stubs."""
+    import cue_lib.util as util_mod
+
+    util_mod._cue.presets = types.SimpleNamespace(
         get_video_preset=lambda n: {"pools": [{"time": 1.5, "files": ["a.ogg", "b.ogg"]}]},
         remove_video_preset_pool_file=lambda n, i, f: None,
     )
-    import cue_lib.util as util_mod
-
     util_mod._cue.sfx = types.SimpleNamespace(library=None)
     return _sfx_rows.CueSfxTreeRows(sfx)._video_preset_rows(names, is_video)
 
@@ -1415,7 +1428,7 @@ def test_sfx_video_preset_rows_expanded(sfx):
     assert file_rows[0]["size"] == 11
     assert file_rows[0]["gap"] == 1
     assert [b["icon"] for b in file_rows[0]["buttons"]] == ["xmark", "play"]
-    assert file_rows[0]["buttons"][0]["action"]._args[0] == sfx._sfx._markers.remove_video_preset_pool_file
+    assert file_rows[0]["buttons"][0]["action"]._args[0] == _sfx_rows._cue.presets.remove_video_preset_pool_file
     assert file_rows[0]["buttons"][0]["action"]._args[1:4] == ("vp", 0, "a.ogg")
     assert file_rows[0]["buttons"][1]["action"]._args[0] == sfx._sfx.preview_sfx
 
@@ -1604,7 +1617,7 @@ def _content_rows(
             entries=lambda: [{"type": t, "ref": r} for t, r in recent_entries],
             toggle=lambda: None,
         )
-    sfx._sfx._markers = types.SimpleNamespace(
+    util_mod._cue.presets = types.SimpleNamespace(
         get_preset=lambda n: {"files": ["a.ogg", "b.ogg"]},
         preset_remove_file=lambda n, f: None,
         get_video_preset=lambda n: {"pools": [{"time": 1.5, "files": ["a.ogg", "b.ogg"]}]},
@@ -1614,7 +1627,6 @@ def _content_rows(
         remove_level=lambda n, i: None, remove_level_file=lambda n, i, f: None, move_level=lambda n, i, d: None
     )
     util_mod._cue.markers = types.SimpleNamespace(
-        get_preset=lambda n: {"files": ["a.ogg", "b.ogg"]},
         resolve_target_context=lambda: ctx,
         target_is_available=lambda c: tgt_ok,
         video=types.SimpleNamespace(has_pools=lambda: True),

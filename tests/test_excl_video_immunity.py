@@ -94,7 +94,7 @@ def real_sfx(cue, monkeypatch):
         )
 
     cue.markers.resolve_pool = _resolve_pool
-    mgr = CueSfxManager(cue.paths, types.SimpleNamespace(), cue.volume, cue.ctx, cue._has_relative_volume)
+    mgr = CueSfxManager(cue.paths, types.SimpleNamespace(), cue.volume, cue.ctx, cue._has_relative_volume, cue.presets)
     mgr.bind_markers(cue.markers)
     cue.sfx = mgr
     return mgr

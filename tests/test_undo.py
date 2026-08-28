@@ -38,14 +38,11 @@ class FakeMarkers(object):
         self.video = FakeVideoContext()
 
 
-class FakeStore(object):
-    """Data store stand-in: the three dicts plus the persistence calls
-    _restore() makes.  Undo logic is about snapshots, not disk layout, so a
-    fake keeps these tests focused; the real store is covered by
-    test_marker_store.py."""
+class FakePresetStore(object):
+    """Preset-data stand-in: the preset dicts plus the persistence calls
+    _restore() makes.  Mirrors the real CuePresetStore surface undo uses."""
 
     def __init__(self):
-        self._data = {}
         self._presets = {}
         self._video_presets = {}
         self._session_created = set()
@@ -55,8 +52,27 @@ class FakeStore(object):
     def save_all(self):
         self.save_count += 1
 
-    def delete_removed_files(self, old_marker_keys, old_presets, old_video_presets, old_session_created):
-        self.deleted.append((set(old_marker_keys), old_presets, old_video_presets, set(old_session_created)))
+    def delete_removed_files(self, old_presets, old_video_presets, old_session_created):
+        self.deleted.append((old_presets, old_video_presets, set(old_session_created)))
+
+
+class FakeStore(object):
+    """Data store stand-in: the marker dict plus the preset store plus the
+    persistence calls _restore() makes.  Undo logic is about snapshots, not
+    disk layout, so a fake keeps these tests focused; the real store is
+    covered by test_marker_store.py."""
+
+    def __init__(self):
+        self._data = {}
+        self._preset_store = FakePresetStore()
+        self.save_count = 0
+        self.deleted = []
+
+    def save_all(self):
+        self.save_count += 1
+
+    def delete_removed_files(self, old_marker_keys):
+        self.deleted.append(set(old_marker_keys))
 
 
 @pytest.fixture
@@ -146,8 +162,9 @@ def test_restore_repersists_and_recording_flag_resets(undo, store):
     undo.capture()
 
     undo.undo()
-    # _restore calls save_all() while _recording is False, then resets it.
+    # _restore calls both save_all()s while _recording is False, then resets it.
     assert store.save_count == 1
+    assert store._preset_store.save_count == 1
     assert undo._recording is True
 
 
@@ -290,7 +307,11 @@ def test_capture_skips_when_not_recording(undo, store):
     store._data["k"] = {"pools": []}
     undo._recording = False
     undo.capture()
-    assert undo._recording is True
+    # capture() suppresses while recording is off and does NOT re-arm itself:
+    # a composite restore saves both stores, and a self-re-arm on the first
+    # suppressed call would let the second record a spurious entry.  _restore's
+    # finally block owns the re-enable.
+    assert undo._recording is False
     assert not undo.can_undo()  # restore's re-persist is not a new undo step
 
 

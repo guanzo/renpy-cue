@@ -34,20 +34,24 @@ def ui_cue(monkeypatch):
 
         return _record
 
-    markers = types.SimpleNamespace(
-        get=lambda key: None,
-        _detach_pool=_rec("detach_pool"),
+    marker_store = types.SimpleNamespace(_detach_pool=_rec("detach_pool"))
+    presets = types.SimpleNamespace(
         create_preset=_rec("create_preset"),
-        create_video_preset=_rec("create_video_preset"),
         delete_preset=_rec("delete_preset"),
         delete_video_preset=_rec("delete_video_preset"),
         get_video_preset=_rec("get_video_preset"),
+    )
+    markers = types.SimpleNamespace(
+        get=lambda key: None,
+        create_video_preset=_rec("create_video_preset"),
         video_preset_out_of_range=lambda name: 0,
         apply_video_preset=_rec("apply_video_preset"),
     )
     dialogs = CueDialogs()
     dialogs.confirm = CueConfirmDialog()
-    cue = types.SimpleNamespace(markers=markers, dialogs=dialogs, current_file="", calls=calls)
+    cue = types.SimpleNamespace(
+        markers=markers, marker_store=marker_store, presets=presets, dialogs=dialogs, current_file="", calls=calls
+    )
     cue.music = types.SimpleNamespace(
         songs_for_trigger=lambda key: [],
         create_preset=_rec("music_create_preset"),
@@ -345,7 +349,7 @@ def test_maybe_apply_video_preset_in_range(ui_cue):
 
 def test_maybe_apply_video_preset_out_of_range(ui_cue):
     ui_cue.markers.video_preset_out_of_range = lambda name: 3
-    ui_cue.markers.get_video_preset = lambda name: {"pools": [1, 2, 3, 4]}
+    ui_cue.presets.get_video_preset = lambda name: {"pools": [1, 2, 3, 4]}
     _cue_maybe_apply_video_preset("Preset")
     # out of range -> confirm dialog, message shows counts + duration.
     assert "3 of 4 marker(s)" in ui_cue.dialogs.confirm.message
@@ -356,7 +360,7 @@ def test_maybe_apply_video_preset_out_of_range(ui_cue):
 
 def test_maybe_apply_video_preset_out_of_range_no_preset(ui_cue):
     ui_cue.markers.video_preset_out_of_range = lambda name: 2
-    ui_cue.markers.get_video_preset = lambda name: None
+    ui_cue.presets.get_video_preset = lambda name: None
     _cue_maybe_apply_video_preset("Ghost")
     assert "2 of 0 marker(s)" in ui_cue.dialogs.confirm.message
     assert "apply_video_preset" not in ui_cue.calls

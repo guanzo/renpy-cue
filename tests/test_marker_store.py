@@ -138,15 +138,6 @@ def test_ensure_pool_clamps_stale_index(store):
     assert store._ensure_pool("i_a", -3) == {"files": ["s.ogg"]}
 
 
-def test_add_file_to_pool_is_idempotent(cue_env):
-    calls = []
-    s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: calls.append(1))
-    s._add_file_to_pool("i_a", "s.ogg")
-    s._add_file_to_pool("i_a", "s.ogg")
-    assert s._data["i_a"]["pools"][0]["files"] == ["s.ogg"]
-    assert len(calls) == 2  # one on_save per save
-
-
 def test_remove_file_from_pool_prunes_empty(store):
     store._data["i_a"] = {"pools": [{"files": ["a.ogg", "b.ogg"]}]}
     store._remove_file_from_pool("i_a", 0)
@@ -389,34 +380,23 @@ def test_migrate_legacy_exclusive_idempotent(store):
     assert store._migrate_legacy_exclusive() == 0
 
 
-def test_migrate_colon_key():
-    assert CueMarkerStore._migrate_colon_key("v:file") == "v_file"
-    assert CueMarkerStore._migrate_colon_key("i:a") == "i_a"
-    assert CueMarkerStore._migrate_colon_key("l:a") == "l_a"
-    assert CueMarkerStore._migrate_colon_key("d:a") == "d_a"
-    assert CueMarkerStore._migrate_colon_key("d_a|b") == "d_a__b"
-
-
-def test_migrate_speed_mode_rename(store):
+def test_migrate_speed_mode_rename_entries_only(store):
+    # Entry-side migration renames video speed_mode on the store; the preset
+    # half lives in CuePresetStore (covered in test_preset_store.py).
     store._data["v_a"] = {"pools": [], "speed_mode": "sequence"}
     store._data["i_b"] = {"pools": [], "speed_mode": "sequence"}  # non-vid untouched
-    store._video_presets["VP"] = {"speed_mode": "sequence"}
     store._migrate_speed_mode_rename()
     assert store._data["v_a"]["speed_mode"] == "multi"
     assert store._data["i_b"]["speed_mode"] == "sequence"
-    assert store._video_presets["VP"]["speed_mode"] == "multi"
 
 
-def test_migrate_video_timestamps_to_pools(store):
+def test_migrate_video_timestamps_to_pools_entries_only(store):
     store._data["v_a"] = {"timestamps": [{"time": 1.0}]}
     store._data["i_b"] = {"timestamps": [{"time": 2.0}]}  # non-vid untouched
-    store._video_presets["VP"] = {"timestamps": [{"time": 3.0}]}
-    entries, presets = store._migrate_video_timestamps_to_pools()
-    assert (entries, presets) == (1, 1)
+    assert store._migrate_video_timestamps_to_pools() == 1
     assert store._data["v_a"]["pools"] == [{"time": 1.0}]
     assert "timestamps" not in store._data["v_a"]
     assert "timestamps" in store._data["i_b"]
-    assert store._video_presets["VP"]["pools"] == [{"time": 3.0}]
 
 
 # ---------------------------------------------------------------------------
@@ -477,6 +457,7 @@ def test_save_all_and_load_from_db_round_trip(store, cue_env):
     store._presets["G"] = {"files": ["a.ogg"]}
     store._video_presets["VP"] = {"pools": [{"time": 1.0}]}
     store.save_all()
+    store._preset_store.save_all()
 
     fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
@@ -520,7 +501,7 @@ def test_delete_removed_files_deletes_dropped_marker(store, cue_env):
 
     old_keys = set(store._data)
     del store._data["v_a"]
-    store.delete_removed_files(old_keys, {}, {}, set())
+    store.delete_removed_files(old_keys)
 
     fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
@@ -536,7 +517,7 @@ def test_delete_removed_files_preset_only_when_session_created(store, cue_env):
     store._session_created = {("audio", "Sess")}
     old_presets = {"Sess": {"files": ["a.ogg"]}, "Old": {"files": ["b.ogg"]}}
     store._presets = {}  # restore drops both
-    store.delete_removed_files(set(), old_presets, {}, {("audio", "Sess")})
+    store._preset_store.delete_removed_files(old_presets, {}, {("audio", "Sess")})
 
     fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
@@ -571,7 +552,7 @@ def test_post_save_skips_sanitize_on_preset_save(cue_env, monkeypatch):
     s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
     monkeypatch.setattr(s, "_sanitize_video_pools_tracked", _spy_sanitize(calls))
     s._presets["p1"] = {"files": ["a.ogg"], "volume": 0.5}
-    s.save_preset("p1")
+    s._preset_store.save_preset("p1")
     assert calls == []
 
 
@@ -652,13 +633,6 @@ def test_remove_file_from_pool_legacy_files_branch(store):
     assert "v_a" not in store._data
 
 
-def test_add_file_to_pool_igroup_hook_noop(store):
-    # A pool hooked to an intensity group owns no refs; adding must not touch it.
-    store._data["v_a"] = {"pools": [{"igroup": {"name": "lvl", "level": 0}, "files": []}]}
-    assert store._add_file_to_pool("v_a", "a.ogg", 0) is False
-    assert store._data["v_a"]["pools"][0]["files"] == []
-
-
 def test_remove_ref_from_pool_igroup_hook_noop(store):
     store._data["v_a"] = {"pools": [{"igroup": {"name": "lvl", "level": 0}, "files": []}]}
     assert store._remove_ref_from_pool("v_a", "a.ogg", 0) is False
@@ -708,23 +682,23 @@ def test_sanitize_video_pools_tracked_strips_and_logs(store):
 
 
 def test_migrate_legacy_exclusive_preset(store):
+    # Preset exclusive migration lives in the preset store; the entry-side
+    # pass on the marker store no longer counts presets.
     store._presets["P"] = {"exclusive": True}
-    assert store._migrate_legacy_exclusive() == 1
+    assert store._preset_store._migrate_preset_exclusive() == 1
     assert store._presets["P"]["exclusive"]["group"] == 1
 
 
 def test_migrate_video_timestamps_keeps_pools(store):
     store._data["v_a"] = {"pools": [{"time": 1.0}], "timestamps": [{"time": 9.0}]}
-    entries, presets = store._migrate_video_timestamps_to_pools()
-    assert entries == 1
+    assert store._migrate_video_timestamps_to_pools() == 1
     assert store._data["v_a"]["pools"] == [{"time": 1.0}]
     assert "timestamps" not in store._data["v_a"]
 
 
 def test_migrate_video_timestamps_preset_keeps_pools(store):
     store._video_presets["VP"] = {"pools": [{"time": 1.0}], "timestamps": [{"time": 9.0}]}
-    entries, presets = store._migrate_video_timestamps_to_pools()
-    assert presets == 1
+    assert store._preset_store._migrate_video_presets_to_pools() == 1
     assert "timestamps" not in store._video_presets["VP"]
 
 
@@ -753,18 +727,18 @@ def test_post_save_resaves_sanitized_video_pools(store, cue_env):
 
 def test_delete_removed_files_no_db_returns(cue_env):
     s = CueMarkerStore(None, cue_env.paths)
-    s.delete_removed_files(set(), {}, {}, set())  # must not raise
+    s.delete_removed_files(set())  # must not raise
 
 
 def test_delete_removed_files_keeps_present_preset(store):
     store._presets["P"] = {"files": ["a.ogg"]}
-    store.delete_removed_files(set(), {"P": {"files": ["a.ogg"]}}, {}, set())
+    store._preset_store.delete_removed_files({"P": {"files": ["a.ogg"]}}, {}, set())
     assert "P" in store._presets
 
 
 def test_delete_removed_files_keeps_present_video_preset(store):
     store._video_presets["VP"] = {"pools": [{"time": 1.0}]}
-    store.delete_removed_files(set(), {}, {"VP": {"pools": [{"time": 1.0}]}}, set())
+    store._preset_store.delete_removed_files({}, {"VP": {"pools": [{"time": 1.0}]}}, set())
     assert "VP" in store._video_presets
 
 
@@ -772,7 +746,7 @@ def test_delete_removed_files_deletes_session_video_preset(store, cue_env):
     store.create_video_preset("VP", {"pools": [{"time": 1.0}]})
     old_video_presets = {"VP": store._video_presets["VP"]}
     store._video_presets = {}  # restore dropped it
-    store.delete_removed_files(set(), {}, old_video_presets, {("video", "VP")})
+    store._preset_store.delete_removed_files({}, old_video_presets, {("video", "VP")})
 
     fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()

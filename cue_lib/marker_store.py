@@ -1,23 +1,33 @@
 # -*- coding: utf-8 -*-
-# CueMarkerStore -- the marker data leaf: entries, presets, migrations, and
-# file-backed persistence.
+
+# CueMarkerStore -- the marker data leaf: entries, pool mutators, migrations,
+# and file-backed persistence.
 #
-# Owns the dict of marker entries, the audio/video preset dicts, and the
-# session-created preset set, plus the dict-like surface, entry/pool mutators,
-# sanitize/migrate passes, and persistence that read or write them.  Lives at
-# _cue.marker_store (wired in cue_z.rpy) and is handed to CueMarkerManager,
-# which keeps the coordinator role (contexts, resolve/detach glue, clipboard,
-# scalar-load) and delegates data methods here.
+# Owns the dict of marker entries and the dict-like surface, entry/pool
+# mutators, entry-side sanitize/migrate passes, and marker persistence.  The
+# audio/video preset dicts live in CuePresetStore (self._preset_store), which
+# this store consults for the two preset reads it makes (resolve_pool defaults,
+# detach materialization).  Lives at _cue.marker_store (wired in cue_z.rpy)
+# and is handed to CueMarkerManager, which keeps the coordinator role.
 #
 # No module-level _cue reads: collaborators come in via the constructor
-# (db, paths) plus an on_save callback for post-write side effects (undo
-# capture), so the whole layer is testable against a real CueDatabase.
+# (db, paths, on_save) plus an optional preset store; when preset_store is
+# omitted one is auto-built on the same db/on_save.
 
 import copy as _copy
 import renpy
 
 from cue_lib.constants import CUE_VOLUME_DEFAULT, CueExclusiveStart, CueLoopFrequency
-from cue_lib.util import _cue_log, _cue_resolve_files, is_vid_key, is_loop_key
+from cue_lib.pool import CuePool
+from cue_lib.preset_store import CuePresetStore
+from cue_lib.util import (
+    _cue_clean_pool_list,
+    _cue_log,
+    _cue_migrate_exclusive_pool,
+    _cue_resolve_files,
+    is_vid_key,
+    is_loop_key,
+)
 
 MYPY = False
 if MYPY:
@@ -31,6 +41,7 @@ if MYPY:
     )
     from cue_lib.db import CueDatabase  # pyright: ignore[reportUnusedImport]
     from cue_lib.paths import CuePaths  # pyright: ignore[reportUnusedImport]
+    from cue_lib.preset_store import CuePresetStore  # pyright: ignore[reportUnusedImport]
 
 
 class ResolvedExclusive(object):
@@ -104,32 +115,61 @@ class ResolvedPool(object):
 
 
 class CueMarkerStore(object):
-    """Marker entry + preset data with file-backed persistence.
+    """Marker entry data with file-backed persistence.
 
     ``on_save`` is called once after every DB write (single-key or batch);
-    the coordinator uses it to capture an undo snapshot.  ``_session_created``
-    tracks presets created this session so a restore can tell them apart from
-    presets loaded from disk (shared across games)."""
+    the coordinator uses it to capture an undo snapshot.  Preset data lives in
+    ``self._preset_store`` (CuePresetStore)."""
 
-    def __init__(self, db, paths, on_save=None):
-        # type: (CueDatabase, CuePaths, Optional[Callable[[], None]]) -> None
+    def __init__(self, db, paths, on_save=None, preset_store=None, intensity=None):
+        # type: (CueDatabase, CuePaths, Optional[Callable[[], None]], Optional[CuePresetStore], Optional[Any]) -> None
         self._db = db
         self._paths = paths
         self._on_save = on_save
+        if preset_store is None:
+            preset_store = CuePresetStore(db, on_save)
+        self._preset_store = preset_store
         # The store attrs stay loosely typed here: they are loaded from
         # db.load_markers() (Dict[str, Any]) and mutated with partial pool
         # literals, so strict MarkerEntry typing would force a cascade of
         # "TypedDict can't narrow" suppressions. The .pyi keeps the strict
         # contract for consumers.
         self._data = {}
-        self._presets = {}
-        self._video_presets = {}
-        # ("audio"|"video", name) -- presets created this session
-        self._session_created = set()
-        # Late-bound intensity manager (same pattern as sfx library): the store
-        # is built before CueIntensityManager in cue_z.rpy, so resolve_pool's
-        # fold only activates once the wiring lands.
-        self._intensity = None  # type: Optional[Any]
+        self._intensity = intensity
+
+    # -- transitional preset read-throughs (Chunks 4-5 move consumers to
+    # _cue.presets / self._preset_store; kept so manager shims and tests that
+    # read/write the whole dicts keep working until then) --
+
+    @property
+    def _presets(self):
+        # type: () -> Dict[str, PoolDict]
+        return self._preset_store._presets
+
+    @_presets.setter
+    def _presets(self, value):
+        # type: (Dict[str, PoolDict]) -> None
+        self._preset_store._presets = value
+
+    @property
+    def _video_presets(self):
+        # type: () -> Dict[str, VideoPreset]
+        return self._preset_store._video_presets
+
+    @_video_presets.setter
+    def _video_presets(self, value):
+        # type: (Dict[str, VideoPreset]) -> None
+        self._preset_store._video_presets = value
+
+    @property
+    def _session_created(self):
+        # type: () -> Set[Tuple[str, str]]
+        return self._preset_store._session_created
+
+    @_session_created.setter
+    def _session_created(self, value):
+        # type: (Set[Tuple[str, str]]) -> None
+        self._preset_store._session_created = value
 
     # -- dict-like interface --
 
@@ -173,83 +213,40 @@ class CueMarkerStore(object):
         # type: () -> int
         return len(self._data)
 
-    # -- presets --
+    # -- preset delegators (transitional; preset logic lives in the preset
+    # store, manager pass-throughs forward here until Chunk 5) --
 
     def create_preset(self, name, pool_dict):
         # type: (str, PoolDict) -> None
-        self._presets[name] = _copy.deepcopy(pool_dict)
-        self._session_created.add(("audio", name))
-        self._db_save_preset(name)
-        _cue_log(
-            "CREATE-PRESET name={} files={} vol={:.1f}".format(
-                name, len(pool_dict.get("files", [])), pool_dict.get("volume", CUE_VOLUME_DEFAULT)
-            )
-        )
+        self._preset_store.create_preset(name, pool_dict)
 
     def delete_preset(self, name):
         # type: (str) -> None
-        if name in self._presets:
-            del self._presets[name]
-            self._session_created.discard(("audio", name))
-            self._db_save_preset(name)
-            _cue_log("DELETE-PRESET name={}".format(name))
+        self._preset_store.delete_preset(name)
 
     def get_preset(self, name):
         # type: (str) -> Optional[PoolDict]
-        return self._presets.get(name)
+        return self._preset_store.get_preset(name)
 
     def list_presets(self):
         # type: () -> List[str]
-        return sorted(self._presets.keys())
-
-    # -- video presets --
+        return self._preset_store.list_presets()
 
     def create_video_preset(self, name, entry, source_dur=0.0):
         # type: (str, Any, float) -> None
-        """Save a video preset from a marker entry's pools.
-
-        ``source_dur`` is the source video's duration, supplied by the
-        coordinator (the store has no video dependency)."""
-        pools = entry.get("pools", [])
-        if not pools:
-            return
-        clean = []
-        for pool in pools:
-            if pool.get("time") is not None:
-                clean.append(
-                    {
-                        "time": pool["time"],
-                        "files": list(pool.get("files", [])),
-                        "volume": pool.get("volume", CUE_VOLUME_DEFAULT),
-                    }
-                )
-        if not clean:
-            return
-        clean.sort(key=lambda e: e["time"])
-        self._video_presets[name] = {
-            "pools": clean,
-            "volume": entry.get("volume", CUE_VOLUME_DEFAULT),
-            "source_duration": max(source_dur, 0.0),
-        }
-        self._session_created.add(("video", name))
-        self._db_save_video_preset(name)
-        _cue_log("CREATE-VIDEO-PRESET name={} markers={} dur={:.1f}".format(name, len(clean), source_dur))
+        self._preset_store.create_video_preset(name, entry, source_dur)
 
     def delete_video_preset(self, name):
         # type: (str) -> None
-        if name in self._video_presets:
-            del self._video_presets[name]
-            self._session_created.discard(("video", name))
-            self._db_save_video_preset(name)
-            _cue_log("DELETE-VIDEO-PRESET name={}".format(name))
+        self._preset_store.delete_video_preset(name)
 
     def get_video_preset(self, name):
         # type: (str) -> Optional[VideoPreset]
-        return self._video_presets.get(name)
+        return self._preset_store.get_video_preset(name)
 
     def list_video_presets(self):
         # type: () -> List[str]
-        return sorted(self._video_presets.keys())
+        return self._preset_store.list_video_presets()
 
     # -- resolve (preset -> concrete pool) --
 
@@ -264,7 +261,7 @@ class CueMarkerStore(object):
         manager), otherwise the pool's refs with folder refs expanded.
         ``files`` is None when ``expand`` is False, so the default path never
         touches the SFX library."""
-        defaults = self._presets.get(pool["preset"], {}) if "preset" in pool else {}
+        defaults = self._preset_store._presets.get(pool["preset"], {}) if "preset" in pool else {}
         refs = pool.get("files", defaults.get("files", []))
         volume = pool.get("volume", defaults.get("volume", CUE_VOLUME_DEFAULT))
         frequency = pool.get("frequency", defaults.get("frequency", CueLoopFrequency.MEDIUM))
@@ -333,21 +330,6 @@ class CueMarkerStore(object):
         if pool_index >= len(pools):
             pool_index = len(pools) - 1
         return pools[pool_index]
-
-    def _add_file_to_pool(self, marker_key, filename, pool_index=0):
-        # type: (str, str, int) -> bool
-        """Append one ref to a pool.  Detaches a preset first; a pool hooked
-        to an intensity group owns no refs and is left untouched.  Returns
-        True when the ref was added."""
-        self._detach_pool(marker_key, pool_index)
-        pool = self._ensure_pool(marker_key, pool_index)
-        if "igroup" in pool:
-            return False
-        files = pool.setdefault("files", [])
-        if filename not in files:
-            files.append(filename)
-        self._db_save_marker(marker_key)
-        return True
 
     def _remove_file_from_pool(self, marker_key, file_index, pool_index=0):
         # type: (str, int, int) -> bool
@@ -466,7 +448,7 @@ class CueMarkerStore(object):
         if "preset" not in pool:
             return False
         preset_name = pool["preset"]
-        preset = self._presets.get(preset_name, {})
+        preset = self._preset_store._presets.get(preset_name, {})
         r = self.resolve_pool(pool)
         del pool["preset"]
         pool["files"] = r.refs
@@ -482,6 +464,12 @@ class CueMarkerStore(object):
         self._db_save_marker(marker_key)
         _cue_log("DETACH-POOL key={} pi={} preset={} files={}".format(marker_key, pool_index, preset_name, len(r.refs)))
         return True
+
+    def pool(self, marker_key, pool_index=0):
+        # type: (str, int) -> CuePool
+        """Ephemeral view over one pool row.  One view = one op; the view
+        re-resolves the row from the live dict each call."""
+        return CuePool(self, marker_key, pool_index)
 
     def _resolve_video_pools(self, entry):
         # type: (Any) -> List[VideoPoolDict]
@@ -503,28 +491,12 @@ class CueMarkerStore(object):
 
     @staticmethod
     def _clean_pool_list(pools):
-        # type: (List[PoolDict]) -> Tuple[List[PoolDict], int]
-        stripped = 0
-        clean = []
-        for pool in pools:
-            if pool.get("time") is not None:
-                clean.append(pool)
-            else:
-                stripped += 1
-        return clean, stripped
+        # type: (List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], int]
+        return _cue_clean_pool_list(pools)
 
     def _sanitize_video_presets(self):
         # type: () -> int
-        total_stripped = 0
-        for _, preset in list(self._video_presets.items()):
-            pools = preset.get("pools")
-            if not pools:
-                continue
-            clean, stripped = self._clean_pool_list(pools)
-            if stripped:
-                preset["pools"] = clean
-                total_stripped += stripped
-        return total_stripped
+        return self._preset_store._sanitize_video_presets()
 
     def _sanitize_video_pools(self):
         # type: () -> int
@@ -535,7 +507,7 @@ class CueMarkerStore(object):
             pools = entry.get("pools")
             if not pools:
                 continue
-            clean, stripped = self._clean_pool_list(pools)
+            clean, stripped = _cue_clean_pool_list(pools)
             if stripped:
                 entry["pools"] = clean
                 total_stripped += stripped
@@ -550,7 +522,7 @@ class CueMarkerStore(object):
             pools = entry.get("pools")
             if not pools:
                 continue
-            clean, stripped = self._clean_pool_list(pools)
+            clean, stripped = _cue_clean_pool_list(pools)
             if stripped:
                 entry["pools"] = clean
                 modified.add(key)
@@ -580,56 +552,25 @@ class CueMarkerStore(object):
 
         Old loop-exclusive pools become G1 + Wait + hold: polite
         wait-then-reserve, now with G1 membership in the unified system.
-        Legacy False values are cleaned up (absence = plain citizen)."""
+        Legacy False values are cleaned up (absence = plain citizen).
+        Entry-side only; presets migrate in CuePresetStore."""
         migrated = 0
         for entry in list(self._data.values()):
             for pool in entry.get("pools", []):
                 if self._migrate_exclusive_pool(pool):
                     migrated += 1
-        for preset in list(self._presets.values()):
-            if self._migrate_exclusive_pool(preset):
-                migrated += 1
         return migrated
 
     @staticmethod
     def _migrate_exclusive_pool(pool):
         # type: (Any) -> bool
-        excl = pool.get("exclusive")
-        if not isinstance(excl, bool):
-            return False
-        if excl:
-            pool["exclusive"] = {"group": 1, "start": CueExclusiveStart.WAIT, "hold": True}
-        else:
-            del pool["exclusive"]
-        return True
-
-    @staticmethod
-    def _migrate_colon_key(key):
-        # type: (str) -> str
-        """Convert legacy colon keys (v:file) to underscore (v_file).
-        Also normalizes dialogue pipe separator | to __."""
-        if key.startswith("v:"):
-            return "v_" + key[2:]
-        if key.startswith("i:"):
-            return "i_" + key[2:]
-        if key.startswith("d:"):
-            key = "d_" + key[2:]
-        elif key.startswith("l:"):
-            return "l_" + key[2:]
-        # Normalize legacy pipe separator in dialogue keys
-        if key.startswith("d_") and "|" in key:
-            file_part, dialogue = key[2:].split("|", 1)
-            key = "d_{}__{}".format(file_part, dialogue)
-        return key
+        return _cue_migrate_exclusive_pool(pool)
 
     def _migrate_speed_mode_rename(self):
         # type: () -> None
         for key, entry in list(self._data.items()):
             if is_vid_key(key) and entry.get("speed_mode") == "sequence":
                 entry["speed_mode"] = "multi"
-        for preset in self._video_presets.values():
-            if preset.get("speed_mode") == "sequence":
-                preset["speed_mode"] = "multi"
 
     def _migrate_marker_keys(self):
         # type: () -> None
@@ -647,7 +588,7 @@ class CueMarkerStore(object):
                 entry["multi_speed_sequence"] = entry.pop("speed_sequence")
 
     def _migrate_video_timestamps_to_pools(self):
-        # type: () -> Tuple[int, int]
+        # type: () -> int
         entries_changed = 0
         for key, entry in list(self._data.items()):
             if is_vid_key(key) and "timestamps" in entry:
@@ -656,17 +597,9 @@ class CueMarkerStore(object):
                 else:
                     del entry["timestamps"]
                 entries_changed += 1
-        presets_changed = 0
-        for _, preset in list(self._video_presets.items()):
-            if "timestamps" in preset:
-                if "pools" not in preset:
-                    preset["pools"] = preset.pop("timestamps")
-                else:
-                    del preset["timestamps"]
-                presets_changed += 1
-        if entries_changed or presets_changed:
-            _cue_log("MIGRATE-VIDEO-POOLS entries={} presets={}".format(entries_changed, presets_changed))
-        return entries_changed, presets_changed
+        if entries_changed:
+            _cue_log("MIGRATE-VIDEO-POOLS entries={}".format(entries_changed))
+        return entries_changed
 
     # -- persistence --
 
@@ -674,12 +607,7 @@ class CueMarkerStore(object):
         # type: () -> None
         """Re-read presets from the shared data store. Merges new/updated
         presets from disk (other games may have added them). Never deletes."""
-        db = self._db
-        if db is None or not db.is_open():
-            return
-        audio, video = db.load_presets()
-        self._presets.update(audio)
-        self._video_presets.update(video)
+        self._preset_store.reload_presets()
 
     # ------------------------------------------------------------------
     # Public save API -- targeted data store writes for routine mutations
@@ -704,16 +632,6 @@ class CueMarkerStore(object):
                     db.delete_marker(key)
         self._post_save(keys)
 
-    def save_preset(self, name):
-        # type: (str) -> None
-        """Persist one audio preset to data store."""
-        self._db_save_preset(name)
-
-    def save_video_preset(self, name):
-        # type: (str) -> None
-        """Persist one video preset to data store."""
-        self._db_save_video_preset(name)
-
     # ------------------------------------------------------------------
     # Internal helpers -- write one item to DB, then run side effects
     # ------------------------------------------------------------------
@@ -727,26 +645,6 @@ class CueMarkerStore(object):
             else:
                 db.delete_marker(key)
         self._post_save([key])
-
-    def _db_save_preset(self, name):
-        # type: (str) -> None
-        db = self._db
-        if db is not None and db.is_open():
-            if name in self._presets:
-                db.save_preset("audio", name, self._presets[name])
-            else:
-                db.delete_preset("audio", name)
-        self._post_save()
-
-    def _db_save_video_preset(self, name):
-        # type: (str) -> None
-        db = self._db
-        if db is not None and db.is_open():
-            if name in self._video_presets:
-                db.save_preset("video", name, self._video_presets[name])
-            else:
-                db.delete_preset("video", name)
-        self._post_save()
 
     def _post_save(self, keys=None):
         # type: (Optional[List[str]]) -> None
@@ -766,45 +664,27 @@ class CueMarkerStore(object):
 
     def save_all(self):
         # type: () -> None
-        """Full save of all markers + presets to DB.
-        Used by migration, restore, and undo/redo."""
+        """Full save of all markers to DB. Used by migration, restore, and
+        undo/redo.  Presets persist through CuePresetStore.save_all()."""
         db = self._db
         if db is not None and db.is_open():
             for key in self._data:
                 db.save_marker(key, self._data[key])
-            for name, data in self._presets.items():
-                db.save_preset("audio", name, data)
-            for name, data in self._video_presets.items():
-                db.save_preset("video", name, data)
         if self._on_save is not None:
             self._on_save()
 
-    def delete_removed_files(self, old_marker_keys, old_presets, old_video_presets, old_session_created):
-        # type: (Set[str], Dict[str, Any], Dict[str, Any], Set[Tuple[str, str]]) -> None
-        """Delete DB files for keys a restore just dropped from the stores.
+    def delete_removed_files(self, old_marker_keys):
+        # type: (Set[str]) -> None
+        """Delete DB files for marker keys a restore just dropped.
 
-        old_* capture the live stores BEFORE the restore swapped in new data.
         Marker files are removed by key diff -- marker stores are per-game and
         only mutated by this session, so any dropped key was created here.
-        Preset files are shared across games and reloadable mid-session, so a
-        preset is removed only when it was created in this session AND the
-        on-disk entry still matches the entry being dropped. Never a
-        directory sweep: files the store never loaded are left untouched."""
+        Preset cleanup lives in CuePresetStore.delete_removed_files."""
         db = self._db
         if db is None or not db.is_open():
             return
         for key in old_marker_keys - set(self._data):
             db.delete_marker(key)
-        for name, dropped in old_presets.items():
-            if name in self._presets:
-                continue
-            if ("audio", name) in old_session_created and db.preset_file_matches("audio", name, dropped):
-                db.delete_preset("audio", name)
-        for name, dropped in old_video_presets.items():
-            if name in self._video_presets:
-                continue
-            if ("video", name) in old_session_created and db.preset_file_matches("video", name, dropped):
-                db.delete_preset("video", name)
 
     # -- load --
 
@@ -812,24 +692,23 @@ class CueMarkerStore(object):
         # type: () -> None
         """Load markers + presets from the data store.
 
-        This is the disk side of CueMarkerManager.load_persistent; the
-        persistent-scalar side (triggers_active, encode_mode, ...) stays on
-        the coordinator because it fans out to other managers."""
+        Marker entries load here (with the entry-side migrations); the preset
+        load and its migrations run in CuePresetStore.load_from_db.  This is
+        the disk side of CueMarkerManager.load_persistent; the persistent-
+        scalar side (triggers_active, encode_mode, ...) stays on the
+        coordinator because it fans out to other managers."""
         db = self._db
         if db is None or not db.is_open():
             self._data = {}
-            self._video_presets = {}
-            return
-
-        self._data = db.load_markers()
-        self._presets, self._video_presets = db.load_presets()
-        self._migrate_video_timestamps_to_pools()
-        self._sanitize_video_pools()
-        self._sanitize_video_presets()
-        self._normalize_all()
-        self._migrate_speed_mode_rename()
-        self._migrate_legacy_exclusive()
-        self._migrate_marker_keys()
+        else:
+            self._data = db.load_markers()
+            self._migrate_video_timestamps_to_pools()
+            self._sanitize_video_pools()
+            self._normalize_all()
+            self._migrate_speed_mode_rename()
+            self._migrate_legacy_exclusive()
+            self._migrate_marker_keys()
+        self._preset_store.load_from_db()
 
 
 def _cue_migrate_intensity_hooks(store, igroups):

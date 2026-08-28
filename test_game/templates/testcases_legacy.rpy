@@ -414,9 +414,9 @@ testcase audio_presets_list:
     $ _cue.is_overlay_visible = True
     run Jump("start")
     pause 2.0
-    run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
-    $ _ok = "Test Preset" in _cue.markers.list_presets()
-    $ _ok = _ok and _cue.markers.get_preset("Test Preset")["files"] == ["sfx_001.ogg"]
+    run Function(_cue.presets.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    $ _ok = "Test Preset" in _cue.presets.list_presets()
+    $ _ok = _ok and _cue.presets.get_preset("Test Preset")["files"] == ["sfx_001.ogg"]
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
@@ -530,10 +530,10 @@ testcase intensity_loop_fire_path:
     run Function(_cue.sfx.library.ilevel_add_folder, "Fire Test", 3, "empty/")
     # An image tag can't start a speed sequence (no video path), so current
     # speed falls through to speed_pref = 1.0 -> Level 2 (hard/).
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["multi_speed_sequence"] = [0.7, 1.0, 1.3]
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
-    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"igroup": {"name": "Fire Test", "level": 1}, "files": [], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
+    $ _cue.marker_store._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
+    $ _cue.marker_store._get_or_create_entry("v_cueimg_a")["multi_speed_sequence"] = [0.7, 1.0, 1.3]
+    $ _cue.marker_store._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
+    $ _cue.marker_store._get_or_create_entry("l_cueimg_a")["pools"] = [{"igroup": {"name": "Fire Test", "level": 1}, "files": [], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
     $ renpy.show("cueimg_a")
     # Poll until the loop records a Level-2 (hard/) fire -- a fixed pause races
     # slow 7.x audio-channel startup under xvfb (see the init -10 waiter).
@@ -563,12 +563,12 @@ testcase intensity_toggle_master_off:
     run Function(_cue.sfx.library.ilevel_add_folder, "Toggle Test", 2, "hard/")
     # The video entry carries a hooked (time-less) pool so the per-tick video
     # gate can resolve; a time-less pool never fires as a video marker.
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["pools"] = [{"igroup": {"name": "Toggle Test", "level": 1}, "files": [], "volume": 1.0}]
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["multi_speed_sequence"] = [0.7, 1.0, 1.3]
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["intensity"] = {"enabled": False}
-    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"igroup": {"name": "Toggle Test", "level": 1}, "files": [], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
+    $ _cue.marker_store._get_or_create_entry("v_cueimg_a")["pools"] = [{"igroup": {"name": "Toggle Test", "level": 1}, "files": [], "volume": 1.0}]
+    $ _cue.marker_store._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
+    $ _cue.marker_store._get_or_create_entry("v_cueimg_a")["multi_speed_sequence"] = [0.7, 1.0, 1.3]
+    $ _cue.marker_store._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
+    $ _cue.marker_store._get_or_create_entry("v_cueimg_a")["intensity"] = {"enabled": False}
+    $ _cue.marker_store._get_or_create_entry("l_cueimg_a")["pools"] = [{"igroup": {"name": "Toggle Test", "level": 1}, "files": [], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
     $ renpy.show("cueimg_a")
     $ _test_wait_deadline = _test_time.time() + 10.0
     pause 0.5 until run _cue_test_wait_until_true(_cue_intensity_soft_fired, _test_wait_deadline)
@@ -597,12 +597,12 @@ testcase intensity_toggle_sfx_levels_off:
     run Function(_cue.sfx.library.ilevel_add_folder, "Toggle Test", 1, "soft/")
     run Function(_cue.sfx.library.add_level, "Toggle Test")
     run Function(_cue.sfx.library.ilevel_add_folder, "Toggle Test", 2, "hard/")
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["pools"] = [{"igroup": {"name": "Toggle Test", "level": 1}, "files": [], "volume": 1.0}]
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["multi_speed_sequence"] = [0.7, 1.0, 1.3]
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["intensity"] = {"sfx_levels": False}
-    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"igroup": {"name": "Toggle Test", "level": 1}, "files": [], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
+    $ _cue.marker_store._get_or_create_entry("v_cueimg_a")["pools"] = [{"igroup": {"name": "Toggle Test", "level": 1}, "files": [], "volume": 1.0}]
+    $ _cue.marker_store._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
+    $ _cue.marker_store._get_or_create_entry("v_cueimg_a")["multi_speed_sequence"] = [0.7, 1.0, 1.3]
+    $ _cue.marker_store._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
+    $ _cue.marker_store._get_or_create_entry("v_cueimg_a")["intensity"] = {"sfx_levels": False}
+    $ _cue.marker_store._get_or_create_entry("l_cueimg_a")["pools"] = [{"igroup": {"name": "Toggle Test", "level": 1}, "files": [], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
     $ renpy.show("cueimg_a")
     $ _test_wait_deadline = _test_time.time() + 10.0
     pause 0.5 until run _cue_test_wait_until_true(_cue_intensity_soft_fired, _test_wait_deadline)
@@ -635,10 +635,10 @@ testcase intensity_tab_view:
     pause 1.0
     $ _cue_intensity_variants()
     $ _vidk = _cue_create_vid_key(_cue.current_file)
-    $ _cue.markers._get_or_create_entry(_vidk)["pools"] = [{"igroup": {"name": "Tab Test", "level": 1}, "files": [], "volume": 1.0}]
-    $ _cue.markers._get_or_create_entry(_vidk)["speed_mode"] = CueSpeedMode.MULTI
-    $ _cue.markers._get_or_create_entry(_vidk)["multi_speed_sequence"] = [0.7, 1.0, 1.3]
-    $ _cue.markers._get_or_create_entry(_vidk)["speed_pref"] = 1.0
+    $ _cue.marker_store._get_or_create_entry(_vidk)["pools"] = [{"igroup": {"name": "Tab Test", "level": 1}, "files": [], "volume": 1.0}]
+    $ _cue.marker_store._get_or_create_entry(_vidk)["speed_mode"] = CueSpeedMode.MULTI
+    $ _cue.marker_store._get_or_create_entry(_vidk)["multi_speed_sequence"] = [0.7, 1.0, 1.3]
+    $ _cue.marker_store._get_or_create_entry(_vidk)["speed_pref"] = 1.0
     # Open the SFX page with the Intensity tab; render the inspector.
     run Function(_cue_set_page, CuePage.SFX)
     run Function(_cue.video_editor.show_tab, CueVideoEditorTab.INTENSITY)
@@ -712,16 +712,16 @@ testcase intensity_hook_level_to_target:
     pause 1.0
     $ _ok = _cue.current_file == "cueimg_a"
     $ _cue.markers.set_target_context(CueContextType.IMAGE)
-    $ _cue.markers._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["soft/"], "volume": 1.0}]
+    $ _cue.marker_store._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["soft/"], "volume": 1.0}]
     run Function(_cue_send_level_to_target, "Guard A", 1)
-    $ _files = _cue.markers._get_or_create_entry("i_cueimg_a")["pools"][0]["files"]
+    $ _files = _cue.marker_store._get_or_create_entry("i_cueimg_a")["pools"][0]["files"]
     $ _ok = _ok and _files == ["soft/"]
-    $ _ok = _ok and _cue.markers._get_or_create_entry("i_cueimg_a")["pools"][0].get("igroup") is None
+    $ _ok = _ok and _cue.marker_store._get_or_create_entry("i_cueimg_a")["pools"][0].get("igroup") is None
     # LOOP target with the image still on screen: the loop pool gets the hook.
     $ _cue.markers.set_target_context(CueContextType.LOOP)
-    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"files": [], "volume": 1.0, "frequency": CueLoopFrequency.MEDIUM}]
+    $ _cue.marker_store._get_or_create_entry("l_cueimg_a")["pools"] = [{"files": [], "volume": 1.0, "frequency": CueLoopFrequency.MEDIUM}]
     run Function(_cue_send_level_to_target, "Guard A", 2)
-    $ _hook_pool = _cue.markers._get_or_create_entry("l_cueimg_a")["pools"][0]
+    $ _hook_pool = _cue.marker_store._get_or_create_entry("l_cueimg_a")["pools"][0]
     $ _ok = _ok and _hook_pool.get("igroup")["name"] == "Guard A"
     $ _ok = _ok and _hook_pool.get("igroup")["level"] == 2
     $ _ok = _ok and _hook_pool.get("files") == []
@@ -756,7 +756,7 @@ testcase intensity_hook_pool_renders:
     pause 0.2
     run Function(_cue_send_level_to_target, "Hook Render", 1)
     $ _vidk = _cue_create_vid_key(_cue.current_file)
-    $ _vp = _cue.markers._get_or_create_entry(_vidk)["pools"][0]
+    $ _vp = _cue.marker_store._get_or_create_entry(_vidk)["pools"][0]
     $ _ok = _ok and _vp.get("igroup")["name"] == "Hook Render"
     $ _ok = _ok and _vp.get("files") == []
     $ _vl = _cue.intensity.level_files_by_id("Hook Render", _vp.get("igroup")["level"] or 0)
@@ -765,10 +765,10 @@ testcase intensity_hook_pool_renders:
     # Loop target: hook a loop pool, render the Loop SFX section.
     $ _cue.markers.set_target_context(CueContextType.LOOP)
     $ _loop_key = _cue_create_loop_key(_cue.current_file or "")
-    $ _cue.markers._get_or_create_entry(_loop_key)["pools"] = [
+    $ _cue.marker_store._get_or_create_entry(_loop_key)["pools"] = [
         {"files": [], "volume": 1.0, "frequency": CueLoopFrequency.MEDIUM}]
     run Function(_cue_send_level_to_target, "Hook Render", 1)
-    $ _lp = _cue.markers._get_or_create_entry(_loop_key)["pools"][0]
+    $ _lp = _cue.marker_store._get_or_create_entry(_loop_key)["pools"][0]
     $ _ok = _ok and _lp.get("igroup")["name"] == "Hook Render"
     $ _lr = _cue.markers.resolve_pool(_lp)
     $ _ok = _ok and _lr.igroup["name"] == "Hook Render" and _lr.refs == []
@@ -794,7 +794,7 @@ testcase sfx_recently_used:
     run Function(_cue.markers.image.send_folder, "Sub/")
     $ _ok = _ok and _cue.sfx.library._recent.entries()[0] == {"type": "folder", "ref": "Sub/"}
     $ _ok = _ok and len(_cue.sfx.library._recent.entries()) == 2
-    run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    run Function(_cue.presets.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
     run Function(_cue.markers.image.send_preset, "Test Preset")
     $ _ok = _ok and len(_cue.sfx.library._recent.entries()) == 3
     run Function(_cue.markers.image.send_preset, "Test Preset")
@@ -853,7 +853,7 @@ testcase sfx_target_context:
     pause 0.5
     $ if not (_cue.markers.target_context == CueContextType.VIDEO): renpy.quit(status=1)
     # Compile the preset + video preset + recently-used list rows.
-    run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    run Function(_cue.presets.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
     run Function(_cue.sfx.library.toggle_presets_expand)
     run Function(_cue.sfx.library.toggle_video_presets_expand)
     # Image on screen: video target falls back to image; [+] routes there.
@@ -973,7 +973,7 @@ testcase video_multi_edit_fans_out:
     $ _vpools = _cue.markers.get(_vkey)["pools"]
     $ _ok = _vpools[0].get("volume") == 0.3
     $ _ok = _ok and _vpools[1].get("volume") == 0.3
-    run Function(_cue.markers.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    run Function(_cue.presets.create_preset, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
     $ _cue.markers.video.apply_preset_active("Test Preset")
     $ _vpools = _cue.markers.get(_vkey)["pools"]
     $ _ok = _ok and _vpools[0].get("preset") == "Test Preset"
@@ -1281,7 +1281,7 @@ testcase img_trigger_fires_on_show:
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
-    $ _cue.markers._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
+    $ _cue.marker_store._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
     $ renpy.show("cueimg_a")
     pause 1.0
     $ _ok = len(_cue.trigger.last_played) >= 1
@@ -1294,7 +1294,7 @@ testcase dlg_trigger_fires_on_say:
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
-    $ _cue.markers._get_or_create_entry("d_cueimg_a__Hello")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
+    $ _cue.marker_store._get_or_create_entry("d_cueimg_a__Hello")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
     run Jump("cue_say_fire")
     pause 1.0
     $ _ok = len(_cue.trigger.last_played) >= 1
@@ -1307,7 +1307,7 @@ testcase loop_trigger_fires_on_cycle:
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
-    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
+    $ _cue.marker_store._get_or_create_entry("l_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
     $ renpy.show("cueimg_a")
     pause 2.0
     $ _ok = len(_cue.trigger.last_played) >= 1
@@ -1320,7 +1320,7 @@ testcase video_marker_fires_at_ts:
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
-    $ _cue.markers._get_or_create_entry("v_cuevid")["pools"] = [{"time": 0.0, "files": ["sfx_001.ogg"], "volume": 1.0}]
+    $ _cue.marker_store._get_or_create_entry("v_cuevid")["pools"] = [{"time": 0.0, "files": ["sfx_001.ogg"], "volume": 1.0}]
     $ renpy.show("cuevid")
     # Wait out the 7.x movie startup: the v_ marker fires on the first tick
     # even before the movie advances, but played_keys is wiped every tick
@@ -1342,8 +1342,8 @@ testcase img_oneshot_dedup_no_refire:
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
-    $ _cue.markers._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
-    $ _cue.markers._get_or_create_entry("i_cueimg_b")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
+    $ _cue.marker_store._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
+    $ _cue.marker_store._get_or_create_entry("i_cueimg_b")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0}]
     $ renpy.show("cueimg_a")
     pause 1.0
     $ _ok = len(_cue.trigger.last_played) == 1
@@ -1363,7 +1363,7 @@ testcase shake_fires_on_with_vpunch:
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
-    $ _cue.markers._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0, "trigger_on_shake": True}]
+    $ _cue.marker_store._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0, "trigger_on_shake": True}]
     $ renpy.show("cueimg_a")
     pause 1.0
     $ _cue.trigger.last_played = []
@@ -1379,7 +1379,7 @@ testcase shake_fires_on_at_vpunch:
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
-    $ _cue.markers._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0, "trigger_on_shake": True}]
+    $ _cue.marker_store._get_or_create_entry("i_cueimg_a")["pools"] = [{"files": ["sfx_001.ogg", "sfx_002.ogg"], "volume": 1.0, "trigger_on_shake": True}]
     $ renpy.show("cueimg_a")
     pause 1.0
     $ _cue.trigger.last_played = []
@@ -1464,7 +1464,7 @@ testcase pages_render_data:
     $ _ok = True
     # Seed pool + video presets, an intensity group, recents and an expanded
     # tree folder so each section's data-driven branches actually run.
-    run Function(_cue.markers.create_preset, "Render Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
+    run Function(_cue.presets.create_preset, "Render Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
     run Function(_cue.markers.create_video_preset, "Render Video Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
     run Function(_cue.sfx.library.toggle_presets_expand)
     run Function(_cue.sfx.library.toggle_video_presets_expand)
@@ -1496,8 +1496,8 @@ testcase pages_render_data:
     $ _ok = _ok and renpy.get_screen("cue_overlay", layer="cue_layer") is not None
     $ _ok = _ok and _cue.overlay_active_page == CuePage.SETTINGS
     # Cleanup (fresh process per legacy testcase, symmetric with modern).
-    run Function(_cue.markers.delete_preset, "Render Preset")
-    run Function(_cue.markers.delete_video_preset, "Render Video Preset")
+    run Function(_cue.presets.delete_preset, "Render Preset")
+    run Function(_cue.presets.delete_video_preset, "Render Video Preset")
     run Function(_cue.intensity.delete_igroup, "Render IGroup")
     run Function(_cue.music.delete_preset, "Render Music Preset")
     $ if not _ok: renpy.quit(status=1)

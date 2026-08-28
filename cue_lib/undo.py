@@ -50,13 +50,14 @@ class CueUndoManager(object):
 
     def _snapshot(self):
         # type: () -> UndoSnapshot
-        """Deep-copy the three marker stores to plain dicts."""
+        """Deep-copy the marker + preset stores to plain dicts."""
         m = self._store
+        ps = m._preset_store
         return {
             "markers": _copy.deepcopy(m._data),
-            "presets": _copy.deepcopy(m._presets),
-            "video_presets": _copy.deepcopy(m._video_presets),
-            "session_created": set(m._session_created),
+            "presets": _copy.deepcopy(ps._presets),
+            "video_presets": _copy.deepcopy(ps._video_presets),
+            "session_created": set(ps._session_created),
         }
 
     # -- capture (called from save_marker / save_all / _post_save) --
@@ -82,8 +83,11 @@ class CueUndoManager(object):
         (pre-mutation) onto the undo stack. Called at the end of every
         save_marker() / save_all(). Time-window dedupe merges rapid saves."""
         if not self._recording:
-            # Restore just re-persisted -- re-enable and skip.
-            self._recording = True
+            # Restore is re-persisting -- suppress.  _restore's finally block
+            # re-enables, so capture() must not re-arm itself: a composite
+            # restore saves both the marker store and the preset store, and a
+            # self-re-arm on the first suppressed call would let the second
+            # record a spurious undo entry.
             return
         snap = self._snapshot()  # post-mutation state
         now = _time.time()
@@ -144,16 +148,19 @@ class CueUndoManager(object):
         self._recording = False
         try:
             store = self._store
+            ps = store._preset_store
             old_marker_keys = set(store._data.keys())
-            old_presets = store._presets
-            old_video_presets = store._video_presets
-            old_session_created = set(store._session_created)
+            old_presets = ps._presets
+            old_video_presets = ps._video_presets
+            old_session_created = set(ps._session_created)
             store._data = snap["markers"]
-            store._presets = snap["presets"]
-            store._video_presets = snap["video_presets"]
-            store._session_created = set(snap["session_created"])
+            ps._presets = snap["presets"]
+            ps._video_presets = snap["video_presets"]
+            ps._session_created = set(snap["session_created"])
             store.save_all()
-            store.delete_removed_files(old_marker_keys, old_presets, old_video_presets, old_session_created)
+            ps.save_all()
+            store.delete_removed_files(old_marker_keys)
+            ps.delete_removed_files(old_presets, old_video_presets, old_session_created)
         finally:
             self._recording = True
         # Seed _previous so the next real mutation pushes the correct

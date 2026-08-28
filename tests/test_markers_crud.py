@@ -148,7 +148,7 @@ def test_send_folder_shift_creates_new_pool(mgr):
 
 def test_send_preset_normal(mgr):
     _scene(mgr)
-    mgr.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
+    mgr._store.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
     mgr.image.send_preset("basic")
     entry = mgr.get(create_img_key("scene.ogv"))
     assert entry["pools"][0] == {"preset": "basic"}
@@ -158,7 +158,7 @@ def test_send_preset_shift_creates_new_pool(mgr):
     _scene(mgr)
     _sfx(mgr, "a.ogg")
     mgr.image.add_file(0)
-    mgr.create_preset("basic", {"files": ["b.ogg"], "volume": 0.8})
+    mgr._store.create_preset("basic", {"files": ["b.ogg"], "volume": 0.8})
     _shift()
     mgr.image.send_preset("basic")
     entry = mgr.get(create_img_key("scene.ogv"))
@@ -483,7 +483,7 @@ def test_video_add_pool(mgr):
 
 def test_video_apply_preset_appends(mgr):
     key = _video_key(mgr)
-    mgr.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
+    mgr._store.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
     mgr._vid_manager._elapsed = 2.0
     mgr.video.apply_preset("basic")
     pools = mgr.get(key)["pools"]
@@ -494,20 +494,20 @@ def test_video_apply_preset_appends(mgr):
 
 def test_video_apply_preset_no_current_file_noop(mgr):
     _scene(mgr, file="")
-    mgr.create_preset("basic", {"files": ["a.ogg"]})
+    mgr._store.create_preset("basic", {"files": ["a.ogg"]})
     mgr.video.apply_preset("basic")  # must not raise
 
 
 def test_video_apply_preset_empty_preset_noop(mgr):
     key = _video_key(mgr)
-    mgr.create_preset("empty", {"files": []})
+    mgr._store.create_preset("empty", {"files": []})
     mgr.video.apply_preset("empty")
     assert key not in mgr._data
 
 
 def test_video_apply_preset_active_stamps_existing_pool(mgr):
     key = _video_key(mgr)
-    mgr.create_preset("basic", {"files": ["a.ogg"]})
+    mgr._store.create_preset("basic", {"files": ["a.ogg"]})
     _pool(mgr, key, [{"time": 1.0, "files": []}])
     mgr.video.apply_preset_active("basic")
     pools = mgr.get(key)["pools"]
@@ -516,7 +516,7 @@ def test_video_apply_preset_active_stamps_existing_pool(mgr):
 
 def test_video_apply_preset_active_no_pool_appends(mgr):
     key = _video_key(mgr)
-    mgr.create_preset("basic", {"files": ["a.ogg"]})
+    mgr._store.create_preset("basic", {"files": ["a.ogg"]})
     mgr._vid_manager._elapsed = 4.0
     mgr.video.apply_preset_active("basic")
     pools = mgr.get(key)["pools"]
@@ -525,14 +525,14 @@ def test_video_apply_preset_active_no_pool_appends(mgr):
 
 def test_video_apply_preset_active_no_files_noop(mgr):
     key = _video_key(mgr)
-    mgr.create_preset("empty", {"files": []})
+    mgr._store.create_preset("empty", {"files": []})
     mgr.video.apply_preset_active("empty")
     assert key not in mgr._data
 
 
 def test_video_send_preset_normal_stamps_active(mgr):
     key = _video_key(mgr)
-    mgr.create_preset("basic", {"files": ["a.ogg"]})
+    mgr._store.create_preset("basic", {"files": ["a.ogg"]})
     _pool(mgr, key, [{"time": 1.0, "files": []}])
     mgr.video.send_preset("basic")
     assert mgr.get(key)["pools"][0]["preset"] == "basic"
@@ -541,7 +541,7 @@ def test_video_send_preset_normal_stamps_active(mgr):
 
 def test_video_send_preset_shift_appends_new_pool(mgr):
     key = _video_key(mgr)
-    mgr.create_preset("basic", {"files": ["a.ogg"]})
+    mgr._store.create_preset("basic", {"files": ["a.ogg"]})
     _pool(mgr, key, [{"time": 1.0, "files": []}])
     _shift()
     mgr._vid_manager._elapsed = 2.0
@@ -783,7 +783,7 @@ def test_video_get_markers_no_entry(mgr):
 
 def test_video_get_markers_resolves_preset(mgr):
     key = _video_key(mgr)
-    mgr.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
+    mgr._store.create_preset("basic", {"files": ["a.ogg"], "volume": 0.8})
     _pool(mgr, key, [{"preset": "basic", "time": 1.0}])
     markers = mgr.video.get_markers()
     assert markers[0]["files"] == ["a.ogg"]
@@ -870,5 +870,5 @@ def test_video_add_file_out_of_range_noop(mgr):
 
 def test_video_apply_preset_active_no_current_file_noop(mgr):
     _scene(mgr, file="")
-    mgr.create_preset("basic", {"files": ["a.ogg"]})
+    mgr._store.create_preset("basic", {"files": ["a.ogg"]})
     mgr.video.apply_preset_active("basic")  # must not raise

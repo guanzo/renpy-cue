@@ -6,6 +6,7 @@ from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.db import CueDatabase
 from cue_lib.markers import CueMarkerManager
 from cue_lib.paths import CuePaths
+from cue_lib.preset_store import CuePresetStore
 from cue_lib.state import CueContext
 from cue_lib.volume import CueVolumeManager
 from cue_lib._types import MarkerEntry, PoolDict
@@ -20,6 +21,7 @@ class CueSfxManager(object):
     _volume: CueVolumeManager
     _ctx: CueContext
     _supports_relative_volume: bool
+    _presets: CuePresetStore
     _markers: Optional[CueMarkerManager]
     _next_sfx_channel: int
     _preview_channel: Optional[str]
@@ -33,6 +35,7 @@ class CueSfxManager(object):
         volume: CueVolumeManager,
         ctx: CueContext,
         supports_relative_volume: bool,
+        presets: CuePresetStore,
     ) -> None: ...
     def bind_markers(self, markers: CueMarkerManager) -> None: ...
     def _markers_ctx(self) -> CueMarkerManager: ...

@@ -37,6 +37,7 @@ from cue_lib.util import (
     _cue_parse_time,
     _cue_pick_file,
     _cue_replace_file,
+    _cue_remove_ref,
     _cue_resolve_files,
     _cue_shift_held,
     _cue_speed_label,
@@ -479,6 +480,49 @@ def test_expand_folder_ref_skips_disabled():
 
 def test_expand_folder_ref_no_match():
     assert _cue_expand_folder_ref(["a/x.ogg", "c/y.ogg"], "b/") == []
+
+
+def test_remove_ref_direct_match():
+    files = ["a.ogg", "b.ogg"]
+    result, removed = _cue_remove_ref(files, "a.ogg")
+    assert removed is True
+    assert result == ["b.ogg"]
+
+
+def test_remove_ref_absent_path_is_noop():
+    files = ["a.ogg", "b.ogg"]
+    result, removed = _cue_remove_ref(files, "zzz.ogg")
+    assert removed is False
+    assert result == ["a.ogg", "b.ogg"]
+
+
+def test_remove_ref_folder_child_expands_and_drops(monkeypatch):
+    # A child under a covering folder ref: the ref becomes its children minus
+    # the dropped file.
+    monkeypatch.setattr(
+        _cue, "sfx", SimpleNamespace(library=SimpleNamespace(files=["b/one.ogg", "b/two.ogg"], disabled_files=set()))
+    )
+    files = ["a.ogg", "b/"]
+    result, removed = _cue_remove_ref(files, "b/two.ogg")
+    assert removed is True
+    assert result == ["a.ogg", "b/one.ogg"]
+
+
+def test_remove_ref_folder_equal_to_path_drops_ref():
+    # Removing the folder ref itself pops it outright (no expansion).
+    files = ["a.ogg", "b/"]
+    result, removed = _cue_remove_ref(files, "b/")
+    assert removed is True
+    assert result == ["a.ogg"]
+
+
+def test_remove_ref_expand_fn_injection():
+    # The expansion seam is injectable for tests: a stub expand_fn decides the
+    # children without touching the _cue singleton.
+    files = ["b/"]
+    result, removed = _cue_remove_ref(files, "b/two.ogg", expand_fn=lambda refs: ["b/one.ogg", "b/two.ogg"])
+    assert removed is True
+    assert result == ["b/one.ogg"]
 
 
 def test_pick_file_empty_returns_none(monkeypatch):
@@ -1069,32 +1113,32 @@ def test_matches_any_empty_items_is_false():
 
 
 def test_preset_search_matches_by_name(monkeypatch):
-    monkeypatch.setattr(_cue, "markers", SimpleNamespace(get_preset=lambda n: None))
+    monkeypatch.setattr(_cue, "presets", SimpleNamespace(get_preset=lambda n: None))
     assert _util._cue_preset_search_matches("Action Pack", "action")
 
 
 def test_preset_search_matches_by_file_content(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
     monkeypatch.setattr(
-        _cue, "markers", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
+        _cue, "presets", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
     )
     assert _util._cue_preset_search_matches("Action Pack", "scream")
 
 
 def test_preset_search_matches_folder_ref_content(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
-    monkeypatch.setattr(_cue, "markers", SimpleNamespace(get_preset=lambda n: {"files": ["music/"]}))
+    monkeypatch.setattr(_cue, "presets", SimpleNamespace(get_preset=lambda n: {"files": ["music/"]}))
     assert _util._cue_preset_search_matches("Ambient", "scream")
 
 
 def test_preset_search_matches_nothing(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav"])
-    monkeypatch.setattr(_cue, "markers", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav"]}))
+    monkeypatch.setattr(_cue, "presets", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav"]}))
     assert not _util._cue_preset_search_matches("Action Pack", "zzz")
 
 
 def test_preset_search_matches_missing_preset(monkeypatch):
-    monkeypatch.setattr(_cue, "markers", SimpleNamespace(get_preset=lambda n: None))
+    monkeypatch.setattr(_cue, "presets", SimpleNamespace(get_preset=lambda n: None))
     assert not _util._cue_preset_search_matches("Ghost", "scream")
 
 
@@ -1134,7 +1178,7 @@ def test_igroup_search_matches_missing_group(monkeypatch):
 def test_filter_preset_files_no_query_all_files(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
     monkeypatch.setattr(
-        _cue, "markers", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
+        _cue, "presets", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
     )
     assert _util._cue_filter_preset_files("Action Pack", "") == ["music/scream.wav", "music/moan.wav"]
 
@@ -1142,7 +1186,7 @@ def test_filter_preset_files_no_query_all_files(monkeypatch):
 def test_filter_preset_files_name_match_keeps_all(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
     monkeypatch.setattr(
-        _cue, "markers", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
+        _cue, "presets", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
     )
     assert _util._cue_filter_preset_files("Action Pack", "action") == ["music/scream.wav", "music/moan.wav"]
 
@@ -1150,14 +1194,14 @@ def test_filter_preset_files_name_match_keeps_all(monkeypatch):
 def test_filter_preset_files_content_match_keeps_matches(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
     monkeypatch.setattr(
-        _cue, "markers", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
+        _cue, "presets", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
     )
     assert _util._cue_filter_preset_files("Action Pack", "scream") == ["music/scream.wav"]
 
 
 def test_filter_preset_files_folder_ref_resolves_then_filters(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
-    monkeypatch.setattr(_cue, "markers", SimpleNamespace(get_preset=lambda n: {"files": ["music/"]}))
+    monkeypatch.setattr(_cue, "presets", SimpleNamespace(get_preset=lambda n: {"files": ["music/"]}))
     assert _util._cue_filter_preset_files("Ambient", "scream") == ["music/scream.wav"]
 
 

@@ -539,10 +539,10 @@ def test_log_context_is_playing_exception(cue, monkeypatch):
 @pytest.fixture
 def sfx_mgr(cue):
     """Real CueSfxManager with injected collaborators.  paths/volume/markers/
-    ctx are the same objects the cue fixture exposes, so tests keep driving
-    them through cue.* -- only the relative-volume flag is snapshotted (set
-    it via sfx_mgr._supports_relative_volume)."""
-    mgr = CueSfxManager(cue.paths, types.SimpleNamespace(), cue.volume, cue.ctx, cue._has_relative_volume)
+    ctx/presets are the same objects the cue fixture exposes, so tests keep
+    driving them through cue.* -- only the relative-volume flag is snapshotted
+    (set it via sfx_mgr._supports_relative_volume)."""
+    mgr = CueSfxManager(cue.paths, types.SimpleNamespace(), cue.volume, cue.ctx, cue._has_relative_volume, cue.presets)
     mgr.bind_markers(cue.markers)
     return mgr
 
@@ -864,7 +864,7 @@ def test_tick_no_pending_skips_job_queue_poll(cue, monkeypatch):
 
 
 def test_preview_preset_missing(cue, sfx_mgr, monkeypatch):
-    cue.markers.get_preset = lambda name: None
+    cue.presets.get_preset = lambda name: None
     played = []
     monkeypatch.setattr(sfx_mgr, "preview_sfx", lambda f: played.append(f))
     sfx_mgr.preview_preset("p")
@@ -872,7 +872,7 @@ def test_preview_preset_missing(cue, sfx_mgr, monkeypatch):
 
 
 def test_preview_preset_plays_random(cue, sfx_mgr, monkeypatch):
-    cue.markers.get_preset = lambda name: {"files": ["a.ogg", "b.ogg"]}
+    cue.presets.get_preset = lambda name: {"files": ["a.ogg", "b.ogg"]}
     cue.sfx.library.files = ["a.ogg", "b.ogg"]
     played = []
     monkeypatch.setattr(_sfx_manager._random, "choice", lambda files: files[1])
@@ -882,7 +882,7 @@ def test_preview_preset_plays_random(cue, sfx_mgr, monkeypatch):
 
 
 def test_preview_preset_empty_files(cue, sfx_mgr, monkeypatch):
-    cue.markers.get_preset = lambda name: {"files": []}
+    cue.presets.get_preset = lambda name: {"files": []}
     played = []
     monkeypatch.setattr(sfx_mgr, "preview_sfx", lambda f: played.append(f))
     sfx_mgr.preview_preset("p")
@@ -907,7 +907,7 @@ def test_preview_folder_empty(cue, sfx_mgr, monkeypatch):
 
 
 def test_preview_video_pool_picks_from_pool(cue, sfx_mgr, monkeypatch):
-    cue.markers.get_video_preset = lambda name: {"pools": [{"files": ["a.ogg"]}, {"files": ["b.ogg", "c.ogg"]}]}
+    cue.presets.get_video_preset = lambda name: {"pools": [{"files": ["a.ogg"]}, {"files": ["b.ogg", "c.ogg"]}]}
     cue.sfx.library.files = ["a.ogg", "b.ogg", "c.ogg"]
     played = []
     monkeypatch.setattr(_sfx_manager._random, "choice", lambda files: files[0])
@@ -917,7 +917,7 @@ def test_preview_video_pool_picks_from_pool(cue, sfx_mgr, monkeypatch):
 
 
 def test_preview_video_pool_missing_or_bad_index(cue, sfx_mgr, monkeypatch):
-    cue.markers.get_video_preset = lambda name: {"pools": [{"files": ["a.ogg"]}]} if name != "gone" else None
+    cue.presets.get_video_preset = lambda name: {"pools": [{"files": ["a.ogg"]}]} if name != "gone" else None
     played = []
     monkeypatch.setattr(sfx_mgr, "preview_sfx", lambda f: played.append(f))
     sfx_mgr.preview_video_pool("gone", 0)
