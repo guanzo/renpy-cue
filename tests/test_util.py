@@ -31,6 +31,7 @@ from cue_lib.util import (
     _cue_get_movie_play,
     _cue_is_screenshake,
     _cue_log,
+    _cue_consume_return,
     _cue_make_tab_action,
     _cue_open_in_os_file_explorer,
     _cue_parse_time,
@@ -802,6 +803,19 @@ def test_make_tab_action_appends_index(monkeypatch):
     assert captured["fn"] is _cue_format_time
     assert captured["args"] == ("a", "b", 3)
     assert result is None
+
+
+def test_consume_return_runs_callable_and_drops_result():
+    # A Function action returning non-None bleeds the click through the
+    # overlay to the scene; the wrapper must run the callable and return None.
+    calls = []
+
+    def _mutate(x, y):
+        calls.append((x, y))
+        return "meaningful-bool-or-key"
+
+    assert _cue_consume_return(_mutate, 1, "b") is None
+    assert calls == [(1, "b")]
 
 
 def test_shift_held(monkeypatch):

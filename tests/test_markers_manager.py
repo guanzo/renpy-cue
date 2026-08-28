@@ -26,6 +26,18 @@ def mgr(cue_env):
     return CueMarkerManager(ctx, store, vid, sfx, None, None)
 
 
+@pytest.fixture(autouse=True)
+def _wire_cue_sfx(mgr):
+    """Point _cue.sfx at the manager's fake library so store folder-ref
+    expansion (_cue_resolve_files) sees the same files the tests set on
+    mgr._sfx_manager."""
+    import cue_lib.state as _state
+
+    _state._cue.sfx = mgr._sfx_manager
+    yield
+    _state._cue.sfx = None
+
+
 # ---------------------------------------------------------------------------
 # dict-like interface / _data passthrough
 # ---------------------------------------------------------------------------
@@ -276,11 +288,11 @@ def test_resolve_video_pools_expands_preset(mgr):
 # ---------------------------------------------------------------------------
 
 
-def test_detach_folder_ref_in_files(mgr):
+def test_remove_ref_from_pool_expands_folder_ref(mgr):
     mgr._sfx_manager.files = ["music/a.ogg", "music/b.ogg"]
-    files = ["music/"]
-    mgr._detach_folder_ref_in_files(files, 0, "music/a.ogg")
-    assert files == ["music/b.ogg"]
+    mgr._data["i_a"] = {"pools": [{"files": ["music/"]}]}
+    assert mgr._remove_ref_from_pool("i_a", "music/a.ogg", 0)
+    assert mgr._data["i_a"]["pools"][0]["files"] == ["music/b.ogg"]
 
 
 def test_remove_file_from_preset_pool(mgr):
@@ -494,14 +506,25 @@ def test_remove_file_from_preset_pool_direct_file(mgr):
 
 
 # ---------------------------------------------------------------------------
-# _detach_folder_ref_in_files / _remove_file_from_folder_ref guards
+# _remove_ref_from_pool / _remove_file_from_folder_ref guards
 # ---------------------------------------------------------------------------
 
 
-def test_detach_folder_ref_plain_file_noop(mgr):
-    files = ["a.ogg"]
-    mgr._detach_folder_ref_in_files(files, 0, "a.ogg")
-    assert files == ["a.ogg"]
+def test_remove_ref_from_pool_plain_file_noop(mgr):
+    mgr._data["i_a"] = {"pools": [{"files": ["a.ogg"]}]}
+    assert mgr._remove_ref_from_pool("i_a", "a.ogg", 0)
+    assert mgr._data["i_a"]["pools"][0]["files"] == []
+
+
+def test_detach_igroup_pool_returns_none_and_detaches(mgr):
+    # The xmark action must return None -- a Function action returning a bool
+    # makes Ren'Py's button report the click as unhandled, so it falls through
+    # the overlay and advances the scene.
+    mgr._data["v_a"] = {"pools": [{"igroup": "lvl", "ilevel_id": 0, "files": [], "time": 1.0}]}
+    rv = mgr._detach_igroup_pool("v_a", 0)
+    assert rv is None
+    assert "igroup" not in mgr._data["v_a"]["pools"][0]
+    assert mgr._data["v_a"]["pools"][0]["files"] == []
 
 
 def test_remove_file_from_folder_ref_missing_entry_noop(mgr):

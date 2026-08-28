@@ -805,10 +805,11 @@ screen cue_section_frame(header_text, tt=None, icons=[]):
 
 # Read-only file list for a pool hooked to an intensity level: resolves the
 # level's files/folders and shows them with a preview button only -- no
-# remove (the files live in the level, not the pool; drop the hook by
-# deleting the pool).  Level folders carry a hint bar + tooltip naming the
-# hook.  Shared by Loop SFX (cue_context_section) and Video SFX.
-screen cue_igroup_pool_files(igroup, ilevel_id, preview_vol):
+# per-file remove (the files live in the level, not the pool).  The top-level
+# level folder row carries the detach xmark (drops the hook, leaving a plain
+# pool).  Level folders carry a hint bar + tooltip naming the hook.  Shared by
+# Loop SFX (cue_context_section) and Video SFX.
+screen cue_igroup_pool_files(igroup, ilevel_id, preview_vol, detach_action=None):
     style_group "cue"
 
     $ _ilevel_files = _cue.intensity.level_files_by_id(igroup, ilevel_id or 0) or []
@@ -821,14 +822,14 @@ screen cue_igroup_pool_files(igroup, ilevel_id, preview_vol):
                 mousewheel True
                 scrollbars "vertical"
                 vscrollbar_unscrollable "hide"
-                use _cue_igroup_pool_files_vbox(_ilevel_files, preview_vol, igroup, ilevel_id)
+                use _cue_igroup_pool_files_vbox(_ilevel_files, preview_vol, igroup, ilevel_id, detach_action)
         else:
-            use _cue_igroup_pool_files_vbox(_ilevel_files, preview_vol, igroup, ilevel_id)
+            use _cue_igroup_pool_files_vbox(_ilevel_files, preview_vol, igroup, ilevel_id, detach_action)
     else:
         etext "This level has no files yet."
 
 
-screen _cue_igroup_pool_files_vbox(_ilevel_files, preview_vol, igroup, ilevel_id):
+screen _cue_igroup_pool_files_vbox(_ilevel_files, preview_vol, igroup, ilevel_id, detach_action=None):
     style_group "cue"
 
     # The hint bar marks a folder as an intensity-hooked level folder. Show it
@@ -850,6 +851,8 @@ screen _cue_igroup_pool_files_vbox(_ilevel_files, preview_vol, igroup, ilevel_id
                 $ _count = len(_cue_resolve_files([_f]))
                 hbox:
                     spacing 2
+                    if detach_action is not None:
+                        use cue_icon_btn("xmark", detach_action, "Remove intensity level from pool")
                     use cue_icon_btn(
                         "play",
                         Function(_cue.sfx.preview_folder, _f, preview_vol),
@@ -964,7 +967,8 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
 
             transclude
             if _r.igroup is not None:
-                use cue_igroup_pool_files(_r.igroup, _r.ilevel_id or 0, _active_eff)
+                use cue_igroup_pool_files(_r.igroup, _r.ilevel_id or 0, _active_eff,
+                    detach_action=Function(_cue.markers._detach_igroup_pool, key, _target))
             elif _r.refs:
                 if _is_preset_pool:
                     # Preset-backed: render as expandable folder

@@ -29,10 +29,10 @@ class FakeManager(object):
     """Dict-like stand-in for CueMarkerManager's data-facing surface.
 
     Also exposes the narrow mutator surface the video context's per-pool edit
-    primitives call (_get_or_create_entry / _detach_pool /
-    _detach_folder_ref_in_files) plus the sfx/vid seams _add_file_to_pool and
-    add_file dereference, so context logic runs headlessly without the real
-    manager (which is wired to _cue and Ren'Py)."""
+    primitives call (_get_or_create_entry / _detach_pool / _add_file_to_pool /
+    _remove_ref_from_pool / _clear_pool_files) plus the sfx/vid seams add_file
+    dereferences, so context logic runs headlessly without the real manager
+    (which is wired to _cue and Ren'Py)."""
 
     def __init__(self, data=None, current_file=None):
         # type: (Optional[dict], Optional[str]) -> None
@@ -66,6 +66,72 @@ class FakeManager(object):
 
     def _add_file_to_pool(self, key, filename, pool_index):
         self.added_files.append((key, filename, pool_index))
+        self._detach_pool(key, pool_index)
+        pool = self._ensure_pool(key, pool_index)
+        if "igroup" in pool:
+            return False
+        files = pool.setdefault("files", [])
+        if filename not in files:
+            files.append(filename)
+        return True
+
+    def _remove_ref_from_pool(self, key, path, pool_index=0, prune=False):
+        self._detach_pool(key, pool_index)
+        entry = self._data.get(key)
+        if entry is None:
+            return False
+        pools = entry.get("pools")
+        if not pools or not (0 <= pool_index < len(pools)):
+            return False
+        pool = pools[pool_index]
+        if "igroup" in pool:
+            return False
+        files = pool.get("files", [])
+        removed = False
+        for i, item in enumerate(files):
+            if item.endswith("/") and path.startswith(item):
+                if path == item:
+                    files.pop(i)
+                else:
+                    expanded = []
+                    for f in self._sfx_manager.files:
+                        if f.startswith(item) and f not in self._sfx_manager.disabled_files and f not in expanded:
+                            expanded.append(f)
+                    if path in expanded:
+                        expanded.remove(path)
+                    files[i : i + 1] = expanded
+                removed = True
+                break
+        else:
+            if path in files:
+                files.remove(path)
+                removed = True
+        if not removed:
+            return False
+        if prune and not files:
+            pools.pop(pool_index)
+            if not pools:
+                del self._data[key]
+        return True
+
+    def _clear_pool_files(self, key, pool_index=0):
+        self._detach_pool(key, pool_index)
+        entry = self._data.get(key)
+        if entry is None:
+            return False
+        pools = entry.get("pools")
+        if not pools or not (0 <= pool_index < len(pools)):
+            return False
+        pool = pools[pool_index]
+        if "igroup" in pool:
+            pool.pop("igroup")
+            pool.pop("ilevel_id", None)
+            pool["files"] = []
+            return True
+        if not pool.get("files", []):
+            return False
+        pool["files"] = []
+        return True
 
     def _ensure_pool(self, key, pool_index):
         entry = self._get_or_create_entry(key)
@@ -91,18 +157,6 @@ class FakeManager(object):
         pool["files"] = list(preset.get("files", []))
         pool["volume"] = preset.get("volume", 1.0)
         return True
-
-    def _detach_folder_ref_in_files(self, files, file_index, child_file):
-        folder_ref = files[file_index]
-        if not folder_ref.endswith("/"):
-            return
-        resolved = []
-        for f in self._sfx_manager.files:
-            if f.startswith(folder_ref) and f not in self._sfx_manager.disabled_files and f not in resolved:
-                resolved.append(f)
-        if child_file in resolved:
-            resolved.remove(child_file)
-        files[file_index : file_index + 1] = resolved
 
     def resolve_pool(self, pool):
         # type: (dict) -> FakeResolvedPool

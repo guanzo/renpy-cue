@@ -182,7 +182,8 @@ screen cue_video_sfx():
                         folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
                 elif _active_pool.get("igroup"):
                     use cue_igroup_pool_files(
-                        _active_pool["igroup"], _active_pool.get("ilevel_id") or 0, _active_eff)
+                        _active_pool["igroup"], _active_pool.get("ilevel_id") or 0, _active_eff,
+                        detach_action=Function(_cue.markers._detach_igroup_pool, _vid_key, _vid_target))
                 else:
                     etext "SFX plays when this video reaches the marked time(s)."
                     etext "Click + in the SFX Library with Video targeted to add files to this pool."

@@ -243,7 +243,7 @@ class CueMarkerManager(object):
         """Remove one file from a pool in a saved video preset.
 
         Same folder-ref handling as _remove_file_from_preset_pool: a ref
-        covering ``file_path`` is expanded via _detach_folder_ref_in_files."""
+        covering ``file_path`` is expanded into its children."""
         preset = self._video_presets.get(name)
         if preset is None:
             return
@@ -253,7 +253,12 @@ class CueMarkerManager(object):
         files = pools[pool_index].get("files", [])
         for fi, f in enumerate(files):
             if f.endswith("/") and file_path.startswith(f):
-                self._detach_folder_ref_in_files(files, fi, file_path)
+                resolved = _cue_expand_folder_ref(
+                    self._sfx_manager.library.files, f, self._sfx_manager.library.disabled_files
+                )
+                if file_path in resolved:
+                    resolved.remove(file_path)
+                files[fi : fi + 1] = resolved
                 break
         else:
             if file_path in files:
@@ -328,28 +333,7 @@ class CueMarkerManager(object):
         if self._video_multi_file_edit(marker_key):
             self.video._remove_path_from_selected(child_file)
             return
-        self._detach_pool(marker_key, pool_index)
-        entry = self._data.get(marker_key)
-        if entry is None:
-            return
-
-        pools = entry.get("pools")
-        if not (pools and 0 <= pool_index < len(pools)):
-            return
-
-        files = pools[pool_index].get("files", [])
-
-        # A preset's files may hold folder refs (trailing "/"), not
-        # individual files. Expand the matching folder ref and drop the
-        # child; otherwise remove the child directly.
-        for file_index, item in enumerate(files):
-            if item.endswith("/") and child_file.startswith(item):
-                self._detach_folder_ref_in_files(files, file_index, child_file)
-                break
-        else:
-            if child_file in files:
-                files.remove(child_file)
-        self._db_save_marker(marker_key)
+        self._store._remove_ref_from_pool(marker_key, child_file, pool_index)
 
     def resolve_pool(self, pool, speed=None, variants=None, flags=None, expand=False):
         # type: (PoolDict, Optional[float], Optional[List[float]], Optional[Any], bool) -> ResolvedPool
@@ -384,35 +368,12 @@ class CueMarkerManager(object):
         # type: (str, str, int) -> None
         self._store._stamp_preset(marker_key, preset_name, pool_index)
 
-    def _detach_folder_ref_in_files(self, files, file_index, child_file):
-        # type: (List[str], int, str) -> None
-        folder_ref = files[file_index]
-        if not folder_ref.endswith("/"):
-            return
-        resolved = _cue_expand_folder_ref(
-            self._sfx_manager.library.files, folder_ref, self._sfx_manager.library.disabled_files
-        )
-        if child_file in resolved:
-            resolved.remove(child_file)
-        files[file_index : file_index + 1] = resolved
-
     def _remove_file_from_folder_ref(self, marker_key, pool_index, file_index, child_file):
         # type: (str, int, int, str) -> None
         if self._video_multi_file_edit(marker_key):
             self.video._remove_path_from_selected(child_file)
             return
-        self._detach_pool(marker_key, pool_index)
-        entry = self._data.get(marker_key)
-        if entry is None:
-            return
-        pools = entry.get("pools")
-        if not pools or pool_index >= len(pools):
-            return
-        files = pools[pool_index].get("files", [])
-        if file_index >= len(files):
-            return
-        self._detach_folder_ref_in_files(files, file_index, child_file)
-        self._db_save_marker(marker_key)
+        self._store._remove_ref_from_pool(marker_key, child_file, pool_index)
 
     # -- entry / pool mutators (delegated to the store) --
 
@@ -435,6 +396,21 @@ class CueMarkerManager(object):
     def _remove_file_from_pool(self, marker_key, file_index, pool_index=0):
         # type: (str, int, int) -> None
         self._store._remove_file_from_pool(marker_key, file_index, pool_index)
+
+    def _remove_ref_from_pool(self, marker_key, path, pool_index=0, prune=False):
+        # type: (str, str, int, bool) -> bool
+        return self._store._remove_ref_from_pool(marker_key, path, pool_index, prune)
+
+    def _clear_pool_files(self, marker_key, pool_index=0):
+        # type: (str, int) -> bool
+        return self._store._clear_pool_files(marker_key, pool_index)
+
+    def _detach_igroup_pool(self, marker_key, pool_index=0):
+        # type: (str, int) -> None
+        """Button-action wrapper for the igroup xmark.  _clear_pool_files returns
+        a bool, and a Function action returning non-None makes the button report
+        the click as unhandled -- it falls through the overlay to the scene."""
+        self._store._clear_pool_files(marker_key, pool_index)
 
     # -- sanitize / migration passes (delegated to the store) --
 

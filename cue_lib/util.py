@@ -804,6 +804,18 @@ def _cue_make_tab_action(fn, args_tuple, pi):
     return Function(fn, *(tuple(args_tuple) + (pi,)))
 
 
+def _cue_consume_return(fn, *args):
+    # type: (Callable[..., None], *Any) -> None
+    """Run *fn* and drop its result, for button actions.
+
+    A button Function action that returns a non-None value ends the current
+    interaction with that value; Ren'Py's say flow treats any non-False result
+    as "advance the line", so the click bleeds through to the scene.  Wrap
+    mutators that return meaningful bools/keys (store mutations, key
+    creation) with this when they double as button actions."""
+    fn(*args)
+
+
 def _cue_shift_held():
     # type: () -> bool
     mods = pygame.key.get_mods()

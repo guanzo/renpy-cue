@@ -80,7 +80,7 @@ screen cue_music_page():
                     null height 5
                     use cue_txt_button(
                         "+ Play music at current scene",
-                        Function(_cue.music.create_scene_trigger))
+                        Function(_cue_consume_return, _cue.music.create_scene_trigger))
 
         $ music_lib_tt = (
             "My Music: add {} files to \n{}\n\n"

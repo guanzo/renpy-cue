@@ -352,41 +352,21 @@ class CueVideoContext(CueMarkerContext):
 
     def _add_file(self, vid_key, filename, pool_index):
         # type: (str, str, int) -> None
-        """Append *filename* to one pool, detaching a preset first. No save;
-        the caller persists once for single or multi edits."""
+        """Append *filename* to one pool (detaching a preset; a pool hooked to
+        an intensity group owns no refs and is left untouched)."""
         entry = self._mgr.get(vid_key, {})
         pools = entry.get("pools", [])
-        if not (0 <= pool_index < len(pools)):
-            return
-        self._mgr._detach_pool(vid_key, pool_index)
-        files = pools[pool_index].setdefault("files", [])
-        if filename not in files:
-            files.append(filename)
+        if 0 <= pool_index < len(pools):
+            self._mgr._add_file_to_pool(vid_key, filename, pool_index)
 
     def _remove_file(self, vid_key, path, pool_index):
         # type: (str, str, int) -> None
-        """Remove *path* from one pool, no-op where absent. A folder-ref
-        entry is removed whole; a child under a folder ref shrinks that ref.
-        Detaches a preset-backed pool first. No save; the caller persists
-        once for single or multi edits."""
+        """Remove *path* from one pool (detaching a preset; a folder-ref entry
+        is removed whole, a child under a folder ref shrinks that ref)."""
         entry = self._mgr.get(vid_key, {})
         pools = entry.get("pools", [])
-        if not (0 <= pool_index < len(pools)):
-            return
-        self._mgr._detach_pool(vid_key, pool_index)
-        files = pools[pool_index].get("files", [])
-        for i, item in enumerate(files):
-            if item.endswith("/") and path.startswith(item):
-                if path == item:
-                    # Removing the folder-ref entry itself: drop the ref,
-                    # don't expand it into its children.
-                    files.pop(i)
-                else:
-                    self._mgr._detach_folder_ref_in_files(files, i, path)
-                break
-        else:
-            if path in files:
-                files.remove(path)
+        if 0 <= pool_index < len(pools):
+            self._mgr._remove_ref_from_pool(vid_key, path, pool_index)
 
     def _remove_path_from_selected(self, path):
         # type: (str) -> None
@@ -399,6 +379,22 @@ class CueVideoContext(CueMarkerContext):
             self._remove_file(vid_key, path, idx)
         self._mgr._db_save_marker(vid_key)
 
+    def _add_ref(self, vid_key, ref):
+        # type: (str, str) -> None
+        """Add *ref* to every selected pool, the active pool, or a fresh pool
+        at the playhead when there are no pools yet."""
+        entry = self._mgr._get_or_create_entry(vid_key)
+        pools = entry["pools"]
+        if len(self.selected) > 1:
+            for idx in sorted(self.selected):
+                self._add_file(vid_key, ref, idx)
+        elif pools and 0 <= self.active_pool < len(pools):
+            self._add_file(vid_key, ref, self.active_pool)
+        else:
+            elapsed = self._mgr._vid_manager.get_elapsed()
+            self._append_pool(entry, pools, {"time": elapsed, "files": [ref]})
+        self._mgr._db_save_marker(vid_key)
+
     def add_file(self, file_index):
         # type: (int) -> None
         if not self._mgr._sfx_manager.library.files:
@@ -408,18 +404,7 @@ class CueVideoContext(CueMarkerContext):
         filename = self._mgr._sfx_manager.library.files[file_index]
         if filename in self._mgr._sfx_manager.library.disabled_files:
             return
-        vid_key = self._key()
-        entry = self._mgr._get_or_create_entry(vid_key)
-        pools = entry["pools"]
-        if len(self.selected) > 1:
-            for idx in sorted(self.selected):
-                self._add_file(vid_key, filename, idx)
-        elif pools and 0 <= self.active_pool < len(pools):
-            self._add_file(vid_key, filename, self.active_pool)
-        else:
-            elapsed = self._mgr._vid_manager.get_elapsed()
-            self._append_pool(entry, pools, {"time": elapsed, "files": [filename]})
-        self._mgr._db_save_marker(vid_key)
+        self._add_ref(self._key(), filename)
 
     def remove_file(self, pool_index, file_index):
         # type: (int, int) -> None
@@ -447,20 +432,7 @@ class CueVideoContext(CueMarkerContext):
         not inferred from folder membership)."""
         if not self._mgr._ctx.current_file:
             return None
-        folder_ref = folder_path.rstrip("/") + "/"
-        vid_key = self._key()
-        entry = self._mgr._get_or_create_entry(vid_key)
-        pools = entry["pools"]
-        if len(self.selected) > 1:
-            targets = [idx for idx in sorted(self.selected) if 0 <= idx < len(pools)]
-            for idx in targets:
-                self._add_file(vid_key, folder_ref, idx)
-        elif pools and 0 <= self.active_pool < len(pools):
-            self._add_file(vid_key, folder_ref, self.active_pool)
-        else:
-            elapsed = self._mgr._vid_manager.get_elapsed()
-            self._append_pool(entry, pools, {"time": elapsed, "files": [folder_ref]})
-        self._mgr._db_save_marker(vid_key)
+        self._add_ref(self._key(), folder_path.rstrip("/") + "/")
         return None
 
     def clear(self):
@@ -671,8 +643,7 @@ class CueVideoContext(CueMarkerContext):
             return
         for idx in targets:
             if 0 <= idx < len(pools):
-                self._mgr._detach_pool(vid_key, idx)
-                pools[idx]["files"] = []
+                self._mgr._clear_pool_files(vid_key, idx)
         self._mgr._db_save_marker(vid_key)
 
     def _shift_pool_time(self, pools, idx, delta):

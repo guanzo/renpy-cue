@@ -87,6 +87,7 @@ init -999 python:
         _cue_top_layer_name, _cue_top_movie_name, _cue_get_movie_play,
         _cue_unwrap_persistent,
         _cue_make_tab_action,
+        _cue_consume_return,
     )
 
     from cue_lib.ui.sl_statements.text import CueSafeText

@@ -574,6 +574,19 @@ def test_clear_selected_files_preset_detaches_first():
     assert pools[1]["files"] == []
 
 
+def test_clear_selected_files_igroup_hook_detaches():
+    mgr = FakeManager(
+        {"v_key": {"pools": [{"igroup": "lvl", "ilevel_id": 2, "time": 1.0}, {"time": 2.0, "files": ["c.mp3"]}]}}
+    )
+    ctx = VideoCtx(mgr, duration=10.0)
+    ctx.active_pool = 0
+    ctx.selected = {0, 1}
+    ctx.clear_selected_files()
+    pools = mgr._data["v_key"]["pools"]
+    assert pools[0] == {"time": 1.0, "files": []}  # hook dropped, plain empty pool
+    assert pools[1]["files"] == []
+
+
 def test_clear_selected_files_single_uses_active():
     mgr = FakeManager({"v_key": {"pools": [{"time": 1.0, "files": ["a.mp3"]}, {"time": 2.0, "files": ["c.mp3"]}]}})
     ctx = VideoCtx(mgr, duration=10.0)

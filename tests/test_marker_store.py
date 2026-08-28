@@ -659,6 +659,29 @@ def test_remove_file_from_pool_legacy_files_branch(store):
     assert "v_a" not in store._data
 
 
+def test_add_file_to_pool_igroup_hook_noop(store):
+    # A pool hooked to an intensity group owns no refs; adding must not touch it.
+    store._data["v_a"] = {"pools": [{"igroup": "lvl", "ilevel_id": 0, "files": []}]}
+    assert store._add_file_to_pool("v_a", "a.ogg", 0) is False
+    assert store._data["v_a"]["pools"][0]["files"] == []
+
+
+def test_remove_ref_from_pool_igroup_hook_noop(store):
+    store._data["v_a"] = {"pools": [{"igroup": "lvl", "ilevel_id": 0, "files": []}]}
+    assert store._remove_ref_from_pool("v_a", "a.ogg", 0) is False
+    assert store._data["v_a"]["pools"][0]["files"] == []
+
+
+def test_clear_pool_files_igroup_hook_detaches(store):
+    # Clearing an igroup-hooked pool drops the hook, leaving a plain empty pool.
+    store._data["v_a"] = {"pools": [{"igroup": "lvl", "ilevel_id": 0, "files": [], "time": 1.0}]}
+    assert store._clear_pool_files("v_a", 0) is True
+    pool = store._data["v_a"]["pools"][0]
+    assert "igroup" not in pool
+    assert "ilevel_id" not in pool
+    assert pool["files"] == []
+
+
 def test_detach_pool_copies_preset_metadata(store):
     store._presets["P"] = {
         "files": ["a.ogg", "b.ogg"],

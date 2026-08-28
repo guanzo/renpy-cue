@@ -348,40 +348,115 @@ class CueMarkerStore(object):
         return pools[pool_index]
 
     def _add_file_to_pool(self, marker_key, filename, pool_index=0):
-        # type: (str, str, int) -> None
+        # type: (str, str, int) -> bool
+        """Append one ref to a pool.  Detaches a preset first; a pool hooked
+        to an intensity group owns no refs and is left untouched.  Returns
+        True when the ref was added."""
         self._detach_pool(marker_key, pool_index)
         pool = self._ensure_pool(marker_key, pool_index)
+        if "igroup" in pool:
+            return False
         files = pool.setdefault("files", [])
         if filename not in files:
             files.append(filename)
         self._db_save_marker(marker_key)
+        return True
 
     def _remove_file_from_pool(self, marker_key, file_index, pool_index=0):
-        # type: (str, int, int) -> None
+        # type: (str, int, int) -> bool
+        """Remove one ref by index from a pool, pruning the emptied pool and
+        entry (one-shot image/dialogue lifecycle).  Legacy single-file entries
+        keep their own branch.  Returns True when something was removed."""
         self._detach_pool(marker_key, pool_index)
         entry = self._data.get(marker_key)
         if entry is None:
-            return
+            return False
         pools = entry.get("pools")
         if pools:
             if not (0 <= pool_index < len(pools)):
-                return
-            pool = pools[pool_index]
-            files = pool.get("files", [])
-            if 0 <= file_index < len(files):
-                files.pop(file_index)
-            if not files:
-                pools.pop(pool_index)
-            if not pools:
-                del self._data[marker_key]
-            self._db_save_marker(marker_key)
-        elif "files" in entry:
+                return False
+            refs = pools[pool_index].get("files", [])
+            if not (0 <= file_index < len(refs)):
+                return False
+            return self._remove_ref_from_pool(marker_key, refs[file_index], pool_index, prune=True)
+        if "files" in entry:
             files = entry["files"]
             if 0 <= file_index < len(files):
                 files.pop(file_index)
                 if not files:
                     del self._data[marker_key]
                 self._db_save_marker(marker_key)
+                return True
+        return False
+
+    def _remove_ref_from_pool(self, marker_key, path, pool_index=0, prune=False):
+        # type: (str, str, int, bool) -> bool
+        """Remove one ref by path from a pool, expanding a covering folder ref
+        into its children and dropping the child.  Detaches a preset first; a
+        pool hooked to an intensity group owns no refs (no-op).  With
+        ``prune``, an emptied pool (and entry) is dropped.  Returns True when
+        something was removed."""
+        self._detach_pool(marker_key, pool_index)
+        entry = self._data.get(marker_key)
+        if entry is None:
+            return False
+        pools = entry.get("pools")
+        if not pools or not (0 <= pool_index < len(pools)):
+            return False
+        pool = pools[pool_index]
+        if "igroup" in pool:
+            return False
+        files = pool.get("files", [])
+        removed = False
+        for i, item in enumerate(files):
+            if item.endswith("/") and path.startswith(item):
+                if path == item:
+                    files.pop(i)
+                else:
+                    expanded = _cue_resolve_files([item])
+                    if path in expanded:
+                        expanded.remove(path)
+                    files[i : i + 1] = expanded
+                removed = True
+                break
+        else:
+            if path in files:
+                files.remove(path)
+                removed = True
+        if not removed:
+            return False
+        if prune and not files:
+            pools.pop(pool_index)
+            if not pools:
+                del self._data[marker_key]
+        self._db_save_marker(marker_key)
+        return True
+
+    def _clear_pool_files(self, marker_key, pool_index=0):
+        # type: (str, int) -> bool
+        """Clear a pool's own refs, keeping the pool row.  Detaches a preset
+        first; a pool hooked to an intensity group is detached from the hook
+        (its refs are dynamic, so clearing the pool means dropping the hook).
+        Returns True when the pool changed."""
+        self._detach_pool(marker_key, pool_index)
+        entry = self._data.get(marker_key)
+        if entry is None:
+            return False
+        pools = entry.get("pools")
+        if not pools or not (0 <= pool_index < len(pools)):
+            return False
+        pool = pools[pool_index]
+        if "igroup" in pool:
+            pool.pop("igroup")
+            pool.pop("ilevel_id", None)
+            pool["files"] = []
+            self._db_save_marker(marker_key)
+            return True
+        if not pool.get("files", []):
+            return False
+        pool["files"] = []
+        self._db_save_marker(marker_key)
+        return True
 
     def _stamp_preset(self, marker_key, preset_name, pool_index=0):
         # type: (str, str, int) -> None
