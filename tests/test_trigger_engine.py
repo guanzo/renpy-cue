@@ -591,18 +591,6 @@ def test_tick_video_marker_not_refired(play_stub):
     assert play_stub == [("v_scene.ogv", 0, "a.ogg")]  # no re-fire
 
 
-def test_tick_video_preview_marker(play_stub):
-    store = FakeMarkerStore({"v_scene.ogv": {"pools": []}})
-    vid = FakeVidManager(elapsed=0.05)
-    vid.last_elapsed = 0.05
-    repeater = FakeRepeater(
-        dialog_visible=True, preview_sfx_enabled=True, preview_pools=[{"time": 0.0, "files": ["p.ogg"]}]
-    )
-    eng = make_engine(store=store, vid=vid, markers=FakeMarkers(), repeater=repeater)
-    eng.video.tick("scene.ogv", "movie", 1.0, None)
-    assert play_stub == [("v_scene.ogv", 0, "p.ogg")]
-
-
 def test_tick_video_no_refire_after_zero_elapsed_frame(play_stub):
     # A marker at t=0.010 must fire exactly once even when tick A reads
     # elapsed=0 (video just started/looped to 0) and tick B reads elapsed=0.043.

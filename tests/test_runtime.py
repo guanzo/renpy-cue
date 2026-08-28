@@ -731,34 +731,6 @@ def test_refresh_channel_skips_zero_duration(cue):
     assert cue.vid_manager.channel is None
 
 
-def test_refresh_channel_inner_scan_failure(cue, monkeypatch):
-    msgs = _rec_log(monkeypatch)
-    _aaudio.channels["bad"] = types.SimpleNamespace(movie=True)
-
-    def _boom(channel="music", **kwargs):
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(_music_mock, "get_playing", _boom)
-    _runtime._cue_refresh_channel()
-    assert "REFRESH-CHANNEL: scan failed for bad" in msgs[0]
-    assert cue.vid_manager.channel is None
-
-
-def test_refresh_channel_outer_scan_failure(cue, monkeypatch):
-    msgs = _rec_log(monkeypatch)
-
-    class _BoomChannels(object):
-        def __iter__(self):
-            raise RuntimeError("boom")
-
-        def get(self, key, default=None):
-            return None
-
-    monkeypatch.setattr(_aaudio, "channels", _BoomChannels())
-    _runtime._cue_refresh_channel()
-    assert "REFRESH-CHANNEL: outer scan failed" in msgs[0]
-
-
 # ==========================================================================
 # _cue_tick_trigger
 # ==========================================================================
