@@ -1398,3 +1398,40 @@ def test_key_capture_unmapped_key_no_forward(monkeypatch):
     with pytest.raises(IgnoreEvent):
         kc.event(ev, 0, 0, 0.0)
     assert calls == []
+
+
+def test_setup_mouse_cursor_synthesizes_default_without_theme(monkeypatch):
+    # A game with no mouse theme leaves config.mouse None. Making it
+    # non-empty switches 7.x off the OS cursor, so a "default" entry is
+    # mandatory (7.2.2 get_mouse_info KeyErrors otherwise); synthesize one
+    # from the bundled arrow instead of dropping the mod's cursors.
+    monkeypatch.setattr(_displ, "_cue", types.SimpleNamespace(paths=types.SimpleNamespace(icon=lambda n: "icons/" + n)))
+    monkeypatch.setattr(_renpy.config, "mouse", None, raising=False)
+    _displ._cue_setup_mouse_cursor()
+    mouse = _renpy.config.mouse
+    assert mouse["default"][0][0] == "icons/arrow-pointer-solid.png"
+    assert mouse["cue_resize"][0][0] == "icons/arrows-left-right-solid.png"
+    assert mouse["cue_pointer"][0][0] == "icons/hand-pointer-solid.png"
+
+
+def test_setup_mouse_cursor_synthesizes_default_theme_without_default(monkeypatch):
+    monkeypatch.setattr(_displ, "_cue", types.SimpleNamespace(paths=types.SimpleNamespace(icon=lambda n: "icons/" + n)))
+    base = {"only_custom": [("custom.png", 0, 0)]}
+    monkeypatch.setattr(_renpy.config, "mouse", dict(base), raising=False)
+    _displ._cue_setup_mouse_cursor()
+    mouse = _renpy.config.mouse
+    assert mouse["only_custom"] == base["only_custom"]
+    assert mouse["default"][0][0] == "icons/arrow-pointer-solid.png"
+
+
+def test_setup_mouse_cursor_adds_cue_cursors(monkeypatch):
+    monkeypatch.setattr(_displ, "_cue", types.SimpleNamespace(paths=types.SimpleNamespace(icon=lambda n: "icons/" + n)))
+    base = {"default": [("arrow.png", 0, 0)], "wait": [("wait.png", 0, 0)]}
+    monkeypatch.setattr(_renpy.config, "mouse", dict(base), raising=False)
+    _displ._cue_setup_mouse_cursor()
+    mouse = _renpy.config.mouse
+    assert mouse["default"] == base["default"]
+    assert mouse["cue_resize"][0][0] == "icons/arrows-left-right-solid.png"
+    assert mouse["cue_pointer"][0][0] == "icons/hand-pointer-solid.png"
+    # Function copies before mutating; original dict is untouched.
+    assert "cue_resize" not in base

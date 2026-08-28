@@ -112,7 +112,7 @@ screen cue_video_vfx_speed(_vid_path, _avail, _has_speeds):
 
             if _seq:
                 if len(_seq) >= 2:
-                    add CueAutoSpeedChart() xsize 440 ysize 80
+                    add CueAutoSpeedChart(xsize=440, ysize=80)
                 else:
                     etext "Click 1 more speed."
             else:
@@ -177,7 +177,7 @@ screen cue_video_vfx_speed(_vid_path, _avail, _has_speeds):
                 # --- Sequence chart ---
                 $ _seq = _cue.video_sequence.speeds_for(_cue.current_file)
                 if _seq and len(_seq) >= 2:
-                    add CueAutoSpeedChart() xsize 440 ysize 80
+                    add CueAutoSpeedChart(xsize=440, ysize=80)
     else:
         etext "No speed variants available. Generate them in the Create tab."
 

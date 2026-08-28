@@ -182,6 +182,10 @@ def _cue_install_exception_handler():
     before us, if any.  The handler body is guarded so a failing safety net
     never crashes the game."""
 
+    if not hasattr(_config, "exception_handler"):
+        # config.exception_handler hook added in Ren'Py 7.3; skip on older.
+        return
+
     previous = _config.exception_handler  # pyright: ignore[reportAttributeAccessIssue]
 
     def handler(exc, tb):

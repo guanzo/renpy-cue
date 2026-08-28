@@ -153,7 +153,17 @@ def _cue_sidebar_poll_cursor():
 def _cue_setup_mouse_cursor():
     # type: () -> None
     """Register the mod's custom hardware cursors in config.mouse."""
-    mouse = dict(renpy.config.mouse or {})
+    base = renpy.config.mouse or {}
+    mouse = dict(base)
+    if "default" not in mouse:
+        # No mouse theme (config.mouse is None on stock Ren'Py / theme-less
+        # games; the game's GUI defines the entries when present). Making
+        # config.mouse non-empty switches the engine off the OS cursor, and
+        # 7.x get_mouse_info falls back to config.mouse["default"] -- so a
+        # "default" entry is mandatory or every interaction crashes.  The
+        # bundled arrow becomes the game's pointer; it's the only way custom
+        # cursors can exist in such games.
+        mouse["default"] = [(_cue.paths.icon("arrow-pointer-solid.png"), 5, 0)]
     mouse["cue_resize"] = [(_cue.paths.icon("arrows-left-right-solid.png"), 16, 16)]
     mouse["cue_pointer"] = [(_cue.paths.icon("hand-pointer-solid.png"), 16, 16)]
     renpy.config.mouse = mouse

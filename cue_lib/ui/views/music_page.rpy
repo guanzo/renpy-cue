@@ -10,18 +10,18 @@ screen grow_and_scroll(ymin=None, ymax=None, id=None):
         background None
         padding (0, 0)
         xfill True  # Fixed or minimum width
-        
+        # Set the maximum height limit before scrolling kicks in
+        if ymax is not None:
+            ymaximum ymax
+        if ymin is not None:
+            yminimum ymin
+
         side "c r":
-            # Set the maximum height limit before scrolling kicks in
-            if ymax is not None: 
-                ymaximum ymax
-            if ymin is not None: 
-                yminimum ymin
 
             viewport id viewport_id:
                 mousewheel True
                 yfill False
-                
+
                 transclude
 
             # Vertical scrollbar that hides if content is short

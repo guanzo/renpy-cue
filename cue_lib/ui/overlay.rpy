@@ -301,7 +301,7 @@ screen cue_sfx_sidebar():
             # Custom displayable -- the screen `dragged` callback only fires on
             # drop with a 2-arg signature, so live resize needs raw mouse events.
             # Sized to the padded content rect so it hugs the colored frame.
-            add CueSidebarResizeHandle.get_handle() xalign 1.0 xsize 10 ysize int(renpy.config.screen_height / _z - 8)
+            add CueSidebarResizeHandle.get_handle() at Transform(xalign=1.0, xsize=10, ysize=int(renpy.config.screen_height / _z - 8))
 
 ###############################################################################
 # Speed-change toast — subtle indicator in the top-left corner

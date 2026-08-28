@@ -145,7 +145,7 @@ screen cue_v_divider(height=14, width=2, color=None):
 screen cue_h_divider(color=None):
     style_group "cue"
 
-    add Solid(color or _cue_color_divider) ysize 1
+    add Solid(color or _cue_color_divider, ysize=1)
 
 
 # Volume row: label + slider bar. Pass multi_setter (a callable taking the
@@ -554,7 +554,7 @@ screen cue_tree_rows(rows):
                     hbox:
                         spacing 0
                         if _row.get("bar_color"):
-                            add Solid(_row["bar_color"]) xsize 2 ysize 14 yalign 0.5
+                            add Solid(_row["bar_color"], xsize=2, ysize=14) yalign 0.5
                         use cue_txt_button(
                             _row["label"],
                             _row["toggle"],

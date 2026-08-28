@@ -87,7 +87,7 @@ class CueVideoTrigger(object):
 
         if not markers:
             return
-        
+
         # Tack preview markers onto the list -- they're already pool dicts
         # shaped like real video markers (time/files/volume).
         preview_count = 0
@@ -95,7 +95,6 @@ class CueVideoTrigger(object):
             preview_pools = self._engine._repeater.compute_preview_pools()
             markers.extend(preview_pools)
             preview_count = len(preview_pools)
-
 
         # Breadcrumb axis: the playhead paints at get_elapsed()/get_duration()
         # (file-frac), so stamp each fire at that same frac to compare against
