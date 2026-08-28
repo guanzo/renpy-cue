@@ -237,14 +237,7 @@ class CueMusicManager(object):
 
     def play_untracked(self, full_path, volume=1.0):
         # type: (str, float) -> None
-        """Play a file on the music channel without recording a trigger.
-
-        Used by the My Music page previews.  Goes straight to the cached
-        original renpy.audio.music.play (bypassing the interceptor), so the
-        call is never logged or recorded as a default music trigger.  Playing
-        on the default music channel replaces whatever music is currently
-        playing, which is the desired preview behavior.
-        """
+        """Play a file on the music channel without recording a trigger."""
         full_path = self._playable_file(full_path)
         if _cue._has_relative_volume:
             self._original_music_play(full_path, channel=CUE_DEFAULT_MUSIC_CHANNEL, loop=False, relative_volume=volume)
@@ -254,13 +247,7 @@ class CueMusicManager(object):
 
     def now_playing(self):
         # type: () -> Optional[str]
-        """File currently playing on the music channel, or None.
-
-        My Music files play from an absolute path under the shared root; they
-        are reported as a display path under "My Music/" (the "music/" data
-        prefix is stripped).  Game-music files play game-relative already and
-        are reported under "Game Music/".  Both match the combined Music
-        Library tree."""
+        """File currently playing on the music channel, or None."""
         try:
             path = _music.get_playing(channel=CUE_DEFAULT_MUSIC_CHANNEL)
         except Exception:
@@ -296,11 +283,7 @@ class CueMusicManager(object):
 
     def default_display_path(self, path):
         # type: (str) -> str
-        """Display path for a recorded default music filepath.
-
-        Defaults are captured from the game's own `play music` calls, so the
-        raw filepath is game-relative -- always shown under the synthetic
-        Game Music/ root, never the user "music/" prefix."""
+        """Display path for a recorded default music filepath."""
         return CUE_GAME_MUSIC_FOLDER + path
 
     def _on_play(self, *args, **kwargs):
