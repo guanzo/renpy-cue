@@ -151,7 +151,7 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
                 _cue_file_row(
                     "preset:" + pname + "/" + child,
                     child,
-                    1,
+                    2,
                     [
                         {
                             "icon": "xmark",

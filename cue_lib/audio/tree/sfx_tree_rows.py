@@ -208,7 +208,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                 _cue_file_row(
                     "preset:" + pname + "/" + child,
                     child,
-                    1,
+                    2,
                     [
                         {
                             "icon": "xmark",
@@ -237,8 +237,8 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
 
     def _video_preset_rows(self, video_preset_names, is_video):
         # type: (List[str], bool) -> List[TreeRowDict]
-        """Video Preset rows: preset folder -> timestamp pools (depth 1) ->
-        pool files (depth 2, size 11).  Pools reveal only on explicit expand
+        """Video Preset rows: preset folder -> timestamp pools (depth 2) ->
+        pool files (depth 3, size 11).  Pools reveal only on explicit expand
         (no search auto-show, matching the video preset screen); the apply-v
         button is gated on is_video."""
         rows = []  # type: List[TreeRowDict]
@@ -269,7 +269,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                     _cue_file_row(
                         "vpreset:" + vpname + "/" + str(pool_index) + "/" + child,
                         child,
-                        2,
+                        3,
                         [
                             {
                                 "icon": "xmark",
@@ -292,7 +292,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                     _cue_folder_rows(
                         "vpreset:" + vpname + "/" + str(pool_index),
                         pool_label,
-                        1,
+                        2,
                         Function(self._tree.toggle_video_pool_expand, vpname, pool_index),
                         pool_expanded,
                         False,
@@ -724,7 +724,9 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         """Pool Presets children: the empty-state line, then the preset rows."""
         rows = []  # type: List[TreeRowDict]
         if not preset_names:
-            rows.append(_cue_help_row("presets:empty", "No pool presets yet. Save a pool as a preset to fill this."))
+            rows.append(
+                _cue_help_row("presets:empty", "No pool presets yet. Save a pool as a preset to fill this.")
+            )
         rows.extend(self._preset_rows(preset_names, search_query, target_ok, target_tt))
         return rows
 

@@ -792,7 +792,7 @@ def test_music_content_rows_preset_folder_and_children():
     assert [b["icon"] for b in rows[pname_idx]["buttons"]] == ["xmark", "plus", "play"]
     child = rows[pname_idx + 1]
     assert child["label"] == "a.ogg"
-    assert child["depth"] == 1
+    assert child["depth"] == 2
     assert child["gap"] == 1
     assert child.get("size") == 11
     assert [b["icon"] for b in child["buttons"]] == ["xmark", "play"]

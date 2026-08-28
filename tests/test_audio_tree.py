@@ -1441,7 +1441,7 @@ def test_sfx_preset_rows_expanded(sfx):
     assert folder["toggle"]._args[1] == "p"
     children = rows[1:]
     assert [c["label"] for c in children] == ["a.ogg", "b.ogg"]
-    assert children[0]["depth"] == 1
+    assert children[0]["depth"] == 2
     assert children[0]["size"] == 11
     assert children[0]["gap"] == 1
     assert [b["icon"] for b in children[0]["buttons"]] == ["xmark", "play"]
@@ -1498,7 +1498,7 @@ def test_sfx_video_preset_rows_expanded(sfx):
     pool = rows[1]
     assert pool["type"] == "folder"
     assert pool["label"] == "00:01.50"
-    assert pool["depth"] == 1
+    assert pool["depth"] == 2
     assert [b["icon"] for b in pool["buttons"]] == ["xmark", "play"]
     assert pool["buttons"][0]["action"]._args[0] is _sfx_rows._cue_confirm_remove_video_preset_pool
     assert pool["buttons"][0]["action"]._args[1:3] == ("vp", 0)
@@ -1508,7 +1508,7 @@ def test_sfx_video_preset_rows_expanded(sfx):
     assert pool["toggle"]._args[1:3] == ("vp", 0)
     file_rows = rows[2:]
     assert [r["label"] for r in file_rows] == ["a.ogg", "b.ogg"]
-    assert file_rows[0]["depth"] == 2
+    assert file_rows[0]["depth"] == 3
     assert file_rows[0]["size"] == 11
     assert file_rows[0]["gap"] == 1
     assert [b["icon"] for b in file_rows[0]["buttons"]] == ["xmark", "play"]
