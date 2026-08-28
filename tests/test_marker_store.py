@@ -187,16 +187,14 @@ def test_resolve_pool_uses_defaults(store):
 
 
 def test_resolve_pool_surfaces_intensity_hook(store):
-    pool = {"files": [], "igroup": "Impacts", "ilevel_id": 2}
+    pool = {"files": [], "igroup": {"name": "Impacts", "level": 2}}
     resolved = store.resolve_pool(pool)
-    assert resolved.igroup == "Impacts"
-    assert resolved.ilevel_id == 2
+    assert resolved.igroup == {"name": "Impacts", "level": 2}
 
 
 def test_resolve_pool_unhooked_has_none(store):
     resolved = store.resolve_pool({"files": ["a.ogg"]})
     assert resolved.igroup is None
-    assert resolved.ilevel_id is None
 
 
 class _StubIntensity(object):
@@ -214,14 +212,13 @@ class _StubIntensity(object):
 def test_resolve_pool_fold_no_speed_skips(store):
     # Without a speed, resolve_pool must not touch intensity: the hook stays
     # metadata-only and refs stay the pool's own ([] for hooked pools).
-    resolved = store.resolve_pool({"files": [], "igroup": "Impacts", "ilevel_id": 1})
+    resolved = store.resolve_pool({"files": [], "igroup": {"name": "Impacts", "level": 1}})
     assert resolved.refs == []
     assert resolved.intensity is None
     assert resolved.volume_mult is None
     assert resolved.freq_mult is None
     assert resolved.level is None
-    assert resolved.igroup == "Impacts"
-    assert resolved.ilevel_id == 1
+    assert resolved.igroup == {"name": "Impacts", "level": 1}
 
 
 def test_resolve_pool_fold_embeds_intensity(store):
@@ -230,7 +227,7 @@ def test_resolve_pool_fold_embeds_intensity(store):
     # are readable.
     store._intensity = _StubIntensity(CueIntensityResolution("Impacts", 2, 1.25, 1.5, ["hard/a.ogg"]))
     resolved = store.resolve_pool(
-        {"files": [], "igroup": "Impacts", "ilevel_id": 1}, speed=1.3, variants=[0.7, 1.0, 1.3], expand=True
+        {"files": [], "igroup": {"name": "Impacts", "level": 1}}, speed=1.3, variants=[0.7, 1.0, 1.3], expand=True
     )
     assert store._intensity.calls == [("Impacts", 1, 1.3, [0.7, 1.0, 1.3], None)]
     assert resolved.intensity is store._intensity.resolution
@@ -239,20 +236,19 @@ def test_resolve_pool_fold_embeds_intensity(store):
     assert resolved.volume_mult == 1.25
     assert resolved.freq_mult == 1.5
     assert resolved.level == 2
-    assert resolved.igroup == "Impacts"
-    assert resolved.ilevel_id == 1
+    assert resolved.igroup == {"name": "Impacts", "level": 1}
 
 
 def test_resolve_pool_fold_dead_group_falls_back(store):
     # A hooked pool whose group resolves to nothing keeps its own files.
     store._intensity = _StubIntensity(None)
     resolved = store.resolve_pool(
-        {"files": ["a.ogg"], "igroup": "Ghost", "ilevel_id": 1}, speed=1.3, variants=[0.7, 1.0, 1.3], expand=True
+        {"files": ["a.ogg"], "igroup": {"name": "Ghost", "level": 1}}, speed=1.3, variants=[0.7, 1.0, 1.3], expand=True
     )
     assert resolved.files == ["a.ogg"]
     assert resolved.intensity is None
     assert resolved.volume_mult is None
-    assert resolved.igroup == "Ghost"
+    assert resolved.igroup == {"name": "Ghost", "level": 1}
 
 
 def test_resolve_pool_speed_without_hook_no_fold(store):
@@ -437,8 +433,7 @@ def test_migrate_intensity_hooks_rewrites_legacy_pool(store):
     count = _cue_migrate_intensity_hooks(store, _impacts_igroups())
     assert count == 1
     pool = store._data["v_a"]["pools"][0]
-    assert pool["igroup"] == "Impacts"
-    assert pool["ilevel_id"] == 1
+    assert pool["igroup"] == {"name": "Impacts", "level": 1}
     assert pool["files"] == []
 
 
@@ -449,8 +444,7 @@ def test_migrate_intensity_hooks_first_matching_folder_wins(store):
     count = _cue_migrate_intensity_hooks(store, _impacts_igroups())
     assert count == 1
     pool = store._data["v_a"]["pools"][0]
-    assert pool["igroup"] == "Impacts"
-    assert pool["ilevel_id"] == 2
+    assert pool["igroup"] == {"name": "Impacts", "level": 2}
     assert pool["files"] == []
 
 
@@ -468,8 +462,7 @@ def test_migrate_intensity_hooks_idempotent(store):
     # A re-run finds no folder-hooks (files are empty) and changes nothing.
     assert _cue_migrate_intensity_hooks(store, _impacts_igroups()) == 0
     pool = store._data["v_a"]["pools"][0]
-    assert pool["igroup"] == "Impacts"
-    assert pool["ilevel_id"] == 1
+    assert pool["igroup"] == {"name": "Impacts", "level": 1}
     assert pool["files"] == []
 
 
@@ -661,24 +654,23 @@ def test_remove_file_from_pool_legacy_files_branch(store):
 
 def test_add_file_to_pool_igroup_hook_noop(store):
     # A pool hooked to an intensity group owns no refs; adding must not touch it.
-    store._data["v_a"] = {"pools": [{"igroup": "lvl", "ilevel_id": 0, "files": []}]}
+    store._data["v_a"] = {"pools": [{"igroup": {"name": "lvl", "level": 0}, "files": []}]}
     assert store._add_file_to_pool("v_a", "a.ogg", 0) is False
     assert store._data["v_a"]["pools"][0]["files"] == []
 
 
 def test_remove_ref_from_pool_igroup_hook_noop(store):
-    store._data["v_a"] = {"pools": [{"igroup": "lvl", "ilevel_id": 0, "files": []}]}
+    store._data["v_a"] = {"pools": [{"igroup": {"name": "lvl", "level": 0}, "files": []}]}
     assert store._remove_ref_from_pool("v_a", "a.ogg", 0) is False
     assert store._data["v_a"]["pools"][0]["files"] == []
 
 
 def test_clear_pool_files_igroup_hook_detaches(store):
     # Clearing an igroup-hooked pool drops the hook, leaving a plain empty pool.
-    store._data["v_a"] = {"pools": [{"igroup": "lvl", "ilevel_id": 0, "files": [], "time": 1.0}]}
+    store._data["v_a"] = {"pools": [{"igroup": {"name": "lvl", "level": 0}, "files": [], "time": 1.0}]}
     assert store._clear_pool_files("v_a", 0) is True
     pool = store._data["v_a"]["pools"][0]
     assert "igroup" not in pool
-    assert "ilevel_id" not in pool
     assert pool["files"] == []
 
 

@@ -791,7 +791,7 @@ def _igroup_engine(
 def test_tick_loop_hooked_uses_level_folder(cue_env, monkeypatch, play_full):
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
     store = FakeMarkerStore(
-        {"l_scene.ogg": {"pools": [{"igroup": "Impacts", "ilevel_id": 1, "frequency": CueLoopFrequency.MEDIUM}]}}
+        {"l_scene.ogg": {"pools": [{"igroup": {"name": "Impacts", "level": 1}, "frequency": CueLoopFrequency.MEDIUM}]}}
     )
     eng = _igroup_engine(cue_env, monkeypatch, store)
     # 2 levels over [0.7, 1.0, 1.3]: 1.3 -> L2 (hard/), at the level's volume.
@@ -802,7 +802,7 @@ def test_tick_loop_hooked_uses_level_folder(cue_env, monkeypatch, play_full):
 def test_tick_loop_level_change_restarts_timer(cue_env, monkeypatch, play_full):
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 5.0)
     store = FakeMarkerStore(
-        {"l_scene.ogg": {"pools": [{"igroup": "Impacts", "ilevel_id": 1, "frequency": CueLoopFrequency.MEDIUM}]}}
+        {"l_scene.ogg": {"pools": [{"igroup": {"name": "Impacts", "level": 1}, "frequency": CueLoopFrequency.MEDIUM}]}}
     )
     eng = _igroup_engine(cue_env, monkeypatch, store)
     # 0.7 -> L1 (soft/), init delay 5.0 -> ready at 105.0, no fire.
@@ -818,8 +818,8 @@ def test_tick_loop_level_change_restarts_timer(cue_env, monkeypatch, play_full):
 
 
 def test_tick_video_hooked_uses_level_folder(cue_env, monkeypatch, play_full):
-    store = FakeMarkerStore({"v_scene.ogv": {"pools": [{"igroup": "Impacts", "ilevel_id": 1}]}})
-    markers = FakeMarkers(markers=[{"time": 0.0, "igroup": "Impacts", "ilevel_id": 1}])
+    store = FakeMarkerStore({"v_scene.ogv": {"pools": [{"igroup": {"name": "Impacts", "level": 1}}]}})
+    markers = FakeMarkers(markers=[{"time": 0.0, "igroup": {"name": "Impacts", "level": 1}}])
     eng = _igroup_engine(cue_env, monkeypatch, store, markers=markers)
     eng.video.tick("scene.ogv", "movie", 1.3, [0.7, 1.0, 1.3])
     # 1.3 -> L2: fires from the resolved level folder, volume scaled by it.
@@ -827,10 +827,10 @@ def test_tick_video_hooked_uses_level_folder(cue_env, monkeypatch, play_full):
 
 
 def test_tick_video_nonhooked_gets_global_scale(cue_env, monkeypatch, play_full):
-    store = FakeMarkerStore({"v_scene.ogv": {"pools": [{"igroup": "Impacts", "ilevel_id": 1}]}})
+    store = FakeMarkerStore({"v_scene.ogv": {"pools": [{"igroup": {"name": "Impacts", "level": 1}}]}})
     markers = FakeMarkers(
         markers=[
-            {"time": 0.0, "igroup": "Impacts", "ilevel_id": 1},  # hooked -> own resolution
+            {"time": 0.0, "igroup": {"name": "Impacts", "level": 1}},  # hooked -> own resolution
             {"time": 0.1, "files": ["plain.ogg"]},
         ]
     )  # not hooked -> global scale
@@ -846,7 +846,7 @@ def test_tick_loop_nonhooked_gets_global_scale(cue_env, monkeypatch, play_full):
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
     store = FakeMarkerStore(
         {
-            "v_scene.ogv": {"pools": [{"igroup": "Impacts", "ilevel_id": 1}]},
+            "v_scene.ogv": {"pools": [{"igroup": {"name": "Impacts", "level": 1}}]},
             "l_scene.ogv": {"pools": [{"files": ["plain.ogg"], "frequency": CueLoopFrequency.MEDIUM}]},
         }
     )
@@ -859,7 +859,7 @@ def test_tick_loop_nonhooked_gets_global_scale(cue_env, monkeypatch, play_full):
 def test_fire_context_gets_global_scale_during_video(cue_env, monkeypatch, play_full):
     store = FakeMarkerStore(
         {
-            "v_scene.ogv": {"pools": [{"igroup": "Impacts", "ilevel_id": 1}]},
+            "v_scene.ogv": {"pools": [{"igroup": {"name": "Impacts", "level": 1}}]},
             "d_scene.ogv__hi": {"pools": [{"files": ["plain.ogg"]}]},
         }
     )
@@ -894,8 +894,10 @@ def test_tick_loop_master_off_plays_pool_folder(cue_env, monkeypatch, play_full)
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
     store = FakeMarkerStore(
         {
-            "v_scene.ogv": {"pools": [{"igroup": "Impacts", "ilevel_id": 1}], "intensity": {"enabled": False}},
-            "l_scene.ogv": {"pools": [{"igroup": "Impacts", "ilevel_id": 1, "frequency": CueLoopFrequency.MEDIUM}]},
+            "v_scene.ogv": {"pools": [{"igroup": {"name": "Impacts", "level": 1}}], "intensity": {"enabled": False}},
+            "l_scene.ogv": {
+                "pools": [{"igroup": {"name": "Impacts", "level": 1}, "frequency": CueLoopFrequency.MEDIUM}]
+            },
         }
     )
     eng = _igroup_engine(cue_env, monkeypatch, store)
@@ -908,8 +910,10 @@ def test_tick_loop_sfx_levels_off_keeps_scaling(cue_env, monkeypatch, play_full)
     monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
     store = FakeMarkerStore(
         {
-            "v_scene.ogv": {"pools": [{"igroup": "Impacts", "ilevel_id": 1}], "intensity": {"sfx_levels": False}},
-            "l_scene.ogv": {"pools": [{"igroup": "Impacts", "ilevel_id": 1, "frequency": CueLoopFrequency.MEDIUM}]},
+            "v_scene.ogv": {"pools": [{"igroup": {"name": "Impacts", "level": 1}}], "intensity": {"sfx_levels": False}},
+            "l_scene.ogv": {
+                "pools": [{"igroup": {"name": "Impacts", "level": 1}, "frequency": CueLoopFrequency.MEDIUM}]
+            },
         }
     )
     eng = _igroup_engine(cue_env, monkeypatch, store)
@@ -920,7 +924,7 @@ def test_tick_loop_sfx_levels_off_keeps_scaling(cue_env, monkeypatch, play_full)
 
 
 def test_tick_snapshot_video_intensity(cue_env, monkeypatch):
-    store = FakeMarkerStore({"v_scene.ogv": {"pools": [{"igroup": "Impacts", "ilevel_id": 1}]}})
+    store = FakeMarkerStore({"v_scene.ogv": {"pools": [{"igroup": {"name": "Impacts", "level": 1}}]}})
     eng = _igroup_engine(cue_env, monkeypatch, store)
     monkeypatch.setattr(eng.loop, "tick", lambda *a, **k: None)
     monkeypatch.setattr(eng.video, "tick", lambda *a, **k: None)
@@ -932,7 +936,7 @@ def test_tick_snapshot_video_intensity(cue_env, monkeypatch):
 
 def test_tick_snapshot_none_when_master_off(cue_env, monkeypatch):
     store = FakeMarkerStore(
-        {"v_scene.ogv": {"pools": [{"igroup": "Impacts", "ilevel_id": 1}], "intensity": {"enabled": False}}}
+        {"v_scene.ogv": {"pools": [{"igroup": {"name": "Impacts", "level": 1}}], "intensity": {"enabled": False}}}
     )
     eng = _igroup_engine(cue_env, monkeypatch, store)
     monkeypatch.setattr(eng.loop, "tick", lambda *a, **k: None)
@@ -943,9 +947,9 @@ def test_tick_snapshot_none_when_master_off(cue_env, monkeypatch):
 
 def test_tick_video_volume_off_unscaled(cue_env, monkeypatch, play_full):
     store = FakeMarkerStore(
-        {"v_scene.ogv": {"pools": [{"igroup": "Impacts", "ilevel_id": 1}], "intensity": {"volume": False}}}
+        {"v_scene.ogv": {"pools": [{"igroup": {"name": "Impacts", "level": 1}}], "intensity": {"volume": False}}}
     )
-    markers = FakeMarkers(markers=[{"time": 0.0, "igroup": "Impacts", "ilevel_id": 1}])
+    markers = FakeMarkers(markers=[{"time": 0.0, "igroup": {"name": "Impacts", "level": 1}}])
     eng = _igroup_engine(cue_env, monkeypatch, store, markers=markers)
     eng.video.tick("scene.ogv", "movie", 1.3, [0.7, 1.0, 1.3])
     # Volume toggle off -> still the level folder, but at unscaled volume.
@@ -955,7 +959,7 @@ def test_tick_video_volume_off_unscaled(cue_env, monkeypatch, play_full):
 def test_fire_context_master_off_unscaled(cue_env, monkeypatch, play_full):
     store = FakeMarkerStore(
         {
-            "v_scene.ogv": {"pools": [{"igroup": "Impacts", "ilevel_id": 1}], "intensity": {"enabled": False}},
+            "v_scene.ogv": {"pools": [{"igroup": {"name": "Impacts", "level": 1}}], "intensity": {"enabled": False}},
             "d_scene.ogv__hi": {"pools": [{"files": ["plain.ogg"]}]},
         }
     )

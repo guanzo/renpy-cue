@@ -520,7 +520,7 @@ def test_detach_igroup_pool_returns_none_and_detaches(mgr):
     # The xmark action must return None -- a Function action returning a bool
     # makes Ren'Py's button report the click as unhandled, so it falls through
     # the overlay and advances the scene.
-    mgr._data["v_a"] = {"pools": [{"igroup": "lvl", "ilevel_id": 0, "files": [], "time": 1.0}]}
+    mgr._data["v_a"] = {"pools": [{"igroup": {"name": "lvl", "level": 0}, "files": [], "time": 1.0}]}
     rv = mgr._detach_igroup_pool("v_a", 0)
     assert rv is None
     assert "igroup" not in mgr._data["v_a"]["pools"][0]
@@ -533,8 +533,8 @@ def test_detach_igroup_pool_multi_detaches_all_selected(mgr):
     mgr._ctx.current_file = "scene.ogv"
     mgr._data["v_scene.ogv"] = {
         "pools": [
-            {"igroup": "lvl", "ilevel_id": 0, "files": [], "time": 1.0},
-            {"igroup": "lvl", "ilevel_id": 1, "files": [], "time": 2.0},
+            {"igroup": {"name": "lvl", "level": 0}, "files": [], "time": 1.0},
+            {"igroup": {"name": "lvl", "level": 1}, "files": [], "time": 2.0},
             {"time": 3.0, "files": ["c.ogg"]},
         ]
     }

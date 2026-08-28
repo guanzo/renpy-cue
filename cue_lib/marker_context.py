@@ -508,7 +508,9 @@ class CueVideoContext(CueMarkerContext):
                     self._hook_level_on_pool(pools[idx], group, ilevel_id)
         elif not pools or not (0 <= self.active_pool < len(pools)):
             elapsed = self._mgr._vid_manager.get_elapsed()
-            self._append_pool(entry, pools, {"time": elapsed, "files": [], "igroup": group, "ilevel_id": ilevel_id})
+            self._append_pool(
+                entry, pools, {"time": elapsed, "files": [], "igroup": {"name": group, "level": ilevel_id}}
+            )
         else:
             self._hook_level_on_pool(pools[self.active_pool], group, ilevel_id)
         self._mgr._db_save_marker(vid_key)
@@ -519,8 +521,7 @@ class CueVideoContext(CueMarkerContext):
         then the group/level, dropping the pool's own refs."""
         if "time" not in pool:
             pool["time"] = self._mgr._vid_manager.get_elapsed()
-        pool["igroup"] = group
-        pool["ilevel_id"] = ilevel_id
+        pool["igroup"] = {"name": group, "level": ilevel_id}
         pool["files"] = []
 
     def send_preset(self, preset_name, record=True):

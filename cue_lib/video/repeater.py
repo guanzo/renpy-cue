@@ -151,7 +151,6 @@ class CueMarkerRepeater(CueDialogBase):
                     "files": list(r.refs),
                     "volume": r.volume,
                     "igroup": r.igroup,
-                    "ilevel_id": r.ilevel_id,
                 }
             )
         self.sel_count = len(self.offsets)
@@ -256,13 +255,12 @@ class CueMarkerRepeater(CueDialogBase):
     def _offset_pool(self, offset, time):
         # type: (RepeaterOffset, float) -> VideoPoolDict
         """Pool dict for one repeated marker: the offset's content at *time*,
-        carrying an intensity hook (igroup/ilevel_id) when the source pool had
-        one.  Non-hooked pools omit the keys, matching how pools are stored."""
+        carrying the nested igroup hook when the source pool had one.  Non-
+        hooked pools omit the key, matching how pools are stored."""
         clone = {"time": time, "files": list(offset["files"]), "volume": offset.get("volume", CUE_VOLUME_DEFAULT)}
         igroup = offset.get("igroup")
         if igroup is not None:
             clone["igroup"] = igroup
-            clone["ilevel_id"] = offset.get("ilevel_id")
         return clone  # pyright: ignore[reportReturnType]
 
     def apply(self):

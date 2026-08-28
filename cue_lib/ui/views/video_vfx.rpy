@@ -189,7 +189,7 @@ screen cue_video_vfx_intensity(_has_speeds):
     $ _vid_entry = _cue.markers.get(_vid_key, {})
     $ _vid_entries = (_cue.markers._resolve_video_pools(_vid_entry)
         if _vid_entry else [])
-    $ _pool_hooks = ([(p.get("igroup"), p.get("ilevel_id")) for p in _vid_entries]
+    $ _pool_hooks = ([p.get("igroup") for p in _vid_entries]
         if _vid_entries else [])
     $ _hook_group = _cue.intensity.video_hook(_pool_hooks)
     $ _has_group = _hook_group is not None

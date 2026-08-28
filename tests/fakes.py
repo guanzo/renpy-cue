@@ -125,7 +125,6 @@ class FakeManager(object):
         pool = pools[pool_index]
         if "igroup" in pool:
             pool.pop("igroup")
-            pool.pop("ilevel_id", None)
             pool["files"] = []
             return True
         if not pool.get("files", []):
@@ -240,7 +239,6 @@ class FakeResolvedPool(object):
         self.trigger_on_shake = trigger_on_shake
         self.exclusive = exclusive if exclusive is not None else FakeExclusive()
         self.igroup = igroup
-        self.ilevel_id = ilevel_id
         self.intensity = intensity
 
     @property
@@ -281,8 +279,9 @@ class FakeMarkerStore(object):
         excl = pool.get("exclusive", {})
         if not isinstance(excl, dict):
             excl = {}
-        igroup = pool.get("igroup")
-        ilevel_id = pool.get("ilevel_id")
+        hook = pool.get("igroup")
+        igroup = hook.get("name") if hook else None
+        ilevel_id = hook.get("level") if hook else None
         intensity = None
         if igroup is not None and speed is not None and _cue.intensity is not None:
             intensity = _cue.intensity.resolve_pool_intensity(igroup, ilevel_id, speed, variants, flags)
@@ -302,8 +301,7 @@ class FakeMarkerStore(object):
             exclusive=FakeExclusive(
                 start=excl.get("start", 0), hold=excl.get("hold", False), group=excl.get("group", 0)
             ),
-            igroup=igroup,
-            ilevel_id=ilevel_id,
+            igroup=hook,
             intensity=intensity,
         )
 

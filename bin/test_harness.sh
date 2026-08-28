@@ -189,6 +189,7 @@ _sweep_orphan_xvfb() {
         done
         [ "$_inuse" = "0" ] && rm -rf "$_d"
     done
+    return 0
 }
 
 HEADLESS="${RENPY_HEADLESS:-1}"

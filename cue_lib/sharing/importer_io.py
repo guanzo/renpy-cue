@@ -396,7 +396,7 @@ def _cue_replay_assets_full(root, game_id, replay_labels):
                 for rel in _cue_preset_files(root, pool["preset"]):
                     _cue_add_asset(result, CueImportCategory.PRESETS, rel)
             if pool.get("igroup"):
-                _cue_igroup_assets(root, result, pool["igroup"])
+                _cue_igroup_assets(root, result, pool["igroup"]["name"])
 
         for ref in entry.get("files") or []:
             _cue_add_referenced_asset(root, result, _cue_audio_rel(ref))
@@ -780,7 +780,7 @@ def _cue_igroup_assets(root, result, igroup_name):
     """Add the intensity group named igroup_name and every file it references.
 
     A pool hooks an igroup by name (store-time the pool's ``files`` is cleared
-    and its ``igroup``/``ilevel_id`` set).  The group is a shared preset JSON
+    and its ``igroup`` dict is set).  The group is a shared preset JSON
     under data/presets/intensity/; each level's folders/direct refs are
     audio-dir-relative, the same shape as a marker pool's ``files``.  The WHOLE
     group travels -- every level, not just the pinned one -- so the recipient

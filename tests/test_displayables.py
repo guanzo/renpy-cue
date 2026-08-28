@@ -460,7 +460,10 @@ def test_mtl_render_publishes_tip_anchored_during_drag(monkeypatch):
 def test_mtl_render_intensity_border_on_hooked_marker(monkeypatch):
     # Marker 1's pool is hooked to an intensity folder; marker 2's isn't.
     env = _make_mtl(
-        monkeypatch, [{"time": 0.0, "igroup": "Impacts"}, {"time": 5.0}], current_file="clip.webm", intensity_on=True
+        monkeypatch,
+        [{"time": 0.0, "igroup": {"name": "Impacts", "level": 1}}, {"time": 5.0}],
+        current_file="clip.webm",
+        intensity_on=True,
     )
     r = env.tl.render(200, 60, 0.0, 0.0)
     border_ops = [op for op in r.canvas().ops if op[0] == "rect" and op[1] == CUE_INTENSITY_HINT_COLOR]
@@ -475,7 +478,10 @@ def test_mtl_render_intensity_border_on_hooked_marker(monkeypatch):
 
 def test_mtl_render_intensity_no_border_when_off(monkeypatch):
     env = _make_mtl(
-        monkeypatch, [{"time": 0.0, "igroup": "Impacts"}, {"time": 5.0}], current_file="clip.webm", intensity_on=False
+        monkeypatch,
+        [{"time": 0.0, "igroup": {"name": "Impacts", "level": 1}}, {"time": 5.0}],
+        current_file="clip.webm",
+        intensity_on=False,
     )
     r = env.tl.render(200, 60, 0.0, 0.0)
     colors = [op[1] for op in r.canvas().ops if op[0] == "rect"]
@@ -488,7 +494,7 @@ def test_mtl_render_intensity_no_border_when_sfx_levels_off(monkeypatch):
     # hint strip (and its tooltip note) must not appear.
     env = _make_mtl(
         monkeypatch,
-        [{"time": 0.0, "igroup": "Impacts"}, {"time": 5.0}],
+        [{"time": 0.0, "igroup": {"name": "Impacts", "level": 1}}, {"time": 5.0}],
         current_file="clip.webm",
         intensity_on=True,
         sfx_levels=False,
@@ -505,7 +511,10 @@ def test_mtl_render_intensity_no_border_when_sfx_levels_off(monkeypatch):
 
 def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
     env = _make_mtl(
-        monkeypatch, [{"time": 0.0, "igroup": "Impacts"}, {"time": 5.0}], current_file="clip.webm", intensity_on=True
+        monkeypatch,
+        [{"time": 0.0, "igroup": {"name": "Impacts", "level": 1}}, {"time": 5.0}],
+        current_file="clip.webm",
+        intensity_on=True,
     )
     env.tl._tip_text = "Pool 1 (0:00)"
     env.tl._hover_idx = 0
@@ -517,7 +526,10 @@ def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
 
 def test_mtl_render_intensity_tooltip_no_note_unhooked(monkeypatch):
     env = _make_mtl(
-        monkeypatch, [{"time": 0.0, "igroup": "Impacts"}, {"time": 5.0}], current_file="clip.webm", intensity_on=True
+        monkeypatch,
+        [{"time": 0.0, "igroup": {"name": "Impacts", "level": 1}}, {"time": 5.0}],
+        current_file="clip.webm",
+        intensity_on=True,
     )
     env.tl._tip_text = "Pool 2 (0:05)"
     env.tl._hover_idx = 1
@@ -527,7 +539,10 @@ def test_mtl_render_intensity_tooltip_no_note_unhooked(monkeypatch):
 
 def test_mtl_render_intensity_tooltip_no_note_when_off(monkeypatch):
     env = _make_mtl(
-        monkeypatch, [{"time": 0.0, "igroup": "Impacts"}, {"time": 5.0}], current_file="clip.webm", intensity_on=False
+        monkeypatch,
+        [{"time": 0.0, "igroup": {"name": "Impacts", "level": 1}}, {"time": 5.0}],
+        current_file="clip.webm",
+        intensity_on=False,
     )
     env.tl._tip_text = "Pool 1 (0:00)"
     env.tl._hover_idx = 0
@@ -1173,7 +1188,7 @@ def intensity_chart(monkeypatch):
     """Chart wired to a video whose pool is hooked to a 2-level group."""
     seq = types.SimpleNamespace(speeds_for=lambda tag: [1.0, 2.0, 3.0], current_step_index=lambda: 1)
     markers = types.SimpleNamespace(
-        get=lambda key, default: {"pools": [{"igroup": "Impacts", "ilevel_id": 1}]},
+        get=lambda key, default: {"pools": [{"igroup": {"name": "Impacts", "level": 1}}]},
         _resolve_video_pools=lambda entry: entry.get("pools", []),
     )
     speed_resolver = types.SimpleNamespace(banding_speeds=lambda tag: [0.7, 1.0, 1.3], get_current_speed=lambda: 1.3)

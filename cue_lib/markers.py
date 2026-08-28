@@ -407,8 +407,8 @@ class CueMarkerManager(object):
 
     def _detach_igroup_pool(self, marker_key, pool_index=0):
         # type: (str, int) -> None
-        """Button-action wrapper for the igroup xmark (pops the igroup/ilevel_id
-        hook, leaving a plain pool).  Returns None -- _clear_pool_files returns
+        """Button-action wrapper for the igroup xmark (pops the igroup hook,
+        leaving a plain pool).  Returns None -- _clear_pool_files returns
         a bool, and a Function action returning non-None makes the button report
         the click as unhandled, bleeding through the overlay to the scene.
         During a video multi-select, detaches every selected pool."""
@@ -756,10 +756,10 @@ def _cue_markers_send(kind, ref, record=True):
 
 def _cue_send_level_to_target(group, ilevel_id):
     # type: (str, int) -> None
-    """Store bridge for the intensity-level [+] button: set igroup/ilevel_id
-    on the resolved target context's active pool (every selected video pool
-    during a multi-select), clearing its files -- the pool now fires from the
-    active level.  Image/dialogue pools are one-shot and can't hold an
+    """Store bridge for the intensity-level [+] button: set the nested igroup
+    hook on the resolved target context's active pool (every selected video
+    pool during a multi-select), clearing its files -- the pool now fires from
+    the active level.  Image/dialogue pools are one-shot and can't hold an
     intensity hook -- a no-op there (the screen also disables the button)."""
     ctx_id = _cue.markers.resolve_target_context()
     if ctx_id == CueContextType.IMAGE or ctx_id == CueContextType.DIALOGUE:
@@ -772,8 +772,7 @@ def _cue_send_level_to_target(group, ilevel_id):
     if not key:
         return
     pool = _cue.markers._ensure_pool(key, ctx.get_active_index())
-    pool["igroup"] = group
-    pool["ilevel_id"] = ilevel_id
+    pool["igroup"] = {"name": group, "level": ilevel_id}
     pool["files"] = []
     _cue.markers._db_save_marker(key)
 

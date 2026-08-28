@@ -533,7 +533,7 @@ testcase intensity_loop_fire_path:
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["multi_speed_sequence"] = [0.7, 1.0, 1.3]
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
-    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"igroup": "Fire Test", "ilevel_id": 1, "files": [], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
+    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"igroup": {"name": "Fire Test", "level": 1}, "files": [], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
     $ renpy.show("cueimg_a")
     # Poll until the loop records a Level-2 (hard/) fire -- a fixed pause races
     # slow 7.x audio-channel startup under xvfb (see the init -10 waiter).
@@ -563,12 +563,12 @@ testcase intensity_toggle_master_off:
     run Function(_cue.sfx.library.ilevel_add_folder, "Toggle Test", 2, "hard/")
     # The video entry carries a hooked (time-less) pool so the per-tick video
     # gate can resolve; a time-less pool never fires as a video marker.
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["pools"] = [{"igroup": "Toggle Test", "ilevel_id": 1, "files": [], "volume": 1.0}]
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["pools"] = [{"igroup": {"name": "Toggle Test", "level": 1}, "files": [], "volume": 1.0}]
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["multi_speed_sequence"] = [0.7, 1.0, 1.3]
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["intensity"] = {"enabled": False}
-    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"igroup": "Toggle Test", "ilevel_id": 1, "files": [], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
+    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"igroup": {"name": "Toggle Test", "level": 1}, "files": [], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
     $ renpy.show("cueimg_a")
     $ _test_wait_deadline = _test_time.time() + 10.0
     pause 0.5 until run _cue_test_wait_until_true(_cue_intensity_soft_fired, _test_wait_deadline)
@@ -597,12 +597,12 @@ testcase intensity_toggle_sfx_levels_off:
     run Function(_cue.sfx.library.ilevel_add_folder, "Toggle Test", 1, "soft/")
     run Function(_cue.sfx.library.add_level, "Toggle Test")
     run Function(_cue.sfx.library.ilevel_add_folder, "Toggle Test", 2, "hard/")
-    $ _cue.markers._get_or_create_entry("v_cueimg_a")["pools"] = [{"igroup": "Toggle Test", "ilevel_id": 1, "files": [], "volume": 1.0}]
+    $ _cue.markers._get_or_create_entry("v_cueimg_a")["pools"] = [{"igroup": {"name": "Toggle Test", "level": 1}, "files": [], "volume": 1.0}]
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_mode"] = CueSpeedMode.MULTI
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["multi_speed_sequence"] = [0.7, 1.0, 1.3]
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["speed_pref"] = 1.0
     $ _cue.markers._get_or_create_entry("v_cueimg_a")["intensity"] = {"sfx_levels": False}
-    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"igroup": "Toggle Test", "ilevel_id": 1, "files": [], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
+    $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"igroup": {"name": "Toggle Test", "level": 1}, "files": [], "volume": 1.0, "frequency": CueLoopFrequency.FASTEST}]
     $ renpy.show("cueimg_a")
     $ _test_wait_deadline = _test_time.time() + 10.0
     pause 0.5 until run _cue_test_wait_until_true(_cue_intensity_soft_fired, _test_wait_deadline)
@@ -635,7 +635,7 @@ testcase intensity_tab_view:
     pause 1.0
     $ _cue_intensity_variants()
     $ _vidk = _cue_create_vid_key(_cue.current_file)
-    $ _cue.markers._get_or_create_entry(_vidk)["pools"] = [{"igroup": "Tab Test", "ilevel_id": 1, "files": [], "volume": 1.0}]
+    $ _cue.markers._get_or_create_entry(_vidk)["pools"] = [{"igroup": {"name": "Tab Test", "level": 1}, "files": [], "volume": 1.0}]
     $ _cue.markers._get_or_create_entry(_vidk)["speed_mode"] = CueSpeedMode.MULTI
     $ _cue.markers._get_or_create_entry(_vidk)["multi_speed_sequence"] = [0.7, 1.0, 1.3]
     $ _cue.markers._get_or_create_entry(_vidk)["speed_pref"] = 1.0
@@ -649,7 +649,7 @@ testcase intensity_tab_view:
     # The inspector resolves the hook group + live mapping from the video.
     $ _vid_entry = _cue.markers.get(_vidk, {})
     $ _vid_entries = _cue.markers._resolve_video_pools(_vid_entry)
-    $ _pools_hooks = [(p.get("igroup"), p.get("ilevel_id")) for p in _vid_entries]
+    $ _pools_hooks = [p.get("igroup") for p in _vid_entries]
     $ _ok = _ok and _cue.intensity.video_hook(_pools_hooks) == "Tab Test"
     $ _variants = _cue.speed_resolver.banding_speeds(_cue.current_file)
     $ _ok = _ok and _variants == [0.7, 1.0, 1.3]
@@ -722,8 +722,8 @@ testcase intensity_hook_level_to_target:
     $ _cue.markers._get_or_create_entry("l_cueimg_a")["pools"] = [{"files": [], "volume": 1.0, "frequency": CueLoopFrequency.MEDIUM}]
     run Function(_cue_send_level_to_target, "Guard A", 2)
     $ _hook_pool = _cue.markers._get_or_create_entry("l_cueimg_a")["pools"][0]
-    $ _ok = _ok and _hook_pool.get("igroup") == "Guard A"
-    $ _ok = _ok and _hook_pool.get("ilevel_id") == 2
+    $ _ok = _ok and _hook_pool.get("igroup")["name"] == "Guard A"
+    $ _ok = _ok and _hook_pool.get("igroup")["level"] == 2
     $ _ok = _ok and _hook_pool.get("files") == []
     $ _cue.markers.pop("l_cueimg_a", None)
     $ _cue.markers.pop("i_cueimg_a", None)
@@ -757,9 +757,9 @@ testcase intensity_hook_pool_renders:
     run Function(_cue_send_level_to_target, "Hook Render", 1)
     $ _vidk = _cue_create_vid_key(_cue.current_file)
     $ _vp = _cue.markers._get_or_create_entry(_vidk)["pools"][0]
-    $ _ok = _ok and _vp.get("igroup") == "Hook Render"
+    $ _ok = _ok and _vp.get("igroup")["name"] == "Hook Render"
     $ _ok = _ok and _vp.get("files") == []
-    $ _vl = _cue.intensity.level_files_by_id("Hook Render", _vp.get("ilevel_id") or 0)
+    $ _vl = _cue.intensity.level_files_by_id("Hook Render", _vp.get("igroup")["level"] or 0)
     $ _ok = _ok and _vl == ["soft/"]
     pause 0.3
     # Loop target: hook a loop pool, render the Loop SFX section.
@@ -769,9 +769,9 @@ testcase intensity_hook_pool_renders:
         {"files": [], "volume": 1.0, "frequency": CueLoopFrequency.MEDIUM}]
     run Function(_cue_send_level_to_target, "Hook Render", 1)
     $ _lp = _cue.markers._get_or_create_entry(_loop_key)["pools"][0]
-    $ _ok = _ok and _lp.get("igroup") == "Hook Render"
+    $ _ok = _ok and _lp.get("igroup")["name"] == "Hook Render"
     $ _lr = _cue.markers.resolve_pool(_lp)
-    $ _ok = _ok and _lr.igroup == "Hook Render" and _lr.refs == []
+    $ _ok = _ok and _lr.igroup["name"] == "Hook Render" and _lr.refs == []
     pause 0.3
     # Cleanup.
     $ _cue.markers.pop(_loop_key, None)

@@ -21,7 +21,7 @@ from cue_lib.util import _cue_resolve_files
 MYPY = False
 if MYPY:
     from typing import Any, Callable, Dict, List, Optional, Tuple  # pyright: ignore[reportUnusedImport]
-    from cue_lib._types import MarkerEntry  # pyright: ignore[reportUnusedImport]
+    from cue_lib._types import IgroupDict, IgroupHookDict, LevelDict, MarkerEntry  # pyright: ignore[reportUnusedImport]
     from cue_lib.db import CueDatabase  # pyright: ignore[reportUnusedImport]
 
 
@@ -85,7 +85,7 @@ class CueIntensityManager(object):
     def __init__(self, db):
         # type: (CueDatabase) -> None
         self._db = db
-        self._igroups = None  # type: Optional[Dict[str, Any]]
+        self._igroups = None  # type: Optional[Dict[str, IgroupDict]]
         self._band_cache = {}  # type: Dict[Any, Any]
 
     # ------------------------------------------------------------------
@@ -93,7 +93,7 @@ class CueIntensityManager(object):
     # ------------------------------------------------------------------
 
     def _load(self):
-        # type: () -> Dict[str, Any]
+        # type: () -> Dict[str, IgroupDict]
         """The registry, loaded from the db's preset store on first use.
 
         One-time migration from the legacy ``folders`` shape: a folder list
@@ -125,8 +125,8 @@ class CueIntensityManager(object):
         return sorted(self._load().keys())
 
     def get_igroup(self, name):
-        # type: (str) -> Optional[Dict[str, Any]]
-        """Stored igroup dict (includes the db's _key field), or None."""
+        # type: (str) -> Optional[IgroupDict]
+        """Stored igroup definition (includes the db's _key field), or None."""
         return self._load().get(name)
 
     # ------------------------------------------------------------------
@@ -141,7 +141,7 @@ class CueIntensityManager(object):
             return "Intensity group name can't be empty."
         if self.get_igroup(name) is not None:
             return "An intensity group named '{}' already exists.".format(name)
-        data = {"levels": [], "next_ilevel_id": 1}
+        data = {"levels": [], "next_ilevel_id": 1}  # type: IgroupDict
         self._save(name, data)
         return None
 
@@ -155,7 +155,7 @@ class CueIntensityManager(object):
     # ------------------------------------------------------------------
 
     def _new_ilevel_id(self, data):
-        # type: (Dict[str, Any]) -> int
+        # type: (IgroupDict) -> int
         next_id = data.get("next_ilevel_id", 1)
         data["next_ilevel_id"] = next_id + 1
         return next_id
@@ -173,7 +173,7 @@ class CueIntensityManager(object):
         return new_id
 
     def _find_level(self, data, ilevel_id):
-        # type: (Dict[str, Any], int) -> Optional[Dict[str, Any]]
+        # type: (IgroupDict, int) -> Optional[LevelDict]
         for level in data.get("levels", []):
             if level.get("id") == ilevel_id:
                 return level
@@ -327,20 +327,23 @@ class CueIntensityManager(object):
         return CueIntensityResolution(igroup, level, _cue_intensity_volume_mult(vm), fm, resolve_files(files))
 
     def resolve_video_intensity(self, pool_hooks, current_speed, variants, flags=None, resolve_files=None):
-        # type: (List[Tuple[Optional[str], Optional[int]]], float, Optional[List[float]], Optional[CueIntensityFlags], Optional[Callable[[List[str]], List[str]]]) -> Optional[CueIntensityResolution]
-        for igroup, ilevel_id in pool_hooks:
+        # type: (List[Optional[IgroupHookDict]], float, Optional[List[float]], Optional[CueIntensityFlags], Optional[Callable[[List[str]], List[str]]]) -> Optional[CueIntensityResolution]
+        for hook in pool_hooks:
+            igroup = hook.get("name") if hook else None
+            ilevel_id = hook.get("level") if hook else None
             res = self.resolve_pool_intensity(igroup, ilevel_id, current_speed, variants, flags, resolve_files)
             if res is not None:
                 return res
         return None
 
     def current_level(self, pool_hooks, current_speed, variants, flags=None):
-        # type: (List[Tuple[Optional[str], Optional[int]]], float, Optional[List[float]], Optional[CueIntensityFlags]) -> Optional[Tuple[int, int]]
+        # type: (List[Optional[IgroupHookDict]], float, Optional[List[float]], Optional[CueIntensityFlags]) -> Optional[Tuple[int, int]]
         if flags is not None and not flags.enabled:
             return None
         if not variants:
             return None
-        for igroup, _ilevel_id in pool_hooks:
+        for hook in pool_hooks:
+            igroup = hook.get("name") if hook else None
             if not igroup:
                 continue
             data = self.get_igroup(igroup)
@@ -358,14 +361,14 @@ class CueIntensityManager(object):
         return None
 
     def video_hook(self, pool_hooks):
-        # type: (List[Tuple[Optional[str], Optional[int]]]) -> Optional[str]
-        for igroup, _ilevel_id in pool_hooks:
-            if igroup:
-                return igroup
+        # type: (List[Optional[IgroupHookDict]]) -> Optional[str]
+        for hook in pool_hooks:
+            if hook:
+                return hook.get("name")
         return None
 
     def is_pool_intensity_active(self, igroup, variants, flags=None):
-        # type: (Optional[str], Optional[List[float]], Optional[CueIntensityFlags]) -> bool
+        # type: (Optional[IgroupHookDict], Optional[List[float]], Optional[CueIntensityFlags]) -> bool
         if flags is not None and not flags.enabled:
             return False
         if not variants or len(variants) < 2:
@@ -390,6 +393,6 @@ class CueIntensityManager(object):
     # ------------------------------------------------------------------
 
     def _save(self, name, data):
-        # type: (str, Dict[str, Any]) -> None
+        # type: (str, IgroupDict) -> None
         self._db.save_preset(CUE_INTENSITY_PRESET_TYPE, name, data)
         self._invalidate()

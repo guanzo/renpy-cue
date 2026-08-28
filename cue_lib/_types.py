@@ -32,6 +32,14 @@ class ExclusiveDict(TypedDict, total=False):
     hold: bool  # block non-group SFX until done
 
 
+class IgroupHookDict(TypedDict, total=False):
+    """Nested intensity-group hook on a pool: the group name plus the
+    pinned level id (fallback content when intensity folding is off)."""
+
+    name: str
+    level: int
+
+
 class PoolDict(TypedDict, total=False):
     """A single pool within a MarkerEntry. Keys vary by context."""
 
@@ -41,8 +49,7 @@ class PoolDict(TypedDict, total=False):
     frequency: int  # loop pools only
     trigger_on_shake: bool  # image pools only
     exclusive: ExclusiveDict  # nested exclusive config; legacy saves held a bool
-    igroup: str  # intensity group name (hook)
-    ilevel_id: int  # stable id of the pinned level (fallback content)
+    igroup: IgroupHookDict  # nested intensity-group hook
     preset: str  # preset-backed pools (written, replaced on detach)
 
 
@@ -57,6 +64,14 @@ class LevelDict(TypedDict, total=False):
     files: List[str]
 
 
+class IgroupDict(TypedDict, total=False):
+    """One intensity group definition: an ordered level list plus the
+    monotonic level-id counter.  The registry value keyed by group name."""
+
+    levels: List[LevelDict]
+    next_ilevel_id: int
+
+
 class VideoPoolDict(TypedDict):
     """A video marker pool.
 
@@ -69,8 +84,7 @@ class VideoPoolDict(TypedDict):
     files: NotRequired[List[str]]
     volume: NotRequired[float]
     preset: NotRequired[str]
-    igroup: NotRequired[str]
-    ilevel_id: NotRequired[int]
+    igroup: NotRequired[IgroupHookDict]
 
 
 # =========================================================================
@@ -163,8 +177,7 @@ class RepeaterOffset(TypedDict):
     offset: float
     files: List[str]
     volume: float
-    igroup: Optional[str]
-    ilevel_id: Optional[int]
+    igroup: Optional[IgroupHookDict]
 
 
 # =========================================================================

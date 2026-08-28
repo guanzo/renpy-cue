@@ -576,7 +576,7 @@ def test_clear_selected_files_preset_detaches_first():
 
 def test_clear_selected_files_igroup_hook_detaches():
     mgr = FakeManager(
-        {"v_key": {"pools": [{"igroup": "lvl", "ilevel_id": 2, "time": 1.0}, {"time": 2.0, "files": ["c.mp3"]}]}}
+        {"v_key": {"pools": [{"igroup": {"name": "lvl", "level": 2}, "time": 1.0}, {"time": 2.0, "files": ["c.mp3"]}]}}
     )
     ctx = VideoCtx(mgr, duration=10.0)
     ctx.active_pool = 0

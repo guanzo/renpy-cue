@@ -136,7 +136,7 @@ def _cue_vid_intensity_resolution(store, current_file, speed, variants):
     pool_hooks = []
     for p in entry.get("pools", []):
         rp = store.resolve_pool(p)
-        pool_hooks.append((rp.igroup, rp.ilevel_id))
+        pool_hooks.append(rp.igroup)
     if not pool_hooks:
         return None
     return _cue.intensity.resolve_video_intensity(pool_hooks, speed, variants, flags=flags)

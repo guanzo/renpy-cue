@@ -830,7 +830,7 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
             if _r.igroup is not None:
                 use cue_pool_files([], _active_eff,
                     detach_action=Function(_cue.markers._detach_igroup_pool, key, _target),
-                    igroup=_r.igroup, ilevel_id=_r.ilevel_id or 0)
+                    igroup=_r.igroup["name"], ilevel_id=_r.igroup.get("level") or 0)
             elif _r.refs:
                 if _is_preset_pool:
                     # Preset-backed: render as expandable folder

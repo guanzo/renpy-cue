@@ -1044,9 +1044,7 @@ class CueAutoSpeedChart(Displayable):
                 intensity_flags = _cue.intensity.flags_from_entry(entry)
                 intensity_variants = _cue.speed_resolver.banding_speeds(tag)
                 if intensity_variants:
-                    intensity_pools = [
-                        (p.get("igroup"), p.get("ilevel_id")) for p in _cue.markers._resolve_video_pools(entry)
-                    ]
+                    intensity_pools = [p.get("igroup") for p in _cue.markers._resolve_video_pools(entry)]
                     step_levels = []
                     for sp in speeds:
                         lvl = _cue.intensity.current_level(intensity_pools, sp, intensity_variants, intensity_flags)

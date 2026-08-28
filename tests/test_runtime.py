@@ -121,8 +121,7 @@ def test_full_reload_migrates_intensity_hooks(cue):
     cue.intensity = SimpleNamespace(_load=lambda: {"Light": {"levels": [{"id": 1, "files": ["intensity/light/"]}]}})
     _runtime._cue_full_reload()
     pool = cue.marker_store._data["v_scene.ogv"]["pools"][0]
-    assert pool["igroup"] == "Light"
-    assert pool["ilevel_id"] == 1
+    assert pool["igroup"] == {"name": "Light", "level": 1}
     assert pool["files"] == []
 
 
@@ -584,7 +583,7 @@ def test_play_pool_file_override_empty_pool(cue, sfx_mgr, monkeypatch):
         sfx_mgr, "play_sfx", lambda f, key, volume=1.0, **kwargs: played.append((f, key, volume)) or "cue_1"
     )
     cue.volume.get_effective = lambda entry, key, pool_index: 0.5
-    ch = sfx_mgr.play_pool(None, "l_scene", {"igroup": "G", "ilevel_id": 1, "files": []}, 0, file="hard/1.ogg")
+    ch = sfx_mgr.play_pool(None, "l_scene", {"igroup": {"name": "G", "level": 1}, "files": []}, 0, file="hard/1.ogg")
     assert ch == "cue_1"
     assert played == [("hard/1.ogg", "l_scene", 0.5)]
 

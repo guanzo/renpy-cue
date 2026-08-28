@@ -937,7 +937,7 @@ def test_export_replay_packs_intensity_group(cue_env):
             ("audio/hard/c.ogg", "c"),
             (
                 "data/markers/{}/r1.json".format(GAME_ID),
-                '{"replay": "Run 1", "pools": [{"igroup": "Impacts", "ilevel_id": 1}]}',
+                '{"replay": "Run 1", "pools": [{"igroup": {"name": "Impacts", "level": 1}}]}',
             ),
         ],
     )

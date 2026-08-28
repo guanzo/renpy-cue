@@ -50,7 +50,7 @@ def _cue_full_reload():
     the freshly loaded data."""
     _cue.markers.load_persistent()
     # One-time migration: rewrite any legacy folder-hooked pools the freshly
-    # loaded markers contain to explicit igroup/ilevel_id.  Idempotent --
+    # loaded markers contain to explicit igroup hooks.  Idempotent --
     # hooked pools have empty files after migration, so a re-run is a no-op.
     # Runs on every reload (boot, import activate/deactivate, post-restore)
     # so a mid-session reload can never persist the legacy form.

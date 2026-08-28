@@ -185,7 +185,7 @@ screen cue_video_sfx():
                 elif _active_pool.get("igroup"):
                     use cue_pool_files([], _active_eff,
                         detach_action=Function(_cue.markers._detach_igroup_pool, _vid_key, _vid_target),
-                        igroup=_active_pool["igroup"], ilevel_id=_active_pool.get("ilevel_id") or 0)
+                        igroup=_active_pool["igroup"]["name"], ilevel_id=_active_pool["igroup"].get("level") or 0)
                 else:
                     etext "SFX plays when this video reaches the marked time(s)."
                     etext "Click + in the SFX Library with Video targeted to add files to this pool."

@@ -23,6 +23,7 @@ MYPY = False
 if MYPY:
     from typing import Any, Callable, Dict, ItemsView, KeysView, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
     from cue_lib._types import (
+        IgroupDict,
         MarkerEntry,
         PoolDict,
         VideoPoolDict,
@@ -59,23 +60,11 @@ class ResolvedPool(object):
     when resolve_pool was called without expand.  ``intensity`` carries the
     folded intensity resolution when resolve_pool was given a runtime speed."""
 
-    def __init__(
-        self,
-        refs,
-        files,
-        volume,
-        frequency,
-        trigger_on_shake,
-        exclusive=None,
-        igroup=None,
-        ilevel_id=None,
-        intensity=None,
-    ):
-        # type: (List[str], Optional[List[str]], float, int, bool, Optional[Any], Optional[str], Optional[int], Optional[Any]) -> None
+    def __init__(self, refs, files, volume, frequency, trigger_on_shake, exclusive=None, igroup=None, intensity=None):
+        # type: (List[str], Optional[List[str]], float, int, bool, Optional[Any], Optional[Any], Optional[Any]) -> None
         self.refs = refs
         self.files = files
-        self.igroup = igroup
-        self.ilevel_id = ilevel_id
+        self.igroup = igroup  # IgroupHookDict or None
         self.volume = volume
         self.frequency = frequency
         self.trigger_on_shake = trigger_on_shake
@@ -101,7 +90,7 @@ class ResolvedPool(object):
         # type: () -> str
         return (
             "ResolvedPool(refs={!r}, files={!r}, volume={!r}, frequency={!r}, "
-            "trigger_on_shake={!r}, exclusive={!r}, igroup={!r}, ilevel_id={!r}, intensity={!r})"
+            "trigger_on_shake={!r}, exclusive={!r}, igroup={!r}, intensity={!r})"
         ).format(
             self.refs,
             self.files,
@@ -110,7 +99,6 @@ class ResolvedPool(object):
             self.trigger_on_shake,
             self.exclusive,
             self.igroup,
-            self.ilevel_id,
             self.intensity,
         )
 
@@ -282,8 +270,9 @@ class CueMarkerStore(object):
         frequency = pool.get("frequency", defaults.get("frequency", CueLoopFrequency.MEDIUM))
         trigger_on_shake = pool.get("trigger_on_shake", defaults.get("trigger_on_shake", False))
         exclusive = self._resolve_exclusive(pool, defaults)
-        igroup = pool.get("igroup", defaults.get("igroup"))
-        ilevel_id = pool.get("ilevel_id", defaults.get("ilevel_id"))
+        hook = pool.get("igroup", defaults.get("igroup"))
+        igroup = hook.get("name") if hook else None
+        ilevel_id = hook.get("level") if hook else None
         intensity = None
         if igroup is not None and speed is not None and self._intensity is not None:
             intensity = self._intensity.resolve_pool_intensity(igroup, ilevel_id, speed, variants, flags)
@@ -293,9 +282,7 @@ class CueMarkerStore(object):
                 files = intensity.files
             else:
                 files = _cue_resolve_files(list(refs))
-        return ResolvedPool(
-            list(refs), files, volume, frequency, trigger_on_shake, exclusive, igroup, ilevel_id, intensity
-        )
+        return ResolvedPool(list(refs), files, volume, frequency, trigger_on_shake, exclusive, hook, intensity)
 
     @staticmethod
     def _resolve_exclusive(pool, defaults):
@@ -448,7 +435,6 @@ class CueMarkerStore(object):
         pool = pools[pool_index]
         if "igroup" in pool:
             pool.pop("igroup")
-            pool.pop("ilevel_id", None)
             pool["files"] = []
             self._db_save_marker(marker_key)
             return True
@@ -847,13 +833,13 @@ class CueMarkerStore(object):
 
 
 def _cue_migrate_intensity_hooks(store, igroups):
-    # type: (CueMarkerStore, Dict[str, Any]) -> int
-    """One-time: convert legacy folder-hooked pools to igroup/ilevel_id.
+    # type: (CueMarkerStore, Dict[str, IgroupDict]) -> int
+    """One-time: convert legacy folder-hooked pools to nested igroup hooks.
 
     A legacy hooked pool holds a folder ref (trailing ``/``) in its
     ``files``; the old folder-scan machinery expanded it into the group's
-    level content.  The level IS now the pool: set ``igroup``/``ilevel_id``
-    and clear ``files``.  Returns the number of pools rewritten.  Idempotent
+    level content.  The level IS now the pool: set the nested ``igroup``
+    hook and clear ``files``.  Returns the number of pools rewritten.  Idempotent
     -- a rewritten pool has empty ``files``, so a re-run finds no folder-hooks
     and changes nothing."""
     folder_map = {}
@@ -871,8 +857,7 @@ def _cue_migrate_intensity_hooks(store, igroups):
             for f in files:
                 if f in folder_map:
                     group, ilevel_id = folder_map[f]
-                    pool["igroup"] = group
-                    pool["ilevel_id"] = ilevel_id
+                    pool["igroup"] = {"name": group, "level": ilevel_id}
                     pool["files"] = []
                     migrated += 1
                     break

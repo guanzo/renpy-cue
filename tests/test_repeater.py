@@ -269,11 +269,9 @@ def test_sync_not_visible_noop(env):
 
 def test_sync_carries_igroup_in_offset(env):
     pools = _open(env, [1.0, 2.0], selected=[0, 1])
-    pools[0]["igroup"] = "groove"
-    pools[0]["ilevel_id"] = 3
+    pools[0]["igroup"] = {"name": "groove", "level": 3}
     env.rep._sync_tracked()
-    assert env.rep.offsets[0]["igroup"] == "groove"
-    assert env.rep.offsets[0]["ilevel_id"] == 3
+    assert env.rep.offsets[0]["igroup"] == {"name": "groove", "level": 3}
     assert env.rep.offsets[0]["files"] == ["a.ogg"]
     assert env.rep.offsets[1]["igroup"] is None
 
@@ -361,19 +359,16 @@ def test_apply_persists_via_save_marker(env):
 
 def test_apply_carries_igroup_to_clones(env):
     pools = _open(env, [1.0, 2.0], selected=[0, 1])
-    pools[0]["igroup"] = "groove"
-    pools[0]["ilevel_id"] = 3
+    pools[0]["igroup"] = {"name": "groove", "level": 3}
     env.rep.interval_text = "2.00"
     env.rep.count_text = "2"
     env.rep.apply()
     assert pools[2]["time"] == 3.0
-    assert pools[2]["igroup"] == "groove"
-    assert pools[2]["ilevel_id"] == 3
+    assert pools[2]["igroup"] == {"name": "groove", "level": 3}
     assert pools[3]["time"] == 4.0
     assert "igroup" not in pools[3]
     assert pools[4]["time"] == 5.0
-    assert pools[4]["igroup"] == "groove"
-    assert pools[4]["ilevel_id"] == 3
+    assert pools[4]["igroup"] == {"name": "groove", "level": 3}
 
 
 def test_apply_omits_igroup_when_source_has_none(env):
@@ -450,14 +445,12 @@ def test_compute_preview_pools_shape(env):
 
 def test_compute_preview_pools_carries_igroup(env):
     pools = _open(env, [1.0, 2.0], selected=[0, 1])
-    pools[0]["igroup"] = "groove"
-    pools[0]["ilevel_id"] = 3
+    pools[0]["igroup"] = {"name": "groove", "level": 3}
     env.rep.interval_text = "2.00"
     env.rep.count_text = "1"
     result = env.rep.compute_preview_pools()
     assert result[0]["time"] == 3.0
-    assert result[0]["igroup"] == "groove"
-    assert result[0]["ilevel_id"] == 3
+    assert result[0]["igroup"] == {"name": "groove", "level": 3}
     assert result[1]["time"] == 4.0
     assert "igroup" not in result[1]
 

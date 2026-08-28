@@ -419,7 +419,7 @@ def test_replay_assets_includes_hooked_intensity_group(tmp_path):
         ("audio/hard/c.ogg", "c"),
         (
             "data/markers/{}/scene.json".format(GAME_ID),
-            _json.dumps({"replay": "Run 1", "pools": [{"igroup": "Impacts", "ilevel_id": 1}]}),
+            _json.dumps({"replay": "Run 1", "pools": [{"igroup": {"name": "Impacts", "level": 1}}]}),
         ),
     ]:
         _write(root, rel, content)
@@ -450,7 +450,7 @@ def test_replay_export_import_roundtrip_includes_intensity_group(tmp_path):
         ("audio/hard/c.ogg", "c"),
         (
             "data/markers/{}/scene.json".format(GAME_ID),
-            _json.dumps({"replay": "Run 1", "pools": [{"igroup": "Impacts", "ilevel_id": 1}]}),
+            _json.dumps({"replay": "Run 1", "pools": [{"igroup": {"name": "Impacts", "level": 1}}]}),
         ),
     ]:
         _write(root, rel, content)

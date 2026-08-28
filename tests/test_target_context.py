@@ -224,8 +224,7 @@ def test_send_level_to_video_sets_hook(mgr, monkeypatch):
     _markers = _hook_target(mgr, CueContextType.VIDEO, monkeypatch)
     _markers._cue_send_level_to_target("Impacts", 2)
     pool = mgr.video.get_active_pool()
-    assert pool["igroup"] == "Impacts"
-    assert pool["ilevel_id"] == 2
+    assert pool["igroup"] == {"name": "Impacts", "level": 2}
     assert pool["files"] == []
 
 
@@ -243,8 +242,7 @@ def test_send_level_to_loop_sets_hook(mgr, monkeypatch):
     _markers = _hook_target(mgr, CueContextType.LOOP, monkeypatch)
     _markers._cue_send_level_to_target("Impacts", 1)
     pool = mgr.loop.get_active_pool()
-    assert pool["igroup"] == "Impacts"
-    assert pool["ilevel_id"] == 1
+    assert pool["igroup"] == {"name": "Impacts", "level": 1}
 
 
 def test_send_level_noop_for_image_target(mgr, monkeypatch):
@@ -270,11 +268,9 @@ def test_send_level_to_video_multi_select_hooks_all_selected(mgr, monkeypatch):
     mgr.video.selected = {0, 1}
     _markers._cue_send_level_to_target("Impacts", 2)
     pools = mgr.video._entry_and_pools()[1]
-    assert pools[0]["igroup"] == "Impacts"
-    assert pools[0]["ilevel_id"] == 2
+    assert pools[0]["igroup"] == {"name": "Impacts", "level": 2}
     assert pools[0]["files"] == []
-    assert pools[1]["igroup"] == "Impacts"
-    assert pools[1]["ilevel_id"] == 2
+    assert pools[1]["igroup"] == {"name": "Impacts", "level": 2}
     assert pools[1]["files"] == []
     assert "igroup" not in pools[2]  # unselected pool untouched
 

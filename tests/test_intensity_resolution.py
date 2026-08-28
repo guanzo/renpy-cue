@@ -123,7 +123,7 @@ def test_resolve_pool_intensity_same_variants_consistent(cue_env):
 
 def test_resolve_video_intensity_first_hooked_pool_wins(cue_env):
     m = _two_level(cue_env)
-    hooks = [(None, None), ("Impacts", 1)]
+    hooks = [None, {"name": "Impacts", "level": 1}]
     r = m.resolve_video_intensity(hooks, 1.3, [0.7, 1.0, 1.3], resolve_files=_resolve)
     assert r is not None
     assert r.group == "Impacts"
@@ -131,7 +131,7 @@ def test_resolve_video_intensity_first_hooked_pool_wins(cue_env):
 
 def test_resolve_video_intensity_no_hooked_pool_is_none(cue_env):
     m = _two_level(cue_env)
-    assert m.resolve_video_intensity([(None, None)], 1.0, [1.0], resolve_files=_resolve) is None
+    assert m.resolve_video_intensity([None], 1.0, [1.0], resolve_files=_resolve) is None
     assert m.resolve_video_intensity([], 1.0, [1.0, 1.3], resolve_files=_resolve) is None
 
 
@@ -142,31 +142,31 @@ def test_resolve_video_intensity_no_hooked_pool_is_none(cue_env):
 
 def test_current_level_unhooked_is_none(cue_env):
     m = _two_level(cue_env)
-    assert m.current_level([(None, None)], 1.0, [0.7, 1.0, 1.3]) is None
+    assert m.current_level([None], 1.0, [0.7, 1.0, 1.3]) is None
 
 
 def test_current_level_no_variants_is_none(cue_env):
     m = _two_level(cue_env)
-    assert m.current_level([("Impacts", 1)], 1.0, []) is None
-    assert m.current_level([("Impacts", 1)], 1.0, None) is None
+    assert m.current_level([{"name": "Impacts", "level": 1}], 1.0, []) is None
+    assert m.current_level([{"name": "Impacts", "level": 1}], 1.0, None) is None
 
 
 def test_current_level_master_off_is_none(cue_env):
     m = _two_level(cue_env)
     flags = CueIntensityFlags(enabled=False)
-    assert m.current_level([("Impacts", 1)], 1.3, [0.7, 1.0, 1.3], flags) is None
+    assert m.current_level([{"name": "Impacts", "level": 1}], 1.3, [0.7, 1.0, 1.3], flags) is None
 
 
 def test_current_level_bands_speed_to_level(cue_env):
     m = _two_level(cue_env)
     # 2 levels over [0.7, 1.0, 1.3]: 0.7 -> L1 (soft), 1.0/1.3 -> L2 (hard).
-    assert m.current_level([("Impacts", 1)], 0.7, [0.7, 1.0, 1.3]) == (1, 2)
-    assert m.current_level([("Impacts", 1)], 1.3, [0.7, 1.0, 1.3]) == (2, 2)
+    assert m.current_level([{"name": "Impacts", "level": 1}], 0.7, [0.7, 1.0, 1.3]) == (1, 2)
+    assert m.current_level([{"name": "Impacts", "level": 1}], 1.3, [0.7, 1.0, 1.3]) == (2, 2)
 
 
 def test_current_level_first_hooked_pool_wins(cue_env):
     m = _two_level(cue_env)
-    hooks = [(None, None), ("Impacts", 1)]
+    hooks = [None, {"name": "Impacts", "level": 1}]
     assert m.current_level(hooks, 1.3, [0.7, 1.0, 1.3]) == (2, 2)
 
 
@@ -182,8 +182,8 @@ def test_current_level_empty_pools_is_none(cue_env):
 
 def test_video_hook_first_group(cue_env):
     m = _two_level(cue_env)
-    assert m.video_hook([(None, None), ("Impacts", 2)]) == "Impacts"
-    assert m.video_hook([(None, None)]) is None
+    assert m.video_hook([None, {"name": "Impacts", "level": 2}]) == "Impacts"
+    assert m.video_hook([None]) is None
     assert m.video_hook([]) is None
 
 

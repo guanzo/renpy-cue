@@ -1,7 +1,7 @@
 # Type stub for cue_lib.marker_store
 from typing import Any, Callable, Dict, ItemsView, KeysView, List, Optional, Set, Tuple
 
-from cue_lib._types import MarkerEntry, PoolDict, VideoPoolDict, VideoPreset
+from cue_lib._types import IgroupHookDict, MarkerEntry, PoolDict, VideoPoolDict, VideoPreset
 from cue_lib.db import CueDatabase
 from cue_lib.intensity import CueIntensityFlags, CueIntensityManager, CueIntensityResolution
 from cue_lib.paths import CuePaths
@@ -29,8 +29,7 @@ class ResolvedPool:
     frequency: int
     trigger_on_shake: bool
     exclusive: ResolvedExclusive
-    igroup: Optional[str]
-    ilevel_id: Optional[int]
+    igroup: Optional[IgroupHookDict]
     intensity: Optional[CueIntensityResolution]
     @property
     def volume_mult(self) -> Optional[float]: ...
@@ -46,8 +45,7 @@ class ResolvedPool:
         frequency: int,
         trigger_on_shake: bool,
         exclusive: Optional[ResolvedExclusive] = None,
-        igroup: Optional[str] = None,
-        ilevel_id: Optional[int] = None,
+        igroup: Optional[IgroupHookDict] = None,
         intensity: Optional[CueIntensityResolution] = None,
     ) -> None: ...
     def __repr__(self) -> str: ...
