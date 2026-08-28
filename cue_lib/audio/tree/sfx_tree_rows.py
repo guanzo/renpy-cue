@@ -45,6 +45,11 @@ from cue_lib.util import (
     _cue_resolve_files,
 )
 
+# Section-root label prepended to Pool Preset rows in the Recently-Used list
+# so those rows read as belonging to their section (like file refs show their
+# synthetic "SFX"/"ExtA" root).  Must match the "Pool Presets/" section header.
+CUE_SECTION_POOL_PRESETS = "Pool Presets/"
+
 MYPY = False
 if MYPY:
     from typing import Any, Dict, List
@@ -125,15 +130,17 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
     def _recent_rows(self, entries, target_ok, target_tt):
         # type: (List[Dict[str, str]], bool, str) -> List[TreeRowDict]
         """Recently-Used rows.  Each entry is {"type", "ref"} (file / folder /
-        preset).  File rows resolve a concrete _file_index so the [+] can send
-        an index; all [+]s send record=False so acting from this list does not
-        re-feed it.  Empty list yields the muted empty-state line."""
+        preset).  Labels carry the entry's root section (see _recent_label).
+        File rows resolve a concrete _file_index so the [+] can send an index;
+        all [+]s send record=False so acting from this list does not re-feed
+        it.  Empty list yields the muted empty-state line."""
         if not entries:
             return [_cue_help_row("recent:empty", "Files you add to pools show up here.")]
         rows = []  # type: List[TreeRowDict]
         for entry in entries:
             ref = entry["ref"]
             kind = entry["type"]
+            label = self._recent_label(entry)
             if kind == "file":
                 idx = self._tree._file_index.get(ref, -1)
                 buttons = [
@@ -173,8 +180,19 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                         "enabled": target_ok,
                     },
                 ]  # type: List[TreeButtonDict]
-            rows.append(_cue_file_row("recent:" + ref, ref, 1, buttons))
+            rows.append(_cue_file_row("recent:" + ref, label, 1, buttons))
         return rows
+
+    def _recent_label(self, entry):
+        # type: (Dict[str, str]) -> str
+        """Display label for a recent entry: its stored ref with the owning
+        root section prepended.  File/folder refs go through the tree's
+        display path, so built-in refs show under the synthetic "SFX/" root
+        and external refs under their source label; presets show under the
+        Pool Presets section root."""
+        if entry["type"] == "preset":
+            return CUE_SECTION_POOL_PRESETS + entry["ref"]
+        return self._tree.display_for_ref(entry["ref"])
 
     def _preset_rows(self, preset_names, search_query, target_ok, target_tt):
         # type: (List[str], str, bool, str) -> List[TreeRowDict]
@@ -553,7 +571,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         if recent is not None:
             entries = recent.entries()
             if searching:
-                entries = [e for e in entries if _cue_query_matches(e["ref"], search_query)]
+                entries = [e for e in entries if _cue_query_matches(self._recent_label(e), search_query)]
             recent_entries = entries
             if not searching or entries:
                 rows.extend(
@@ -573,7 +591,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         rows.extend(
             _cue_section_rows(
                 "presets",
-                "Pool Presets/",
+                CUE_SECTION_POOL_PRESETS,
                 Function(self._tree.toggle_presets_expand),
                 self._tree.presets_expanded,
                 searching,

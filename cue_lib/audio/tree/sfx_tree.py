@@ -171,6 +171,21 @@ class CueSfxLibraryTree(CueAudioTreeManager):
             return payload
         return display_path
 
+    def display_for_ref(self, ref):
+        # type: (str) -> str
+        """Stored ref to display path (inverts ref_from_display).
+
+        A built-in audio-relative ref wraps under the synthetic "SFX" root;
+        an external absolute ref renders under its source label.  The base
+        identity would drop the root from Recently-Used labels, so those rows
+        feed refs through this."""
+        if _cue_is_abs_path(ref):
+            for source in self.external_sources:
+                base = source["abs_root"].rstrip("/")
+                if ref == base or ref.startswith(base + "/"):
+                    return source["label"] + "/" + ref[len(base) + 1 :]
+        return CUE_SFX_FOLDER + ref
+
     def resolve_path(self, ref):
         # type: (str) -> str
         """Absolute filesystem path for a stored SFX ref.

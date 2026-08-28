@@ -632,6 +632,28 @@ def test_sfx_ref_round_trip(sfx, tmp_path):
     assert sfx.ref_from_display(sfx.display_for_ref(ext + "/x.ogg")) == ext + "/x.ogg"
 
 
+def test_sfx_display_for_ref_roots(sfx, tmp_path):
+    audio = str(tmp_path / "audio") + "/"
+    _write_tree(audio, ["g1/drip.ogg"])
+    ext = str(tmp_path / "ExtA")
+    _write_tree(ext, ["x.ogg", "sub/y.ogg"])
+    sfx.external_folders = [ext]
+    sfx.scan()
+    assert sfx.display_for_ref("g1/drip.ogg") == CUE_SFX_FOLDER + "g1/drip.ogg"
+    assert sfx.display_for_ref("g1/") == CUE_SFX_FOLDER + "g1/"
+    assert sfx.display_for_ref(ext + "/x.ogg") == "ExtA/x.ogg"
+    assert sfx.display_for_ref(ext + "/sub/y.ogg") == "ExtA/sub/y.ogg"
+    assert sfx.display_for_ref(ext + "/sub/") == "ExtA/sub/"
+
+
+def test_sfx_recent_rows_external_file(sfx, tmp_path):
+    ext = str(tmp_path / "ExtA")
+    sfx.external_sources = [{"label": "ExtA", "abs_root": ext, "tree": [], "files": [ext + "/x.ogg"], "scan_error": ""}]
+    sfx._file_index = {ext + "/x.ogg": 0}
+    row = _recent_rows(sfx, [{"type": "file", "ref": ext + "/x.ogg"}])[0]
+    assert row["label"] == "ExtA/x.ogg"
+
+
 def test_sfx_file_node_ref_index_enabled(sfx):
     sfx.external_sources = [{"label": "ExtA", "abs_root": "E:/SFX/A", "tree": [], "files": [], "scan_error": ""}]
     sfx._file_index = {"g1/drip.ogg": 2, "E:/SFX/A/x.ogg": 3}
@@ -1364,7 +1386,7 @@ def test_sfx_recent_rows_file(sfx):
     rows = _recent_rows(sfx, [{"type": "file", "ref": "a.wav"}])
     row = rows[0]
     assert row["type"] == "file"
-    assert row["label"] == "a.wav"
+    assert row["label"] == "SFX/a.wav"
     assert row["depth"] == 1
     assert row["gap"] == 1
     assert "size" not in row
@@ -1394,6 +1416,7 @@ def test_sfx_recent_rows_file_plus_disabled_without_target(sfx):
 
 def test_sfx_recent_rows_folder(sfx):
     row = _recent_rows(sfx, [{"type": "folder", "ref": "v2/"}])[0]
+    assert row["label"] == "SFX/v2/"
     assert row["buttons"][0]["tt"] == "Play random file from folder"
     assert row["buttons"][0]["action"]._args[0] == sfx._sfx.preview_folder
     plus = row["buttons"][1]
@@ -1405,6 +1428,7 @@ def test_sfx_recent_rows_folder(sfx):
 
 def test_sfx_recent_rows_preset(sfx):
     row = _recent_rows(sfx, [{"type": "preset", "ref": "p"}])[0]
+    assert row["label"] == "Pool Presets/p"
     assert row["buttons"][0]["tt"] == "Play random file from preset"
     assert row["buttons"][0]["action"]._args[0] == sfx._sfx.preview_preset
     assert row["buttons"][1]["action"]._args[1] == "preset"
@@ -1802,9 +1826,9 @@ def test_sfx_content_rows_recent_children_when_expanded(sfx):
     assert rows[0]["toggle"]._args[0] == sfx._recent.toggle
     file_row, folder_row = rows[1], rows[2]
     assert file_row["type"] == "file"
-    assert file_row["label"] == "a.wav"
+    assert file_row["label"] == "SFX/a.wav"
     assert file_row["depth"] == 1
-    assert folder_row["label"] == "v2/"
+    assert folder_row["label"] == "SFX/v2/"
     # plus buttons forward the resolved target tooltip
     assert file_row["buttons"][1]["tt"] == "Click: Add to Video active pool\nShift+Click: Create new Video pool and add"
 
