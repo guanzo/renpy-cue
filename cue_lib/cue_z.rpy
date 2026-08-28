@@ -100,6 +100,10 @@ init -999 python:
         _cue_sfx_channel_name,
     )
 
+    from cue_lib.audio.file_tree_rows import (
+        _cue_pool_files_rows,
+    )
+
     from cue_lib.runtime import (
         _cue_full_reload,
         _cue_refresh_context, _cue_log_context, _cue_get_top_layer,

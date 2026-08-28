@@ -407,9 +407,16 @@ class CueMarkerManager(object):
 
     def _detach_igroup_pool(self, marker_key, pool_index=0):
         # type: (str, int) -> None
-        """Button-action wrapper for the igroup xmark.  _clear_pool_files returns
+        """Button-action wrapper for the igroup xmark (pops the igroup/ilevel_id
+        hook, leaving a plain pool).  Returns None -- _clear_pool_files returns
         a bool, and a Function action returning non-None makes the button report
-        the click as unhandled -- it falls through the overlay to the scene."""
+        the click as unhandled, bleeding through the overlay to the scene.
+        During a video multi-select, detaches every selected pool."""
+        if self._video_multi_file_edit(marker_key):
+            for idx in sorted(self.video.get_selected()):
+                self._store._clear_pool_files(marker_key, idx)
+            self.save_marker(marker_key)
+            return
         self._store._clear_pool_files(marker_key, pool_index)
 
     # -- sanitize / migration passes (delegated to the store) --
@@ -750,20 +757,21 @@ def _cue_markers_send(kind, ref, record=True):
 def _cue_send_level_to_target(group, ilevel_id):
     # type: (str, int) -> None
     """Store bridge for the intensity-level [+] button: set igroup/ilevel_id
-    on the resolved target context's active pool, clearing its files (the pool
-    now fires from the active level).  Image/dialogue pools are one-shot and
-    can't hold an intensity hook -- a no-op there (the screen also disables
-    the button)."""
+    on the resolved target context's active pool (every selected video pool
+    during a multi-select), clearing its files -- the pool now fires from the
+    active level.  Image/dialogue pools are one-shot and can't hold an
+    intensity hook -- a no-op there (the screen also disables the button)."""
     ctx_id = _cue.markers.resolve_target_context()
     if ctx_id == CueContextType.IMAGE or ctx_id == CueContextType.DIALOGUE:
         return
     ctx = getattr(_cue.markers, ctx_id)
+    if ctx_id == CueContextType.VIDEO:
+        ctx.hook_level(group, ilevel_id)
+        return
     key = ctx._key()
     if not key:
         return
     pool = _cue.markers._ensure_pool(key, ctx.get_active_index())
-    if ctx_id == CueContextType.VIDEO and "time" not in pool:
-        pool["time"] = _cue.markers._vid_manager.get_elapsed()
     pool["igroup"] = group
     pool["ilevel_id"] = ilevel_id
     pool["files"] = []

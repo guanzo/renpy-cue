@@ -553,6 +553,8 @@ screen cue_tree_rows(rows):
                 if _row["type"] == "folder":
                     hbox:
                         spacing 0
+                        if _row.get("bar_color"):
+                            add Solid(_row["bar_color"]) xsize 2 ysize 14 yalign 0.5
                         use cue_txt_button(
                             _row["label"],
                             _row["toggle"],
@@ -619,95 +621,38 @@ screen cue_tree_rows(rows):
             if _row.get("v_gap"):
                 null height _row["v_gap"]
 
-screen _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
-                            marker_key, pool_index, folder_child_remove_fn,
-                            folder_label, folder_children):
+# Pool file area shared by every marker pool type: a pool's own refs
+# (regular / preset-backed pools, full CRUD) or an igroup-hooked pool's level
+# files (read-only preview + detach xmark).  Rows come from
+# _cue_pool_files_rows and draw via the shared cue_tree_rows renderer.
+# Scrolls in a viewport when content exceeds ~6 rows.
+screen cue_pool_files(files, preview_vol,
+                      detach_action=None,
+                      remove_fn=None, remove_args=(),
+                      child_remove_fn=None,
+                      marker_key=None, pool_index=None,
+                      folder_label=None, folder_children=None,
+                      igroup=None, ilevel_id=None):
     style_group "cue"
 
-    vbox:
-        spacing 2
-        if folder_label is not None:
-            # --- Virtual folder (e.g. preset-backed pool / video pool) ---
-            $ _is_expanded = _cue.sfx.library.expanded_file_refs.get(folder_label, False)
-            $ _count = len(folder_children) if folder_children else 0
-            hbox:
-                spacing row_spacing
-                use cue_icon_btn("xmark", Function(remove_fn, *remove_args), "Remove preset")
-                use cue_icon_btn(
-                    "play",
-                    Function(_cue.sfx.preview_sfx, _cue_pick_file(folder_children or [""], False), preview_vol),
-                    "Play random file from preset")
-                use cue_txt_button(
-                    folder_label,
-                    Function(_cue.sfx.library.toggle_file_ref_expand, folder_label))
-
-            if _is_expanded and folder_children:
-                for _child in folder_children:
-                    hbox:
-                        spacing row_spacing
-                        etext _cue_indent
-                        if folder_child_remove_fn is not None:
-                            use cue_icon_btn("xmark",
-                                Function(folder_child_remove_fn, marker_key, pool_index, 0, _child),
-                                "Remove file from pool")
-                        use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, _child, preview_vol))
-                        etext _child color _cue_color_text_accent size 11
-
-        for fi, f in enumerate(files):
-            if f.endswith("/"):
-                # --- Folder: expandable (matches SFX Library folder UI) ---
-                $ _is_expanded = _cue.sfx.library.expanded_file_refs.get(f, False)
-                $ _count = len(_cue_resolve_files([f]))
-                hbox:
-                    spacing row_spacing
-                    use cue_icon_btn("xmark", _cue_make_tab_action(remove_fn, remove_args, fi), "Remove folder")
-                    use cue_icon_btn(
-                        "play",
-                        Function(_cue.sfx.preview_folder, f, preview_vol),
-                        "Play random file from folder")
-                    use cue_txt_button(f, Function(_cue.sfx.library.toggle_file_ref_expand, f))
-
-                if _is_expanded:
-                    for _child in _cue_resolve_files([f]):
-                        hbox:
-                            spacing row_spacing
-                            etext _cue_indent  # indent
-                            if folder_child_remove_fn is not None:
-                                use cue_icon_btn("xmark",
-                                    Function(folder_child_remove_fn, marker_key, pool_index, fi, _child),
-                                    "Remove file from the folder")
-                            use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, _child, preview_vol))
-                            $ _display = _child[len(f):]  # strip folder prefix
-                            etext _display color _cue_color_text_accent size 11
-            else:
-                # --- Regular file ---
-                hbox:
-                    spacing row_spacing
-                    use cue_icon_btn("xmark", _cue_make_tab_action(remove_fn, remove_args, fi))
-                    use cue_icon_btn("play", Function(_cue.sfx.preview_sfx, f, preview_vol))
-                    etext f color _cue_color_text_accent size 11
-
-# Scrollable file list: only wraps in a viewport when content exceeds ~6 rows (120 px).
-screen cue_file_list(files, remove_fn, remove_args, preview_vol, row_spacing=2,
-                     marker_key=None, pool_index=None, folder_child_remove_fn=None,
-                     folder_label=None, folder_children=None):
-    style_group "cue"
-
-    $ _rows = _cue.sfx.library.count_file_list_rows(folder_label, folder_children, files)
-    if _rows > 6:
-        viewport:
-            xfill True
-            ymaximum 120
-            mousewheel True
-            scrollbars "vertical"
-            vscrollbar_unscrollable "hide"
-            use _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
-                                    marker_key, pool_index, folder_child_remove_fn,
-                                    folder_label, folder_children)
-    else:
-        use _cue_file_list_vbox(files, remove_fn, remove_args, preview_vol, row_spacing,
-                                marker_key, pool_index, folder_child_remove_fn,
-                                folder_label, folder_children)
+    $ _rows = _cue_pool_files_rows(files, preview_vol, detach_action,
+                                   remove_fn, remove_args, child_remove_fn,
+                                   marker_key, pool_index,
+                                   folder_label, folder_children,
+                                   igroup, ilevel_id)
+    if _rows:
+        if len(_rows) > 6:
+            viewport:
+                xfill True
+                ymaximum 120
+                mousewheel True
+                scrollbars "vertical"
+                vscrollbar_unscrollable "hide"
+                use cue_tree_rows(_rows)
+        else:
+            use cue_tree_rows(_rows)
+    elif igroup is not None:
+        etext "This level has no files yet."
 
 # Collapsible replay list for an import row / preview banner.  Mirrors the
 # file/folder UI: a toggle button labeled with the count, then per-replay
@@ -803,90 +748,6 @@ screen cue_section_frame(header_text, tt=None, icons=[]):
                         xfill True
                         transclude
 
-# Read-only file list for a pool hooked to an intensity level: resolves the
-# level's files/folders and shows them with a preview button only -- no
-# per-file remove (the files live in the level, not the pool).  The top-level
-# level folder row carries the detach xmark (drops the hook, leaving a plain
-# pool).  Level folders carry a hint bar + tooltip naming the hook.  Shared by
-# Loop SFX (cue_context_section) and Video SFX.
-screen cue_igroup_pool_files(igroup, ilevel_id, preview_vol, detach_action=None):
-    style_group "cue"
-
-    $ _ilevel_files = _cue.intensity.level_files_by_id(igroup, ilevel_id or 0) or []
-    if _ilevel_files:
-        $ _rows = _cue.sfx.library.count_file_list_rows(None, None, _ilevel_files)
-        if _rows > 6:
-            viewport:
-                xfill True
-                ymaximum 120
-                mousewheel True
-                scrollbars "vertical"
-                vscrollbar_unscrollable "hide"
-                use _cue_igroup_pool_files_vbox(_ilevel_files, preview_vol, igroup, ilevel_id, detach_action)
-        else:
-            use _cue_igroup_pool_files_vbox(_ilevel_files, preview_vol, igroup, ilevel_id, detach_action)
-    else:
-        etext "This level has no files yet."
-
-
-screen _cue_igroup_pool_files_vbox(_ilevel_files, preview_vol, igroup, ilevel_id, detach_action=None):
-    style_group "cue"
-
-    # The hint bar marks a folder as an intensity-hooked level folder. Show it
-    # only while intensity is on AND "Swap SFX by level" is on (the current
-    # video's toggles) -- otherwise the pool stays on its level folder and the
-    # hint is a lie.
-    $ _flags = _cue.intensity.flags_from_entry(
-        _cue.markers.get(_cue_create_vid_key(_cue.current_file) if _cue.current_file else "", {}))
-    # Tooltip names the hook; the note pairs with the orange hint bar, appended
-    # only when the bar is actually shown (matches the marker-timeline tip).
-    $ _hook_tt = "Attached to intensity group '{}'.".format(igroup)
-    if _flags.enabled and _flags.sfx_levels:
-        $ _hook_tt += "\n[" + CUE_INTENSITY_NOTE + "]"
-    vbox:
-        spacing 2
-        for _f in _ilevel_files:
-            if _f.endswith("/"):
-                $ _is_expanded = _cue.sfx.library.expanded_file_refs.get(_f, False)
-                $ _count = len(_cue_resolve_files([_f]))
-                hbox:
-                    spacing 2
-                    if detach_action is not None:
-                        use cue_icon_btn("xmark", detach_action, "Remove intensity level from pool")
-                    use cue_icon_btn(
-                        "play",
-                        Function(_cue.sfx.preview_folder, _f, preview_vol),
-                        "Play random file from folder")
-                    hbox:
-                        spacing 0
-                        # Intensity hint: a left bar marks this folder as a
-                        # level folder; the tooltip names the hook.
-                        if _flags.enabled and _flags.sfx_levels:
-                            add Solid(CUE_INTENSITY_HINT_COLOR) xsize 2 ysize 14 yalign 0.5
-                        use cue_txt_button(
-                            _f,
-                            Function(_cue.sfx.library.toggle_file_ref_expand, _f),
-                            tt=_hook_tt)
-                if _is_expanded:
-                    for _child in _cue_resolve_files([_f]):
-                        hbox:
-                            spacing 2
-                            etext _cue_indent  # indent
-                            use cue_icon_btn(
-                                "play",
-                                Function(_cue.sfx.preview_sfx, _child, preview_vol),
-                                "Preview audio")
-                            $ _display = _child[len(_f):]  # strip folder prefix
-                            etext _display color _cue_color_text_accent size 11
-            else:
-                hbox:
-                    spacing 2
-                    use cue_icon_btn(
-                        "play",
-                        Function(_cue.sfx.preview_sfx, _f, preview_vol),
-                        "Preview audio")
-                    etext _f color _cue_color_text_accent size 11
-
 # Generic context section: shared by dialogue, image, and loop SFX.
 # ctx: marker context with add_pool, remove_pool, clear, set_active_index,
 #      get_active_index, remove_file (e.g. _cue.markers.dialogue)
@@ -967,20 +828,23 @@ screen cue_context_section(section_title, ctx, key, subtitle, subject, btn_lette
 
             transclude
             if _r.igroup is not None:
-                use cue_igroup_pool_files(_r.igroup, _r.ilevel_id or 0, _active_eff,
-                    detach_action=Function(_cue.markers._detach_igroup_pool, key, _target))
+                use cue_pool_files([], _active_eff,
+                    detach_action=Function(_cue.markers._detach_igroup_pool, key, _target),
+                    igroup=_r.igroup, ilevel_id=_r.ilevel_id or 0)
             elif _r.refs:
                 if _is_preset_pool:
                     # Preset-backed: render as expandable folder
-                    use cue_file_list([], _cue.markers.detach_pool_at, (key, _target), _active_eff,
+                    use cue_pool_files([], _active_eff,
+                        detach_action=Function(_cue.markers.detach_pool_at, key, _target),
+                        child_remove_fn=_cue.markers._remove_file_from_preset_pool,
                         marker_key=key, pool_index=_target,
                         folder_label=_active_pool["preset"],
-                        folder_children=_cue_resolve_files(_r.refs),
-                        folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
+                        folder_children=_cue_resolve_files(_r.refs))
                 else:
-                    use cue_file_list(_r.refs, ctx.remove_file, (_target,), _active_eff,
-                        marker_key=key, pool_index=_target,
-                        folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
+                    use cue_pool_files(_r.refs, _active_eff,
+                        remove_fn=ctx.remove_file, remove_args=(_target,),
+                        child_remove_fn=_cue.markers._remove_file_from_folder_ref,
+                        marker_key=key, pool_index=_target)
             else:
                 if key and description is not None:
                     etext description

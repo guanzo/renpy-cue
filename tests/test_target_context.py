@@ -262,6 +262,23 @@ def test_send_level_noop_for_dialogue_target(mgr, monkeypatch):
     assert mgr.get(create_dlg_key(("video.mp4", "a line"))) is None
 
 
+def test_send_level_to_video_multi_select_hooks_all_selected(mgr, monkeypatch):
+    _set_video(mgr)
+    _markers = _hook_target(mgr, CueContextType.VIDEO, monkeypatch)
+    for _ in range(3):
+        mgr.video.add_pool()
+    mgr.video.selected = {0, 1}
+    _markers._cue_send_level_to_target("Impacts", 2)
+    pools = mgr.video._entry_and_pools()[1]
+    assert pools[0]["igroup"] == "Impacts"
+    assert pools[0]["ilevel_id"] == 2
+    assert pools[0]["files"] == []
+    assert pools[1]["igroup"] == "Impacts"
+    assert pools[1]["ilevel_id"] == 2
+    assert pools[1]["files"] == []
+    assert "igroup" not in pools[2]  # unselected pool untouched
+
+
 def test_send_level_noop_when_video_has_no_key(mgr, monkeypatch):
     # Video context with no current file -> empty _key() -> no-op, no entry.
     _set_menu(mgr)

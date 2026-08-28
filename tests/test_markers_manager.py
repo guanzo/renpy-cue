@@ -527,6 +527,27 @@ def test_detach_igroup_pool_returns_none_and_detaches(mgr):
     assert mgr._data["v_a"]["pools"][0]["files"] == []
 
 
+def test_detach_igroup_pool_multi_detaches_all_selected(mgr):
+    # The igroup xmark during a video multi-select pops the hook from every
+    # selected pool (matching detach_active_video_ts), not just the active one.
+    mgr._ctx.current_file = "scene.ogv"
+    mgr._data["v_scene.ogv"] = {
+        "pools": [
+            {"igroup": "lvl", "ilevel_id": 0, "files": [], "time": 1.0},
+            {"igroup": "lvl", "ilevel_id": 1, "files": [], "time": 2.0},
+            {"time": 3.0, "files": ["c.ogg"]},
+        ]
+    }
+    mgr.video.selected = {0, 1}
+    mgr.video.active_pool = 0
+    rv = mgr._detach_igroup_pool("v_scene.ogv", 0)
+    assert rv is None
+    pools = mgr._data["v_scene.ogv"]["pools"]
+    assert pools[0] == {"time": 1.0, "files": []}  # hook popped
+    assert pools[1] == {"time": 2.0, "files": []}  # hook popped
+    assert pools[2] == {"time": 3.0, "files": ["c.ogg"]}  # untouched (not selected)
+
+
 def test_remove_file_from_folder_ref_missing_entry_noop(mgr):
     mgr._remove_file_from_folder_ref("nope", 0, 0, "music/a.ogg")  # must not raise
 

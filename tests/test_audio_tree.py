@@ -28,6 +28,8 @@ from cue_lib.constants import (
     CUE_AUDIO_EXTS,
     CUE_GAME_MUSIC_FOLDER,
     CUE_HELP_SHIFT_SKIP_DELETE,
+    CUE_INTENSITY_HINT_COLOR,
+    CUE_INTENSITY_NOTE,
     CUE_MY_MUSIC_FOLDER,
     CUE_PERSIST_SIDEBAR_MODE,
     CUE_PERSIST_SFX_TREE_EXPANDED,
@@ -600,36 +602,128 @@ def test_sfx_toggle_file_ref_expand(sfx):
     assert sfx.expanded_file_refs["pool/"] is False
 
 
-def test_sfx_count_file_list_rows(sfx):
-    sfx.expanded_file_refs["dir/"] = True
-    n = sfx.count_file_list_rows("dir/", ["a.ogg", "b.ogg"], ["c.ogg"])
-    assert n == 4  # label + 2 children + direct file
-
-
-def test_sfx_count_file_list_rows_expands_folder_ref(sfx, monkeypatch):
-    fake = types.SimpleNamespace(
-        sfx=types.SimpleNamespace(library=types.SimpleNamespace(files=["pool/a.ogg"], disabled_files=set()))
-    )
-    monkeypatch.setattr(_util, "_cue", fake)
-    sfx.expanded_file_refs["pool/"] = True
-    n = sfx.count_file_list_rows(None, None, ["pool/"])
-    assert n == 2  # ref row + 1 expanded file
-
-
-def test_sfx_count_file_list_rows_collapsed_ref(sfx, monkeypatch):
-    fake = types.SimpleNamespace(
-        sfx=types.SimpleNamespace(library=types.SimpleNamespace(files=["pool/a.ogg"], disabled_files=set()))
-    )
-    monkeypatch.setattr(_util, "_cue", fake)
-    n = sfx.count_file_list_rows(None, None, ["pool/"])
-    assert n == 1  # collapsed: ref row only
-
-
 def test_sfx_toggle_presets_expand(sfx):
     sfx.toggle_presets_expand()
     assert sfx.presets_expanded is True
     sfx.toggle_presets_expand()
     assert sfx.presets_expanded is False
+
+
+def _remove_ref(key, pool_index, ref_index):
+    pass
+
+
+def _remove_child(key, pool_index, folder_index, child):
+    pass
+
+
+def _fake_cue_pool_rows(monkeypatch, library, intensity=None, current_file=None):
+    """Patch module-level _cue with the pieces the pool-files builder reads."""
+    cue = types.SimpleNamespace(
+        current_file=current_file,
+        markers=types.SimpleNamespace(get=lambda key, default: default),
+        sfx=types.SimpleNamespace(
+            library=library, preview_sfx=lambda *a, **k: None, preview_folder=lambda *a, **k: None
+        ),
+        intensity=intensity,
+    )
+    monkeypatch.setattr(_tree_rows, "_cue", cue)
+    # _cue_resolve_files (imported into _tree_rows) reads _util._cue.
+    monkeypatch.setattr(_util, "_cue", cue)
+    return cue
+
+
+def test_pool_files_rows_regular_files(monkeypatch):
+    library = types.SimpleNamespace(
+        files=["pool/a.ogg", "pool/b.ogg"],
+        disabled_files=set(),
+        expanded_file_refs={},
+        toggle_file_ref_expand=lambda *a, **k: None,
+    )
+    _fake_cue_pool_rows(monkeypatch, library)
+    rows = _tree_rows._cue_pool_files_rows(
+        ["hit.ogg", "pool/"], 0.5, None, _remove_ref, ("k", 0), _remove_child, "k", 0, None, None
+    )
+    # hit.ogg file row, pool/ folder row (collapsed, no children).
+    assert [r["type"] for r in rows] == ["file", "folder"]
+    assert rows[0]["label"] == "hit.ogg"
+    assert rows[1]["label"] == "pool/"
+    # File xmark wires remove_fn with the pool args + ref index.
+    assert rows[0]["buttons"][0]["action"]._args[1:] == ("k", 0, 0)
+    assert rows[1]["buttons"][0]["action"]._args[1:] == ("k", 0, 1)
+
+
+def test_pool_files_rows_expanded_folder_ref(monkeypatch):
+    library = types.SimpleNamespace(
+        files=["pool/a.ogg", "pool/b.ogg"],
+        disabled_files=set(),
+        expanded_file_refs={"pool/": True},
+        toggle_file_ref_expand=lambda *a, **k: None,
+    )
+    _fake_cue_pool_rows(monkeypatch, library)
+    rows = _tree_rows._cue_pool_files_rows(
+        ["pool/"], 0.5, None, _remove_ref, ("k", 0), _remove_child, "k", 0, None, None
+    )
+    # Folder row + 2 children; children strip the folder prefix, carry the
+    # child-remove xmark at depth 1.
+    assert [r["type"] for r in rows] == ["folder", "file", "file"]
+    assert [r["label"] for r in rows[1:]] == ["a.ogg", "b.ogg"]
+    assert [r["depth"] for r in rows[1:]] == [1, 1]
+    assert rows[1]["buttons"][0]["action"]._args[1:] == ("k", 0, 0, "pool/a.ogg")
+    assert rows[1]["size"] == 11
+
+
+def test_pool_files_rows_preset_virtual(monkeypatch):
+    library = types.SimpleNamespace(
+        files=[],
+        disabled_files=set(),
+        expanded_file_refs={"Preset/": True},
+        toggle_file_ref_expand=lambda *a, **k: None,
+    )
+    _fake_cue_pool_rows(monkeypatch, library)
+    rows = _tree_rows._cue_pool_files_rows([], 0.5, "DETACH", None, (), _remove_child, "k", 0, "Preset/", ["a.ogg"])
+    assert [r["type"] for r in rows] == ["folder", "file"]
+    assert rows[0]["label"] == "Preset/"
+    # Header xmark is the pre-built detach action (no ref index appended).
+    assert rows[0]["buttons"][0]["action"] == "DETACH"
+    assert rows[1]["label"] == "a.ogg"
+    assert rows[1]["buttons"][0]["action"]._args[1:] == ("k", 0, 0, "a.ogg")
+
+
+def test_pool_files_rows_igroup_readonly(monkeypatch):
+    library = types.SimpleNamespace(
+        files=["soft/a.ogg", "soft/b.ogg"],
+        disabled_files=set(),
+        expanded_file_refs={"soft/": True},
+        toggle_file_ref_expand=lambda *a, **k: None,
+    )
+    flags = types.SimpleNamespace(enabled=True, sfx_levels=True)
+    intensity = types.SimpleNamespace(
+        level_files_by_id=lambda group, lv: ["soft/", "hit.ogg"], flags_from_entry=lambda entry: flags
+    )
+    _fake_cue_pool_rows(monkeypatch, library, intensity=intensity)
+    rows = _tree_rows._cue_pool_files_rows(
+        [], 0.5, "DETACH", None, (), None, None, None, None, None, igroup="Impacts", ilevel_id=1
+    )
+    assert [r["type"] for r in rows] == ["folder", "file", "file", "file"]
+    # Folder row: detach xmark + hint bar; children are play-only.
+    assert rows[0]["buttons"][0]["action"] == "DETACH"
+    assert rows[0]["bar_color"] == CUE_INTENSITY_HINT_COLOR
+    assert CUE_INTENSITY_NOTE in rows[0]["tt"]
+    assert [b["icon"] for b in rows[1]["buttons"]] == ["play"]
+
+
+def test_pool_files_rows_igroup_no_files(monkeypatch):
+    library = types.SimpleNamespace(
+        files=[], disabled_files=set(), expanded_file_refs={}, toggle_file_ref_expand=lambda *a, **k: None
+    )
+    intensity = types.SimpleNamespace(
+        level_files_by_id=lambda group, lv: [],
+        flags_from_entry=lambda entry: types.SimpleNamespace(enabled=False, sfx_levels=False),
+    )
+    _fake_cue_pool_rows(monkeypatch, library, intensity=intensity)
+    rows = _tree_rows._cue_pool_files_rows([], 0.5, None, None, (), None, None, None, None, None, igroup="Impacts")
+    assert rows == []
 
 
 def test_sfx_toggle_preset_expand(sfx):

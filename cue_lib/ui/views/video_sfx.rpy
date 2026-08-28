@@ -172,18 +172,20 @@ screen cue_video_sfx():
                     use cue_vol_row(_vol_label, _vol_target, _vid_key, multi_setter=_vol_multi_setter)
                 
                 if _is_preset_ts:
-                    use cue_file_list([], _cue.markers.detach_active_video_ts, (), _active_eff,
-                        folder_label=_preset_name, folder_children=_active_files,
+                    use cue_pool_files([], _active_eff,
+                        detach_action=Function(_cue.markers.detach_active_video_ts),
+                        child_remove_fn=_cue.markers._remove_file_from_preset_pool,
                         marker_key=_vid_key, pool_index=_vid_target,
-                        folder_child_remove_fn=_cue.markers._remove_file_from_preset_pool)
+                        folder_label=_preset_name, folder_children=_active_files)
                 elif _raw_files:
-                    use cue_file_list(_raw_files, _cue.markers.video.remove_file, (_vid_target,), _active_eff,
-                        marker_key=_vid_key, pool_index=_vid_target,
-                        folder_child_remove_fn=_cue.markers._remove_file_from_folder_ref)
+                    use cue_pool_files(_raw_files, _active_eff,
+                        remove_fn=_cue.markers.video.remove_file, remove_args=(_vid_target,),
+                        child_remove_fn=_cue.markers._remove_file_from_folder_ref,
+                        marker_key=_vid_key, pool_index=_vid_target)
                 elif _active_pool.get("igroup"):
-                    use cue_igroup_pool_files(
-                        _active_pool["igroup"], _active_pool.get("ilevel_id") or 0, _active_eff,
-                        detach_action=Function(_cue.markers._detach_igroup_pool, _vid_key, _vid_target))
+                    use cue_pool_files([], _active_eff,
+                        detach_action=Function(_cue.markers._detach_igroup_pool, _vid_key, _vid_target),
+                        igroup=_active_pool["igroup"], ilevel_id=_active_pool.get("ilevel_id") or 0)
                 else:
                     etext "SFX plays when this video reaches the marked time(s)."
                     etext "Click + in the SFX Library with Video targeted to add files to this pool."

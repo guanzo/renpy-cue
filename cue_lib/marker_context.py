@@ -492,6 +492,37 @@ class CueVideoContext(CueMarkerContext):
         self.sync_text()
         self._mgr._db_save_marker(vid_key)
 
+    def hook_level(self, group, ilevel_id):
+        # type: (str, int) -> None
+        """Attach the active (or every selected) video pool to intensity level
+        *ilevel_id* of *group*, clearing each pool's own refs (the pool fires
+        from the active level).  One save for the whole fan-out."""
+        vid_key = self._key()
+        if not vid_key:
+            return
+        entry = self._mgr._get_or_create_entry(vid_key)
+        pools = entry["pools"]
+        if len(self.selected) > 1:
+            for idx in sorted(self.selected):
+                if 0 <= idx < len(pools):
+                    self._hook_level_on_pool(pools[idx], group, ilevel_id)
+        elif not pools or not (0 <= self.active_pool < len(pools)):
+            elapsed = self._mgr._vid_manager.get_elapsed()
+            self._append_pool(entry, pools, {"time": elapsed, "files": [], "igroup": group, "ilevel_id": ilevel_id})
+        else:
+            self._hook_level_on_pool(pools[self.active_pool], group, ilevel_id)
+        self._mgr._db_save_marker(vid_key)
+
+    def _hook_level_on_pool(self, pool, group, ilevel_id):
+        # type: (Dict[str, Any], str, int) -> None
+        """Stamp the intensity hook onto one pool: playhead time if absent,
+        then the group/level, dropping the pool's own refs."""
+        if "time" not in pool:
+            pool["time"] = self._mgr._vid_manager.get_elapsed()
+        pool["igroup"] = group
+        pool["ilevel_id"] = ilevel_id
+        pool["files"] = []
+
     def send_preset(self, preset_name, record=True):
         # type: (str, bool) -> None
         if _cue_shift_held():

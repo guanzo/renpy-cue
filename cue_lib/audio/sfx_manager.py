@@ -608,21 +608,6 @@ class CueSfxLibraryTree(CueAudioTreeManager):
             self.expanded_file_refs[folder_ref] = True
         self.save_ui_state()
 
-    def count_file_list_rows(self, folder_label, folder_children, files):
-        # type: (Optional[str], Optional[List[str]], List[str]) -> int
-        """Count rendered rows in a pool file list (for viewport sizing)."""
-        rows = 0
-        if folder_label is not None:
-            rows += 1
-            if self.expanded_file_refs.get(folder_label, False) and folder_children:
-                rows += len(folder_children)
-        for f in files:
-            rows += 1
-            if f.endswith("/"):
-                if self.expanded_file_refs.get(f, False):
-                    rows += len(_cue_resolve_files([f]))
-        return rows
-
     # ------------------------------------------------------------------
     # Toggle: Presets/ folder
     # ------------------------------------------------------------------
