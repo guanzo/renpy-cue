@@ -86,7 +86,7 @@ class CueIntensityManager(object):
     def __init__(self, db, presets=None):
         # type: (CueDatabase, Optional[CueIntensityPresets]) -> None
         self._presets = presets if presets is not None else CueIntensityPresets(db, set())
-        self._presets.load_from_db()
+        self._presets.load()
         self._band_cache = {}  # type: Dict[Any, Any]
 
     # ------------------------------------------------------------------

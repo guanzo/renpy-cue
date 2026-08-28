@@ -125,7 +125,7 @@ class CueMusicManager(object):
         # Load the default music trigger log + presets from disk (one-time
         # startup).
         self.load_triggers()
-        self._presets.music.load_from_db()
+        self._presets.music.load()
 
     def _playable_file(self, path):
         # type: (str) -> str

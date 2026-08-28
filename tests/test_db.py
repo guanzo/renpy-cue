@@ -162,7 +162,8 @@ def test_save_and_load_presets_round_trip(db):
     db.save_preset("audio", "My Preset", {"files": ["a.ogg", "b.ogg"]})
     db.save_preset("video", "Vid Preset", {"speed": 1.5})
 
-    audio, video = db.load_presets()
+    audio = db.load_presets("audio")
+    video = db.load_presets("video")
     assert "My Preset" in audio
     assert audio["My Preset"]["files"] == ["a.ogg", "b.ogg"]
     assert audio["My Preset"]["_key"] == "My Preset"
@@ -173,13 +174,13 @@ def test_save_and_load_presets_round_trip(db):
 def test_delete_preset_removes_file(db):
     db.save_preset("audio", "My Preset", {"files": []})
     db.delete_preset("audio", "My Preset")
-    audio, _video = db.load_presets()
+    audio = db.load_presets("audio")
     assert audio == {}
 
 
 def test_preset_name_with_path_separators_is_sanitized(db):
     db.save_preset("audio", "evil/name", {"files": []})
-    audio, _video = db.load_presets()
+    audio = db.load_presets("audio")
     # The stored _key still resolves the original name.
     assert "evil/name" in audio
     # But no subdirectory was created from the name.
@@ -379,7 +380,8 @@ def test_open_propagates_makedirs_error(tmp_path, monkeypatch):
 def test_load_presets_empty_when_dir_missing(tmp_path):
     # Never opened -- neither preset dir exists; load must not raise.
     database = _make_db(str(tmp_path))
-    assert database.load_presets() == ({}, {})
+    assert database.load_presets("audio") == {}
+    assert database.load_presets("video") == {}
 
 
 def test_load_presets_skips_non_json(tmp_path):
@@ -389,7 +391,7 @@ def test_load_presets_skips_non_json(tmp_path):
     with open(stray, "w") as f:
         f.write("x")
 
-    audio, video = database.load_presets()
+    audio = database.load_presets("audio")
     assert audio == {}
 
 
@@ -400,7 +402,7 @@ def test_load_presets_skips_corrupt_json(tmp_path):
     with open(bad, "w") as f:
         f.write("{not json")
 
-    audio, video = database.load_presets()
+    audio = database.load_presets("audio")
     assert audio == {}
 
 

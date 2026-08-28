@@ -191,23 +191,23 @@ def test_migrate_preset_exclusive(presets):
 # ---------------------------------------------------------------------------
 
 
-def test_save_all_and_load_from_db_round_trip(presets, cue_env):
+def test_save_all_and_load_round_trip(presets, cue_env):
     presets.audio._presets["G"] = {"files": ["a.ogg"]}
     presets.video._presets["VP"] = {"pools": [{"time": 1.0}]}
     presets.save_all()
 
     fresh = CuePresetStore(cue_env.db, lambda: None)
-    fresh.load_from_db()
+    fresh.load()
     assert fresh.audio._presets["G"]["files"] == ["a.ogg"]
     assert fresh.video._presets["VP"]["pools"] == [{"time": 1.0}]
 
 
-def test_load_from_db_runs_preset_migrations(presets, cue_env):
+def test_load_runs_preset_migrations(presets, cue_env):
     presets.video._presets["VP"] = {"timestamps": [{"time": 3.0}], "speed_mode": "sequence"}
     presets.save_all()
 
     fresh = CuePresetStore(cue_env.db, lambda: None)
-    fresh.load_from_db()
+    fresh.load()
     assert fresh.video._presets["VP"]["pools"] == [{"time": 3.0}]
     assert fresh.video._presets["VP"]["speed_mode"] == "multi"
 
@@ -234,7 +234,7 @@ def test_delete_removed_files_preset_only_when_session_created(presets, cue_env)
     presets.delete_removed_files(old_presets, {}, {("audio", "Sess")})
 
     fresh = CuePresetStore(cue_env.db, lambda: None)
-    fresh.load_from_db()
+    fresh.load()
     assert "Sess" not in fresh.audio._presets
     assert "Old" in fresh.audio._presets
 
@@ -258,7 +258,7 @@ def test_delete_removed_files_deletes_session_video_preset(presets, cue_env):
     presets.delete_removed_files({}, old_video_presets, {("video", "VP")})
 
     fresh = CuePresetStore(cue_env.db, lambda: None)
-    fresh.load_from_db()
+    fresh.load()
     assert "VP" not in fresh.video._presets
 
 
@@ -267,9 +267,9 @@ def test_delete_removed_files_no_db_returns(cue_env):
     s.delete_removed_files({}, {}, set())  # must not raise
 
 
-def test_load_from_db_no_db_resets(cue_env):
+def test_load_no_db_resets(cue_env):
     s = CuePresetStore(None)
-    s.load_from_db()
+    s.load()
     assert s.audio._presets == {}
     assert s.video._presets == {}
 

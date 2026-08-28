@@ -1052,7 +1052,7 @@ def test_create_preset_stores_and_persists(mgr):
     # entries carry the internal _key field (same as SFX presets).
     store = CueMarkerStore(mgr._db, mgr._paths, lambda: None)
     m2 = CueMusicManager(CueContext(), store, mgr._db, mgr._paths)
-    m2._presets.music.load_from_db()
+    m2._presets.music.load()
     assert m2._presets.music.get("Tense")["files"] == [CUE_MUSIC_USER_TAG + "a.ogg", CUE_MUSIC_GAME_TAG + "b.ogg"]
 
 

@@ -125,7 +125,7 @@ class CuePresets(object):
         if self._on_save is not None:
             self._on_save()
 
-    def load_from_db(self, data=None):
+    def load(self, data=None):
         # type: (Optional[Dict[str, Any]]) -> None
         """Replace with on-disk presets and run the kind's migration passes."""
         if data is None:
@@ -143,7 +143,10 @@ class CuePresets(object):
 
     def _disk(self):
         # type: () -> Dict[str, Any]
-        raise NotImplementedError
+        db = self._db
+        if db is None or not db.is_open():
+            return {}
+        return db.load_presets(self._kind)
 
     def _migrate(self):
         # type: () -> None
@@ -199,13 +202,6 @@ class CueAudioPresets(CuePresets):
         single home for folder-ref expansion).  A saved preset can be empty,
         so nothing is pruned."""
         self.view(name).remove_file(file_path)
-
-    def _disk(self):
-        # type: () -> Dict[str, Any]
-        db = self._db
-        if db is None or not db.is_open():
-            return {}
-        return db.load_presets()[0]
 
     def _migrate(self):
         # type: () -> None
@@ -291,13 +287,6 @@ class CueVideoPresets(CuePresets):
         view (the single home for folder-ref expansion)."""
         self.view(name, pool_index).remove_file(file_path)
 
-    def _disk(self):
-        # type: () -> Dict[str, Any]
-        db = self._db
-        if db is None or not db.is_open():
-            return {}
-        return db.load_presets()[1]
-
     def _migrate(self):
         # type: () -> None
         self._migrate_video_presets_to_pools()
@@ -354,13 +343,6 @@ class CueMusicPresets(CuePresets):
         self._do_create(name, {"files": list(songs)})
         _cue_log("CREATE-MUSIC-PRESET name={} files={}".format(name, len(songs)))
 
-    def _disk(self):
-        # type: () -> Dict[str, Any]
-        db = self._db
-        if db is None or not db.is_open():
-            return {}
-        return db.load_music_presets()
-
 
 class CueIntensityPresets(CuePresets):
     """Intensity group presets: a named, ordered level list per igroup.
@@ -385,13 +367,6 @@ class CueIntensityPresets(CuePresets):
             return "An intensity group named '{}' already exists.".format(name)
         CuePresets.create(self, name, {"levels": [], "next_ilevel_id": 1})
         return None
-
-    def _disk(self):
-        # type: () -> Dict[str, Any]
-        db = self._db
-        if db is None or not db.is_open():
-            return {}
-        return db.load_intensity_presets()
 
     def _migrate(self):
         # type: () -> None
@@ -438,9 +413,8 @@ class CuePresetStore(object):
         db = self._db
         if db is None or not db.is_open():
             return
-        audio, video = db.load_presets()
-        self.audio.reload(audio)
-        self.video.reload(video)
+        self.audio.reload()
+        self.video.reload()
         self.music.reload()
         self.intensity.reload()
 
@@ -469,7 +443,7 @@ class CuePresetStore(object):
 
     # -- load --
 
-    def load_from_db(self):
+    def load(self):
         # type: () -> None
         """Load presets from the data store.
 
@@ -482,8 +456,7 @@ class CuePresetStore(object):
             self.music._presets = {}
             self.intensity._presets = {}
             return
-        audio, video = db.load_presets()
-        self.audio.load_from_db(audio)
-        self.video.load_from_db(video)
-        self.music.load_from_db()
-        self.intensity.load_from_db()
+        self.audio.load()
+        self.video.load()
+        self.music.load()
+        self.intensity.load()

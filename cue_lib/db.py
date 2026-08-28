@@ -224,22 +224,11 @@ class CueDatabase(object):
     # Presets (game-agnostic -- shared across all games)
     # ------------------------------------------------------------------
 
-    def load_presets(self):
-        # type: () -> Tuple[Dict[str, Any], Dict[str, Any]]
-        """Return (audio_presets, video_presets)."""
-        audio = self._load_preset_dir("audio")
-        video = self._load_preset_dir("video")
-        return audio, video
-
-    def load_music_presets(self):
-        # type: () -> Dict[str, Any]
-        """Return {name: music preset data} for the music library."""
-        return self._load_preset_dir("music")
-
-    def load_intensity_presets(self):
-        # type: () -> Dict[str, Any]
-        """Return {name: intensity group data} for the group registry."""
-        return self._load_preset_dir("intensity")
+    def load_presets(self, preset_type):
+        # type: (str) -> Dict[str, Any]
+        """Return {name: preset data} for one preset kind (audio | video |
+        music | intensity)."""
+        return self._load_preset_dir(preset_type)
 
     def _load_preset_dir(self, preset_type):
         # type: (str) -> Dict[str, Any]

@@ -693,7 +693,7 @@ class CueMarkerStore(object):
         """Load markers + presets from the data store.
 
         Marker entries load here (with the entry-side migrations); the preset
-        load and its migrations run in CuePresetStore.load_from_db.  This is
+        load and its migrations run in CuePresetStore.load.  This is
         the disk side of CueMarkerManager.load_persistent; the persistent-
         scalar side (triggers_active, encode_mode, ...) stays on the
         coordinator because it fans out to other managers."""
@@ -708,7 +708,7 @@ class CueMarkerStore(object):
             self._migrate_speed_mode_rename()
             self._migrate_legacy_exclusive()
             self._migrate_marker_keys()
-        self._preset_store.load_from_db()
+        self._preset_store.load()
 
 
 def _cue_migrate_intensity_hooks(store, igroups):
