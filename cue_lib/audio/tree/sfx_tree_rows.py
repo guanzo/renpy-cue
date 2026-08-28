@@ -340,12 +340,11 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
             )
         ]  # type: List[TreeRowDict]
         if not igroup_names and not searching:
-            rows.append(_cue_help_row("intensity:empty", "No intensity groups yet.", depth=1))
+            rows.append(_cue_help_row("intensity:empty", "No intensity groups yet."))
             rows.append(
                 _cue_help_row(
                     "intensity:empty-hint",
                     "An intensity group is a soft-to-hard level list; each level is a pool of files.",
-                    depth=1,
                 )
             )
         for gname in igroup_names:
@@ -436,7 +435,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                         _cue_help_row(
                             "intensity:levelempty:" + gname + "/" + str(lv_id),
                             "Click the folder icon to add files",
-                            depth=3,
+                            depth=2,
                         )
                     )
                 for file_ref in lv_files:
@@ -724,9 +723,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         """Pool Presets children: the empty-state line, then the preset rows."""
         rows = []  # type: List[TreeRowDict]
         if not preset_names:
-            rows.append(
-                _cue_help_row("presets:empty", "No pool presets yet. Save a pool as a preset to fill this.")
-            )
+            rows.append(_cue_help_row("presets:empty", "No pool presets yet. Save a pool as a preset to fill this."))
         rows.extend(self._preset_rows(preset_names, search_query, target_ok, target_tt))
         return rows
 

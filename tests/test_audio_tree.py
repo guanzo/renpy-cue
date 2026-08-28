@@ -1563,9 +1563,33 @@ def test_sfx_intensity_rows_empty(sfx):
     assert plus_group["action"] is _sfx_rows._cue.dialogs.intensity.open
     assert plus_group["tt"] == "Create a new intensity group."
     assert rows[1]["type"] == "help"
-    assert rows[1]["depth"] == 1
+    assert rows[1]["depth"] == 0
     assert rows[1]["label"] == "No intensity groups yet."
     assert rows[2]["label"].startswith("An intensity group is a soft-to-hard")
+
+
+def test_sfx_intensity_rows_empty_state_matches_parent_indent(sfx):
+    # An empty state indents to its parent row: "No levels yet" under a group
+    # (depth 1), "Click the folder icon" under a level (depth 2).
+    import cue_lib.util as util_mod
+
+    util_mod._cue.presets = types.SimpleNamespace(
+        intensity=types.SimpleNamespace(
+            get=lambda n: {"levels": []} if n == "a" else {"levels": [{"id": 1, "files": []}]}
+        )
+    )
+    util_mod._cue.sfx = types.SimpleNamespace(library=types.SimpleNamespace(files=[], disabled_files=set()))
+    util_mod._cue.dialogs = types.SimpleNamespace(intensity=types.SimpleNamespace(open=lambda: None))
+    sfx._intensity = types.SimpleNamespace(
+        remove_level=lambda n, i: None, remove_level_file=lambda n, i, f: None, move_level=lambda n, i, d: None
+    )
+    sfx.expanded_igroups = {"a": True, "b": True}
+    sfx.expanded_ilevels = {"b": {1}}
+    rows = _sfx_rows.CueSfxTreeRows(sfx)._intensity_rows(["a", "b"], "", True, "Hook to pool")
+    nolevels = next(r for r in rows if r["label"] == "No levels yet. Click + Level to add one.")
+    levelempty = next(r for r in rows if r["label"] == "Click the folder icon to add files")
+    assert nolevels["depth"] == 1
+    assert levelempty["depth"] == 2
 
 
 def test_sfx_intensity_rows_group_and_level(sfx, monkeypatch):
