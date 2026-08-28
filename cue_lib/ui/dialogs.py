@@ -101,7 +101,7 @@ class CuePoolPresetDialog(CueDialogBase):
             if entry:
                 pools = entry.get("pools", [])
                 if self.pool_idx < len(pools):
-                    _cue.presets.create_preset(name, pools[self.pool_idx])
+                    _cue.presets.audio.create(name, pools[self.pool_idx])
         self._reset()
         self._hide()
 
@@ -356,14 +356,14 @@ class CueMergeDialog(CueDialogBase):
 def _cue_confirm_delete_preset(preset_name):
     # type: (str) -> None
     _cue.dialogs.confirm.show_or_run(
-        "Delete preset '{}'?".format(preset_name), Function(_cue.presets.delete_preset, preset_name)
+        "Delete preset '{}'?".format(preset_name), Function(_cue.presets.audio.delete, preset_name)
     )
 
 
 def _cue_confirm_delete_video_preset(preset_name):
     # type: (str) -> None
     _cue.dialogs.confirm.show_or_run(
-        "Delete video preset '{}'?".format(preset_name), Function(_cue.presets.delete_video_preset, preset_name)
+        "Delete video preset '{}'?".format(preset_name), Function(_cue.presets.video.delete, preset_name)
     )
 
 
@@ -371,7 +371,7 @@ def _cue_confirm_remove_video_preset_pool(preset_name, pool_index):
     # type: (str, int) -> None
     _cue.dialogs.confirm.show_or_run(
         "Remove this pool from video preset?\n\n{}".format(preset_name),
-        Function(_cue.presets.remove_video_preset_pool, preset_name, pool_index),
+        Function(_cue.presets.video.remove_video_preset_pool, preset_name, pool_index),
     )
 
 
@@ -393,7 +393,7 @@ def _cue_maybe_apply_video_preset(preset_name):
     # type: (str) -> None
     out_count = _cue.markers.video_preset_out_of_range(preset_name)
     if out_count > 0:
-        preset = _cue.presets.get_video_preset(preset_name)
+        preset = _cue.presets.video.get(preset_name)
         total = len(preset.get("pools", [])) if preset else 0
         dur = _cue.vid_manager.get_duration()
         msg = "{} of {} marker(s) won't fit (video is {:.1f}s). Apply anyway?".format(out_count, total, dur)

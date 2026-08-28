@@ -1113,32 +1113,36 @@ def test_matches_any_empty_items_is_false():
 
 
 def test_preset_search_matches_by_name(monkeypatch):
-    monkeypatch.setattr(_cue, "presets", SimpleNamespace(get_preset=lambda n: None))
+    monkeypatch.setattr(_cue, "presets", SimpleNamespace(audio=SimpleNamespace(get=lambda n: None)))
     assert _util._cue_preset_search_matches("Action Pack", "action")
 
 
 def test_preset_search_matches_by_file_content(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
     monkeypatch.setattr(
-        _cue, "presets", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
+        _cue,
+        "presets",
+        SimpleNamespace(audio=SimpleNamespace(get=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})),
     )
     assert _util._cue_preset_search_matches("Action Pack", "scream")
 
 
 def test_preset_search_matches_folder_ref_content(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
-    monkeypatch.setattr(_cue, "presets", SimpleNamespace(get_preset=lambda n: {"files": ["music/"]}))
+    monkeypatch.setattr(_cue, "presets", SimpleNamespace(audio=SimpleNamespace(get=lambda n: {"files": ["music/"]})))
     assert _util._cue_preset_search_matches("Ambient", "scream")
 
 
 def test_preset_search_matches_nothing(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav"])
-    monkeypatch.setattr(_cue, "presets", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav"]}))
+    monkeypatch.setattr(
+        _cue, "presets", SimpleNamespace(audio=SimpleNamespace(get=lambda n: {"files": ["music/scream.wav"]}))
+    )
     assert not _util._cue_preset_search_matches("Action Pack", "zzz")
 
 
 def test_preset_search_matches_missing_preset(monkeypatch):
-    monkeypatch.setattr(_cue, "presets", SimpleNamespace(get_preset=lambda n: None))
+    monkeypatch.setattr(_cue, "presets", SimpleNamespace(audio=SimpleNamespace(get=lambda n: None)))
     assert not _util._cue_preset_search_matches("Ghost", "scream")
 
 
@@ -1178,7 +1182,9 @@ def test_igroup_search_matches_missing_group(monkeypatch):
 def test_filter_preset_files_no_query_all_files(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
     monkeypatch.setattr(
-        _cue, "presets", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
+        _cue,
+        "presets",
+        SimpleNamespace(audio=SimpleNamespace(get=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})),
     )
     assert _util._cue_filter_preset_files("Action Pack", "") == ["music/scream.wav", "music/moan.wav"]
 
@@ -1186,7 +1192,9 @@ def test_filter_preset_files_no_query_all_files(monkeypatch):
 def test_filter_preset_files_name_match_keeps_all(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
     monkeypatch.setattr(
-        _cue, "presets", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
+        _cue,
+        "presets",
+        SimpleNamespace(audio=SimpleNamespace(get=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})),
     )
     assert _util._cue_filter_preset_files("Action Pack", "action") == ["music/scream.wav", "music/moan.wav"]
 
@@ -1194,14 +1202,16 @@ def test_filter_preset_files_name_match_keeps_all(monkeypatch):
 def test_filter_preset_files_content_match_keeps_matches(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
     monkeypatch.setattr(
-        _cue, "presets", SimpleNamespace(get_preset=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})
+        _cue,
+        "presets",
+        SimpleNamespace(audio=SimpleNamespace(get=lambda n: {"files": ["music/scream.wav", "music/moan.wav"]})),
     )
     assert _util._cue_filter_preset_files("Action Pack", "scream") == ["music/scream.wav"]
 
 
 def test_filter_preset_files_folder_ref_resolves_then_filters(monkeypatch):
     _stub_sfx_library(monkeypatch, ["music/scream.wav", "music/moan.wav"])
-    monkeypatch.setattr(_cue, "presets", SimpleNamespace(get_preset=lambda n: {"files": ["music/"]}))
+    monkeypatch.setattr(_cue, "presets", SimpleNamespace(audio=SimpleNamespace(get=lambda n: {"files": ["music/"]})))
     assert _util._cue_filter_preset_files("Ambient", "scream") == ["music/scream.wav"]
 
 

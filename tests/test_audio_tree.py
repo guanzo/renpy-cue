@@ -1336,7 +1336,7 @@ def _preset_rows(sfx, names, query="", target_ok=True, target_tt="Add to pool"):
     import cue_lib.util as util_mod
 
     util_mod._cue.presets = types.SimpleNamespace(
-        get_preset=lambda n: {"files": ["a.ogg", "b.ogg"]}, preset_remove_file=lambda n, f: None
+        audio=types.SimpleNamespace(get=lambda n: {"files": ["a.ogg", "b.ogg"]}, preset_remove_file=lambda n, f: None)
     )
     util_mod._cue.sfx = types.SimpleNamespace(library=None)
     return _sfx_rows.CueSfxTreeRows(sfx)._preset_rows(names, query, target_ok, target_tt)
@@ -1363,7 +1363,7 @@ def test_sfx_preset_rows_expanded(sfx):
     assert children[0]["size"] == 11
     assert children[0]["gap"] == 1
     assert [b["icon"] for b in children[0]["buttons"]] == ["xmark", "play"]
-    assert children[0]["buttons"][0]["action"]._args[0] == _sfx_rows._cue.presets.preset_remove_file
+    assert children[0]["buttons"][0]["action"]._args[0] == _sfx_rows._cue.presets.audio.preset_remove_file
     assert children[0]["buttons"][0]["action"]._args[1:3] == ("p", "a.ogg")
     assert children[0]["buttons"][1]["action"]._args[0] == sfx._sfx.preview_sfx
 
@@ -1390,8 +1390,10 @@ def _video_preset_rows(sfx, names, is_video=True):
     import cue_lib.util as util_mod
 
     util_mod._cue.presets = types.SimpleNamespace(
-        get_video_preset=lambda n: {"pools": [{"time": 1.5, "files": ["a.ogg", "b.ogg"]}]},
-        remove_video_preset_pool_file=lambda n, i, f: None,
+        video=types.SimpleNamespace(
+            get=lambda n: {"pools": [{"time": 1.5, "files": ["a.ogg", "b.ogg"]}]},
+            remove_video_preset_pool_file=lambda n, i, f: None,
+        )
     )
     util_mod._cue.sfx = types.SimpleNamespace(library=None)
     return _sfx_rows.CueSfxTreeRows(sfx)._video_preset_rows(names, is_video)
@@ -1428,7 +1430,7 @@ def test_sfx_video_preset_rows_expanded(sfx):
     assert file_rows[0]["size"] == 11
     assert file_rows[0]["gap"] == 1
     assert [b["icon"] for b in file_rows[0]["buttons"]] == ["xmark", "play"]
-    assert file_rows[0]["buttons"][0]["action"]._args[0] == _sfx_rows._cue.presets.remove_video_preset_pool_file
+    assert file_rows[0]["buttons"][0]["action"]._args[0] == _sfx_rows._cue.presets.video.remove_video_preset_pool_file
     assert file_rows[0]["buttons"][0]["action"]._args[1:4] == ("vp", 0, "a.ogg")
     assert file_rows[0]["buttons"][1]["action"]._args[0] == sfx._sfx.preview_sfx
 
@@ -1618,10 +1620,11 @@ def _content_rows(
             toggle=lambda: None,
         )
     util_mod._cue.presets = types.SimpleNamespace(
-        get_preset=lambda n: {"files": ["a.ogg", "b.ogg"]},
-        preset_remove_file=lambda n, f: None,
-        get_video_preset=lambda n: {"pools": [{"time": 1.5, "files": ["a.ogg", "b.ogg"]}]},
-        remove_video_preset_pool_file=lambda n, i, f: None,
+        audio=types.SimpleNamespace(get=lambda n: {"files": ["a.ogg", "b.ogg"]}, preset_remove_file=lambda n, f: None),
+        video=types.SimpleNamespace(
+            get=lambda n: {"pools": [{"time": 1.5, "files": ["a.ogg", "b.ogg"]}]},
+            remove_video_preset_pool_file=lambda n, i, f: None,
+        ),
     )
     sfx._intensity = types.SimpleNamespace(
         remove_level=lambda n, i: None, remove_level_file=lambda n, i, f: None, move_level=lambda n, i, d: None

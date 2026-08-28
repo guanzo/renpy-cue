@@ -227,11 +227,11 @@ class CueAudioPreset(_CueFileContainer):
 
     def _save(self):
         # type: () -> None
-        self._store._db_save_preset(self._name)
+        self._store._db_save(self._name)
 
 
 class CueVideoPresetPool(_CueFileContainer):
-    """Ephemeral view over _video_presets[name]["pools"][i].  Video preset
+    """Ephemeral view over _presets[name]["pools"][i].  Video preset
     pools keep their time slot, so remove empties the files list without
     pruning the row."""
 
@@ -243,7 +243,7 @@ class CueVideoPresetPool(_CueFileContainer):
 
     def _pool_dict(self):
         # type: () -> Optional[PoolDict]
-        preset = self._store._video_presets.get(self._name)
+        preset = self._store._presets.get(self._name)
         if preset is None:
             return None
         pools = preset.get("pools")
@@ -257,4 +257,4 @@ class CueVideoPresetPool(_CueFileContainer):
 
     def _save(self):
         # type: () -> None
-        self._store._db_save_video_preset(self._name)
+        self._store._db_save(self._name)

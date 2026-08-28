@@ -144,22 +144,22 @@ class CueMarkerStore(object):
     @property
     def _presets(self):
         # type: () -> Dict[str, PoolDict]
-        return self._preset_store._presets
+        return self._preset_store.audio._presets
 
     @_presets.setter
     def _presets(self, value):
         # type: (Dict[str, PoolDict]) -> None
-        self._preset_store._presets = value
+        self._preset_store.audio._presets = value
 
     @property
     def _video_presets(self):
         # type: () -> Dict[str, VideoPreset]
-        return self._preset_store._video_presets
+        return self._preset_store.video._presets
 
     @_video_presets.setter
     def _video_presets(self, value):
         # type: (Dict[str, VideoPreset]) -> None
-        self._preset_store._video_presets = value
+        self._preset_store.video._presets = value
 
     @property
     def _session_created(self):
@@ -218,35 +218,35 @@ class CueMarkerStore(object):
 
     def create_preset(self, name, pool_dict):
         # type: (str, PoolDict) -> None
-        self._preset_store.create_preset(name, pool_dict)
+        self._preset_store.audio.create(name, pool_dict)
 
     def delete_preset(self, name):
         # type: (str) -> None
-        self._preset_store.delete_preset(name)
+        self._preset_store.audio.delete(name)
 
     def get_preset(self, name):
         # type: (str) -> Optional[PoolDict]
-        return self._preset_store.get_preset(name)
+        return self._preset_store.audio.get(name)
 
     def list_presets(self):
         # type: () -> List[str]
-        return self._preset_store.list_presets()
+        return self._preset_store.audio.list()
 
     def create_video_preset(self, name, entry, source_dur=0.0):
         # type: (str, Any, float) -> None
-        self._preset_store.create_video_preset(name, entry, source_dur)
+        self._preset_store.video.create(name, entry, source_dur)
 
     def delete_video_preset(self, name):
         # type: (str) -> None
-        self._preset_store.delete_video_preset(name)
+        self._preset_store.video.delete(name)
 
     def get_video_preset(self, name):
         # type: (str) -> Optional[VideoPreset]
-        return self._preset_store.get_video_preset(name)
+        return self._preset_store.video.get(name)
 
     def list_video_presets(self):
         # type: () -> List[str]
-        return self._preset_store.list_video_presets()
+        return self._preset_store.video.list()
 
     # -- resolve (preset -> concrete pool) --
 
@@ -261,7 +261,7 @@ class CueMarkerStore(object):
         manager), otherwise the pool's refs with folder refs expanded.
         ``files`` is None when ``expand`` is False, so the default path never
         touches the SFX library."""
-        defaults = self._preset_store._presets.get(pool["preset"], {}) if "preset" in pool else {}
+        defaults = self._preset_store.audio._presets.get(pool["preset"], {}) if "preset" in pool else {}
         refs = pool.get("files", defaults.get("files", []))
         volume = pool.get("volume", defaults.get("volume", CUE_VOLUME_DEFAULT))
         frequency = pool.get("frequency", defaults.get("frequency", CueLoopFrequency.MEDIUM))
@@ -448,7 +448,7 @@ class CueMarkerStore(object):
         if "preset" not in pool:
             return False
         preset_name = pool["preset"]
-        preset = self._preset_store._presets.get(preset_name, {})
+        preset = self._preset_store.audio._presets.get(preset_name, {})
         r = self.resolve_pool(pool)
         del pool["preset"]
         pool["files"] = r.refs
@@ -496,7 +496,7 @@ class CueMarkerStore(object):
 
     def _sanitize_video_presets(self):
         # type: () -> int
-        return self._preset_store._sanitize_video_presets()
+        return self._preset_store.video._sanitize_video_presets()
 
     def _sanitize_video_pools(self):
         # type: () -> int

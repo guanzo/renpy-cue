@@ -66,11 +66,11 @@ class FakeManager(object):
 
     @property
     def _presets(self):
-        return self._store._preset_store._presets
+        return self._store._preset_store.audio._presets
 
     @_presets.setter
     def _presets(self, value):
-        self._store._preset_store._presets = value
+        self._store._preset_store.audio._presets = value
 
     def get(self, key, default=None):
         return self._store.get(key, default)
@@ -606,22 +606,14 @@ def make_runtime_cue(root="", audio_dir=""):
     # undo -- _cue_full_reload re-seeds the undo baseline on every reload
     cue.undo = types.SimpleNamespace(reset=_rec("undo", "reset"))
 
-    # presets -- CuePresetStore surface the drivers/rows read directly
-    cue.presets = _ns(
-        "presets",
-        [
-            "create_preset",
-            "delete_preset",
-            "delete_video_preset",
-            "get_preset",
-            "get_video_preset",
-            "list_presets",
-            "list_video_presets",
-            "preset_remove_file",
-            "reload_presets",
-            "remove_video_preset_pool",
-            "remove_video_preset_pool_file",
-        ],
+    # presets -- thin CuePresetStore surface the drivers/rows read directly
+    cue.presets = types.SimpleNamespace(
+        audio=_ns("presets.audio", ["create", "delete", "get", "list", "preset_remove_file", "save"]),
+        video=_ns(
+            "presets.video",
+            ["create", "delete", "get", "list", "remove_video_preset_pool", "remove_video_preset_pool_file", "save"],
+        ),
+        reload_presets=_rec("presets", "reload_presets"),
     )
 
     # marker_store/intensity -- _cue_full_reload runs the one-time folder-hook

@@ -36,10 +36,8 @@ def ui_cue(monkeypatch):
 
     marker_store = types.SimpleNamespace(_detach_pool=_rec("detach_pool"))
     presets = types.SimpleNamespace(
-        create_preset=_rec("create_preset"),
-        delete_preset=_rec("delete_preset"),
-        delete_video_preset=_rec("delete_video_preset"),
-        get_video_preset=_rec("get_video_preset"),
+        audio=types.SimpleNamespace(create=_rec("create_preset"), delete=_rec("delete_preset")),
+        video=types.SimpleNamespace(delete=_rec("delete_video_preset"), get=_rec("get_video_preset")),
     )
     markers = types.SimpleNamespace(
         get=lambda key: None,
@@ -349,7 +347,7 @@ def test_maybe_apply_video_preset_in_range(ui_cue):
 
 def test_maybe_apply_video_preset_out_of_range(ui_cue):
     ui_cue.markers.video_preset_out_of_range = lambda name: 3
-    ui_cue.presets.get_video_preset = lambda name: {"pools": [1, 2, 3, 4]}
+    ui_cue.presets.video.get = lambda name: {"pools": [1, 2, 3, 4]}
     _cue_maybe_apply_video_preset("Preset")
     # out of range -> confirm dialog, message shows counts + duration.
     assert "3 of 4 marker(s)" in ui_cue.dialogs.confirm.message
@@ -360,7 +358,7 @@ def test_maybe_apply_video_preset_out_of_range(ui_cue):
 
 def test_maybe_apply_video_preset_out_of_range_no_preset(ui_cue):
     ui_cue.markers.video_preset_out_of_range = lambda name: 2
-    ui_cue.presets.get_video_preset = lambda name: None
+    ui_cue.presets.video.get = lambda name: None
     _cue_maybe_apply_video_preset("Ghost")
     assert "2 of 0 marker(s)" in ui_cue.dialogs.confirm.message
     assert "apply_video_preset" not in ui_cue.calls

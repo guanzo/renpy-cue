@@ -11,6 +11,7 @@ from renpy.store import persistent
 from cue_lib.state import _cue
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.audio.tree.music_tree import CueMusicTree
+from cue_lib.preset_store import CuePresetStore
 from cue_lib.constants import (
     CUE_GAME_MUSIC_FOLDER,
     CUE_MUSIC_GAME_TAG,
@@ -61,12 +62,16 @@ class CueMusicManager(object):
     self.last_event and logs it (debug mode only); other channels are
     forwarded untouched."""
 
-    def __init__(self, ctx, store, db, paths):
-        # type: (CueContext, CueMarkerStore, CueDatabase, CuePaths) -> None
+    def __init__(self, ctx, store, db, paths, presets=None):
+        # type: (CueContext, CueMarkerStore, CueDatabase, CuePaths, Optional[CuePresetStore]) -> None
         self._store = store
         self._ctx = ctx
         self._db = db
         self._paths = paths
+        # Music preset data + CRUD lives in the shared CuePresetStore.music
+        # collection; the manager keeps library/trigger behaviors.  Built here
+        # when the store isn't injected (tests, standalone use).
+        self._presets = presets if presets is not None else CuePresetStore(self._db, None)
         self._wav_playable = CueWavPlayable()
         self._is_installed = False
         self.last_event = None  # type: Optional[Dict[str, Any]]
@@ -88,12 +93,21 @@ class CueMusicManager(object):
         # CueRecentManager, wired after construction (records add-to-trigger
         # attempts; None before wiring so add_* stays safe).
         self._recent = None
-        # Music presets: name -> {"files": [stored music refs, ...]}.  Stored
-        # refs keep the u:/g: source tags (same data model as trigger lists).
-        self._music_presets = {}  # type: Dict[str, Any]
-        # Music Presets/ toggle + per-preset expand state in the Music Library.
+        # Music presets live in self._presets.music; read-through below.
         self.presets_expanded = False
         self.expanded_presets = {}  # type: Dict[str, bool]
+
+    @property
+    def _music_presets(self):
+        # type: () -> Dict[str, Any]
+        """Read-through to the CueMusicPresets dict (kept for test/legacy
+        access; CRUD goes through the manager methods)."""
+        return self._presets.music._presets
+
+    @_music_presets.setter
+    def _music_presets(self, value):
+        # type: (Dict[str, Any]) -> None
+        self._presets.music._presets = value
 
     def install(self):
         # type: () -> None
@@ -879,7 +893,7 @@ class CueMusicManager(object):
     def load_presets(self):
         # type: () -> None
         """Load all music presets from disk, replacing the in-memory set."""
-        self._music_presets = self._db.load_music_presets()
+        self._presets.music.load_from_db()
 
     def reload_presets(self):
         # type: () -> None
@@ -887,39 +901,28 @@ class CueMusicManager(object):
 
         Mirrors marker_store.reload_presets: new/updated presets from disk
         land, nothing in memory is ever deleted."""
-        self._music_presets.update(self._db.load_music_presets())
+        self._presets.music.reload()
 
     @_cue_ui_refresh
     def create_preset(self, name, songs):
         # type: (str, List[str]) -> None
         """Save a trigger's song list as a preset.  `songs` are stored refs."""
-        self._music_presets[name] = {"files": list(songs)}
-        self._db_save_music_preset(name)
-        _cue_log("CREATE-MUSIC-PRESET name={} files={}".format(name, len(songs)))
+        self._presets.music.create(name, songs)
 
     def get_preset(self, name):
         # type: (str) -> Optional[Dict[str, Any]]
-        return self._music_presets.get(name)
+        return self._presets.music.get(name)
 
     def list_presets(self):
         # type: () -> List[str]
-        return sorted(self._music_presets.keys())
+        return self._presets.music.list()
 
     @_cue_ui_refresh
     def delete_preset(self, name):
         # type: (str) -> None
-        if name in self._music_presets:
-            del self._music_presets[name]
+        if self._presets.music.get(name) is not None:
+            self._presets.music.delete(name)
             self.expanded_presets.pop(name, None)
-            self._db_save_music_preset(name)
-            _cue_log("DELETE-MUSIC-PRESET name={}".format(name))
-
-    def _db_save_music_preset(self, name):
-        # type: (str) -> None
-        if name in self._music_presets:
-            self._db.save_preset("music", name, self._music_presets[name])
-        else:
-            self._db.delete_preset("music", name)
 
     def songs_for_trigger(self, key):
         # type: (str) -> List[str]
@@ -939,7 +942,7 @@ class CueMusicManager(object):
         Click replaces the selected trigger's song list.  Shift+Click applies
         to the scene on screen -- creating a custom trigger there first if the
         scene has none, else replacing that trigger (same as click)."""
-        preset = self._music_presets.get(name)
+        preset = self._presets.music.get(name)
         if preset is None:
             return
         files = preset.get("files", [])
@@ -975,7 +978,7 @@ class CueMusicManager(object):
         "Game Music/bgm/x.ogg").  A direct ref is dropped outright; a file
         inside a stored folder ref materializes the folder without it
         (mirrors remove_song_from_folder_ref)."""
-        preset = self._music_presets.get(name)
+        preset = self._presets.music.get(name)
         if preset is None:
             return
         files = preset.get("files", [])
@@ -984,7 +987,7 @@ class CueMusicManager(object):
         for ref in list(files):
             if not ref.endswith("/") and self.library.ref_display_path(ref) == display_path:
                 files.remove(ref)
-                self._db_save_music_preset(name)
+                self._presets.music.save(name)
                 return
         for i, ref in enumerate(files):
             if ref.endswith("/") and display_path in self._folder_display_children(ref):
@@ -994,7 +997,7 @@ class CueMusicManager(object):
                     r for r in self.resolve_music_files([ref]) if self.library.ref_display_path(r) != display_path
                 ]
                 files[i : i + 1] = resolved
-                self._db_save_music_preset(name)
+                self._presets.music.save(name)
                 return
 
     def preset_display_files(self, preset):

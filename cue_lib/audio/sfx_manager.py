@@ -285,7 +285,7 @@ class CueSfxManager(object):
 
     def preview_preset(self, preset_name):
         # type: (str) -> None
-        preset = self._presets.get_preset(preset_name)
+        preset = self._presets.audio.get(preset_name)
         if preset is None:
             return
         files = _cue_resolve_files(preset.get("files", []))
@@ -318,7 +318,7 @@ class CueSfxManager(object):
     def preview_video_pool(self, preset_name, pool_index):
         # type: (str, int) -> None
         """Preview a random file from one pool of a video preset."""
-        preset = self._presets.get_video_preset(preset_name)
+        preset = self._presets.video.get(preset_name)
         if preset is None:
             return
         pools = preset.get("pools", [])

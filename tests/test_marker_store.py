@@ -552,7 +552,7 @@ def test_post_save_skips_sanitize_on_preset_save(cue_env, monkeypatch):
     s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
     monkeypatch.setattr(s, "_sanitize_video_pools_tracked", _spy_sanitize(calls))
     s._presets["p1"] = {"files": ["a.ogg"], "volume": 0.5}
-    s._preset_store.save_preset("p1")
+    s._preset_store.audio.save("p1")
     assert calls == []
 
 
@@ -685,7 +685,7 @@ def test_migrate_legacy_exclusive_preset(store):
     # Preset exclusive migration lives in the preset store; the entry-side
     # pass on the marker store no longer counts presets.
     store._presets["P"] = {"exclusive": True}
-    assert store._preset_store._migrate_preset_exclusive() == 1
+    assert store._preset_store.audio._migrate_preset_exclusive() == 1
     assert store._presets["P"]["exclusive"]["group"] == 1
 
 
@@ -698,7 +698,7 @@ def test_migrate_video_timestamps_keeps_pools(store):
 
 def test_migrate_video_timestamps_preset_keeps_pools(store):
     store._video_presets["VP"] = {"pools": [{"time": 1.0}], "timestamps": [{"time": 9.0}]}
-    assert store._preset_store._migrate_video_presets_to_pools() == 1
+    assert store._preset_store.video._migrate_video_presets_to_pools() == 1
     assert "timestamps" not in store._video_presets["VP"]
 
 

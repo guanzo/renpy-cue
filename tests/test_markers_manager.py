@@ -83,7 +83,7 @@ def test_video_preset_crud(mgr):
 
 def test_remove_video_preset_pool_deletes_pool(mgr):
     mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg"]}, {"time": 2.0, "files": ["b.ogg"]}]})
-    mgr._store._preset_store.remove_video_preset_pool("vp", 0)
+    mgr._store._preset_store.video.remove_video_preset_pool("vp", 0)
     pools = mgr._store.get_video_preset("vp")["pools"]
     assert len(pools) == 1
     assert pools[0]["time"] == 2.0
@@ -91,53 +91,53 @@ def test_remove_video_preset_pool_deletes_pool(mgr):
 
 def test_remove_video_preset_pool_last_pool_deletes_preset(mgr):
     mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg"]}]})
-    mgr._store._preset_store.remove_video_preset_pool("vp", 0)
+    mgr._store._preset_store.video.remove_video_preset_pool("vp", 0)
     assert mgr._store.get_video_preset("vp") is None
     assert mgr._store.list_video_presets() == []
 
 
 def test_remove_video_preset_pool_missing_or_bad_index_noop(mgr):
-    mgr._store._preset_store.remove_video_preset_pool("missing", 0)
+    mgr._store._preset_store.video.remove_video_preset_pool("missing", 0)
     mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg"]}]})
-    mgr._store._preset_store.remove_video_preset_pool("vp", 5)
+    mgr._store._preset_store.video.remove_video_preset_pool("vp", 5)
     assert mgr._store.get_video_preset("vp")["pools"]
 
 
 def test_remove_video_preset_pool_file_direct(mgr):
     mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg", "b.ogg"]}]})
-    mgr._store._preset_store.remove_video_preset_pool_file("vp", 0, "a.ogg")
+    mgr._store._preset_store.video.remove_video_preset_pool_file("vp", 0, "a.ogg")
     assert mgr._store.get_video_preset("vp")["pools"][0]["files"] == ["b.ogg"]
 
 
 def test_remove_video_preset_pool_file_folder_ref(mgr):
     mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["sfx/"]}]})
     mgr._sfx_manager.library.files = ["sfx/a.ogg", "sfx/b.ogg", "other.ogg"]
-    mgr._store._preset_store.remove_video_preset_pool_file("vp", 0, "sfx/a.ogg")
+    mgr._store._preset_store.video.remove_video_preset_pool_file("vp", 0, "sfx/a.ogg")
     assert mgr._store.get_video_preset("vp")["pools"][0]["files"] == ["sfx/b.ogg"]
 
 
 def test_remove_video_preset_pool_file_missing_or_bad_index_noop(mgr):
-    mgr._store._preset_store.remove_video_preset_pool_file("missing", 0, "a.ogg")
+    mgr._store._preset_store.video.remove_video_preset_pool_file("missing", 0, "a.ogg")
     mgr.create_video_preset("vp", {"pools": [{"time": 0.0, "files": ["a.ogg"]}]})
-    mgr._store._preset_store.remove_video_preset_pool_file("vp", 5, "a.ogg")
-    mgr._store._preset_store.remove_video_preset_pool_file("vp", 0, "nope.ogg")
+    mgr._store._preset_store.video.remove_video_preset_pool_file("vp", 5, "a.ogg")
+    mgr._store._preset_store.video.remove_video_preset_pool_file("vp", 0, "nope.ogg")
     assert mgr._store.get_video_preset("vp")["pools"][0]["files"] == ["a.ogg"]
 
 
 def test_preset_remove_file_direct(mgr):
     mgr._store.create_preset("basic", {"files": ["a.ogg", "b.ogg"]})
-    mgr._store._preset_store.preset_remove_file("basic", "a.ogg")
+    mgr._store._preset_store.audio.preset_remove_file("basic", "a.ogg")
     assert mgr._store.get_preset("basic")["files"] == ["b.ogg"]
 
 
 def test_preset_remove_file_missing_preset_noop(mgr):
-    mgr._store._preset_store.preset_remove_file("nope", "a.ogg")  # must not raise
+    mgr._store._preset_store.audio.preset_remove_file("nope", "a.ogg")  # must not raise
 
 
 def test_preset_remove_file_folder_ref(mgr):
     mgr._sfx_manager.files = ["music/a.ogg", "music/b.ogg", "other.ogg"]
     mgr._store.create_preset("fold", {"files": ["music/"]})
-    mgr._store._preset_store.preset_remove_file("fold", "music/a.ogg")
+    mgr._store._preset_store.audio.preset_remove_file("fold", "music/a.ogg")
     assert mgr._store.get_preset("fold")["files"] == ["music/b.ogg"]
 
 
@@ -573,12 +573,12 @@ def test_remove_file_from_folder_ref_out_of_range_file_noop(mgr):
 
 def test_save_preset_passthrough(mgr):
     mgr._store.create_preset("basic", {"files": ["a.ogg"]})
-    mgr._store._preset_store.save_preset("basic")
+    mgr._store._preset_store.audio.save("basic")
 
 
 def test_save_video_preset_passthrough(mgr):
-    mgr._store._preset_store._video_presets["vp"] = {"pools": [{"time": 1.0, "files": []}], "volume": 1.0}
-    mgr._store._preset_store.save_video_preset("vp")
+    mgr._store._preset_store.video._presets["vp"] = {"pools": [{"time": 1.0, "files": []}], "volume": 1.0}
+    mgr._store._preset_store.video.save("vp")
 
 
 def test_save_all_passthrough(mgr):

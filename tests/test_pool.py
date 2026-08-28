@@ -111,8 +111,8 @@ def test_clear_files_empty_returns_false(store):
 
 @pytest.fixture
 def preset(store):
-    store._preset_store._presets["boom"] = {"files": ["p.ogg"], "volume": 0.5, "frequency": 3}
-    return store._preset_store._presets["boom"]
+    store._preset_store.audio._presets["boom"] = {"files": ["p.ogg"], "volume": 0.5, "frequency": 3}
+    return store._preset_store.audio._presets["boom"]
 
 
 def test_add_file_detaches_preset_then_appends(store, preset):
@@ -203,27 +203,27 @@ def test_fresh_view_after_prune_resolves_next_row(store):
 
 
 def test_audio_view_add_file(store):
-    store._preset_store.create_preset("boom", {"files": ["a.ogg"]})
-    view = store._preset_store.audio("boom")
+    store._preset_store.audio.create("boom", {"files": ["a.ogg"]})
+    view = store._preset_store.audio.view("boom")
     assert isinstance(view, CueAudioPreset)
     assert view.add_file("b.ogg") is True
-    assert store._preset_store._presets["boom"]["files"] == ["a.ogg", "b.ogg"]
+    assert store._preset_store.audio._presets["boom"]["files"] == ["a.ogg", "b.ogg"]
 
 
 def test_audio_view_remove_file_keeps_empty_preset(store):
-    store._preset_store.create_preset("boom", {"files": ["a.ogg"]})
-    assert store._preset_store.audio("boom").remove_file("a.ogg") is True
-    assert store._preset_store._presets["boom"]["files"] == []
+    store._preset_store.audio.create("boom", {"files": ["a.ogg"]})
+    assert store._preset_store.audio.view("boom").remove_file("a.ogg") is True
+    assert store._preset_store.audio._presets["boom"]["files"] == []
 
 
 def test_audio_view_clear_files(store):
-    store._preset_store.create_preset("boom", {"files": ["a.ogg"]})
-    assert store._preset_store.audio("boom").clear_files() is True
-    assert store._preset_store._presets["boom"]["files"] == []
+    store._preset_store.audio.create("boom", {"files": ["a.ogg"]})
+    assert store._preset_store.audio.view("boom").clear_files() is True
+    assert store._preset_store.audio._presets["boom"]["files"] == []
 
 
 def test_audio_view_add_missing_preset_returns_false(store):
-    assert store._preset_store.audio("nope").add_file("a.ogg") is False
+    assert store._preset_store.audio.view("nope").add_file("a.ogg") is False
 
 
 # ---------------------------------------------------------------------------
@@ -232,31 +232,31 @@ def test_audio_view_add_missing_preset_returns_false(store):
 
 
 def test_video_pool_view_add_file(store):
-    store._preset_store.create_video_preset("mv", {"pools": [{"time": 1.0, "files": ["a.mkv"]}]})
-    view = store._preset_store.video_pool("mv", 0)
+    store._preset_store.video.create("mv", {"pools": [{"time": 1.0, "files": ["a.mkv"]}]})
+    view = store._preset_store.video.view("mv", 0)
     assert isinstance(view, CueVideoPresetPool)
     assert view.add_file("b.mkv") is True
-    assert store._preset_store._video_presets["mv"]["pools"][0]["files"] == ["a.mkv", "b.mkv"]
+    assert store._preset_store.video._presets["mv"]["pools"][0]["files"] == ["a.mkv", "b.mkv"]
 
 
 def test_video_pool_view_remove_file_keeps_row(store):
-    store._preset_store.create_video_preset("mv", {"pools": [{"time": 1.0, "files": ["a.mkv"]}]})
-    assert store._preset_store.video_pool("mv", 0).remove_file("a.mkv") is True
-    pool = store._preset_store._video_presets["mv"]["pools"][0]
+    store._preset_store.video.create("mv", {"pools": [{"time": 1.0, "files": ["a.mkv"]}]})
+    assert store._preset_store.video.view("mv", 0).remove_file("a.mkv") is True
+    pool = store._preset_store.video._presets["mv"]["pools"][0]
     assert pool["time"] == 1.0
     assert pool["files"] == []
 
 
 def test_video_pool_view_clear_files(store):
-    store._preset_store.create_video_preset("mv", {"pools": [{"time": 1.0, "files": ["a.mkv"]}]})
-    assert store._preset_store.video_pool("mv", 0).clear_files() is True
-    assert store._preset_store._video_presets["mv"]["pools"][0]["files"] == []
+    store._preset_store.video.create("mv", {"pools": [{"time": 1.0, "files": ["a.mkv"]}]})
+    assert store._preset_store.video.view("mv", 0).clear_files() is True
+    assert store._preset_store.video._presets["mv"]["pools"][0]["files"] == []
 
 
 def test_video_pool_view_missing_row_returns_false(store):
-    store._preset_store.create_video_preset("mv", {"pools": [{"time": 1.0, "files": ["a.mkv"]}]})
-    assert store._preset_store.video_pool("mv", 3).remove_file("a.mkv") is False
+    store._preset_store.video.create("mv", {"pools": [{"time": 1.0, "files": ["a.mkv"]}]})
+    assert store._preset_store.video.view("mv", 3).remove_file("a.mkv") is False
 
 
 def test_video_pool_view_missing_preset_returns_false(store):
-    assert store._preset_store.video_pool("nope", 0).remove_file("a.mkv") is False
+    assert store._preset_store.video.view("nope", 0).remove_file("a.mkv") is False

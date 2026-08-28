@@ -38,13 +38,22 @@ class FakeMarkers(object):
         self.video = FakeVideoContext()
 
 
-class FakePresetStore(object):
-    """Preset-data stand-in: the preset dicts plus the persistence calls
-    _restore() makes.  Mirrors the real CuePresetStore surface undo uses."""
+class FakePresetCollection(object):
+    """Preset-collection stand-in: a _presets dict, as on CueAudioPresets /
+    CueVideoPresets."""
 
     def __init__(self):
         self._presets = {}
-        self._video_presets = {}
+
+
+class FakePresetStore(object):
+    """Preset-data stand-in: the preset collections plus the persistence
+    calls _restore() makes.  Mirrors the real thin CuePresetStore surface
+    undo uses."""
+
+    def __init__(self):
+        self.audio = FakePresetCollection()
+        self.video = FakePresetCollection()
         self._session_created = set()
         self.save_count = 0
         self.deleted = []

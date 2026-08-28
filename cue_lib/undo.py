@@ -55,8 +55,8 @@ class CueUndoManager(object):
         ps = m._preset_store
         return {
             "markers": _copy.deepcopy(m._data),
-            "presets": _copy.deepcopy(ps._presets),
-            "video_presets": _copy.deepcopy(ps._video_presets),
+            "presets": _copy.deepcopy(ps.audio._presets),
+            "video_presets": _copy.deepcopy(ps.video._presets),
             "session_created": set(ps._session_created),
         }
 
@@ -150,12 +150,12 @@ class CueUndoManager(object):
             store = self._store
             ps = store._preset_store
             old_marker_keys = set(store._data.keys())
-            old_presets = ps._presets
-            old_video_presets = ps._video_presets
+            old_presets = ps.audio._presets
+            old_video_presets = ps.video._presets
             old_session_created = set(ps._session_created)
             store._data = snap["markers"]
-            ps._presets = snap["presets"]
-            ps._video_presets = snap["video_presets"]
+            ps.audio._presets = snap["presets"]
+            ps.video._presets = snap["video_presets"]
             ps._session_created = set(snap["session_created"])
             store.save_all()
             ps.save_all()

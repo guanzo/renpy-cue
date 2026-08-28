@@ -210,7 +210,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                     [
                         {
                             "icon": "xmark",
-                            "action": Function(_cue.presets.preset_remove_file, pname, child),
+                            "action": Function(_cue.presets.audio.preset_remove_file, pname, child),
                             "tt": "Remove file from preset",
                         },
                         {"icon": "play", "action": Function(self._tree._sfx.preview_sfx, child), "tt": "Preview file"},
@@ -241,7 +241,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         button is gated on is_video."""
         rows = []
         for vpname in video_preset_names:
-            data = _cue.presets.get_video_preset(vpname)
+            data = _cue.presets.video.get(vpname)
             pools = data.get("pools", []) if data else []
             vp_expanded = self._tree.expanded_video_presets.get(vpname, False)
             buttons = [
@@ -272,7 +272,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                             {
                                 "icon": "xmark",
                                 "action": Function(
-                                    _cue.presets.remove_video_preset_pool_file, vpname, pool_index, child
+                                    _cue.presets.video.remove_video_preset_pool_file, vpname, pool_index, child
                                 ),
                                 "tt": "Remove file from pool",
                             },

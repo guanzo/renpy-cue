@@ -275,7 +275,7 @@ class CueMarkerManager(object):
 
     def _migrate_legacy_exclusive(self):
         # type: () -> int
-        return self._store._migrate_legacy_exclusive() + self._store._preset_store._migrate_preset_exclusive()
+        return self._store._migrate_legacy_exclusive() + self._store._preset_store.audio._migrate_preset_exclusive()
 
     @staticmethod
     def _migrate_exclusive_pool(pool):
@@ -285,7 +285,7 @@ class CueMarkerManager(object):
     def _migrate_speed_mode_rename(self):
         # type: () -> None
         self._store._migrate_speed_mode_rename()
-        self._store._preset_store._migrate_preset_speed_mode_rename()
+        self._store._preset_store.video._migrate_preset_speed_mode_rename()
 
     def _migrate_video_timestamps_to_pools(self):
         # type: () -> int

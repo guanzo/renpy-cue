@@ -444,7 +444,7 @@ def _cue_preset_search_matches(name, query):
     list renders them (folder refs expanded, disabled files skipped)."""
     if _cue_query_matches(name, query):
         return True
-    data = _cue.presets.get_preset(name)
+    data = _cue.presets.audio.get(name)
     if not data:
         return False
     return _cue_matches_any(query, _cue_resolve_files(data.get("files", [])))
@@ -473,7 +473,7 @@ def _cue_filter_preset_files(name, query):
     "matching folder keeps all descendants" rule.  A preset that matched only
     by its contents keeps just the matching files, so the search result shows
     why it surfaced."""
-    data = _cue.presets.get_preset(name)
+    data = _cue.presets.audio.get(name)
     files = _cue_resolve_files(data.get("files", [])) if data else []
     if not query.strip() or _cue_query_matches(name, query):
         return files
