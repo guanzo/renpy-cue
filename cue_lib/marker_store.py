@@ -24,6 +24,7 @@ from cue_lib.util import (
     _cue_clean_pool_list,
     _cue_log,
     _cue_migrate_exclusive_pool,
+    _cue_remove_ref,
     _cue_resolve_files,
     is_vid_key,
     is_loop_key,
@@ -376,22 +377,7 @@ class CueMarkerStore(object):
         if "igroup" in pool:
             return False
         files = pool.get("files", [])
-        removed = False
-        for i, item in enumerate(files):
-            if item.endswith("/") and path.startswith(item):
-                if path == item:
-                    files.pop(i)
-                else:
-                    expanded = _cue_resolve_files([item])
-                    if path in expanded:
-                        expanded.remove(path)
-                    files[i : i + 1] = expanded
-                removed = True
-                break
-        else:
-            if path in files:
-                files.remove(path)
-                removed = True
+        _, removed = _cue_remove_ref(files, path)
         if not removed:
             return False
         if prune and not files:

@@ -24,6 +24,7 @@ from cue_lib.util import (
     _cue_expand_folder_ref,
     _cue_is_abs_path,
     _cue_log,
+    _cue_remove_ref,
     _cue_shift_held,
     _cue_strip_key_prefix,
     _cue_ui_refresh,
@@ -736,8 +737,8 @@ class CueMusicManager(object):
         """Detach one file from an expanded folder ref in a trigger.
 
         The folder ref is materialized into an explicit list of its remaining
-        files (mirroring SFX _detach_folder_ref_in_files), so removing a child
-        converts the folder ref into concrete entries minus that child."""
+        files, so removing a child converts the folder ref into concrete
+        entries minus that child."""
         entry = self._store.get(key)
         if entry is None:
             return
@@ -747,13 +748,9 @@ class CueMusicManager(object):
         folder_ref = music[file_index]
         if not folder_ref.endswith("/"):
             return
-        # resolve_music_files returns stored-form children (u:/g: tagged,
-        # external bare absolute), ready to splice back in as-is.
-        resolved = self.resolve_music_files([folder_ref])
-        if child_file in resolved:
-            resolved.remove(child_file)
-        music[file_index : file_index + 1] = resolved
-        self._store.save_marker(key)
+        _, removed = _cue_remove_ref(music, child_file, expand_fn=self.resolve_music_files)
+        if removed:
+            self._store.save_marker(key)
 
     @_cue_ui_refresh
     def toggle_default(self, key):

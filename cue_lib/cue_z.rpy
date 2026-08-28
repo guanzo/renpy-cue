@@ -299,11 +299,11 @@ init -900 python:
         # The "Recently Used" list lives on the SFX library tree: it records
         # SFX send_* attempts (the marker contexts funnel through
         # sfx_manager.library._recent).  Its prune existence check reads both
-        # sfx_manager.library.files and markers.list_presets() at call time, so it is
+        # sfx_manager.library.files and _cue.presets.audio.list() at call time, so it is
         # built here where both are in scope.
         sfx_manager.library._recent = CueRecentManager(
             "recent_entries",
-            lambda kind, ref: _cue_keep_sfx(kind, ref, sfx_manager.library.files, markers.list_presets()))
+            lambda kind, ref: _cue_keep_sfx(kind, ref, sfx_manager.library.files, _cue.presets.audio.list()))
         # The SFX library tree's scoped click-and-drop commits through the
         # intensity manager; late-bound here (same pattern as _recent) so the
         # tree only needs its own constructors at build time.
