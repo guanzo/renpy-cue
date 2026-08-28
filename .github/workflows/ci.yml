@@ -60,8 +60,14 @@ jobs:
       # The video-variant testcases encode with real ffmpeg/ffprobe; the ubuntu
       # runner images don't ship them, so a job launch fails with OSError errno 2
       # (the "fix weird layout shift" era of CI failures). Install before run.
+      # setup-ffmpeg drops a prebuilt static binary and persists it in the runner
+      # tool cache, so this costs seconds instead of apt-get update's ~90s.
+      # Pinned to one version so both legs encode identically (apt previously
+      # gave 6.0 on 22.04 vs 6.1.1 on 24.04).
       - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        with:
+          ffmpeg-version: 6.1.1
 
       # The `test` command is uses_display=True and the 7.x leg forces
       # SDL_VIDEODRIVER=x11 -- both need a real X server. xvfb provides it.
