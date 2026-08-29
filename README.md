@@ -32,7 +32,7 @@ Customize the music that plays during replays with your own songs or music from 
 
 🎬 Video Speed Effects
 
-Create video speed variants and switch or sequence between speeds during playback. Requires [FFmpeg](https://www.ffmpeg.org/) v5+.
+Create video speed variants and switch or sequence between speeds during playback. 
 
 🎛️ Presets
 
@@ -109,13 +109,11 @@ When a marker's trigger occurs, Cue plays a SFX from its pools.
 
 Pools can overlap when they play. More than one sound can play at once, and each pool can be set to overlap freely, cross-fade, or wait for a quiet moment before playing. This is an advanced setting you can leave alone until you need it.
 
-Some games simulate video using sequences of images rather than actual video files. These sequences cannot currently be used as triggers, but support is planned for a future version.
-
 ### Video Speed & Effects
 
-**Requires ffmpeg.**
+Requires [FFmpeg](https://www.ffmpeg.org/) v5+.
 
-Cue can create slow-motion or fast-motion copies of any movie, then let you switch speeds while playing. You can also create multi-speed sequences and use procedural **auto-speed** rhythms such as `roller_coaster`, `build_up`, `edge`, and `tease` that vary each playthrough.
+Cue can create slower motion or faster motion copies of any movie, then let you switch speeds while playing. You can also create multi-speed sequences and use procedural **auto-speed** rhythms such as `roller_coaster`, `build_up`, `edge`, and `tease` that vary each playthrough.
 
 You only need to place Video SFX markers once, on the original video. When you switch to a speed variant, Cue automatically scales every marker's timestamp to match, so there's no need to re-time or re-place anything for each speed.
 
