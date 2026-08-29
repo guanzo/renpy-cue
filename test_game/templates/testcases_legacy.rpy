@@ -150,6 +150,9 @@ init 1000 python:
         # Tear down the music interception testcases: trigger-log mirror + DB
         # file, the seeded marker, the copied fixture, and detection state.
         import os as _os
+        # Stop the channel before deleting its file: 8.1.3 shutdown fadeout
+        # reloads the channel file and crashes if it is gone.
+        renpy.audio.music.stop()
         _cue.music._pending = None
         _cue.music.last_event = None
         renpy.store._in_replay = None
