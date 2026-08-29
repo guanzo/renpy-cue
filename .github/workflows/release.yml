@@ -70,7 +70,7 @@ jobs:
           fi
 
       - name: Build mod asset
-        run: python3 bin/build_release_asset.py --out "renpy_cue_${GITHUB_REF_NAME#v}.zip"
+        run: python3 bin/build_release_asset.py --out "Cue_${GITHUB_REF_NAME#v}.zip"
 
       - name: Create release
         env:

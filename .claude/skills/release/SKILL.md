@@ -10,7 +10,7 @@ of truth; never retype the number.
 
 Invoked as **`/release sfx`**, skip the full flow below and run the
 [SFX-only flow](#sfx-only-flow) instead: no version bump, no gates, no
-changelog, no mod asset, no new tag.
+release notes, no mod asset, no new tag.
 
 ## Before you start
 
@@ -39,17 +39,24 @@ changelog, no mod asset, no new tag.
    if the change is pure infra, `/lint` + `/test` may be enough, but bumping
    `CUE_VERSION` touches `cue_z.rpy` bridge code, so run the full gate.
 
-5. **Generate notes + changelog.**
+5. **Generate release notes.** GitHub release notes are the single source of
+   truth — there is no `CHANGELOG.md` in the repo.
    - **First release** (no prior `v*` tag): write a short hand-written note
-     (version, a README link, both assets) and seed a brief `CHANGELOG.md`.
+     (version, a README link, both assets).
    - **Later releases**: run `git-cliff -u` to draft the categorized notes for
-     the unreleased range; regenerate `CHANGELOG.md` with `git-cliff`. Save the
-     draft to a temp file for step 9.
+     the unreleased range, then **curate — don't dump.** git-cliff lists every
+     commit; the notes list only changes a user would notice and care about:
+     notable features, user-visible fixes, real perf wins, and a **Breaking**
+     callout near the top when a change affects existing users. Drop the
+     routine and internal regardless of category — refactors, chores, docs,
+     tests, CI, and one-off bug fixes that don't change how the mod behaves.
+     Two to five lines per category beats every commit. Save the curated draft
+     to a temp file for step 9.
 
 6. **Dry-run the mod asset** (verify contents, don't ship it):
 
    ```bash
-   python3 bin/build_release_asset.py --out "/tmp/renpy_cue_<ver>.zip"
+   python3 bin/build_release_asset.py --out "/tmp/Cue_<ver>.zip"
    ```
    Check the zip: no `.rpyc`/`.pyo`/`__pycache__`; has `cue_lib/__init__.py`;
    no tests/, bin/, tools/, docs/.
@@ -64,12 +71,13 @@ changelog, no mod asset, no new tag.
    Verify `test_bad` is not in the zip.
 
 8. **STOP — present the plan and wait.** Show the new version, the asset
-   filenames, and the `git log` of what will ship. Wait for explicit
-   confirmation (the user commits themselves; publishing is outward-facing).
+   filenames, the `git log` of what will ship, and the draft release notes.
+   Wait for explicit confirmation (the user commits themselves; publishing is
+   outward-facing).
 
 9. **Publish.** On confirm:
-   - Commit the version bump + changelog:
-     `git add cue_lib/constants.py cue_lib/constants.pyi CHANGELOG.md && git commit -m "chore(release): CUE_VERSION <ver>"`
+   - Commit the version bump:
+     `git add cue_lib/constants.py cue_lib/constants.pyi && git commit -m "chore(release): CUE_VERSION <ver>"`
    - Tag and push (triggers the `release` workflow):
      `git tag v<ver> && git push origin main --tags`
 
@@ -126,6 +134,11 @@ Standalone: never touches the full-release steps above.
 
 ## Notes
 
+- GitHub release notes are the single source of truth — there is no
+  `CHANGELOG.md`. Release notes are hand-curated: only changes a user would
+  notice and care about, drawn from Features / Bug Fixes / Performance plus a
+  Breaking callout. Refactors, chores, docs, tests, and CI never ship;
+  routine bug fixes don't either. A short list beats a complete one.
 - The SFX asset comes from the local machine (its source is not in git), so the
   skill uploads it after CI creates the release. The mod zip is CI-built.
 - First-release detection: `git tag --list 'v*'` is empty, or no prior release.

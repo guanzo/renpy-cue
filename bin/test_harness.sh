@@ -440,7 +440,9 @@ if [ "$_rc" -eq 124 ]; then
     exit 1
 fi
 
-if [ "$_rc" -eq 0 ] && grep -q "Status: PASSED" "$LOG"; then
+# rpytest colorizes the status line (Status: <esc[32m>PASSED), so match the
+# bare words rather than the contiguous literal. `.*` spans the escape codes.
+if [ "$_rc" -eq 0 ] && grep -qE "Status:.*PASSED" "$LOG"; then
     rm -f "$LOG"
     exit 0
 fi
