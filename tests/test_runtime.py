@@ -150,7 +150,7 @@ def test_full_reload_serves_markers_from_effective_root(cue, tmp_path):
     paths = CuePaths(root, game_id="test_game")
     db = CueDatabase(paths)
     db.open()
-    store = CueMarkerStore(db, paths, lambda: None)
+    store = CueMarkerStore(None, db, paths, lambda: None)
     cue.markers = CueMarkerManager(CueContext(), store, FakeVidManager(duration=10.0), FakeSfxManager(), None, None)
 
     # CueDatabase.open() created the live marker dir; write the live marker.

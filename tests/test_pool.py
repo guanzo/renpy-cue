@@ -25,7 +25,7 @@ KEY = "i_a"
 @pytest.fixture
 def store(cue_env):
     """A marker store on a fresh temp DB, with a no-op on_save."""
-    return CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    return CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
 
 
 @pytest.fixture

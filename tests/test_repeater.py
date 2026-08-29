@@ -44,7 +44,7 @@ def env(tmp_path, monkeypatch):
     paths = CuePaths(root, game_id="test_game")
     db = CueDatabase(paths)
     db.open()
-    store = CueMarkerStore(db, paths)
+    store = CueMarkerStore(None, db, paths)
     vid = CueVideoManager(ctx)
     coord = FakeMarkers()
     rep = CueMarkerRepeater(ctx, store, vid, markers=coord)

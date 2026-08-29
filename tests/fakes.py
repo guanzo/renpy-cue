@@ -42,7 +42,7 @@ class FakeManager(object):
         self._ctx = FakeCtx(current_file)
         self._sfx_manager = FakeSfxManager()  # property setter wires _cue.sfx
         self._vid_manager = FakeVidManager()
-        self._store = CueMarkerStore(None, None, None)
+        self._store = CueMarkerStore(None, None, None, None)
         self._store._data = data if data is not None else {}
         self._store._db_save_marker = self._record_save
 

@@ -235,7 +235,7 @@ init -900 python:
         presets = CuePresetStore(db, lambda: undo.capture())
         intensity = CueIntensityManager(db, presets.intensity)
         marker_store = CueMarkerStore(
-            db, paths, lambda: undo.capture(),
+            _cue.ctx, db, paths, lambda: undo.capture(),
             preset_store=presets, intensity=intensity)
 
         vid_manager = CueVideoManager(_cue.ctx)

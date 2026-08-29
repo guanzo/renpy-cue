@@ -22,10 +22,12 @@ from cue_lib.pool import CuePool
 from cue_lib.preset_store import CuePresetStore
 from cue_lib.util import (
     _cue_clean_pool_list,
+    _cue_get_movie_play,
     _cue_log,
     _cue_migrate_exclusive_pool,
     _cue_remove_ref,
     _cue_resolve_files,
+    get_key_file,
     is_vid_key,
     is_loop_key,
 )
@@ -43,6 +45,7 @@ if MYPY:
     from cue_lib.db import CueDatabase  # pyright: ignore[reportUnusedImport]
     from cue_lib.paths import CuePaths  # pyright: ignore[reportUnusedImport]
     from cue_lib.preset_store import CuePresetStore  # pyright: ignore[reportUnusedImport]
+    from cue_lib.state import CueContext  # pyright: ignore[reportUnusedImport]
 
 
 class ResolvedExclusive(object):
@@ -122,8 +125,9 @@ class CueMarkerStore(object):
     the coordinator uses it to capture an undo snapshot.  Preset data lives in
     ``self._preset_store`` (CuePresetStore)."""
 
-    def __init__(self, db, paths, on_save=None, preset_store=None, intensity=None):
-        # type: (CueDatabase, CuePaths, Optional[Callable[[], None]], Optional[CuePresetStore], Optional[Any]) -> None
+    def __init__(self, ctx, db, paths, on_save=None, preset_store=None, intensity=None):
+        # type: (Optional[CueContext], CueDatabase, CuePaths, Optional[Callable[[], None]], Optional[CuePresetStore], Optional[Any]) -> None
+        self._ctx = ctx
         self._db = db
         self._paths = paths
         self._on_save = on_save
@@ -196,7 +200,7 @@ class CueMarkerStore(object):
 
     def setdefault(self, key, default):
         # type: (str, MarkerEntry) -> MarkerEntry
-        return self._normalize_entry(self._data.setdefault(key, default))
+        return self._normalize_entry(self._data.setdefault(key, default), key)
 
     def pop(self, key, *args):
         # type: (str, *MarkerEntry) -> MarkerEntry
@@ -299,8 +303,8 @@ class CueMarkerStore(object):
 
     # -- entry / pool mutators --
 
-    def _normalize_entry(self, entry):
-        # type: (Any) -> MarkerEntry
+    def _normalize_entry(self, entry, marker_key=""):
+        # type: (Any, str) -> MarkerEntry
         if "pools" not in entry:
             entry["pools"] = [{"files": entry.pop("files", [])}]
         entry.pop('replay_id', None)
@@ -309,6 +313,8 @@ class CueMarkerStore(object):
         in_replay = renpy.store._in_replay
         if in_replay:
             entry["replay"] = in_replay
+        if marker_key:
+            self._capture_filepath(entry, marker_key)
         return entry
 
     def _get_or_create_entry(self, marker_key):
@@ -317,8 +323,28 @@ class CueMarkerStore(object):
         if entry is None:
             entry = {"pools": []}
             self._data[marker_key] = entry
-        entry = self._normalize_entry(entry)
+        entry = self._normalize_entry(entry, marker_key)
         return entry
+
+    def _capture_filepath(self, entry, marker_key):
+        # type: (Any, str) -> None
+        """Record the on-screen file's original path, backfilling markers that
+        lack one.  Reads the injected ctx, so the live-context guard only
+        matches when the key belongs to the shot actually on screen; first
+        write wins so re-scoped markers keep their original path."""
+        if entry.get("filepath"):
+            return
+        ctx = self._ctx
+        if ctx is None:
+            return
+        if get_key_file(marker_key) != ctx.current_file:
+            return
+        d = ctx.top_displayable
+        if d is None:
+            return
+        path = getattr(d, "filename", None) or _cue_get_movie_play(d)
+        if path:
+            entry["filepath"] = path
 
     def _ensure_pool(self, marker_key, pool_index):
         # type: (str, int) -> PoolDict
@@ -523,7 +549,7 @@ class CueMarkerStore(object):
         changed = False
         for key, entry in list(self._data.items()):
             if "pools" not in entry:
-                self._normalize_entry(entry)
+                self._normalize_entry(entry, key)
                 changed = True
             if is_loop_key(key) and "frequency" in entry:
                 freq = entry.pop("frequency")

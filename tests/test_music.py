@@ -88,7 +88,7 @@ def mgr(cue_env, monkeypatch):
     monkeypatch.setattr(_music_mod, "_ORIGINALS", None)
     monkeypatch.setattr(_renpy, "in_rollback", lambda: False)
     _store._in_replay = None
-    store = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    store = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     m = CueMusicManager(CueContext(), store, cue_env.db, cue_env.paths)
     return m
 
@@ -117,7 +117,7 @@ def test_install_second_call_no_double_wrap(mgr):
 
 def test_install_caches_originals_across_managers(mgr, cue_env):
     mgr.install()
-    store = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    store = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     m2 = CueMusicManager(CueContext(), store, cue_env.db, cue_env.paths)
     m2.install()
     assert m2._original_music_play is _MUSIC_PLAY_ORIG
@@ -1051,7 +1051,7 @@ def test_create_preset_stores_and_persists(mgr):
     assert mgr._presets.music.list() == ["Tense"]
     # On-disk round trip: a fresh manager reloads the preset.  Disk-loaded
     # entries carry the internal _key field (same as SFX presets).
-    store = CueMarkerStore(mgr._db, mgr._paths, lambda: None)
+    store = CueMarkerStore(None, mgr._db, mgr._paths, lambda: None)
     m2 = CueMusicManager(CueContext(), store, mgr._db, mgr._paths)
     m2._presets.music.load()
     assert m2._presets.music.get("Tense")["files"] == [CUE_MUSIC_USER_TAG + "a.ogg", CUE_MUSIC_GAME_TAG + "b.ogg"]

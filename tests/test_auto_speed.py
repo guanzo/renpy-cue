@@ -58,7 +58,7 @@ def env(tmp_path, monkeypatch):
     paths = CuePaths(str(tmp_path / "cue_root"), game_id="test_game")
     db = CueDatabase(paths)
     db.open()
-    store = CueMarkerStore(db, paths)
+    store = CueMarkerStore(None, db, paths)
     vid = CueVideoManager(ctx)
     seq = CueVidSpeedSequence(ctx, store, vid)
     toast = CueSpeedToast()

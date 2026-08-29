@@ -18,7 +18,7 @@ from tests.fakes import FakeSfxManager, FakeVidManager
 
 @pytest.fixture
 def mgr(cue_env):
-    store = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    store = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     ctx = CueContext()
     vid = FakeVidManager(duration=10.0)
     sfx = FakeSfxManager()

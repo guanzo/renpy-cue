@@ -114,6 +114,7 @@ class MarkerEntry(TypedDict, total=False):
     pools: List[PoolDict]
     volume: float  # entry-level master volume (default 1.0)
     video_file_muted: bool  # video audio track muted
+    filepath: str  # on-screen file's original path, captured at marker creation
     replay: str  # replay label
     single_speed_pref: float  # per-video single-mode speed preference
     multi_speed_sequence: List[float]  # per-video custom multi-mode sequence

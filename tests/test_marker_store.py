@@ -9,6 +9,7 @@
 # context sub-objects through FakeManager.
 
 import os
+import types
 
 import pytest
 import renpy.store as _store
@@ -21,7 +22,7 @@ from cue_lib.marker_store import CueMarkerStore, _cue_migrate_intensity_hooks
 @pytest.fixture
 def store(cue_env):
     """A store on a fresh temp DB, with a no-op on_save."""
-    return CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    return CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
 
 
 # ---------------------------------------------------------------------------
@@ -125,6 +126,56 @@ def test_get_or_create_entry_creates_and_reuses(store):
     # _normalize_entry leaves replay absent outside a replay.
     assert entry == {"pools": []}
     assert store._data["i_a"] is entry
+
+
+def _store_with_ctx(cue_env, ctx):
+    return CueMarkerStore(ctx, cue_env.db, cue_env.paths, lambda: None)
+
+
+def test_new_entry_for_live_image_captures_filepath(store, cue_env):
+    ctx = types.SimpleNamespace(current_file="beach.png", top_displayable=types.SimpleNamespace(filename="beach.png"))
+    s = _store_with_ctx(cue_env, ctx)
+    entry = s._get_or_create_entry("i_beach.png")
+    assert entry["filepath"] == "beach.png"
+
+
+def test_new_entry_for_live_video_captures_filepath(store, cue_env):
+    ctx = types.SimpleNamespace(
+        current_file="clips/clip.webm", top_displayable=types.SimpleNamespace(_original_play="clips/clip.webm")
+    )
+    s = _store_with_ctx(cue_env, ctx)
+    entry = s._get_or_create_entry("v_clips/clip.webm")
+    assert entry["filepath"] == "clips/clip.webm"
+
+
+def test_new_entry_for_other_file_skips_capture(store, cue_env):
+    ctx = types.SimpleNamespace(current_file="beach.png", top_displayable=types.SimpleNamespace(filename="beach.png"))
+    s = _store_with_ctx(cue_env, ctx)
+    entry = s._get_or_create_entry("i_other.png")
+    assert "filepath" not in entry
+
+
+def test_existing_entry_backfilled_on_normalize(store, cue_env):
+    ctx = types.SimpleNamespace(current_file="beach.png", top_displayable=types.SimpleNamespace(filename="beach.png"))
+    s = _store_with_ctx(cue_env, ctx)
+    s._data["i_beach.png"] = {"pools": []}
+    entry = s._get_or_create_entry("i_beach.png")
+    assert entry["filepath"] == "beach.png"
+
+
+def test_existing_filepath_preserved(store, cue_env):
+    ctx = types.SimpleNamespace(current_file="beach.png", top_displayable=types.SimpleNamespace(filename="new.png"))
+    s = _store_with_ctx(cue_env, ctx)
+    s._data["i_beach.png"] = {"pools": [], "filepath": "old.png"}
+    entry = s._get_or_create_entry("i_beach.png")
+    assert entry["filepath"] == "old.png"
+
+
+def test_setdefault_backfills_filepath(store, cue_env):
+    ctx = types.SimpleNamespace(current_file="beach.png", top_displayable=types.SimpleNamespace(filename="beach.png"))
+    s = _store_with_ctx(cue_env, ctx)
+    entry = s.setdefault("i_beach.png", {"pools": []})
+    assert entry["filepath"] == "beach.png"
 
 
 def test_ensure_pool_creates_pool_with_default_volume(store):
@@ -459,7 +510,7 @@ def test_save_all_and_load_from_db_round_trip(store, cue_env):
     store.save_all()
     store._preset_store.save_all()
 
-    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
     assert fresh._data["v_a"]["pools"] == [{"time": 1.0}]
     assert fresh._data["i_b"]["pools"] == [{"files": ["s.ogg"]}]
@@ -471,7 +522,7 @@ def test_load_from_db_runs_migrations(store, cue_env):
     store._data["v_a"] = {"timestamps": [{"time": 1.0}], "speed_mode": "sequence"}
     store.save_all()
 
-    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
     assert fresh._data["v_a"]["pools"] == [{"time": 1.0}]
     assert fresh._data["v_a"]["speed_mode"] == "multi"
@@ -481,13 +532,13 @@ def test_save_marker_single_key_round_trip(store, cue_env):
     store._data["v_a"] = {"pools": [{"time": 5.0}]}
     store.save_marker("v_a")
 
-    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
     assert fresh._data["v_a"]["pools"] == [{"time": 5.0}]
 
 
 def test_reload_presets_merges_disk(store, cue_env):
-    other = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    other = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     other.create_preset("Disk", {"files": ["d.ogg"]})
 
     store.reload_presets()
@@ -503,7 +554,7 @@ def test_delete_removed_files_deletes_dropped_marker(store, cue_env):
     del store._data["v_a"]
     store.delete_removed_files(old_keys)
 
-    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
     assert "v_a" not in fresh._data
     assert "v_b" in fresh._data
@@ -519,7 +570,7 @@ def test_delete_removed_files_preset_only_when_session_created(store, cue_env):
     store._presets = {}  # restore drops both
     store._preset_store.delete_removed_files(old_presets, {}, {("audio", "Sess")})
 
-    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
     assert "Sess" not in fresh._presets
     assert "Old" in fresh._presets
@@ -532,7 +583,7 @@ def test_delete_removed_files_preset_only_when_session_created(store, cue_env):
 
 def test_post_save_invokes_on_save_once_per_write(cue_env):
     calls = []
-    s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: calls.append(1))
+    s = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: calls.append(1))
     s._data["v_a"] = {"pools": [{"time": 1.0}]}
     s.save_marker("v_a")
     s._db_save_marker("v_a")
@@ -549,7 +600,7 @@ def _spy_sanitize(calls):
 
 def test_post_save_skips_sanitize_on_preset_save(cue_env, monkeypatch):
     calls = []
-    s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    s = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     monkeypatch.setattr(s, "_sanitize_video_pools_tracked", _spy_sanitize(calls))
     s._presets["p1"] = {"files": ["a.ogg"], "volume": 0.5}
     s._preset_store.audio.save("p1")
@@ -558,7 +609,7 @@ def test_post_save_skips_sanitize_on_preset_save(cue_env, monkeypatch):
 
 def test_post_save_skips_sanitize_on_audio_marker_save(cue_env, monkeypatch):
     calls = []
-    s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    s = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     monkeypatch.setattr(s, "_sanitize_video_pools_tracked", _spy_sanitize(calls))
     s._data["i_a"] = {"pools": []}
     s.save_marker("i_a")
@@ -567,7 +618,7 @@ def test_post_save_skips_sanitize_on_audio_marker_save(cue_env, monkeypatch):
 
 def test_post_save_runs_sanitize_on_video_marker_save(cue_env, monkeypatch):
     calls = []
-    s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    s = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     monkeypatch.setattr(s, "_sanitize_video_pools_tracked", _spy_sanitize(calls))
     s._data["v_a"] = {"pools": []}
     s.save_marker("v_a")
@@ -576,7 +627,7 @@ def test_post_save_runs_sanitize_on_video_marker_save(cue_env, monkeypatch):
 
 def test_post_save_runs_sanitize_when_batch_has_video(cue_env, monkeypatch):
     calls = []
-    s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    s = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     monkeypatch.setattr(s, "_sanitize_video_pools_tracked", _spy_sanitize(calls))
     s._data["i_a"] = {"pools": []}
     s._data["v_b"] = {"pools": []}
@@ -586,7 +637,7 @@ def test_post_save_runs_sanitize_when_batch_has_video(cue_env, monkeypatch):
 
 def test_save_all_invokes_on_save_once(cue_env):
     calls = []
-    s = CueMarkerStore(cue_env.db, cue_env.paths, lambda: calls.append(1))
+    s = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: calls.append(1))
     s._data["v_a"] = {"pools": []}
     s._data["i_b"] = {"pools": []}
     s.save_all()
@@ -703,14 +754,14 @@ def test_migrate_video_timestamps_preset_keeps_pools(store):
 
 
 def test_reload_presets_no_db_returns(cue_env):
-    s = CueMarkerStore(None, cue_env.paths)
+    s = CueMarkerStore(None, None, cue_env.paths)
     s.reload_presets()  # must not raise
 
 
 def test_save_markers_deletes_missing_key(store, cue_env):
     store.save_markers(["ghost"])  # not in _data -> delete path
 
-    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
     assert "ghost" not in fresh._data
 
@@ -719,14 +770,14 @@ def test_post_save_resaves_sanitized_video_pools(store, cue_env):
     store._data["v_dirty"] = {"pools": [{"files": ["a.ogg"]}]}
     store._db_save_marker("v_dirty")
 
-    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
     # The malformed pool was stripped on save and re-persisted.
     assert fresh._data["v_dirty"]["pools"] == []
 
 
 def test_delete_removed_files_no_db_returns(cue_env):
-    s = CueMarkerStore(None, cue_env.paths)
+    s = CueMarkerStore(None, None, cue_env.paths)
     s.delete_removed_files(set())  # must not raise
 
 
@@ -748,13 +799,13 @@ def test_delete_removed_files_deletes_session_video_preset(store, cue_env):
     store._video_presets = {}  # restore dropped it
     store._preset_store.delete_removed_files({}, old_video_presets, {("video", "VP")})
 
-    fresh = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    fresh = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
     assert "VP" not in fresh._video_presets
 
 
 def test_load_from_db_no_db_resets(cue_env):
-    s = CueMarkerStore(None, cue_env.paths)
+    s = CueMarkerStore(None, None, cue_env.paths)
     s.load_from_db()
     assert s._data == {}
     assert s._video_presets == {}

@@ -115,7 +115,7 @@ def _make_fake_cue():
 @pytest.fixture
 def mgr(cue_env, _fake_singletons):
     fake = _fake_singletons
-    store = CueMarkerStore(cue_env.db, cue_env.paths, lambda: None)
+    store = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     ctx = CueContext()
     vid = FakeVidManager(duration=10.0)
     # Full reload drives _cue.sfx/_cue.video_editor, so the manager

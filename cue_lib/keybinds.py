@@ -202,14 +202,14 @@ class CueKeybindsManager(object):
                 "label": "Target Loop",
                 "desc": "SFX Library + target: Loop SFX pool",
             },
-            {
-                "id": CUE_KEYMAP_PAGE_SFX,
-                "default": "alt_K_1",
-                "label": "Open Editor Page",
-                "desc": "Open Editor page",
-            },
+            {"id": CUE_KEYMAP_PAGE_SFX, "default": "alt_K_1", "label": "Open Editor Page", "desc": "Open Editor page"},
             {"id": CUE_KEYMAP_PAGE_MUSIC, "default": "alt_K_2", "label": "Open Music Page", "desc": "Open Music page"},
-            {"id": CUE_KEYMAP_PAGE_REPLAYS, "default": "alt_K_3", "label": "Open Scenes Page", "desc": "Open Scenes page"},
+            {
+                "id": CUE_KEYMAP_PAGE_REPLAYS,
+                "default": "alt_K_3",
+                "label": "Open Scenes Page",
+                "desc": "Open Scenes page",
+            },
             {
                 "id": CUE_KEYMAP_PAGE_IMPORT,
                 "default": "alt_K_4",
