@@ -16,7 +16,7 @@ import renpy.store as _store
 
 from cue_lib.constants import CUE_VOLUME_DEFAULT, CueLoopFrequency
 from cue_lib.intensity import CueIntensityResolution
-from cue_lib.marker_store import CueMarkerStore, _cue_migrate_intensity_hooks
+from cue_lib.marker_store import CueMarkerStore
 
 
 @pytest.fixture
@@ -395,108 +395,6 @@ def test_sanitize_video_presets_strips_time_less(store):
     assert store._video_presets["VP"]["pools"] == [{"time": 1.0}]
 
 
-def test_normalize_all_wraps_pool_less_entries(store):
-    store._data["i_a"] = {"files": ["s.ogg"]}
-    assert store._normalize_all() is True
-    assert store._data["i_a"]["pools"] == [{"files": ["s.ogg"]}]
-
-
-def test_normalize_all_fans_loop_frequency_into_pools(store):
-    store._data["l_a"] = {"pools": [{"files": []}, {"files": []}], "frequency": 2}
-    assert store._normalize_all() is True
-    for pool in store._data["l_a"]["pools"]:
-        assert pool["frequency"] == 2
-    assert "frequency" not in store._data["l_a"]
-
-
-def test_normalize_all_no_change(store):
-    store._data["i_a"] = {"pools": [{"files": ["s.ogg"]}]}
-    assert store._normalize_all() is False
-
-
-def test_migrate_legacy_exclusive_bool_true(store):
-    store._data["l_a"] = {"pools": [{"exclusive": True}]}
-    assert store._migrate_legacy_exclusive() == 1
-    assert store._data["l_a"]["pools"][0]["exclusive"] == {"group": 1, "start": 2, "hold": True}
-
-
-def test_migrate_legacy_exclusive_bool_false_removed(store):
-    store._data["l_a"] = {"pools": [{"exclusive": False}]}
-    assert store._migrate_legacy_exclusive() == 1
-    assert "exclusive" not in store._data["l_a"]["pools"][0]
-
-
-def test_migrate_legacy_exclusive_idempotent(store):
-    store._data["l_a"] = {"pools": [{"exclusive": {"group": 1}}]}
-    assert store._migrate_legacy_exclusive() == 0
-
-
-def test_migrate_speed_mode_rename_entries_only(store):
-    # Entry-side migration renames video speed_mode on the store; the preset
-    # half lives in CuePresetStore (covered in test_preset_store.py).
-    store._data["v_a"] = {"pools": [], "speed_mode": "sequence"}
-    store._data["i_b"] = {"pools": [], "speed_mode": "sequence"}  # non-vid untouched
-    store._migrate_speed_mode_rename()
-    assert store._data["v_a"]["speed_mode"] == "multi"
-    assert store._data["i_b"]["speed_mode"] == "sequence"
-
-
-def test_migrate_video_timestamps_to_pools_entries_only(store):
-    store._data["v_a"] = {"timestamps": [{"time": 1.0}]}
-    store._data["i_b"] = {"timestamps": [{"time": 2.0}]}  # non-vid untouched
-    assert store._migrate_video_timestamps_to_pools() == 1
-    assert store._data["v_a"]["pools"] == [{"time": 1.0}]
-    assert "timestamps" not in store._data["v_a"]
-    assert "timestamps" in store._data["i_b"]
-
-
-# ---------------------------------------------------------------------------
-# Intensity hook migration (legacy folder-hook -> igroup/ilevel_id)
-# ---------------------------------------------------------------------------
-
-
-def _impacts_igroups():
-    return {"Impacts": {"levels": [{"id": 1, "files": ["soft/"]}, {"id": 2, "files": ["hard/"]}], "next_ilevel_id": 3}}
-
-
-def test_migrate_intensity_hooks_rewrites_legacy_pool(store):
-    store._data["v_a"] = {"pools": [{"files": ["soft/"]}]}
-    count = _cue_migrate_intensity_hooks(store, _impacts_igroups())
-    assert count == 1
-    pool = store._data["v_a"]["pools"][0]
-    assert pool["igroup"] == {"name": "Impacts", "level": 1}
-    assert pool["files"] == []
-
-
-def test_migrate_intensity_hooks_first_matching_folder_wins(store):
-    # Mixed pool: the first folder ref present in an igroup wins; other
-    # content is dropped (the hooked pool's content is now the level).
-    store._data["v_a"] = {"pools": [{"files": ["a.ogg", "hard/", "soft/"]}]}
-    count = _cue_migrate_intensity_hooks(store, _impacts_igroups())
-    assert count == 1
-    pool = store._data["v_a"]["pools"][0]
-    assert pool["igroup"] == {"name": "Impacts", "level": 2}
-    assert pool["files"] == []
-
-
-def test_migrate_intensity_hooks_leaves_unhooked_pools_untouched(store):
-    store._data["v_a"] = {"pools": [{"files": ["plain.ogg"]}]}
-    store._data["l_b"] = {"pools": [{"files": []}]}
-    assert _cue_migrate_intensity_hooks(store, _impacts_igroups()) == 0
-    assert store._data["v_a"]["pools"][0]["files"] == ["plain.ogg"]
-    assert "igroup" not in store._data["v_a"]["pools"][0]
-
-
-def test_migrate_intensity_hooks_idempotent(store):
-    store._data["v_a"] = {"pools": [{"files": ["soft/"]}]}
-    _cue_migrate_intensity_hooks(store, _impacts_igroups())
-    # A re-run finds no folder-hooks (files are empty) and changes nothing.
-    assert _cue_migrate_intensity_hooks(store, _impacts_igroups()) == 0
-    pool = store._data["v_a"]["pools"][0]
-    assert pool["igroup"] == {"name": "Impacts", "level": 1}
-    assert pool["files"] == []
-
-
 # ---------------------------------------------------------------------------
 # Persistence round-trips (against a real CueDatabase)
 # ---------------------------------------------------------------------------
@@ -516,16 +414,6 @@ def test_save_all_and_load_from_db_round_trip(store, cue_env):
     assert fresh._data["i_b"]["pools"] == [{"files": ["s.ogg"]}]
     assert fresh._presets["G"]["files"] == ["a.ogg"]
     assert fresh._video_presets["VP"]["pools"] == [{"time": 1.0}]
-
-
-def test_load_from_db_runs_migrations(store, cue_env):
-    store._data["v_a"] = {"timestamps": [{"time": 1.0}], "speed_mode": "sequence"}
-    store.save_all()
-
-    fresh = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
-    fresh.load_from_db()
-    assert fresh._data["v_a"]["pools"] == [{"time": 1.0}]
-    assert fresh._data["v_a"]["speed_mode"] == "multi"
 
 
 def test_save_marker_single_key_round_trip(store, cue_env):
@@ -730,27 +618,6 @@ def test_sanitize_video_pools_tracked_strips_and_logs(store):
     modified = store._sanitize_video_pools_tracked()
     assert modified == {"v_bad"}
     assert store._data["v_bad"]["pools"] == [{"time": 2.0}]
-
-
-def test_migrate_legacy_exclusive_preset(store):
-    # Preset exclusive migration lives in the preset store; the entry-side
-    # pass on the marker store no longer counts presets.
-    store._presets["P"] = {"exclusive": True}
-    assert store._preset_store.audio._migrate_preset_exclusive() == 1
-    assert store._presets["P"]["exclusive"]["group"] == 1
-
-
-def test_migrate_video_timestamps_keeps_pools(store):
-    store._data["v_a"] = {"pools": [{"time": 1.0}], "timestamps": [{"time": 9.0}]}
-    assert store._migrate_video_timestamps_to_pools() == 1
-    assert store._data["v_a"]["pools"] == [{"time": 1.0}]
-    assert "timestamps" not in store._data["v_a"]
-
-
-def test_migrate_video_timestamps_preset_keeps_pools(store):
-    store._video_presets["VP"] = {"pools": [{"time": 1.0}], "timestamps": [{"time": 9.0}]}
-    assert store._preset_store.video._migrate_video_presets_to_pools() == 1
-    assert "timestamps" not in store._video_presets["VP"]
 
 
 def test_reload_presets_no_db_returns(cue_env):

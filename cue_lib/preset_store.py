@@ -5,7 +5,7 @@
 # CuePresets is the base preset collection: one kind's name->entry dict, the
 # session-created set, and unified CRUD + persistence.  CueAudioPresets /
 # CueVideoPresets / CueMusicPresets / CueIntensityPresets specialize the kind
-# (load source, migration passes, kind-specific views and create transforms).
+# (load source, sanitize passes, kind-specific views and create transforms).
 # CuePresetStore is the thin container: it owns the shared session-created set,
 # holds the collections as self.audio / self.video / self.music /
 # self.intensity, and keeps only cross-kind persistence (load/reload/save_all/
@@ -21,7 +21,7 @@ import copy as _copy
 
 from cue_lib.constants import CUE_VOLUME_DEFAULT
 from cue_lib.pool import CueAudioPreset, CueVideoPresetPool
-from cue_lib.util import _cue_clean_pool_list, _cue_log, _cue_migrate_exclusive_pool
+from cue_lib.util import _cue_clean_pool_list, _cue_log
 
 MYPY = False
 if MYPY:
@@ -35,7 +35,7 @@ class CuePresets(object):
     unified CRUD and file-backed persistence.
 
     ``_kind`` names the DB preset type; ``_disk()`` is the on-disk dict source
-    (load/reload); ``_migrate()`` runs the kind's load-time passes.
+    (load/reload); ``_sanitize()`` runs the kind's load-time sanitize pass.
     ``_session_created`` is the container's shared set, so a restore can tell
     session-created presets apart from presets loaded from disk."""
 
@@ -127,11 +127,14 @@ class CuePresets(object):
 
     def load(self, data=None):
         # type: (Optional[Dict[str, Any]]) -> None
-        """Replace with on-disk presets and run the kind's migration passes."""
+        """Replace with on-disk presets and run the kind's sanitize pass.
+
+        Legacy on-disk shapes are migrated by .local/scripts/migrate_cue_data.py,
+        not at load."""
         if data is None:
             data = self._disk()
         self._presets = data
-        self._migrate()
+        self._sanitize()
 
     def reload(self, data=None):
         # type: (Optional[Dict[str, Any]]) -> None
@@ -148,7 +151,7 @@ class CuePresets(object):
             return {}
         return db.load_presets(self._kind)
 
-    def _migrate(self):
+    def _sanitize(self):
         # type: () -> None
         pass
 
@@ -173,8 +176,7 @@ class CuePresets(object):
 
 
 class CueAudioPresets(CuePresets):
-    """Audio (SFX) presets: pool dicts, the ephemeral CueAudioPreset view, and
-    the exclusive-pool migration."""
+    """Audio (SFX) presets: pool dicts and the ephemeral CueAudioPreset view."""
 
     _kind = "audio"
 
@@ -203,22 +205,10 @@ class CueAudioPresets(CuePresets):
         so nothing is pruned."""
         self.view(name).remove_file(file_path)
 
-    def _migrate(self):
-        # type: () -> None
-        self._migrate_preset_exclusive()
-
-    def _migrate_preset_exclusive(self):
-        # type: () -> int
-        migrated = 0
-        for preset in list(self._presets.values()):
-            if _cue_migrate_exclusive_pool(preset):
-                migrated += 1
-        return migrated
-
 
 class CueVideoPresets(CuePresets):
     """Video presets: saved marker-pool timelines, ephemeral CueVideoPresetPool
-    views, and the load-time sanitize/migration passes."""
+    views, and the load-time malformed-pool sanitize."""
 
     _kind = "video"
 
@@ -287,11 +277,9 @@ class CueVideoPresets(CuePresets):
         view (the single home for folder-ref expansion)."""
         self.view(name, pool_index).remove_file(file_path)
 
-    def _migrate(self):
+    def _sanitize(self):
         # type: () -> None
-        self._migrate_video_presets_to_pools()
         self._sanitize_video_presets()
-        self._migrate_preset_speed_mode_rename()
 
     def _sanitize_video_presets(self):
         # type: () -> int
@@ -305,24 +293,6 @@ class CueVideoPresets(CuePresets):
                 preset["pools"] = clean
                 total_stripped += stripped
         return total_stripped
-
-    def _migrate_preset_speed_mode_rename(self):
-        # type: () -> None
-        for preset in self._presets.values():
-            if preset.get("speed_mode") == "sequence":
-                preset["speed_mode"] = "multi"
-
-    def _migrate_video_presets_to_pools(self):
-        # type: () -> int
-        presets_changed = 0
-        for _, preset in list(self._presets.items()):
-            if "timestamps" in preset:
-                if "pools" not in preset:
-                    preset["pools"] = preset.pop("timestamps")
-                else:
-                    del preset["timestamps"]
-                presets_changed += 1
-        return presets_changed
 
 
 class CueMusicPresets(CuePresets):
@@ -349,7 +319,7 @@ class CueIntensityPresets(CuePresets):
 
     Igroups are shared presets like audio/video/music.  The level-editing and
     speed-band resolution behavior stays on CueIntensityManager; this
-    collection owns the name->igroup dict and its CRUD + load-time migration
+    collection owns the name->igroup dict and its CRUD + load-time
     from the legacy ``folders`` shape."""
 
     _kind = "intensity"
@@ -367,23 +337,6 @@ class CueIntensityPresets(CuePresets):
             return "An intensity group named '{}' already exists.".format(name)
         CuePresets.create(self, name, {"levels": [], "next_ilevel_id": 1})
         return None
-
-    def _migrate(self):
-        # type: () -> None
-        """One-time: a legacy ``folders`` igroup becomes a level list (one
-        folder per level, sequential ids); the multiplier arrays are dropped
-        (the ramp is now derived).  Back-writes so the migration doesn't rerun."""
-        for name, data in list(self._presets.items()):
-            if "levels" not in data and "folders" in data:
-                folders = data.get("folders", [])
-                data["levels"] = [{"id": i + 1, "files": [f]} for i, f in enumerate(folders)]
-                data["next_ilevel_id"] = len(folders) + 1
-                data.pop("folders", None)
-                data.pop("volume_multipliers", None)
-                data.pop("frequency_multipliers", None)
-                db = self._db
-                if db is not None and db.is_open():
-                    db.save_preset(self._kind, name, data)
 
 
 class CuePresetStore(object):
@@ -420,8 +373,8 @@ class CuePresetStore(object):
 
     def save_all(self):
         # type: () -> None
-        """Full save of all presets to DB. Used by migration, restore, and
-        undo/redo. Fires on_save once across all four kinds."""
+        """Full save of all presets to DB. Used by restore and undo/redo.
+        Fires on_save once across all four kinds."""
         self.audio._db_save_all()
         self.video._db_save_all()
         self.music._db_save_all()

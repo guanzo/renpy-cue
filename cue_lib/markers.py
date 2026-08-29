@@ -267,29 +267,7 @@ class CueMarkerManager(object):
             return
         self._store._clear_pool_files(marker_key, pool_index)
 
-    # -- sanitize / migration passes (delegated to the store) --
-
-    def _normalize_all(self):
-        # type: () -> bool
-        return self._store._normalize_all()
-
-    def _migrate_legacy_exclusive(self):
-        # type: () -> int
-        return self._store._migrate_legacy_exclusive() + self._store._preset_store.audio._migrate_preset_exclusive()
-
-    @staticmethod
-    def _migrate_exclusive_pool(pool):
-        # type: (Any) -> bool
-        return CueMarkerStore._migrate_exclusive_pool(pool)
-
-    def _migrate_speed_mode_rename(self):
-        # type: () -> None
-        self._store._migrate_speed_mode_rename()
-        self._store._preset_store.video._migrate_preset_speed_mode_rename()
-
-    def _migrate_video_timestamps_to_pools(self):
-        # type: () -> int
-        return self._store._migrate_video_timestamps_to_pools()
+    # -- sanitize passes (delegated to the store) --
 
     def _sanitize_video_pools(self):
         # type: () -> int
@@ -318,7 +296,7 @@ class CueMarkerManager(object):
     def save_all(self):
         # type: () -> None
         """Full save of all markers + presets to DB.
-        Used by migration, restore, and undo/redo."""
+        Used by restore and undo/redo."""
         self._store.save_all()
         self._store._preset_store.save_all()
 

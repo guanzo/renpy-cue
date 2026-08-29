@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 
-# CueMarkerStore -- the marker data leaf: entries, pool mutators, migrations,
-# and file-backed persistence.
+# CueMarkerStore -- the marker data leaf: entries, pool mutators, and
+# file-backed persistence.
 #
 # Owns the dict of marker entries and the dict-like surface, entry/pool
-# mutators, entry-side sanitize/migrate passes, and marker persistence.  The
+# mutators, and marker persistence.  Legacy on-disk shapes are migrated by
+# .local/scripts/migrate_cue_data.py, not at load.  The
 # audio/video preset dicts live in CuePresetStore (self._preset_store), which
 # this store consults for the two preset reads it makes (resolve_pool defaults,
 # detach materialization).  Lives at _cue.marker_store (wired in cue_z.rpy)
@@ -24,19 +25,16 @@ from cue_lib.util import (
     _cue_clean_pool_list,
     _cue_get_movie_play,
     _cue_log,
-    _cue_migrate_exclusive_pool,
     _cue_remove_ref,
     _cue_resolve_files,
     get_key_file,
     is_vid_key,
-    is_loop_key,
 )
 
 MYPY = False
 if MYPY:
     from typing import Any, Callable, Dict, ItemsView, KeysView, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
     from cue_lib._types import (
-        IgroupDict,
         MarkerEntry,
         PoolDict,
         VideoPoolDict,
@@ -544,75 +542,6 @@ class CueMarkerStore(object):
             _cue_log("SAVE-MARKERS: sanitized {} malformed video pool(s)".format(total))
         return modified
 
-    def _normalize_all(self):
-        # type: () -> bool
-        changed = False
-        for key, entry in list(self._data.items()):
-            if "pools" not in entry:
-                self._normalize_entry(entry, key)
-                changed = True
-            if is_loop_key(key) and "frequency" in entry:
-                freq = entry.pop("frequency")
-                for pool in entry.get("pools", []):
-                    pool.setdefault("frequency", freq)
-                changed = True
-        return changed
-
-    def _migrate_legacy_exclusive(self):
-        # type: () -> int
-        """Legacy bool 'exclusive' -> nested dict (idempotent).
-
-        Old loop-exclusive pools become G1 + Wait + hold: polite
-        wait-then-reserve, now with G1 membership in the unified system.
-        Legacy False values are cleaned up (absence = plain citizen).
-        Entry-side only; presets migrate in CuePresetStore."""
-        migrated = 0
-        for entry in list(self._data.values()):
-            for pool in entry.get("pools", []):
-                if self._migrate_exclusive_pool(pool):
-                    migrated += 1
-        return migrated
-
-    @staticmethod
-    def _migrate_exclusive_pool(pool):
-        # type: (Any) -> bool
-        return _cue_migrate_exclusive_pool(pool)
-
-    def _migrate_speed_mode_rename(self):
-        # type: () -> None
-        for key, entry in list(self._data.items()):
-            if is_vid_key(key) and entry.get("speed_mode") == "sequence":
-                entry["speed_mode"] = "multi"
-
-    def _migrate_marker_keys(self):
-        # type: () -> None
-        """Rename marker keys that predate the single/multi split.
-
-        speed_pref/speed_sequence are migrated because their values matter
-        (single-mode speed, custom multi sequence).  The auto_speed and
-        intensity fields were flattened into the entry; their nested readers
-        default when absent, so old flat values are dropped without migration.
-        """
-        for entry in self._data.values():
-            if "speed_pref" in entry and "single_speed_pref" not in entry:
-                entry["single_speed_pref"] = entry.pop("speed_pref")
-            if "speed_sequence" in entry and "multi_speed_sequence" not in entry:
-                entry["multi_speed_sequence"] = entry.pop("speed_sequence")
-
-    def _migrate_video_timestamps_to_pools(self):
-        # type: () -> int
-        entries_changed = 0
-        for key, entry in list(self._data.items()):
-            if is_vid_key(key) and "timestamps" in entry:
-                if "pools" not in entry:
-                    entry["pools"] = entry.pop("timestamps")
-                else:
-                    del entry["timestamps"]
-                entries_changed += 1
-        if entries_changed:
-            _cue_log("MIGRATE-VIDEO-POOLS entries={}".format(entries_changed))
-        return entries_changed
-
     # -- persistence --
 
     def reload_presets(self):
@@ -676,8 +605,8 @@ class CueMarkerStore(object):
 
     def save_all(self):
         # type: () -> None
-        """Full save of all markers to DB. Used by migration, restore, and
-        undo/redo.  Presets persist through CuePresetStore.save_all()."""
+        """Full save of all markers to DB. Used by restore and undo/redo.
+        Presets persist through CuePresetStore.save_all()."""
         db = self._db
         if db is not None and db.is_open():
             for key in self._data:
@@ -704,54 +633,16 @@ class CueMarkerStore(object):
         # type: () -> None
         """Load markers + presets from the data store.
 
-        Marker entries load here (with the entry-side migrations); the preset
-        load and its migrations run in CuePresetStore.load.  This is
-        the disk side of CueMarkerManager.load_persistent; the persistent-
-        scalar side (triggers_active, encode_mode, ...) stays on the
-        coordinator because it fans out to other managers."""
+        On-disk data is expected to be current-format (legacy shapes are
+        migrated by .local/scripts/migrate_cue_data.py); only the malformed-
+        pool sanitize runs here.  The preset load runs in CuePresetStore.load.
+        This is the disk side of CueMarkerManager.load_persistent; the
+        persistent-scalar side (triggers_active, encode_mode, ...) stays on
+        the coordinator because it fans out to other managers."""
         db = self._db
         if db is None or not db.is_open():
             self._data = {}
         else:
             self._data = db.load_markers()
-            self._migrate_video_timestamps_to_pools()
             self._sanitize_video_pools()
-            self._normalize_all()
-            self._migrate_speed_mode_rename()
-            self._migrate_legacy_exclusive()
-            self._migrate_marker_keys()
         self._preset_store.load()
-
-
-def _cue_migrate_intensity_hooks(store, igroups):
-    # type: (CueMarkerStore, Dict[str, IgroupDict]) -> int
-    """One-time: convert legacy folder-hooked pools to nested igroup hooks.
-
-    A legacy hooked pool holds a folder ref (trailing ``/``) in its
-    ``files``; the old folder-scan machinery expanded it into the group's
-    level content.  The level IS now the pool: set the nested ``igroup``
-    hook and clear ``files``.  Returns the number of pools rewritten.  Idempotent
-    -- a rewritten pool has empty ``files``, so a re-run finds no folder-hooks
-    and changes nothing."""
-    folder_map = {}
-    for name, data in sorted(igroups.items()):
-        for level in data.get("levels", []):
-            for f in level.get("files", []):
-                if f.endswith("/") and f not in folder_map:
-                    folder_map[f] = (name, level.get("id"))
-    migrated = 0
-    for entry in list(store._data.values()):
-        for pool in entry.get("pools", []):
-            files = pool.get("files")
-            if not files:
-                continue
-            for f in files:
-                if f in folder_map:
-                    group, ilevel_id = folder_map[f]
-                    pool["igroup"] = {"name": group, "level": ilevel_id}
-                    pool["files"] = []
-                    migrated += 1
-                    break
-    if migrated:
-        _cue_log("MIGRATE-INTENSITY-HOOKS pools={}".format(migrated))
-    return migrated

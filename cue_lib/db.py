@@ -360,17 +360,8 @@ class CueDatabase(object):
     # Stored one file per replay under markers/{game_id}/music_triggers/,
     # each file holding that replay's bare trigger list.  The subdir is not
     # a direct .json child of the marker dir, so load_markers() never sweeps
-    # it up as a marker.  Pre-rename files carry a single "filepath" str;
-    # load normalises them to the "filepaths" list.
-
-    def _migrate_music_trigger_items(self, items):
-        # type: (List[Any]) -> List[Any]
-        """Normalise legacy trigger entries (single "filepath" str) to the
-        current "filepaths" list shape, in place."""
-        for item in items:
-            if "filepaths" not in item and "filepath" in item:
-                item["filepaths"] = [item.pop("filepath")]
-        return items
+    # it up as a marker.  Pre-rename files (single "filepath" str) are migrated
+    # by .local/scripts/migrate_cue_data.py, not at load.
 
     def load_default_music_triggers(self):
         # type: () -> Dict[str, Any]
@@ -397,7 +388,7 @@ class CueDatabase(object):
             if not isinstance(items, list):
                 _cue_log("MUSIC-TRIGGERS: skipped non-list file {}".format(name))
                 continue
-            result[replay_id] = self._migrate_music_trigger_items(items)
+            result[replay_id] = items
         return result
 
     def update_default_music_triggers(self, replay_id, key_before, paths, key_after=None):
@@ -425,7 +416,6 @@ class CueDatabase(object):
                 _cue_log("MUSIC-TRIGGERS: load failed for {}".format(fpath))
         if not isinstance(items, list):
             items = []
-        self._migrate_music_trigger_items(items)
         for item in items:
             if item.get("key_before") == key_before:
                 item["key_before"] = key_before

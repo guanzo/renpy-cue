@@ -13,13 +13,7 @@ import pygame
 import renpy
 import renpy.atl as _atl
 
-from cue_lib.constants import (
-    CUE_IMG_KEY_PREFIX,
-    CUE_LOOP_KEY_PREFIX,
-    CUE_DLG_KEY_PREFIX,
-    CUE_VID_KEY_PREFIX,
-    CueExclusiveStart,
-)
+from cue_lib.constants import CUE_IMG_KEY_PREFIX, CUE_LOOP_KEY_PREFIX, CUE_DLG_KEY_PREFIX, CUE_VID_KEY_PREFIX
 from cue_lib.logger import _cue_logger
 from cue_lib.state import _cue
 from renpy.store import Function
@@ -767,23 +761,6 @@ def _cue_clean_pool_list(pools):
         else:
             stripped += 1
     return clean, stripped
-
-
-def _cue_migrate_exclusive_pool(pool):
-    # type: (Dict[str, Any]) -> bool
-    """Legacy bool 'exclusive' -> nested dict (idempotent).
-
-    Old loop-exclusive pools become G1 + Wait + hold: polite
-    wait-then-reserve, now with G1 membership in the unified system.
-    Legacy False values are cleaned up (absence = plain citizen)."""
-    excl = pool.get("exclusive")
-    if not isinstance(excl, bool):
-        return False
-    if excl:
-        pool["exclusive"] = {"group": 1, "start": CueExclusiveStart.WAIT, "hold": True}
-    else:
-        del pool["exclusive"]
-    return True
 
 
 def _cue_pick_file(files, avoid_repeats=True):

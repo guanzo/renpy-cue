@@ -141,7 +141,7 @@ def test_remove_video_preset_pool_file_direct(presets):
 
 
 # ---------------------------------------------------------------------------
-# Sanitize / migration passes
+# Sanitize passes
 # ---------------------------------------------------------------------------
 
 
@@ -155,31 +155,6 @@ def test_sanitize_video_presets_skips_preset_without_pools(presets):
     presets.video._presets["VP"] = {}
     presets.video._presets["V2"] = {"pools": [{"time": 1.0}]}
     assert presets.video._sanitize_video_presets() == 0
-
-
-def test_migrate_preset_speed_mode_rename(presets):
-    presets.video._presets["VP"] = {"speed_mode": "sequence"}
-    presets.video._migrate_preset_speed_mode_rename()
-    assert presets.video._presets["VP"]["speed_mode"] == "multi"
-
-
-def test_migrate_video_presets_to_pools(presets):
-    presets.video._presets["VP"] = {"timestamps": [{"time": 3.0}]}
-    assert presets.video._migrate_video_presets_to_pools() == 1
-    assert presets.video._presets["VP"]["pools"] == [{"time": 3.0}]
-    assert "timestamps" not in presets.video._presets["VP"]
-
-
-def test_migrate_video_presets_keeps_pools(presets):
-    presets.video._presets["VP"] = {"pools": [{"time": 1.0}], "timestamps": [{"time": 9.0}]}
-    assert presets.video._migrate_video_presets_to_pools() == 1
-    assert "timestamps" not in presets.video._presets["VP"]
-
-
-def test_migrate_preset_exclusive(presets):
-    presets.audio._presets["P"] = {"exclusive": True}
-    assert presets.audio._migrate_preset_exclusive() == 1
-    assert presets.audio._presets["P"]["exclusive"]["group"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -196,16 +171,6 @@ def test_save_all_and_load_round_trip(presets, cue_env):
     fresh.load()
     assert fresh.audio._presets["G"]["files"] == ["a.ogg"]
     assert fresh.video._presets["VP"]["pools"] == [{"time": 1.0}]
-
-
-def test_load_runs_preset_migrations(presets, cue_env):
-    presets.video._presets["VP"] = {"timestamps": [{"time": 3.0}], "speed_mode": "sequence"}
-    presets.save_all()
-
-    fresh = CuePresetStore(cue_env.db, lambda: None)
-    fresh.load()
-    assert fresh.video._presets["VP"]["pools"] == [{"time": 3.0}]
-    assert fresh.video._presets["VP"]["speed_mode"] == "multi"
 
 
 def test_reload_presets_merges_disk(presets, cue_env):

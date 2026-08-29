@@ -345,21 +345,6 @@ def test_load_skips_corrupt_trigger_file(db):
     assert db.load_default_music_triggers() == {"ok": [{"key_before": "v_a", "filepaths": ["music/x.ogg"]}]}
 
 
-def test_load_migrates_legacy_filepath(db):
-    # Pre-schema-change files store a single song under "filepath"; load must
-    # normalise them to the "filepaths" list without touching new entries.
-    dpath = db.paths.music_trigger_dir
-    os.makedirs(dpath)
-    with open(os.path.join(dpath, "legacy.json"), "w") as _f:
-        _f.write('[{"key_before": "v_a", "filepath": "music/old.ogg"}]')
-    with open(os.path.join(dpath, "new.json"), "w") as _f:
-        _f.write('[{"key_before": "v_b", "filepaths": ["music/a.ogg", "music/b.ogg"]}]')
-    assert db.load_default_music_triggers() == {
-        "legacy": [{"key_before": "v_a", "filepaths": ["music/old.ogg"]}],
-        "new": [{"key_before": "v_b", "filepaths": ["music/a.ogg", "music/b.ogg"]}],
-    }
-
-
 # ---------------------------------------------------------------------------
 # Error paths -- missing dirs, corrupt files, unwritable stores
 # ---------------------------------------------------------------------------
