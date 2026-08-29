@@ -84,6 +84,25 @@ Function-local variables need no prefix.
 
 Boolean names must begin with `is_`, `has_`, `can_`, `did_`, `was_`, `should_`, or `will_`.
 
+# UI Language
+
+User-facing copy uses these words deliberately. Choose by what you're naming:
+
+| UI word | Means | Code term |
+| --- | --- | --- |
+| **Scene** | a playable gallery entry (a replay label that has markers) | `replay` |
+| **Shot** | the image/video on screen right now | `context` (video/image) |
+| **Marker** | editable per-context data | `marker` |
+| **Video / Image / Dialogue / Loop** | the four "Target" pools | `CueContextType` |
+| **Replay** | Ren'Py's playback machinery | `replay` (keep in code) |
+| **Target** | which pool a marker belongs to | `context` / `ctx` |
+
+Rules:
+
+* "context" never appears in UI copy — say "Target" or the four pool names.
+* "replay" stays in copy only where it names the machinery ("Customizing Music is only fully supported in replays", "Preview import and start replay").
+* "Copy current scene markers" keeps "scene" — it names the markers of a scene, not the visual.
+
 # Constants
 
 Use a `CUE_` constant when the value:
