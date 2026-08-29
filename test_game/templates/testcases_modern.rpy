@@ -1405,7 +1405,7 @@ testcase sfx_sidebar_resize:
     # Hover must hit the handle: Render.add_focus registers the strip so
     # focus_at_point returns it, which is what drives its style.mouse cursor.
     run Jump("start")
-    assert eval (renpy.display.render.focus_at_point(int(_cue_overlay_panel_width + _cue.sfx.library.sidebar_width - 5 * _cue_overlay_zoom()), int(renpy.config.screen_height / 2)).widget is CueSidebarResizeHandle.get_handle())
+    assert eval (renpy.display.render.focus_at_point(int(_cue_scale_ui(_cue_overlay_panel_width) + _cue_scale_ui(_cue.sfx.library.sidebar_width) - _cue_scale_ui(5)), int(renpy.config.screen_height / 2)).widget is CueSidebarResizeHandle.get_handle())
     # The resize cursor must hold for the whole drag. Focus follows the mouse,
     # so once it outruns the 10px strip the handle's style.mouse no longer
     # applies; the handle re-asserts interface.mouse = "cue_resize" on every
@@ -1430,7 +1430,7 @@ testcase sfx_sidebar_resize:
     # Clamps to the max ratio at the top end...
     run Function(_cue.sfx.library.set_sidebar_width, 99999)
     run Jump("start")
-    assert eval (_cue.sfx.library.sidebar_width == max(CUE_SIDEBAR_MIN_WIDTH, int(renpy.config.screen_width * CUE_SIDEBAR_MAX_WIDTH_RATIO)))
+    assert eval (_cue.sfx.library.sidebar_width == max(CUE_SIDEBAR_MIN_WIDTH, int(CUE_UI_REF_WIDTH * CUE_SIDEBAR_MAX_WIDTH_RATIO)))
     # ...and to the sidebar minimum at the bottom end.
     run Function(_cue.sfx.library.set_sidebar_width, 1)
     run Jump("start")

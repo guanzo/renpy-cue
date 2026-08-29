@@ -209,20 +209,20 @@ screen cue_keybind_capture():
     modal True
     frame:
         background _cue_color_bg_dialog
-        xpos _cue_overlay_panel_width
-        ypos 8
-        padding (16, 8)
-        xmaximum 300
+        xpos _cue_scale_ui(_cue_overlay_panel_width)
+        ypos _cue_scale_ui(8)
+        padding (_cue_scale_ui(16), _cue_scale_ui(8))
+        xmaximum _cue_scale_ui(300)
         xfill False
         vbox:
-            spacing 8
+            spacing _cue_scale_ui(8)
             etext "Press a key(s) for " + _cue.keybinds.current_label()
             etext "Ctrl / Alt / Shift can be combined."
             etext "Press Esc to cancel."
             if _cue.keybinds.collision_message:
                 etext _cue.keybinds.collision_message color _cue_color_error
             hbox:
-                spacing 5
+                spacing _cue_scale_ui(5)
                 use cue_txt_button("Cancel", Function(_cue_keybind_cancel))
                 if _cue.keybinds.collision_message:
                     use cue_txt_button(

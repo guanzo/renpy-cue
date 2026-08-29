@@ -11,7 +11,7 @@ from renpy.display.core import Displayable, IgnoreEvent
 
 from cue_lib.state import _cue
 from cue_lib.util import _cue_escape_text, _cue_format_time, create_vid_key
-from cue_lib.constants import CUE_DEBUG, CUE_INTENSITY_HINT_COLOR, CUE_INTENSITY_NOTE
+from cue_lib.constants import CUE_DEBUG, CUE_INTENSITY_HINT_COLOR, CUE_INTENSITY_NOTE, CUE_UI_REF_WIDTH
 
 MYPY = False
 if MYPY:
@@ -114,10 +114,22 @@ def _cue_keysym_from_event(ev):
 # ---------------------------------------------------------------------------
 
 
-def _cue_sidebar_width_from_mouse(mx, zoom, panel):
-    # type: (int, float, int) -> int
-    """Sidebar width (physical px) for a logical cursor x at the given zoom."""
-    return int(mx * zoom) - panel
+def _cue_scale_ui(n):
+    # type: (float) -> int
+    """Map a 1920-reference px value to the current virtual width.
+
+    Identity at 1920 so authored values are the source of truth; other
+    resolutions scale values so text re-rasterizes crisp instead of
+    raster-zooming the 1920 render.
+    """
+    return int(round(n * renpy.config.screen_width / float(CUE_UI_REF_WIDTH)))
+
+
+def _cue_sidebar_width_from_mouse(mx, panel):
+    # type: (int, int) -> int
+    """Sidebar width (1920-ref px) for a cursor x (canvas px) at the panel edge."""
+    scale = renpy.config.screen_width / float(CUE_UI_REF_WIDTH)
+    return int((mx - panel) / scale)
 
 
 def _cue_sidebar_set_cursor(name):
@@ -185,23 +197,23 @@ def _cue_render_tooltip(text, anchor, st, at):
     text_widget = Txt(
         _cue_escape_text(text, brackets=False) or "",
         style="cue_text",
-        size=12,
+        size=_cue_scale_ui(12),
         color="#cccccc",
         italic=False,
         substitute=False,
     )
-    max_width = 350
-    text_render = renpy.render(text_widget, max_width, 100, st, at)
+    max_width = _cue_scale_ui(350)
+    text_render = renpy.render(text_widget, max_width, _cue_scale_ui(100), st, at)
     tw, th = text_render.get_size()
 
-    pad_x, pad_y = 4, 2
+    pad_x, pad_y = _cue_scale_ui(4), _cue_scale_ui(2)
     fw = tw + pad_x * 2
     fh = th + pad_y * 2
 
     # Outer footprint: 1px border on every side plus a 2px drop shadow on
     # the right/bottom. Positioned as a whole so the border never clips.
-    BORDER = 1
-    SHADOW = 2
+    BORDER = _cue_scale_ui(1)
+    SHADOW = _cue_scale_ui(2)
     ow = fw + BORDER * 2 + SHADOW
     oh = fh + BORDER * 2 + SHADOW
 
@@ -212,9 +224,9 @@ def _cue_render_tooltip(text, anchor, st, at):
     # Anchor to the hovered element (not the cursor) so the tooltip never
     # covers it: centered above, flipping below when there's no room above.
     tx = fx + (fw_elem - ow) // 2
-    ty = fy - oh - 4
+    ty = fy - oh - _cue_scale_ui(4)
     if ty < 0:
-        ty = fy + fh_elem + 4
+        ty = fy + fh_elem + _cue_scale_ui(4)
 
     # Clamp to keep the tooltip fully on screen
     if tx + ow > sw:
@@ -236,7 +248,7 @@ def _cue_render_tooltip(text, anchor, st, at):
     tip.blit(shadow, (SHADOW, SHADOW))
 
     # 1px border (palette _cue_color_divider) around the interior fill.
-    tip.canvas().rect("#555555", (0, 0, ow - SHADOW, oh - SHADOW), 1)
+    tip.canvas().rect("#555555", (0, 0, ow - SHADOW, oh - SHADOW), BORDER)
     tip.canvas().rect("#2e2e2e", (BORDER, BORDER, fw, fh))
 
     tip.blit(text_render, (BORDER + pad_x, BORDER + pad_y))
@@ -298,6 +310,7 @@ class CueVideoTimeline(Displayable):
         self.interval = interval
         self._w = 1
         self._bar_y = 0
+        self._bar_h = _cue_scale_ui(self.BAR_H)
         self._screen_x = 0
         self._screen_y = 0
 
@@ -317,12 +330,12 @@ class CueVideoTimeline(Displayable):
         except Exception:
             pass
 
-        self._bar_y = max(0, (height - self.BAR_H) // 2)
+        self._bar_y = max(0, (height - self._bar_h) // 2)
         bar_y = self._bar_y
 
         bg = "#3a3a3a" if hovered else "#333333"
         canvas = r.canvas()
-        canvas.rect(bg, (0, bar_y, width, self.BAR_H))
+        canvas.rect(bg, (0, bar_y, width, self._bar_h))
 
         # SFX-fire breadcrumb trail: static ticks at the file-frac where each
         # SFX fired, for comparing the fire point against the moving playhead.
@@ -331,34 +344,36 @@ class CueVideoTimeline(Displayable):
             for bc in vs.sfx_breadcrumbs:
                 bpx = int(bc * width)
                 if 0 <= bpx < width:
-                    canvas.rect("#33ff88", (bpx, bar_y, 1, self.BAR_H))
+                    canvas.rect("#33ff88", (bpx, bar_y, 1, self._bar_h))
 
         if dur > 0 and width > 0:
             frac = max(0.0, min(1.0, elapsed / float(dur)))
             px = int(frac * width)
             px = max(0, min(px, width - 1))
             ph_color = "#ffaa00" if paused else "#ffffff"
-            canvas.rect(ph_color, (px, bar_y, 2, self.BAR_H))
+            canvas.rect(ph_color, (px, bar_y, 2, self._bar_h))
 
         if dur > 0 and _cue.vid_manager.channel:
             mx, my = renpy.get_mouse_pos()
             bx = self._screen_x
             by = self._screen_y
             rx, ry = mx - bx, my - by
-            if 0 <= rx <= width and bar_y <= ry <= bar_y + self.BAR_H:
+            if 0 <= rx <= width and bar_y <= ry <= bar_y + self._bar_h:
                 frac = max(0.0, min(1.0, rx / float(max(1, width))))
                 t = frac * dur
                 tip_text = "Click to seek to: " + _cue_format_time(t)
-                tip_widget = Txt(tip_text, style="cue_text", size=11, color="#cccccc", italic=True, substitute=False)
-                tip_render = renpy.render(tip_widget, 300, 100, st, at)
+                tip_widget = Txt(
+                    tip_text, style="cue_text", size=_cue_scale_ui(11), color="#cccccc", italic=True, substitute=False
+                )
+                tip_render = renpy.render(tip_widget, _cue_scale_ui(300), _cue_scale_ui(100), st, at)
                 tw, th = tip_render.get_size()
-                fw = min(tw + 8, 300)
-                fh = th + 4
+                fw = min(tw + _cue_scale_ui(8), _cue_scale_ui(300))
+                fh = th + _cue_scale_ui(4)
                 tip = renpy.Render(fw, fh)
                 tip.canvas().rect("#2e2e2e", (0, 0, fw, fh))
-                tip.blit(tip_render, (4, 2))
-                tx = rx + 12
-                ty = bar_y - fh - 2
+                tip.blit(tip_render, (_cue_scale_ui(4), _cue_scale_ui(2)))
+                tx = rx + _cue_scale_ui(12)
+                ty = bar_y - fh - _cue_scale_ui(2)
                 tx = max(0, min(tx, width - fw))
                 r.blit(tip, (tx, ty))
 
@@ -437,6 +452,13 @@ class CueVideoMarkerTimeline(Displayable):
         self._hover_idx = -1
         self._screen_x = 0
         self._screen_y = 0
+        # Scaled geometry (1920-ref base constants -> current virtual width).
+        self._tab_w = _cue_scale_ui(self.TAB_W)
+        self._tab_h = _cue_scale_ui(self.TAB_H)
+        self._track_h = _cue_scale_ui(self.TRACK_H)
+        self._line_h = _cue_scale_ui(self.LINE_H)
+        self._pad_x = _cue_scale_ui(self.PAD_X)
+        self._drag_thresh = _cue_scale_ui(self.DRAG_THRESH)
 
     def _reset_drag_state(self):
         # type: () -> None
@@ -481,17 +503,17 @@ class CueVideoMarkerTimeline(Displayable):
 
     def _total_h(self):
         # type: () -> int
-        return self.TAB_H + self.TRACK_H + 4
+        return self._tab_h + self._track_h + _cue_scale_ui(4)
 
     def _time_to_x(self, t, dur, w):
         # type: (float, float, int) -> int
         if dur <= 0.0:
             if hasattr(self, '_px_cache'):
-                return self._px_cache.get(t, self.PAD_X)
-            return self.PAD_X
+                return self._px_cache.get(t, self._pad_x)
+            return self._pad_x
         speed = _cue.speed_resolver.get_current_speed()
         frac = max(0.0, min(1.0, (t / speed) / float(dur)))
-        px = self.PAD_X + int(frac * w)
+        px = self._pad_x + int(frac * w)
         if not hasattr(self, '_px_cache'):
             self._px_cache = {}
         self._px_cache[t] = px
@@ -522,15 +544,15 @@ class CueVideoMarkerTimeline(Displayable):
         for i, m in enumerate(markers):
             t = m.get("time", 0.0)
             px = int(((t / speed) / dur) * w)
-            bx = px - self.TAB_W // 2
-            by = self.TRACK_H - 2
-            if bx <= x <= bx + self.TAB_W and by <= y <= by + self.TAB_H:
+            bx = px - self._tab_w // 2
+            by = self._track_h - _cue_scale_ui(2)
+            if bx <= x <= bx + self._tab_w and by <= y <= by + self._tab_h:
                 return i
         return -1
 
     def render(self, width, height, st, at):
         # type: (int, int, float, float) -> Any
-        inner_w = max(1, width - 2 * self.PAD_X)
+        inner_w = max(1, width - 2 * self._pad_x)
         self._w = inner_w
         r = renpy.Render(width, self._total_h())
         c = r.canvas()
@@ -584,33 +606,33 @@ class CueVideoMarkerTimeline(Displayable):
                 else:
                     bg = "#444444"
 
-            c.rect(lc, (px - 1, 0, 2, self.TRACK_H + self.LINE_H))
+            c.rect(lc, (px - 1, 0, 2, self._track_h + self._line_h))
 
-            bx_pos = px - self.TAB_W // 2
-            by_pos = self.TRACK_H - 2
-            c.rect(bg, (bx_pos, by_pos, self.TAB_W, self.TAB_H))
+            bx_pos = px - self._tab_w // 2
+            by_pos = self._track_h - _cue_scale_ui(2)
+            c.rect(bg, (bx_pos, by_pos, self._tab_w, self._tab_h))
             if intensity_flags is not None and self._is_intensity_marker(m, intensity_flags, intensity_variants):
-                c.rect(CUE_INTENSITY_HINT_COLOR, (bx_pos, by_pos + self.TAB_H, self.TAB_W, 1))
+                c.rect(CUE_INTENSITY_HINT_COLOR, (bx_pos, by_pos + self._tab_h, self._tab_w, 1))
 
             txt = Txt(str(i + 1), style="cue_button_text", color="#ffffff")
-            tr = renpy.render(txt, self.TAB_W, self.TAB_H, st, at)
+            tr = renpy.render(txt, self._tab_w, self._tab_h, st, at)
             tw, _ = tr.get_size()
             # +1: nudge the digit right so its ink reads optically centered in the tab.
-            r.blit(tr, (bx_pos + (self.TAB_W - tw) // 2 + 1, by_pos))
+            r.blit(tr, (bx_pos + (self._tab_w - tw) // 2 + 1, by_pos))
 
         # Preview marker overlay
         preview_times = _cue.dialogs.repeater.compute_preview_times() if dur > 0.0 else []
 
         for ptime in preview_times:
             ppx = self._time_to_x(ptime, dur, inner_w)
-            c.rect("#5c7a8c", (ppx - 1, 0, 2, self.TRACK_H + self.LINE_H))
-            pbx = ppx - self.TAB_W // 2
-            pby = self.TRACK_H - 2
-            c.rect("#4a606e", (pbx, pby, self.TAB_W, self.TAB_H))
-            ptxt = Txt("?", style="cue_button_text", size=12, color="#ffffff")
-            ptr = renpy.render(ptxt, self.TAB_W, self.TAB_H, st, at)
+            c.rect("#5c7a8c", (ppx - 1, 0, 2, self._track_h + self._line_h))
+            pbx = ppx - self._tab_w // 2
+            pby = self._track_h - _cue_scale_ui(2)
+            c.rect("#4a606e", (pbx, pby, self._tab_w, self._tab_h))
+            ptxt = Txt("?", style="cue_button_text", size=_cue_scale_ui(12), color="#ffffff")
+            ptr = renpy.render(ptxt, self._tab_w, self._tab_h, st, at)
             ptw, _ = ptr.get_size()
-            r.blit(ptr, (pbx + (self.TAB_W - ptw) // 2, pby))
+            r.blit(ptr, (pbx + (self._tab_w - ptw) // 2, pby))
 
         if self._tip_text:
             tip = self._tip_text
@@ -627,7 +649,7 @@ class CueVideoMarkerTimeline(Displayable):
             if 0 <= tip_idx < len(markers):
                 px = self._time_to_x(markers[tip_idx].get("time", 0.0), dur, inner_w)
                 CueVideoMarkerTimeline._marker_tip_x = self._screen_x + px
-                CueVideoMarkerTimeline._marker_tip_y = self._screen_y + self.TRACK_H - 2 + self.TAB_H
+                CueVideoMarkerTimeline._marker_tip_y = self._screen_y + self._track_h - _cue_scale_ui(2) + self._tab_h
             else:
                 CueVideoMarkerTimeline._marker_tip_x = self._screen_x + self._tip_x
                 CueVideoMarkerTimeline._marker_tip_y = self._screen_y + self._tip_y
@@ -642,7 +664,7 @@ class CueVideoMarkerTimeline(Displayable):
         dur = self.get_dur()
         markers = self.get_markers()
         w = getattr(self, '_w', 1)
-        inner_x = x - self.PAD_X
+        inner_x = x - self._pad_x
         speed = _cue.speed_resolver.get_current_speed()
         is_scaled = speed != 1.0
 
@@ -652,7 +674,7 @@ class CueVideoMarkerTimeline(Displayable):
             self._screen_y = my - y
         if ev.type == pygame.MOUSEMOTION:
             if not is_scaled and self._drag_idx >= 0:
-                if not self._drag_on and abs(inner_x - self._drag_start_x) > self.DRAG_THRESH:
+                if not self._drag_on and abs(inner_x - self._drag_start_x) > self._drag_thresh:
                     self._drag_on = True
                     sel = self._get_selected()
                     valid_sel = [idx for idx in sel if 0 <= idx < len(markers)]
@@ -729,7 +751,7 @@ class CueVideoMarkerTimeline(Displayable):
             click_frac = self._x_to_frac(inner_x, w)
             click_time = click_frac * dur
 
-            if not (-self.PAD_X <= inner_x < w + self.PAD_X and 0 <= y < self._total_h()):
+            if not (-self._pad_x <= inner_x < w + self._pad_x and 0 <= y < self._total_h()):
                 return None
 
             if hit_idx < 0:
@@ -857,6 +879,7 @@ class CueSidebarResizeHandle(Displayable):
         super(CueSidebarResizeHandle, self).__init__(**properties)
         self.focusable = True
         self._dragging = False
+        self._width = _cue_scale_ui(self.WIDTH)
 
     @classmethod
     def get_handle(cls):
@@ -868,14 +891,13 @@ class CueSidebarResizeHandle(Displayable):
     def _new_width(self):
         # type: () -> int
         mx, _my = renpy.get_mouse_pos()
-        zoom = getattr(renpy.store, "_cue_overlay_zoom")()
-        panel = getattr(renpy.store, "_cue_overlay_panel_width")
-        return _cue_sidebar_width_from_mouse(mx, zoom, panel)
+        panel = _cue_scale_ui(getattr(renpy.store, "_cue_overlay_panel_width"))
+        return _cue_sidebar_width_from_mouse(mx, panel)
 
     def event(self, ev, x, y, st):
         # type: (Any, int, int, float) -> Optional[Any]
         if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
-            _in = 0 <= x <= self.WIDTH
+            _in = 0 <= x <= self._width
             if _in:
                 self._dragging = True
                 # Hover already pinned the resize cursor; re-assert so the
@@ -957,12 +979,14 @@ class CueVideoMarkerTooltip(Displayable):
 
         # Anchor on the marker tab (the published point is its center) so the
         # tip mirrors CueTooltip: centered above, flipping below when no room.
-        tab = CueVideoMarkerTimeline
+        # Scaled tab dims match the timeline's rendered tabs.
+        tab_w = _cue_scale_ui(CueVideoMarkerTimeline.TAB_W)
+        tab_h = _cue_scale_ui(CueVideoMarkerTimeline.TAB_H)
         anchor = (
-            CueVideoMarkerTimeline._marker_tip_x - tab.TAB_W // 2,
-            CueVideoMarkerTimeline._marker_tip_y - tab.TAB_H,
-            tab.TAB_W,
-            tab.TAB_H,
+            CueVideoMarkerTimeline._marker_tip_x - tab_w // 2,
+            CueVideoMarkerTimeline._marker_tip_y - tab_h,
+            tab_w,
+            tab_h,
         )
         return _cue_render_tooltip(text, anchor, st, at)
 
@@ -994,9 +1018,15 @@ class CueAutoSpeedChart(Displayable):
         self.interval = interval
         self._screen_x = 0
         self._screen_y = 0
+        # Scaled geometry (1920-ref base constants -> current virtual width).
+        self._pad_left = _cue_scale_ui(self.PAD_LEFT)
+        self._pad_right = _cue_scale_ui(self.PAD_RIGHT)
+        self._pad_top = _cue_scale_ui(self.PAD_TOP)
+        self._pad_bottom = _cue_scale_ui(self.PAD_BOTTOM)
+        self._dot_r = _cue_scale_ui(self.DOT_R)
+        self._line_w = _cue_scale_ui(self.LINE_W)
 
-    @staticmethod
-    def _compute_points(speeds, width, height):
+    def _compute_points(self, speeds, width, height):
         # type: (List[float], int, int) -> Tuple[List[Tuple[int, int]], float, float]
         """Map speed values to (x, y) pixel coordinates.
         Returns (points, sp_min, sp_max)."""
@@ -1006,12 +1036,12 @@ class CueAutoSpeedChart(Displayable):
         sp_min = min(speeds)
         sp_max = max(speeds)
         sp_range = sp_max - sp_min if sp_max > sp_min else 1.0
-        w = width - CueAutoSpeedChart.PAD_LEFT - CueAutoSpeedChart.PAD_RIGHT
-        h = height - CueAutoSpeedChart.PAD_TOP - CueAutoSpeedChart.PAD_BOTTOM
+        w = width - self._pad_left - self._pad_right
+        h = height - self._pad_top - self._pad_bottom
         points = []
         for i, sp in enumerate(speeds):
-            x = CueAutoSpeedChart.PAD_LEFT + int((float(i) / max(1, n - 1)) * w)
-            y = CueAutoSpeedChart.PAD_TOP + int((1.0 - (sp - sp_min) / sp_range) * h)
+            x = self._pad_left + int((float(i) / max(1, n - 1)) * w)
+            y = self._pad_top + int((1.0 - (sp - sp_min) / sp_range) * h)
             points.append((x, y))
         return points, sp_min, sp_max
 
@@ -1023,7 +1053,7 @@ class CueAutoSpeedChart(Displayable):
         # type: (int, int, float, float) -> Any
         r = renpy.Render(width, height)
 
-        if width < 60 or height < 30:
+        if width < _cue_scale_ui(60) or height < _cue_scale_ui(30):
             renpy.redraw(self, self.interval)
             return r
 
@@ -1068,7 +1098,7 @@ class CueAutoSpeedChart(Displayable):
 
         # --- Dim line: full sequence ---
         for i in range(len(points) - 1):
-            canvas.line(self.COLOR_DIM, points[i], points[i + 1], self.LINE_W)
+            canvas.line(self.COLOR_DIM, points[i], points[i + 1], self._line_w)
 
         # --- Bright line: played portion, one color per step's level ---
         if current_idx > 0:
@@ -1077,13 +1107,13 @@ class CueAutoSpeedChart(Displayable):
                     color = _cue_intensity_color(step_levels[i], intensity_total)
                 else:
                     color = self.COLOR_BRIGHT
-                canvas.line(color, points[i], points[i + 1], self.LINE_W)
+                canvas.line(color, points[i], points[i + 1], self._line_w)
 
         # --- Progress dot ---
         cx = cy = 0
         if 0 <= current_idx < len(points):
             cx, cy = points[current_idx]
-            canvas.circle(self.COLOR_DOT, (cx, cy), self.DOT_R)
+            canvas.circle(self.COLOR_DOT, (cx, cy), self._dot_r)
 
         # --- Y-axis labels (min at bottom, max at top) ---
         by_top = min(py for _, py in points)
@@ -1092,15 +1122,15 @@ class CueAutoSpeedChart(Displayable):
         def _fmt(sp):
             return "{:.1f}x".format(sp)
 
-        y_style = dict(style="cue_text", size=12, color="#888888", italic=False, substitute=False)
+        y_style = dict(style="cue_text", size=_cue_scale_ui(12), color="#888888", italic=False, substitute=False)
         max_w = Txt(_fmt(sp_max), **y_style)
-        max_r = renpy.render(max_w, 60, 16, st, at)
+        max_r = renpy.render(max_w, _cue_scale_ui(60), _cue_scale_ui(16), st, at)
         # Top of the label aligns with the top of the y-axis.
-        r.blit(max_r, (2, by_top - 10))
+        r.blit(max_r, (_cue_scale_ui(2), by_top - _cue_scale_ui(10)))
         min_w = Txt(_fmt(sp_min), **y_style)
-        min_r = renpy.render(min_w, 60, 16, st, at)
+        min_r = renpy.render(min_w, _cue_scale_ui(60), _cue_scale_ui(16), st, at)
         # Bottom of the label sits on the x-axis line.
-        r.blit(min_r, (2, by_bot - 16))
+        r.blit(min_r, (_cue_scale_ui(2), by_bot - _cue_scale_ui(16)))
 
         # --- Current speed below the dot ---
         if 0 <= current_idx < len(speeds):
@@ -1108,11 +1138,13 @@ class CueAutoSpeedChart(Displayable):
             cur_label = _fmt(cur_sp)
             if step_levels is not None and step_levels[current_idx]:
                 cur_label += " (lvl {})".format(step_levels[current_idx])
-            cur_w = Txt(cur_label, style="cue_text", size=12, color="#ffaa00", italic=False, substitute=False)
+            cur_w = Txt(
+                cur_label, style="cue_text", size=_cue_scale_ui(12), color="#ffaa00", italic=False, substitute=False
+            )
             # Wide enough that the "(lvl N)" suffix stays on one line.
-            cur_r = renpy.render(cur_w, 200, 16, st, at)
+            cur_r = renpy.render(cur_w, _cue_scale_ui(200), _cue_scale_ui(16), st, at)
             cw, _ch = cur_r.get_size()
-            r.blit(cur_r, (cx - cw // 2, height - 14))
+            r.blit(cur_r, (cx - cw // 2, height - _cue_scale_ui(14)))
 
         # --- Hover tooltip ---
         try:
@@ -1136,17 +1168,19 @@ class CueAutoSpeedChart(Displayable):
                 tip_text = "{:.1f}x  step {}/{}".format(sp, nearest_idx + 1, len(speeds))
                 if step_levels is not None and step_levels[nearest_idx]:
                     tip_text += "  (lvl {})".format(step_levels[nearest_idx])
-                tip_widget = Txt(tip_text, style="cue_text", size=10, color="#cccccc", italic=False, substitute=False)
-                tip_render = renpy.render(tip_widget, 200, 50, st, at)
+                tip_widget = Txt(
+                    tip_text, style="cue_text", size=_cue_scale_ui(10), color="#cccccc", italic=False, substitute=False
+                )
+                tip_render = renpy.render(tip_widget, _cue_scale_ui(200), _cue_scale_ui(50), st, at)
                 tw, th = tip_render.get_size()
-                fw = min(tw + 8, 200)
-                fh = th + 4
+                fw = min(tw + _cue_scale_ui(8), _cue_scale_ui(200))
+                fh = th + _cue_scale_ui(4)
                 tip = renpy.Render(fw, fh)
                 tip.canvas().rect("#2e2e2e", (0, 0, fw, fh))
-                tip.blit(tip_render, (4, 2))
+                tip.blit(tip_render, (_cue_scale_ui(4), _cue_scale_ui(2)))
                 px, py = points[nearest_idx]
-                tx = px + 12
-                ty = py - fh - 4
+                tx = px + _cue_scale_ui(12)
+                ty = py - fh - _cue_scale_ui(4)
                 tx = max(0, min(tx, width - fw))
                 ty = max(0, ty)
                 r.blit(tip, (tx, ty))

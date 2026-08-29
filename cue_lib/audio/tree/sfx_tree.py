@@ -24,6 +24,7 @@ from cue_lib.constants import (
     CUE_SIDEBAR_DEFAULT_WIDTH,
     CUE_SIDEBAR_MAX_WIDTH_RATIO,
     CUE_SIDEBAR_MIN_WIDTH,
+    CUE_UI_REF_WIDTH,
 )
 from cue_lib.util import _cue_is_abs_path, _cue_log, _cue_unwrap_persistent
 
@@ -454,8 +455,8 @@ class CueSfxLibraryTree(CueAudioTreeManager):
 
     def set_sidebar_width(self, width):
         # type: (int) -> None
-        """Clamp and store the sidebar width (logical px, pre-zoom)."""
-        max_w = int(renpy.config.screen_width * CUE_SIDEBAR_MAX_WIDTH_RATIO)
+        """Clamp and store the sidebar width (1920-ref px)."""
+        max_w = int(CUE_UI_REF_WIDTH * CUE_SIDEBAR_MAX_WIDTH_RATIO)
         self.sidebar_width = max(CUE_SIDEBAR_MIN_WIDTH, min(width, max_w))
 
     # ------------------------------------------------------------------

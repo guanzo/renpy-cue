@@ -8,9 +8,10 @@ gamedir = ""
 # probe in cue_lib.settings.CueSettings.confirm_shared_dir).
 save_directory = "save"
 
-# Viewport size -- CueTooltip / CuePopper clamp against these.
-screen_width = 1280
-screen_height = 720
+# Viewport size -- CueTooltip / CuePopper clamp against these.  Run at the
+# 1920 UI reference width so _cue_scale_ui() is identity in unit tests.
+screen_width = 1920
+screen_height = 1080
 
 keymap = {}
 screen = {}

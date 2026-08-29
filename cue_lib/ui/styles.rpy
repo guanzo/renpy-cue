@@ -51,43 +51,43 @@ define _cue_indent = "  "
 
 style cue_frame is empty:
     background _cue_color_bg_panel
-    padding (4, 4)
+    padding (_cue_scale_ui(4), _cue_scale_ui(4))
     xfill True
 
 # Dialog shell: dark outer button whose 4px padding ring reads as a black
 # border around the content panel, matching the overlay/sfx panels (outer
 # padded container + nested dark frame).
 style cue_dialog_wrapper is empty:
-    xpos _cue_overlay_panel_width
-    ypos 4
-    padding (4, 4)
+    xpos _cue_scale_ui(_cue_overlay_panel_width)
+    ypos _cue_scale_ui(4)
+    padding (_cue_scale_ui(4), _cue_scale_ui(4))
     background _cue_color_bg_overlay
     hover_background _cue_color_bg_overlay
-    xmaximum 408
+    xmaximum _cue_scale_ui(408)
 
 # Inner content panel of a dialog: the dark surface the actual dialog lives
 # on, inset inside cue_dialog_wrapper's border ring.
 style cue_dialog_content is empty:
-    padding (16, 8)
+    padding (_cue_scale_ui(16), _cue_scale_ui(8))
     background _cue_color_bg_dialog
     hover_background _cue_color_bg_dialog
 
 style cue_popper_frame is empty:
     background "#000000ee"
-    padding (8, 6)
+    padding (_cue_scale_ui(8), _cue_scale_ui(6))
     xfill False
 
 style cue_button is empty:
-    yminimum _cue_btn_height
+    yminimum _cue_scale_ui(_cue_btn_height)
     background _cue_color_bg_btn
     hover_background _cue_color_bg_btn_hover
     insensitive_background _cue_color_bg_dialog
-    padding (2, 0)
+    padding (_cue_scale_ui(2), 0)
     hover_sound None
     activate_sound None
 
 style cue_icon_button is empty:
-    xysize (_cue_btn_height, _cue_btn_height)
+    xysize (_cue_scale_ui(_cue_btn_height), _cue_scale_ui(_cue_btn_height))
     padding (0, 0)
     background _cue_color_bg_btn
     hover_background _cue_color_bg_btn_hover
@@ -96,7 +96,7 @@ style cue_icon_button is empty:
     activate_sound None
 
 style cue_text is empty:
-    size 12
+    size _cue_scale_ui(12)
     color _cue_color_text
     font "DejaVuSans.ttf"
 
@@ -116,12 +116,12 @@ style cue_icon_button_text is cue_button_text:
     padding (0, 0)
 
 style cue_hdr is cue_text:
-    size 14
+    size _cue_scale_ui(14)
     color _cue_color_text_accent
     bold True
 
 style cue_help is cue_text:
-    size 11
+    size _cue_scale_ui(11)
     color _cue_color_text_muted
 
 # About-page hyperlinks.  {a=} tags need a per-style handler: theming the
@@ -155,13 +155,13 @@ style cue_input is cue_text:
     adjust_spacing False
 
 style cue_hbox is empty:
-    spacing 5
+    spacing _cue_scale_ui(5)
 
 style cue_vbox is empty:
-    spacing 5
+    spacing _cue_scale_ui(5)
 
 style cue_vscrollbar is empty:
-    xsize 6
+    xsize _cue_scale_ui(6)
     base_bar Solid(_cue_color_bg_scrollbar)
     thumb Solid(_cue_color_divider)
     hover_thumb Solid(_cue_color_text_dim)
@@ -171,7 +171,7 @@ style cue_vscrollbar is empty:
     bar_resizing False
 
 style cue_scrollbar is empty:
-    ysize 6
+    ysize _cue_scale_ui(6)
     base_bar Solid(_cue_color_bg_scrollbar)
     thumb Solid(_cue_color_divider)
     hover_thumb Solid(_cue_color_text_dim)

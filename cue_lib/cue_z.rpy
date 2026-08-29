@@ -143,7 +143,7 @@ init -999 python:
         CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline,
         CueTooltip, CueVideoMarkerTooltip, CueAutoSpeedChart,
         CueKeyCaptureDisplayable, CueSidebarResizeHandle,
-        _cue_sidebar_poll_cursor, _cue_setup_mouse_cursor,
+        _cue_scale_ui, _cue_sidebar_poll_cursor, _cue_setup_mouse_cursor,
     )
 
     from cue_lib.ui.focus import _cue_install_focus_pin
@@ -168,6 +168,7 @@ init -999 python:
         CUE_KEYMAP_PAGE_IMPORT, CUE_KEYMAP_PAGE_SETTINGS,
         CUE_KEYMAP_TARGET_VIDEO, CUE_KEYMAP_TARGET_IMAGE,
         CUE_KEYMAP_TARGET_DIALOGUE, CUE_KEYMAP_TARGET_LOOP,
+        CUE_UI_REF_WIDTH,
     )
     from cue_lib.keybinds import (
         CueKeybindsManager, _cue_keybind_start, _cue_keybind_cancel,

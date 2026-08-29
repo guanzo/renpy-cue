@@ -837,8 +837,8 @@ class _SidebarEnv(object):
         self.library = types.SimpleNamespace(sidebar_width=width)
 
 
-def _make_sidebar_env(monkeypatch, mouse=(0, 0), zoom=1.0, panel=500, width=320):
-    # type: (Any, Tuple[int, int], float, int, int) -> Any
+def _make_sidebar_env(monkeypatch, mouse=(0, 0), panel=500, width=320):
+    # type: (Any, Tuple[int, int], int, int) -> Any
     """Patch renpy/_cue into a resize recording rig for the handle.
 
     The fake library clamps like the real CueSfxLibraryTree, so the
@@ -863,18 +863,16 @@ def _make_sidebar_env(monkeypatch, mouse=(0, 0), zoom=1.0, panel=500, width=320)
     cue = types.SimpleNamespace(sfx=types.SimpleNamespace(library=library))
     monkeypatch.setattr(_displ, "_cue", cue)
     monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: mouse)
-    monkeypatch.setattr(
-        _renpy, "store", types.SimpleNamespace(_cue_overlay_zoom=lambda: zoom, _cue_overlay_panel_width=panel)
-    )
+    monkeypatch.setattr(_renpy, "store", types.SimpleNamespace(_cue_overlay_panel_width=panel))
     monkeypatch.setattr(_renpy, "restart_interaction", restart_interaction)
 
     return env
 
 
 def test_sidebar_width_from_mouse_math():
-    assert _cue_sidebar_width_from_mouse(800, 1.0, 500) == 300
-    assert _cue_sidebar_width_from_mouse(800, 1.5, 500) == 700
-    assert _cue_sidebar_width_from_mouse(600, 2.0, 500) == 700
+    # At the 1920 mock reference, scale is 1.0 -> width is mouse minus panel.
+    assert _cue_sidebar_width_from_mouse(800, 500) == 300
+    assert _cue_sidebar_width_from_mouse(700, 500) == 200
 
 
 def test_sidebar_handle_singleton_and_focusable():
@@ -1018,20 +1016,20 @@ def test_tooltip_render_basic(monkeypatch):
 
 
 def test_tooltip_render_no_focus_clamps_to_right_edge(monkeypatch):
-    monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (1200, 300))
+    monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (1900, 300))
     tip = CueTooltip("hello")
     r = tip.render(800, 600, 0.0, 0.0)
     tx, _ = r.blits[0][1]
     # Outer box is 362 wide (content + 1px border + 2px shadow).
-    assert tx == 1280 - 362
+    assert tx == 1920 - 362
 
 
 def test_tooltip_render_no_focus_clamps_bottom(monkeypatch):
-    monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (1200, 800))
+    monkeypatch.setattr(_renpy, "get_mouse_pos", lambda: (1200, 1200))
     tip = CueTooltip("hello")
     r = tip.render(800, 600, 0.0, 0.0)
     _, ty = r.blits[0][1]
-    assert ty == 720 - 108
+    assert ty == 1080 - 108
 
 
 def test_tooltip_render_clamps_negative_top(monkeypatch):
@@ -1083,12 +1081,12 @@ def test_tooltip_focus_flips_below_when_no_room_above(monkeypatch):
 
 
 def test_tooltip_focus_clamps_to_right_edge(monkeypatch):
-    monkeypatch.setattr(_renpy, "focus_coordinates", lambda: (1200, 300, 100, 40))
+    monkeypatch.setattr(_renpy, "focus_coordinates", lambda: (1900, 300, 100, 40))
     tip = CueTooltip("hello")
     r = tip.render(800, 600, 0.0, 0.0)
     tx, ty = r.blits[0][1]
-    # Centering would push past the right edge (1280); clamp to the edge.
-    assert tx == 1280 - 362
+    # Centering would push past the right edge (1920); clamp to the edge.
+    assert tx == 1920 - 362
     assert ty == 300 - 108 - 4
 
 
@@ -1154,12 +1152,14 @@ def test_tooltip_overlay_clamps_to_screen():
 
 
 def test_compute_points_less_than_two():
-    assert CueAutoSpeedChart._compute_points([], 200, 100) == ([], 0.0, 0.0)
-    assert CueAutoSpeedChart._compute_points([1.0], 200, 100) == ([], 0.0, 0.0)
+    chart = CueAutoSpeedChart()
+    assert chart._compute_points([], 200, 100) == ([], 0.0, 0.0)
+    assert chart._compute_points([1.0], 200, 100) == ([], 0.0, 0.0)
 
 
 def test_compute_points_three_speeds():
-    points, lo, hi = CueAutoSpeedChart._compute_points([1.0, 2.0, 3.0], 200, 100)
+    chart = CueAutoSpeedChart()
+    points, lo, hi = chart._compute_points([1.0, 2.0, 3.0], 200, 100)
     assert (lo, hi) == (1.0, 3.0)
     assert points[0] == (35, 82)
     assert points[1] == (113, 45)
@@ -1167,7 +1167,8 @@ def test_compute_points_three_speeds():
 
 
 def test_compute_points_flat_speeds():
-    points, lo, hi = CueAutoSpeedChart._compute_points([2.0, 2.0], 200, 100)
+    chart = CueAutoSpeedChart()
+    points, lo, hi = chart._compute_points([2.0, 2.0], 200, 100)
     assert (lo, hi) == (2.0, 2.0)
     assert points[0][1] == points[1][1]
 

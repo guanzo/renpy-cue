@@ -79,15 +79,6 @@ screen cue_runtime_timers():
 # Main Overlay — the sidebar frame.
 ###############################################################################
 
-init python:
-    # Scale up UI as window shrinks.
-    def _cue_overlay_zoom():
-        pw, _ph = renpy.get_physical_size()
-        vw = renpy.config.screen_width
-        if pw > 0 and vw > 0:
-            return max(1.0, float(vw) / float(pw))
-        return 1.0
-
 screen cue_overlay():
     style_group "cue"
 
@@ -96,17 +87,14 @@ screen cue_overlay():
     # instead of the game's own keymap shortcuts.
     modal (_cue.dialogs.active_dialog is not None)
 
-    $ _z = _cue_overlay_zoom()
-
     button:
         style "empty"
-        at Transform(zoom=_z)
         action NullAction()
         xalign 0.0
         yalign 0.0
-        xsize int(_cue_overlay_panel_width / _z)
-        ysize int(renpy.config.screen_height / _z)
-        padding (4, 4)
+        xsize _cue_scale_ui(_cue_overlay_panel_width)
+        ysize renpy.config.screen_height
+        padding (_cue_scale_ui(4), _cue_scale_ui(4))
         background None
         hover_background None
         frame:
@@ -280,16 +268,14 @@ screen cue_sfx_sidebar():
     $ _is_video = _cue.top_layer_type == 'movie'
 
     if _cue.sfx.library.is_sidebar_mode and not _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False):
-        $ _z = _cue_overlay_zoom()
         button:
             style "empty"
-            at Transform(zoom=_z)
             action NullAction()
-            padding (0, 4)
+            padding (0, _cue_scale_ui(4))
             yalign 0.0
-            xpos int(_cue_overlay_panel_width / _z)
-            xsize int(_cue.sfx.library.sidebar_width / _z)
-            ysize int(renpy.config.screen_height / _z)
+            xpos _cue_scale_ui(_cue_overlay_panel_width)
+            xsize _cue_scale_ui(_cue.sfx.library.sidebar_width)
+            ysize renpy.config.screen_height
             background None
             hover_background None
             frame:
@@ -301,7 +287,7 @@ screen cue_sfx_sidebar():
             # Custom displayable -- the screen `dragged` callback only fires on
             # drop with a 2-arg signature, so live resize needs raw mouse events.
             # Sized to the padded content rect so it hugs the colored frame.
-            add CueSidebarResizeHandle.get_handle() at Transform(xalign=1.0, xsize=10, ysize=int(renpy.config.screen_height / _z - 8))
+            add CueSidebarResizeHandle.get_handle() at Transform(xalign=1.0, xsize=_cue_scale_ui(10), ysize=renpy.config.screen_height - _cue_scale_ui(8))
 
 ###############################################################################
 # Speed-change toast — subtle indicator in the top-left corner
@@ -319,8 +305,8 @@ screen cue_speed_toast():
     hbox:
         at cue_speed_toast_fade(_cue.speed_toast.toast_duration)
         xalign 0.5
-        ypos 14
-        spacing 12
+        ypos _cue_scale_ui(14)
+        spacing _cue_scale_ui(12)
         for _sp in _cue.speed_toast.toast_speeds:
             $ _pending = _cue.speed_resolver._pending_speed
             $ _playing = (_cue.speed_resolver._pre_pending_speed
@@ -332,7 +318,7 @@ screen cue_speed_toast():
                 color ("#ffcc00" if _is_pending
                     else "#ffffff" if _is_active
                     else "#cccccc")
-                size (28 if _is_active else 26)
+                size (_cue_scale_ui(28) if _is_active else _cue_scale_ui(26))
                 bold _is_active
     # Auto-hide after the fade completes, but only when there is no
     # pending seamless transition.  While a speed change is queued,

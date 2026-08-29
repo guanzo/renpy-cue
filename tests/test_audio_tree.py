@@ -42,6 +42,7 @@ from cue_lib.constants import (
     CUE_SIDEBAR_DEFAULT_WIDTH,
     CUE_SIDEBAR_MIN_WIDTH,
     CUE_SIDEBAR_MAX_WIDTH_RATIO,
+    CUE_UI_REF_WIDTH,
 )
 from cue_lib.util import _cue_build_tree, _cue_filter_tree
 
@@ -890,9 +891,9 @@ def test_sfx_set_sidebar_width_clamps(sfx):
     sfx.set_sidebar_width(50)
     assert sfx.sidebar_width == CUE_SIDEBAR_MIN_WIDTH
     sfx.set_sidebar_width(5000)
-    assert sfx.sidebar_width == int(renpy.config.screen_width * CUE_SIDEBAR_MAX_WIDTH_RATIO)
+    assert sfx.sidebar_width == int(CUE_UI_REF_WIDTH * CUE_SIDEBAR_MAX_WIDTH_RATIO)
     # A width strictly inside the bounds passes through unchanged.
-    mid = int((CUE_SIDEBAR_MIN_WIDTH + int(renpy.config.screen_width * CUE_SIDEBAR_MAX_WIDTH_RATIO)) / 2)
+    mid = int((CUE_SIDEBAR_MIN_WIDTH + int(CUE_UI_REF_WIDTH * CUE_SIDEBAR_MAX_WIDTH_RATIO)) / 2)
     sfx.set_sidebar_width(mid)
     assert sfx.sidebar_width == mid
 
