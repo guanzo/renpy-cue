@@ -195,14 +195,19 @@ screen cue_video_vfx_intensity(_has_speeds):
     $ _has_group = _hook_group is not None
 
     if not _has_speeds or not _has_group:
-        etext ("Intensity ties a video's SFX to the video's playback speed. "
-            "As speed changes, the pool plays SFX from the appropriate \"level\" folder in "
-            "its intensity group, while also scaling volume and Loop SFX interval to fit the moment.")
+        etext ("Intensity ties a video's SFX to its playback speed. An intensity group "
+            "is made up of 2 or more \"levels\", each with its own SFX. As playback "
+            "speed changes, Cue plays SFX from the level that matches, while also "
+            "scaling volume and Loop SFX interval.\n\n"
+            "Level order corresponds to speed: lower levels play at slower speeds, "
+            "higher levels play at faster speeds. For example, with 3 levels and "
+            "9 speeds, level 1 covers speeds 1-3, level 2 covers speeds 4-6, "
+            "and level 3 covers speeds 7-9.")
         etext "How to set up:"
         vbox:
             spacing 2
             text ("1. Generate at least one speed variant in the Create tab. "
-                "(Ideally [CUE_AUTO_SPEED_IDEAL_VARIANTS]+ variants)")
+                "(Ideally 9+ variants)")
             if _has_speeds:
                 hbox:
                     use cue_icon("circle-check", icon_color=_cue_color_green, fade=False)
@@ -213,8 +218,8 @@ screen cue_video_vfx_intensity(_has_speeds):
                     etext "Incomplete" color _cue_color_warn
         vbox:
             spacing 2
-            text ("2. Create an intensity group in the SFX Library and add any "
-                "one of it's \"level\" folders to the video pools. "
+            text ("2. Go to the SFX Library, create an intensity group with 2 or more levels, add any "
+                "one of it's level folders to a video pool. "
                 "(Ideally ~[CUE_INTENSITY_IDEAL_LEVELS] levels)")
             if _has_group:
                 hbox:

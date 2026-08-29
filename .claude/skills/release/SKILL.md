@@ -56,7 +56,7 @@ release notes, no mod asset, no new tag.
 6. **Dry-run the mod asset** (verify contents, don't ship it):
 
    ```bash
-   python3 bin/build_release_asset.py --out "/tmp/Cue_<ver>.zip"
+   python3 bin/build_release_asset.py --out "/tmp/cue_<ver>.zip"
    ```
    Check the zip: no `.rpyc`/`.pyo`/`__pycache__`; has `cue_lib/__init__.py`;
    no tests/, bin/, tools/, docs/.

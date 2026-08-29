@@ -30,9 +30,9 @@ Add sound effects to images, dialogue, video timestamps, loops, and screen shake
 
 Customize the music that plays during replays with your own songs or music from the game.
 
-🎬 Video Speed Effects
+🎬 Video Speed Variants
 
-Create video speed variants and switch or sequence between speeds during playback. 
+Create slower or faster versions of a video, and switch or sequence between speeds during playback. 
 
 🎛️ Presets
 
@@ -67,14 +67,17 @@ Cue needs sound files before it can play anything. You can start with either of 
 - **[Cue NSFW SFX Pack](https://github.com/guanzo/renpy-cue/releases/latest/download/cue_sfx.zip)**: A curated collection selected for Cue.
 - **<a href="https://opennsfw.carrd.co/" target="_blank" rel="noopener noreferrer">OPENNSFW</a>**: High quality SFX + Voice Pack. Contains Free and Paid versions.
 
-Download and extract the pack you want to use. Then run the game, open Cue, go to **SFX Library**, and click **Open SFX Folder**. Copy the extracted audio files into the folder that opens.
+1. Download and extract the pack you want to use. 
+2. Run the game, then open Cue by pressing `` ` `` (backtick) or `Shift+Alt+E`. 
+3. Go to **SFX Library**, and click **Open SFX Folder**. 
+4. Copy the extracted audio files into the folder that opens.
 
 Cue was built with AVNs in mind, but Cue itself works the same on any Ren'Py game.
 
-### 3. Create a SFX triggerz`
+### 3. Create a SFX trigger
 
 1. Start a replay and play until you reach an image where you want a sound.
-2. Press `` ` `` (backtick) or `Shift+Alt+E` to open Cue.
+2. Open Cue.
 3. Find a sound in **SFX Library** and click the **+** button.
 4. The next time this image appears on screen, your chosen sound will play.
 

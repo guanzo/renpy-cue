@@ -52,7 +52,7 @@ def main():
     ap.add_argument("--version", default=None)
     args = ap.parse_args()
     version = args.version or cue_version()
-    out = args.out or os.path.join(ROOT, f"Cue_{version}.zip")
+    out = args.out or os.path.join(ROOT, f"cue_{version}.zip")
     if not os.path.isdir(args.source):
         sys.exit(f"source dir not found: {args.source}")
     print(f"built {build_zip(args.source, out, version)} (CUE_VERSION={version})")
