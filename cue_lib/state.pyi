@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from cue_lib.video.ffmpeg import CueFFmpeg
 from cue_lib.audio.sfx_manager import CueSfxManager
@@ -14,6 +14,7 @@ from cue_lib.video.auto_speed import CueAutoSpeedGenerator
 from cue_lib.video.speed import CueVidSpeedResolver, CueVidSpeedSequence, CueSpeedToast
 from cue_lib.trigger import CueTriggerEngine
 from cue_lib.ui.dialogs import CueDialogs
+from cue_lib.ui.overlay import CueOverlay
 from cue_lib.sharing import CueImportManager, CueExportManager, CueUrlImporter
 from cue_lib.undo import CueUndoManager
 from cue_lib.video.video import CueVideoManager
@@ -43,9 +44,6 @@ class CueContext:
 class Cue:
     initialized: bool
     VERSION: str
-    is_overlay_visible: bool
-    overlay_active_page: int
-    collapsed_sections: Dict[str, bool]
     ctx: CueContext
     active_input: str
     active_input_rect: Optional[Tuple[int, int, int, int]]
@@ -81,9 +79,8 @@ class Cue:
     importer: CueImportManager
     exporter: CueExportManager
     url_importer: CueUrlImporter
+    overlay: CueOverlay
 
     _create_delete_speed: Optional[Tuple[str, float]]
-
-    def toggle_section(self, section_name: str) -> None: ...
 
 _cue: Cue

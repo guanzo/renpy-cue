@@ -104,6 +104,8 @@ def _make_fake_cue():
         # _cue_full_reload calls presets.reload_presets() after a restore and
         # runs the folder-hook migration over presets.intensity._presets
         presets=types.SimpleNamespace(reload_presets=lambda: None, intensity=types.SimpleNamespace(_presets={})),
+        # _cue_full_reload hydrates the section toggles from persistent
+        overlay=types.SimpleNamespace(_load_collapsed_sections=lambda: None),
         markers=None,
     )
 

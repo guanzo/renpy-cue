@@ -154,7 +154,7 @@ testsuite global:
         # by CUE_ENGINE_TIMEOUT in the harness).
         $ _test.timeout = 10.0
         $ _test.transition_timeout = 0.05
-        $ _cue.is_overlay_visible = True
+        $ _cue.overlay.is_visible = True
 
     teardown:
         exit
@@ -165,23 +165,23 @@ testcase overlay_shows_on_start:
 
 testcase page_nav:
     run Jump("start")
-    run Function(_cue_set_page, CuePage.MUSIC)
-    assert eval (_cue.overlay_active_page == CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
+    assert eval (_cue.overlay.active_page == CuePage.MUSIC)
 
 testcase settings_page_about:
     run Jump("start")
     # Rendering the Settings page exercises cue_about: a broken version line
     # or {a=} hyperlink style fails this interaction.
-    run Function(_cue_set_page, CuePage.SETTINGS)
-    assert eval (_cue.overlay_active_page == CuePage.SETTINGS)
+    run Function(_cue.overlay.set_page, CuePage.SETTINGS)
+    assert eval (_cue.overlay.active_page == CuePage.SETTINGS)
 
 testcase import_page_nav:
     run Jump("start")
-    # _cue_set_page(IMPORT) scans imports/ and refreshes the export categories
+    # _cue.overlay.set_page(IMPORT) scans imports/ and refreshes the export categories
     # before the page renders.  A compile error in the import/export page
     # fails this interaction.
-    run Function(_cue_set_page, CuePage.IMPORT)
-    assert eval (_cue.overlay_active_page == CuePage.IMPORT)
+    run Function(_cue.overlay.set_page, CuePage.IMPORT)
+    assert eval (_cue.overlay.active_page == CuePage.IMPORT)
 
 testcase import_banner_render:
     run Jump("start")
@@ -193,8 +193,8 @@ testcase import_banner_render:
     # smoke test: a broken banner screen fails this interaction.
     $ _cue.importer.is_active = True
     $ _cue.importer.active_import = "ShieldPkg"
-    run Function(_cue_set_page, CuePage.SFX)
-    assert eval (_cue.overlay_active_page == CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
+    assert eval (_cue.overlay.active_page == CuePage.SFX)
     assert eval (_cue.importer.active_import_name() == "ShieldPkg")
     assert eval (renpy.get_screen("cue_overlay", layer="cue_layer"))
     # Restore live state for the testcases that run after this one.
@@ -206,17 +206,17 @@ testcase overlay_render_sweep:
     # Render smoke for every sidebar page: a screen error in any page fails
     # its interaction, so the run Function calls are the real assertions. The
     # asserts guard against a page that renders but never activates.
-    run Function(_cue_set_page, CuePage.SFX)
-    assert eval (_cue.overlay_active_page == CuePage.SFX)
-    run Function(_cue_set_page, CuePage.MUSIC)
-    assert eval (_cue.overlay_active_page == CuePage.MUSIC)
-    run Function(_cue_set_page, CuePage.IMPORT)
-    assert eval (_cue.overlay_active_page == CuePage.IMPORT)
-    run Function(_cue_set_page, CuePage.SETTINGS)
-    assert eval (_cue.overlay_active_page == CuePage.SETTINGS)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
+    assert eval (_cue.overlay.active_page == CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
+    assert eval (_cue.overlay.active_page == CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.IMPORT)
+    assert eval (_cue.overlay.active_page == CuePage.IMPORT)
+    run Function(_cue.overlay.set_page, CuePage.SETTINGS)
+    assert eval (_cue.overlay.active_page == CuePage.SETTINGS)
     assert screen "cue_overlay" layer "cue_layer"
     # Sidebar mode re-renders the SFX page as the compact library sidebar.
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     assert eval (_cue.sfx.library.is_sidebar_mode is True)
     assert screen "cue_overlay" layer "cue_layer"
@@ -277,7 +277,7 @@ testcase import_export_roundtrip:
 
 testcase confirm_dialog_escape:
     run Jump("start")
-    run Function(_cue.dialogs.confirm.show, "Really?", _cue_hide_overlay)
+    run Function(_cue.dialogs.confirm.show, "Really?", _cue.overlay.hide)
     assert eval (_cue.dialogs.active_dialog is _cue.dialogs.confirm)
     keysym "K_ESCAPE"
     assert eval (_cue.dialogs.active_dialog is None)
@@ -293,7 +293,7 @@ testcase empty_library_open_folder_btn:
     $ _cue_test_reset()
     # The empty-state Open Audio/Music folder button is the only place the
     # store-bridged _cue_open_in_os_file_explorer name resolves, so render both
-    # pages with empty libraries.  _cue_set_page does not rescan, so the
+    # pages with empty libraries.  _cue.overlay.set_page does not rescan, so the
     # in-memory empty holds for the render; restore the snapshot right after
     # so later testcases see the seeded libraries (reassign, not scan -- the
     # scan may carry fixtures other testcases created).
@@ -307,13 +307,13 @@ testcase empty_library_open_folder_btn:
     $ _cue.music.library.user_files = []
     $ _cue.music.library.user_tree = []
     $ _cue.music.library.game_tree = []
-    run Function(_cue_set_page, CuePage.SFX)
-    assert eval (_cue.overlay_active_page == CuePage.SFX)
-    run Function(_cue_set_page, CuePage.MUSIC)
-    assert eval (_cue.overlay_active_page == CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
+    assert eval (_cue.overlay.active_page == CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
+    assert eval (_cue.overlay.active_page == CuePage.MUSIC)
     # Settings' Data Folder section carries the same button (Open Data Folder).
-    run Function(_cue_set_page, CuePage.SETTINGS)
-    assert eval (_cue.overlay_active_page == CuePage.SETTINGS)
+    run Function(_cue.overlay.set_page, CuePage.SETTINGS)
+    assert eval (_cue.overlay.active_page == CuePage.SETTINGS)
     $ _cue.sfx.library.files = _sfx_files
     $ _cue.sfx.library.tree = _sfx_tree
     $ _cue.music.library.user_files = _mu_user_files
@@ -376,7 +376,7 @@ testcase intensity_groups_crud:
     assert eval (_cue.sfx.library.expanded_igroups.get("Test Impacts", False) is False)
     run Function(_cue.sfx.library.toggle_ilevel_expand, "Test Impacts", 1)
     assert eval (1 not in _cue.sfx.library.expanded_ilevels.get("Test Impacts", set()))
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     pause 0.5
     # Add-mode branches render: level row + file tree becomes an adder.
     run Function(_cue.sfx.library.toggle_ilevel_add_mode, "Test Impacts", 1)
@@ -532,7 +532,7 @@ testcase intensity_tab_view:
     $ _cue.marker_store._get_or_create_entry(_vidk)["multi_speed_sequence"] = [0.7, 1.0, 1.3]
     $ _cue.marker_store._get_or_create_entry(_vidk)["speed_pref"] = 1.0
     # Open the SFX page with the Intensity tab; render the inspector.
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     run Function(_cue.video_editor.show_tab, CueVideoEditorTab.INTENSITY)
     $ renpy.restart_interaction()
     pause 0.5
@@ -603,7 +603,7 @@ testcase sfx_recently_used:
     assert eval (len(_cue.sfx.library._recent.entries()) == 3)
     assert eval (_cue.sfx.library._recent.entries()[0] == {"type": "preset", "ref": "Test Preset"})
     # Render the SFX page so the Recently Used row compiles and displays.
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
 
 testcase music_recently_used:
     run Jump("start")
@@ -624,7 +624,7 @@ testcase music_recently_used:
     assert eval (len(_cue.music._recent.entries()) == 2)
     assert eval (_cue.music._recent.entries()[0] == {"type": "folder", "ref": "u:music/"})
     # Render the Music page so the Recently Used row compiles and displays.
-    run Function(_cue_set_page, CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
 
 testcase intensity_hook_level_to_target:
     run Jump("start")
@@ -678,7 +678,7 @@ testcase intensity_hook_pool_renders:
     $ renpy.show("cuevid")
     pause 1.0
     $ _cue.markers.video.add_pool()
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     pause 0.2
     run Function(_cue_send_level_to_target, "Hook Render", 1)
     $ _vidk = _cue_create_vid_key(_cue.current_file)
@@ -710,9 +710,9 @@ testcase sfx_target_context:
     run Jump("start")
     $ _cue_test_reset()
     # Hotkeys select the target context on the SFX page (bar + [+] rows compile).
-    # _cue_set_page does not re-render the keybind screen, so settle a frame
+    # _cue.overlay.set_page does not re-render the keybind screen, so settle a frame
     # before the first keysym or it races the SFX hotkey registration.
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     pause 0.1
     keysym "K_3"
     assert eval (_cue.markers.target_context == CueContextType.DIALOGUE)
@@ -762,7 +762,7 @@ testcase music_presets:
     assert eval (_cue.music.presets_expanded)
     run Function(_cue.music.toggle_preset_expand, "Test Music Preset")
     assert eval (_cue.music.expanded_presets.get("Test Music Preset", False))
-    run Function(_cue_set_page, CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
     # Deleting removes it from memory and disk.
     run Function(_cue.presets.music.delete, "Test Music Preset")
     assert eval ("Test Music Preset" not in _cue.presets.music.list())
@@ -971,10 +971,10 @@ testcase video_speed_variant_created:
 testcase click_create_tab_opens_editor:
     run Jump("start")
     $ _test.timeout = 5.0
-    # page_nav leaves overlay_active_page on MUSIC, and store state persists
-    # between testcases in the same process. _cue_set_page restarts the
+    # page_nav leaves active_page on MUSIC, and store state persists
+    # between testcases in the same process. _cue.overlay.set_page restarts the
     # interaction, so the sidebar actually rebuilds with the SFX page.
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     $ renpy.show("cuevid")
     pause 2.0
     assert eval (_cue.top_layer_type == "movie")
@@ -994,7 +994,7 @@ testcase click_create_tab_opens_editor:
 testcase video_queue_error_msg_substitute_guard:
     run Jump("start")
     $ _test.timeout = 10.0
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     $ renpy.show("cuevid")
     pause 1.0
     $ _cue.video_editor.create(1.5)
@@ -1144,7 +1144,7 @@ testcase music_play_pause_toggle:
     run Function(_cue.music.library.preview, "u:music/song_001.ogg")
     pause 0.5
     assert eval (_cue.music.now_playing() is not None)
-    run Function(_cue_set_page, CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
     pause 0.5
     assert eval (_music.get_pause(channel="music") == False)
     run Function(_cue.music.toggle_pause)
@@ -1310,17 +1310,17 @@ testcase pages_render_data:
     $ _cue.music._recent._entries = [{"type": "file", "ref": "u:music/song_001.ogg"}]
     $ _cue.music._recent.expanded = True
     # Walk every page; each set_page + pause re-renders that page.
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     pause 0.5
-    run Function(_cue_set_page, CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
     pause 0.5
-    run Function(_cue_set_page, CuePage.IMPORT)
+    run Function(_cue.overlay.set_page, CuePage.IMPORT)
     pause 0.5
-    run Function(_cue_set_page, CuePage.SETTINGS)
+    run Function(_cue.overlay.set_page, CuePage.SETTINGS)
     pause 0.5
     # Overlay survived the walk on the final page.
     assert eval (renpy.get_screen("cue_overlay", layer="cue_layer") is not None)
-    assert eval (_cue.overlay_active_page == CuePage.SETTINGS)
+    assert eval (_cue.overlay.active_page == CuePage.SETTINGS)
     # Cleanup so reordering never leaks seeded state into later testcases.
     run Function(_cue.presets.audio.delete, "Render Preset")
     run Function(_cue.presets.video.delete, "Render Video Preset")
@@ -1348,7 +1348,7 @@ testcase zz_tmp_mapping_shot:
     $ _cue.marker_store._get_or_create_entry(_vidk)["speed_mode"] = CueSpeedMode.MULTI
     $ _cue.marker_store._get_or_create_entry(_vidk)["multi_speed_sequence"] = [0.7, 1.0, 1.3]
     $ _cue.marker_store._get_or_create_entry(_vidk)["speed_pref"] = 1.0
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     run Function(_cue.video_editor.show_tab, CueVideoEditorTab.INTENSITY)
     $ renpy.restart_interaction()
     pause 0.5
@@ -1367,13 +1367,13 @@ testcase sfx_sidebar_mode_renders:
     # the render proof; the mode flag gates its content.
     assert eval (renpy.get_screen("cue_overlay", layer="cue_layer") is not None)
     assert eval (_cue.sfx.library.is_sidebar_mode is True)
-    run Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
+    run Function(_cue.overlay.toggle_section, CUE_SFX_LIBRARY_HEADER)
     run Jump("start")
     # Collapsed while in sidebar mode: the sidebar screen stays shown but its
     # content (and the toolbar visibility button) disappear -- render must not
     # error.
-    assert eval (_cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False))
-    run Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
+    assert eval (_cue.overlay.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False))
+    run Function(_cue.overlay.toggle_section, CUE_SFX_LIBRARY_HEADER)
     # Restore state so later testcases render the in-overlay SFX section.
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     run Jump("start")
@@ -1475,8 +1475,8 @@ testcase settings_page_folder_sections:
     # SFX/Music folder row editors; a broken cue_sfx_folders or
     # cue_music_folders screen fails this interaction.  The lists hydrate from
     # shared config (empty in a fresh fixture root).
-    run Function(_cue_set_page, CuePage.SETTINGS)
-    assert eval (_cue.overlay_active_page == CuePage.SETTINGS)
+    run Function(_cue.overlay.set_page, CuePage.SETTINGS)
+    assert eval (_cue.overlay.active_page == CuePage.SETTINGS)
     run Function(_cue.settings.prepare_for_page)
     assert eval (_cue.settings.music_folders == [])
     assert eval (_cue.settings.sfx_folders == [])
@@ -1493,8 +1493,8 @@ testcase music_external_tree_renders:
     assert eval (len(_cue.music.library.external_files) == 1)
     assert eval (_cue.music.library.external_sources[0]["label"] == "ExtMusic")
     assert eval (any(_e.get("name") == "ExtMusic/" for _e in _cue.music.library.tree))
-    run Function(_cue_set_page, CuePage.MUSIC)
-    assert eval (_cue.overlay_active_page == CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
+    assert eval (_cue.overlay.active_page == CuePage.MUSIC)
     $ _cue_external_cleanup()
 
 testcase sfx_external_tree_renders:
@@ -1511,8 +1511,8 @@ testcase sfx_external_tree_renders:
     assert eval (len(_cue.sfx.library.tree) >= 2)
     assert eval (_cue.sfx.library.tree[0]["name"] == "SFX/")
     assert eval (any(_e.get("name") == "ExtSfx/" for _e in _cue.sfx.library.tree))
-    run Function(_cue_set_page, CuePage.SFX)
-    assert eval (_cue.overlay_active_page == CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
+    assert eval (_cue.overlay.active_page == CuePage.SFX)
     $ _cue_external_cleanup()
 
 testcase empty_state_settings_tip:
@@ -1526,8 +1526,8 @@ testcase empty_state_settings_tip:
     $ _cue.sfx.library.builtin_tree = []
     $ _cue.sfx.library.builtin_scan_error = ""
     $ _cue.sfx.library.external_sources = []
-    run Function(_cue_set_page, CuePage.SFX)
-    assert eval (_cue.overlay_active_page == CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
+    assert eval (_cue.overlay.active_page == CuePage.SFX)
     $ _cue.sfx.library.builtin_tree = _sfx_builtin_tree
     $ _cue.sfx.library.builtin_scan_error = _sfx_builtin_scan_error
     $ _cue.sfx.library.external_sources = _sfx_external_sources

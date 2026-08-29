@@ -18,8 +18,8 @@ screen cue_runtime_driver():
 screen cue_runtime_keybinds():
     # Hardcoded fallback (not rebindable): some games claim backtick for their
     # own console, so Shift+Alt+E is a guaranteed-free alternative.
-    key "alt_shift_K_e" action Function(_cue_toggle_overlay)
-    key CUE_KEYMAP_TOGGLE_OVERLAY action Function(_cue_toggle_overlay)
+    key "alt_shift_K_e" action Function(_cue.overlay.toggle)
+    key CUE_KEYMAP_TOGGLE_OVERLAY action Function(_cue.overlay.toggle)
     key CUE_KEYMAP_COPY_CONTEXT action Function(_cue.markers.copy_context)
     key CUE_KEYMAP_PASTE_CONTEXT action Function(_cue.markers.paste_context)
     key CUE_KEYMAP_TOGGLE_SFX_ACTIVE action Function(_cue.trigger.toggle_active)
@@ -28,19 +28,19 @@ screen cue_runtime_keybinds():
     key CUE_KEYMAP_REDO action Function(_cue.undo.redo)
     key CUE_KEYMAP_SPEED_UP action Function(_cue.speed_resolver.cycle_speed, 1)
     key CUE_KEYMAP_SPEED_DOWN action Function(_cue.speed_resolver.cycle_speed, -1)
-    key CUE_KEYMAP_TOGGLE_SFX_LIBRARY action Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER)
+    key CUE_KEYMAP_TOGGLE_SFX_LIBRARY action Function(_cue.overlay.toggle_section, CUE_SFX_LIBRARY_HEADER)
 
     if CUE_DEBUG:
         key CUE_KEYMAP_QUIT_RELAUNCH action Function(renpy.quit, relaunch=True)
 
-    if _cue.is_overlay_visible:
+    if _cue.overlay.is_visible:
         key CUE_KEYMAP_TOGGLE_SFX_SIDEBAR action Function(_cue.sfx.library.toggle_sidebar_mode)
-        key CUE_KEYMAP_PAGE_SFX action Function(_cue_set_page, CuePage.SFX)
-        key CUE_KEYMAP_PAGE_MUSIC action Function(_cue_set_page, CuePage.MUSIC)
-        key CUE_KEYMAP_PAGE_IMPORT action Function(_cue_set_page, CuePage.IMPORT)
-        key CUE_KEYMAP_PAGE_SETTINGS action Function(_cue_set_page, CuePage.SETTINGS)
+        key CUE_KEYMAP_PAGE_SFX action Function(_cue.overlay.set_page, CuePage.SFX)
+        key CUE_KEYMAP_PAGE_MUSIC action Function(_cue.overlay.set_page, CuePage.MUSIC)
+        key CUE_KEYMAP_PAGE_IMPORT action Function(_cue.overlay.set_page, CuePage.IMPORT)
+        key CUE_KEYMAP_PAGE_SETTINGS action Function(_cue.overlay.set_page, CuePage.SETTINGS)
 
-        if _cue.overlay_active_page == CuePage.SFX:
+        if _cue.overlay.active_page == CuePage.SFX:
             key CUE_KEYMAP_TARGET_VIDEO action Function(_cue.markers.set_target_context, CueContextType.VIDEO)
             key CUE_KEYMAP_TARGET_IMAGE action Function(_cue.markers.set_target_context, CueContextType.IMAGE)
             key CUE_KEYMAP_TARGET_DIALOGUE action Function(_cue.markers.set_target_context, CueContextType.DIALOGUE)
@@ -58,19 +58,19 @@ screen cue_runtime_timers():
     # One restart poll for all background ops.  Fires only while one is live
     # and the overlay is up, so progress text re-renders and the timer drops
     # out once the op finishes.
-    if _cue.is_overlay_visible and _is_busy:
+    if _cue.overlay.is_visible and _is_busy:
         timer 0.25 repeat True action Function(renpy.restart_interaction, _update_screens=False)
 
     $ _sfx_dl = _cue.sfx.library.sfx_pack
-    if _cue.is_overlay_visible and _sfx_dl.state in ("downloading", "done"):
+    if _cue.overlay.is_visible and _sfx_dl.state in ("downloading", "done"):
         timer 0.25 repeat True action [
             Function(_sfx_dl.poll_sfx_pack),
             Function(renpy.restart_interaction, _update_screens=False),
         ]
 
-    if _cue.overlay_active_page == CuePage.IMPORT:
+    if _cue.overlay.active_page == CuePage.IMPORT:
         timer 2.0 repeat True action Function(_cue.importer.scan)
-    elif _cue.overlay_active_page == CuePage.SETTINGS:
+    elif _cue.overlay.active_page == CuePage.SETTINGS:
         timer 0.5 repeat True action Function(_cue.backups.poll, _update_screens=False)
 
     timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
@@ -147,11 +147,11 @@ screen cue_overlay_content():
                 use cue_edit_banner()
 
             # --- Active page replaces all content below the toolbar ---
-            if _cue.overlay_active_page == CuePage.SFX:
+            if _cue.overlay.active_page == CuePage.SFX:
                 use cue_sfx_page()
-            elif _cue.overlay_active_page == CuePage.MUSIC:
+            elif _cue.overlay.active_page == CuePage.MUSIC:
                 use cue_music_page()
-            elif _cue.overlay_active_page == CuePage.IMPORT:
+            elif _cue.overlay.active_page == CuePage.IMPORT:
                 use cue_import_export_page()
             else:
                 use cue_settings_page()
@@ -175,17 +175,17 @@ screen cue_header_toolbar():
         hbox:
             spacing 5
 
-            $ _sfx_bg = _cue_color_active if _cue.overlay_active_page == CuePage.SFX else None
-            use cue_icon_btn("sliders", Function(_cue_set_page, CuePage.SFX), "Editor",
+            $ _sfx_bg = _cue_color_active if _cue.overlay.active_page == CuePage.SFX else None
+            use cue_icon_btn("sliders", Function(_cue.overlay.set_page, CuePage.SFX), "Editor",
                 bg=_sfx_bg)
-            $ _music_bg = _cue_color_active if _cue.overlay_active_page == CuePage.MUSIC else None
-            use cue_icon_btn("music", Function(_cue_set_page, CuePage.MUSIC), "Music",
+            $ _music_bg = _cue_color_active if _cue.overlay.active_page == CuePage.MUSIC else None
+            use cue_icon_btn("music", Function(_cue.overlay.set_page, CuePage.MUSIC), "Music",
                 bg=_music_bg)
-            $ _import_bg = _cue_color_active if _cue.overlay_active_page == CuePage.IMPORT else None
-            use cue_icon_btn("file-zipper", Function(_cue_set_page, CuePage.IMPORT), "Import / Export",
+            $ _import_bg = _cue_color_active if _cue.overlay.active_page == CuePage.IMPORT else None
+            use cue_icon_btn("file-zipper", Function(_cue.overlay.set_page, CuePage.IMPORT), "Import / Export",
                 bg=_import_bg)
-            $ _settings_bg = _cue_color_active if _cue.overlay_active_page == CuePage.SETTINGS else None
-            use cue_icon_btn("gear", Function(_cue_set_page, CuePage.SETTINGS), "Settings",
+            $ _settings_bg = _cue_color_active if _cue.overlay.active_page == CuePage.SETTINGS else None
+            use cue_icon_btn("gear", Function(_cue.overlay.set_page, CuePage.SETTINGS), "Settings",
                 bg=_settings_bg)
 
             # Sidebar visibility toggle: same collapse flag as Shift+S, shown
@@ -193,11 +193,11 @@ screen cue_header_toolbar():
             # registered yet -- cue_icon_btn falls back to text.
             if _cue.sfx.library.is_sidebar_mode:
                 use cue_v_divider()
-                $ _sidebar_open = not _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
+                $ _sidebar_open = not _cue.overlay.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False)
                 $ _sidebar_bg = _cue_color_active if _sidebar_open else None
                 use cue_icon_btn(
                     "sidebar-flip",
-                    Function(_cue.toggle_section, CUE_SFX_LIBRARY_HEADER),
+                    Function(_cue.overlay.toggle_section, CUE_SFX_LIBRARY_HEADER),
                     "Toggle the SFX sidebar visibility ({}).".format(
                         _cue.keybinds.shortcut_label(CUE_KEYMAP_TOGGLE_SFX_LIBRARY)),
                     bg=_sidebar_bg)
@@ -233,7 +233,7 @@ screen cue_header_toolbar():
             null width 5
 
             
-            use cue_icon_btn("xmark", Function(_cue_hide_overlay), "Close overlay")
+            use cue_icon_btn("xmark", Function(_cue.overlay.hide), "Close overlay")
 
 # --- Active dialog: folded in gated on the live _cue.dialogs.active_dialog
 # so the overlay toggle hides it without losing its state. Dialog screens are
@@ -267,7 +267,7 @@ screen cue_sfx_sidebar():
     # Same video-context derivation as cue_overlay_content.
     $ _is_video = _cue.top_layer_type == 'movie'
 
-    if _cue.sfx.library.is_sidebar_mode and not _cue.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False):
+    if _cue.sfx.library.is_sidebar_mode and not _cue.overlay.collapsed_sections.get(CUE_SFX_LIBRARY_HEADER, False):
         button:
             style "empty"
             action NullAction()

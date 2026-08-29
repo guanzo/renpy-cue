@@ -253,42 +253,42 @@ init -10 python:
     _cue_test_create_click_until_active._deadline = 0.0
 
 testcase overlay_shows_on_start:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ if not renpy.get_screen("cue_overlay", layer="cue_layer"): renpy.quit(status=1)
     $ renpy.quit()
 
 testcase page_nav:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
-    run Function(_cue_set_page, CuePage.MUSIC)
-    $ if not (_cue.overlay_active_page == CuePage.MUSIC): renpy.quit(status=1)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
+    $ if not (_cue.overlay.active_page == CuePage.MUSIC): renpy.quit(status=1)
     $ renpy.quit()
 
 testcase settings_page_about:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
-    run Function(_cue_set_page, CuePage.SETTINGS)
-    $ if not (_cue.overlay_active_page == CuePage.SETTINGS): renpy.quit(status=1)
+    run Function(_cue.overlay.set_page, CuePage.SETTINGS)
+    $ if not (_cue.overlay.active_page == CuePage.SETTINGS): renpy.quit(status=1)
     $ renpy.quit()
 
 testcase import_page_nav:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
-    # _cue_set_page(IMPORT) scans imports/ and refreshes the export categories
+    # _cue.overlay.set_page(IMPORT) scans imports/ and refreshes the export categories
     # before the page renders.  A compile error in the import/export page
     # fails this interaction.
-    run Function(_cue_set_page, CuePage.IMPORT)
+    run Function(_cue.overlay.set_page, CuePage.IMPORT)
     pause 0.5
-    $ if not (_cue.overlay_active_page == CuePage.IMPORT): renpy.quit(status=1)
+    $ if not (_cue.overlay.active_page == CuePage.IMPORT): renpy.quit(status=1)
     $ renpy.quit()
 
 testcase import_banner_render:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     # An active package swaps the editor to the import and the toolbar shows
@@ -298,9 +298,9 @@ testcase import_banner_render:
     # smoke test: a broken banner screen fails this interaction.
     $ _cue.importer.is_active = True
     $ _cue.importer.active_import = "ShieldPkg"
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     pause 0.5
-    $ _ok = _cue.overlay_active_page == CuePage.SFX
+    $ _ok = _cue.overlay.active_page == CuePage.SFX
     $ _ok = _ok and _cue.importer.active_import_name() == "ShieldPkg"
     $ _ok = _ok and renpy.get_screen("cue_overlay", layer="cue_layer") is not None
     run Function(_cue.importer.deactivate)
@@ -309,27 +309,27 @@ testcase import_banner_render:
     $ renpy.quit()
 
 testcase overlay_render_sweep:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     # Render smoke for every sidebar page: a screen error in any page fails
     # its interaction, so the pauses are the real assertions. The explicit
     # checks guard against a page that renders but never activates.
     $ _ok = True
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     pause 0.5
-    $ _ok = _ok and (_cue.overlay_active_page == CuePage.SFX)
-    run Function(_cue_set_page, CuePage.MUSIC)
+    $ _ok = _ok and (_cue.overlay.active_page == CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
     pause 0.5
-    $ _ok = _ok and (_cue.overlay_active_page == CuePage.MUSIC)
-    run Function(_cue_set_page, CuePage.IMPORT)
+    $ _ok = _ok and (_cue.overlay.active_page == CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.IMPORT)
     pause 0.5
-    $ _ok = _ok and (_cue.overlay_active_page == CuePage.IMPORT)
-    run Function(_cue_set_page, CuePage.SETTINGS)
+    $ _ok = _ok and (_cue.overlay.active_page == CuePage.IMPORT)
+    run Function(_cue.overlay.set_page, CuePage.SETTINGS)
     pause 0.5
-    $ _ok = _ok and (_cue.overlay_active_page == CuePage.SETTINGS)
+    $ _ok = _ok and (_cue.overlay.active_page == CuePage.SETTINGS)
     # Sidebar mode re-renders the SFX page as the compact library sidebar.
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     pause 0.5
     run Function(_cue.sfx.library.toggle_sidebar_mode)
     pause 0.5
@@ -342,7 +342,7 @@ testcase overlay_render_sweep:
     $ renpy.quit()
 
 testcase import_export_roundtrip:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     # Local harness runs leave exports/ + imports/ residue (the script only
@@ -397,10 +397,10 @@ testcase import_export_roundtrip:
     $ renpy.quit()
 
 testcase confirm_dialog_escape:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
-    run Function(_cue.dialogs.confirm.show, "Really?", _cue_hide_overlay)
+    run Function(_cue.dialogs.confirm.show, "Really?", _cue.overlay.hide)
     pause 0.5
     $ if not (_cue.dialogs.active_dialog is _cue.dialogs.confirm): renpy.quit(status=1)
     $ import pygame_sdl2
@@ -413,7 +413,7 @@ testcase confirm_dialog_escape:
     $ renpy.quit()
 
 testcase sfx_library_rows:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _ok = len(_cue.sfx.library.files) >= 2 and _cue.sfx.library.scan_error == ""
@@ -422,7 +422,7 @@ testcase sfx_library_rows:
     $ renpy.quit()
 
 testcase empty_library_open_folder_btn:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     # Empty both libraries in memory and render the SFX + Music pages: the
@@ -434,21 +434,21 @@ testcase empty_library_open_folder_btn:
     $ _cue.music.library.user_files = []
     $ _cue.music.library.user_tree = []
     $ _cue.music.library.game_tree = []
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     pause 0.5
-    $ _ok = _cue.overlay_active_page == CuePage.SFX
-    run Function(_cue_set_page, CuePage.MUSIC)
+    $ _ok = _cue.overlay.active_page == CuePage.SFX
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
     pause 0.5
-    $ _ok = _ok and _cue.overlay_active_page == CuePage.MUSIC
+    $ _ok = _ok and _cue.overlay.active_page == CuePage.MUSIC
     # Settings' Data Folder section carries the same button (Open Data Folder).
-    run Function(_cue_set_page, CuePage.SETTINGS)
+    run Function(_cue.overlay.set_page, CuePage.SETTINGS)
     pause 0.5
-    $ _ok = _ok and _cue.overlay_active_page == CuePage.SETTINGS
+    $ _ok = _ok and _cue.overlay.active_page == CuePage.SETTINGS
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
 testcase sfx_file_tree_expand:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     run Function(_cue.sfx.library.toggle_folder, "Sub/")
@@ -456,7 +456,7 @@ testcase sfx_file_tree_expand:
     $ renpy.quit()
 
 testcase music_my_music_rows:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _ok = len(_cue.music.library.user_files) >= 1
@@ -465,7 +465,7 @@ testcase music_my_music_rows:
     $ renpy.quit()
 
 testcase audio_presets_list:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     run Function(_cue.presets.audio.create, "Test Preset", {"files": ["sfx_001.ogg"], "volume": 1.0})
@@ -475,7 +475,7 @@ testcase audio_presets_list:
     $ renpy.quit()
 
 testcase intensity_groups_crud:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     # Registry CRUD + level editing: [+ Level] creates an empty level and
@@ -514,7 +514,7 @@ testcase intensity_groups_crud:
     $ _ok = _ok and _cue.sfx.library.expanded_igroups.get("Test Impacts", False) is False
     run Function(_cue.sfx.library.toggle_ilevel_expand, "Test Impacts", 1)
     $ _ok = _ok and (1 not in _cue.sfx.library.expanded_ilevels.get("Test Impacts", set()))
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     pause 0.5
     # Add-mode branches render: level row + file tree becomes an adder.
     run Function(_cue.sfx.library.toggle_ilevel_add_mode, "Test Impacts", 1)
@@ -535,7 +535,7 @@ testcase intensity_groups_crud:
     $ renpy.quit()
 
 testcase intensity_resolves_level_folders:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -569,7 +569,7 @@ testcase intensity_resolves_level_folders:
     $ renpy.quit()
 
 testcase intensity_loop_fire_path:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -602,7 +602,7 @@ testcase intensity_loop_fire_path:
     $ renpy.quit()
 
 testcase intensity_toggle_master_off:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -638,7 +638,7 @@ testcase intensity_toggle_master_off:
     $ renpy.quit()
 
 testcase intensity_toggle_sfx_levels_off:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -673,7 +673,7 @@ testcase intensity_toggle_sfx_levels_off:
     $ renpy.quit()
 
 testcase intensity_tab_view:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -694,7 +694,7 @@ testcase intensity_tab_view:
     $ _cue.marker_store._get_or_create_entry(_vidk)["multi_speed_sequence"] = [0.7, 1.0, 1.3]
     $ _cue.marker_store._get_or_create_entry(_vidk)["speed_pref"] = 1.0
     # Open the SFX page with the Intensity tab; render the inspector.
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     run Function(_cue.video_editor.show_tab, CueVideoEditorTab.INTENSITY)
     $ renpy.restart_interaction()
     pause 0.5
@@ -747,7 +747,7 @@ testcase intensity_tab_view:
     $ renpy.quit()
 
 testcase intensity_hook_level_to_target:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -790,7 +790,7 @@ testcase intensity_hook_level_to_target:
     $ renpy.quit()
 
 testcase intensity_hook_pool_renders:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -806,7 +806,7 @@ testcase intensity_hook_pool_renders:
     $ renpy.show("cuevid")
     pause 1.0
     $ _cue.markers.video.add_pool()
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     pause 0.2
     run Function(_cue_send_level_to_target, "Hook Render", 1)
     $ _vidk = _cue_create_vid_key(_cue.current_file)
@@ -837,7 +837,7 @@ testcase intensity_hook_pool_renders:
     $ renpy.quit()
 
 testcase sfx_recently_used:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _ok = _cue.sfx.library._recent.entries() == []
@@ -854,13 +854,13 @@ testcase sfx_recently_used:
     run Function(_cue.markers.image.send_preset, "Test Preset")
     $ _ok = _ok and len(_cue.sfx.library._recent.entries()) == 3
     $ _ok = _ok and _cue.sfx.library._recent.entries()[0] == {"type": "preset", "ref": "Test Preset"}
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     pause 0.5
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
 testcase music_recently_used:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _ok = _cue.music._recent is not None
@@ -875,18 +875,18 @@ testcase music_recently_used:
     run Function(_cue.music.add_user_folder_to_trigger, "music/")
     $ _ok = _ok and len(_cue.music._recent.entries()) == 2
     $ _ok = _ok and _cue.music._recent.entries()[0] == {"type": "folder", "ref": "u:music/"}
-    run Function(_cue_set_page, CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
     pause 0.5
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
 testcase sfx_target_context:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
-    run Function(_cue_set_page, CuePage.SFX)
-    # _cue_set_page does not re-render the keybind screen, so settle a frame
+    run Function(_cue.overlay.set_page, CuePage.SFX)
+    # _cue.overlay.set_page does not re-render the keybind screen, so settle a frame
     # before the first key press or it races the SFX hotkey registration.
     pause 0.5
     $ import pygame_sdl2
@@ -938,7 +938,7 @@ testcase sfx_target_context:
     $ renpy.quit()
 
 testcase music_presets:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _ok = True
@@ -953,7 +953,7 @@ testcase music_presets:
     $ _ok = _ok and _cue.music.presets_expanded
     run Function(_cue.music.toggle_preset_expand, "Test Music Preset")
     $ _ok = _ok and _cue.music.expanded_presets.get("Test Music Preset", False)
-    run Function(_cue_set_page, CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
     pause 0.5
     # Deleting removes it from memory and disk.
     run Function(_cue.presets.music.delete, "Test Music Preset")
@@ -962,7 +962,7 @@ testcase music_presets:
     $ renpy.quit()
 
 testcase video_movie_detected:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ renpy.show("cuevid")
@@ -974,7 +974,7 @@ testcase video_movie_detected:
     $ renpy.quit()
 
 testcase video_sfx_timeline_seeded:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ renpy.show("cuevid")
@@ -987,7 +987,7 @@ testcase video_sfx_timeline_seeded:
     $ renpy.quit()
 
 testcase video_marker_timeline_drag_survives_restart:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ renpy.show("cuevid")
@@ -1014,7 +1014,7 @@ testcase video_marker_timeline_drag_survives_restart:
     $ renpy.quit()
 
 testcase video_multi_edit_fans_out:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ renpy.show("cuevid")
@@ -1042,7 +1042,7 @@ testcase video_multi_edit_fans_out:
     $ renpy.quit()
 
 testcase video_multi_duplicate_fans_out:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ renpy.show("cuevid")
@@ -1073,7 +1073,7 @@ testcase video_multi_duplicate_fans_out:
     $ renpy.quit()
 
 testcase video_multi_delete_pool_group:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ renpy.show("cuevid")
@@ -1091,7 +1091,7 @@ testcase video_multi_delete_pool_group:
     $ renpy.quit()
 
 testcase volume_value_equality_distinguishes_multisetter:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _d = {"volume": 1.0}
@@ -1105,7 +1105,7 @@ testcase volume_value_equality_distinguishes_multisetter:
     $ renpy.quit()
 
 testcase volume_value_changed_fans_out_and_queues_save:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ renpy.show("cuevid")
@@ -1125,7 +1125,7 @@ testcase volume_value_changed_fans_out_and_queues_save:
     $ renpy.quit()
 
 testcase video_sfx_edit_locked_off_base_speed:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ renpy.show("cuevid")
@@ -1139,7 +1139,7 @@ testcase video_sfx_edit_locked_off_base_speed:
     $ renpy.quit()
 
 testcase video_vfx_speed_sequence:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ renpy.show("cuevid")
@@ -1152,7 +1152,7 @@ testcase video_vfx_speed_sequence:
     $ renpy.quit()
 
 testcase video_auto_speed_state:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ renpy.show("cuevid")
@@ -1163,7 +1163,7 @@ testcase video_auto_speed_state:
     $ renpy.quit()
 
 testcase video_speed_variant_created:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ renpy.show("cuevid")
@@ -1221,7 +1221,7 @@ testcase video_speed_variant_created:
     $ renpy.quit()
 
 testcase click_create_tab_opens_editor:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ renpy.show("cuevid")
@@ -1250,7 +1250,7 @@ testcase click_create_tab_opens_editor:
     $ renpy.quit()
 
 testcase video_queue_error_msg_substitute_guard:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ renpy.show("cuevid")
@@ -1282,7 +1282,7 @@ testcase video_queue_error_msg_substitute_guard:
     $ renpy.quit()
 
 testcase video_seamless_transition_preserves_position:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ renpy.show("cuevid")
@@ -1331,7 +1331,7 @@ testcase video_seamless_transition_preserves_position:
     $ renpy.quit()
 
 testcase img_trigger_fires_on_show:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -1344,7 +1344,7 @@ testcase img_trigger_fires_on_show:
     $ renpy.quit()
 
 testcase dlg_trigger_fires_on_say:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -1357,7 +1357,7 @@ testcase dlg_trigger_fires_on_say:
     $ renpy.quit()
 
 testcase loop_trigger_fires_on_cycle:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -1370,7 +1370,7 @@ testcase loop_trigger_fires_on_cycle:
     $ renpy.quit()
 
 testcase video_marker_fires_at_ts:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -1392,7 +1392,7 @@ testcase video_marker_fires_at_ts:
     $ renpy.quit()
 
 testcase img_oneshot_dedup_no_refire:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -1413,7 +1413,7 @@ testcase img_oneshot_dedup_no_refire:
     $ renpy.quit()
 
 testcase shake_fires_on_with_vpunch:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -1429,7 +1429,7 @@ testcase shake_fires_on_with_vpunch:
     $ renpy.quit()
 
 testcase shake_fires_on_at_vpunch:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -1445,7 +1445,7 @@ testcase shake_fires_on_at_vpunch:
     $ renpy.quit()
 
 testcase music_play_interceptor_installed:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ import renpy.audio.music as _music
@@ -1454,7 +1454,7 @@ testcase music_play_interceptor_installed:
     $ renpy.quit()
 
 testcase music_play_pause_toggle:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ import renpy.audio.music as _music
@@ -1464,7 +1464,7 @@ testcase music_play_pause_toggle:
     run Function(_cue.music.library.preview, "u:music/song_001.ogg")
     pause 0.5
     $ _ok = _cue.music.now_playing() is not None
-    run Function(_cue_set_page, CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
     pause 0.5
     $ _ok = _ok and _music.get_pause(channel="music") == False
     run Function(_cue.music.toggle_pause)
@@ -1475,7 +1475,7 @@ testcase music_play_pause_toggle:
     $ renpy.quit()
 
 testcase music_default_trigger_captured:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -1502,7 +1502,7 @@ testcase music_default_trigger_captured:
     $ renpy.quit()
 
 testcase music_default_override_replaces:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -1532,7 +1532,7 @@ testcase music_default_override_replaces:
     $ renpy.quit()
 
 testcase music_default_suppress_when_disabled:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -1558,7 +1558,7 @@ testcase music_default_suppress_when_disabled:
     $ renpy.quit()
 
 testcase music_interceptor_forwards_other_channels:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -1580,7 +1580,7 @@ testcase music_interceptor_forwards_other_channels:
     $ renpy.quit()
 
 testcase music_custom_auto_plays_on_scene_change:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -1608,7 +1608,7 @@ screen _cue_etext_smoke():
         etext "{b}file[x].mp3" substitute False
 
 testcase etext_escapes_dynamic_string:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     # CueSafeText escapes before Text substitutes: `{` is doubled for the tag
@@ -1631,7 +1631,7 @@ testcase etext_escapes_dynamic_string:
     $ renpy.quit()
 
 testcase pages_render_data:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     $ _cue_test_reset()
@@ -1661,17 +1661,17 @@ testcase pages_render_data:
     $ _cue.music._recent._entries = [{"type": "file", "ref": "u:music/song_001.ogg"}]
     $ _cue.music._recent.expanded = True
     # Walk every page; each set_page + pause re-renders that page.
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     pause 0.5
-    run Function(_cue_set_page, CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
     pause 0.5
-    run Function(_cue_set_page, CuePage.IMPORT)
+    run Function(_cue.overlay.set_page, CuePage.IMPORT)
     pause 0.5
-    run Function(_cue_set_page, CuePage.SETTINGS)
+    run Function(_cue.overlay.set_page, CuePage.SETTINGS)
     pause 0.5
     # Overlay survived the walk on the final page.
     $ _ok = _ok and renpy.get_screen("cue_overlay", layer="cue_layer") is not None
-    $ _ok = _ok and _cue.overlay_active_page == CuePage.SETTINGS
+    $ _ok = _ok and _cue.overlay.active_page == CuePage.SETTINGS
     # Cleanup (fresh process per legacy testcase, symmetric with modern).
     run Function(_cue.presets.audio.delete, "Render Preset")
     run Function(_cue.presets.video.delete, "Render Video Preset")
@@ -1681,7 +1681,7 @@ testcase pages_render_data:
     $ renpy.quit()
 
 testcase sfx_sidebar_mode_renders:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 0.5
     run Function(_cue.sfx.library.toggle_sidebar_mode)
@@ -1692,7 +1692,7 @@ testcase sfx_sidebar_mode_renders:
     $ renpy.quit()
 
 testcase sfx_sidebar_with_confirm_dialog:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 0.5
     run Function(_cue.sfx.library.toggle_sidebar_mode)
@@ -1705,7 +1705,7 @@ testcase sfx_sidebar_with_confirm_dialog:
     $ renpy.quit()
 
 testcase sfx_sidebar_resize:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 0.5
     run Function(_cue.sfx.library.toggle_sidebar_mode)
@@ -1778,24 +1778,24 @@ testcase tree_render:
 
 
 testcase settings_page_folder_sections:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     # Rendering the Settings page exercises the Data Folder section's new
     # SFX/Music folder row editors; a broken cue_sfx_folders or
     # cue_music_folders screen fails this interaction.  The lists hydrate from
     # shared config (empty in a fresh fixture root).
-    run Function(_cue_set_page, CuePage.SETTINGS)
+    run Function(_cue.overlay.set_page, CuePage.SETTINGS)
     pause 0.5
     run Function(_cue.settings.prepare_for_page)
-    $ _ok = _cue.overlay_active_page == CuePage.SETTINGS
+    $ _ok = _cue.overlay.active_page == CuePage.SETTINGS
     $ _ok = _ok and _cue.settings.music_folders == []
     $ _ok = _ok and _cue.settings.sfx_folders == []
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
 testcase music_external_tree_renders:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     # A configured external Music folder becomes a top-level tree entry; the
@@ -1807,15 +1807,15 @@ testcase music_external_tree_renders:
     $ _ok = len(_cue.music.library.external_files) == 1
     $ _ok = _ok and _cue.music.library.external_sources[0]["label"] == "ExtMusic"
     $ _ok = _ok and any(_e.get("name") == "ExtMusic/" for _e in _cue.music.library.tree)
-    run Function(_cue_set_page, CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.MUSIC)
     pause 0.5
-    $ _ok = _ok and _cue.overlay_active_page == CuePage.MUSIC
+    $ _ok = _ok and _cue.overlay.active_page == CuePage.MUSIC
     $ _cue_external_cleanup()
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
 testcase sfx_external_tree_renders:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     # The SFX library wraps built-ins in the synthetic "SFX/" root and
@@ -1829,15 +1829,15 @@ testcase sfx_external_tree_renders:
     $ _ok = _ok and len(_cue.sfx.library.tree) >= 2
     $ _ok = _ok and _cue.sfx.library.tree[0]["name"] == "SFX/"
     $ _ok = _ok and any(_e.get("name") == "ExtSfx/" for _e in _cue.sfx.library.tree)
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     pause 0.5
-    $ _ok = _ok and _cue.overlay_active_page == CuePage.SFX
+    $ _ok = _ok and _cue.overlay.active_page == CuePage.SFX
     $ _cue_external_cleanup()
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
 testcase empty_state_settings_tip:
-    $ _cue.is_overlay_visible = True
+    $ _cue.overlay.is_visible = True
     run Jump("start")
     pause 2.0
     # Empty per-source state renders the SFX empty-state rows, including the
@@ -1848,9 +1848,9 @@ testcase empty_state_settings_tip:
     $ _cue.sfx.library.builtin_tree = []
     $ _cue.sfx.library.builtin_scan_error = ""
     $ _cue.sfx.library.external_sources = []
-    run Function(_cue_set_page, CuePage.SFX)
+    run Function(_cue.overlay.set_page, CuePage.SFX)
     pause 0.5
-    $ _ok = _cue.overlay_active_page == CuePage.SFX
+    $ _ok = _cue.overlay.active_page == CuePage.SFX
     $ _cue.sfx.library.builtin_tree = _sfx_builtin_tree
     $ _cue.sfx.library.builtin_scan_error = _sfx_builtin_scan_error
     $ _cue.sfx.library.external_sources = _sfx_external_sources

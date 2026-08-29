@@ -56,6 +56,7 @@ def _cue_full_reload():
     # so a mid-session reload can never persist the legacy form.
     _cue_migrate_intensity_hooks(_cue.marker_store, _cue.presets.intensity._presets)
     _cue_load_scalars_from_persistent()
+    _cue.overlay._load_collapsed_sections()
     _cue.presets.reload_presets()
 
     _cue.sfx.library.scan()
@@ -124,7 +125,7 @@ def _cue_refresh_context_impl():
 
         _cue.music.play_custom_music()
         _cue.trigger.reset()
-        if _cue.is_overlay_visible:
+        if _cue.overlay.is_visible:
             _cue.video_editor.refresh(restart_interaction=False)
         _cue.video_sequence.handle(_cue.current_file)
         _cue.speed_resolver.clear_pending()

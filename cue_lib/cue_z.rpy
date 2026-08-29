@@ -108,10 +108,7 @@ init -999 python:
         _cue_refresh_channel, _cue_tick_trigger,
     )
 
-    from cue_lib.ui.overlay import (
-        _cue_toggle_overlay, _cue_show_overlay, _cue_hide_overlay,
-        _cue_set_page,
-    )
+    from cue_lib.ui.overlay import CueOverlay
 
     from cue_lib.video.speed import (
         _cue_create_select_speed, _cue_create_delete_sel, _cue_create_delete_speed,
@@ -360,6 +357,8 @@ init -900 python:
         _cue.exporter = exporter
         _cue.url_importer = url_importer
 
+        _cue.overlay = CueOverlay()
+
     _cue_wire_managers()
 
 
@@ -407,8 +406,8 @@ init 999 python:
         config.menu_clear_layers.append("cue_layer")
 
         def _cue_after_load():
-            if _cue.is_overlay_visible:
-                _cue.is_overlay_visible = False
+            if _cue.overlay.is_visible:
+                _cue.overlay.is_visible = False
                 _cue.vid_manager.reset_pause()
 
         config.after_load_callbacks.append(_cue_after_load)
@@ -430,9 +429,9 @@ init 999 python:
             # Keep overlay screen in sync with the NoRollback flag.
             # Rollback can undo renpy.hide_screen, so re-hide when the
             # flag says the overlay should not be visible.
-            if _cue.is_overlay_visible and not renpy.get_screen("cue_overlay", layer="cue_layer"):
+            if _cue.overlay.is_visible and not renpy.get_screen("cue_overlay", layer="cue_layer"):
                 renpy.show_screen("cue_overlay", _layer="cue_layer")
-            elif not _cue.is_overlay_visible and renpy.get_screen("cue_overlay", layer="cue_layer"):
+            elif not _cue.overlay.is_visible and renpy.get_screen("cue_overlay", layer="cue_layer"):
                 renpy.hide_screen("cue_overlay", layer="cue_layer")
 
             _cue_refresh_context()

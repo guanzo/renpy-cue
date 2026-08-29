@@ -721,7 +721,7 @@ style cue_section_hdr_btn is empty:
 screen cue_section_frame(header_text, tt=None, icons=[]):
     style_group "cue"
 
-    $ _collapsed = _cue.collapsed_sections.get(header_text, False)
+    $ _collapsed = _cue.overlay.collapsed_sections.get(header_text, False)
     $ _arrow_icon = "chevron-right" if _collapsed else "chevron-down"
     $ _arrow = _cue.icons.displayable_for(_arrow_icon)
     $ _question_icon = _cue.icons.displayable_for("question")
@@ -732,7 +732,7 @@ screen cue_section_frame(header_text, tt=None, icons=[]):
             xfill True
             button:
                 style "cue_section_hdr_btn"
-                action Function(_cue.toggle_section, header_text)
+                action Function(_cue.overlay.toggle_section, header_text)
                 hbox:
                     xfill True
                     etext header_text style "cue_hdr"

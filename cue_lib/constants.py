@@ -199,6 +199,9 @@ CUE_SIDEBAR_MAX_WIDTH_RATIO = 0.3  # max width % of reference width
 CUE_PERSIST_SIDEBAR_MODE = "sfx_sidebar_mode"
 CUE_PERSIST_SIDEBAR_WIDTH = "sfx_sidebar_width"
 
+# persistent._cue key for the cue_section_frame header toggle state.
+CUE_PERSIST_COLLAPSED_SECTIONS = "collapsed_sections"
+
 # persistent._cue keys for audio-library folder-UI expand/collapse state: the
 # file-tree folders (_TREE_EXPANDED, per tree) and the rest of the folder UI
 # (presets/pools/recent sections, one _UI_STATE blob per library).

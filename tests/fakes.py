@@ -482,6 +482,11 @@ def make_runtime_cue(root="", audio_dir=""):
     cue.calls = {}
     cue.ensured_pools = []
 
+    # overlay -- lifecycle state moved off Cue into the CueOverlay manager;
+    # the runtime drivers read _cue.overlay.is_visible, and _cue_full_reload
+    # hydrates the section toggles, so the fake carries both seams.
+    cue.overlay = types.SimpleNamespace(is_visible=False, active_page=0, _load_collapsed_sections=lambda: None)
+
     def _rec(manager, name):
         def _record(*args, **kwargs):
             cue.calls.setdefault(manager + "." + name, []).append((args, kwargs))

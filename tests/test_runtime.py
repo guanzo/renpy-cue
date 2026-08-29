@@ -54,18 +54,20 @@ def cue(monkeypatch, tmp_path):
 
 
 def test_toggle_overlay_hides_when_visible(cue, monkeypatch):
-    cue.is_overlay_visible = True
+    ov = _overlay.CueOverlay()
+    ov.is_visible = True
     hidden = []
-    monkeypatch.setattr(_overlay, "_cue_hide_overlay", lambda: hidden.append(1))
-    _overlay._cue_toggle_overlay()
+    monkeypatch.setattr(ov, "hide", lambda: hidden.append(1))
+    ov.toggle()
     assert hidden == [1]
 
 
 def test_toggle_overlay_shows_when_hidden(cue, monkeypatch):
-    cue.is_overlay_visible = False
+    ov = _overlay.CueOverlay()
+    ov.is_visible = False
     shown = []
-    monkeypatch.setattr(_overlay, "_cue_show_overlay", lambda: shown.append(1))
-    _overlay._cue_toggle_overlay()
+    monkeypatch.setattr(ov, "show", lambda: shown.append(1))
+    ov.toggle()
     assert shown == [1]
 
 
@@ -74,8 +76,9 @@ def test_show_overlay_never_scans(cue):
     # open stays on the cheap path even for empty libraries.
     cue.sfx.library.files = []
     cue.music.library.user_files = []
-    _overlay._cue_show_overlay()
-    assert cue.is_overlay_visible is True
+    ov = _overlay.CueOverlay()
+    ov.show()
+    assert ov.is_visible is True
     assert "sfx_manager.scan" not in cue.calls
     assert "music.library.scan" not in cue.calls
     assert "sfx_manager.warm_cache" not in cue.calls
@@ -84,11 +87,12 @@ def test_show_overlay_never_scans(cue):
 
 
 def test_hide_overlay(cue, monkeypatch):
-    cue.is_overlay_visible = True
+    ov = _overlay.CueOverlay()
+    ov.is_visible = True
     calls = []
     monkeypatch.setattr(_overlay.CueVideoMarkerTimeline, "reset_timeline_drag", lambda: calls.append(None))
-    _overlay._cue_hide_overlay()
-    assert cue.is_overlay_visible is False
+    ov.hide()
+    assert ov.is_visible is False
     # Hide aborts an in-flight marker drag so a stale one doesn't resurface
     # on the next show (the timeline outlives the overlay).
     assert calls == [None]
@@ -179,28 +183,31 @@ def test_full_reload_serves_markers_from_effective_root(cue, tmp_path):
 
 
 def test_set_page_settings_preps_shared_dir_input(cue):
-    cue.overlay_active_page = CuePage.SFX
+    ov = _overlay.CueOverlay()
+    ov.active_page = CuePage.SFX
     cue.settings.shared_dir_error = "stale error"
     cue.settings.shared_dir_success = "stale success"
-    _overlay._cue_set_page(CuePage.SETTINGS)
-    assert cue.overlay_active_page == CuePage.SETTINGS
+    ov.set_page(CuePage.SETTINGS)
+    assert ov.active_page == CuePage.SETTINGS
     assert cue.settings.setup_dir_text == cue.paths.root
     assert cue.settings.shared_dir_error == ""
     assert cue.settings.shared_dir_success == ""
 
 
 def test_set_page_plain_page_switch(cue):
-    cue.overlay_active_page = CuePage.SFX
+    ov = _overlay.CueOverlay()
+    ov.active_page = CuePage.SFX
     cue.settings.setup_dir_text = "SHOULD-NOT-LEAK"
-    _overlay._cue_set_page(CuePage.MUSIC)
-    assert cue.overlay_active_page == CuePage.MUSIC
+    ov.set_page(CuePage.MUSIC)
+    assert ov.active_page == CuePage.MUSIC
     assert cue.settings.setup_dir_text == "SHOULD-NOT-LEAK"  # no settings prep
 
 
 def test_set_page_import_refreshes_importer_and_exporter(cue):
-    cue.overlay_active_page = CuePage.SFX
-    _overlay._cue_set_page(CuePage.IMPORT)
-    assert cue.overlay_active_page == CuePage.IMPORT
+    ov = _overlay.CueOverlay()
+    ov.active_page = CuePage.SFX
+    ov.set_page(CuePage.IMPORT)
+    assert ov.active_page == CuePage.IMPORT
     assert cue.calls["importer.scan"] == [((), {})]
     assert cue.calls["exporter.refresh"] == [((), {})]
 
@@ -393,7 +400,7 @@ def test_refresh_context_file_change_fires(cue, monkeypatch):
     cue.current_file = ""
     cue.top_layer_type = "image"
     cue.vid_manager.channel = None
-    cue.is_overlay_visible = False
+    cue.overlay.is_visible = False
     monkeypatch.setattr(_runtime, "_cue_get_top_layer", lambda: ("scene.ogv", "image", None))
     _runtime._cue_refresh_context()
     assert cue.calls["music.play_custom_music"] == [((), {})]
@@ -406,7 +413,7 @@ def test_refresh_context_file_change_fires(cue, monkeypatch):
 
 def test_refresh_context_file_change_overlay_visible(cue, monkeypatch):
     cue.current_file = ""
-    cue.is_overlay_visible = True
+    cue.overlay.is_visible = True
     monkeypatch.setattr(_runtime, "_cue_get_top_layer", lambda: ("scene.ogv", "image", None))
     _runtime._cue_refresh_context()
     assert "video_editor.refresh" in cue.calls

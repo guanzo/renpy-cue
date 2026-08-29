@@ -11,7 +11,7 @@
 import renpy
 import renpy.python as _renpy_python
 
-from cue_lib.constants import CuePage  # re-exported: consumers import it from cue_lib.state
+from cue_lib.constants import CuePage  # noqa: F401  # pyright: ignore[reportUnusedImport]  # re-exported: consumers import it from cue_lib.state
 
 
 class CueContext(object):
@@ -30,9 +30,6 @@ class Cue(_renpy_python.NoRollback):
     def __init__(self):
         # --- Runtime state ---
         self.initialized = False
-        self.is_overlay_visible = False
-        self.overlay_active_page = CuePage.SFX
-        self.collapsed_sections = {}  # section_name -> bool (cue_section_frame)
         self.ctx = CueContext()  # per-frame scene state (current_file, dialogue, top layer)
         self.active_input = ""  # dotted path of the text input in edit mode (cue_text_input)
         self.active_input_rect = None  # (x, y, w, h) of the field in edit mode, or None
@@ -64,6 +61,7 @@ class Cue(_renpy_python.NoRollback):
         self.importer = None
         self.exporter = None
         self.url_importer = None
+        self.overlay = None  # CueOverlay
 
     @property
     def _has_relative_volume(self):
@@ -119,16 +117,6 @@ class Cue(_renpy_python.NoRollback):
     def top_layer_type(self, value):
         # type: (str) -> None
         self.ctx.top_layer_type = value
-
-    # ------------------------------------------------------------------
-    # Section frames (shared by all pages via cue_section_frame)
-    # ------------------------------------------------------------------
-
-    def toggle_section(self, section_name):
-        # type: (str) -> None
-        """Toggle expand/collapse for a cue_section_frame."""
-        self.collapsed_sections[section_name] = not self.collapsed_sections.get(section_name, False)
-        renpy.restart_interaction()
 
 
 _cue = Cue()
