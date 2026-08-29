@@ -6,7 +6,8 @@ Add sound effects, music, and video effects to [Ren'Py](https://www.renpy.org/) 
 
 <img width="600" height="338" alt="Image" src="https://github.com/user-attachments/assets/088005a5-4789-4862-939c-45f4ff5046a3" />
 
-<br>
+<br/>
+
 **Need help, want to share your setup, or just hang out? [Join the Cue Discord](https://discord.gg/kAVtFGcQYm)**
 
 ## Contents
