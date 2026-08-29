@@ -69,8 +69,8 @@ class CueSfxPackDownloader(object):
             os.close(fd)
             try:
                 self._dl.download_to(CUE_SFX_PACK_URL, tmp_path, progress_cb=self._progress_cb)
-                # The pack wraps its content in a renpy_cue_sfx/ dir; unwrap it
-                # so g1/, g2/, ... land directly in the audio dir.
+                # The pack's categories sit at the top level; unwrap_root is a
+                # no-op on the flat zip (and unwraps any legacy wrapped pack).
                 _cue_extract_zip_to(tmp_path, self._audio_dir, unwrap_root=True)
             finally:
                 try:

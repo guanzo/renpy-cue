@@ -2,8 +2,8 @@
 """Build the SFX pack zip from a local source dir.
 
 The source dir is passed in (the /release skill reads it from gitignored .env as
-CUE_SFX_SOURCE_DIR). No path is committed here. Wraps the category folders in a
-top-level renpy_cue_sfx/ dir; test_bad is excluded.
+CUE_SFX_SOURCE_DIR). No path is committed here. Category folders sit at the top
+level of the zip (no wrapping dir); test_bad is excluded.
 """
 
 import argparse
@@ -11,7 +11,6 @@ import os
 import sys
 import zipfile
 
-PACK = "renpy_cue_sfx"
 DEFAULT_EXCLUDE = ("test_bad",)
 
 
@@ -25,9 +24,9 @@ def build_zip(src, out, exclude):
                 for base, _, files in os.walk(p):
                     for name in files:
                         fp = os.path.join(base, name)
-                        zf.write(fp, os.path.join(PACK, os.path.relpath(fp, src)))
+                        zf.write(fp, os.path.relpath(fp, src))
             else:
-                zf.write(p, os.path.join(PACK, entry))
+                zf.write(p, entry)
     return out
 
 

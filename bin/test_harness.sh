@@ -97,6 +97,14 @@ TEMPLATES="$GAME/templates"
 # normal failure path below dumps the partial log. Generous vs real runs.
 CUE_ENGINE_TIMEOUT="${CUE_ENGINE_TIMEOUT:-600}"
 
+# Skip the startup GL performance test: it warns a *user* about a slow GPU,
+# which has no meaning for an automated run. It also hangs the 7.2.x leg --
+# under Xvfb that SDK renders just under the 15fps pass bar, so __GLTest
+# never gets 5 frames within its window and the startup interact spins
+# forever, ~5min per engine boot (2h40m for the CI leg). RENPY_PERFORMANCE_TEST
+# short-circuits before any interact; 7.4+ happens to clear the bar anyway.
+export RENPY_PERFORMANCE_TEST=0
+
 # --- Resolve the launcher's game root and the test-language generation. ---
 # The split is DSL generation, not Python generation: the modern grammar
 # (until eval, timeout, keysym) exists only in the 8.5+ test parser; 7.x and

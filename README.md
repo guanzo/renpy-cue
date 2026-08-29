@@ -4,7 +4,7 @@
 
 Add sound effects, music, and video effects to [Ren'Py](https://www.renpy.org/) games — without modifying the game's scripts.
 
-<img width="600" height="338" alt="Image" src="https://github.com/user-attachments/assets/088005a5-4789-4862-939c-45f4ff5046a3" />
+<img width="600" height="338" alt="Image" src="https://github.com/user-attachments/assets/f32a0e56-78ad-4ae0-9644-ddeaa55cece8" />
 
 <br/>
 
@@ -71,7 +71,7 @@ Download and extract the pack you want to use. Then run the game, open Cue, go t
 
 Cue was built with AVNs in mind, but Cue itself works the same on any Ren'Py game.
 
-### 3. Add your first sound effect
+### 3. Create a SFX triggerz`
 
 1. Start a replay and play until you reach an image where you want a sound.
 2. Press `` ` `` (backtick) or `Shift+Alt+E` to open Cue.
