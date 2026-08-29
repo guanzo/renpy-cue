@@ -17,10 +17,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Corners only: oldest 7.x, popular + supported-floor 7.x (BeingADik),
+          # newest 7.x, first Py3-only 8.x, newest 8.x. Versions between these
+          # share a template and a runtime line; their coverage is redundant.
           - renpy: "7.2.2"
             os: ubuntu-22.04
           - renpy: "7.4.10"
             os: ubuntu-22.04
+          - renpy: "7.5.3"
+            os: ubuntu-22.04
+          - renpy: "8.1.3"
+            os: ubuntu-latest
           - renpy: "8.5.3"
             os: ubuntu-latest
     runs-on: ${{ matrix.os }}
@@ -77,10 +84,10 @@ jobs:
         # aren't executable in the working tree.
         # The 7.x leg runs parallel workers, each with its own Xvfb display, so
         # wrapping it in xvfb-run too would nest a second display layer (and
-        # leak XAUTHORITY across displays). Only the modern single-process leg
-        # needs the wrapper.
+        # leak XAUTHORITY across displays). Only the modern (8.x) single-process
+        # leg needs the wrapper.
         run: |
-          if [ "${{ matrix.renpy }}" = "8.5.3" ]; then
+          if [ "${{ startsWith(matrix.renpy, '8') }}" = "true" ]; then
             xvfb-run -a bash bin/test_harness.sh "$SDK_DIR/renpy.sh"
           else
             bash bin/test_harness.sh "$SDK_DIR/renpy.sh"
