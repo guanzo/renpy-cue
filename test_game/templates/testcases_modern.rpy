@@ -33,6 +33,28 @@ init 1000 python:
         # show is a genuine context change (mirrors a real game's scene cut).
         renpy.scene()
 
+    def _cue_scenes_seed():
+        # Seed two marker files for the Scenes page: one valid replay and one
+        # whose label no longer exists (the page disables play + shows a
+        # warning for the latter).  Removed by _cue_scenes_cleanup.
+        import os as _os
+        import json as _json
+        _mdir = _cue.paths.marker_dir
+        if not _os.path.isdir(_mdir):
+            _os.makedirs(_mdir)
+        for _name, _label in (("v_scene_harness.ogv.json", "replay_harness"),
+                              ("v_stale_harness.ogv.json", "no_such_label_harness")):
+            with open(_os.path.join(_mdir, _name), "w") as _f:
+                _f.write(_json.dumps({"_key": _name.split(".json")[0], "replay": _label, "pools": []}))
+
+    def _cue_scenes_cleanup():
+        import os as _os
+        _mdir = _cue.paths.marker_dir
+        for _name in ("v_scene_harness.ogv.json", "v_stale_harness.ogv.json"):
+            _p = _os.path.join(_mdir, _name)
+            if _os.path.exists(_p):
+                _os.remove(_p)
+
     # Runtime intensity fixtures: create real soft//hard//empty/ level folders
     # under the audio dir (and remove them again) so the resolver and fire-path
     # testcases exercise real folders, not just in-memory refs.  hard/ gets two
@@ -183,6 +205,21 @@ testcase import_page_nav:
     run Function(_cue.overlay.set_page, CuePage.IMPORT)
     assert eval (_cue.overlay.active_page == CuePage.IMPORT)
 
+testcase scenes_page_render:
+    run Jump("start")
+    $ _cue_test_reset()
+    # Scenes page lists replays-with-markers.  Seed one valid replay marker and
+    # one whose label no longer exists, then render the page: scan() picks both
+    # up, and the stale row's disabled play + warning branch must not break the
+    # interaction.
+    $ _cue_scenes_seed()
+    run Function(_cue.overlay.set_page, CuePage.REPLAYS)
+    assert eval (_cue.overlay.active_page == CuePage.REPLAYS)
+    assert eval ({"replay": "replay_harness", "marker_count": 1} in _cue.replays.entries)
+    assert eval ({"replay": "no_such_label_harness", "marker_count": 1} in _cue.replays.entries)
+    assert eval (not renpy.has_label("no_such_label_harness"))
+    $ _cue_scenes_cleanup()
+
 testcase import_banner_render:
     run Jump("start")
     $ _cue_test_reset()
@@ -210,6 +247,8 @@ testcase overlay_render_sweep:
     assert eval (_cue.overlay.active_page == CuePage.SFX)
     run Function(_cue.overlay.set_page, CuePage.MUSIC)
     assert eval (_cue.overlay.active_page == CuePage.MUSIC)
+    run Function(_cue.overlay.set_page, CuePage.REPLAYS)
+    assert eval (_cue.overlay.active_page == CuePage.REPLAYS)
     run Function(_cue.overlay.set_page, CuePage.IMPORT)
     assert eval (_cue.overlay.active_page == CuePage.IMPORT)
     run Function(_cue.overlay.set_page, CuePage.SETTINGS)

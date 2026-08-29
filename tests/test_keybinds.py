@@ -179,9 +179,9 @@ def test_setup_registers_defaults(mgr):
     assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_SIDEBAR] == ["alt_K_a"]
     assert renpy.config.keymap[CUE_KEYMAP_PAGE_SFX] == ["alt_K_1"]
     assert renpy.config.keymap[CUE_KEYMAP_PAGE_MUSIC] == ["alt_K_2"]
-    assert renpy.config.keymap[CUE_KEYMAP_PAGE_IMPORT] == ["alt_K_3"]
-    assert renpy.config.keymap[CUE_KEYMAP_PAGE_SETTINGS] == ["alt_K_4"]
-    assert len(renpy.config.keymap) == 20  # one entry per action
+    assert renpy.config.keymap[CUE_KEYMAP_PAGE_IMPORT] == ["alt_K_4"]
+    assert renpy.config.keymap[CUE_KEYMAP_PAGE_SETTINGS] == ["alt_K_5"]
+    assert len(renpy.config.keymap) == 21  # one entry per action
 
 
 def test_setup_does_not_overwrite_existing(mgr):
@@ -252,7 +252,7 @@ def test_saved_override_applies_after_restart(cue_env):
 def test_visible_actions_excludes_quit_relaunch(mgr):
     ids = [a["id"] for a in mgr.visible_actions()]
     assert CUE_KEYMAP_QUIT_RELAUNCH not in ids
-    assert len(ids) == 19  # 20 actions minus quit_relaunch
+    assert len(ids) == 20  # 21 actions minus quit_relaunch
 
 
 def test_visible_actions_filters_debug_only(mgr, monkeypatch):
@@ -371,28 +371,28 @@ def test_confirm_override_unbinds_when_default_collides(db, mgr):
     unbind the victim -- resetting it to default would keep the collision.
 
     The user scenario: Toggle SFX Triggers (default shift_K_3) rebinds to
-    alt_K_3, which is Open Import/Export's default."""
+    alt_K_4, which is Open Import/Export's default."""
     mgr.setup()
     mgr.start_capture(CUE_KEYMAP_TOGGLE_SFX_ACTIVE)
-    mgr.on_captured("alt_K_3")
-    assert mgr._pending_keysym == "alt_K_3"  # collision with page_import
+    mgr.on_captured("alt_K_4")
+    assert mgr._pending_keysym == "alt_K_4"  # collision with page_import
 
     mgr.confirm_override()
-    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] == ["alt_K_3"]
-    assert renpy.config.keymap[CUE_KEYMAP_PAGE_IMPORT] == []  # unbound, not alt_K_3
+    assert renpy.config.keymap[CUE_KEYMAP_TOGGLE_SFX_ACTIVE] == ["alt_K_4"]
+    assert renpy.config.keymap[CUE_KEYMAP_PAGE_IMPORT] == []  # unbound, not alt_K_4
     assert db.saved  # save() ran
 
 
 def test_saved_unbound_survives_restart(cue_env):
     """Full user scenario: rebind onto a default-owned key, restart, and both
-    sides stick -- the thief keeps alt_K_3 and the victim stays unbound."""
+    sides stick -- the thief keeps alt_K_4 and the victim stays unbound."""
     from cue_lib.db import CueDatabase
 
     mgr = CueKeybindsManager(cue_env.db)
     mgr.setup()
     mgr.start_capture(CUE_KEYMAP_TOGGLE_SFX_ACTIVE)
-    mgr.on_captured("alt_K_3")
-    mgr.confirm_override()  # save() persists alt_K_3 + "" for page_import
+    mgr.on_captured("alt_K_4")
+    mgr.confirm_override()  # save() persists alt_K_4 + "" for page_import
 
     # Simulate a real restart: the game rebuilds config.keymap from scratch,
     # so cue entries are absent until setup() re-registers defaults.  Without
@@ -401,7 +401,7 @@ def test_saved_unbound_survives_restart(cue_env):
 
     mgr2 = CueKeybindsManager(CueDatabase(cue_env.paths))
     mgr2.setup()
-    assert mgr2.get_keysym(CUE_KEYMAP_TOGGLE_SFX_ACTIVE) == "alt_K_3"
+    assert mgr2.get_keysym(CUE_KEYMAP_TOGGLE_SFX_ACTIVE) == "alt_K_4"
     assert mgr2.get_keysym(CUE_KEYMAP_PAGE_IMPORT) == ""  # stays unbound
 
 

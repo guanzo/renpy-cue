@@ -13,13 +13,13 @@ import renpy
 import threading
 
 from cue_lib.constants import CUE_IMPORT_CATEGORY_ORDER, CueExportFileTypes, CueExportScope, CueImportCategory
+from cue_lib.replays import _cue_replay_labels
 from cue_lib.sharing.importer_io import (
     _cue_build_import_zip,
     _cue_enumerate_import_files,
     _cue_external_bake,
     _cue_external_roots,
     _cue_replay_assets_full,
-    _cue_replay_labels,
     _cue_sanitize_filename,
 )
 from cue_lib.util import _cue_log

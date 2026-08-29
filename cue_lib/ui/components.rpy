@@ -684,7 +684,7 @@ screen cue_replay_toggle(_imp_key, _section):
             hbox:
                 spacing 4
                 add _caret yalign 0.5
-                etext "Replays ({})".format(len(_replays)) style "cue_button_text"
+                etext "Scenes ({})".format(len(_replays)) style "cue_button_text"
 
 
 screen cue_replay_children(_imp_key, _section):
@@ -753,7 +753,7 @@ screen cue_section_frame(header_text, tt=None, icons=[]):
                         add _arrow yalign 0.5 alpha (0.7 if not _collapsed else 1.0)
             if not _collapsed:
                 frame:
-                    background None 
+                    background None
                     padding (4, 0) # match header xpadding added by cue_section_hdr_btn
                     vbox:
                         spacing 8

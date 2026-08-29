@@ -45,7 +45,7 @@ screen cue_target_context():
     style_group "cue"
 
     $ _target = _cue.markers.resolve_target_context()
-    # Tooltips name the rebindable hotkey for each target (Settings > Keybinds).
+    # Tooltips name the rebindable hotkey for each target (Settings > Hotkeys).
     $ _tgt_video_tt = "Click the + button to add files to the Video SFX pool.\n"
     $ _tgt_video_tt += "Press " + _cue.keybinds.shortcut_label(CUE_KEYMAP_TARGET_VIDEO) + " to select."
     $ _tgt_image_tt = "Click the + button to add files to the Image SFX pool.\n"

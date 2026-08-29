@@ -161,7 +161,7 @@ init -999 python:
         CUE_KEYMAP_SPEED_UP, CUE_KEYMAP_SPEED_DOWN,
         CUE_KEYMAP_TOGGLE_SFX_LIBRARY,
         CUE_KEYMAP_TOGGLE_SFX_SIDEBAR,
-        CUE_KEYMAP_PAGE_SFX, CUE_KEYMAP_PAGE_MUSIC,
+        CUE_KEYMAP_PAGE_SFX, CUE_KEYMAP_PAGE_MUSIC, CUE_KEYMAP_PAGE_REPLAYS,
         CUE_KEYMAP_PAGE_IMPORT, CUE_KEYMAP_PAGE_SETTINGS,
         CUE_KEYMAP_TARGET_VIDEO, CUE_KEYMAP_TARGET_IMAGE,
         CUE_KEYMAP_TARGET_DIALOGUE, CUE_KEYMAP_TARGET_LOOP,
@@ -193,6 +193,7 @@ init -900 python:
     from cue_lib.video.video import CueVideoManager
     from cue_lib.volume import CueVolumeManager
     from cue_lib.music.manager import CueMusicManager
+    from cue_lib.replays import CueReplayLibrary
     from cue_lib.video.repeater import CueMarkerRepeater
     from cue_lib.video.ffmpeg import CueFFmpeg
     from cue_lib.video.video_editor import CueVideoEditor
@@ -267,7 +268,8 @@ init -900 python:
         keybinds = CueKeybindsManager(db)
         icons = CueIconManager(paths)
         music = CueMusicManager(_cue.ctx, marker_store, db, paths, presets)
-        
+        replays = CueReplayLibrary(paths)
+
         # importer swaps the effective root while active and reloads via the
         # store-global full reload; exporter and merge_dialog complete the
         # import/export set.
@@ -356,6 +358,7 @@ init -900 python:
         _cue.importer = importer
         _cue.exporter = exporter
         _cue.url_importer = url_importer
+        _cue.replays = replays
 
         _cue.overlay = CueOverlay()
 
@@ -442,8 +445,15 @@ init 999 python:
 
         def _cue_after_replay():
             _cue.sfx.fade_out()
+            _cue.replays.scan()
+            _pending = _cue.replays.pending_replay
+            
+            if _pending is not None:
+                _cue.replays.pending_replay = None
             if _cue_original_after_replay is not None:
                 _cue_original_after_replay()
+            if _pending is not None:
+                renpy.call_replay(_pending)
 
         config.after_replay_callback = _cue_after_replay
 

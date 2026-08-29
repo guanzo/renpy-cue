@@ -41,8 +41,9 @@ class CuePage(object):
 
     SFX = 0  # SFX editor (markers / library)
     MUSIC = 1  # Music page
-    SETTINGS = 2  # Settings page
+    REPLAYS = 2  # Replays page
     IMPORT = 3  # Import / Export page
+    SETTINGS = 4  # Settings page
 
 
 class CueImportCategory(object):
@@ -230,6 +231,7 @@ CUE_KEYMAP_TOGGLE_SFX_LIBRARY = "cue_toggle_sfx_library"
 CUE_KEYMAP_TOGGLE_SFX_SIDEBAR = "cue_toggle_sfx_sidebar"
 CUE_KEYMAP_PAGE_SFX = "cue_page_sfx"
 CUE_KEYMAP_PAGE_MUSIC = "cue_page_music"
+CUE_KEYMAP_PAGE_REPLAYS = "cue_page_replays"
 CUE_KEYMAP_PAGE_IMPORT = "cue_page_import"
 CUE_KEYMAP_PAGE_SETTINGS = "cue_page_settings"
 CUE_KEYMAP_TARGET_VIDEO = "cue_target_video"

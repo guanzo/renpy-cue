@@ -294,17 +294,6 @@ def test_sanitize_filename():
 # ---------------------------------------------------------------------------
 
 
-def test_replay_labels_counts_per_replay(cue_env):
-    _write_marker(cue_env, "a", {"replay": "Run 1", "pools": []})
-    _write_marker(cue_env, "b", {"replay": "Run 1", "pools": []})
-    _write_marker(cue_env, "c", {"replay": "Run 2", "pools": []})
-    _write_marker(cue_env, "d", {"pools": []})  # never edited in a replay
-
-    labels = _imp._cue_replay_labels(cue_env.paths.original_root, GAME_ID)
-
-    assert labels == [("Run 1", 2), ("Run 2", 1)]
-
-
 def test_replay_assets_picks_markers_for_selected_labels(cue_env):
     _write_marker(cue_env, "a", {"replay": "Run 1", "pools": []})
     _write_marker(cue_env, "b", {"replay": "Run 2", "pools": []})

@@ -39,6 +39,7 @@ CUE_ICON_SIZE = 12
 # name -> (filename, mirrored).  Mirrored entries flip the source
 # horizontally ("redo" is the mirrored "undo" hook arrow).
 CUE_ICON_MAP = {
+    "book": ("book-solid.png", False),
     "caret-down": ("caret-down-solid.png", False),
     "caret-left": ("caret-left-solid.png", False),
     "caret-right": ("caret-right-solid.png", False),

@@ -93,7 +93,9 @@ screen cue_folder_row(value_path, commit_action, remove_action, xsize=430):
 screen cue_keybinds():
     style_group "cue"
 
-    use cue_section_frame("Keybinds"):
+    use cue_section_frame("Hotkeys"):
+        text "Click a hotkey to change it."
+        null height 5
         for _kb in _cue.keybinds.visible_actions():
             $ _ks = _cue.keybinds.get_keysym(_kb["id"])
             if _ks == "":

@@ -599,6 +599,9 @@ def make_runtime_cue(root="", audio_dir=""):
         ),
     )
 
+    # replays -- Scenes library; _cue_full_reload refreshes entries
+    cue.replays = types.SimpleNamespace(scan=_rec("replays", "scan"))
+
     # video_editor -- job_queue.has_pending gates job_queue.poll
     cue.video_editor = types.SimpleNamespace(
         MODE_INTERPOLATE=0,

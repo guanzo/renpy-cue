@@ -37,6 +37,7 @@ screen cue_runtime_keybinds():
         key CUE_KEYMAP_TOGGLE_SFX_SIDEBAR action Function(_cue.sfx.library.toggle_sidebar_mode)
         key CUE_KEYMAP_PAGE_SFX action Function(_cue.overlay.set_page, CuePage.SFX)
         key CUE_KEYMAP_PAGE_MUSIC action Function(_cue.overlay.set_page, CuePage.MUSIC)
+        key CUE_KEYMAP_PAGE_REPLAYS action Function(_cue.overlay.set_page, CuePage.REPLAYS)
         key CUE_KEYMAP_PAGE_IMPORT action Function(_cue.overlay.set_page, CuePage.IMPORT)
         key CUE_KEYMAP_PAGE_SETTINGS action Function(_cue.overlay.set_page, CuePage.SETTINGS)
 
@@ -151,9 +152,11 @@ screen cue_overlay_content():
                 use cue_sfx_page()
             elif _cue.overlay.active_page == CuePage.MUSIC:
                 use cue_music_page()
+            elif _cue.overlay.active_page == CuePage.REPLAYS:
+                use cue_replays_page()
             elif _cue.overlay.active_page == CuePage.IMPORT:
                 use cue_import_export_page()
-            else:
+            elif _cue.overlay.active_page == CuePage.SETTINGS:
                 use cue_settings_page()
 
 screen cue_header_toolbar():
@@ -181,6 +184,9 @@ screen cue_header_toolbar():
             $ _music_bg = _cue_color_active if _cue.overlay.active_page == CuePage.MUSIC else None
             use cue_icon_btn("music", Function(_cue.overlay.set_page, CuePage.MUSIC), "Music",
                 bg=_music_bg)
+            $ _replays_bg = _cue_color_active if _cue.overlay.active_page == CuePage.REPLAYS else None
+            use cue_icon_btn("book", Function(_cue.overlay.set_page, CuePage.REPLAYS), "Scenes",
+                bg=_replays_bg)
             $ _import_bg = _cue_color_active if _cue.overlay.active_page == CuePage.IMPORT else None
             use cue_icon_btn("file-zipper", Function(_cue.overlay.set_page, CuePage.IMPORT), "Import / Export",
                 bg=_import_bg)

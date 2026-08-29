@@ -444,7 +444,7 @@ class CueImportManager(object):
         if self.active_import != imp:
             self.activate(imp)
         if self.is_active and self.active_import == imp:
-            renpy.call_replay(label)
+            _cue.replays.play(label)
 
     # ------------------------------------------------------------------
     # remap -- bring a CONFIRM import to this game's namespaced folders

@@ -414,33 +414,6 @@ def _cue_replay_assets_full(root, game_id, replay_labels):
     return result, len(external_refs)
 
 
-def _cue_replay_labels(root, game_id):
-    # type: (str, str) -> List[Tuple[str, int]]
-    """[(replay label, marker count)] for every replay that has markers,
-    sorted by label.  A marker never edited inside a replay has no replay
-    field and is not counted.  Labels are used as opaque keys, so str vs
-    unicode (Py2) needs no coercion."""
-    paths = CuePaths(root, game_id)
-    counts = {}
-    try:
-        names = sorted(os.listdir(paths.marker_dir))
-    except Exception:
-        return []
-
-    for name in names:
-        if not name.endswith(".json"):
-            continue
-        entry = _cue_read_json_file(os.path.join(paths.marker_dir, name))
-        if not isinstance(entry, dict):
-            continue
-        label = entry.get("replay")
-        if not label:
-            continue
-        counts[label] = counts.get(label, 0) + 1
-
-    return sorted(counts.items())
-
-
 def _cue_manifest_replays(root, game_id, contents):
     # type: (str, str, List[str]) -> List[dict]
     """[{"replay": label, "marker_count": count}] for the replay-tagged

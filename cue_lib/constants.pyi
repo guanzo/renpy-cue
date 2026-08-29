@@ -67,6 +67,7 @@ CUE_KEYMAP_TOGGLE_SFX_LIBRARY: Final = "cue_toggle_sfx_library"
 CUE_KEYMAP_TOGGLE_SFX_SIDEBAR: Final = "cue_toggle_sfx_sidebar"
 CUE_KEYMAP_PAGE_SFX: Final = "cue_page_sfx"
 CUE_KEYMAP_PAGE_MUSIC: Final = "cue_page_music"
+CUE_KEYMAP_PAGE_REPLAYS: Final = "cue_page_replays"
 CUE_KEYMAP_PAGE_IMPORT: Final = "cue_page_import"
 CUE_KEYMAP_PAGE_SETTINGS: Final = "cue_page_settings"
 CUE_KEYMAP_TARGET_VIDEO: Final = "cue_target_video"
@@ -105,8 +106,9 @@ class CueLoopFrequency:
 class CuePage:
     SFX: Final = 0
     MUSIC: Final = 1
-    SETTINGS: Final = 2
+    REPLAYS: Final = 2
     IMPORT: Final = 3
+    SETTINGS: Final = 4
 
 class CueImportCategory:
     MARKERS: Final = 0

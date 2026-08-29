@@ -98,6 +98,17 @@ def _make_mgr(cue_env):
     return mgr, calls
 
 
+def _spy_play(monkeypatch):
+    """Record what the importer hands to the replays library.  play() owns the
+    start-vs-replace logic, so the importer test only asserts the handoff.
+    Patching the importer's module-global _cue (a NoRollback instance that
+    rejects new attributes) rather than the singleton itself."""
+    calls = []
+    fake_cue = types.SimpleNamespace(replays=types.SimpleNamespace(play=lambda label: calls.append(label)))
+    monkeypatch.setattr(_imports, "_cue", fake_cue)
+    return calls
+
+
 class _FakeThread(object):
     """Records the thread body without running it -- lets tests drive the
     worker synchronously and assert on the wiring (daemon, deferral)."""
@@ -722,8 +733,7 @@ def test_can_preview_false_when_not_matched(cue_env, tmp_path, import_threads):
 
 
 def test_play_replay_enters_preview_then_calls(monkeypatch, cue_env, tmp_path, import_threads):
-    calls = []
-    monkeypatch.setattr(_imports.renpy, "call_replay", lambda label: calls.append(label), raising=False)
+    calls = _spy_play(monkeypatch)
     _drop_package(tmp_path, GAME_ID, [("data/markers/{}/a.json".format(GAME_ID), '{"replay": "Run 1", "pools": []}')])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
@@ -739,8 +749,7 @@ def test_play_replay_enters_preview_then_calls(monkeypatch, cue_env, tmp_path, i
 
 
 def test_play_replay_noop_when_not_previewable(monkeypatch, cue_env, tmp_path, import_threads):
-    calls = []
-    monkeypatch.setattr(_imports.renpy, "call_replay", lambda label: calls.append(label), raising=False)
+    calls = _spy_play(monkeypatch)
     _drop_package(tmp_path, "other-game", [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
@@ -753,9 +762,8 @@ def test_play_replay_noop_when_not_previewable(monkeypatch, cue_env, tmp_path, i
 
 
 def test_play_replay_reuses_existing_preview(monkeypatch, cue_env, tmp_path, import_threads):
-    # Already previewing the same import: no root swap, straight to call.
-    calls = []
-    monkeypatch.setattr(_imports.renpy, "call_replay", lambda label: calls.append(label), raising=False)
+    # Already previewing the same import: no root swap, straight to play.
+    calls = _spy_play(monkeypatch)
     _drop_package(tmp_path, GAME_ID, [("audio/sfx.ogg", "sfx")])
     mgr, _calls = _make_mgr(cue_env)
     _scan_and_join(mgr, import_threads)
