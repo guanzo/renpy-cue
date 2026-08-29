@@ -167,7 +167,7 @@ screen cue_header_toolbar():
     $ _undo_tt = "Undo (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_UNDO) + ")"
     $ _redo_tt = "Redo (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_REDO) + ")"
     $ _pause_tt = "Pause game (" + _cue.keybinds.shortcut_label(CUE_KEYMAP_PAUSE)
-    $ _pause_tt += ")\nUse to pause on scenes that auto advance."
+    $ _pause_tt += ")\nUse to pause on shots that auto advance."
 
     hbox:
         xfill True

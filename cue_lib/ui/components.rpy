@@ -506,7 +506,7 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
             $ _excl_on = bool(exclusive_ctx.get_active_pool().get("exclusive", {}).get("group"))
             $ _excl_bg = _cue_color_active if _excl_on else None
             $ _excl_tt = ("Disable exclusive playback" if _excl_on
-                else "Exclusive playback: fade out SFX from previous scene then play.")
+                else "Exclusive playback: fade out SFX from the previous shot then play.")
             use cue_icon_btn(
                 "layer-group",
                 Function(exclusive_ctx.toggle_exclusive),

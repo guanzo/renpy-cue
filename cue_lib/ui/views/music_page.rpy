@@ -39,7 +39,7 @@ screen cue_music_page():
             "Default music triggers must be discovered by playing through the replay.\n\n"
             "Click a trigger to select it, then click the + button "
             "in My/Game Music to add a song to the trigger. "
-            "With no trigger selected, + creates a new one for the current scene.\n\n"
+            "With no trigger selected, + creates a new one for the current shot.\n\n"
             "If you add multiple songs, one will be picked at random.")
         use cue_section_frame("Music Triggers", tt=music_tt):
             use grow_and_scroll(200, max(int(0.30 * renpy.config.screen_height), 400)):
@@ -61,7 +61,7 @@ screen cue_music_page():
                         spacing 8
                         box_wrap True
                         box_wrap_spacing 3
-                        etext "Current Scene:"
+                        etext "Current Shot:"
                         etext (_cue.current_file or "(None)") color _cue_color_text_accent
                     
                     $ triggers = _cue.music.triggers()
@@ -79,7 +79,7 @@ screen cue_music_page():
                     
                     null height 5
                     use cue_txt_button(
-                        "+ Play music at current scene",
+                        "+ Play music at current shot",
                         Function(_cue_consume_return, _cue.music.create_scene_trigger))
 
         $ music_lib_tt = (

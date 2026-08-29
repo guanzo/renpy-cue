@@ -243,7 +243,7 @@ class CueKeybindsManager(object):
                 "id": CUE_KEYMAP_PAUSE,
                 "default": "shift_K_4",
                 "label": "Pause Game",
-                "desc": "Pause the game (use on scenes that auto-advance)",
+                "desc": "Pause the game (use on shots that auto-advance)",
             },
             {"id": CUE_KEYMAP_UNDO, "default": "shift_K_q", "label": "Undo", "desc": "Undo last change"},
             {"id": CUE_KEYMAP_REDO, "default": "shift_K_w", "label": "Redo", "desc": "Redo last change"},

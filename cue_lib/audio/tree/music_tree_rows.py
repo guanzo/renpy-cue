@@ -52,7 +52,7 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
         trigger or creates one for the current scene; disabled without either."""
         tree = self._tree
         sel_label = tree._music.selected_trigger_label()
-        add_target = sel_label if sel_label else "a new trigger for the current scene"
+        add_target = sel_label if sel_label else "a new trigger for the current shot"
         add_enabled = tree._music.selected_key is not None or bool(current_file)
         buttons = []  # type: List[TreeButtonDict]
         if item["type"] == "folder":
@@ -89,7 +89,7 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
         tree = self._tree
         music = tree._music
         sel_label = music.selected_trigger_label()
-        add_target = sel_label if sel_label else "a new trigger for the current scene"
+        add_target = sel_label if sel_label else "a new trigger for the current shot"
         add_enabled = music.selected_key is not None or bool(current_file)
         rows = []  # type: List[TreeRowDict]
         for entry in entries:

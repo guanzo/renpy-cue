@@ -682,7 +682,7 @@ def test_music_row_buttons_gates_on_selection_or_current_file():
     lib3 = _row_lib(sel_label="", selected_key="replay:r")
     rows3 = lib3.tree_rows("")  # selected_key alone enables; default target label
     assert rows3[1]["buttons"][0]["enabled"] is True
-    assert rows3[1]["buttons"][0]["tt"] == "Add song to a new trigger for the current scene"
+    assert rows3[1]["buttons"][0]["tt"] == "Add song to a new trigger for the current shot"
 
 
 def test_music_folder_without_files_has_no_buttons():

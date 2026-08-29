@@ -35,16 +35,16 @@ screen cue_export_section():
                 spacing 10
                 use cue_radio_btn(
                     (_exporter.scope == CueExportScope.ALL_REPLAYS),
-                    "All Replays",
+                    "All Scenes",
                     Function(_exporter.set_scope, CueExportScope.ALL_REPLAYS))
                 use cue_radio_btn(
                     (_exporter.scope == CueExportScope.SPECIFIC_REPLAYS),
-                    "Specific Replays",
+                    "Specific Scenes",
                     Function(_exporter.set_scope, CueExportScope.SPECIFIC_REPLAYS))
 
             if (_exporter.scope == CueExportScope.SPECIFIC_REPLAYS):
                 if not _exporter.replays:
-                    etext ("No replays yet.  Markers edited inside a replay "
+                    etext ("No scenes yet.  Markers edited inside a replay "
                           "show up here.")
                 else:
                     if _current_has_data:
@@ -54,14 +54,14 @@ screen cue_export_section():
                             spacing 8
                             etext _in_replay_line color _cue_color_text_muted
                             use cue_txt_button(
-                                "Export this replay",
+                                "Export this scene",
                                 Function(_exporter.export_replay, _current_replay))
                     hbox:
                         spacing 8
                         use cue_txt_button(
                             "Toggle All",
                             Function(_exporter.toggle_all_replays),
-                            tt="Check or uncheck every replay at once.")
+                            tt="Check or uncheck every scene at once.")
                     viewport:
                         ysize 200
                         mousewheel True
