@@ -4,15 +4,29 @@
 # entries, and the exporter calls _cue_replay_labels for its own async export
 # snapshot.
 
+import json as _json
 import os
 import renpy
 
 from cue_lib.paths import CuePaths
 from cue_lib.sharing.importer_io import _cue_read_json_file
+from cue_lib.util import _cue_replace_file
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List, Optional, Tuple  # pyright: ignore[reportUnusedImport]
+    from typing import Any, Dict, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
+
+
+def _cue_speaker_label(who):
+    # type: (Any) -> Any
+    """Map the protagonist to the universal tag 'mc' so speaker fields and
+    per-replay casts stay comparable across games that rename the MC."""
+    mc = getattr(renpy.store, "mc", None)
+    if mc is not None:
+        name = getattr(mc, "name", None)
+        if name and who == name:
+            return "mc"
+    return who
 
 
 def _cue_replay_labels(root, game_id):
@@ -57,6 +71,7 @@ class CueReplayLibrary(object):
         # A scene clicked while another replay runs: the end_replay unwind
         # fires after_replay_callback, which is where the new replay chains on.
         self.pending_replay = None  # type: Optional[str]
+        self.cast = CueReplayCast(paths)
 
     def scan(self):
         # type: () -> None
@@ -84,3 +99,47 @@ class CueReplayLibrary(object):
             renpy.end_replay()
         else:
             renpy.call_replay(label)
+
+
+class CueReplayCast(object):
+    """Speaking cast of a replay, one JSON file under <replays_dir>/.
+
+    record_speaker keeps an in-memory set per replay, lazily loaded from disk
+    on first use.  A new speaker writes through immediately, so a mid-replay
+    crash keeps earlier discoveries; existing speakers never rewrite the file.
+    """
+
+    def __init__(self, paths):
+        # type: (CuePaths) -> None
+        self._paths = paths
+        self._casts = {}  # type: Dict[str, Set[str]]  # replay_id -> speakers
+
+    def record_speaker(self, replay_id, speaker):
+        # type: (str, str) -> None
+        speakers = self._casts.get(replay_id)
+        if speakers is None:
+            speakers = self._load(replay_id)
+            self._casts[replay_id] = speakers
+        if speaker in speakers:
+            return
+        speakers.add(speaker)
+        self._save(replay_id, speakers)
+
+    def _load(self, replay_id):
+        # type: (str) -> Set[str]
+        data = _cue_read_json_file(self._paths.replay_path(replay_id))
+        chars = data.get("characters") if data is not None else None
+        if not isinstance(chars, list):
+            return set()
+        return set(chars)
+
+    def _save(self, replay_id, speakers):
+        # type: (str, Set[str]) -> None
+        path = self._paths.replay_path(replay_id)
+        parent = os.path.dirname(path)
+        if not os.path.isdir(parent):
+            os.makedirs(parent)
+        tmp = path + ".tmp"
+        with open(tmp, "w") as fh:
+            _json.dump({"replay": replay_id, "characters": sorted(speakers)}, fh, sort_keys=True)
+        _cue_replace_file(tmp, path)

@@ -36,6 +36,7 @@ class CueContext:
     current_file: str
     current_dialogue: str
     prev_dialogue: str
+    current_who: str
     top_layer_type: Optional[str]
     top_displayable: Any
     _shake_just_happened: bool

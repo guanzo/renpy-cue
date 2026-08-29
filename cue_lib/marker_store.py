@@ -28,6 +28,7 @@ from cue_lib.util import (
     _cue_remove_ref,
     _cue_resolve_files,
     get_key_file,
+    is_dlg_key,
     is_vid_key,
 )
 
@@ -313,6 +314,8 @@ class CueMarkerStore(object):
             entry["replay"] = in_replay
         if marker_key:
             self._capture_filepath(entry, marker_key)
+            if is_dlg_key(marker_key):
+                self._capture_speaker(entry)
         return entry
 
     def _get_or_create_entry(self, marker_key):
@@ -343,6 +346,20 @@ class CueMarkerStore(object):
         path = getattr(d, "filename", None) or _cue_get_movie_play(d)
         if path:
             entry["filepath"] = path
+
+    def _capture_speaker(self, entry):
+        # type: (Any) -> None
+        """Record who said the dialogue line, backfilling markers that lack
+        one.  Stores the character tag (what _last_say_who yields, "mc" for
+        the MC); first write wins so edits never overwrite the original."""
+        if entry.get("speaker"):
+            return
+        ctx = self._ctx
+        if ctx is None:
+            return
+        who = getattr(ctx, "current_who", None)
+        if who:
+            entry["speaker"] = who
 
     def _ensure_pool(self, marker_key, pool_index):
         # type: (str, int) -> PoolDict

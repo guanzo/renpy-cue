@@ -193,7 +193,7 @@ init -900 python:
     from cue_lib.video.video import CueVideoManager
     from cue_lib.volume import CueVolumeManager
     from cue_lib.music.manager import CueMusicManager
-    from cue_lib.replays import CueReplayLibrary
+    from cue_lib.replays import CueReplayCast, CueReplayLibrary, _cue_speaker_label
     from cue_lib.video.repeater import CueMarkerRepeater
     from cue_lib.video.ffmpeg import CueFFmpeg
     from cue_lib.video.video_editor import CueVideoEditor
@@ -419,9 +419,15 @@ init 999 python:
             if event == "show":
                 _cue.ctx.prev_dialogue = _cue.ctx.current_dialogue
                 _cue.ctx.current_dialogue = getattr(store, '_last_say_what', '')
+                who = _cue_speaker_label(getattr(store, '_last_say_who', '') or '')
+                _cue.ctx.current_who = who
+                in_replay = getattr(store, '_in_replay', None)
+                if in_replay and who:
+                    _cue.replays.cast.record_speaker(in_replay, who)
             elif event == "end":
                 _cue.ctx.prev_dialogue = _cue.ctx.current_dialogue
                 _cue.ctx.current_dialogue = ""
+                _cue.ctx.current_who = ""
 
         config.all_character_callbacks.append(_cue_char_callback)
 

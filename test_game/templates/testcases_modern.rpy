@@ -19,6 +19,7 @@ init 1000 python:
         _cue.top_layer_type = ""
         _cue.current_dialogue = ""
         _cue.prev_dialogue = ""
+        _cue.ctx.current_who = ""
         _cue.ctx._shake_just_happened = False
         _cue.vid_manager.last_elapsed = 0.0
         # Music interception state leaks too: last_event, an uncleared pending
@@ -1104,6 +1105,27 @@ testcase dlg_trigger_fires_on_say:
     assert eval (_cue.markers.get("d_cueimg_a__Hello") is not None)
     assert eval (len(_cue.trigger.last_played) >= 1)
     $ _cue.markers.pop("d_cueimg_a__Hello", None)
+
+testcase replay_cast_records_speakers:
+    run Jump("start")
+    $ _cue_test_reset()
+    $ import json as _json
+    $ import os as _os
+    $ _cast_path = _cue.paths.replay_path("test_replay")
+    $ renpy.store._in_replay = "test_replay"
+    run Jump("cue_say_fire")
+    pause 0.5
+    # Character callback resolved the speaker (the character's tag, matching
+    # _last_say_who) and recorded the replay cast.
+    assert eval (_cue.ctx.current_who == "cuespk")
+    assert eval (_os.path.exists(_cast_path))
+    assert eval (_json.load(open(_cast_path))["characters"] == ["cuespk"])
+    # A dialogue marker created while the speaker line is on screen captures
+    # the speaker at creation (first write wins).
+    $ _cue.marker_store._get_or_create_entry("d_cueimg_a__Hello")
+    assert eval (_cue.markers.get("d_cueimg_a__Hello")["speaker"] == "cuespk")
+    $ _cue.markers.pop("d_cueimg_a__Hello", None)
+    $ if _os.path.exists(_cast_path): _os.remove(_cast_path)
 
 testcase loop_trigger_fires_on_cycle:
     run Jump("start")

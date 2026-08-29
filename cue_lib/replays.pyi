@@ -1,9 +1,10 @@
 # Type stub for cue_lib.replays
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from cue_lib.paths import CuePaths
 
 def _cue_replay_labels(root: str, game_id: str) -> List[Tuple[str, int]]: ...
+def _cue_speaker_label(who: Any) -> Any: ...
 
 class CueReplayLibrary:
     def __init__(self, paths: CuePaths) -> None: ...
@@ -12,3 +13,13 @@ class CueReplayLibrary:
 
     entries: List[Dict[str, Any]]
     pending_replay: Optional[str]
+    cast: CueReplayCast
+
+class CueReplayCast:
+    def __init__(self, paths: CuePaths) -> None: ...
+    def record_speaker(self, replay_id: str, speaker: str) -> None: ...
+    def _load(self, replay_id: str) -> Set[str]: ...
+    def _save(self, replay_id: str, speakers: Set[str]) -> None: ...
+
+    _paths: CuePaths
+    _casts: Dict[str, Set[str]]

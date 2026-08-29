@@ -115,6 +115,7 @@ class MarkerEntry(TypedDict, total=False):
     volume: float  # entry-level master volume (default 1.0)
     video_file_muted: bool  # video audio track muted
     filepath: str  # on-screen file's original path, captured at marker creation
+    speaker: str  # dialogue marker: who said the line (the character tag, "mc" for the MC)
     replay: str  # replay label
     single_speed_pref: float  # per-video single-mode speed preference
     multi_speed_sequence: List[float]  # per-video custom multi-mode sequence

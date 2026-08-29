@@ -178,6 +178,51 @@ def test_setdefault_backfills_filepath(store, cue_env):
     assert entry["filepath"] == "beach.png"
 
 
+# ---------------------------------------------------------------------------
+# Dialogue speaker capture
+# ---------------------------------------------------------------------------
+
+
+def _dlg_ctx(who):
+    # current_file mismatches dlg keys' tags, so filepath capture bails at its
+    # live-context guard; the image key matches, so top_displayable is needed
+    # for _capture_filepath not to crash before speaker capture runs.
+    return types.SimpleNamespace(
+        current_file="beach.png", top_displayable=types.SimpleNamespace(filename="beach.png"), current_who=who
+    )
+
+
+def test_dlg_entry_captures_speaker(store, cue_env):
+    s = _store_with_ctx(cue_env, _dlg_ctx("Dawe"))
+    entry = s._get_or_create_entry("d_scene__hello")
+    assert entry["speaker"] == "Dawe"
+
+
+def test_non_dlg_entry_skips_speaker(store, cue_env):
+    s = _store_with_ctx(cue_env, _dlg_ctx("Dawe"))
+    entry = s._get_or_create_entry("i_beach.png")
+    assert "speaker" not in entry
+
+
+def test_dlg_existing_speaker_preserved(store, cue_env):
+    s = _store_with_ctx(cue_env, _dlg_ctx("NewWho"))
+    s._data["d_scene__hello"] = {"pools": [], "speaker": "OldWho"}
+    entry = s._get_or_create_entry("d_scene__hello")
+    assert entry["speaker"] == "OldWho"
+
+
+def test_dlg_speaker_backfilled_on_setdefault(store, cue_env):
+    s = _store_with_ctx(cue_env, _dlg_ctx("Dawe"))
+    entry = s.setdefault("d_scene__hello", {"pools": []})
+    assert entry["speaker"] == "Dawe"
+
+
+def test_dlg_no_who_skips_speaker(store, cue_env):
+    s = _store_with_ctx(cue_env, _dlg_ctx(""))
+    entry = s._get_or_create_entry("d_scene__hello")
+    assert "speaker" not in entry
+
+
 def test_ensure_pool_creates_pool_with_default_volume(store):
     pool = store._ensure_pool("i_a", 0)
     assert pool == {"files": [], "volume": CUE_VOLUME_DEFAULT}

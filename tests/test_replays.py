@@ -3,8 +3,9 @@
 
 import json as _json
 import os
+import types as _types
 
-from cue_lib.replays import CueReplayLibrary, _cue_replay_labels
+from cue_lib.replays import CueReplayCast, CueReplayLibrary, _cue_replay_labels, _cue_speaker_label
 
 GAME_ID = "test_game"
 
@@ -113,3 +114,102 @@ def test_play_missing_label_noop(monkeypatch, cue_env):
     assert calls["call_replay"] == []
     assert calls["end_replay"] == []
     assert lib.pending_replay is None
+
+
+# ---------------------------------------------------------------------------
+# CueReplayCast -- speaking cast per replay
+# ---------------------------------------------------------------------------
+
+
+def _read_replay(cue_env, replay_id):
+    with open(cue_env.paths.replay_path(replay_id), "r") as f:
+        return _json.load(f)
+
+
+def test_cast_record_speaker_writes_file(cue_env):
+    cast = CueReplayCast(cue_env.paths)
+
+    cast.record_speaker("Run 1", "Dawe")
+
+    assert _read_replay(cue_env, "Run 1") == {"replay": "Run 1", "characters": ["Dawe"]}
+
+
+def test_cast_existing_speaker_is_idempotent(cue_env):
+    cast = CueReplayCast(cue_env.paths)
+
+    cast.record_speaker("Run 1", "Dawe")
+    cast.record_speaker("Run 1", "Dawe")
+
+    assert _read_replay(cue_env, "Run 1") == {"replay": "Run 1", "characters": ["Dawe"]}
+
+
+def test_cast_appends_new_speaker(cue_env):
+    cast = CueReplayCast(cue_env.paths)
+
+    cast.record_speaker("Run 1", "Dawe")
+    cast.record_speaker("Run 1", "SG")
+    cast.record_speaker("Run 1", "Jill")
+
+    assert _read_replay(cue_env, "Run 1") == {"replay": "Run 1", "characters": ["Dawe", "Jill", "SG"]}
+
+
+def test_cast_loads_existing_cast_before_append(cue_env):
+    _write(
+        cue_env.paths.original_root,
+        "data/markers/{}/replays/Run 1.json".format(GAME_ID),
+        _json.dumps({"replay": "Run 1", "characters": ["Dawe"]}),
+    )
+    cast = CueReplayCast(cue_env.paths)
+
+    cast.record_speaker("Run 1", "SG")
+
+    assert _read_replay(cue_env, "Run 1") == {"replay": "Run 1", "characters": ["Dawe", "SG"]}
+
+
+def test_cast_speakers_are_per_replay(cue_env):
+    cast = CueReplayCast(cue_env.paths)
+
+    cast.record_speaker("Run 1", "Dawe")
+    cast.record_speaker("Run 2", "SG")
+
+    assert _read_replay(cue_env, "Run 1")["characters"] == ["Dawe"]
+    assert _read_replay(cue_env, "Run 2")["characters"] == ["SG"]
+
+
+def test_library_owns_cast_submanager(cue_env):
+    lib = CueReplayLibrary(cue_env.paths)
+
+    lib.cast.record_speaker("Run 1", "Dawe")
+
+    assert _read_replay(cue_env, "Run 1") == {"replay": "Run 1", "characters": ["Dawe"]}
+
+
+# ---------------------------------------------------------------------------
+# _cue_speaker_label -- protagonist collapse to "mc"
+# ---------------------------------------------------------------------------
+
+
+def _fake_mc(monkeypatch, name):
+    import renpy as _renpy
+
+    monkeypatch.setattr(_renpy.store, "mc", _types.SimpleNamespace(name=name), raising=False)
+
+
+def test_speaker_label_collapses_mc_display_name(monkeypatch):
+    _fake_mc(monkeypatch, "Dave")
+
+    assert _cue_speaker_label("Dave") == "mc"
+
+
+def test_speaker_label_passthrough_other_characters(monkeypatch):
+    _fake_mc(monkeypatch, "Dave")
+
+    assert _cue_speaker_label("Jill") == "Jill"
+
+
+def test_speaker_label_passthrough_without_mc(monkeypatch):
+    import renpy as _renpy
+
+    monkeypatch.delattr(_renpy.store, "mc", raising=False)
+
+    assert _cue_speaker_label("Dave") == "Dave"

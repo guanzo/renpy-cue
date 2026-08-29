@@ -19,6 +19,7 @@ class CueContext(object):
         self.current_file = ""
         self.current_dialogue = ""
         self.prev_dialogue = ""
+        self.current_who = ""
         self.top_layer_type = ""
         self.top_displayable = None
         self._shake_just_happened = False
