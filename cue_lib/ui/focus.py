@@ -83,36 +83,27 @@ def _cue_install_focus_pin():
         # Only pin while one of Cue's own fields is in edit mode.
         editing = getattr(_cue, "active_input", "")
 
-        # Hover keeps focus where it is; a click still moves it so it can land on
-        # another control or field (ending the edit normally).
+        # Hover keeps focus pinned; a click still lands normally.
         is_hover = editing and ev is not None and ev.type == pygame.MOUSEMOTION
         if is_hover:
             return None
 
         if not editing and ev is not None and ev.type == pygame.MOUSEBUTTONDOWN:
-            # Clicking a field's textbutton flips editing on; the input replaces
-            # that button but isn't focusable, so its rect is unknown.  Capture the
-            # rect now; the backdrop wraps the panel, so the innermost focusable at
-            # the point is the one actually clicked.
+            # Capture the field's rect on click: the input replaces its button but
+            # isn't focusable, so the box is otherwise unknown.
             f = _cue_focusable_at_point(x, y, _cue_field_control)
             _cue.active_input_rect = (f.x, f.y, f.w, f.h) if f is not None else None
 
         rv = orig(ev, x, y, default=default)
 
-        # A click whose point falls outside the active field's rect ends the
-        # edit.  The rect was captured when that field's textbutton was clicked
-        # to start editing; the input occupies the same box.
+        # Click outside the active field's rect ends the edit.
         if editing and ev is not None and ev.type == pygame.MOUSEBUTTONDOWN:
             r = _cue.active_input_rect
             on_input = r is not None and (r[0] <= x < r[0] + r[2] and r[1] <= y < r[1] + r[3])
             if not on_input:
-                # A field control under the point -- the input's own clear button
-                # or another field's textbutton -- sets active_input on its UP
-                # action, re-rendering the screen; exiting here would restart
-                # mid-click and swap the clear button for its disabled hint icon,
-                # swallowing the click.  Defer to it and re-capture its rect so a
-                # field-to-field switch starts with a valid box.  Dead space and
-                # non-field controls end the edit here (and restart).
+                # A field control (clear button, other textbutton) flips active_input
+                # on its UP action; exiting mid-click restarts and swallows it.
+                # Re-capture its rect. Dead space / non-field controls end the edit.
                 f = _cue_focusable_at_point(x, y, _cue_field_control)
                 if f is not None:
                     _cue.active_input_rect = (f.x, f.y, f.w, f.h)
