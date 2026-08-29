@@ -34,10 +34,10 @@ if [ "$1" = "--both" ]; then
     LEGACY=""
     for d in "$ROOT"/.local/renpy-sdk/renpy-*-sdk; do
         [ -d "$d" ] || continue
-        if grep -q 'version_tuple = (7,' "$d/renpy/__init__.py" 2>/dev/null; then
-            LEGACY="$d/renpy.sh"
-        else
+        if grep -q 'def parse_until' "$d/renpy/test/testparser.py" 2>/dev/null; then
             MODERN="$d/renpy.sh"
+        else
+            LEGACY="$d/renpy.sh"
         fi
     done
     if [ -z "$MODERN" ] || [ -z "$LEGACY" ]; then
@@ -97,14 +97,19 @@ TEMPLATES="$GAME/templates"
 # normal failure path below dumps the partial log. Generous vs real runs.
 CUE_ENGINE_TIMEOUT="${CUE_ENGINE_TIMEOUT:-600}"
 
-# --- Resolve the launcher's game root and the bundled Ren'Py major version. ---
-# 7.x games carry a literal `version_tuple = (7, ...)` in renpy/__init__.py;
-# 8.x builds it dynamically (VersionTuple(...)) and never has that literal.
+# --- Resolve the launcher's game root and the test-language generation. ---
+# The split is DSL generation, not Python generation: the modern grammar
+# (until eval, timeout, keysym) exists only in the 8.5+ test parser; 7.x and
+# 8.0-8.4 share the old grammar the legacy template uses. Probe the parser
+# directly rather than keying off a version literal.
 LAUNCHER_DIR="$(cd "$(dirname "$LAUNCHER")" && pwd)"
-if grep -q 'version_tuple = (7,' "$LAUNCHER_DIR/renpy/__init__.py" 2>/dev/null; then
-    DSL="legacy"
-else
-    DSL="modern"
+DSL="${CUE_DSL:-}"
+if [ -z "$DSL" ]; then
+    if grep -q 'def parse_until' "$LAUNCHER_DIR/renpy/test/testparser.py" 2>/dev/null; then
+        DSL="modern"
+    else
+        DSL="legacy"
+    fi
 fi
 
 # --- Materialize the active testcases file from the matching template. ---

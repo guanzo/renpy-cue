@@ -18,17 +18,25 @@ jobs:
       matrix:
         include:
           # Corners only: oldest 7.x, popular + supported-floor 7.x (BeingADik),
-          # newest 7.x, first Py3-only 8.x, newest 8.x. Versions between these
-          # share a template and a runtime line; their coverage is redundant.
+          # newest 7.x, earliest and newest 8.x. The testcases DSL splits by
+          # generation, not Python version: 7.x and 8.0-8.4 share the old
+          # grammar (legacy template), 8.5+ the new one (modern). `dsl` mirrors
+          # what the harness detects, so this job can wrap the modern legs in
+          # xvfb (single-process) while leaving legacy (per-worker Xvfb) alone.
           - renpy: "7.2.2"
+            dsl: legacy
             os: ubuntu-22.04
           - renpy: "7.4.10"
+            dsl: legacy
             os: ubuntu-22.04
           - renpy: "7.5.3"
+            dsl: legacy
             os: ubuntu-22.04
           - renpy: "8.1.3"
-            os: ubuntu-latest
+            dsl: legacy
+            os: ubuntu-22.04
           - renpy: "8.5.3"
+            dsl: modern
             os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     env:
@@ -76,18 +84,18 @@ jobs:
       - name: Install ffmpeg
         uses: FedericoCarboni/setup-ffmpeg@v3
 
-      # The `test` command is uses_display=True and the 7.x leg forces
+      # The `test` command is uses_display=True and the legacy legs force
       # SDL_VIDEODRIVER=x11 -- both need a real X server. xvfb provides it.
       - name: Run testcases
         # Explicit `bash` invocation: the repo lives on a filesystem that
         # doesn't persist the exec bit (core.fileMode=false), so the scripts
         # aren't executable in the working tree.
-        # The 7.x leg runs parallel workers, each with its own Xvfb display, so
-        # wrapping it in xvfb-run too would nest a second display layer (and
-        # leak XAUTHORITY across displays). Only the modern (8.x) single-process
+        # The legacy legs run parallel workers, each with its own Xvfb display,
+        # so wrapping them in xvfb-run too would nest a second display layer
+        # (and leak XAUTHORITY across displays). Only the modern single-process
         # leg needs the wrapper.
         run: |
-          if [ "${{ startsWith(matrix.renpy, '8') }}" = "true" ]; then
+          if [ "${{ matrix.dsl }}" = "modern" ]; then
             xvfb-run -a bash bin/test_harness.sh "$SDK_DIR/renpy.sh"
           else
             bash bin/test_harness.sh "$SDK_DIR/renpy.sh"
