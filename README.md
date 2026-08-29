@@ -2,19 +2,48 @@
   <img src="./cue_lib/images/branding/cue-wordmark.png" alt="Ren'Py Cue" width="200">
 </p>
 
-Cue lets you add sound effects, music, and video effects to [Ren'Py](https://www.renpy.org/) visual novels.
+Add sound effects, music, and video effects to [Ren'Py](https://www.renpy.org/) games — without modifying the game's scripts.
 
+<img width="600" height="338" alt="Image" src="https://github.com/user-attachments/assets/088005a5-4789-4862-939c-45f4ff5046a3" />
 
 **Need help, want to share your setup, or just hang out? [Join the Cue Discord](https://discord.gg/kAVtFGcQYm)**
 
 ## Contents
 
+* [What Cue Does](#what-cue-does)
 * [Getting Started](#getting-started)
-* [How Cue Works](#how-cue-works)
 * [Using Cue With Multiple Games](#using-cue-with-multiple-games)
-* [Settings and Your Data](#settings-and-your-data)
+* [How Cue Works](#how-cue-works)
 * [Requirements](#requirements)
 * [For Developers](#for-developers)
+
+
+## What Cue Does
+
+🔊 Synchronized SFX
+
+Add sound effects to images, dialogue, video timestamps, loops, and screen shakes.
+
+🎵 Replay Music
+
+Customize the music that plays during replays with your own songs or music from the game.
+
+🎬 Video Speed Effects
+
+Create video speed variants and switch or sequence between speeds during playback. Requires [FFmpeg](https://www.ffmpeg.org/) v5+.
+
+🎛️ Presets
+
+Build reusable SFX and music pools from your own files and folders, then save common setups as presets.
+
+📦 Shared Setups
+
+Reuse your audio, music, presets, and configuration across multiple games.
+
+🔄 Import & Export
+
+Export your Cue setup to share it with others.
+
 
 ## Getting Started
 
@@ -47,6 +76,21 @@ Cue was built with AVNs in mind, but Cue itself works the same on any Ren'Py gam
 3. Find a sound in **SFX Library** and click the **+** button.
 4. The next time this image appears on screen, your chosen sound will play.
 
+## Using Cue With Multiple Games
+
+The normal method is to install a separate copy of Cue into each game you want to use, following [Getting Started](#getting-started) above.
+
+### Advanced: Share One Cue Installation
+
+If you have Cue installed in several games and want one copy of the code to serve all of them, symlink `cue_lib/` instead of copying it into each game:
+
+```text
+<game1>/game/renpy_cue/cue_lib  ->  <your shared copy of cue_lib>
+<game2>/game/renpy_cue/cue_lib  ->  <your shared copy of cue_lib>
+```
+
+An update to the shared copy then propagates to every game at once. On Windows, use a directory junction (`mklink /J …`).
+
 ## How Cue Works
 
 Cue attaches **pools** to **triggers** in a game.
@@ -65,15 +109,6 @@ Pools can overlap when they play. More than one sound can play at once, and each
 
 Some games simulate video using sequences of images rather than actual video files. These sequences cannot currently be used as triggers, but support is planned for a future version.
 
-### What You Can Do
-
-* **Add sound effects** to triggers.
-* **Build reusable SFX pools** from your own files and folders, and save common setups as **presets**.
-* **Customize replay music** with your own music or the game's existing tracks.
-* **Create video speed variants** and switch or sequence between speeds while playing.
-* **Reuse your setup across games** with shared audio, music, presets, and configuration.
-* **Export and import** your Cue setup to share it with others or move it to different machines.
-
 ### Video Speed & Effects
 
 **Requires ffmpeg.**
@@ -87,21 +122,6 @@ You only need to place Video SFX markers once, on the original video. When you s
 Intensity Groups tie your sound effects to video speed. As a video speeds up or slows down, Cue automatically swaps in sounds that match, so slower speeds can use softer, sparser sounds while faster speeds use louder and more frequent ones.
 
 It's the feature that brings everything together: video SFX, loop SFX, loop frequency, and volume can all react to video speed, without needing to configure each speed variant individually.
-
-## Using Cue With Multiple Games
-
-The normal method is to install a separate copy of Cue into each game you want to use, following [Getting Started](#getting-started) above.
-
-### Advanced: Share One Cue Installation
-
-If you have Cue installed in several games and want one copy of the code to serve all of them, symlink `cue_lib/` instead of copying it into each game:
-
-```text
-<game1>/game/renpy_cue/cue_lib  ->  <your shared copy of cue_lib>
-<game2>/game/renpy_cue/cue_lib  ->  <your shared copy of cue_lib>
-```
-
-An update to the shared copy then propagates to every game at once. On Windows, use a directory junction (`mklink /J …`).
 
 ## Cue Data Folder
 
@@ -122,6 +142,8 @@ You can change the data folder location in Cue's settings, or override it with t
 
 ## For Developers
 
+Code must work on **Ren'Py 7.4.x and up**. Full rules are in `CLAUDE.md`.
+
 ### Repository Layout
 
 - `cue_lib/` — the mod source: Python logic in `.py` files, screens and styles in `cue_lib/ui/*.rpy`.
@@ -129,10 +151,6 @@ You can change the data folder location in Cue's settings, or override it with t
 - `test_game/` — a minimal Ren'Py project used as the in-engine test harness.
 - `tests/` — the headless pytest suite, run against a stub Ren'Py runtime (`tests/mock_renpy/`).
 - `typings/` — Ren'Py runtime type stubs for static analysis.
-
-### Compatibility
-
-Code must work on **Ren'Py 7.4.x and up**. Full rules are in `CLAUDE.md`.
 
 ### Tooling
 

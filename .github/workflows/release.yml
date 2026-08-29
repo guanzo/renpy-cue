@@ -80,4 +80,4 @@ jobs:
             --title "Cue $GITHUB_REF_NAME" \
             --generate-notes \
             --draft \
-            "renpy_cue_${GITHUB_REF_NAME#v}.zip"
+            "Cue_${GITHUB_REF_NAME#v}.zip"
