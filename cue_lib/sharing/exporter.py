@@ -55,6 +55,9 @@ class CueExportManager(object):
         self._export_thread = None  # type: Any
         self.is_refreshing = False  # a background refresh pass is running
         self._refresh_thread = None  # type: Any
+        # The disk snapshot is cached and rebuilt only when markers change
+        # (see invalidate_cache), so mode toggles and exports reuse it.
+        self._cache_valid = False
 
     @property
     def is_busy(self):
@@ -73,9 +76,25 @@ class CueExportManager(object):
         """Request a background refresh.  The worker thread does the whole
         disk pass -- tree enumeration + replay label scan -- so the UI thread
         never blocks on it.  The page keeps showing the last snapshot until
-        the worker swaps a fresh one in, which the next poll displays.
-        Idempotent and safe to call on every poll: no-op while a pass runs."""
+        the worker swaps a fresh one in.  Idempotent and safe to call on
+        every poll: no-op while a pass runs."""
         self._kick_refresh_thread()
+
+    def _refresh_if_stale(self):
+        # type: () -> None
+        """Kick a background refresh only when the cached snapshot is stale.
+        The snapshot changes only when markers do, so mode toggles and
+        exports reuse it instead of re-walking the disk."""
+        if not self._cache_valid:
+            self.refresh()
+
+    def invalidate_cache(self):
+        # type: () -> None
+        """Drop the cached disk snapshot so the next refresh rebuilds it.
+        Wired by cue_z.rpy to the marker-store save hook -- the snapshot's
+        only runtime input (marker edits change both the replay list and the
+        marker file set)."""
+        self._cache_valid = False
 
     def _kick_refresh_thread(self):
         # type: () -> None
@@ -121,6 +140,7 @@ class CueExportManager(object):
         self.replays = replays
         self.checked_replays = known | set(label for label, _c in labels)
         self.current_replay = self._current_replay()
+        self._cache_valid = True
 
     def _current_replay(self):
         # type: () -> str
@@ -138,11 +158,18 @@ class CueExportManager(object):
         # type: (int) -> None
         self.scope = scope
         self.clear_status()
+        # The scene list is only rendered in Specific Scenes mode; kick the
+        # disk pass then (once, via the cache), never on page entry.
+        if scope == CueExportScope.SPECIFIC_REPLAYS:
+            self._refresh_if_stale()
 
     def set_file_types(self, file_types):
         # type: (int) -> None
         self.file_types = file_types
         self.clear_status()
+        # Category counts are only rendered in Specific File Types mode.
+        if file_types == CueExportFileTypes.SPECIFIC:
+            self._refresh_if_stale()
 
     def toggle_category(self, cat):
         # type: (int) -> None
@@ -290,6 +317,11 @@ class CueExportManager(object):
         file gets a ' (N)' collision suffix."""
         if self.is_exporting:
             return
+        # Export always packs the whole-tree file list, so re-enumerate
+        # synchronously for guaranteed freshness -- a deliberate action, so a
+        # one-off disk pass is fine (replay scope already re-derives assets
+        # on this thread).  The cache only serves the scope-mode toggles.
+        self._do_refresh()
         self.clear_status()
         selected, marker_arcnames = self._selection()
 

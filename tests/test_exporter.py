@@ -90,6 +90,15 @@ def _refresh_and_join(mgr):
         mgr._refresh_thread.join()
 
 
+def _switch(mgr, method, value):
+    """Call a mode-switching setter and join the refresh it kicks when the
+    cached snapshot is stale, so the background pass can't race the
+    assertions."""
+    getattr(mgr, method)(value)
+    if mgr._refresh_thread is not None:
+        mgr._refresh_thread.join()
+
+
 # ---------------------------------------------------------------------------
 # refresh / counts / enabled
 # ---------------------------------------------------------------------------
@@ -128,6 +137,43 @@ def test_exports_dir_under_original_root(cue_env):
     assert mgr.exports_dir() == os.path.join(cue_env.paths.original_root, "exports")
 
 
+def test_cache_reuses_snapshot_until_invalidated(cue_env, monkeypatch):
+    """The disk snapshot is cached: a second mode toggle doesn't re-walk the
+    disk, and invalidate_cache() (wired to marker saves) forces a rebuild."""
+    _seed(cue_env, [("audio/a.ogg", "a")])
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    assert mgr._cache_valid is True
+
+    created, _factory = _capture_thread_factory()
+    monkeypatch.setattr(_exporter.threading, "Thread", _factory)
+    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+    assert created == []  # cached snapshot -> no new refresh pass
+
+    mgr.invalidate_cache()
+    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+    assert len(created) == 1
+    created[0].join()
+    assert mgr._cache_valid is True
+
+
+def test_export_always_refreshes_contents(cue_env):
+    """Export always re-enumerates, so a file added after the last refresh is
+    still packed -- the cached snapshot never serves an export."""
+    _seed(cue_env, [("audio/a.ogg", "a")])
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)  # cache now valid
+    _seed(cue_env, [("music/m.ogg", "m")])  # added after the snapshot
+    mgr.name = "Fresh"
+
+    _export_and_join(mgr)
+
+    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Fresh.zip")) as zf:
+        names = zf.namelist()
+        assert "audio/a.ogg" in names
+        assert "music/m.ogg" in names
+
+
 # ---------------------------------------------------------------------------
 # selection state
 # ---------------------------------------------------------------------------
@@ -151,7 +197,7 @@ def test_selected_contents_drops_unchecked_and_empty(cue_env):
     _seed(cue_env, [("audio/a.ogg", "a"), ("music/m.ogg", "m")])
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
-    mgr.set_file_types(CueExportFileTypes.SPECIFIC)
+    _switch(mgr, "set_file_types", CueExportFileTypes.SPECIFIC)
     mgr.toggle_category(CueImportCategory.SFX)
 
     sel = mgr.selected_contents()
@@ -360,7 +406,7 @@ def test_export_skips_unchecked(cue_env):
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
     mgr.name = "Only music"
-    mgr.set_file_types(CueExportFileTypes.SPECIFIC)
+    _switch(mgr, "set_file_types", CueExportFileTypes.SPECIFIC)
     mgr.toggle_category(CueImportCategory.SFX)
 
     _export_and_join(mgr)
@@ -385,7 +431,7 @@ def test_set_scope_switches_content_source(cue_env):
     _seed(cue_env, [("audio/a.ogg", "a")])
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
-    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+    _switch(mgr, "set_scope", CueExportScope.SPECIFIC_REPLAYS)
 
     assert mgr.scope == CueExportScope.SPECIFIC_REPLAYS
     assert mgr.selected_contents() == []  # no replays checked -> nothing
@@ -417,7 +463,7 @@ def test_any_unchecked_only_in_specific_mode(cue_env):
 
     assert mgr.any_unchecked() is False  # All mode: nothing can be off
 
-    mgr.set_file_types(CueExportFileTypes.SPECIFIC)
+    _switch(mgr, "set_file_types", CueExportFileTypes.SPECIFIC)
 
     assert mgr.any_unchecked() is True
 
@@ -500,7 +546,7 @@ def test_replay_scope_contents_is_subset(cue_env):
     )
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
-    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+    _switch(mgr, "set_scope", CueExportScope.SPECIFIC_REPLAYS)
     mgr.toggle_replay("Run 2")  # only Run 1 stays checked
 
     sel = mgr.selected_contents()
@@ -521,8 +567,8 @@ def test_replay_contents_respect_file_types(cue_env):
     )
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
-    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
-    mgr.set_file_types(CueExportFileTypes.SPECIFIC)
+    _switch(mgr, "set_scope", CueExportScope.SPECIFIC_REPLAYS)
+    _switch(mgr, "set_file_types", CueExportFileTypes.SPECIFIC)
     mgr.toggle_category(CueImportCategory.SFX)
 
     sel = mgr.selected_contents()
@@ -743,7 +789,7 @@ def test_external_bake_sfx_ref_exported_relative(tmp_path, cue_env):
 
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
-    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+    _switch(mgr, "set_scope", CueExportScope.SPECIFIC_REPLAYS)
     mgr.name = "Replay"
 
     _export_and_join(mgr)
@@ -780,7 +826,7 @@ def test_external_bake_music_ref_exported_relative(tmp_path, cue_env):
 
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
-    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+    _switch(mgr, "set_scope", CueExportScope.SPECIFIC_REPLAYS)
     mgr.name = "Music"
 
     _export_and_join(mgr)
@@ -818,7 +864,7 @@ def test_external_bake_folder_ref_expands_files(tmp_path, cue_env):
 
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
-    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+    _switch(mgr, "set_scope", CueExportScope.SPECIFIC_REPLAYS)
     mgr.name = "Folder"
 
     _export_and_join(mgr)
@@ -855,8 +901,8 @@ def test_external_bake_respects_unchecked_category(tmp_path, cue_env):
 
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
-    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
-    mgr.set_file_types(CueExportFileTypes.SPECIFIC)
+    _switch(mgr, "set_scope", CueExportScope.SPECIFIC_REPLAYS)
+    _switch(mgr, "set_file_types", CueExportFileTypes.SPECIFIC)
     mgr.toggle_category(CueImportCategory.SFX)  # off
     mgr.name = "NoSfx"
 
@@ -958,7 +1004,7 @@ def test_export_replay_packs_intensity_group(cue_env):
     )
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
-    mgr.set_scope(CueExportScope.SPECIFIC_REPLAYS)
+    _switch(mgr, "set_scope", CueExportScope.SPECIFIC_REPLAYS)
     mgr.name = "Intensity"
 
     _export_and_join(mgr)

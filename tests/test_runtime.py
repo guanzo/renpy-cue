@@ -190,13 +190,15 @@ def test_set_page_plain_page_switch(cue):
     assert cue.settings.setup_dir_text == "SHOULD-NOT-LEAK"  # no settings prep
 
 
-def test_set_page_import_refreshes_importer_and_exporter(cue):
+def test_set_page_import_scans_importer_not_exporter(cue):
+    """Page open only scans the import list; the exporter defers its disk pass
+    until a specific mode (Scenes / File Types) is selected or Export runs."""
     ov = _overlay.CueOverlay()
     ov.active_page = CuePage.SFX
     ov.set_page(CuePage.IMPORT)
     assert ov.active_page == CuePage.IMPORT
     assert cue.calls["importer.scan"] == [((), {})]
-    assert cue.calls["exporter.refresh"] == [((), {})]
+    assert "exporter.refresh" not in cue.calls
 
 
 # ==========================================================================

@@ -239,8 +239,14 @@ init -900 python:
         # without a late-bind.
         presets = CuePresetStore(db, lambda: undo.capture())
         intensity = CueIntensityManager(db, presets.intensity)
+
+        def _cue_marker_saved():
+            # Runs on every marker DB write (runtime only, after wiring).
+            undo.capture()
+            exporter.invalidate_cache()
+
         marker_store = CueMarkerStore(
-            _cue.ctx, db, paths, lambda: undo.capture(),
+            _cue.ctx, db, paths, _cue_marker_saved,
             preset_store=presets, intensity=intensity)
 
         vid_manager = CueVideoManager(_cue.ctx)

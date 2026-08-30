@@ -45,7 +45,6 @@ class CueOverlay(object):
             _cue.settings.prepare_for_page()
         elif page == CuePage.IMPORT:
             _cue.importer.scan()
-            _cue.exporter.refresh()
         elif page == CuePage.REPLAYS:
             _cue.replays.scan()
 
