@@ -54,6 +54,15 @@ style cue_frame is empty:
     background _cue_color_bg_panel
     padding (_cue_scale_ui(4), _cue_scale_ui(4))
     xfill True
+    
+# Section frame: styled frame + header, with transclude for child content.
+style cue_section_hdr_btn is empty:
+    background None
+    hover_background _cue_color_bg_input
+    padding (4, 2)
+    xfill True
+    hover_sound None
+    activate_sound None
 
 # Dialog shell: dark outer button whose 4px padding ring reads as a black
 # border around the content panel, matching the overlay/sfx panels (outer

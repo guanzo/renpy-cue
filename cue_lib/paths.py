@@ -240,7 +240,7 @@ class CuePaths(object):
 
     @property
     def replay_dir(self):
-        # type: (str) -> str
+        # type: () -> str
         return os.path.join(self.marker_dir, "replays") + "/"
 
     def replay_path(self, replay_id):

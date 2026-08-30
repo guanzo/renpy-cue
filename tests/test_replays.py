@@ -64,6 +64,22 @@ def test_scan_populates_entries_sorted(cue_env):
     assert lib.entries == [{"replay": "Run 1", "marker_count": 1}, {"replay": "Run 2", "marker_count": 1}]
 
 
+def test_scan_follows_active_root(cue_env):
+    """scan() reads the effective root so the Replays page reflects a preview
+    import's package, not the live tree (importer._do_activate hotswaps
+    _active_root, then _cue_full_reload re-scans)."""
+    _write_marker(cue_env, "live", {"replay": "Live", "pools": []})
+    imp = str(cue_env.paths.root) + "_imp"
+    _write(imp, "data/markers/{}/{}.json".format(GAME_ID, "preview"), _json.dumps({"replay": "Preview", "pools": []}))
+    cue_env.paths._active_root = imp
+
+    lib = CueReplayLibrary(cue_env.paths)
+    lib.scan()
+
+    assert lib.entries == [{"replay": "Preview", "marker_count": 1}]
+    cue_env.paths._active_root = None
+
+
 def test_scan_empty_when_no_markers_dir(cue_env):
     lib = CueReplayLibrary(cue_env.paths)
     lib.scan()

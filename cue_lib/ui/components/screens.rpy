@@ -454,14 +454,6 @@ screen cue_replay_children(_imp_key, _section):
                 etext _r["replay"] color _cue_color_text_accent size 11
                 etext "{} marker(s)".format(_r["marker_count"]) color _cue_color_text_muted size 11
 
-# Section frame: styled frame + header, with transclude for child content.
-style cue_section_hdr_btn is empty:
-    background None
-    hover_background _cue_color_bg_input
-    padding (4, 2)
-    xfill True
-    hover_sound None
-    activate_sound None
 
 # Usage: use cue_section_frame("Title"):  ...children...
 # Click the header to collapse/expand the section content.

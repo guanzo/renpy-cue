@@ -49,7 +49,7 @@ def _cue_speaker_display(tag):
                 name = name()
             except Exception:
                 name = None
-        if name is not None:
+        if isinstance(name, str):
             return name
     return tag
 
@@ -102,7 +102,7 @@ class CueReplayLibrary(object):
 
     def scan(self):
         # type: () -> None
-        labels = _cue_replay_labels(self._paths.original_root, self._paths.game_id)
+        labels = _cue_replay_labels(self._paths.root, self._paths.game_id)
         self.entries = [{"replay": label, "marker_count": count} for label, count in labels]
         # The cast filter's options and per-replay matching need every cast
         # file, not just the ones discovered live this session.

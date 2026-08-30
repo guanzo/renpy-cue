@@ -8,7 +8,6 @@
 # the overlay refresh is constructor-injected from cue_z.rpy init -900.
 
 import os
-import renpy
 import shutil as _shutil
 import threading
 
