@@ -98,9 +98,6 @@ class CueTriggerEngine(object):
         interval = now - self._last_tick_wall if self._last_tick_wall else 0.0
         self._last_tick_wall = now
 
-        if self.active:
-            self._debug.tick(now, current_file, top_layer_type, self._vid_manager.channel)
-
         # Speed + variant set, computed once per tick for intensity banding.
         # variants is None for videos with fewer than 2 speed variants (no
         # intensity).  The video level resolution doubles as the global
@@ -112,7 +109,10 @@ class CueTriggerEngine(object):
         self._vid_intensity = vres
         vid_scale = vres.volume_mult if vres is not None else 1.0
 
-        self.loop.tick(now, tick, current_file, speed, variants, vid_scale)
+        if self.active:
+            self._debug.tick(now, current_file, top_layer_type, self._vid_manager.channel)
+            self.loop.tick(now, tick, current_file, speed, variants, vid_scale)
+
         self.video.tick(current_file, top_layer_type, speed, variants, interval, vid_scale)
 
     # -- context triggers (i_, d_, shake) --

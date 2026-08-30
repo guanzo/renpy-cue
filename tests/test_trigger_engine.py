@@ -187,7 +187,10 @@ def test_toggle_active_reverse():
 # ---------------------------------------------------------------------------
 
 
-def test_tick_inactive_is_noop(monkeypatch):
+def test_tick_inactive_freezes_loop_keeps_video(monkeypatch):
+    # When SFX is off the engine must NOT early-return.  The video domain keep-
+    # tracks its position (so a resume doesn't fire a stale catch-up), while
+    # the loop domain freezes (it's a standalone cycle, re-armed on resume).
     eng = make_engine()
     eng.active = False
     seen = []
@@ -196,8 +199,8 @@ def test_tick_inactive_is_noop(monkeypatch):
         eng.video, "tick", lambda cf, layer, speed, variants, tick_interval=0.0, vid_scale=1.0: seen.append("video")
     )
     eng.tick("scene.ogg", "movie")
-    assert eng._tick_count == 0
-    assert seen == []
+    assert eng._tick_count == 1
+    assert seen == ["video"]
 
 
 def test_tick_dispatches_loop_then_video(monkeypatch):

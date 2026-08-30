@@ -73,6 +73,7 @@ class CueVideoTrigger(object):
         # is written by vm.poll_restart() (the restart source of truth).
         self._prev_eff_elapsed = effective_elapsed
 
+
     def _fire_markers(
         self, current_file, effective_elapsed, prev_eff, speed, variants, tick_interval=0.0, vid_scale=1.0
     ):
