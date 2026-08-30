@@ -71,6 +71,7 @@ Cue needs sound files before it can play anything. You can start with either of 
 2. Run the game, then open Cue by pressing `` ` `` (backtick) or `Shift+Alt+E`. 
 3. Go to **SFX Library**, and click **Open SFX Folder**. 
 4. Copy the extracted audio files into the folder that opens.
+5. Alternatively, you can add a list of folders to check in **Settings** -> **SFX Folders**
 
 Cue was built with AVNs in mind, but Cue itself works the same on any Ren'Py game.
 

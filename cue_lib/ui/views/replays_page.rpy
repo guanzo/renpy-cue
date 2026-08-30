@@ -92,16 +92,17 @@ screen cue_scene_row(entry, in_replay, play_action=None, play_sensitive=None):
                     icon_color=_cue_color_warn,
                     size=12)
             vbox:
-                spacing 2
+                spacing 4
                 hbox:
                     spacing 5
                     etext _label color _cue_color_text_accent
                     if in_replay == _label:
                         etext "(now playing)" color _cue_color_text_muted
-                hbox:
-                    spacing 5
-                    for _chip in _chips:
-                        frame:
-                            style "cue_select_chip"
-                            etext _chip style "cue_select_chip_text"
+                if _chips:
+                    hbox:
+                        spacing 5
+                        for _chip in _chips:
+                            frame:
+                                style "cue_select_chip"
+                                etext _chip style "cue_select_chip_text"
                 etext _mc_text color _cue_color_text_muted yalign 0.5

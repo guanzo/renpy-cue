@@ -58,19 +58,21 @@ screen cue_data_dir():
             etext "Cue stores everything (markers, video, audio, backups, etc.) in this folder."
             etext ("If you change the folder, you must move all files to the new "
                 "folder and restart the game.")
-            use cue_text_input("_cue.settings.setup_dir_text",
-                Function(_cue.settings.confirm_shared_dir),
-                _cue.settings.setup_dir_text,
-                xsize=430,
-                commit_on_enter=False)
+            hbox:
+                spacing 4
+                use cue_icon_btn("folder-open",
+                    Function(_cue_open_in_os_file_explorer, _cue.paths.original_root),
+                    "Open folder in file explorer")
+                use cue_text_input("_cue.settings.setup_dir_text",
+                    Function(_cue.settings.confirm_shared_dir),
+                    _cue.settings.setup_dir_text,
+                    xsize=420,
+                    commit_on_enter=False)
             if _cue.settings.shared_dir_error:
                 etext _cue.settings.shared_dir_error color _cue_color_error
             elif _cue.settings.shared_dir_success:
                 etext _cue.settings.shared_dir_success color _cue_color_green
-            hbox:
-                spacing 6
-                use cue_open_in_explorer_btn(_cue.paths.original_root, "Open Data Folder")
-                use cue_txt_button("Save", Function(_cue.settings.confirm_shared_dir))
+            use cue_txt_button("Save", Function(_cue.settings.confirm_shared_dir))
 
             use cue_h_divider()
 
@@ -80,7 +82,8 @@ screen cue_data_dir():
                 use cue_folder_row(
                     "_cue.settings.sfx_folder_drafts[{}]".format(_i),
                     Function(_cue.settings.commit_sfx_folder, _i),
-                    Function(_cue.settings.remove_sfx_folder, _i))
+                    Function(_cue.settings.remove_sfx_folder, _i),
+                    _cue.settings.sfx_folders[_i])
                 if _i < len(_cue.settings.sfx_folder_errors):
                     if _cue.settings.sfx_folder_errors[_i]:
                         etext _cue.settings.sfx_folder_errors[_i] color _cue_color_error
@@ -94,7 +97,8 @@ screen cue_data_dir():
                 use cue_folder_row(
                     "_cue.settings.music_folder_drafts[{}]".format(_i),
                     Function(_cue.settings.commit_music_folder, _i),
-                    Function(_cue.settings.remove_music_folder, _i))
+                    Function(_cue.settings.remove_music_folder, _i),
+                    _cue.settings.music_folders[_i])
                 if _i < len(_cue.settings.music_folder_errors):
                     if _cue.settings.music_folder_errors[_i]:
                         etext _cue.settings.music_folder_errors[_i] color _cue_color_error
@@ -102,9 +106,9 @@ screen cue_data_dir():
 
 
 # Editable folder row (Settings > Data Folder): text input bound to a
-# settings.folders[i] element + remove button.  Enter commits (validates and
-# rescans); the row keeps its text on failure so the user can fix it.
-screen cue_folder_row(value_path, commit_action, remove_action, xsize=430):
+# settings.folders[i] element + open/remove buttons.  Enter commits (validates
+# and rescans); the row keeps its text on failure so the user can fix it.
+screen cue_folder_row(value_path, commit_action, remove_action, folder_path, xsize=400):
     style_group "cue"
 
     $ _value = _CueFieldValue(value_path).get_text()
@@ -113,6 +117,9 @@ screen cue_folder_row(value_path, commit_action, remove_action, xsize=430):
     hbox:
         spacing 4
         use cue_icon_btn("trash-can", remove_action, "Remove folder")
+        use cue_icon_btn("folder-open",
+            Function(_cue_open_in_os_file_explorer, folder_path),
+            "Open folder in file explorer", enabled=bool(folder_path))
         use cue_text_input(value_path, commit_action, _label, xsize=xsize)
 
 
