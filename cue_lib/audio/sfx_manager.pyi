@@ -1,5 +1,5 @@
 # Type stub for cue_lib.audio.sfx_manager
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from cue_lib.audio.tree.sfx_tree import CueSfxLibraryTree
 from cue_lib.audio.wav_playable import CueWavPlayable
@@ -26,7 +26,6 @@ class CueSfxManager(object):
     _next_sfx_channel: int
     _preview_channel: Optional[str]
     _wav_playable: CueWavPlayable
-    _warm_thread: Optional[Any]
 
     def __init__(
         self,
@@ -39,7 +38,6 @@ class CueSfxManager(object):
     ) -> None: ...
     def bind_markers(self, markers: CueMarkerManager) -> None: ...
     def _markers_ctx(self) -> CueMarkerManager: ...
-    def warm_cache(self) -> None: ...
     def unplayable_files(self) -> Dict[str, str]: ...
     def play_sfx(
         self,

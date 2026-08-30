@@ -72,8 +72,8 @@ def test_toggle_overlay_shows_when_hidden(cue, monkeypatch):
 
 
 def test_show_overlay_never_scans(cue):
-    # Scans (and the WAV warm) run at init via _cue_full_reload; an overlay
-    # open stays on the cheap path even for empty libraries.
+    # Scans run at init via _cue_full_reload; an overlay open stays on the
+    # cheap path even for empty libraries.
     cue.sfx.library.files = []
     cue.music.library.user_files = []
     ov = _overlay.CueOverlay()
@@ -81,7 +81,6 @@ def test_show_overlay_never_scans(cue):
     assert ov.is_visible is True
     assert "sfx_manager.scan" not in cue.calls
     assert "music.library.scan" not in cue.calls
-    assert "sfx_manager.warm_cache" not in cue.calls
     assert cue.calls["sfx_manager.maybe_rebuild"] == [((), {})]
     assert cue.calls["video_editor.refresh"] == [((), {"restart_interaction": False})]
 

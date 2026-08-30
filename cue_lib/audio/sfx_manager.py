@@ -8,7 +8,6 @@
 # Instantiated once at _cue.sfx, lives on the NoRollback _cue object.
 
 import random as _random
-import threading
 
 import renpy.audio.music as _music
 
@@ -81,7 +80,6 @@ class CueSfxManager(object):
         # SFX playback state
         self._next_sfx_channel = 0  # round-robin fallback when all channels are busy
         self._preview_channel = None  # channel currently playing a preview
-        self._warm_thread = None  # background wide->16 cache warm, if running
 
     def bind_markers(self, markers):
         # type: (CueMarkerManager) -> None
@@ -99,37 +97,6 @@ class CueSfxManager(object):
         if self._markers is None:
             raise RuntimeError("CueSfxManager markers not bound (bind_markers never called)")
         return self._markers
-
-    def warm_cache(self):
-        # type: () -> None
-        """Pre-generate 16-bit copies for discovered SFX on a background thread.
-
-        Used so the first play of a 24-bit file doesn't convert on the UI thread.
-        The converter makes no Ren'Py API calls, so a daemon thread is safe.  A
-        no-op while a warm is already running (an overlay reload would otherwise
-        spawn one each time).  Logs the pass duration (WARM-SFX) via wav_playable.
-
-        Only files never seen before are probed; the rest are a dict hit from the
-        persisted index, so a repeat launch warm fast."""
-        if self._warm_thread is not None and self._warm_thread.is_alive():
-            return
-        # library.files holds refs (built-in audio-relative + bare absolute
-        # external); the converter needs absolute paths, so resolve here with an
-        # empty dir.
-        abs_paths = [self.library.resolve_path(r) for r in list(self.library.files)]
-        wav_playable = self._wav_playable
-
-        def _run():
-            try:
-                wav_playable.warm(abs_paths, "")
-            finally:
-                # Release the finished thread so it (and the abs_paths list it
-                # closes over) is not pinned for the session.
-                self._warm_thread = None
-
-        self._warm_thread = threading.Thread(target=_run)
-        self._warm_thread.daemon = True
-        self._warm_thread.start()
 
     def unplayable_files(self):
         # type: () -> Dict[str, str]

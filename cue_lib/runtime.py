@@ -56,7 +56,6 @@ def _cue_full_reload():
     _cue.music.library.scan()
     _cue.replays.scan()
     _cue.replays.thumbs.load()
-    _cue.sfx.warm_cache()
     _cue.sfx.library._recent.load()  # pyright: ignore[reportOptionalMemberAccess]
     _cue.music._recent.load()
 

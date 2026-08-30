@@ -13,11 +13,10 @@
 #
 # Cost model.  ensure_playable() is the play path: after a file has been seen
 # once it is a memoized dict hit with no filesystem call, so a native file (the
-# common case) costs nothing per play.  warm() is the scan-time batch: it probes
-# each path once (classify -> convert if needed) and skips any path already
-# decided.  Those decisions persist in index.json next to the nodes, so a warm
-# pass on a fresh session only touches files it has never seen -- the bulk of a
-# library is a fast dict hit.  A converted node cleaned out of temp is rebuilt by
+# common case) costs nothing per play.  Classification is lazy -- a file is
+# probed only on its first play, not scanned up front.  Those decisions persist
+# in index.json next to the nodes, so a fresh session skips the bulk of a
+# library as a fast dict hit.  A converted node cleaned out of temp is rebuilt by
 # ensure_playable() -- a single stat for files that need it.
 
 import hashlib
@@ -25,7 +24,6 @@ import json
 import os
 import struct
 import tempfile
-import time
 
 from cue_lib.util import _cue_replace_file, _cue_log, _to_str
 
@@ -140,10 +138,9 @@ class CueWavPlayable(object):
         # type: (str) -> str
         """Probe ``path`` and rebuild its 16-bit copy if the source changed.
 
-        Runs at scan time (the warm thread), never on the play path.  An
-        unchanged file keeps its decision and node; a changed source is re-probed
-        and its node rebuilt, so a swapped-in file is never served as a stale
-        conversion."""
+        Lazy: called on demand, not on a scan.  An unchanged file keeps its
+        decision and node; a changed source is re-probed and its node rebuilt,
+        so a swapped-in file is never served as a stale conversion."""
         st = self._stat(path)
         if st is None:
             self._decision.pop(path, None)
@@ -168,38 +165,6 @@ class CueWavPlayable(object):
                 return path
             return node
         return path
-
-    def warm(self, rel_paths, audio_dir):
-        # type: (list, str) -> None
-        """Scan-time batch: ensure every ``audio_dir + rel`` path is decided.
-
-        A path already in ``_decision`` is skipped entirely (no stat, no header
-        read) -- the whole point is to avoid re-probing the bulk of a native
-        library on every launch.  A new path is classified once and, when it
-        needs conversion, converted to a cached 16-bit copy.  New decisions are
-        saved to the index once at the end.  Runs on the warm background thread,
-        never on the play path."""
-        t0 = time.time()
-        did_change = False
-        for rel in rel_paths:
-            path = audio_dir + rel
-            try:
-                if path in self._decision:
-                    continue
-                if self._stat(path) is None:
-                    continue  # vanished since discovery; leave it undecided
-                state, reason = self._classify(path)
-                if state == CUE_WAV_PLAYABLE_CONVERT:
-                    if not self._convert(path, self._cache_node(path)):
-                        state = CUE_WAV_PLAYABLE_UNPLAYABLE
-                        reason = "failed to convert"
-                self._record(path, state, reason)
-                did_change = True
-            except Exception:
-                continue  # one bad file must not abort the whole warm pass
-        if did_change:
-            self._save_index()
-        _cue_log("WARM-SFX: {} files in {:.3f}s".format(len(rel_paths), time.time() - t0))
 
     def unplayable(self):
         # type: () -> dict
