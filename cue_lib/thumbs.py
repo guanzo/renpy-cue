@@ -25,6 +25,8 @@ MYPY = False
 if MYPY:
     from typing import Any, Dict, Optional  # pyright: ignore[reportUnusedImport]
 
+    from cue_lib.marker_store import CueMarkerStore  # pyright: ignore[reportUnusedImport]
+
 # Published with each release, deliberately versionless: releases/latest/download
 # resolves to the latest published asset, never a draft (upload before
 # publishing).  Downloaded through the shared CueDownloader, which owns URL
@@ -46,9 +48,10 @@ class CueThumbManager(object):
     fallback map is built lazily on the first miss.
     """
 
-    def __init__(self, paths, fetcher=None):
-        # type: (CuePaths, Any) -> None
+    def __init__(self, paths, marker_store, fetcher=None):
+        # type: (CuePaths, CueMarkerStore, Any) -> None
         self._paths = paths
+        self._marker_store = marker_store
         self._dl = CueDownloader(fetcher=fetcher)  # tests: inject a fetcher
         self.entries = {}  # type: Dict[str, str]  # replay_id -> thumb
         self._fallbacks = None  # type: Optional[Dict[str, str]]
@@ -145,25 +148,18 @@ class CueThumbManager(object):
         if thumb:
             return thumb
         if self._fallbacks is None:
-            self._fallbacks = self._scan_marker_filepaths()
+            self._fallbacks = self._marker_filepaths()
         return self._fallbacks.get(replay_id)
 
-    def _scan_marker_filepaths(self):
+    def _marker_filepaths(self):
         # type: () -> Dict[str, str]
-        """First image marker filepath per replay label, read from marker
-        data.  The filepath is captured at marker creation
-        (marker_store._capture_filepath), so it is the game-relative path of
-        the image that was on screen for that marker."""
-        d = self._paths.marker_dir
+        """First image marker filepath per replay label, derived from the
+        in-memory marker store instead of re-reading every marker JSON from
+        disk (the store already loaded them for the effective root)."""
         fallbacks = {}
-        try:
-            names = sorted(os.listdir(d))
-        except Exception:
-            return fallbacks
-        for name in names:
-            if not name.endswith(".json"):
-                continue
-            entry = _cue_read_json_file(os.path.join(d, name))
+        markers = self._marker_store._data
+        for key in sorted(markers.keys()):
+            entry = markers[key]
             if not isinstance(entry, dict):
                 continue
             label = entry.get("replay")

@@ -14,6 +14,7 @@ import renpy.config as _config
 
 from cue_lib.paths import CuePaths
 from cue_lib.thumbs import CueThumbManager, _cue_format_http_date, _cue_is_newer
+from tests.fakes import DiskBackedMarkers
 
 GAME_ID = "test_game"
 SID = "TestGame-12345"
@@ -83,7 +84,8 @@ def _mock_config(monkeypatch, tmp_path):
 
 
 def _make_manager(tmp_path, fetcher):
-    m = CueThumbManager(CuePaths(str(tmp_path / "cue_root"), GAME_ID), fetcher=fetcher)
+    paths = CuePaths(str(tmp_path / "cue_root"), GAME_ID)
+    m = CueThumbManager(paths, DiskBackedMarkers(paths), fetcher=fetcher)
     m._dl._resolve = _public_resolver
     return m
 

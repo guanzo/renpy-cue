@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
+import json
 import os
 import time
 import types
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from cue_lib.constants import CUE_SIDEBAR_DEFAULT_WIDTH
+from cue_lib.paths import CuePaths
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.state import _cue
 from cue_lib.util import _cue_resolve_files
@@ -228,6 +230,38 @@ class FakeMarkerStore(object):
             igroup=hook,
             intensity=intensity,
         )
+
+
+class DiskBackedMarkers(object):
+    """Marker-store stand-in whose ``_data`` re-reads ``paths.marker_dir``
+    JSON files on every access, mirroring db.load_markers()'s disk side
+    without a CueDatabase.  Keys are the stored ``_key`` field, falling back
+    to the filename stem (test markers are written without ``_key``).  Reads
+    the effective root, so a previewed import's marker dir shows through."""
+
+    def __init__(self, paths):
+        # type: (CuePaths) -> None
+        self._paths = paths
+
+    @property
+    def _data(self):
+        # type: () -> Dict[str, Any]
+        result = {}
+        d = self._paths.marker_dir
+        if not os.path.isdir(d):
+            return result
+        for name in os.listdir(d):
+            if not name.endswith(".json"):
+                continue
+            try:
+                with open(os.path.join(d, name), "r") as f:
+                    entry = json.load(f)
+            except Exception:
+                continue
+            if not isinstance(entry, dict):
+                continue
+            result[entry.get("_key", name[: name.rfind(".")])] = entry
+        return result
 
 
 class FakeVideoContext(object):

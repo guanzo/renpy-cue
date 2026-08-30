@@ -11,6 +11,7 @@ import renpy.config as _config
 
 from cue_lib.paths import CuePaths
 from cue_lib.thumbs import CueThumbManager
+from tests.fakes import DiskBackedMarkers
 
 GAME_ID = "test_game"
 SID = "TestGame-12345"
@@ -58,7 +59,8 @@ def _write_marker(root, name, entry):
 
 def _manager(tmp_path):
     root = str(tmp_path / "cue_root")
-    return CueThumbManager(CuePaths(root, GAME_ID))
+    paths = CuePaths(root, GAME_ID)
+    return CueThumbManager(paths, DiskBackedMarkers(paths))
 
 
 # ---------------------------------------------------------------------------

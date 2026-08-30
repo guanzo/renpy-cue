@@ -1,8 +1,5 @@
 # cue_lib/replays.py -- the Replays library: every replay label in the current
-# game that contains markers, with its marker count.  Owns the replay label
-# enumeration so it is not export-specific: the Replays overlay page reads
-# entries, and the exporter calls _cue_replay_labels for its own async export
-# snapshot.
+# game that contains markers, with its marker count.
 
 import json as _json
 import os
@@ -17,6 +14,8 @@ from cue_lib.util import _cue_replace_file
 MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
+
+    from cue_lib.marker_store import CueMarkerStore  # pyright: ignore[reportUnusedImport]
 
 # Universal speaker tag for the protagonist, so casts stay comparable across
 # games that rename the MC.
@@ -82,19 +81,38 @@ def _cue_replay_labels(root, game_id):
     return sorted(counts.items())
 
 
+def _cue_replay_counts_from_store(markers):
+    # type: (Dict[str, Any]) -> List[Tuple[str, int]]
+    """[(replay label, marker count)] derived from an in-memory marker dict
+    instead of re-reading every marker JSON from disk.  Matches what a disk
+    scan would find; markers never edited inside a replay have no replay
+    field and aren't counted."""
+    counts = {}
+    for entry in markers.values():
+        if not isinstance(entry, dict):
+            continue
+        label = entry.get("replay")
+        if not label:
+            continue
+        counts[label] = counts.get(label, 0) + 1
+    return sorted(counts.items())
+
+
 class CueReplayLibrary(object):
     """Tracks the current game's replays that contain markers.
 
-    scan() re-derives entries from disk, so it is idempotent and safe to call
-    on page entry, replay exit, and full reload.  The marker count is the
-    number of markers last edited inside that replay.
+    scan() re-derives entries from the marker store (loaded for the effective
+    root), so it is idempotent and safe to call on page entry, replay exit,
+    and full reload.  The marker count is the number of markers last edited
+    inside that replay.
     """
 
-    def __init__(self, paths):
-        # type: (CuePaths) -> None
+    def __init__(self, paths, marker_store):
+        # type: (CuePaths, CueMarkerStore) -> None
         self._paths = paths
+        self._marker_store = marker_store
         self.entries = []  # type: List[Dict[str, Any]]  # {"replay", "marker_count"}
-        self.thumbs = CueThumbManager(paths)
+        self.thumbs = CueThumbManager(paths, marker_store)
         # A scene clicked while another replay runs: the end_replay unwind
         # fires after_replay_callback, which is where the new replay chains on.
         self.pending_replay = None  # type: Optional[str]
@@ -103,7 +121,7 @@ class CueReplayLibrary(object):
 
     def scan(self):
         # type: () -> None
-        labels = _cue_replay_labels(self._paths.root, self._paths.game_id)
+        labels = _cue_replay_counts_from_store(self._marker_store._data)
         self.entries = [{"replay": label, "marker_count": count} for label, count in labels]
         # The cast filter's options and per-replay matching need every cast
         # file, not just the ones discovered live this session.

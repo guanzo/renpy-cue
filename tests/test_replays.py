@@ -17,6 +17,7 @@ from cue_lib.replays import (
 )
 from cue_lib.state import _cue
 from cue_lib.ui.overlay import CueOverlay
+from tests.fakes import DiskBackedMarkers
 
 GAME_ID = "test_game"
 
@@ -43,6 +44,12 @@ def _write_marker(cue_env, name, entry):
     _write(cue_env.paths.original_root, "data/markers/{}/{}.json".format(GAME_ID, name), _json.dumps(entry))
 
 
+def _make_lib(cue_env):
+    """Replay library over a disk-backed marker store so scan() sees markers
+    the test wrote to disk (production wires the real store in cue_z.rpy)."""
+    return CueReplayLibrary(cue_env.paths, DiskBackedMarkers(cue_env.paths))
+
+
 def test_replay_labels_counts_per_replay(cue_env):
     _write_marker(cue_env, "a", {"replay": "Run 1", "pools": []})
     _write_marker(cue_env, "b", {"replay": "Run 1", "pools": []})
@@ -58,7 +65,7 @@ def test_scan_populates_entries_sorted(cue_env):
     _write_marker(cue_env, "a", {"replay": "Run 2", "pools": []})
     _write_marker(cue_env, "b", {"replay": "Run 1", "pools": []})
 
-    lib = CueReplayLibrary(cue_env.paths)
+    lib = _make_lib(cue_env)
     lib.scan()
 
     assert lib.entries == [{"replay": "Run 1", "marker_count": 1}, {"replay": "Run 2", "marker_count": 1}]
@@ -73,7 +80,7 @@ def test_scan_follows_active_root(cue_env):
     _write(imp, "data/markers/{}/{}.json".format(GAME_ID, "preview"), _json.dumps({"replay": "Preview", "pools": []}))
     cue_env.paths._active_root = imp
 
-    lib = CueReplayLibrary(cue_env.paths)
+    lib = _make_lib(cue_env)
     lib.scan()
 
     assert lib.entries == [{"replay": "Preview", "marker_count": 1}]
@@ -81,13 +88,13 @@ def test_scan_follows_active_root(cue_env):
 
 
 def test_scan_empty_when_no_markers_dir(cue_env):
-    lib = CueReplayLibrary(cue_env.paths)
+    lib = _make_lib(cue_env)
     lib.scan()
     assert lib.entries == []
 
 
 def test_scan_refreshes_after_new_markers(cue_env):
-    lib = CueReplayLibrary(cue_env.paths)
+    lib = _make_lib(cue_env)
     lib.scan()
     assert lib.entries == []
 
@@ -115,7 +122,7 @@ def _fake_renpy(monkeypatch, has_label=True, in_replay=None):
 
 
 def test_play_starts_replay_when_idle(monkeypatch, cue_env):
-    lib = CueReplayLibrary(cue_env.paths)
+    lib = _make_lib(cue_env)
     calls = _fake_renpy(monkeypatch, in_replay=None)
 
     lib.play("Run 1")
@@ -129,7 +136,7 @@ def test_play_replaces_active_replay(monkeypatch, cue_env):
     # Clicking a scene while another replay runs must not nest: pending_replay
     # records the label so the after_replay hook can chain it, and the active
     # replay is ended instead of pushed under.
-    lib = CueReplayLibrary(cue_env.paths)
+    lib = _make_lib(cue_env)
     calls = _fake_renpy(monkeypatch, in_replay="Run 1")
 
     lib.play("Run 2")
@@ -140,7 +147,7 @@ def test_play_replaces_active_replay(monkeypatch, cue_env):
 
 
 def test_play_missing_label_noop(monkeypatch, cue_env):
-    lib = CueReplayLibrary(cue_env.paths)
+    lib = _make_lib(cue_env)
     calls = _fake_renpy(monkeypatch, has_label=False, in_replay="Run 1")
 
     lib.play("ghost")
@@ -211,7 +218,7 @@ def test_cast_speakers_are_per_replay(cue_env):
 
 
 def test_library_owns_cast_submanager(cue_env):
-    lib = CueReplayLibrary(cue_env.paths)
+    lib = _make_lib(cue_env)
 
     lib.cast.record_speaker("Run 1", "Dawe")
 
@@ -438,7 +445,7 @@ def test_filter_open_close_rides_focus_pin(monkeypatch, cue_env):
 
 
 def test_library_owns_cast_filter(cue_env):
-    lib = CueReplayLibrary(cue_env.paths)
+    lib = _make_lib(cue_env)
 
     assert lib.cast_filter._cast is lib.cast
     lib.cast_filter.toggle("Dawe")

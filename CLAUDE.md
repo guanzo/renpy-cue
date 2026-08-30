@@ -142,6 +142,7 @@ Bridge enums into the store through `cue_z.rpy` when screens need them.
 * Manager classes handle state, logic, and screen hooks.
 * `cue_z.rpy` contains bootstrap and bridging code; other source `.rpy` files do not.
 * `Function()` actions can only reference stable module-level objects. Managers should normally be reachable through `_cue`.
+* When adding methods to a manager that need another manager's data, inject that collaborator through the constructor — never read the global `_cue` inside new code. Constructors list their collaborators explicitly; `cue_z.rpy` wires them.
 
 ## Screen Style Groups
 

@@ -273,7 +273,7 @@ init -900 python:
         keybinds = CueKeybindsManager(db)
         icons = CueIconManager(paths)
         music = CueMusicManager(_cue.ctx, marker_store, db, paths, presets)
-        replays = CueReplayLibrary(paths)
+        replays = CueReplayLibrary(paths, marker_store)
 
         # importer swaps the effective root while active and reloads via the
         # store-global full reload; exporter and merge_dialog complete the
