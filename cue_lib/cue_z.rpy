@@ -71,6 +71,11 @@ init -999 python:
         CUE_SIDEBAR_MAX_WIDTH_RATIO,
         CUE_IMPORT_CATEGORY_ORDER, CUE_IMPORT_CATEGORY_LABELS,
     )
+
+    from cue_lib.ui.components.select.select import (
+        CUE_SELECT_OPTION_H, CUE_SELECT_OPTION_GAP, CUE_SELECT_FRAME_PAD,
+        CUE_SELECT_MAX_H,
+    )
     from cue_lib.util import (
         create_img_key as _cue_create_img_key,
         create_vid_key as _cue_create_vid_key,

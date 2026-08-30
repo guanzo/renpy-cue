@@ -18,6 +18,13 @@ class CueOverlay(object):
         self.is_visible = False
         self.active_page = CuePage.SFX
         self.collapsed_sections = {}  # section_name -> bool (cue_section_frame)
+        # Text-input edit mode + the open select dropdown.  Cross-page UI state
+        # (a field/dropdown lives on one page), so it lives with the overlay
+        # lifecycle that must clear it; see _clear_active_input /
+        # _close_active_dropdown.
+        self.active_input = ""  # dotted path of the text input in edit mode (cue_text_input)
+        self.active_input_rect = None  # (x, y, w, h) of the field in edit mode, or None
+        self.active_dropdown = None  # open CueSelect instance, or None
 
     def toggle(self):
         # type: () -> None
@@ -43,15 +50,13 @@ class CueOverlay(object):
             _cue.replays.scan()
 
         self.active_page = page
+        self._clear_active_input()
+        self._close_active_dropdown()
 
     def show(self):
         # type: () -> None
         self.is_visible = True
-        # A field may have been left mid-edit when the overlay was hidden; clear
-        # the sticky editing state so the focus pin doesn't start the next open
-        # already "editing" a field that isn't focused.
-        _cue.active_input = ""
-        _cue.active_input_rect = None
+        self._clear_active_input()
 
         _cue_refresh_context()
         _cue.music.library.maybe_rebuild()
@@ -64,8 +69,8 @@ class CueOverlay(object):
     def hide(self):
         # type: () -> None
         self.is_visible = False
-        _cue.active_input = ""
-        _cue.active_input_rect = None
+        self._clear_active_input()
+        self._close_active_dropdown()
         # The marker timeline outlives the overlay (built once as a class
         # singleton), so a hide mid-drag would otherwise leave a stale in-flight
         # drag on the next show.
@@ -97,3 +102,19 @@ class CueOverlay(object):
         value = _cue_unwrap_persistent(raw.get(CUE_PERSIST_COLLAPSED_SECTIONS))
         if isinstance(value, dict):
             self.collapsed_sections = dict((k, bool(v)) for k, v in value.items())
+
+    def _clear_active_input(self):
+        # type: () -> None
+        """Clear the sticky text-field editing state.  A field may have been
+        left mid-edit when the overlay hid or the page switched; clearing it
+        stops the focus pin from treating a non-visible field as active."""
+        self.active_input = ""
+        self.active_input_rect = None
+
+    def _close_active_dropdown(self):
+        # type: () -> None
+        """Close the open select dropdown, if any.  A dropdown's trigger lives
+        on one page, so a page switch or overlay hide must not leave it
+        floating over a different page."""
+        if self.active_dropdown is not None:
+            self.active_dropdown.close()

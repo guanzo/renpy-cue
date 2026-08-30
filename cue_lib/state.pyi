@@ -47,8 +47,6 @@ class Cue:
     initialized: bool
     VERSION: str
     ctx: CueContext
-    active_input: str
-    active_input_rect: Optional[Tuple[int, int, int, int]]
     current_file: str
     current_dialogue: str
     prev_dialogue: str

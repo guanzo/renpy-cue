@@ -221,6 +221,44 @@ testcase scenes_page_render:
     assert eval (not renpy.has_label("no_such_label_harness"))
     $ _cue_scenes_cleanup()
 
+testcase cast_filter_renders:
+    run Jump("start")
+    $ _cue_test_reset()
+    # Cast filter multiselect.  Seed cast files for the two scenes, select a
+    # speaker, and render the page with a selected chip and the open dropdown
+    # -- the wrapped-chip and vpgrid branches must not break the interaction.
+    $ import json as _json
+    $ import os as _os
+    $ _rdir = _cue.paths.replay_dir
+    $ if not _os.path.isdir(_rdir): _os.makedirs(_rdir)
+    $ _f = lambda _p, _d: open(_p, "w").write(_json.dumps(_d))
+    $ _f(_cue.paths.replay_path("replay_harness"), {"replay": "replay_harness", "characters": ["mc", "sg"]})
+    $ _f(_cue.paths.replay_path("no_such_label_harness"), {"replay": "no_such_label_harness", "characters": ["mc"]})
+    $ _cue_scenes_seed()
+    run Function(_cue.overlay.set_page, CuePage.REPLAYS)
+    $ _filter = _cue.replays.cast_filter
+    $ _filter.toggle("sg")
+    assert eval (sorted(_filter.selected) == ["sg"])
+    assert eval (_filter.matches("replay_harness") and not _filter.matches("no_such_label_harness"))
+    # Open the dropdown so the option vpgrid renders; then select an option
+    # (which must close the list) and re-open it to close via the trigger.
+    $ _cue.overlay.active_input_rect = (0, 0, 300, 20)
+    $ _filter.toggle_open()
+    pause 0.2
+    assert eval (_filter.is_open())
+    # The floating list anchors on this rect; focus rects arrive as floats,
+    # and screen xpos treats floats as parent fractions, so the anchor must
+    # be ints (a regression here silently renders the list off-screen).
+    assert eval (_filter.trigger_rect() == (0, 0, 300, 20))
+    # Selecting an option toggles it and closes the dropdown.
+    $ _filter.select("mc")
+    assert eval (not _filter.is_open())
+    assert eval (_filter.is_selected("mc"))
+    $ _filter.clear()
+    $ _cue_scenes_cleanup()
+    $ _os.remove(_cue.paths.replay_path("replay_harness"))
+    $ _os.remove(_cue.paths.replay_path("no_such_label_harness"))
+
 testcase import_banner_render:
     run Jump("start")
     $ _cue_test_reset()

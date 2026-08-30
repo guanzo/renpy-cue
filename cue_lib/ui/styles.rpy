@@ -177,7 +177,6 @@ style cue_scrollbar is empty:
     hover_thumb Solid(_cue_color_text_dim)
     thumb_offset 0
     bar_vertical False
-    bar_resizing False
 
 style cue_sidebar_handle is empty:
     mouse "cue_resize"

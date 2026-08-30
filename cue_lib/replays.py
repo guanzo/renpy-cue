@@ -10,11 +10,16 @@ import renpy
 
 from cue_lib.paths import CuePaths
 from cue_lib.sharing.importer_io import _cue_read_json_file
+from cue_lib.ui.components.select.select import CueSelect
 from cue_lib.util import _cue_replace_file
 
 MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
+
+# Universal speaker tag for the protagonist, so casts stay comparable across
+# games that rename the MC.
+CUE_MC_TAG = "mc"
 
 
 def _cue_speaker_label(who):
@@ -25,8 +30,27 @@ def _cue_speaker_label(who):
     if mc is not None:
         name = getattr(mc, "name", None)
         if name and who == name:
-            return "mc"
+            return CUE_MC_TAG
     return who
+
+
+def _cue_speaker_display(tag):
+    # type: (str) -> str
+    """Best-effort display name for a speaker tag: the Character's .name when
+    it resolves to text (a static or callable dynamic name), else the tag.
+    Display-only -- storage keeps the tag, so a renamed character stays
+    comparable across games."""
+    ch = getattr(renpy.store, tag, None)
+    if ch is not None:
+        name = getattr(ch, "name", None)
+        if callable(name):
+            try:
+                name = name()
+            except Exception:
+                name = None
+        if name is not None:
+            return name
+    return tag
 
 
 def _cue_replay_labels(root, game_id):
@@ -72,11 +96,15 @@ class CueReplayLibrary(object):
         # fires after_replay_callback, which is where the new replay chains on.
         self.pending_replay = None  # type: Optional[str]
         self.cast = CueReplayCast(paths)
+        self.cast_filter = CueCastFilter(self.cast)
 
     def scan(self):
         # type: () -> None
         labels = _cue_replay_labels(self._paths.original_root, self._paths.game_id)
         self.entries = [{"replay": label, "marker_count": count} for label, count in labels]
+        # The cast filter's options and per-replay matching need every cast
+        # file, not just the ones discovered live this session.
+        self.cast.load_all()
 
     def play(self, label):
         # type: (str) -> None
@@ -116,14 +144,39 @@ class CueReplayCast(object):
 
     def record_speaker(self, replay_id, speaker):
         # type: (str, str) -> None
-        speakers = self._casts.get(replay_id)
-        if speakers is None:
-            speakers = self._load(replay_id)
-            self._casts[replay_id] = speakers
+        speakers = self.cast_for(replay_id)
         if speaker in speakers:
             return
         speakers.add(speaker)
         self._save(replay_id, speakers)
+
+    def cast_for(self, replay_id):
+        # type: (str) -> Set[str]
+        """The cast set for a replay, loaded on demand into the cache."""
+        speakers = self._casts.get(replay_id)
+        if speakers is None:
+            speakers = self._load(replay_id)
+            self._casts[replay_id] = speakers
+        return speakers
+
+    def load_all(self):
+        # type: () -> None
+        """Load every replay's cast file so filtering and the dropdown options
+        see all speakers, not just those discovered this session."""
+        d = self._paths.replay_dir
+        if not os.path.isdir(d):
+            return
+        for name in os.listdir(d):
+            if name.endswith(".json"):
+                self._casts[name[:-5]] = self._load(name[:-5])
+
+    def all_speakers(self):
+        # type: () -> List[str]
+        """Every speaker across all loaded replays, sorted."""
+        union = set()
+        for speakers in self._casts.values():
+            union |= speakers
+        return sorted(union)
 
     def _load(self, replay_id):
         # type: (str) -> Set[str]
@@ -143,3 +196,39 @@ class CueReplayCast(object):
         with open(tmp, "w") as fh:
             _json.dump({"replay": replay_id, "characters": sorted(speakers)}, fh, sort_keys=True)
         _cue_replace_file(tmp, path)
+
+
+class CueCastFilter(CueSelect):
+    """Multi-select cast filter for the Scenes page.
+
+    Subclasses the generic CueSelect: the base owns selection state and the
+    open/close/geometry machinery, this adds the cast data source (options,
+    label) and the scene-match predicate.
+    """
+
+    def __init__(self, cast):
+        # type: (CueReplayCast) -> None
+        super(CueCastFilter, self).__init__()
+        self._cast = cast
+
+    def matches(self, replay_id):
+        # type: (str) -> bool
+        """True when the replay's cast intersects the filter; with no filter
+        set, every replay matches."""
+        if not self.selected:
+            return True
+        return bool(self._cast.cast_for(replay_id) & self.selected)
+
+    def options(self):
+        # type: () -> List[str]
+        """Every speaker across all replays, sorted, for the dropdown.
+
+        The MC tag is hidden for now (it renders as the player name); the MC
+        still shows up through other filters.
+        """
+        return [s for s in self._cast.all_speakers() if s != CUE_MC_TAG]
+
+    def label(self, key):
+        # type: (str) -> str
+        """Display name for a speaker tag (chips and dropdown rows)."""
+        return _cue_speaker_display(key)

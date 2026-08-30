@@ -7,6 +7,8 @@ screen cue_replays_page():
 
     $ _in_replay = renpy.store._in_replay
     $ _entries = _cue.replays.entries
+    $ _filter = _cue.replays.cast_filter
+    $ _filtered = [e for e in _entries if _filter.matches(e["replay"])]
 
     frame:
         background _cue_color_bg_overlay
@@ -16,12 +18,16 @@ screen cue_replays_page():
             scrollbars "vertical"
             vscrollbar_unscrollable "hide"
             use cue_section_frame("Scenes"):
+                use cue_select_input(_filter, "Filter by character...")
+                null height _cue_scale_ui(4)
                 if not _entries:
                     etext "No scenes yet.  Markers edited inside a replay show up here."
+                elif not _filtered:
+                    etext "No scenes match the selected characters."
                 else:
                     vbox:
                         spacing 5
-                        for _r in _entries:
+                        for _r in _filtered:
                             use cue_scene_row(_r, _in_replay)
 
 

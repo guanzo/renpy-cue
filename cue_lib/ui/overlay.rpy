@@ -107,6 +107,14 @@ screen cue_overlay():
     # separate screen) so the overlay toggle hides it together with the panel. ---
     use cue_sfx_sidebar()
 
+    # The open dropdown floats over the page at its trigger's on-screen rect
+    # (screen coords, so it sits here at the overlay level, not inside the
+    # panel).  _cue.overlay.active_dropdown is the single open select -- no
+    # per-page or per-manager check; overlay.py closes it on page change and
+    # overlay hide.
+    if _cue.overlay.active_dropdown is not None:
+        use cue_select_dropdown(_cue.overlay.active_dropdown)
+
     use cue_dialogs()
 
     # --- Floating tooltip near mouse (auto-sizes to fit text) ---

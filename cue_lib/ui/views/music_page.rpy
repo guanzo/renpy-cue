@@ -1,34 +1,6 @@
 ###############################################################################
 # Music Page
 ###############################################################################
-screen grow_and_scroll(ymin=None, ymax=None, id=None):
-    style_group "cue"
-
-    $ viewport_id = "grow_scroll_" + (id or str(renpy.random.random()))
-
-    frame:
-        background None
-        padding (0, 0)
-        xfill True  # Fixed or minimum width
-        # Set the maximum height limit before scrolling kicks in
-        if ymax is not None:
-            ymaximum ymax
-        if ymin is not None:
-            yminimum ymin
-
-        side "c r":
-
-            viewport id viewport_id:
-                mousewheel True
-                yfill False
-
-                transclude
-
-            # Vertical scrollbar that hides if content is short
-            vbar value YScrollValue(viewport_id):
-                unscrollable "hide"
-                style "cue_vscrollbar"
-                    
 
 screen cue_music_page():
     style_group "cue"

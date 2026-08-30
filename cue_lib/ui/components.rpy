@@ -339,9 +339,9 @@ screen cue_float_input(field_name, commit_action, display_text,
                        dec_action=None, inc_action=None):
     style_group "cue"
 
-    $ editing = (_cue.active_input == field_name)
-    $ _start_edit = SetField(_cue, "active_input", field_name)
-    $ _commit = [commit_action, SetField(_cue, "active_input", "")]
+    $ editing = (_cue.overlay.active_input == field_name)
+    $ _start_edit = SetField(_cue.overlay, "active_input", field_name)
+    $ _commit = [commit_action, SetField(_cue.overlay, "active_input", "")]
 
     hbox:
         spacing 3
@@ -372,9 +372,9 @@ screen cue_time_input(field_name, commit_action, dec100_action, dec10_action,
                       inc10_action, inc100_action, display_text):
     style_group "cue"
 
-    $ editing = (_cue.active_input == field_name)
-    $ _start_edit = SetField(_cue, "active_input", field_name)
-    $ _commit = [commit_action, SetField(_cue, "active_input", "")]
+    $ editing = (_cue.overlay.active_input == field_name)
+    $ _start_edit = SetField(_cue.overlay, "active_input", field_name)
+    $ _commit = [commit_action, SetField(_cue.overlay, "active_input", "")]
 
     hbox:
         spacing 3
@@ -401,13 +401,13 @@ screen cue_text_input(field_name, commit_action, display_text, xsize=200,
     style_group "cue"
 
     $ ysize = 16
-    # Each input derives its own editing flag from the shared _cue.active_input
+    # Each input derives its own editing flag from the shared _cue.overlay.active_input
     # (holds this field's dotted path while it's being edited, "" = none), so
     # only one field is in edit mode at a time.
-    $ editing = (_cue.active_input == field_name)
-    $ _start_edit = SetField(_cue, "active_input", field_name)
-    $ _commit = [commit_action, SetField(_cue, "active_input", "")]
-    $ _exit_edit = SetField(_cue, "active_input", "")
+    $ editing = (_cue.overlay.active_input == field_name)
+    $ _start_edit = SetField(_cue.overlay, "active_input", field_name)
+    $ _commit = [commit_action, SetField(_cue.overlay, "active_input", "")]
+    $ _exit_edit = SetField(_cue.overlay, "active_input", "")
 
     if commit_on_enter:
         $ _enter = _commit
@@ -997,3 +997,35 @@ screen cue_popper_anchor(name, hover_fn, action=NullAction(), bg=None, hover_bg=
         if hover_bg is not None:
             hover_background hover_bg
         transclude
+
+# Grow-to-content scroll area: sizes to its child up to ymax, then scrolls
+# (scrollbar hides while content fits).  Usage:
+#     use grow_and_scroll(ymax=_cue_scale_ui(240)):
+#         vbox: ...
+screen grow_and_scroll(ymin=None, ymax=None, id=None):
+    style_group "cue"
+
+    $ viewport_id = "grow_scroll_" + (id or str(renpy.random.random()))
+
+    frame:
+        background None
+        padding (0, 0)
+        xfill True  # Fixed or minimum width
+        # Set the maximum height limit before scrolling kicks in
+        if ymax is not None:
+            ymaximum ymax
+        if ymin is not None:
+            yminimum ymin
+
+        side "c r":
+
+            viewport id viewport_id:
+                mousewheel True
+                yfill False
+
+                transclude
+
+            # Vertical scrollbar that hides if content is short
+            vbar value YScrollValue(viewport_id):
+                unscrollable "hide"
+                style "cue_vscrollbar"

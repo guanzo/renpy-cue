@@ -21,20 +21,20 @@ if MYPY:
 
 def _cue_action_manages_input(action):
     # type: (Any) -> bool
-    """True if running `action` sets _cue.active_input (a field's own control).
+    """True if running `action` sets _cue.overlay.active_input (a field's own control).
 
-    A field's textbutton uses SetField(_cue, "active_input", <field>) and its
-    clear/commit actions are lists ending in SetField(_cue, "active_input", "").
+    A field's textbutton uses SetField(_cue.overlay, "active_input", <field>) and
+    its clear/commit actions are lists ending in SetField(_cue.overlay, "active_input", "").
     The backdrop and toolbar buttons carry Function actions, so they return False.
     """
     if action is None:
         return False
     if isinstance(action, (list, tuple)):
         return any(_cue_action_manages_input(a) for a in action)
-    # A SetField whose target is the Cue singleton and field is active_input --
-    # only Cue's own field buttons do that.  Checking `.object` rules out an
-    # unrelated SetField that happens to target some other object's active_input.
-    return getattr(action, "field", None) == "active_input" and getattr(action, "object", None) is _cue
+    # A SetField whose target is _cue.overlay and field is active_input -- only
+    # Cue's own field buttons do that.  Checking `.object` rules out an unrelated
+    # SetField that happens to target some other object's active_input.
+    return getattr(action, "field", None) == "active_input" and getattr(action, "object", None) is _cue.overlay
 
 
 def _cue_field_control(f):
@@ -81,7 +81,7 @@ def _cue_install_focus_pin():
 
     def _cue_pin_focus(ev, x, y, default=False):
         # Only pin while one of Cue's own fields is in edit mode.
-        editing = getattr(_cue, "active_input", "")
+        editing = _cue.overlay.active_input
 
         # Hover keeps focus pinned; a click still lands normally.
         is_hover = editing and ev is not None and ev.type == pygame.MOUSEMOTION
@@ -95,13 +95,22 @@ def _cue_install_focus_pin():
             # region.  The backdrop wraps the panel, so the innermost focusable
             # at the point is the one actually clicked.
             f = _cue_focusable_at_point(x, y)
-            _cue.active_input_rect = (f.x, f.y, f.w, f.h) if f is not None else None
+            _cue.overlay.active_input_rect = (f.x, f.y, f.w, f.h) if f is not None else None
 
         rv = orig(ev, x, y, default=default)
 
+        # Click outside an open dropdown closes it.  The rect is deterministic
+        # (trigger rect + computed option-list height), so it matches the
+        # rendered frame exactly -- no dead zone below a short list.
+        dropdown = _cue.overlay.active_dropdown
+        if dropdown is not None and ev is not None and ev.type == pygame.MOUSEBUTTONDOWN:
+            if not dropdown.is_inside(x, y):
+                dropdown.close()
+                renpy.restart_interaction()
+
         # Click outside the active field's rect ends the edit.
         if editing and ev is not None and ev.type == pygame.MOUSEBUTTONDOWN:
-            r = _cue.active_input_rect
+            r = _cue.overlay.active_input_rect
             on_input = r is not None and (r[0] <= x < r[0] + r[2] and r[1] <= y < r[1] + r[3])
             if not on_input:
                 # A field control (clear button, other textbutton) flips active_input
@@ -109,10 +118,10 @@ def _cue_install_focus_pin():
                 # Re-capture its rect. Dead space / non-field controls end the edit.
                 f = _cue_focusable_at_point(x, y, _cue_field_control)
                 if f is not None:
-                    _cue.active_input_rect = (f.x, f.y, f.w, f.h)
+                    _cue.overlay.active_input_rect = (f.x, f.y, f.w, f.h)
                 else:
-                    _cue.active_input = ""
-                    _cue.active_input_rect = None
+                    _cue.overlay.active_input = ""
+                    _cue.overlay.active_input_rect = None
                     renpy.restart_interaction()
         return rv
 

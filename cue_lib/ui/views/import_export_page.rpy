@@ -232,7 +232,7 @@ screen cue_url_downloader():
                 use cue_txt_button(
                     "Import URL",
                     [Function(_cue.url_importer.import_url),
-                     SetField(_cue, "active_input", "")],
+                     SetField(_cue.overlay, "active_input", "")],
                     sensitive=(not _cue.url_importer.is_downloading),
                     tt="Download a .zip from a URL into your imports folder.")
 
