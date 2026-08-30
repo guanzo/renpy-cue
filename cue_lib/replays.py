@@ -234,3 +234,10 @@ class CueCastFilter(CueSelect):
         # type: (str) -> str
         """Display name for a speaker tag (chips and dropdown rows)."""
         return _cue_speaker_display(key)
+
+    def chips_for(self, replay_id):
+        # type: (str) -> List[str]
+        """Display names of the replay's cast for row chips, sorted by tag.
+        The MC tag is hidden, like the dropdown, so it never shows as a chip."""
+        tags = sorted(t for t in self._cast.cast_for(replay_id) if t != CUE_MC_TAG)
+        return [self.label(t) for t in tags]

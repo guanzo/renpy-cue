@@ -378,6 +378,23 @@ def test_filter_options_hide_mc(cue_env):
     assert filter.options() == ["SG"]
 
 
+def test_filter_chips_for_hide_mc_and_sort_by_tag(monkeypatch, cue_env):
+    from cue_lib.replays import CUE_MC_TAG
+
+    import renpy as _renpy
+
+    monkeypatch.setattr(_renpy.store, "jill", _types.SimpleNamespace(name="Jill"), raising=False)
+
+    cast = CueReplayCast(cue_env.paths)
+    cast.record_speaker("Run 1", "dawe")
+    cast.record_speaker("Run 1", CUE_MC_TAG)
+    cast.record_speaker("Run 1", "jill")
+    filter = CueCastFilter(cast)
+
+    assert filter.chips_for("Run 1") == ["dawe", "Jill"]
+    assert filter.chips_for("Run 2") == []
+
+
 def test_filter_open_close_rides_focus_pin(monkeypatch, cue_env):
     monkeypatch.setattr(_cue.overlay, "active_input", "")
     monkeypatch.setattr(_cue.overlay, "active_input_rect", None)

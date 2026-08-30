@@ -95,6 +95,14 @@ style cue_icon_button is empty:
     hover_sound None
     activate_sound None
 
+style cue_scene_thumb is empty:
+    padding (0, 0)
+    background _cue_color_bg_overlay
+    hover_background _cue_color_bg_overlay
+    mouse "cue_pointer"
+    hover_sound None
+    activate_sound None
+
 style cue_text is empty:
     size _cue_scale_ui(12)
     color _cue_color_text
