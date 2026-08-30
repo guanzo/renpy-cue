@@ -60,12 +60,14 @@ class CueVideoTrigger(object):
             self._prev_eff_elapsed = -1.0
             self._last_fire_eff = None
             self._last_fired_mt = None
-            self._engine._debug.note_restart()
             vm.clear_sfx_breadcrumbs()
+            if self._engine.active:
+                self._engine._debug.note_restart()
 
-        self._fire_markers(
-            current_file, effective_elapsed, self._prev_eff_elapsed, speed, variants, tick_interval, vid_scale
-        )
+        if self._engine.active:
+            self._fire_markers(
+                current_file, effective_elapsed, self._prev_eff_elapsed, speed, variants, tick_interval, vid_scale
+            )
 
         # Store for next tick's cross-between-ticks detection.  vm.last_elapsed
         # is written by vm.poll_restart() (the restart source of truth).

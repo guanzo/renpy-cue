@@ -90,10 +90,6 @@ class CueTriggerEngine(object):
     def tick(self, current_file, top_layer_type):
         # type: (str, str) -> None
         """Called every frame. Handles loop (l_) and video (v_) triggers."""
-        if not self.active:
-            self._last_tick_wall = 0.0
-            return
-
         self._tick_count += 1
         tick = self._tick_count
         now = _time.time()
@@ -102,7 +98,8 @@ class CueTriggerEngine(object):
         interval = now - self._last_tick_wall if self._last_tick_wall else 0.0
         self._last_tick_wall = now
 
-        self._debug.tick(now, current_file, top_layer_type, self._vid_manager.channel)
+        if self.active:
+            self._debug.tick(now, current_file, top_layer_type, self._vid_manager.channel)
 
         # Speed + variant set, computed once per tick for intensity banding.
         # variants is None for videos with fewer than 2 speed variants (no
