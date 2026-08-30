@@ -15,6 +15,7 @@ import math as _math
 import random as _random
 
 import renpy
+import renpy.python as _renpy_python
 
 from cue_lib.constants import CUE_DEFAULT_VIDEO_SPEED, CUE_AUTO_SPEED_MIN_VARIANTS  # pyright: ignore[reportUnusedImport]
 from cue_lib.util import create_vid_key, _cue_log, _cue_speed_label
@@ -121,7 +122,7 @@ def _cue_auto_preset_description(preset_name):
 # ==========================================================================
 
 
-class CueAutoSpeedGenerator(object):
+class CueAutoSpeedGenerator(_renpy_python.NoRollback):
     """Procedural speed sequence generator."""
 
     def __init__(self, ctx, store, speed_resolver, vid_manager, video_sequence):

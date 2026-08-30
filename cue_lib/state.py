@@ -14,7 +14,7 @@ import renpy.python as _renpy_python
 from cue_lib.constants import CuePage  # noqa: F401  # pyright: ignore[reportUnusedImport]  # re-exported: consumers import it from cue_lib.state
 
 
-class CueContext(object):
+class CueContext(_renpy_python.NoRollback):
     def __init__(self):
         self.current_file = ""
         self.current_dialogue = ""

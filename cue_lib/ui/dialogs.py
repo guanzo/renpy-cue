@@ -4,6 +4,7 @@
 
 import renpy
 from renpy.store import Function
+import renpy.python as _renpy_python
 
 from cue_lib.constants import CueImportMatch
 from cue_lib.sharing.importer_io import _cue_category_counts, _cue_filter_contents, _cue_merge_overwrites
@@ -15,7 +16,7 @@ if MYPY:
     from typing import Any, Callable, Dict  # pyright: ignore[reportUnusedImport]
 
 
-class CueDialogs(object):
+class CueDialogs(_renpy_python.NoRollback):
     """Holds the overlay dialog instances and the active-dialog gate.
 
     cue_overlay folds each dialog screen in gated on the live active dialog
@@ -50,7 +51,7 @@ class CueDialogs(object):
         self.active_dialog = None
 
 
-class CueDialogBase(object):
+class CueDialogBase(_renpy_python.NoRollback):
     """Shared plumbing for the overlay dialog popups.
 
     _show()/_hide() record the dialog instance on the _cue.dialogs gate

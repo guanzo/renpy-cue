@@ -5,6 +5,7 @@
 
 import renpy
 from renpy.store import persistent
+import renpy.python as _renpy_python
 
 from cue_lib.constants import CUE_PERSIST_COLLAPSED_SECTIONS, CuePage
 from cue_lib.runtime import _cue_refresh_context
@@ -13,7 +14,7 @@ from cue_lib.ui.displayables import CueVideoMarkerTimeline
 from cue_lib.util import _cue_unwrap_persistent
 
 
-class CueOverlay(object):
+class CueOverlay(_renpy_python.NoRollback):
     def __init__(self):
         self.is_visible = False
         self.active_page = CuePage.SFX

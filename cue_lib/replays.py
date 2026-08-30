@@ -4,6 +4,7 @@
 import json as _json
 import os
 import renpy
+import renpy.python as _renpy_python
 
 from cue_lib.paths import CuePaths
 from cue_lib.sharing.importer_io import _cue_read_json_file
@@ -98,7 +99,7 @@ def _cue_replay_counts_from_store(markers):
     return sorted(counts.items())
 
 
-class CueReplayLibrary(object):
+class CueReplayLibrary(_renpy_python.NoRollback):
     """Tracks the current game's replays that contain markers.
 
     scan() re-derives entries from the marker store (loaded for the effective
@@ -153,7 +154,7 @@ class CueReplayLibrary(object):
             renpy.call_replay(label)
 
 
-class CueReplayCast(object):
+class CueReplayCast(_renpy_python.NoRollback):
     """Speaking cast of a replay, one JSON file under <replays_dir>/.
 
     record_speaker keeps an in-memory set per replay, lazily loaded from disk

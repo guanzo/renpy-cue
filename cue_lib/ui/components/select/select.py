@@ -6,6 +6,8 @@
 # it never shifts the page layout.  Reusable for any option list: the cast
 # filter (replays.py) is one consumer.
 
+import renpy.python as _renpy_python
+
 from cue_lib.state import _cue
 from cue_lib.ui.displayables import _cue_scale_ui
 
@@ -23,7 +25,7 @@ if MYPY:
     from typing import Any, List, Optional, Set, Tuple
 
 
-class CueSelect(object):
+class CueSelect(_renpy_python.NoRollback):
     """Generic multi-select dropdown.
 
     Subclasses override options()/label() (and toggle()/selected_keys() when

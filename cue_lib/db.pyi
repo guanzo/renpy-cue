@@ -8,7 +8,7 @@ CUE_HASH_TRUNC_LEN: Final = 8
 def _key_to_filename(key: str) -> str: ...
 def _atomic_json_write(fpath: str, data: Any, indent: Optional[int] = None) -> None: ...
 
-class CueDatabase(object):
+class CueDatabase:
     _backup: CueBackupManager
     paths: CuePaths
 

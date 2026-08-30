@@ -3,6 +3,7 @@
 # Instantiated once at _cue.vid_manager, lives on the NoRollback _cue object.
 
 import renpy.audio.music as _music
+import renpy.python as _renpy_python
 
 from cue_lib.constants import CUE_RESTART_JUMP_SECONDS
 from cue_lib.util import _cue_log, _cue_format_time, _cue_clamp_time
@@ -35,7 +36,7 @@ def _cue_is_video_restart(prev_elapsed, curr_elapsed, duration):
     return prev_elapsed - curr_elapsed > CUE_RESTART_JUMP_SECONDS
 
 
-class CueVideoManager(object):
+class CueVideoManager(_renpy_python.NoRollback):
     """Per-video playback state and control.
     Tracks the movie channel that's currently playing.
     Methods act on self.channel (the movie channel this state tracks),

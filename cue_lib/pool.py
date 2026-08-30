@@ -16,6 +16,8 @@
 # Igroups stay in CueIntensityManager; they are not views (see the design
 # spec's D1/D2).
 
+import renpy.python as _renpy_python
+
 from cue_lib.util import _cue_remove_ref
 
 MYPY = False
@@ -24,7 +26,7 @@ if MYPY:
     from cue_lib._types import PoolDict  # pyright: ignore[reportUnusedImport]
 
 
-class _ConcreteOps(object):
+class _ConcreteOps(_renpy_python.NoRollback):
     """File-list ops for a concrete pool: dedup add, folder-expand remove,
     plain clear."""
 
@@ -64,7 +66,7 @@ class _ConcreteOps(object):
         return True
 
 
-class _PresetOps(object):
+class _PresetOps(_renpy_python.NoRollback):
     """Preset-linked pools: any file edit materializes the preset first, then
     the concrete op runs on the freshly re-fetched dict."""
 
@@ -86,7 +88,7 @@ class _PresetOps(object):
         return _CONCRETE.clear_files(pool, pool._pool_dict())
 
 
-class _IgroupOps(object):
+class _IgroupOps(_renpy_python.NoRollback):
     """Intensity-hooked pools own no refs: file edits refuse (bool False);
     clear drops the hook back to a plain pool."""
 
@@ -124,7 +126,7 @@ def _ops_for(pool_dict):
     return next((ops for key, ops in _MODE_TABLE if key in pool_dict), _CONCRETE)
 
 
-class _CueFileContainer(object):
+class _CueFileContainer(_renpy_python.NoRollback):
     """Ephemeral view over one file container row.  Public mutators are
     branch-free dispatch into the mode's ops; each op re-resolves the row."""
 

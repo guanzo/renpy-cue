@@ -9,6 +9,7 @@
 # manager serves both the SFX and music libraries.
 
 from renpy.store import persistent
+import renpy.python as _renpy_python
 
 from cue_lib.constants import CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
 from cue_lib.util import _cue_is_abs_path, _cue_unwrap_persistent
@@ -22,7 +23,7 @@ if MYPY:
     from cue_lib.audio.tree.music_tree import CueMusicTree
 
 
-class CueRecentManager(object):
+class CueRecentManager(_renpy_python.NoRollback):
     """Most-recent-first persistent list of heterogeneous used entries.
 
     Both the entries and the expand-state (toggle) are persisted, under

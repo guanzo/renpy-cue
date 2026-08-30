@@ -161,6 +161,7 @@ Do not explicitly specify default `cue_*` styles inside a `style_group`. Python-
 # Rollback
 
 * `_cue` is a module-level `NoRollback()` instance. Never reassign it; mutate its attributes.
+* Every class in `cue_lib/*.py` subclasses `NoRollback` (via `import renpy.python as _renpy_python`). A non-NoRollback mod object parked in the store is reverted by rollback and its whole object graph is walked on every rollback step (~1s). Displayables, exceptions, and `_types.py` TypedDicts are the only exceptions.
 * State in `cue_lib/*.py` modules is not tracked by Ren'Py rollback.
 * `.rpy` uses Ren'Py's revertable collections; `.py` uses normal builtins.
 * Prefer duck typing over `isinstance()` when checking collection-like values, since `list` may be shadowed by `RevertableList`.

@@ -14,6 +14,8 @@
 # (injected as _cue.presets.intensity); this manager adds level editing and
 # the speed-band resolution chain on top.
 
+import renpy.python as _renpy_python
+
 from cue_lib.constants import CUE_INTENSITY_FREQ_MAX, CUE_INTENSITY_VOLUME_MAX
 from cue_lib.intensity.banding import _cue_band_speeds, _cue_resolve_level
 from cue_lib.preset_store import CueIntensityPresets
@@ -45,7 +47,7 @@ def _cue_intensity_volume_mult(level_mult):
     return min(CUE_INTENSITY_VOLUME_MAX, max(1.0, level_mult))
 
 
-class CueIntensityFlags(object):
+class CueIntensityFlags(_renpy_python.NoRollback):
     """Per-video intensity toggles.
 
     All default on -- a video that stores none of them behaves exactly as
@@ -60,7 +62,7 @@ class CueIntensityFlags(object):
         self.frequency = frequency
 
 
-class CueIntensityResolution(object):
+class CueIntensityResolution(_renpy_python.NoRollback):
     """Result of resolving a pool against an intensity group.
 
     Carries the active level, the resolved level files (empty = silence), and
@@ -75,7 +77,7 @@ class CueIntensityResolution(object):
         self.files = files if files is not None else []
 
 
-class CueIntensityManager(object):
+class CueIntensityManager(_renpy_python.NoRollback):
     """Behavior over the shared CueIntensityPresets collection.
 
     Igroups are shared presets (one JSON per igroup under data/presets/

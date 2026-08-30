@@ -11,6 +11,8 @@ import os
 import tempfile
 import threading
 
+import renpy.python as _renpy_python
+
 from cue_lib.constants import CUE_SFX_FOLDER
 from cue_lib.download import CueDownloader
 from cue_lib.sharing.importer_io import _cue_extract_zip_to
@@ -27,7 +29,7 @@ if MYPY:
 CUE_SFX_PACK_URL = "https://github.com/guanzo/renpy-cue/releases/latest/download/cue_sfx.zip"
 
 
-class CueSfxPackDownloader(object):
+class CueSfxPackDownloader(_renpy_python.NoRollback):
     """Downloads the curated SFX pack into the audio dir and reports the
     bootstrap state.  Holds the owning library so poll_sfx_pack can rescan
     after a successful extract; audio_dir is the extraction target."""

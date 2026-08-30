@@ -7,6 +7,7 @@
 # through _tree, so it never imports the concrete managers (no import cycle).
 
 import renpy
+import renpy.python as _renpy_python
 
 from renpy.store import Function
 
@@ -157,7 +158,7 @@ def _cue_folder_rows(key, label, depth, toggle_fn, expanded, searching, buttons,
     return rows
 
 
-class CueTreeRowsBuilder(object):
+class CueTreeRowsBuilder(_renpy_python.NoRollback):
     """Builds the flat row stream for cue_tree_rows from a data tree's
     visible_tree.
 

@@ -37,6 +37,7 @@ import zipfile as _zipfile
 
 import renpy
 from renpy.store import Function
+import renpy.python as _renpy_python
 
 from cue_lib.constants import CUE_MANUAL_BACKUP_NAME, CUE_SHARED_CONFIG_FILENAME
 from cue_lib.util import _cue_log, _cue_replace_file, _to_str
@@ -362,7 +363,7 @@ def restore_confirm_message(overwritten, added):
 # =========================================================================
 
 
-class CueAutoBackupManager(object):
+class CueAutoBackupManager(_renpy_python.NoRollback):
     """Throttled, background zipping of the shared data/ tree."""
 
     def __init__(self, owner):
@@ -480,7 +481,7 @@ class CueAutoBackupManager(object):
 # =========================================================================
 
 
-class CueManualBackupManager(object):
+class CueManualBackupManager(_renpy_python.NoRollback):
     """Async manual backup/restore (the Back Up / Restore buttons).
 
     The disk phases (zip / restore merge) run on daemon threads so the UI
@@ -734,7 +735,7 @@ class CueManualBackupManager(object):
 # =========================================================================
 
 
-class CueBackupManager(object):
+class CueBackupManager(_renpy_python.NoRollback):
     """Composite backup manager for the shared data tree.
 
     Owns the two backup flows as sub-managers: .auto (throttled background

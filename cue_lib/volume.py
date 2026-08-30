@@ -3,6 +3,7 @@
 # Instantiated once at _cue.volume, lives on the NoRollback _cue object.
 
 import renpy
+import renpy.python as _renpy_python
 
 from cue_lib.constants import CUE_VOLUME_DEFAULT
 
@@ -14,7 +15,7 @@ if MYPY:
     from cue_lib.state import CueContext
 
 
-class CueVolumeManager(object):
+class CueVolumeManager(_renpy_python.NoRollback):
     """Volume read/write for marker entries and pools.
 
     Each marker entry has an optional "volume" key (master level).

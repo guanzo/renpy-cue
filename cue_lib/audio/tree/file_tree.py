@@ -9,6 +9,7 @@
 import os
 import time
 
+import renpy.python as _renpy_python
 from renpy.store import persistent
 
 from cue_lib.constants import CUE_AUDIO_EXTS
@@ -27,7 +28,7 @@ if MYPY:
 CUE_SEARCH_MAX_ROWS = 100
 
 
-class CueAudioTreeManager(object):
+class CueAudioTreeManager(_renpy_python.NoRollback):
     """Folder/file tree state shared by the SFX library and music managers.
 
     Owns the flat sorted file list (files), the nested tree built from it

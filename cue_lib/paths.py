@@ -12,6 +12,7 @@ import os
 import sys
 
 import renpy.config as _config
+import renpy.python as _renpy_python
 
 from cue_lib.constants import CUE_MANUAL_BACKUP_NAME, CUE_SHARED_CONFIG_FILENAME
 
@@ -41,7 +42,7 @@ CUE_BACKUP_AUTO_DIR = "auto"
 CUE_THUMBS_CACHE_NAME = "cue_thumbs.json"
 
 
-class CuePaths(object):
+class CuePaths(_renpy_python.NoRollback):
     """Directory layout for the shared data tree.
 
     Everything the mod persists or browses lives under one root (the shared

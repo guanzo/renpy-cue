@@ -22,6 +22,7 @@ from cue_lib.util import _cue_log
 # Ren'Py 7.4+ (the `matrixcolor` Transform property only arrived in 7.5).
 from renpy.display.im import MatrixColor, matrix
 from renpy.display.transform import Transform
+import renpy.python as _renpy_python
 
 MYPY = False
 if MYPY:
@@ -97,7 +98,7 @@ CUE_ICON_MAP = {
 }  # type: Dict[str, Tuple[str, bool]]
 
 
-class CueIconManager(object):
+class CueIconManager(_renpy_python.NoRollback):
     """Resolves icon names used by cue_icon_btn to PNG displayables.
 
     Unknown names return None so the screen can fall back to plain

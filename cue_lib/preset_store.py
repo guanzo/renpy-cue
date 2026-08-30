@@ -19,6 +19,8 @@
 
 import copy as _copy
 
+import renpy.python as _renpy_python
+
 from cue_lib.constants import CUE_VOLUME_DEFAULT
 from cue_lib.pool import CueAudioPreset, CueVideoPresetPool
 from cue_lib.util import _cue_clean_pool_list, _cue_log
@@ -30,7 +32,7 @@ if MYPY:
     from cue_lib.db import CueDatabase  # pyright: ignore[reportUnusedImport]
 
 
-class CuePresets(object):
+class CuePresets(_renpy_python.NoRollback):
     """One preset kind (audio | video | music): the name->entry dict plus
     unified CRUD and file-backed persistence.
 
@@ -340,7 +342,7 @@ class CueIntensityPresets(CuePresets):
         return None
 
 
-class CuePresetStore(object):
+class CuePresetStore(_renpy_python.NoRollback):
     """Container over the preset collections.
 
     Owns the shared session-created set and the cross-kind persistence

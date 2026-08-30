@@ -6,6 +6,7 @@
 import random
 
 import renpy
+import renpy.python as _renpy_python
 
 from cue_lib.constants import CUE_DEFAULT_MUSIC_CHANNEL, CUE_MUSIC_GAME_TAG, CUE_MUSIC_USER_TAG
 from cue_lib.music.refs import _cue_resolve_music_files, _cue_resolve_music_path
@@ -22,7 +23,7 @@ if MYPY:
 _SUPPRESS_MUSIC = object()
 
 
-class CueMusicTriggers(object):
+class CueMusicTriggers(_renpy_python.NoRollback):
     """Default-music trigger log + trigger-box editing + scene override.
 
     Split out of CueMusicManager so the manager keeps only interception and

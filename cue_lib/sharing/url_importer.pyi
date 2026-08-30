@@ -3,7 +3,7 @@ from typing import Any, Optional
 
 from cue_lib.download import CueDownloader
 
-class CueUrlImporter(object):
+class CueUrlImporter:
     url: str
     is_downloading: bool
     cancel_requested: bool

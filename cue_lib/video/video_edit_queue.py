@@ -13,6 +13,7 @@ import renpy.config as _config
 import renpy.audio.audio as _aaudio
 
 from renpy.store import persistent
+import renpy.python as _renpy_python
 
 from cue_lib.video.ffmpeg import CREATIONFLAGS, _cue_probe_job
 from cue_lib.state import _cue
@@ -28,7 +29,7 @@ CUE_VE_MODE_INTERPOLATE = 1
 CUE_VE_MODE_FAST_PREVIEW = 2
 
 
-class CueJobStatus(object):
+class CueJobStatus(_renpy_python.NoRollback):
     """String-valued job lifecycle states. Values are title-cased so they
     can be returned directly from CueVideoJob.status_text()."""
 
@@ -40,7 +41,7 @@ class CueJobStatus(object):
     ERROR = "Error"
 
 
-class CueVideoJob(object):
+class CueVideoJob(_renpy_python.NoRollback):
     """One ffmpeg encode job in the queue."""
 
     def __init__(self, job_id, vpath, fspath_in, fspath_tmp, factor, encode_mode, fspath_out=None, remove_audio=True):
@@ -113,7 +114,7 @@ class CueVideoJob(object):
         return "{:.1f}x".format(self.factor)
 
 
-class CueVideoEditQueue(object):
+class CueVideoEditQueue(_renpy_python.NoRollback):
     """Job queue for ffmpeg encode jobs."""
 
     def __init__(self, editor):

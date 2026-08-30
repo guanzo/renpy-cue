@@ -3,6 +3,8 @@
 # One domain of CueTriggerEngine; the engine owns tick cadence, this owns the
 # per-key one-shot fire path.
 
+import renpy.python as _renpy_python
+
 from cue_lib.constants import CUE_VOLUME_DEFAULT
 from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
@@ -16,7 +18,7 @@ if MYPY:
     from cue_lib.trigger.engine import CueTriggerEngine  # pyright: ignore[reportUnusedImport]
 
 
-class CueContextTrigger(object):
+class CueContextTrigger(_renpy_python.NoRollback):
     """One-shot SFX fired on scene/dialogue/shake context changes."""
 
     def __init__(self, engine):

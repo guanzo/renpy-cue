@@ -1,6 +1,7 @@
 # Type stub for cue_lib.audio.sfx_manager
 from typing import Dict, List, Optional
 
+from cue_lib.audio.cue_sfx_pack import CueSfxPackDownloader
 from cue_lib.audio.tree.sfx_tree import CueSfxLibraryTree
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.db import CueDatabase
@@ -14,8 +15,9 @@ from cue_lib._types import MarkerEntry, PoolDict
 def _cue_sfx_channel_name(index: int) -> str: ...
 def _cue_sfx_channel_index(ch_name: str) -> int: ...
 
-class CueSfxManager(object):
+class CueSfxManager:
     library: CueSfxLibraryTree
+    sfx_pack: CueSfxPackDownloader
     _paths: CuePaths
     _db: CueDatabase
     _volume: CueVolumeManager

@@ -10,6 +10,7 @@
 
 import os
 import renpy
+import renpy.python as _renpy_python
 import threading
 
 from cue_lib.constants import CUE_IMPORT_CATEGORY_ORDER, CueExportFileTypes, CueExportScope, CueImportCategory
@@ -31,7 +32,7 @@ if MYPY:
     from typing import Any, Dict, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
 
 
-class CueExportManager(object):
+class CueExportManager(_renpy_python.NoRollback):
     """Scope + selection + zip build for sharing this game's data."""
 
     def __init__(self, paths):

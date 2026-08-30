@@ -14,6 +14,7 @@ import renpy
 import renpy.audio.music as _music
 
 from renpy.store import persistent
+import renpy.python as _renpy_python
 
 from cue_lib.constants import (
     CUE_VOLUME_DEFAULT,
@@ -61,7 +62,7 @@ if MYPY:
 _CUE_TARGET_CONTEXT_IDS = (CueContextType.VIDEO, CueContextType.IMAGE, CueContextType.DIALOGUE, CueContextType.LOOP)
 
 
-class CueMarkerManager(object):
+class CueMarkerManager(_renpy_python.NoRollback):
     def __init__(self, ctx, store, vid_manager, sfx_manager, trigger, video_editor):
         # type: (CueContext, CueMarkerStore, CueVideoManager, CueSfxManager, CueTriggerEngine, CueVideoEditor) -> None
         self._store = store

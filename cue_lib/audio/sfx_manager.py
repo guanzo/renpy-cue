@@ -10,6 +10,7 @@
 import random as _random
 
 import renpy.audio.music as _music
+import renpy.python as _renpy_python
 
 from cue_lib.audio.cue_sfx_pack import CueSfxPackDownloader
 from cue_lib.audio.tree.sfx_tree import CueSfxLibraryTree
@@ -57,7 +58,7 @@ def _cue_sfx_channel_index(ch_name):
     return int(ch_name.split("_")[-1])
 
 
-class CueSfxManager(object):
+class CueSfxManager(_renpy_python.NoRollback):
     """SFX playback + library orchestration.
 
     Owns the SFX library tree (CueSfxLibraryTree) and the playback state

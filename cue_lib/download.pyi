@@ -22,7 +22,7 @@ class _CueDownloadError(Exception):
 class _CueDownloadCancel(Exception):
     pass
 
-class CueDownloader(object):
+class CueDownloader:
     _fetcher: Any
 
     def __init__(self, fetcher: Any = None) -> None: ...

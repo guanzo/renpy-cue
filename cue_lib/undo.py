@@ -11,6 +11,7 @@
 import copy as _copy
 import time as _time
 import renpy
+import renpy.python as _renpy_python
 
 from cue_lib.state import _cue
 from cue_lib.util import create_img_key, create_dlg_key, create_loop_key, create_vid_key
@@ -24,7 +25,7 @@ if MYPY:
     from cue_lib.markers import CueMarkerManager
 
 
-class CueUndoManager(object):
+class CueUndoManager(_renpy_python.NoRollback):
     """Undo/redo via post-mutation state snapshots. Max 50 steps; any new
     mutation invalidates the redo stack."""
 

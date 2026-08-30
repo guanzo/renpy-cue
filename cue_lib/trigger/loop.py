@@ -5,6 +5,7 @@
 
 import random as _random
 import renpy.audio.music as _music
+import renpy.python as _renpy_python
 
 from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
@@ -18,7 +19,7 @@ if MYPY:
     from cue_lib.trigger.engine import CueTriggerEngine  # pyright: ignore[reportUnusedImport]
 
 
-class CueLoopTrigger(object):
+class CueLoopTrigger(_renpy_python.NoRollback):
     """Loop state machine for l_ keys -- fires pooled SFX on a frequency cycle."""
 
     def __init__(self, engine):

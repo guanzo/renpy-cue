@@ -7,6 +7,7 @@
 import time as _time
 
 from renpy.store import persistent
+import renpy.python as _renpy_python
 
 from cue_lib.state import _cue
 from cue_lib.trigger.context import CueContextTrigger
@@ -26,7 +27,7 @@ if MYPY:
     from cue_lib.markers import CueMarkerManager  # pyright: ignore[reportUnusedImport]
 
 
-class CueTriggerEngine(object):
+class CueTriggerEngine(_renpy_python.NoRollback):
     """Owns trigger dispatch state and logic.
 
     Called by:

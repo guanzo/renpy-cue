@@ -15,6 +15,7 @@ import threading
 
 import renpy
 import renpy.config as _config
+import renpy.python as _renpy_python
 
 from cue_lib.download import CueDownloader
 from cue_lib.paths import CuePaths
@@ -38,7 +39,7 @@ CUE_THUMBS_URL = "https://github.com/guanzo/renpy-cue/releases/latest/download/c
 CUE_THUMB_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
 
 
-class CueThumbManager(object):
+class CueThumbManager(_renpy_python.NoRollback):
     """Resolves a replay label to a thumbnail to render in the Scenes list.
 
     Lookup order: the mapping entry for the label (cached from the release

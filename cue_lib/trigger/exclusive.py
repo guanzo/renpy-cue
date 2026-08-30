@@ -7,6 +7,7 @@
 # and video-marker SFX stay immune to every sweep.
 
 import renpy.audio.music as _music
+import renpy.python as _renpy_python
 
 MYPY = False
 if MYPY:
@@ -27,7 +28,7 @@ CUE_EXCL_KIND_ONESHOT = "oneshot"
 CUE_EXCL_KIND_VIDEO = "video"
 
 
-class CueExclusiveRegistry(object):
+class CueExclusiveRegistry(_renpy_python.NoRollback):
     """Tracks playing SFX channels by domain (loop/oneshot/video).
 
     Grouping for one-shots is two-dimensional: the "scene" (file) plus a

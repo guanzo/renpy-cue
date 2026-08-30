@@ -13,6 +13,7 @@
 
 import renpy
 import renpy.display.behavior as _behavior  # pyright: ignore[reportMissingImports]
+import renpy.python as _renpy_python
 
 from cue_lib.state import _cue
 from cue_lib.util import _cue_is_str
@@ -138,7 +139,7 @@ def _cue_keybind_override():
 # ---------------------------------------------------------------------------
 
 
-class CueKeybindsManager(object):
+class CueKeybindsManager(_renpy_python.NoRollback):
     """Owns the metadata for every rebindable hotkey, drives key-capture,
     collision detection, persistence, and the settings UI."""
 

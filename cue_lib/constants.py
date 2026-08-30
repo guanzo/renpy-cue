@@ -4,6 +4,8 @@
 
 import os
 
+import renpy.python as _renpy_python
+
 
 # Debug flag from the RENPY_CUE_DEBUG env var; read at import, so set it
 # before the game launches.
@@ -18,7 +20,7 @@ def _cue_env_flag(name, default=False):
     return val in ("1", "true", "yes", "on")
 
 
-class CueExclusiveStart(object):
+class CueExclusiveStart(_renpy_python.NoRollback):
     """Exclusive 'start' behavior values (exclusive.start)."""
 
     PLAY = 0  # start immediately, overlapping whatever is playing
@@ -26,7 +28,7 @@ class CueExclusiveStart(object):
     WAIT = 2  # wait until no non-group SFX is playing (loops only)
 
 
-class CueLoopFrequency(object):
+class CueLoopFrequency(_renpy_python.NoRollback):
     """Loop SFX interval presets. Values match CueLoopContext.get_delay()."""
 
     SLOWEST = 4  # ~6.3s
@@ -36,7 +38,7 @@ class CueLoopFrequency(object):
     FASTEST = 3  # ~0.2s
 
 
-class CuePage(object):
+class CuePage(_renpy_python.NoRollback):
     """Overlay sidebar page tabs."""
 
     SFX = 0  # SFX editor (markers / library)
@@ -46,7 +48,7 @@ class CuePage(object):
     SETTINGS = 4  # Settings page
 
 
-class CueImportCategory(object):
+class CueImportCategory(_renpy_python.NoRollback):
     """Import/export categories; each maps to a shared-root path prefix via
     _cue_import_category (the single source of that mapping).  UNKNOWN catches
     paths outside the 5 categories."""
@@ -59,21 +61,21 @@ class CueImportCategory(object):
     UNKNOWN = 5
 
 
-class CueExportScope(object):
+class CueExportScope(_renpy_python.NoRollback):
     """What the export button packs: whole game, or selected replays."""
 
     ALL_REPLAYS = 0
     SPECIFIC_REPLAYS = 1
 
 
-class CueExportFileTypes(object):
+class CueExportFileTypes(_renpy_python.NoRollback):
     """Export file-type filter: everything, or only the checked categories."""
 
     ALL = 0
     SPECIFIC = 1
 
 
-class CueImportMatch(object):
+class CueImportMatch(_renpy_python.NoRollback):
     """game_id match levels between an import and the current game."""
 
     AUTO = 0  # exact -- no user action needed
@@ -81,7 +83,7 @@ class CueImportMatch(object):
     MISMATCH = 2  # no match -- manual remap required
 
 
-class CueContextType(object):
+class CueContextType(_renpy_python.NoRollback):
     """SFX library target contexts for the [+] assign button.  Values are the
     CueMarkerManager attribute names, so dispatch is getattr(manager, ctx_id)."""
 

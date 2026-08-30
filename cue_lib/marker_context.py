@@ -6,6 +6,8 @@
 import copy as _copy
 import random as _random
 
+import renpy.python as _renpy_python
+
 from cue_lib.constants import CUE_VOLUME_DEFAULT, CueExclusiveStart, CueLoopFrequency
 from cue_lib.util import (
     _cue_clamp_time,
@@ -51,7 +53,7 @@ CUE_DUPLICATE_GAP_FRAC = CUE_DUPLICATE_GAP_PX / float(CUE_TIMELINE_REF_W)
 # =========================================================================
 
 
-class CueMarkerContext(object):
+class CueMarkerContext(_renpy_python.NoRollback):
     """Abstract base for pool-based marker contexts."""
 
     # One-shot contexts (image/dialogue) can't wait for open air, so the

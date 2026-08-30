@@ -15,6 +15,7 @@
 
 import renpy
 import renpy.audio.music as _music
+import renpy.python as _renpy_python
 
 from cue_lib.constants import CUE_SHARED_KEY_AUDIO_SYNC_LEAD
 from cue_lib.db import CueDatabase
@@ -43,7 +44,7 @@ CUE_SYNC_BEATS_PER_STAGE = 3
 CUE_SYNC_MARKER_FRACS = tuple(float(i + 1) / (CUE_SYNC_BEATS_PER_STAGE + 1) for i in range(CUE_SYNC_BEATS_PER_STAGE))
 
 
-class CueSyncManager(object):
+class CueSyncManager(_renpy_python.NoRollback):
     """Three-stage beat clock for the Audio Sync calibration sweep."""
 
     # Upper bound (seconds) for the audible-lead calibration.  Referenced by

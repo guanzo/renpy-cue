@@ -5,7 +5,7 @@ from cue_lib.download import CueDownloader
 
 CUE_SFX_PACK_URL: str
 
-class CueSfxPackDownloader(object):
+class CueSfxPackDownloader:
     state: str
     error: str
     progress: float

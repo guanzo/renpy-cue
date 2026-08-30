@@ -8,6 +8,8 @@
 
 import socket
 
+import renpy.python as _renpy_python
+
 try:
     import ssl as _ssl
 except ImportError:
@@ -112,7 +114,7 @@ _CUE_OPENER = _url_build_opener(_CueNoRedirectHandler(), _cue_https_context())
 _CUE_OPENER.addheaders = [("User-Agent", CUE_DOWNLOAD_USER_AGENT)]
 
 
-class _CueResponse(object):
+class _CueResponse(_renpy_python.NoRollback):
     """Normalizes a urllib response or HTTPError to a small contract:
     .code / .headers_get(name) / .read(size) / .close()."""
 
@@ -202,7 +204,7 @@ def _cue_stream_body(resp, dest_path, cancel_cb=None, progress_cb=None):
     return total, written
 
 
-class CueDownloader(object):
+class CueDownloader(_renpy_python.NoRollback):
     """Fetch a URL to a local path: http/https policy, per-hop redirect
     validation, chunked stream.  Shared by CueUrlImporter (user-supplied
     import URLs) and the SFX-pack download.  The network hop and resolver are

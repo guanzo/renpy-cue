@@ -5,6 +5,8 @@
 
 import random
 
+import renpy.python as _renpy_python
+
 from cue_lib.music.refs import _cue_resolve_music_files
 from cue_lib.util import _cue_shift_held, _cue_ui_refresh
 
@@ -14,7 +16,7 @@ if MYPY:
     from cue_lib.music.manager import CueMusicManager
 
 
-class CueMusicPresetsUi(object):
+class CueMusicPresetsUi(_renpy_python.NoRollback):
     """Music preset screen behavior: apply, display, preview, expand state.
 
     Split out of CueMusicManager.  Preset data + CRUD stay in the shared

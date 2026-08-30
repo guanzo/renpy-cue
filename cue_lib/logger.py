@@ -15,6 +15,7 @@ import time
 import traceback as _traceback
 
 import renpy.config as _config
+import renpy.python as _renpy_python
 
 import cue_lib.constants as _constants  # module ref so CUE_DEBUG stays live (tests flip it)
 
@@ -32,7 +33,7 @@ CUE_TRIGGER_DEBUG_FILENAME = "trigger-debug.log"
 CUE_TRIGGER_SNAPSHOT_LINES = 150
 
 
-class CueLogger(object):
+class CueLogger(_renpy_python.NoRollback):
     """Debug + error log writer."""
 
     def __init__(self, lock=None):

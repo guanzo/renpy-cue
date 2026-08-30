@@ -11,6 +11,8 @@
 
 import time as _time
 
+import renpy.python as _renpy_python
+
 import cue_lib.constants as _constants  # module ref so CUE_DEBUG stays live (tests flip it)
 
 from cue_lib.logger import _cue_logger
@@ -63,7 +65,7 @@ def _cue_td_missed_times(marker_times, played_keys, effective_elapsed, tolerance
     return missed
 
 
-class CueTriggerDebug(object):
+class CueTriggerDebug(_renpy_python.NoRollback):
     """Anomaly detection for video marker accuracy.
 
     The engine calls tick() once per frame (stall + stuck-gate + restart

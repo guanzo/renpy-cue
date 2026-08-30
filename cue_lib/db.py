@@ -15,6 +15,8 @@ import os
 import json as _json
 import tempfile as _tempfile
 
+import renpy.python as _renpy_python
+
 from cue_lib.util import _cue_log, _cue_replace_file, _to_str
 from cue_lib.backup import CueBackupManager
 from cue_lib.constants import (
@@ -98,7 +100,7 @@ def _atomic_json_write(fpath, data, indent=None):
 # =========================================================================
 
 
-class CueDatabase(object):
+class CueDatabase(_renpy_python.NoRollback):
     """File-backed store for markers, presets, and speed-variant videos.
 
     Directory layout:

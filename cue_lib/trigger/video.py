@@ -3,6 +3,8 @@
 # the engine owns tick cadence and passes the current video-level global
 # volume scale in.
 
+import renpy.python as _renpy_python
+
 from cue_lib.state import _cue
 from cue_lib.trigger.exclusive import CUE_EXCL_KIND_VIDEO
 from cue_lib.trigger.helpers import CUE_SFX_AUDIBLE_LEAD, _cue_marker_lead, _cue_marker_reached
@@ -14,7 +16,7 @@ if MYPY:
     from cue_lib.trigger.engine import CueTriggerEngine  # pyright: ignore[reportUnusedImport]
 
 
-class CueVideoTrigger(object):
+class CueVideoTrigger(_renpy_python.NoRollback):
     """Video pool triggers for v_ keys -- fires SFX at marked times.
 
     Uses two complementary checks so markers aren't missed when playback

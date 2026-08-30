@@ -20,6 +20,8 @@ try:
 except ImportError:
     from urllib.parse import unquote as _url_unquote, urlparse as _urlparse
 
+import renpy.python as _renpy_python
+
 from cue_lib.download import _CueDownloadCancel, _CueDownloadError, _cue_stream_body, CueDownloader
 from cue_lib.sharing.importer_io import _cue_sanitize_filename
 from cue_lib.util import _cue_format_size, _cue_log, _cue_replace_file, _to_str
@@ -29,7 +31,7 @@ if MYPY:
     from typing import Any, Optional
 
 
-class CueUrlImporter(object):
+class CueUrlImporter(_renpy_python.NoRollback):
     """Downloads a .zip from a user-supplied URL into the imports/ drop zone.
 
     URL policy is enforced on the click; every redirect hop is re-validated

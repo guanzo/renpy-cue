@@ -5,6 +5,7 @@
 
 import os as _os
 import renpy
+import renpy.python as _renpy_python
 
 from cue_lib.constants import CUE_SHARED_KEY_MUSIC_FOLDERS, CUE_SHARED_KEY_SFX_FOLDERS
 from cue_lib.db import CueDatabase
@@ -18,7 +19,7 @@ if MYPY:
     from typing import Any, List, Tuple  # pyright: ignore[reportUnusedImport]
 
 
-class CueSettings(object):
+class CueSettings(_renpy_python.NoRollback):
     """Settings-page state and actions.
 
     Owns the Shared Dir input and the external Music/SFX folder lists.  Methods

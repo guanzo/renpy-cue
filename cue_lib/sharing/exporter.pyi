@@ -1,7 +1,7 @@
 # Type stub for cue_lib.sharing.exporter
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-class CueExportManager(object):
+class CueExportManager:
     scope: int
     file_types: int
     checked: Dict[int, bool]

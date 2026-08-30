@@ -11,6 +11,7 @@ import renpy
 import renpy.audio.music as _music
 
 from renpy.store import persistent
+import renpy.python as _renpy_python
 
 from cue_lib.state import _cue
 from cue_lib.audio.wav_playable import CueWavPlayable
@@ -43,7 +44,7 @@ if MYPY:
 _ORIGINALS = None
 
 
-class CueMusicManager(object):
+class CueMusicManager(_renpy_python.NoRollback):
     """Detects music play/queue/stop events; forwards all calls unchanged.
 
     All Ren'Py audio funnels through renpy.audio.music.play/.queue/.stop, so

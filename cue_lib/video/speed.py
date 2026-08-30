@@ -16,6 +16,7 @@ from renpy.display.video import (
     default_play_callback as _default_play_callback,  # pyright: ignore[reportAttributeAccessIssue]
 )
 from renpy.display.image import images as _display_images
+import renpy.python as _renpy_python
 
 from cue_lib.constants import CUE_DEFAULT_VIDEO_SPEED, CUE_AUTO_SPEED_MIN_VARIANTS
 from cue_lib.state import _cue
@@ -53,13 +54,13 @@ CUE_TOAST_FADE_OFFSET = 0.6
 CUE_MULTI_SPEED_MIN_VARIANTS = 2
 
 
-class CueSpeedMode(object):
+class CueSpeedMode(_renpy_python.NoRollback):
     SINGLE = "single"
     MULTI = "multi"
     AUTO = "auto"
 
 
-class CueVidSpeedResolver(object):
+class CueVidSpeedResolver(_renpy_python.NoRollback):
     def __init__(self, ctx, store, vid_manager, video_sequence, speed_toast, paths):
         # type: (CueContext, CueMarkerStore, CueVideoManager, CueVidSpeedSequence, CueSpeedToast, CuePaths) -> None
         self._store = store
@@ -572,7 +573,7 @@ class CueVidSpeedResolver(object):
         renpy.restart_interaction()
 
 
-class CueVidSpeedSequence(object):
+class CueVidSpeedSequence(_renpy_python.NoRollback):
     def __init__(self, ctx, store, vid_manager):
         # type: (CueContext, CueMarkerStore, CueVideoManager) -> None
         self._ctx = ctx
@@ -1014,7 +1015,7 @@ class CueVidSpeedSequence(object):
         )
 
 
-class CueSpeedToast(object):
+class CueSpeedToast(_renpy_python.NoRollback):
     def __init__(self):
         self.toast_speeds = None
         self.toast_tag = None

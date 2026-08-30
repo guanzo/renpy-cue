@@ -25,6 +25,8 @@ import os
 import struct
 import tempfile
 
+import renpy.python as _renpy_python
+
 from cue_lib.util import _cue_replace_file, _cue_log, _to_str
 
 MYPY = False
@@ -82,7 +84,7 @@ def _write_wav16(path, channels, rate, data):
         f.write(data)
 
 
-class CueWavPlayable(object):
+class CueWavPlayable(_renpy_python.NoRollback):
     """Makes WAVs playable in Ren'Py, converting undecodable widths to 16-bit.
 
     ``ensure_playable(path)`` is the play-time entry point; ``refresh(path)`` is

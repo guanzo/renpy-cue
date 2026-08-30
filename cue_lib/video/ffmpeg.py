@@ -13,6 +13,7 @@ import threading
 import time as _time
 
 import renpy.config as _config
+import renpy.python as _renpy_python
 
 from cue_lib.util import _cue_log
 
@@ -106,7 +107,7 @@ def _cue_wait_proc(p, timeout=None):
         _time.sleep(0.05)
 
 
-class CueFFmpeg(object):
+class CueFFmpeg(_renpy_python.NoRollback):
     """Stateless ffmpeg/ffprobe backend -- detection, probing, command building.
 
     All subprocess calls are blocking (called from background threads by

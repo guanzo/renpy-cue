@@ -12,6 +12,7 @@ import shutil as _shutil
 import threading
 
 from renpy.store import Function
+import renpy.python as _renpy_python
 
 from cue_lib.constants import CUE_IMPORT_MANIFEST_NAME, CueImportMatch
 from cue_lib.db import _atomic_json_write
@@ -104,7 +105,7 @@ def _zip_mtime(zip_path):
         return 0.0
 
 
-class CueImportManager(object):
+class CueImportManager(_renpy_python.NoRollback):
     """Scans imports/*.zip, activates an import as a root-swap overlay, and
     merges selected categories into the real data tree."""
 

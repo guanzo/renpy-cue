@@ -24,7 +24,7 @@ def restore_pieces(zip_path: str, shared_dir: str, game_id: str) -> int: ...
 def restore_counts(zip_path: str, shared_dir: str, game_id: str) -> Tuple[int, int]: ...
 def restore_confirm_message(overwritten: int, added: int) -> str: ...
 
-class CueAutoBackupManager(object):
+class CueAutoBackupManager:
     _owner: CueBackupManager
     _last_backup_ts: float
     _backup_in_progress: bool
@@ -39,7 +39,7 @@ class CueAutoBackupManager(object):
     def _run_backup(self) -> None: ...
     def _prune_backups(self) -> None: ...
 
-class CueManualBackupManager(object):
+class CueManualBackupManager:
     _owner: CueBackupManager
     _db: Any
     _reload_work: Optional[Callable[[int], None]]
@@ -77,7 +77,7 @@ class CueManualBackupManager(object):
     def _finish_confirm(self) -> None: ...
     def _finish_reload(self) -> None: ...
 
-class CueBackupManager(object):
+class CueBackupManager:
     _paths: CuePaths
     _db: Any
     auto: CueAutoBackupManager

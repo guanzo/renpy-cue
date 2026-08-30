@@ -17,6 +17,7 @@
 
 import copy as _copy
 import renpy
+import renpy.python as _renpy_python
 
 from cue_lib.constants import CUE_VOLUME_DEFAULT, CueExclusiveStart, CueLoopFrequency
 from cue_lib.pool import CuePool
@@ -47,7 +48,7 @@ if MYPY:
     from cue_lib.state import CueContext  # pyright: ignore[reportUnusedImport]
 
 
-class ResolvedExclusive(object):
+class ResolvedExclusive(_renpy_python.NoRollback):
     """Resolved exclusive config snapshot. group 0 = Off."""
 
     def __init__(self, group=0, start=CueExclusiveStart.PLAY, hold=False):
@@ -65,7 +66,7 @@ class ResolvedExclusive(object):
         return "ResolvedExclusive(group={!r}, start={!r}, hold={!r})".format(self.group, self.start, self.hold)
 
 
-class ResolvedPool(object):
+class ResolvedPool(_renpy_python.NoRollback):
     """Immutable snapshot of a resolved pool.
 
     ``refs`` is the stored view -- the pool's own file refs (folder refs and
@@ -117,7 +118,7 @@ class ResolvedPool(object):
         )
 
 
-class CueMarkerStore(object):
+class CueMarkerStore(_renpy_python.NoRollback):
     """Marker entry data with file-backed persistence.
 
     ``on_save`` is called once after every DB write (single-key or batch);

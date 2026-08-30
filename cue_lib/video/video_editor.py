@@ -9,6 +9,7 @@ import renpy
 import renpy.config as _config
 
 from renpy.store import persistent
+import renpy.python as _renpy_python
 
 from cue_lib.video.ffmpeg import CueSubprocessTimeout
 from cue_lib.video.video_edit_queue import (
@@ -30,7 +31,7 @@ if MYPY:
     from cue_lib.state import CueContext  # pyright: ignore[reportUnusedImport]
 
 
-class CueVideoEditorTab(object):
+class CueVideoEditorTab(_renpy_python.NoRollback):
     """Video VFX section tabs.  `tab` on the editor is one of these."""
 
     SPEED = "speed"
@@ -38,7 +39,7 @@ class CueVideoEditorTab(object):
     CREATE = "create"
 
 
-class CueVideoEditorState(object):
+class CueVideoEditorState(_renpy_python.NoRollback):
     """Editing state for a single video file."""
 
     def __init__(self, vpath):
@@ -47,7 +48,7 @@ class CueVideoEditorState(object):
         self.last_error = ""
 
 
-class CueRpaExtractState(object):
+class CueRpaExtractState(_renpy_python.NoRollback):
     """Background .rpa extraction state.  The worker thread writes the
     ok/msg/done fields; poll_extract() (main thread) finalizes them into
     check_prerequisites + create."""
@@ -60,7 +61,7 @@ class CueRpaExtractState(object):
         self.vpath = None  # type: Optional[str]
 
 
-class CueVideoEditor(object):
+class CueVideoEditor(_renpy_python.NoRollback):
     """Change the playback speed of the currently-playing video."""
 
     SPEED_MIN = 0.1
