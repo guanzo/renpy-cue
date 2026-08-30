@@ -393,7 +393,6 @@ init 999 python:
         _cue_wrap_load()
         _cue_install_focus_pin()
         _cue_setup_mouse_cursor()
-        _cue_install_exception_handler()
 
     def _cue_install_callbacks():
         """SFX channels, the overlay layer, and the game hooks (after-load /
@@ -483,13 +482,20 @@ init 999 python:
     _v = getattr(renpy, "version_tuple", (0, 0, 0))
     _cue_log("INIT: renpy_version={}".format(".".join(str(x) for x in _v)))
 
-    _cue_logger.clear_logs()
-    _cue.keybinds.setup()
-    _cue_patch_runtime()
-    _cue_install_callbacks()
+    try:
+        # Last-resort error handler first, so any failure below is caught here
+        # and logged instead of crashing the game at startup.
+        _cue_install_exception_handler()
+        _cue_logger.clear_logs()
+        _cue.keybinds.setup()
+        _cue_patch_runtime()
+        _cue_install_callbacks()
 
-    if not _cue.initialized:
-        _cue_load_initial_data()
+        if not _cue.initialized:
+            _cue_load_initial_data()
 
-        _cue.initialized = True
-        _cue_log("INIT: Done in {:.3f}s".format(_time.time() - _t0))
+            _cue.initialized = True
+            _cue_log("INIT: Done in {:.3f}s".format(_time.time() - _t0))
+    except Exception:
+        # A mod bug must never crash the player's game: log and go inert.
+        _cue_logger.log_error("INIT: startup failed -- Cue disabled")
