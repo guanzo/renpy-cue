@@ -193,7 +193,9 @@ class UndoSnapshot(TypedDict):
     markers: Dict[str, MarkerEntry]
     presets: Dict[str, PoolDict]
     video_presets: Dict[str, VideoPreset]
-    session_created: Set[Tuple[str, str]]  # ("audio"|"video", name) created this session
+    music_presets: Dict[str, Any]
+    intensity_presets: Dict[str, Any]
+    session_created: Set[Tuple[str, str]]  # ("audio"|"video"|"music"|"intensity", name) created this session
 
 
 class ClipboardData(TypedDict):

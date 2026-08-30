@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# CueUndoManager -- snapshot-on-save undo/redo for markers, presets, and
-# video_presets.
+# CueUndoManager -- snapshot-on-save undo/redo for markers and all four
+# preset kinds (audio, video, music, intensity).
 #
 # Hooks into CueMarkerManager._post_save(): every time data is persisted,
 # we snapshot the three stores. A short time window dedupes compound operations
@@ -57,6 +57,8 @@ class CueUndoManager(object):
             "markers": _copy.deepcopy(m._data),
             "presets": _copy.deepcopy(ps.audio._presets),
             "video_presets": _copy.deepcopy(ps.video._presets),
+            "music_presets": _copy.deepcopy(ps.music._presets),
+            "intensity_presets": _copy.deepcopy(ps.intensity._presets),
             "session_created": set(ps._session_created),
         }
 
@@ -152,15 +154,21 @@ class CueUndoManager(object):
             old_marker_keys = set(store._data.keys())
             old_presets = ps.audio._presets
             old_video_presets = ps.video._presets
+            old_music_presets = ps.music._presets
+            old_intensity_presets = ps.intensity._presets
             old_session_created = set(ps._session_created)
             store._data = snap["markers"]
             ps.audio._presets = snap["presets"]
             ps.video._presets = snap["video_presets"]
+            ps.music._presets = snap["music_presets"]
+            ps.intensity._presets = snap["intensity_presets"]
             ps._session_created = set(snap["session_created"])
             store.save_all()
             ps.save_all()
             store.delete_removed_files(old_marker_keys)
-            ps.delete_removed_files(old_presets, old_video_presets, old_session_created)
+            ps.delete_removed_files(
+                old_presets, old_video_presets, old_music_presets, old_intensity_presets, old_session_created
+            )
         finally:
             self._recording = True
         # Seed _previous so the next real mutation pushes the correct

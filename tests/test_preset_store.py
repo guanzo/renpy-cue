@@ -187,7 +187,7 @@ def test_delete_removed_files_preset_only_when_session_created(presets, cue_env)
     presets._session_created = {("audio", "Sess")}
     old_presets = {"Sess": {"files": ["a.ogg"]}, "Old": {"files": ["b.ogg"]}}
     presets.audio._presets = {}  # restore drops both
-    presets.delete_removed_files(old_presets, {}, {("audio", "Sess")})
+    presets.delete_removed_files(old_presets, {}, {}, {}, {("audio", "Sess")})
 
     fresh = CuePresetStore(cue_env.db, lambda: None)
     fresh.load()
@@ -197,13 +197,13 @@ def test_delete_removed_files_preset_only_when_session_created(presets, cue_env)
 
 def test_delete_removed_files_keeps_present_preset(presets):
     presets.audio._presets["P"] = {"files": ["a.ogg"]}
-    presets.delete_removed_files({"P": {"files": ["a.ogg"]}}, {}, set())
+    presets.delete_removed_files({"P": {"files": ["a.ogg"]}}, {}, {}, {}, set())
     assert "P" in presets.audio._presets
 
 
 def test_delete_removed_files_keeps_present_video_preset(presets):
     presets.video._presets["VP"] = {"pools": [{"time": 1.0}]}
-    presets.delete_removed_files({}, {"VP": {"pools": [{"time": 1.0}]}}, set())
+    presets.delete_removed_files({}, {"VP": {"pools": [{"time": 1.0}]}}, {}, {}, set())
     assert "VP" in presets.video._presets
 
 
@@ -211,11 +211,45 @@ def test_delete_removed_files_deletes_session_video_preset(presets, cue_env):
     presets.video.create("VP", {"pools": [{"time": 1.0}]})
     old_video_presets = {"VP": presets.video._presets["VP"]}
     presets.video._presets = {}
-    presets.delete_removed_files({}, old_video_presets, {("video", "VP")})
+    presets.delete_removed_files({}, old_video_presets, {}, {}, {("video", "VP")})
 
     fresh = CuePresetStore(cue_env.db, lambda: None)
     fresh.load()
     assert "VP" not in fresh.video._presets
+
+
+def test_delete_removed_files_keeps_present_music_preset(presets):
+    presets.music._presets["Songs"] = {"files": ["a.ogg"]}
+    presets.delete_removed_files({}, {}, {"Songs": {"files": ["a.ogg"]}}, {}, set())
+    assert "Songs" in presets.music._presets
+
+
+def test_delete_removed_files_deletes_session_music_preset(presets, cue_env):
+    presets.music.create("Songs", ["a.ogg"])
+    old_music_presets = {"Songs": presets.music._presets["Songs"]}
+    presets.music._presets = {}
+    presets.delete_removed_files({}, {}, old_music_presets, {}, {("music", "Songs")})
+
+    fresh = CuePresetStore(cue_env.db, lambda: None)
+    fresh.load()
+    assert "Songs" not in fresh.music._presets
+
+
+def test_delete_removed_files_keeps_present_intensity_group(presets):
+    presets.intensity._presets["Ig"] = {"levels": [], "next_ilevel_id": 1}
+    presets.delete_removed_files({}, {}, {}, {"Ig": {"levels": [], "next_ilevel_id": 1}}, set())
+    assert "Ig" in presets.intensity._presets
+
+
+def test_delete_removed_files_deletes_session_intensity_group(presets, cue_env):
+    presets.intensity.create("Ig")
+    old_intensity = {"Ig": presets.intensity._presets["Ig"]}
+    presets.intensity._presets = {}
+    presets.delete_removed_files({}, {}, {}, old_intensity, {("intensity", "Ig")})
+
+    fresh = CuePresetStore(cue_env.db, lambda: None)
+    fresh.load()
+    assert "Ig" not in fresh.intensity._presets
 
 
 def test_load_no_db_resets(cue_env):
@@ -236,6 +270,14 @@ def test_post_save_invokes_on_save(cue_env):
     s.audio._presets["p1"] = {"files": ["a.ogg"], "volume": 0.5}
     s.audio.save("p1")
     s.audio._db_save("p1")
+    assert len(calls) == 2
+
+
+def test_music_and_intensity_writes_fire_on_save(cue_env):
+    calls = []
+    s = CuePresetStore(cue_env.db, lambda: calls.append(1))
+    s.music.create("Songs", ["a.ogg"])
+    s.intensity.create("Ig")
     assert len(calls) == 2
 
 

@@ -100,6 +100,8 @@ class CueMarkerManager:
         old_marker_keys: Set[str],
         old_presets: Dict[str, Any],
         old_video_presets: Dict[str, Any],
+        old_music_presets: Dict[str, Any],
+        old_intensity_presets: Dict[str, Any],
         old_session_created: Set[Tuple[str, str]],
     ) -> None: ...
     def load_persistent(self) -> None: ...

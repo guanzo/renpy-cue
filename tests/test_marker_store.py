@@ -501,7 +501,7 @@ def test_delete_removed_files_preset_only_when_session_created(store, cue_env):
     store._session_created = {("audio", "Sess")}
     old_presets = {"Sess": {"files": ["a.ogg"]}, "Old": {"files": ["b.ogg"]}}
     store._presets = {}  # restore drops both
-    store._preset_store.delete_removed_files(old_presets, {}, {("audio", "Sess")})
+    store._preset_store.delete_removed_files(old_presets, {}, {}, {}, {("audio", "Sess")})
 
     fresh = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
@@ -695,13 +695,13 @@ def test_delete_removed_files_no_db_returns(cue_env):
 
 def test_delete_removed_files_keeps_present_preset(store):
     store._presets["P"] = {"files": ["a.ogg"]}
-    store._preset_store.delete_removed_files({"P": {"files": ["a.ogg"]}}, {}, set())
+    store._preset_store.delete_removed_files({"P": {"files": ["a.ogg"]}}, {}, {}, {}, set())
     assert "P" in store._presets
 
 
 def test_delete_removed_files_keeps_present_video_preset(store):
     store._video_presets["VP"] = {"pools": [{"time": 1.0}]}
-    store._preset_store.delete_removed_files({}, {"VP": {"pools": [{"time": 1.0}]}}, set())
+    store._preset_store.delete_removed_files({}, {"VP": {"pools": [{"time": 1.0}]}}, {}, {}, set())
     assert "VP" in store._video_presets
 
 
@@ -709,7 +709,7 @@ def test_delete_removed_files_deletes_session_video_preset(store, cue_env):
     store.create_video_preset("VP", {"pools": [{"time": 1.0}]})
     old_video_presets = {"VP": store._video_presets["VP"]}
     store._video_presets = {}  # restore dropped it
-    store._preset_store.delete_removed_files({}, old_video_presets, {("video", "VP")})
+    store._preset_store.delete_removed_files({}, old_video_presets, {}, {}, {("video", "VP")})
 
     fresh = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()

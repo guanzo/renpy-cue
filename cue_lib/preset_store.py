@@ -296,10 +296,7 @@ class CueVideoPresets(CuePresets):
 
 
 class CueMusicPresets(CuePresets):
-    """Music presets: saved trigger song lists (game-agnostic, like SFX).
-
-    Music preset writes stay outside the undo snapshot (on_save is None), the
-    same as before the fold."""
+    """Music presets: saved trigger song lists (game-agnostic, like SFX)."""
 
     _kind = "music"
 
@@ -356,8 +353,8 @@ class CuePresetStore(object):
         self._session_created = set()  # ("audio"|"video"|"music"|"intensity", name)
         self.audio = CueAudioPresets(db, self._session_created, on_save)
         self.video = CueVideoPresets(db, self._session_created, on_save)
-        self.music = CueMusicPresets(db, self._session_created, None)
-        self.intensity = CueIntensityPresets(db, self._session_created, None)
+        self.music = CueMusicPresets(db, self._session_created, on_save)
+        self.intensity = CueIntensityPresets(db, self._session_created, on_save)
 
     def reload_presets(self):
         # type: () -> None
@@ -386,13 +383,17 @@ class CuePresetStore(object):
         if self._on_save is not None:
             self._on_save()
 
-    def delete_removed_files(self, old_presets, old_video_presets, old_session_created):
-        # type: (Dict[str, Any], Dict[str, Any], Set[Tuple[str, str]]) -> None
+    def delete_removed_files(
+        self, old_presets, old_video_presets, old_music_presets, old_intensity_presets, old_session_created
+    ):
+        # type: (Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any], Set[Tuple[str, str]]) -> None
         """Delete DB files for preset keys a restore just dropped.  See
         CuePresets.delete_removed_files; ``old_session_created`` is the
         pre-restore session-created set."""
         self.audio.delete_removed_files(old_presets, old_session_created)
         self.video.delete_removed_files(old_video_presets, old_session_created)
+        self.music.delete_removed_files(old_music_presets, old_session_created)
+        self.intensity.delete_removed_files(old_intensity_presets, old_session_created)
 
     # -- load --
 

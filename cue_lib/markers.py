@@ -300,8 +300,16 @@ class CueMarkerManager(object):
         self._store.save_all()
         self._store._preset_store.save_all()
 
-    def delete_removed_files(self, old_marker_keys, old_presets, old_video_presets, old_session_created):
-        # type: (Set[str], Dict[str, Any], Dict[str, Any], Set[Tuple[str, str]]) -> None
+    def delete_removed_files(
+        self,
+        old_marker_keys,
+        old_presets,
+        old_video_presets,
+        old_music_presets,
+        old_intensity_presets,
+        old_session_created,
+    ):
+        # type: (Set[str], Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any], Set[Tuple[str, str]]) -> None
         """Delete DB files for keys a restore just dropped from the stores.
 
         old_* capture the live stores BEFORE the restore swapped in new data.
@@ -312,7 +320,9 @@ class CueMarkerManager(object):
         on-disk entry still matches the entry being dropped. Never a
         directory sweep: files the store never loaded are left untouched."""
         self._store.delete_removed_files(old_marker_keys)
-        self._store._preset_store.delete_removed_files(old_presets, old_video_presets, old_session_created)
+        self._store._preset_store.delete_removed_files(
+            old_presets, old_video_presets, old_music_presets, old_intensity_presets, old_session_created
+        )
 
     # ------------------------------------------------------------------
     # Load / migration

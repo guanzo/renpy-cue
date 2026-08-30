@@ -54,6 +54,8 @@ class FakePresetStore(object):
     def __init__(self):
         self.audio = FakePresetCollection()
         self.video = FakePresetCollection()
+        self.music = FakePresetCollection()
+        self.intensity = FakePresetCollection()
         self._session_created = set()
         self.save_count = 0
         self.deleted = []
@@ -61,8 +63,12 @@ class FakePresetStore(object):
     def save_all(self):
         self.save_count += 1
 
-    def delete_removed_files(self, old_presets, old_video_presets, old_session_created):
-        self.deleted.append((old_presets, old_video_presets, set(old_session_created)))
+    def delete_removed_files(
+        self, old_presets, old_video_presets, old_music_presets, old_intensity_presets, old_session_created
+    ):
+        self.deleted.append(
+            (old_presets, old_video_presets, old_music_presets, old_intensity_presets, set(old_session_created))
+        )
 
 
 class FakeStore(object):
@@ -141,6 +147,23 @@ def test_redo_reapplies_undone_state(undo, store):
     assert store._data["k"] == {"pools": [[1.0, 2.0]]}
     assert not undo.can_redo()
     assert undo.can_undo()
+
+
+def test_undo_redo_covers_music_and_intensity_presets(undo, store):
+    undo.seed()
+    store._preset_store.music._presets["Songs"] = {"files": ["a.ogg"]}
+    store._preset_store.intensity._presets["Ig"] = {"levels": [], "next_ilevel_id": 1}
+    undo.capture()
+
+    undo.undo()
+    assert store._preset_store.music._presets == {}
+    assert store._preset_store.intensity._presets == {}
+    assert undo.can_redo()
+
+    undo.redo()
+    assert store._preset_store.music._presets == {"Songs": {"files": ["a.ogg"]}}
+    assert store._preset_store.intensity._presets == {"Ig": {"levels": [], "next_ilevel_id": 1}}
+    assert not undo.can_redo()
 
 
 def test_undo_with_empty_stack_is_noop(undo):
