@@ -21,8 +21,8 @@ if MYPY:
 class CueSettings(object):
     """Settings-page state and actions.
 
-    Owns the Shared Dir input and the external Music/SFX folder lists.
-    Methods are callable via Function() from the settings screens."""
+    Owns the Shared Dir input and the external Music/SFX folder lists.  Methods
+    are callable via Function() from the settings screens."""
 
     def __init__(self):
         self.setup_dir_text = ""  # text bound to the Shared Dir input

@@ -26,6 +26,7 @@ from cue_lib.music.manager import CueMusicManager
 from cue_lib.replays import CueReplayLibrary
 from cue_lib.thumbs import CueThumbManager
 from cue_lib.settings import CueSettings
+from cue_lib.audio.sync import CueSyncManager
 from cue_lib.keybinds import CueKeybindsManager
 from cue_lib.ui.icons import CueIconManager
 from cue_lib.paths import CuePaths
@@ -73,6 +74,7 @@ class Cue:
     auto_speed: CueAutoSpeedGenerator
     sfx: CueSfxManager
     settings: CueSettings
+    sync: CueSyncManager
     dialogs: CueDialogs
     keybinds: CueKeybindsManager
     icons: CueIconManager

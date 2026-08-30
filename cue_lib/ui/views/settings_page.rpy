@@ -2,6 +2,31 @@
 # Settings Page
 ###############################################################################
 
+init -900 python:
+    class CueAudioSyncValue(FieldValue):
+        # ms slider (0..LEAD_MAX) -> _cue.sync.sync_lead in seconds.
+        # Like _CueVolumeValue, changed() persists beyond the field write.
+        equality_fields = tuple(FieldValue.equality_fields)
+
+        def __init__(self):
+            FieldValue.__init__(
+                self, _cue.sync, "sync_lead", int(round(_cue.sync.LEAD_MAX * 1000)), step=1
+            )
+
+        def get_adjustment(self):
+            return ui.adjustment(
+                range=self.range,
+                value=int(round(_cue.sync.sync_lead * 1000)),
+                changed=self.changed,
+                step=self.step,
+                force_step=self.force_step,
+            )
+
+        def changed(self, value):
+            _cue.sync.set_sync_lead(value / 1000.0)
+            renpy.restart_interaction()
+
+
 screen cue_settings_page():
     style_group "cue"
 
@@ -20,6 +45,7 @@ screen cue_settings_page():
 
                 use cue_data_dir()
                 use cue_keybinds()
+                use cue_audio_sync()
                 use cue_backup_restore()
                 use cue_about()
 
@@ -133,6 +159,43 @@ screen cue_keybinds():
                             action=Function(_cue_keybind_reset, _kb["id"]),
                             tt="Reset to default",
                         )
+
+
+screen cue_audio_sync():
+    style_group "cue"
+
+    use cue_section_frame("Audio Sync"):
+        vbox:
+            spacing 8
+            etext ("Every device has its own audio delay. This calibrates Cue to fire "
+                "SFX early enough that they land exactly on the beat for your setup.")
+            hbox:
+                spacing 8
+                $ _is_sync_running = _cue.sync.is_running
+                use cue_txt_button(
+                    "Stop" if _is_sync_running else "Start",
+                    Function(_cue.sync.stop if _is_sync_running else _cue.sync.start),
+                    tt="Run the metronome: three tempo stages (slow / medium / fast), "
+                        "one click each, repeating.")
+            add CueSyncMetronome(_cue_scale_ui(420), _cue_scale_ui(62))
+            hbox:
+                spacing 5
+                $ _sync_ms = int(round(_cue.sync.sync_lead * 1000))
+                hbox:
+                    xsize 100
+                    etext "Offset: {} ms".format(_sync_ms)
+                bar:
+                    value CueAudioSyncValue()
+                    xsize 160
+                    ysize 14
+                    left_bar Solid(_cue_color_bar_active)
+                    right_bar Solid(_cue_color_bg_input)
+                    thumb Solid(_cue_color_text)
+                    hover_thumb Solid(_cue_color_text_white)
+                use cue_txt_button(
+                    "Reset",
+                    Function(_cue.sync.set_sync_lead, CUE_SFX_AUDIBLE_LEAD))
+            etext "Drag the slider until the SFX plays right as each marker pops."
 
 
 screen cue_backup_restore():

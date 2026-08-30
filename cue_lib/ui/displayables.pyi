@@ -46,6 +46,18 @@ class CueVideoMarkerTimeline(Displayable):
 def _cue_scale_ui(n: float) -> int: ...
 def _cue_sidebar_width_from_mouse(mx: int, panel: int) -> int: ...
 
+CUE_SYNC_POP_DURATION: float
+CUE_SYNC_POP_AMOUNT: float
+
+class CueSyncMetronome(Displayable):
+    TRACK_H: int
+    LINE_H: int
+    TAB_H: int
+    TAB_W: int
+    PAD_X: int
+    def __init__(self, width: int, height: int, **properties: Any) -> None: ...
+    def render(self, width: int, height: int, st: float, at: float) -> Any: ...
+
 class CueSidebarResizeHandle(Displayable):
     WIDTH: int
     _dragging: bool

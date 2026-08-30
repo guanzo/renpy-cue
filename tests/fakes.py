@@ -10,6 +10,7 @@ from cue_lib.paths import CuePaths
 from cue_lib.marker_store import CueMarkerStore
 from cue_lib.state import _cue
 from cue_lib.util import _cue_resolve_files
+from cue_lib.trigger.helpers import CUE_SFX_AUDIBLE_LEAD
 
 # Shared test doubles for cue_lib managers.
 #
@@ -513,6 +514,12 @@ def make_runtime_cue(root="", audio_dir=""):
     )
     cue.paths = _paths
     cue.settings = CueSettings()
+    # sync -- the calibrated audio lead lives on _cue.sync; the video trigger
+    # reads _cue.sync.sync_lead via getattr with a default, so a plain
+    # namespace suffices for the pure-python test paths.
+    cue.sync = types.SimpleNamespace(
+        sync_lead=CUE_SFX_AUDIBLE_LEAD, LEAD_MAX=0.3, is_running=False, set_sync_lead=lambda s: None
+    )
     cue.calls = {}
     cue.ensured_pools = []
 

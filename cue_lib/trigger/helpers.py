@@ -55,23 +55,27 @@ def _cue_pick_deduped(files, picked, max_tries=3):
         tries += 1
 
 
-def _cue_marker_lead(tick_interval, speed):
-    # type: (float, float) -> float
+def _cue_marker_lead(tick_interval, speed, audible_lead=CUE_SFX_AUDIBLE_LEAD):
+    # type: (float, float, float) -> float
     """Seconds (REFERENCE time) to fire a video marker early.
 
     Half the expected per-tick position advance (wall-clock tick interval *
-    speed) centers deltas on 0, plus CUE_SFX_AUDIBLE_LEAD * speed compensates
-    the fixed play-call-to-audible latency so each SFX is HEARD on its marker
-    instead of behind it.  Clamped to CUE_MARKER_LEAD_MAX; zero when the
-    cadence is unknown (first tick).  Sized from the real frame cadence -- not
-    the previous tick's position jump -- so it stays stable through get_pos()
+    speed) centers deltas on 0, plus audible_lead * speed compensates the
+    fixed play-call-to-audible latency so each SFX is HEARD on its marker
+    instead of behind it.  audible_lead is that latency guess in seconds;
+    the Audio Sync calibration (_cue.sfx.sync_lead) overrides it with a
+    tuned value.  Clamped to CUE_MARKER_LEAD_MAX (or the tuned lead itself,
+    so a calibrated value isn't silently capped); zero when the cadence is
+    unknown (first tick).  Sized from the real frame cadence -- not the
+    previous tick's position jump -- so it stays stable through get_pos()
     chunking and speed-variant changes, which a position-derived lead misreads."""
     if tick_interval <= 0.0:
         return 0.0
-    lead = (0.5 * tick_interval + CUE_SFX_AUDIBLE_LEAD) * speed
-    if lead > CUE_MARKER_LEAD_MAX:
-        return CUE_MARKER_LEAD_MAX
-    return min(lead, CUE_MARKER_LEAD_MAX)
+    lead = (0.5 * tick_interval + audible_lead) * speed
+    max_lead = max(CUE_MARKER_LEAD_MAX, audible_lead * max(1.0, speed))
+    if lead > max_lead:
+        return max_lead
+    return min(lead, max_lead)
 
 
 def _cue_marker_reached(mt, effective_elapsed, prev_eff, marker_tolerance, lead=0.0):

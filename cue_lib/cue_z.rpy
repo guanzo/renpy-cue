@@ -144,9 +144,11 @@ init -999 python:
     from cue_lib.ui.displayables import (
         CueSelfUpdatingLabel, CueVideoTimeline, CueVideoMarkerTimeline,
         CueTooltip, CueVideoMarkerTooltip, CueAutoSpeedChart,
-        CueKeyCaptureDisplayable, CueSidebarResizeHandle,
+        CueKeyCaptureDisplayable, CueSyncMetronome, CueSidebarResizeHandle,
         _cue_scale_ui, _cue_sidebar_poll_cursor, _cue_setup_mouse_cursor,
     )
+
+    from cue_lib.trigger.helpers import CUE_SFX_AUDIBLE_LEAD
 
     from cue_lib.ui.focus import _cue_install_focus_pin
 
@@ -197,6 +199,7 @@ init -900 python:
     from cue_lib.trigger import CueTriggerEngine
     from cue_lib.video.video import CueVideoManager
     from cue_lib.volume import CueVolumeManager
+    from cue_lib.audio.sync import CueSyncManager
     from cue_lib.music.manager import CueMusicManager
     from cue_lib.replays import CueReplayCast, CueReplayLibrary, _cue_speaker_label
     from cue_lib.video.repeater import CueMarkerRepeater
@@ -276,6 +279,7 @@ init -900 python:
             paths, db, volume, _cue.ctx, _cue._has_relative_volume, presets)
 
         settings = CueSettings()
+        sync = CueSyncManager(db)
         keybinds = CueKeybindsManager(db)
         icons = CueIconManager(paths)
         music = CueMusicManager(_cue.ctx, marker_store, db, paths, presets)
@@ -350,6 +354,7 @@ init -900 python:
             repeater=repeater)
 
         _cue.settings = settings
+        _cue.sync = sync
         _cue.keybinds = keybinds
         _cue.icons = icons
         _cue.undo = undo
@@ -370,6 +375,8 @@ init -900 python:
 init 999 python:
     import time as _time
     _t0 = _time.time()
+
+    from cue_lib.audio.sync import CUE_SYNC_CHANNEL
     
     if CUE_DEBUG:
         # Enable dev tools for this mod (Shift+R reload, Shift+O console)
@@ -403,6 +410,12 @@ init 999 python:
                 renpy.music.register_channel(
                     ch_name, "sfx", loop=False, stop_on_mute=True, tight=False
                 )
+
+        # Dedicated channel for the Audio Sync metronome click.
+        if not renpy.music.channel_defined(CUE_SYNC_CHANNEL):
+            renpy.music.register_channel(
+                CUE_SYNC_CHANNEL, "sfx", loop=False, stop_on_mute=True, tight=False
+            )
 
         # Create a layer above screens for the Cue UI, as a top layer so
         # scene transitions (with fade) never capture or transition it.

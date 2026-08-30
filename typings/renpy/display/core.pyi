@@ -11,3 +11,6 @@ class Displayable:
 
 class IgnoreEvent(Exception):
     pass
+
+
+def get_time() -> float: ...

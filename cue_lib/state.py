@@ -52,6 +52,7 @@ class Cue(_renpy_python.NoRollback):
         self.auto_speed = None
         self.sfx = None
         self.settings = None  # CueSettings
+        self.sync = None  # CueSyncManager (wired by cue_z.rpy init -900)
         self.dialogs = None  # CueDialogs (wired by cue_z.rpy init -900)
         self.keybinds = None
         self.icons = None

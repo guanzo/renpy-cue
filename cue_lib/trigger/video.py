@@ -5,7 +5,7 @@
 
 from cue_lib.state import _cue
 from cue_lib.trigger.exclusive import CUE_EXCL_KIND_VIDEO
-from cue_lib.trigger.helpers import _cue_marker_lead, _cue_marker_reached
+from cue_lib.trigger.helpers import CUE_SFX_AUDIBLE_LEAD, _cue_marker_lead, _cue_marker_reached
 from cue_lib.util import _cue_log, _cue_pick_file, create_vid_key
 
 MYPY = False
@@ -110,7 +110,10 @@ class CueVideoTrigger(object):
         marker_tolerance = 0.08
         # Lead compensation: fire up to half a tick's expected advance before
         # each marker so deltas center on 0 instead of always landing late.
-        marker_lead = _cue_marker_lead(tick_interval, speed)
+        # audible_lead comes from the Audio Sync calibration, so a tuned
+        # output-latency guess overrides the built-in default.
+        audible_lead = getattr(_cue.sync, "sync_lead", CUE_SFX_AUDIBLE_LEAD)
+        marker_lead = _cue_marker_lead(tick_interval, speed, audible_lead=audible_lead)
 
         for idx, pool_entry in enumerate(markers):
             is_preview = idx >= len(markers) - preview_count

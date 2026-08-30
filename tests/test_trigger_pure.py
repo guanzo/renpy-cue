@@ -145,6 +145,22 @@ def test_marker_lead_clamps_max():
     assert _trigger.helpers._cue_marker_lead(0.5, 1.6) == _trigger.helpers.CUE_MARKER_LEAD_MAX
 
 
+def test_marker_lead_audible_lead_param():
+    # calibration value shifts the lead: larger audible lead -> fires earlier,
+    # and the raised cap lets it survive (not clamped down to CUE_MARKER_LEAD_MAX)
+    base = _trigger.helpers._cue_marker_lead(0.0167, 1.0)
+    with_lead = _trigger.helpers._cue_marker_lead(0.0167, 1.0, audible_lead=0.3)
+    assert with_lead == pytest.approx(0.3)  # max(0.2, 0.3 * 1.0); the lead wins
+    assert with_lead > base
+    assert with_lead > _trigger.helpers.CUE_MARKER_LEAD_MAX
+
+
+def test_marker_lead_audible_lead_raises_cap():
+    # a big calibrated audible lead must not be clamped by the fixed default cap;
+    # the cap scales so the tuned value survives long intervals too
+    assert _trigger.helpers._cue_marker_lead(0.5, 1.6, audible_lead=0.3) == pytest.approx(0.3 * max(1.0, 1.6))
+
+
 # ---------------------------------------------------------------------------
 # _cue_td_missed_times (anomaly detector: markers past-due but never fired)
 # ---------------------------------------------------------------------------

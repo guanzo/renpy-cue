@@ -11,6 +11,7 @@ from renpy.display.core import Displayable, IgnoreEvent
 
 from cue_lib.state import _cue
 from cue_lib.util import _cue_escape_text, _cue_format_time, create_vid_key
+from cue_lib.audio.sync import CUE_SYNC_MARKER_FRACS
 from cue_lib.constants import CUE_DEBUG, CUE_INTENSITY_HINT_COLOR, CUE_INTENSITY_NOTE, CUE_UI_REF_WIDTH
 
 MYPY = False
@@ -849,6 +850,118 @@ class CueVideoMarkerTimeline(Displayable):
             return None
 
         return None
+
+
+# Metronome marker pop: how long a marker grows after the playhead reaches it
+# and how much it scales.  Markers' positions are shared with the click
+# scheduler via CUE_SYNC_MARKER_FRACS in cue_lib/audio/sync.py.
+CUE_SYNC_POP_DURATION = 0.18
+CUE_SYNC_POP_AMOUNT = 0.5
+
+
+class CueSyncMetronome(Displayable):
+    """Clock-driven metronome sweep for the Audio Sync calibration.
+
+    Three markers sit on the track inset from both ends (equidistant from each
+    other and from the edges), styled like the video marker timeline: a short
+    stub hanging below the bar, then a numbered tab below it.  Each stage --
+    slow -> medium -> fast -> repeat -- sweeps the playhead continuously from
+    the left edge to the right end; a marker pops the moment the playhead
+    reaches it, independent of when the click fires.  Driven by
+    renpy.display.core.get_time() -- wall clock, NOT get_pos() -- so the sweep
+    stays buttery while the video playhead is not."""
+
+    TRACK_H = 10
+    LINE_H = 8
+    TAB_H = 14
+    TAB_W = 14
+    PAD_X = 4
+
+    def __init__(self, width, height, **properties):
+        super(CueSyncMetronome, self).__init__(**properties)
+        self._w = width
+        self._h = height
+        self._track_h = _cue_scale_ui(self.TRACK_H)
+        self._line_h = _cue_scale_ui(self.LINE_H)
+        self._tab_w = _cue_scale_ui(self.TAB_W)
+        self._tab_h = _cue_scale_ui(self.TAB_H)
+        self._pad = _cue_scale_ui(self.PAD_X)
+
+    def render(self, width, height, st, at):
+        # type: (int, int, float, float) -> Any
+        r = renpy.Render(self._w, self._h)
+        c = r.canvas()
+        sync = _cue.sync
+        now = renpy.display.core.get_time()
+
+        # tick first so the click schedule and the sweep (phase) are current
+        # this frame.  The sweep is pure wall-clock; clicks never move it.
+        sync.tick(now)
+
+        is_running = sync.is_running
+        frac = sync.phase(now) if is_running else 0.0
+        stage_dur = sync.stage_duration() if is_running else 0.0
+
+        # Geometry mirrors CueVideoMarkerTimeline: track bar on top, markers
+        # hanging below it (stub touching the bar, then the numbered tab).  The
+        # track is inset by half a tab on each end so the end marker's tab fits.
+        tab_w = self._tab_w
+        track_x0 = self._pad + tab_w // 2
+        track_w = max(1, self._w - 2 * self._pad - tab_w)
+        track_y = _cue_scale_ui(16)
+
+        def marker_x(frac):
+            return track_x0 + int(frac * track_w)
+
+        # Pop: a marker scales up the moment the playhead reaches it and decays
+        # over CUE_SYNC_POP_DURATION.  This ties the pop to the beat (the
+        # playhead crossing the marker), not to when the click fires, so the
+        # user tunes the lead until the heard click lines up with the pop.
+        pop_scale = 1.0
+        pop_idx = -1
+        if is_running:
+            for i, mfrac in enumerate(CUE_SYNC_MARKER_FRACS):
+                elapsed = (frac - mfrac) * stage_dur
+                if 0 <= elapsed <= CUE_SYNC_POP_DURATION:
+                    pop_scale = 1.0 + CUE_SYNC_POP_AMOUNT * (1.0 - elapsed / CUE_SYNC_POP_DURATION)
+                    pop_idx = i
+                    break
+
+        # Always visible: track bar + the 3 numbered marker tabs.
+        c.rect("#3a3a3a", (track_x0, track_y, track_w, self._track_h))
+        for i, mfrac in enumerate(CUE_SYNC_MARKER_FRACS):
+            mx = marker_x(mfrac)
+            is_pop = i == pop_idx and pop_scale > 1.0
+            lc = "#ffffff" if is_pop else "#666666"
+            bg = "#669966" if is_pop else "#444444"
+            # Stub hangs below the bar; the tab sits below the stub (video
+            # style: markers live entirely below the timeline).
+            c.rect(lc, (mx - 1, track_y + self._track_h, 2, self._line_h))
+            bw = int(tab_w * pop_scale) if is_pop else tab_w
+            bh = int(self._tab_h * pop_scale) if is_pop else self._tab_h
+            by = track_y + self._track_h + self._line_h
+            if is_pop:
+                by += (self._tab_h - bh) // 2
+            c.rect(bg, (mx - bw // 2, by, bw, bh))
+            txt = Txt(str(i + 1), style="cue_button_text", color="#ffffff")
+            tr = renpy.render(txt, bw, bh, st, at)
+            tw, th = tr.get_size()
+            r.blit(tr, (mx - tw // 2, by + (bh - th) // 2))
+
+        if is_running:
+            # Playhead: sweeps continuously across the whole bar (0..1) so it
+            # reaches the right end before the stage restarts.  As tall as the
+            # track bar only.
+            px = marker_x(min(frac, 1.0))
+            c.rect("#ffffff", (px - 1, track_y, 2, self._track_h))
+
+            lbl = Txt(sync.stage_label(), style="cue_text", size=_cue_scale_ui(11), color="#aaaaaa")
+            lr = renpy.render(lbl, self._w, self._h, st, at)
+            r.blit(lr, (self._pad + 4, 0))
+
+        if is_running:
+            renpy.redraw(self, 0.016)
+        return r
 
 
 class CueSidebarResizeHandle(Displayable):

@@ -247,6 +247,9 @@ CUE_SHARED_CONFIG_FILENAME = "cue_config.json"
 # are lists of absolute paths (settings.py writes them, trees consume them).
 CUE_SHARED_KEY_MUSIC_FOLDERS = "music_folders"
 CUE_SHARED_KEY_SFX_FOLDERS = "sfx_folders"
+# Seconds of audible-lead calibration (Settings > Audio Sync): how early
+# video SFX fires so it's HEARD on its marker.  Follows the user across games.
+CUE_SHARED_KEY_AUDIO_SYNC_LEAD = "audio_sync_lead"
 
 # The single manual backup is {shared}/backups/renpy_cue_backup.zip.
 CUE_MANUAL_BACKUP_NAME = "renpy_cue_backup.zip"

@@ -78,6 +78,7 @@ CUE_KEYMAP_TARGET_LOOP: Final = "cue_target_loop"
 CUE_SHARED_CONFIG_FILENAME: Final = "cue_config.json"
 CUE_SHARED_KEY_MUSIC_FOLDERS: Final = "music_folders"
 CUE_SHARED_KEY_SFX_FOLDERS: Final = "sfx_folders"
+CUE_SHARED_KEY_AUDIO_SYNC_LEAD: Final = "audio_sync_lead"
 CUE_MANUAL_BACKUP_NAME: Final = "renpy_cue_backup.zip"
 CUE_IMPORT_MANIFEST_NAME: Final = "manifest.json"
 CUE_HASH_TRUNC_LEN: Final = 8
