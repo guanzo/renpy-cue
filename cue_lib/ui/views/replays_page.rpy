@@ -44,8 +44,8 @@ screen cue_scene_row(entry, in_replay, play_action=None, play_sensitive=None):
     $ _label = entry["replay"]
     $ _exists = renpy.has_label(_label)
     $ _thumb = _cue.replays.thumbs.thumb_for(_label)
-    $ _th_w = _cue_scale_ui(64)
-    $ _th_h = _cue_scale_ui(36)
+    $ _th_w = _cue_scale_ui(96)
+    $ _th_h = _cue_scale_ui(54)
     $ _chips = _cue.replays.cast_filter.chips_for(_label)
     $ _mc = entry["marker_count"]
     $ _mc_text = "{} marker".format(_mc) if _mc == 1 else "{} markers".format(_mc)
@@ -94,14 +94,14 @@ screen cue_scene_row(entry, in_replay, play_action=None, play_sensitive=None):
             vbox:
                 spacing 2
                 hbox:
-                    spacing 6
+                    spacing 5
                     etext _label color _cue_color_text_accent
                     if in_replay == _label:
                         etext "(now playing)" color _cue_color_text_muted
                 hbox:
-                    spacing 4
+                    spacing 5
                     for _chip in _chips:
                         frame:
                             style "cue_select_chip"
                             etext _chip style "cue_select_chip_text"
-                    etext _mc_text color _cue_color_text_muted yalign 0.5
+                etext _mc_text color _cue_color_text_muted yalign 0.5

@@ -307,11 +307,6 @@ init -900 python:
         # cycle with the same late-bind pattern as video_sequence.bind.
         sfx_manager.bind_markers(markers)
 
-        # The "Recently Used" list lives on the SFX library tree: it records
-        # SFX send_* attempts (the marker contexts funnel through
-        # sfx_manager.library._recent).  Its prune existence check reads both
-        # sfx_manager.library.files and _cue.presets.audio.list() at call time, so it is
-        # built here where both are in scope.
         sfx_manager.library._recent = CueRecentManager(
             "recent_entries",
             lambda kind, ref: _cue_keep_sfx(kind, ref, sfx_manager.library.files, _cue.presets.audio.list()))
@@ -320,10 +315,6 @@ init -900 python:
         # tree only needs its own constructors at build time.
         sfx_manager.library._intensity = intensity
 
-        # Music's "Recently Used" list lives on the music manager: it records
-        # add-to-trigger attempts through music's own _add_ref_to_trigger funnel.
-        # Its prune existence check reads the library's per-source files at call
-        # time, so it is built here and only loaded once both scans ran.
         music._recent = CueRecentManager(
             "recent_music_entries",
             lambda kind, ref: _cue_keep_music(kind, ref, music.library))

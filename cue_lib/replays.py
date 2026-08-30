@@ -123,6 +123,9 @@ class CueReplayLibrary(object):
         # type: () -> None
         labels = _cue_replay_counts_from_store(self._marker_store._data)
         self.entries = [{"replay": label, "marker_count": count} for label, count in labels]
+        # The thumbnail fallback map is derived from the same store data, so a
+        # marker change (add/remove a filepath) must drop the cached map.
+        self.thumbs._fallbacks = None
         # The cast filter's options and per-replay matching need every cast
         # file, not just the ones discovered live this session.
         self.cast.load_all()

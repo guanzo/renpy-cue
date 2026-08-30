@@ -32,13 +32,30 @@ init 1000 python:
     # state -- the fields exist across both DSLs.
     def _cue_test_reset():
         _cue.replays.thumbs.disable()
+        # set_page is a no-op on the already-active page, so a prior testcase
+        # leaving active_page set would skip the target's scan().
+        _cue.overlay.active_page = CuePage.SFX
+        # The test game's start label never clears the scene, so a prior
+        # testcase's displayable stays on the master layer.  Re-showing a
+        # different image then puts the new one BELOW the stale top entry and
+        # fire_context never sees the intended change.  Clear the layer FIRST
+        # so the reload's context refresh sees a genuinely empty scene instead
+        # of re-setting ctx.current_file from a stale displayable.
+        renpy.scene()
+        # A full reload re-derives every disk-backed layer -- markers, presets,
+        # libraries, replays, thumbs, undo -- from the current root.  Any
+        # in-memory marker seed a prior testcase left behind is wiped here, so
+        # the disk-derived state never leaks.
+        _cue_full_reload()
+        # Runtime-driver leaks that aren't disk-backed and survive a reload.
         _cue.trigger.active = True
         _cue.trigger.last_played = []
         _cue.trigger.reset()
         _cue.trigger.excl.channels.clear()
+        # The empty scene leaves the settled context stale; clear it so the
+        # next show is a genuine change and the trigger tick has no phantom
+        # target.
         _cue.current_file = ""
-        # Empty scene leaves top_layer_type stale; clear it so the target
-        # fallback doesn't point at a movie that isn't on screen.
         _cue.top_layer_type = ""
         _cue.current_dialogue = ""
         _cue.prev_dialogue = ""
@@ -50,34 +67,21 @@ init 1000 python:
         _cue.music.last_event = None
         _cue.music._pending = None
         renpy.store._in_replay = None
-        # The test game's start label never clears the scene, so a prior
-        # testcase's displayable stays on the master layer.  Re-showing a
-        # different image then puts the new one BELOW the stale top entry and
-        # fire_context never sees the intended change.  Clear the layer so each
-        # show is a genuine context change (mirrors a real game's scene cut).
-        renpy.scene()
 
     def _cue_scenes_seed():
-        # Seed two marker files for the Scenes page: one valid replay and one
-        # whose label no longer exists (the page disables play + shows a
-        # warning for the latter).  Removed by _cue_scenes_cleanup.
-        import os as _os
-        import json as _json
-        _mdir = _cue.paths.marker_dir
-        if not _os.path.isdir(_mdir):
-            _os.makedirs(_mdir)
-        for _name, _label in (("v_scene_harness.ogv.json", "replay_harness"),
-                              ("v_stale_harness.ogv.json", "no_such_label_harness")):
-            with open(_os.path.join(_mdir, _name), "w") as _f:
-                _f.write(_json.dumps({"_key": _name.split(".json")[0], "replay": _label, "pools": []}))
+        # Seed two markers through the store, not raw disk writes: scan() and
+        # thumb_for() read the store's in-memory _data, so a marker that only
+        # lands on disk is invisible to them.  One replay is valid, one whose
+        # label no longer exists (the page disables play + shows a warning for
+        # the latter).  Removed by _cue_scenes_cleanup.
+        for _key, _label in (("v_scene_harness.ogv", "replay_harness"),
+                             ("v_stale_harness.ogv", "no_such_label_harness")):
+            _cue.markers[_key] = {"_key": _key, "replay": _label, "pools": []}
 
     def _cue_scenes_cleanup():
-        import os as _os
-        _mdir = _cue.paths.marker_dir
-        for _name in ("v_scene_harness.ogv.json", "v_stale_harness.ogv.json"):
-            _p = _os.path.join(_mdir, _name)
-            if _os.path.exists(_p):
-                _os.remove(_p)
+        for _key in ("v_scene_harness.ogv", "v_stale_harness.ogv"):
+            if _key in _cue.markers:
+                _cue.markers.pop(_key)
 
     # Runtime intensity fixtures: create real soft//hard//empty/ level folders
     # under the audio dir (and remove them again) so the resolver and fire-path
@@ -348,17 +352,13 @@ testcase scene_row_thumbnails:
     # scene with no thumb.  Seed an image-carrying marker alongside the
     # placeholder-only scenes from scenes_page_render.
     $ _cue_scenes_seed()
-    $ import os as _os
-    $ import json as _json
-    $ _mdir = _cue.paths.marker_dir
-    $ _p = _os.path.join(_mdir, "v_thumb_harness.ogv.json")
-    $ open(_p, "w").write(_json.dumps({"_key": "v_thumb_harness.ogv", "replay": "replay_harness", "pools": [], "filepath": "renpy_cue/cue_lib/images/icons/gear-solid.png"}))
+    $ _cue.markers["v_thumb_harness.ogv"] = {"_key": "v_thumb_harness.ogv", "replay": "replay_harness", "pools": [], "filepath": "renpy_cue/cue_lib/images/icons/gear-solid.png"}
     run Function(_cue.overlay.set_page, CuePage.REPLAYS)
     pause 0.5
     $ _ok = _cue.replays.thumbs.thumb_for("replay_harness") == "renpy_cue/cue_lib/images/icons/gear-solid.png"
     $ _ok = _ok and _cue.replays.thumbs.thumb_for("no_such_label_harness") is None
     $ _cue_scenes_cleanup()
-    $ _os.remove(_p)
+    $ _cue.markers.pop("v_thumb_harness.ogv")
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 
