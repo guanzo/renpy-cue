@@ -91,13 +91,13 @@ screen cue_scene_row(entry, in_replay):
                 spacing 2
                 hbox:
                     spacing 6
-                    etext _label color _cue_color_text_accent size 11
+                    etext _label color _cue_color_text_accent
                     if in_replay == _label:
-                        etext "(now playing)" color _cue_color_text_muted size 11
+                        etext "(now playing)" color _cue_color_text_muted
                 hbox:
                     spacing 4
                     for _chip in _chips:
                         frame:
                             style "cue_select_chip"
                             etext _chip style "cue_select_chip_text"
-                    etext _mc_text color _cue_color_text_muted size 11 yalign 0.5
+                    etext _mc_text color _cue_color_text_muted yalign 0.5

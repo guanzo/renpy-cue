@@ -21,13 +21,14 @@ from cue_lib.sharing.importer_io import (
     _cue_external_roots,
     _cue_replay_assets_full,
     _cue_sanitize_filename,
+    _cue_thumbs_cache_rel,
 )
 from cue_lib.util import _cue_log
 
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List, Set, Tuple  # pyright: ignore[reportUnusedImport]
+    from typing import Any, Dict, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
 
 
 class CueExportManager(object):
@@ -205,11 +206,27 @@ class CueExportManager(object):
         """(contents, marker_arcnames) for the current scope.
 
         marker_arcnames are the in-scope markers, so the export thread can hunt
-        each for absolute external refs to bake.  A no-op scope (nothing
+        each for absolute external refs to bake.  The scene-thumbnail cache
+        rides along in either scope when present.  A no-op scope (nothing
         checked) yields ([], [])."""
         if self.scope == CueExportScope.SPECIFIC_REPLAYS:
-            return self._replay_selection()
-        return self._category_selection()
+            contents, marker_arcnames = self._replay_selection()
+        else:
+            contents, marker_arcnames = self._category_selection()
+        cache_arc = self._cache_arcname()
+        if cache_arc and cache_arc not in contents:
+            contents.append(cache_arc)
+        return contents, marker_arcnames
+
+    def _cache_arcname(self):
+        # type: () -> Optional[str]
+        """The scene-thumbnail mapping arcname when a cache exists on disk,
+        else None.  Exports snapshot whatever mapping the game has downloaded
+        -- never fabricate thumbnails it hasn't got."""
+        rel = _cue_thumbs_cache_rel()
+        if os.path.isfile(os.path.join(self._paths.original_root, rel.replace("/", os.sep))):
+            return rel
+        return None
 
     def _category_selection(self):
         # type: () -> Tuple[List[str], List[str]]

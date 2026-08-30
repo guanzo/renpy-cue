@@ -561,6 +561,55 @@ def test_export_replay_packs_only_that_replay(cue_env):
     assert "audio/a.ogg" in names
 
 
+def test_export_includes_thumbs_cache_in_whole_game(cue_env):
+    # The scene-thumbnail cache is runtime data that rides every export so an
+    # import (and its preview hotswap) shows dev-selected thumbs, not the
+    # marker-filepath fallback.
+    _seed(cue_env, [("data/markers/{}/v_a.json".format(GAME_ID), "{}"), ("data/cue_thumbs.json", '{"games": {}}')])
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    mgr.name = "Thumbs"
+
+    _export_and_join(mgr)
+
+    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Thumbs.zip")) as zf:
+        names = set(zf.namelist())
+    assert "data/cue_thumbs.json" in names
+
+
+def test_export_includes_thumbs_cache_in_replay_scope(cue_env):
+    _seed(
+        cue_env,
+        [
+            ("audio/a.ogg", "a"),
+            ("data/markers/{}/r1.json".format(GAME_ID), '{"replay": "Run 1", "pools": [{"files": ["audio/a.ogg"]}]}'),
+            ("data/cue_thumbs.json", '{"games": {}}'),
+        ],
+    )
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+
+    mgr.export_replay("Run 1")
+    mgr._export_thread.join()
+
+    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Run 1.zip")) as zf:
+        names = set(zf.namelist())
+    assert "data/cue_thumbs.json" in names
+
+
+def test_export_omits_thumbs_cache_when_absent(cue_env):
+    _seed(cue_env, [("data/markers/{}/v_a.json".format(GAME_ID), "{}")])
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    mgr.name = "NoThumbs"
+
+    _export_and_join(mgr)
+
+    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "NoThumbs.zip")) as zf:
+        names = set(zf.namelist())
+    assert "data/cue_thumbs.json" not in names
+
+
 def test_current_replay_reads_store(cue_env, monkeypatch):
     import renpy
 

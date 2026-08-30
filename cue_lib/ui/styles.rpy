@@ -3,8 +3,9 @@
 # Styles — all properties explicit, no inheritance
 ###############################################################################
 
-# Color defines must exist before init-time style blocks in components.rpy
-# reference them (components.rpy sorts before styles.rpy). Run them earlier.
+# Color defines must exist before init-time style blocks in
+# components/screens.rpy reference them. Run them earlier so the
+# engine's (unspecified) file load order can't matter.
 init offset = -1
 
 # --- Surfaces (dark theme, darkest → lightest) ---

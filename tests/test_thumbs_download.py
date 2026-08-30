@@ -89,7 +89,7 @@ def _make_manager(tmp_path, fetcher):
 
 
 def _cache_path(tmp_path):
-    return os.path.join(str(tmp_path / "cue_root"), "data", "cache", "cue_thumbs.json")
+    return os.path.join(str(tmp_path / "cue_root"), "data", "cue_thumbs.json")
 
 
 def _write_cache(tmp_path, content):

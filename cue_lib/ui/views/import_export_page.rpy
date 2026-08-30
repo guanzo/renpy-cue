@@ -49,12 +49,12 @@ screen cue_export_section():
                 else:
                     if _current_has_data:
                         $ _in_replay_line = (
-                            "You're in \"{}\" now:".format(_current_replay))
+                            "Current scene: \"{}\":".format(_current_replay))
                         hbox:
                             spacing 8
                             etext _in_replay_line color _cue_color_text_muted
                             use cue_txt_button(
-                                "Export this scene",
+                                "Export",
                                 Function(_exporter.export_replay, _current_replay))
                     hbox:
                         spacing 8

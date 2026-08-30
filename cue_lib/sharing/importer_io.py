@@ -33,7 +33,7 @@ from cue_lib.constants import (
     CueImportCategory,
     CueImportMatch,
 )
-from cue_lib.paths import CuePaths
+from cue_lib.paths import CuePaths, CUE_THUMBS_CACHE_NAME
 from cue_lib.util import _cue_is_abs_path, _cue_log, _cue_replace_file, _to_str
 
 MYPY = False
@@ -100,6 +100,21 @@ def _cue_known_content(path):
     prefixes and carrying that category's extension (case-insensitive)."""
     exts = _CUE_CATEGORY_EXTS.get(_cue_import_category(path))
     return exts is not None and path.lower().endswith(exts)
+
+
+def _cue_thumbs_cache_rel():
+    # type: () -> str
+    """Zip-relative path of the scene-thumbnail mapping file.  Runtime data
+    that rides exports so an import (and its preview) shows dev-selected scene
+    thumbnails instead of the marker-filepath fallback; never a user-facing
+    category."""
+    return "data/" + CUE_THUMBS_CACHE_NAME
+
+
+def _cue_is_cache_arc(rel):
+    # type: (str) -> bool
+    """True when rel is the scene-thumbnail mapping cache file."""
+    return rel == _cue_thumbs_cache_rel()
 
 
 # --------------------------------------------------------------------------
@@ -411,6 +426,13 @@ def _cue_replay_assets_full(root, game_id, replay_labels):
     if has_video:
         for rel in _cue_collect_tree(root, paths.video_dir):
             _cue_add_asset(result, CueImportCategory.SPEED_VARIANTS, rel)
+    # Per-replay metadata subdirs ride with their replay: the cast file
+    # (replays/<label>.json) and the default-music trigger log
+    # (music_triggers/<label>.json).  Both are marker-dir children, not
+    # markers, and travel only for the selected replays.
+    for label in sorted(labels):
+        _cue_add_marker_subdir_asset(result, root, game_id, "replays", label)
+        _cue_add_marker_subdir_asset(result, root, game_id, "music_triggers", label)
     return result, len(external_refs)
 
 
@@ -425,6 +447,10 @@ def _cue_manifest_replays(root, game_id, contents):
     counts = {}
     for rel in contents:
         if not rel.startswith(prefix) or not rel.endswith(".json"):
+            continue
+        # Only direct children of the marker dir are markers; the replays/
+        # and music_triggers/ subdirs hold per-replay metadata, not scenes.
+        if "/" in rel[len(prefix) :]:
             continue
         entry = _cue_read_json_file(os.path.join(root, rel))
         if not isinstance(entry, dict):
@@ -441,6 +467,20 @@ def _cue_add_asset(result, cat, rel):
     files = result.setdefault(cat, [])
     if rel not in files:
         files.append(rel)
+
+
+def _cue_marker_subdir_rel(game_id, subdir, label):
+    # type: (str, str, str) -> str
+    """Rel arcname of a per-replay metadata file (cast, music trigger)."""
+    return "data/markers/{}/{}/{}.json".format(game_id, subdir, label)
+
+
+def _cue_add_marker_subdir_asset(result, root, game_id, subdir, label):
+    # type: (Dict[int, List[str]], str, str, str, str) -> None
+    """Add a per-replay metadata file to the export when it exists on disk."""
+    rel = _cue_marker_subdir_rel(game_id, subdir, label)
+    if os.path.isfile(os.path.join(root, rel.replace("/", os.sep))):
+        _cue_add_asset(result, CueImportCategory.MARKERS, rel)
 
 
 def _cue_audio_rel(ref):
@@ -870,7 +910,7 @@ def _cue_extract_import_zip(zip_path, out_dir, progress=None):
             name = info.filename
             if name.endswith("/"):
                 continue
-            if name != CUE_IMPORT_MANIFEST_NAME and not _cue_known_content(name):
+            if name != CUE_IMPORT_MANIFEST_NAME and not _cue_known_content(name) and not _cue_is_cache_arc(name):
                 _cue_log("IMPORT: skipped unexpected file: {}".format(name))
                 continue
             infos.append(info)
@@ -975,7 +1015,7 @@ def _cue_merge_overwrites(root, contents):
     the merge dialog's overwrite summary.  Non-cue paths are never counted."""
     out = []
     for rel in contents:
-        if not _cue_known_content(rel):
+        if not _cue_known_content(rel) and not _cue_is_cache_arc(rel):
             continue
         dest = _safe_extract_path(root, rel)
         if dest is not None and os.path.isfile(dest):
@@ -991,7 +1031,7 @@ def _cue_merge_files(root, src_root, contents):
     stays intact for re-extract recovery.  Returns the number of files merged."""
     count = 0
     for rel in contents:
-        if not _cue_known_content(rel):
+        if not _cue_known_content(rel) and not _cue_is_cache_arc(rel):
             continue
         src = _safe_extract_path(src_root, rel)
         if src is None or not os.path.isfile(src):

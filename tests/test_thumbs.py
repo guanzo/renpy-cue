@@ -36,7 +36,7 @@ def _write(root, rel, content):
 
 
 def _shipped_path(root):
-    return os.path.join(root, "data", "cache", "cue_thumbs.json")
+    return os.path.join(root, "data", "cue_thumbs.json")
 
 
 def _write_shipped(root, entries):

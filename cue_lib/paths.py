@@ -37,7 +37,7 @@ CUE_BACKUP_DIR = "backups"
 CUE_BACKUP_AUTO_DIR = "auto"
 
 # Filename of the merged scene-thumbnail mapping, downloaded at runtime into
-# {root}/data/cache/.  The same name is the release asset, so it is a contract.
+# {root}/data/.  The same name is the release asset, so it is a contract.
 CUE_THUMBS_CACHE_NAME = "cue_thumbs.json"
 
 
@@ -277,16 +277,12 @@ class CuePaths(object):
         # type: () -> str
         return os.path.join(self.root, "video", self._game_id).replace("\\", "/") + "/"
 
-    @property
-    def cache_dir(self):
-        # type: () -> str
-        """Runtime-only downloads (scene-thumbnail mapping).  Never user
-        data: excluded from backups and exports."""
-        return os.path.join(self.root, "data", "cache") + "/"
-
     def thumbs_cache_path(self):
         # type: () -> str
-        return os.path.join(self.cache_dir, CUE_THUMBS_CACHE_NAME)
+        """The scene-thumbnail mapping file under data/.  Downloaded at runtime
+        from the release asset and shipped with exports so an import shows
+        dev-selected thumbnails; included in backups like any data/ file."""
+        return os.path.join(self.root, "data", CUE_THUMBS_CACHE_NAME)
 
     @property
     def shared_config_path(self):

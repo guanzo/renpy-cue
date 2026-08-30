@@ -4,7 +4,7 @@
 #
 # The mapping is one merged JSON published with each release
 # (cue_thumbs.json); CueThumbManager fetches it once per session on a
-# background thread, caches it in the shared tree (data/cache), and replaces
+# background thread, caches it in the shared tree (data/), and replaces
 # the cache only when the remote scraped date is newer.  Regenerating the
 # mapping is a scraper job (.local/scripts/scrape_thumbnails.py), not a code
 # change.

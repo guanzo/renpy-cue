@@ -469,6 +469,92 @@ def test_replay_export_import_roundtrip_includes_intensity_group(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# per-replay metadata subdirs -- cast (replays/) and default-music triggers
+# ---------------------------------------------------------------------------
+
+
+def test_replay_assets_includes_cast_and_music_triggers(tmp_path):
+    """Per-replay metadata lives in marker-dir subdirs: the cast characters
+    under replays/ and the default-music trigger log under music_triggers/.
+    A replay-scoped export must bring the selected replay's files and leave
+    other replays' alone."""
+    root = str(tmp_path / "root")
+    for rel, content in [
+        ("data/markers/{}/scene.json".format(GAME_ID), _json.dumps({"replay": "Run 1", "pools": []})),
+        ("data/markers/{}/replays/Run 1.json".format(GAME_ID), _json.dumps({"replay": "Run 1", "characters": ["Eve"]})),
+        (
+            "data/markers/{}/music_triggers/Run 1.json".format(GAME_ID),
+            _json.dumps([{"key_before": "v_a", "filepaths": ["music/x.ogg"]}]),
+        ),
+        ("data/markers/{}/replays/Other.json".format(GAME_ID), _json.dumps({"replay": "Other", "characters": []})),
+        ("data/markers/{}/music_triggers/Other.json".format(GAME_ID), "[]"),
+    ]:
+        _write(root, rel, content)
+
+    assets = _imp._cue_replay_assets(root, GAME_ID, ["Run 1"])
+    flat = [f for fs in assets.values() for f in fs]
+
+    assert "data/markers/{}/replays/Run 1.json".format(GAME_ID) in flat
+    assert "data/markers/{}/music_triggers/Run 1.json".format(GAME_ID) in flat
+    assert "data/markers/{}/replays/Other.json".format(GAME_ID) not in flat
+    assert "data/markers/{}/music_triggers/Other.json".format(GAME_ID) not in flat
+
+
+def test_manifest_replays_counts_only_direct_marker_files(tmp_path):
+    """The manifest's replay list derives from markers actually packed.  A cast
+    file under replays/ carries a 'replay' key but is metadata, not a scene --
+    it must not inflate the replay's marker_count."""
+    root = str(tmp_path / "root")
+    for rel, content in [
+        ("data/markers/{}/scene.json".format(GAME_ID), _json.dumps({"replay": "Run 1", "pools": []})),
+        ("data/markers/{}/replays/Run 1.json".format(GAME_ID), _json.dumps({"replay": "Run 1", "characters": ["Eve"]})),
+    ]:
+        _write(root, rel, content)
+    contents = ["data/markers/{}/scene.json".format(GAME_ID), "data/markers/{}/replays/Run 1.json".format(GAME_ID)]
+
+    replays = _imp._cue_manifest_replays(root, GAME_ID, contents)
+    assert replays == [{"replay": "Run 1", "marker_count": 1}]
+
+
+# ---------------------------------------------------------------------------
+# scene-thumbnail cache -- runtime data that rides exports so imports (and
+# their preview) show dev-selected thumbnails instead of the marker fallback
+# ---------------------------------------------------------------------------
+
+
+def test_extract_lands_thumbs_cache(tmp_path):
+    out = str(tmp_path / "out")
+    zip_path = str(tmp_path / "pkg.zip")
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr(CUE_IMPORT_MANIFEST_NAME, "{}")
+        zf.writestr("data/cue_thumbs.json", '{"games": {}}')
+
+    _imp._cue_extract_import_zip(zip_path, out)
+
+    assert _read(os.path.join(out, "data/cue_thumbs.json")) == '{"games": {}}'
+
+
+def test_merge_copies_thumbs_cache(tmp_path):
+    root = str(tmp_path / "root")
+    src_root = str(tmp_path / "src")
+    _write(src_root, "data/cue_thumbs.json", '{"games": {}}')
+
+    count = _imp._cue_merge_files(root, src_root, ["data/cue_thumbs.json"])
+
+    assert count == 1
+    assert _read(os.path.join(root, "data/cue_thumbs.json")) == '{"games": {}}'
+
+
+def test_merge_overwrites_lists_thumbs_cache(tmp_path):
+    root = str(tmp_path / "root")
+    _write(root, "data/cue_thumbs.json", '{"games": {}}')
+
+    overwrites = _imp._cue_merge_overwrites(root, ["data/cue_thumbs.json"])
+
+    assert overwrites == ["data/cue_thumbs.json"]
+
+
+# ---------------------------------------------------------------------------
 # external bake -- abs external refs baked into portable relative refs
 # ---------------------------------------------------------------------------
 
