@@ -18,6 +18,7 @@ screen cue_replays_page():
             scrollbars "vertical"
             vscrollbar_unscrollable "hide"
             use cue_section_frame("Scenes"):
+                text ""
                 use cue_select_input(_filter, "Filter by character...")
                 null height _cue_scale_ui(4)
                 if not _entries:
@@ -36,9 +37,25 @@ screen cue_scene_row(entry, in_replay):
 
     $ _label = entry["replay"]
     $ _exists = renpy.has_label(_label)
+    $ _thumb = _cue.replays.thumbs.thumb_for(_label)
+    $ _th_w = _cue_scale_ui(64)
+    $ _th_h = _cue_scale_ui(36)
 
     hbox:
         spacing 6
+        if _thumb is not None:
+            # fit (aspect-preserving scale) exists only on 7.4.2+; older
+            # versions stretch the slot instead of dropping the thumbnail.
+            # size= not xysize=: 7.2.x registers size but not the individual
+            # props, and 7.4+ aliases size to xysize.
+            if getattr(renpy, "version_tuple", (0, 0, 0)) >= (7, 4, 2):
+                add Transform(_thumb, size=(_th_w, _th_h), fit="contain")
+            else:
+                add Transform(_thumb, size=(_th_w, _th_h))
+        else:
+            frame:
+                xysize (_th_w, _th_h)
+                background _cue_color_bg_overlay
         use cue_icon_btn(
             "play",
             Function(_cue.replays.play, _label),

@@ -2,6 +2,7 @@
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from cue_lib.paths import CuePaths
+from cue_lib.thumbs import CueThumbManager
 from cue_lib.ui.components.select.select import CueSelect
 
 def _cue_replay_labels(root: str, game_id: str) -> List[Tuple[str, int]]: ...
@@ -19,6 +20,7 @@ class CueReplayLibrary:
     pending_replay: Optional[str]
     cast: CueReplayCast
     cast_filter: CueCastFilter
+    thumbs: CueThumbManager
 
 class CueReplayCast:
     def __init__(self, paths: CuePaths) -> None: ...

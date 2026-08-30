@@ -24,6 +24,7 @@ from cue_lib.backup import CueBackupManager
 from cue_lib.volume import CueVolumeManager
 from cue_lib.music.manager import CueMusicManager
 from cue_lib.replays import CueReplayLibrary
+from cue_lib.thumbs import CueThumbManager
 from cue_lib.settings import CueSettings
 from cue_lib.keybinds import CueKeybindsManager
 from cue_lib.ui.icons import CueIconManager
@@ -81,6 +82,7 @@ class Cue:
     url_importer: CueUrlImporter
     overlay: CueOverlay
     replays: CueReplayLibrary
+    thumbs: CueThumbManager
 
     _create_delete_speed: Optional[Tuple[str, float]]
 

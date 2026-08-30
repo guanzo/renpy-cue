@@ -18,12 +18,20 @@
 # persistent, so a later run's video_sfx_edit_locked_off_base_speed would
 # start with set_speed in queue mode -- it needs the 1.5x variant to exist and
 # never writes the pref, so the assertion sees the base speed.
+init -950 python:
+    # The boot-time thumbnail fetch starts inside the mod's init -900 (via
+    # _cue_load_initial_data), before _cue_test_reset's disable() can run.
+    # Neutralize it here so the harness never hits the network.
+    import cue_lib.thumbs as _cue_thumbs_mod
+    _cue_thumbs_mod.CueThumbManager.maybe_download = lambda self: None
+
 init 1000 python:
     # Reset trigger/context state so each testcase starts clean.  Legacy forks
     # a fresh process per testcase, so this is belt-and-suspenders, but the
     # direct marker seeding below writes no disk state and reads no leaked
     # state -- the fields exist across both DSLs.
     def _cue_test_reset():
+        _cue.replays.thumbs.disable()
         _cue.trigger.active = True
         _cue.trigger.last_played = []
         _cue.trigger.reset()
@@ -327,6 +335,30 @@ testcase scenes_page_render:
     $ _ok = _ok and ({"replay": "no_such_label_harness", "marker_count": 1} in _cue.replays.entries)
     $ _ok = _ok and (not renpy.has_label("no_such_label_harness"))
     $ _cue_scenes_cleanup()
+    $ if not _ok: renpy.quit(status=1)
+    $ renpy.quit()
+
+testcase scene_row_thumbnails:
+    $ _cue.overlay.is_visible = True
+    run Jump("start")
+    pause 2.0
+    $ _cue_test_reset()
+    # The thumbnail slot renders two displayables: a real image (the captured
+    # marker filepath, scaled via Transform) and the placeholder frame for a
+    # scene with no thumb.  Seed an image-carrying marker alongside the
+    # placeholder-only scenes from scenes_page_render.
+    $ _cue_scenes_seed()
+    $ import os as _os
+    $ import json as _json
+    $ _mdir = _cue.paths.marker_dir
+    $ _p = _os.path.join(_mdir, "v_thumb_harness.ogv.json")
+    $ open(_p, "w").write(_json.dumps({"_key": "v_thumb_harness.ogv", "replay": "replay_harness", "pools": [], "filepath": "renpy_cue/cue_lib/images/icons/gear-solid.png"}))
+    run Function(_cue.overlay.set_page, CuePage.REPLAYS)
+    pause 0.5
+    $ _ok = _cue.replays.thumbs.thumb_for("replay_harness") == "renpy_cue/cue_lib/images/icons/gear-solid.png"
+    $ _ok = _ok and _cue.replays.thumbs.thumb_for("no_such_label_harness") is None
+    $ _cue_scenes_cleanup()
+    $ _os.remove(_p)
     $ if not _ok: renpy.quit(status=1)
     $ renpy.quit()
 

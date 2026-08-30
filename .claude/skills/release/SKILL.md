@@ -92,7 +92,19 @@ release notes, no mod asset, no new tag.
       attached):
       `gh release edit v<ver> --draft=false`
 
-11. **Report.** Print the release URL and confirm both assets are attached.
+11. **Re-attach the scene-thumbnails asset.** `releases/latest/download/cue_thumbs.json`
+    resolves to the newest release, so each new tag needs its own copy or the
+    runtime thumbs fetch 404s (the mod falls back to marker filepaths, but the
+    scraped art goes away). Upload the current asset if one exists:
+    ```bash
+    [ -f .local/data/cue_thumbs.json ] && gh release upload v<ver> .local/data/cue_thumbs.json --clobber
+    ```
+    If it's missing, warn the user rather than silently skipping — they can run
+    `/thumbnails` (scraper + upload) to build it. Don't run the scraper as part
+    of the release; the in-place decompile is a /thumbnails action.
+
+12. **Report.** Print the release URL and confirm all assets are attached (mod
+    zip, SFX pack, thumbs when present).
 
 ## SFX-only flow
 

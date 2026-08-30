@@ -10,6 +10,7 @@ import renpy
 
 from cue_lib.paths import CuePaths
 from cue_lib.sharing.importer_io import _cue_read_json_file
+from cue_lib.thumbs import CueThumbManager
 from cue_lib.ui.components.select.select import CueSelect
 from cue_lib.util import _cue_replace_file
 
@@ -92,6 +93,7 @@ class CueReplayLibrary(object):
         # type: (CuePaths) -> None
         self._paths = paths
         self.entries = []  # type: List[Dict[str, Any]]  # {"replay", "marker_count"}
+        self.thumbs = CueThumbManager(paths)
         # A scene clicked while another replay runs: the end_replay unwind
         # fires after_replay_callback, which is where the new replay chains on.
         self.pending_replay = None  # type: Optional[str]

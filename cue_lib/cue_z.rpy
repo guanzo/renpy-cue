@@ -474,11 +474,10 @@ init 999 python:
         """Hydrate the freshly-wired managers from persistent/shared config and
         prime the SFX/music libraries.  Runs once, right after callbacks."""
         _cue_full_reload()
+        _cue.replays.thumbs.maybe_download()
         _cue.video_editor.job_queue.load_from_persistent()
         _cue.speed_resolver.wrap_all_movies()
         _cue.music.install()
-
-        _cue.initialized = True
 
 
     _v = getattr(renpy, "version_tuple", (0, 0, 0))
@@ -491,4 +490,6 @@ init 999 python:
 
     if not _cue.initialized:
         _cue_load_initial_data()
+
+        _cue.initialized = True
         _cue_log("INIT: Done in {:.3f}s".format(_time.time() - _t0))

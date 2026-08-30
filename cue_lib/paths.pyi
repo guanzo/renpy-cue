@@ -5,6 +5,7 @@ CUE_MOD_DIRNAME: Final = "renpy_cue"
 CUE_DIR_OVERRIDE_FILENAME: Final = "dir.txt"
 CUE_BACKUP_DIR: Final = "backups"
 CUE_BACKUP_AUTO_DIR: Final = "auto"
+CUE_THUMBS_CACHE_NAME: Final = "cue_thumbs.json"
 
 class CuePaths:
     _original_root: str
@@ -55,6 +56,9 @@ class CuePaths:
     def intensity_preset_dir(self) -> str: ...
     @property
     def video_dir(self) -> str: ...
+    @property
+    def cache_dir(self) -> str: ...
+    def thumbs_cache_path(self) -> str: ...
     @property
     def shared_config_path(self) -> str: ...
     @property

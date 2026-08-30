@@ -47,3 +47,4 @@ tools/trigger_monitor.py
 # Superpowers agentic planning/design artifacts -- not product docs
 docs/superpowers/
 .claude/skills/issue-handoff/
+.claude/skills/thumbnails/

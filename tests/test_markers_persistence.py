@@ -106,8 +106,8 @@ def _make_fake_cue():
         presets=types.SimpleNamespace(reload_presets=lambda: None, intensity=types.SimpleNamespace(_presets={})),
         # _cue_full_reload hydrates the section toggles from persistent
         overlay=types.SimpleNamespace(_load_collapsed_sections=lambda: None),
-        # _cue_full_reload refreshes the Scenes library entries
-        replays=types.SimpleNamespace(scan=lambda: None),
+        # _cue_full_reload refreshes the Scenes library entries + thumbs mapping
+        replays=types.SimpleNamespace(scan=lambda: None, thumbs=types.SimpleNamespace(load=lambda: None)),
         markers=None,
     )
 

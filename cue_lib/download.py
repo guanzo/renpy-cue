@@ -18,6 +18,7 @@ try:
         HTTPError as _HTTPError,
         HTTPRedirectHandler as _HTTPRedirectHandler,
         HTTPSHandler as _HTTPSHandler,
+        Request as _url_Request,
         URLError as _URLError,
         build_opener as _url_build_opener,
     )
@@ -30,6 +31,7 @@ except ImportError:
         HTTPError as _HTTPError,
         HTTPRedirectHandler as _HTTPRedirectHandler,
         HTTPSHandler as _HTTPSHandler,
+        Request as _url_Request,
         build_opener as _url_build_opener,
     )
     from urllib.error import URLError as _URLError
@@ -258,25 +260,32 @@ class CueDownloader(object):
     # fetch
     # ------------------------------------------------------------------
 
-    def _open(self, url, timeout):
-        # type: (str, float) -> Any
+    def _open(self, url, timeout, headers=None):
+        # type: (str, float, Any) -> Any
         """Fetch url without following redirects.  Returns a response for 2xx
         and 3xx; raises _CueDownloadError for transport failures.  The injected
-        fetcher (tests) bypasses the network entirely."""
+        fetcher (tests) bypasses the network entirely.  headers (dict) is sent
+        on the request -- callers use it for conditional GETs (If-Modified-Since)."""
         if self._fetcher is not None:
-            return self._fetcher(url, timeout)
+            if headers is None:
+                return self._fetcher(url, timeout)
+            return self._fetcher(url, timeout, headers)
         try:
-            return _CueResponse(_CUE_OPENER.open(url, timeout=timeout))
+            if headers is None:
+                return _CueResponse(_CUE_OPENER.open(url, timeout=timeout))
+            req = _url_Request(url, headers=headers)
+            return _CueResponse(_CUE_OPENER.open(req, timeout=timeout))
         except _HTTPError as e:
             return _CueResponse(e)
         except _URLError as e:
             reason = getattr(e, "reason", e)
             raise _CueDownloadError("Could not reach URL: {}.".format(reason))
 
-    def resolve_redirects(self, url):
-        # type: (str) -> Tuple[str, Any]
+    def resolve_redirects(self, url, headers=None):
+        # type: (str, Any) -> Tuple[str, Any]
         """Follow redirects manually (each hop re-validated) until a non-3xx
-        response, then return (final_url, open_response)."""
+        response, then return (final_url, open_response).  headers (dict) is
+        re-sent on every hop so a conditional GET survives to the final CDN."""
         current = url
         resp = None
         for _hop in range(CUE_DOWNLOAD_MAX_REDIRECTS + 1):
@@ -285,7 +294,7 @@ class CueDownloader(object):
                 if resp is not None:
                     resp.close()
                 raise _CueDownloadError(err)
-            resp = self._open(current, CUE_DOWNLOAD_CONNECT_TIMEOUT)
+            resp = self._open(current, CUE_DOWNLOAD_CONNECT_TIMEOUT, headers)
             if resp.code in _CUE_REDIRECT_CODES:
                 location = resp.headers_get("Location")
                 resp.close()
@@ -302,15 +311,19 @@ class CueDownloader(object):
             resp.close()
         raise _CueDownloadError("Too many redirects.")
 
-    def download_to(self, url, dest_path, progress_cb=None):
-        # type: (str, str, Optional[Callable[[Optional[int], int], None]]) -> int
+    def download_to(self, url, dest_path, progress_cb=None, headers=None):
+        # type: (str, str, Optional[Callable[[Optional[int], int], None]], Any) -> int
         """Synchronous download of url to dest_path: policy check, per-hop
         redirect validation, chunked stream.  progress_cb(total, written)
-        fires after each chunk when Content-Length is known.  Returns bytes
-        written; raises _CueDownloadError on policy/HTTP/transport failure."""
+        fires after each chunk when Content-Length is known.  headers (dict)
+        is sent on the request; when the server answers 304 (conditional GET:
+        content unchanged), nothing is written and 0 is returned.  Returns
+        bytes written; raises _CueDownloadError on policy/HTTP/transport failure."""
         resp = None
         try:
-            _final_url, resp = self.resolve_redirects(url)
+            _final_url, resp = self.resolve_redirects(url, headers)
+            if resp.code == 304:
+                return 0
             _total, written = _cue_stream_body(resp, dest_path, progress_cb=progress_cb)
             return written
         finally:
