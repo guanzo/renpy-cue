@@ -23,6 +23,7 @@ from cue_lib.constants import (
     CUE_KEYMAP_PAGE_IMPORT,
     CUE_KEYMAP_PAGE_SETTINGS,
     CUE_KEYMAP_QUIT_RELAUNCH,
+    CUE_KEYMAP_EXIT_REPLAY,
     CUE_KEYMAP_TARGET_VIDEO,
     CUE_KEYMAP_TARGET_IMAGE,
     CUE_KEYMAP_TARGET_DIALOGUE,
@@ -181,7 +182,8 @@ def test_setup_registers_defaults(mgr):
     assert renpy.config.keymap[CUE_KEYMAP_PAGE_MUSIC] == ["alt_K_2"]
     assert renpy.config.keymap[CUE_KEYMAP_PAGE_IMPORT] == ["alt_K_4"]
     assert renpy.config.keymap[CUE_KEYMAP_PAGE_SETTINGS] == ["alt_K_5"]
-    assert len(renpy.config.keymap) == 21  # one entry per action
+    assert renpy.config.keymap[CUE_KEYMAP_EXIT_REPLAY] == ["K_F6"]
+    assert len(renpy.config.keymap) == 22  # one entry per action
 
 
 def test_setup_does_not_overwrite_existing(mgr):
@@ -252,7 +254,8 @@ def test_saved_override_applies_after_restart(cue_env):
 def test_visible_actions_excludes_quit_relaunch(mgr):
     ids = [a["id"] for a in mgr.visible_actions()]
     assert CUE_KEYMAP_QUIT_RELAUNCH not in ids
-    assert len(ids) == 20  # 21 actions minus quit_relaunch
+    assert CUE_KEYMAP_EXIT_REPLAY in ids
+    assert len(ids) == 21  # 22 actions minus quit_relaunch
 
 
 def test_visible_actions_filters_debug_only(mgr, monkeypatch):

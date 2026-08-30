@@ -55,6 +55,7 @@ CUE_DIALOG_ZORDER: Final = 9000
 
 CUE_KEYMAP_TOGGLE_OVERLAY: Final = "cue_toggle_overlay"
 CUE_KEYMAP_QUIT_RELAUNCH: Final = "cue_quit_relaunch"
+CUE_KEYMAP_EXIT_REPLAY: Final = "cue_exit_replay"
 CUE_KEYMAP_COPY_CONTEXT: Final = "cue_copy_context"
 CUE_KEYMAP_PASTE_CONTEXT: Final = "cue_paste_context"
 CUE_KEYMAP_TOGGLE_SFX_ACTIVE: Final = "cue_toggle_sfx_active"

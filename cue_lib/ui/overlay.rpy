@@ -29,6 +29,7 @@ screen cue_runtime_keybinds():
     key CUE_KEYMAP_SPEED_UP action Function(_cue.speed_resolver.cycle_speed, 1)
     key CUE_KEYMAP_SPEED_DOWN action Function(_cue.speed_resolver.cycle_speed, -1)
     key CUE_KEYMAP_TOGGLE_SFX_LIBRARY action Function(_cue.overlay.toggle_section, CUE_SFX_LIBRARY_HEADER)
+    key CUE_KEYMAP_EXIT_REPLAY action Function(renpy.end_replay)
 
     if CUE_DEBUG:
         key CUE_KEYMAP_QUIT_RELAUNCH action Function(renpy.quit, relaunch=True)

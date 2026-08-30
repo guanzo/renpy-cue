@@ -219,6 +219,7 @@ CUE_DIALOG_ZORDER = 9000
 # Keymap names for rebindable cue hotkeys (registered in config.keymap).
 CUE_KEYMAP_TOGGLE_OVERLAY = "cue_toggle_overlay"
 CUE_KEYMAP_QUIT_RELAUNCH = "cue_quit_relaunch"
+CUE_KEYMAP_EXIT_REPLAY = "cue_exit_replay"
 CUE_KEYMAP_COPY_CONTEXT = "cue_copy_context"
 CUE_KEYMAP_PASTE_CONTEXT = "cue_paste_context"
 CUE_KEYMAP_TOGGLE_SFX_ACTIVE = "cue_toggle_sfx_active"

@@ -19,6 +19,7 @@ from cue_lib.constants import (
     CUE_DEBUG,
     CUE_KEYMAP_TOGGLE_OVERLAY,
     CUE_KEYMAP_QUIT_RELAUNCH,
+    CUE_KEYMAP_EXIT_REPLAY,
     CUE_KEYMAP_COPY_CONTEXT,
     CUE_KEYMAP_PASTE_CONTEXT,
     CUE_KEYMAP_TOGGLE_SFX_ACTIVE,
@@ -228,6 +229,12 @@ class CueKeybindsManager(object):
                 "label": "Quit & Relaunch",
                 "desc": "Quit and relaunch the game (dev only)",
                 "debug_only": True,
+            },
+            {
+                "id": CUE_KEYMAP_EXIT_REPLAY,
+                "default": "K_F6",
+                "label": "Exit Replay",
+                "desc": "Exit the current replay",
             },
             {
                 "id": CUE_KEYMAP_COPY_CONTEXT,
