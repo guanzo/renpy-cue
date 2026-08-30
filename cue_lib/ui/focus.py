@@ -89,9 +89,12 @@ def _cue_install_focus_pin():
             return None
 
         if not editing and ev is not None and ev.type == pygame.MOUSEBUTTONDOWN:
-            # Capture the field's rect on click: the input replaces its button but
-            # isn't focusable, so the box is otherwise unknown.
-            f = _cue_focusable_at_point(x, y, _cue_field_control)
+            # Capture the clicked widget's rect.  A field's textbutton needs it
+            # so the input that replaces it (not focusable) can hit-test later;
+            # a dropdown's trigger reads it on UP to pin its click-outside
+            # region.  The backdrop wraps the panel, so the innermost focusable
+            # at the point is the one actually clicked.
+            f = _cue_focusable_at_point(x, y)
             _cue.active_input_rect = (f.x, f.y, f.w, f.h) if f is not None else None
 
         rv = orig(ev, x, y, default=default)
