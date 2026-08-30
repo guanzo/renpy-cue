@@ -550,3 +550,6 @@ class CueImportManager(object):
         src_root = self._imp_dir(imp)
         count = _cue_merge_files(self._paths.original_root, src_root, filtered)
         self.merge_status = "Merged {} file(s) into your data.".format(count)
+        # Merged markers land on disk but the store's _data is still the
+        # boot-loaded snapshot -- refresh it so scan()/thumbs see the merge.
+        self._refresh_overlay()
