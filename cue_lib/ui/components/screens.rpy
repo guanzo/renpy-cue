@@ -438,21 +438,20 @@ screen cue_replay_toggle(_imp_key, _section):
 screen cue_replay_children(_imp_key, _section):
     # Expanded replay rows for a section+import.  Sits below the action-button
     # row so opening it pushes content down instead of relaying out the row.
+    # Rows render through cue_scene_row; play stays importer-aware so it
+    # enters preview first.
     style_group "cue"
 
     $ _replays = _cue.importer.replays_for(_imp_key)
     if _replays and _cue.importer.is_replays_expanded(_section, _imp_key):
+        $ _in_replay = renpy.store._in_replay
+        $ _can_preview = _cue.importer.can_preview(_imp_key)
         for _r in _replays:
-            hbox:
-                spacing 6
-                etext _cue_indent  # indent to match folder child rows
-                use cue_icon_btn(
-                    "play",
-                    Function(_cue.importer.play_replay, _imp_key, _r["replay"]),
-                    "Preview import and start replay",
-                    enabled=_cue.importer.can_preview(_imp_key))
-                etext _r["replay"] color _cue_color_text_accent size 11
-                etext "{} marker(s)".format(_r["marker_count"]) color _cue_color_text_muted size 11
+            use cue_scene_row(
+                _r,
+                _in_replay,
+                play_action=Function(_cue.importer.play_replay, _imp_key, _r["replay"]),
+                play_sensitive=_can_preview)                             
 
 
 # Usage: use cue_section_frame("Title"):  ...children...

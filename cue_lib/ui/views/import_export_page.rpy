@@ -350,24 +350,28 @@ screen cue_edit_banner():
     $ _imp_display = _cue.importer.active_import_name()
     $ _replay_toggle_key = "banner"
     use cue_section_frame("Import Preview"):
-        use grow_and_scroll(200, max(int(0.30 * renpy.config.screen_height), 400)):
-            vbox:
-                spacing 8
-                xfill True
-                hbox:
-                    spacing 6
-                    etext "Import:"
-                    etext _imp_display color _cue_color_text_accent
-                etext "Edits apply to the import. Your own data will be restored when you exit preview."
+        vbox:
+            spacing 8
+            xfill True
+            hbox:
+                spacing 6
+                etext "Import:"
+                etext _imp_display color _cue_color_text_accent
+            etext "Edits apply to the import. Your own data will be restored when you exit preview."
 
-                hbox:
-                    spacing 6
-                    use cue_replay_toggle(_active_imp, _replay_toggle_key)
-                    use cue_txt_button(
-                        "Merge",
-                        Function(_cue.importer.open_merge, _active_imp),
-                        tt="Choose what to copy into your data folder")
-                    use cue_txt_button(
-                        "Exit Preview",
-                        Function(_cue.importer.deactivate))
-                use cue_replay_children(_active_imp, _replay_toggle_key)
+            hbox:
+                spacing 6
+                use cue_replay_toggle(_active_imp, _replay_toggle_key)
+                use cue_txt_button(
+                    "Merge",
+                    Function(_cue.importer.open_merge, _active_imp),
+                    tt="Choose what to copy into your data folder")
+                use cue_txt_button(
+                    "Exit Preview",
+                    Function(_cue.importer.deactivate))
+                    
+            use grow_and_scroll(0, max(int(0.20 * renpy.config.screen_height), 300)):
+                vbox:
+                    spacing 5
+                    $pass # https://github.com/renpy/renpy/issues/3474
+                    use cue_replay_children(_active_imp, _replay_toggle_key)

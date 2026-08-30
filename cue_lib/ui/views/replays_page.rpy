@@ -35,7 +35,7 @@ screen cue_replays_page():
                             use cue_scene_row(_r, _in_replay)
 
 
-screen cue_scene_row(entry, in_replay):
+screen cue_scene_row(entry, in_replay, play_action=None, play_sensitive=None):
     style_group "cue"
 
     # Transient per-row hover state: which row/thumbnail the pointer is over.
@@ -49,6 +49,10 @@ screen cue_scene_row(entry, in_replay):
     $ _chips = _cue.replays.cast_filter.chips_for(_label)
     $ _mc = entry["marker_count"]
     $ _mc_text = "{} marker".format(_mc) if _mc == 1 else "{} markers".format(_mc)
+    # Import rows override the play action (enter preview first) and gate it
+    # separately; the Scenes page keeps the defaults.
+    $ _play_act = play_action if play_action is not None else Function(_cue.replays.play, _label)
+    $ _play_sens = play_sensitive if play_sensitive is not None else _exists
 
     button:
         style "empty"
@@ -64,8 +68,8 @@ screen cue_scene_row(entry, in_replay):
             button:
                 style "cue_scene_thumb"
                 xysize (_th_w, _th_h)
-                action Function(_cue.replays.play, _label)
-                sensitive _exists
+                action _play_act
+                sensitive _play_sens
                 hovered [SetLocalVariable("_hovered_label", _label), SetLocalVariable("_thumb_hovered", True)]
                 unhovered [SetLocalVariable("_hovered_label", None), SetLocalVariable("_thumb_hovered", False)]
                 if _thumb is not None:
@@ -80,7 +84,7 @@ screen cue_scene_row(entry, in_replay):
                 if _exists and _hovered_label == _label:
                     add (_cue.icons.displayable_for("play", None, 18)):
                         align (0.5, 0.5)
-                        alpha (1.0 if _thumb_hovered else 0.5)
+                        alpha (1.0 if _thumb_hovered else 0.7)
             if not _exists:
                 use cue_icon(
                     "triangle-exclamation",
