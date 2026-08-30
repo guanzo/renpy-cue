@@ -2012,7 +2012,7 @@ def test_sfx_content_rows_per_source_empty_states(sfx, tmp_path):
     assert dl["label"] == "Download Cue SFX Pack"
     assert dl.get("sensitive", True) is True
     assert dl["icon"] == "download"
-    assert dl["action"]._args[0] == sfx.sfx_pack.download_sfx_pack
+    assert dl["action"]._args[0] == sfx._sfx.sfx_pack.download_sfx_pack
     # Found-but-empty external source: empty text + Open-folder action.
     assert "No audio files found in: {}".format(empty) in labels
     assert any(r["type"] == "action" and r.get("explorer") == empty for r in rows)
@@ -2038,23 +2038,23 @@ def test_sfx_content_rows_truly_empty_returns_only_empty_rows(sfx):
 
 
 def test_sfx_content_rows_download_label_follows_state(sfx):
-    sfx.sfx_pack.state = "downloading"
-    sfx.sfx_pack.progress = 0.5
+    sfx._sfx.sfx_pack.state = "downloading"
+    sfx._sfx.sfx_pack.progress = 0.5
     rows = _content_rows(sfx)
     dl = _find_button(rows, "builtin:download_pack")
     assert dl["label"] == "Downloading..."
     assert dl["sensitive"] is False
     assert "Downloading Cue SFX Pack... 50%" in _row_labels(rows)
 
-    sfx.sfx_pack.state = "error"
-    sfx.sfx_pack.error = "boom"
+    sfx._sfx.sfx_pack.state = "error"
+    sfx._sfx.sfx_pack.error = "boom"
     rows = _content_rows(sfx)
     dl = _find_button(rows, "builtin:download_pack")
     assert dl["label"] == "Retry download"
     assert dl.get("sensitive", True) is True
     assert "boom" in _row_labels(rows)
 
-    sfx.sfx_pack.state = "idle"
+    sfx._sfx.sfx_pack.state = "idle"
     rows = _content_rows(sfx)
     dl = _find_button(rows, "builtin:download_pack")
     assert dl["label"] == "Download Cue SFX Pack"
@@ -2185,14 +2185,14 @@ def test_sfx_pack_download_extracts_then_rescans(sfx, monkeypatch):
     # The real _cue_extract_zip_to runs on the downloaded zip; only the
     # network hop is stubbed out.  The pack's renpy_cue_sfx/ wrapper dir is
     # unwrapped so its contents land directly in the audio dir.
-    monkeypatch.setattr(sfx.sfx_pack._dl, "download_to", _write_pack_zip)
-    sfx.sfx_pack.download_sfx_pack()
-    assert sfx.sfx_pack.state == "downloading"
-    sfx.sfx_pack._thread.join(timeout=5)
-    assert not sfx.sfx_pack._thread.is_alive()
-    assert sfx.sfx_pack.state == "done"
-    sfx.sfx_pack.poll_sfx_pack()
-    assert sfx.sfx_pack.state == "idle"
+    monkeypatch.setattr(sfx._sfx.sfx_pack._dl, "download_to", _write_pack_zip)
+    sfx._sfx.sfx_pack.download_sfx_pack()
+    assert sfx._sfx.sfx_pack.state == "downloading"
+    sfx._sfx.sfx_pack._thread.join(timeout=5)
+    assert not sfx._sfx.sfx_pack._thread.is_alive()
+    assert sfx._sfx.sfx_pack.state == "done"
+    sfx._sfx.sfx_pack.poll_sfx_pack()
+    assert sfx._sfx.sfx_pack.state == "idle"
     assert "g1/a.ogg" in sfx.files
     assert "b.ogg" in sfx.files
     assert sfx.tree
@@ -2246,11 +2246,11 @@ def test_sfx_pack_download_error_sets_state(sfx, monkeypatch):
     def _boom(url, dest_path, progress_cb=None):
         raise IOError("no network")
 
-    monkeypatch.setattr(sfx.sfx_pack._dl, "download_to", _boom)
-    sfx.sfx_pack.download_sfx_pack()
-    sfx.sfx_pack._thread.join(timeout=5)
-    assert sfx.sfx_pack.state == "error"
-    assert "no network" in sfx.sfx_pack.error
+    monkeypatch.setattr(sfx._sfx.sfx_pack._dl, "download_to", _boom)
+    sfx._sfx.sfx_pack.download_sfx_pack()
+    sfx._sfx.sfx_pack._thread.join(timeout=5)
+    assert sfx._sfx.sfx_pack.state == "error"
+    assert "no network" in sfx._sfx.sfx_pack.error
 
 
 def test_sfx_pack_download_noop_while_running(sfx, monkeypatch):
@@ -2263,12 +2263,12 @@ def test_sfx_pack_download_noop_while_running(sfx, monkeypatch):
         started.set()
         release.wait(5)
 
-    monkeypatch.setattr(sfx.sfx_pack._dl, "download_to", _blocked)
-    sfx.sfx_pack.download_sfx_pack()
+    monkeypatch.setattr(sfx._sfx.sfx_pack._dl, "download_to", _blocked)
+    sfx._sfx.sfx_pack.download_sfx_pack()
     started.wait(2)
-    first = sfx.sfx_pack._thread
-    sfx.sfx_pack.download_sfx_pack()
-    assert sfx.sfx_pack._thread is first
+    first = sfx._sfx.sfx_pack._thread
+    sfx._sfx.sfx_pack.download_sfx_pack()
+    assert sfx._sfx.sfx_pack._thread is first
     release.set()
     first.join(timeout=5)
 
@@ -2280,11 +2280,11 @@ def test_sfx_pack_poll_rescans_once(sfx, monkeypatch):
         calls.append(1)
 
     monkeypatch.setattr(sfx, "scan", _fake_scan)
-    sfx.sfx_pack.state = "done"
-    sfx.sfx_pack.poll_sfx_pack()
-    sfx.sfx_pack.poll_sfx_pack()
+    sfx._sfx.sfx_pack.state = "done"
+    sfx._sfx.sfx_pack.poll_sfx_pack()
+    sfx._sfx.sfx_pack.poll_sfx_pack()
     assert len(calls) == 1
-    assert sfx.sfx_pack.state == "idle"
+    assert sfx._sfx.sfx_pack.state == "idle"
 
 
 def test_sfx_pack_poll_scan_error_becomes_error_state(sfx, monkeypatch):
@@ -2292,10 +2292,10 @@ def test_sfx_pack_poll_scan_error_becomes_error_state(sfx, monkeypatch):
         raise OSError("scan failed")
 
     monkeypatch.setattr(sfx, "scan", _boom)
-    sfx.sfx_pack.state = "done"
-    sfx.sfx_pack.poll_sfx_pack()
-    assert sfx.sfx_pack.state == "error"
-    assert "scan failed" in sfx.sfx_pack.error
+    sfx._sfx.sfx_pack.state = "done"
+    sfx._sfx.sfx_pack.poll_sfx_pack()
+    assert sfx._sfx.sfx_pack.state == "error"
+    assert "scan failed" in sfx._sfx.sfx_pack.error
 
 
 def test_sfx_content_rows_memo_reuses_rows_until_state_changes(sfx):

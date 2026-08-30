@@ -11,6 +11,7 @@ import random as _random
 
 import renpy.audio.music as _music
 
+from cue_lib.audio.cue_sfx_pack import CueSfxPackDownloader
 from cue_lib.audio.tree.sfx_tree import CueSfxLibraryTree
 from cue_lib.audio.wav_playable import CueWavPlayable
 from cue_lib.constants import CUE_SFX_CHANNEL_COUNT
@@ -66,8 +67,10 @@ class CueSfxManager(object):
 
     def __init__(self, paths, db, volume, ctx, supports_relative_volume, presets):
         # type: (CuePaths, CueDatabase, CueVolumeManager, CueContext, bool, CuePresetStore) -> None
-        self.library = CueSfxLibraryTree(paths, db)
-        self.library._sfx = self  # pyright: ignore[reportAttributeAccessIssue]
+        self.library = CueSfxLibraryTree(self, paths, db)  # pyright: ignore[reportArgumentType]
+
+        self.sfx_pack = CueSfxPackDownloader(self.library, paths.audio_dir)
+
         self._paths = paths
         self._db = db
         self._volume = volume

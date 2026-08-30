@@ -3,7 +3,7 @@
 # expand state, disabled files, pool-ref expansion, and sidebar persist.
 # Extends CueAudioTreeManager (file_tree.py) and delegates row construction to
 # CueSfxTreeRows (sfx_tree_rows.py).  Owned by CueSfxManager as its
-# ``library`` attribute; the manager wires the _sfx back-ref in __init__.
+# ``library`` attribute; the manager injects itself as ``_sfx`` via the constructor.
 # Extracted from sfx_manager.py so every tree class lives in this package.
 
 import time
@@ -12,7 +12,6 @@ import renpy
 
 from renpy.store import persistent
 
-from cue_lib.audio.cue_sfx_pack import CueSfxPackDownloader
 from cue_lib.audio.tree.file_tree import CueAudioTreeManager
 from cue_lib.audio.tree.sfx_tree_rows import CueSfxTreeRows
 from cue_lib.constants import (
@@ -31,6 +30,7 @@ from cue_lib.util import _cue_is_abs_path, _cue_log, _cue_unwrap_persistent
 MYPY = False
 if MYPY:
     from typing import Any, Dict, List, Optional, Set, Tuple  # pyright: ignore[reportUnusedImport]
+    from cue_lib.audio.sfx_manager import CueSfxManager  # pyright: ignore[reportUnusedImport]
     from cue_lib.db import CueDatabase  # pyright: ignore[reportUnusedImport]
     from cue_lib.intensity import CueIntensityManager  # pyright: ignore[reportUnusedImport]
 
@@ -58,12 +58,12 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         {"key": "builtin", "discover": "_discover", "display_root": CUE_SFX_FOLDER, "scan_label": "audio folder"},
     )
 
-    def __init__(self, paths, db):
-        # type: (CuePaths, CueDatabase) -> None
+    def __init__(self, sfx, paths, db):
+        # type: (CueSfxManager, CuePaths, CueDatabase) -> None
         super(CueSfxLibraryTree, self).__init__()
         self._paths = paths
-        # Parent CueSfxManager, wired by CueSfxManager.__init__ (preview fns).
-        self._sfx = None  # type: Any
+        # Parent CueSfxManager (preview fns); injected via the constructor.
+        self._sfx = sfx
         self._db = db
 
         # Row builder for the cue_tree_rows renderer (tree_rows delegates).
@@ -101,11 +101,6 @@ class CueSfxLibraryTree(CueAudioTreeManager):
         # or as a section frame inside the overlay page (mode off).
         self.is_sidebar_mode = False
         self.sidebar_width = CUE_SIDEBAR_DEFAULT_WIDTH
-
-        # Curated-pack bootstrap for the empty library: fetch+extract runs on a
-        # background thread; the empty-state screen polls sfx_pack.poll_sfx_pack
-        # to finish (rescan on success) and show progress.
-        self.sfx_pack = CueSfxPackDownloader(self, self._paths.audio_dir)
 
         # Per-source scan state, mirroring CueMusicTree.  builtin_* is the
         # shared {shared}/audio/ source; external_* comes from the configured

@@ -50,31 +50,37 @@ screen cue_runtime_keybinds():
 
 
 screen cue_runtime_timers():
-    $ _is_busy = (
-        _cue.backups.is_busy
-        or _cue.exporter.is_busy
-        or _cue.importer.is_importing
-        or _cue.url_importer.is_downloading
-        or _cue.video_editor.job_queue.jobs)
+    # All polls are overlay-scoped -- they only matter while the editor is up.
+    # active_page keeps its last value after the overlay closes, so the whole
+    # group lives under the visibility gate instead of gating each timer.
+    if _cue.overlay.is_visible:
+        $ _is_busy = (
+            _cue.backups.is_busy
+            or _cue.exporter.is_busy
+            or _cue.importer.is_importing
+            or _cue.url_importer.is_downloading
+            or _cue.video_editor.job_queue.jobs)
 
-    # One restart poll for all background ops.  Fires only while one is live
-    # and the overlay is up, so progress text re-renders and the timer drops
-    # out once the op finishes.
-    if _cue.overlay.is_visible and _is_busy:
-        timer 0.25 repeat True action Function(renpy.restart_interaction, _update_screens=False)
+        # One restart poll for all background ops.  Fires only while one is
+        # live, so progress text re-renders and the timer drops out once the
+        # op finishes.
+        if _is_busy:
+            timer 0.25 repeat True action Function(renpy.restart_interaction, _update_screens=False)
 
-    $ _sfx_dl = _cue.sfx.library.sfx_pack
-    if _cue.overlay.is_visible and _sfx_dl.state in ("downloading", "done"):
-        timer 0.25 repeat True action [
-            Function(_sfx_dl.poll_sfx_pack),
-            Function(renpy.restart_interaction, _update_screens=False),
-        ]
+        $ _sfx_dl = _cue.sfx.sfx_pack
+        if _sfx_dl.state in ("downloading", "done"):
+            timer 0.25 repeat True action [
+                Function(_sfx_dl.poll_sfx_pack),
+                Function(renpy.restart_interaction, _update_screens=False),
+            ]
 
-    if _cue.overlay.active_page == CuePage.IMPORT:
-        timer 2.0 repeat True action Function(_cue.importer.scan)
-    elif _cue.overlay.active_page == CuePage.SETTINGS:
-        timer 0.5 repeat True action Function(_cue.backups.poll, _update_screens=False)
+        if _cue.overlay.active_page == CuePage.IMPORT:
+            timer 2.0 repeat True action Function(_cue.importer.scan)
+        elif _cue.overlay.active_page == CuePage.SETTINGS:
+            timer 0.5 repeat True action Function(_cue.backups.poll, _update_screens=False)
 
+    # The 20ms tick drives the SFX trigger engine (video markers, loops,
+    # movie-channel detection); it runs even with the overlay closed.
     timer 0.02 repeat True action Function(_cue_tick_trigger, _update_screens=False)
 
 ###############################################################################

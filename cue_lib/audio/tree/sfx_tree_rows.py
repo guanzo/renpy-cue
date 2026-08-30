@@ -758,7 +758,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         """The curated-pack download button (icon + label).  Label and
         sensitivity follow the pack state; purely presentational -- the state
         poll timer lives in cue_runtime_timers, gated on the pack state."""
-        pack = tree.sfx_pack
+        pack = tree._sfx.sfx_pack
         st = pack.state
         if st == "downloading":
             label, sensitive = "Downloading...", False
@@ -774,7 +774,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
     def _download_pack_status_rows(self, tree):
         # type: (Any) -> List[TreeRowDict]
         """Progress / loading / error lines under the pack download button."""
-        pack = tree.sfx_pack
+        pack = tree._sfx.sfx_pack
         st = pack.state
         if st == "downloading":
             rows = [  # type: List[TreeRowDict]
