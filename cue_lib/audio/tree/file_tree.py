@@ -402,20 +402,18 @@ class CueAudioTreeManager(object):
         self.rebuild_tree()
         self._search_applied = q
 
-    def _walk_tree(self, items, prefix, depth, result, force_expand=False, abs_root=None):
-        # type: (List[Dict[str, Any]], str, int, List[Dict[str, Any]], bool, Optional[str]) -> None
+    def _walk_tree(self, items, prefix, depth, result, force_expand=False):
+        # type: (List[Dict[str, Any]], str, int, List[Dict[str, Any]], bool) -> None
         """Recursively walk tree, only descending into expanded folders.
 
         force_expand (search mode) treats every folder as expanded so all
         filtered rows are produced; otherwise self.expanded_folders decides.
-        abs_root threads an external source's absolute path down its subtree
-        so folder rows under one can show it as their tooltip."""
+        A folder keeps its own abs_root (source roots only) for the row
+        tooltip; it is not threaded onto nested folders."""
         for item in items:
             full = prefix + item["name"]
             if item["type"] == "folder":
                 node_abs = item.get("abs_root")
-                if node_abs is None and abs_root is not None:
-                    node_abs = abs_root + "/" + item["name"].rstrip("/")
                 expanded = force_expand or self.expanded_folders.get(full, False)
                 node = {
                     "type": "folder",
@@ -428,7 +426,7 @@ class CueAudioTreeManager(object):
                     node["abs_root"] = node_abs
                 result.append(node)
                 if expanded:
-                    self._walk_tree(item.get("children", []), full, depth + 1, result, force_expand, node_abs)
+                    self._walk_tree(item.get("children", []), full, depth + 1, result, force_expand)
             else:
                 result.append(self._file_node(item, full, depth))
 

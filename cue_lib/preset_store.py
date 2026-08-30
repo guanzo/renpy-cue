@@ -47,6 +47,7 @@ class CuePresets(object):
         self._session_created = session_created
         self._on_save = on_save
         self._presets = {}
+        self._cache_version = 0  # bumps on any data change; UI row caches key on it
 
     # -- unified CRUD --
 
@@ -103,6 +104,7 @@ class CuePresets(object):
 
     def _db_save(self, name):
         # type: (str) -> None
+        self._cache_version += 1  # a view-based add/remove also lands here
         db = self._db
         if db is not None and db.is_open():
             if name in self._presets:
@@ -135,6 +137,7 @@ class CuePresets(object):
             data = self._disk()
         self._presets = data
         self._sanitize()
+        self._cache_version += 1
 
     def reload(self, data=None):
         # type: (Optional[Dict[str, Any]]) -> None
@@ -143,6 +146,7 @@ class CuePresets(object):
         if data is None:
             data = self._disk()
         self._presets.update(data)
+        self._cache_version += 1
 
     def _disk(self):
         # type: () -> Dict[str, Any]

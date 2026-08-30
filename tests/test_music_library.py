@@ -923,3 +923,25 @@ def test_music_restore_expands_subfolder():
     lib, _calls = _make_lib(user_paths=("music/a.ogg", "music/sub/b.ogg"), game_paths=("bgm/x.ogg",))
     assert lib.expanded_folders[USER] is True
     assert lib.expanded_folders[USER + "sub/"] is True
+
+
+def test_music_content_rows_memo_reuses_rows_until_state_changes():
+    """Pure re-evaluations serve the cached row list; input changes rebuild."""
+    import cue_lib.audio.tree.music_tree_rows as tree_rows_mod
+
+    lib = _content_lib()
+    lib._music._recent = None  # no recent manager (like recent_entries=None)
+    builder = tree_rows_mod.CueMusicTreeRows(lib)
+    args = ("", ["p1"], None)
+
+    first = builder.content_rows(*args)
+    second = builder.content_rows(*args)
+    assert second is first  # nothing changed -> cached
+
+    # search query changed -> rebuild
+    assert builder.content_rows("p", ["p1"], None) is not first
+    # current_file changed -> rebuild
+    assert builder.content_rows("", ["p1"], "music/a.ogg") is not first
+    # preset expansion toggled in place -> rebuild (value-fingerprinted)
+    lib._music.expanded_presets["p1"] = True
+    assert builder.content_rows(*args) is not first
