@@ -10,6 +10,7 @@ import os
 from types import SimpleNamespace
 
 import cue_lib.util as _util
+from cue_lib.util import _cue_is_str
 import cue_lib.constants as _constants
 import cue_lib.logger as _logger_mod
 import pygame
@@ -1328,15 +1329,34 @@ def test_to_str_py2_unicode_paths(monkeypatch):
 
     monkeypatch.setattr(_util, "unicode", _Unicode, raising=False)
     assert _util._to_str(_Unicode("hi")) == b"hi"
-    assert _util._to_str("hi") == "hi"
-    assert _util._to_str({"a": "x"}) == {"a": "x"}
-    assert _util._to_str(["x"]) == ["x"]
+    assert _util._to_str(b"hi") == b"hi"
+    assert _util._to_str({b"a": b"x"}) == {b"a": b"x"}
+    assert _util._to_str([b"x"]) == [b"x"]
     assert _util._to_str(42) == 42
 
 
 def test_unwrap_persistent_unicode_branch(monkeypatch):
     monkeypatch.setattr(_util, "unicode", int, raising=False)
     assert _cue_unwrap_persistent(42) == 42
+
+
+def test_cue_is_str_py2_accepts_unicode(monkeypatch):
+    # Ren'Py 7.x: _CUE_TEXT_TYPES is (str, unicode) -- text checks must accept
+    # both, exactly like the runtime computes it under Py2.
+    class _Unicode(object):
+        pass
+
+    monkeypatch.setattr(_util, "_CUE_TEXT_TYPES", (str, _Unicode))
+    assert _cue_is_str("hi")
+    assert _cue_is_str(_Unicode())
+    assert not _cue_is_str(42)
+
+
+def test_cue_is_str_py3_accepts_str_only():
+    # Ren'Py 8.x: str is the only text type; bytes is not text.
+    assert _cue_is_str("hi")
+    assert not _cue_is_str(b"hi")
+    assert not _cue_is_str(42)
 
 
 def test_compile_query_skips_empty_alternative():

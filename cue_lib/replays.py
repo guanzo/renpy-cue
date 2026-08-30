@@ -49,8 +49,9 @@ def _cue_speaker_display(tag):
                 name = name()
             except Exception:
                 name = None
-        if isinstance(name, str):
-            return name
+        if name is not None:
+            return name  # pyright: ignore[reportReturnType]
+
     return tag
 
 

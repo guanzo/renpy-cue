@@ -21,6 +21,7 @@ from cue_lib.constants import CUE_DEFAULT_VIDEO_SPEED, CUE_AUTO_SPEED_MIN_VARIAN
 from cue_lib.state import _cue
 from cue_lib.util import (
     _cue_log,
+    _cue_is_str,
     _cue_unwrap_displayable,
     _cue_get_movie_play,
     _cue_atl_child_displayables,
@@ -386,7 +387,7 @@ class CueVidSpeedResolver(object):
                     base_path = _cue_get_movie_play(child)
                 else:
                     name = getattr(child, "name", None)
-                    if name is None and isinstance(child, str):
+                    if name is None and _cue_is_str(child):
                         name = child
                     if name is None:
                         continue

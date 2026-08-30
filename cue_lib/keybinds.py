@@ -15,6 +15,7 @@ import renpy
 import renpy.display.behavior as _behavior  # pyright: ignore[reportMissingImports]
 
 from cue_lib.state import _cue
+from cue_lib.util import _cue_is_str
 from cue_lib.constants import (
     CUE_DEBUG,
     CUE_KEYMAP_TOGGLE_OVERLAY,
@@ -577,7 +578,7 @@ class CueKeybindsManager(object):
         for name, entry in renpy.config.keymap.items():
             if name.startswith("cue_"):
                 continue
-            if hasattr(entry, "__iter__") and not isinstance(entry, (str, bytes)):
+            if hasattr(entry, "__iter__") and not _cue_is_str(entry):
                 if keysym in entry:
                     owners.append("Ren'Py: {}".format(name))
 

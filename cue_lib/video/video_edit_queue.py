@@ -16,7 +16,7 @@ from renpy.store import persistent
 
 from cue_lib.video.ffmpeg import CREATIONFLAGS, _cue_probe_job
 from cue_lib.state import _cue
-from cue_lib.util import _cue_log, _cue_replace_file, _cue_unwrap_persistent
+from cue_lib.util import _cue_is_str, _cue_log, _cue_replace_file, _cue_unwrap_persistent
 
 MYPY = False
 if MYPY:
@@ -656,7 +656,7 @@ class CueVideoEditQueue(object):
             return
         try:
             data = _cue_unwrap_persistent(raw)
-            if not hasattr(data, "__iter__") or isinstance(data, (str, bytes)):
+            if not hasattr(data, "__iter__") or _cue_is_str(data):
                 _cue_log("LOAD-JOBS: unexpected type, clearing")
                 persistent._cue_jobs = None
                 return

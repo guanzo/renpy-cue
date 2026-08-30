@@ -11,6 +11,7 @@ Ren'Py 7.x uses Python 2.7. In runtime `.py` files:
 * No `@` operator.
 * No non-ASCII characters.
 * All classes inherit from `object` or another new-style class.
+* No str-type `isinstance(x, str)` / `isinstance(x, (str, bytes))` / `type(x) == str` -- on Py2 `str` is bytes and misses unicode. Use `util._cue_is_str()`; real bytes checks use bare `isinstance(x, bytes)`. Enforced by `/lint`.
 
 ## Version-Specific APIs
 

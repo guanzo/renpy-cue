@@ -151,7 +151,7 @@ def _cue_unwrap_displayable(name_or_displayable):
     wrappers to find the underlying Image/Movie displayable.
     Returns the unwrapped displayable, or None if input was None.
     Guards against reference cycles with a max iteration count."""
-    if isinstance(name_or_displayable, str):
+    if _cue_is_str(name_or_displayable):
         d = renpy.displayable(name_or_displayable)
     else:
         d = name_or_displayable
@@ -211,6 +211,23 @@ def _cue_atl_child_displayables(d):
 # --------------------------------------------------------------------------
 
 
+# A bare str-type isinstance() is a Python 2 trap: str is bytes there and
+# unicode is a separate type, so unicode text fails the check and silently
+# takes the non-text branch. _CUE_TEXT_TYPES is the only safe str-type test
+# on both Pythons (Py3: (str,); Py2: (str, unicode)).
+try:
+    unicode  # pyright: ignore[reportUndefinedVariable, reportUnusedExpression]
+    _CUE_TEXT_TYPES = (str, unicode)  # pyright: ignore[reportUndefinedVariable]
+except NameError:
+    _CUE_TEXT_TYPES = (str,)
+
+
+def _cue_is_str(value):
+    # type: (Any) -> bool
+    """True when value is a text string on the running Python."""
+    return isinstance(value, _CUE_TEXT_TYPES)
+
+
 def _to_str(obj):
     # type: (Any) -> Any
     """Recursively encode unicode keys and values to UTF-8 str (Python 2).
@@ -224,7 +241,7 @@ def _to_str(obj):
 
     if isinstance(obj, unicode):  # pyright: ignore[reportUndefinedVariable]
         return obj.encode("utf-8")
-    if isinstance(obj, str):
+    if isinstance(obj, bytes):
         return obj
     if hasattr(obj, "items") and hasattr(obj, "keys"):
         return {_to_str(k): _to_str(v) for k, v in obj.items()}
@@ -239,13 +256,8 @@ def _cue_unwrap_persistent(data):
     wrappers to plain Python dict/list/set. Duck-typing avoids isinstance
     which fails on wrapped types; json.dumps also fails for the same reason.
     Strings/basestrings must be guarded -- they are iterable."""
-    if isinstance(data, (str, bytes)):
+    if _cue_is_str(data) or isinstance(data, bytes):
         return data
-    try:
-        if isinstance(data, unicode):  # pyright: ignore[reportUndefinedVariable]
-            return data
-    except NameError:
-        pass
     if hasattr(data, "items") and hasattr(data, "keys"):
         return dict((k, _cue_unwrap_persistent(v)) for k, v in data.items())
     # Set before list -- sets are also iterable but have add/discard
@@ -892,7 +904,7 @@ def _cue_top_movie_name(movie):
     if name:
         return name
     play = getattr(movie, "play", None)
-    if hasattr(play, "__iter__") and not isinstance(play, (str, bytes)):
+    if hasattr(play, "__iter__") and not _cue_is_str(play):
         play = play[0] if play else None
     if play:
         return str(play).replace("\\", "/").rsplit("/", 1)[-1]
@@ -906,7 +918,7 @@ def _cue_get_movie_play(movie):
     if raw_play is None:
         raw_play = getattr(movie, '_play', None)
     # Duck typing: isinstance(x, list) fails when Ren'Py shadows list->RevertableList
-    if hasattr(raw_play, "__iter__") and not isinstance(raw_play, (str, bytes)):
+    if hasattr(raw_play, "__iter__") and not _cue_is_str(raw_play):
         raw_play = raw_play[0] if raw_play else ""
     # str() is a no-op for every reachable value (str or None) and lets
     # pyright drop the bytes member of the negated-isinstance narrowing.

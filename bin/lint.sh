@@ -115,7 +115,22 @@ if [ -n "$PY2_COMMA" ]; then
     status=1
 fi
 
-# --- 5. Python 2.7 compatibility (cue_lib runtime) ---
+# --- 5. py2 isinstance(str) text check (cue_lib runtime only) ---
+# isinstance(value, str) is a Python 2 trap: str is bytes there, unicode is a
+# separate type, so unicode text fails the check and silently takes the
+# non-text branch. isinstance(value, (str, bytes)) is no better -- bytes IS str
+# on py2, so the tuple collapses to (str,) and still misses unicode. Text
+# checks go through util._cue_is_text(); real bytes checks use bare bytes
+# (correct on both Pythons). Also catches type(x) is/== str, which has the
+# same py2 blind spot.
+PY2_ISINSTANCE_STR="$(grep -rnE 'isinstance\([^)]*\bstr\b|type\([^)]*\)\s*(is|==)\s*str' cue_lib --include='*.py' || true)"
+if [ -n "$PY2_ISINSTANCE_STR" ]; then
+    printf '%s\n' "$PY2_ISINSTANCE_STR"
+    echo "lint: isinstance(x, str) / (str, bytes) misses unicode on Python 2.7; use util._cue_is_str() for str checks, bare bytes for real bytes" >&2
+    status=1
+fi
+
+# --- 6. Python 2.7 compatibility (cue_lib runtime) ---
 # pytest runs under py3, so it cannot catch py2-only breaks: py3.6+ stdlib
 # APIs (e.g. zipfile.ZipInfo.is_dir) and py2-invalid syntax. bin/py2_check.sh
 # compiles every cue_lib module, boots import cue_lib, and runs targeted

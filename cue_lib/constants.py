@@ -93,7 +93,7 @@ class CueContextType(object):
 
 # The published release version. Read by bin/build_release_asset.py and the
 # /release skill; single source of truth for the tag + asset names.
-CUE_VERSION = "0.2.0"
+CUE_VERSION = "0.3.0"
 CUE_DISCORD = "https://discord.gg/kAVtFGcQYm"
 CUE_GITHUB = "https://github.com/guanzo/renpy-cue/issues"
 CUE_KOFI = "https://ko-fi.com/guanzo"
@@ -278,6 +278,6 @@ CUE_IMPORT_CATEGORY_LABELS = {
     CueImportCategory.MARKERS: "Markers",
     CueImportCategory.SFX: "SFX files",
     CueImportCategory.MUSIC: "Music files",
-    CueImportCategory.SPEED_VARIANTS: "Speed variant files",
+    CueImportCategory.SPEED_VARIANTS: "Video speed variants",
     CueImportCategory.PRESETS: "Presets",
 }
