@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./cue_lib/images/branding/cue-wordmark.png" alt="Ren'Py Cue" width="200">
+  <img src="./cue_lib/assets/images/branding/cue-wordmark.png" alt="Ren'Py Cue" width="200">
 </p>
 
 Add sound effects, music, and video effects to [Ren'Py](https://www.renpy.org/) games — without modifying the game's scripts.
@@ -51,7 +51,7 @@ Export your Cue setup to share it with others.
 
 ### 1. Install Cue
 
-1. Download and extract the [latest release](https://github.com/guanzo/renpy-cue/releases/latest).
+1. Download and extract the [latest release](https://github.com/guanzo/renpy-cue/releases/latest) (`cue_x.x.x.zip`).
 2. Drop the `renpy_cue` folder into the game's `game` folder.
 
 ```text
@@ -71,7 +71,7 @@ Cue needs sound files before it can play anything. You can start with either of 
 2. Run the game, then open Cue by pressing `` ` `` (backtick) or `Shift+Alt+E`. 
 3. Go to **SFX Library**, and click **Open SFX Folder**. 
 4. Copy the extracted audio files into the folder that opens.
-5. Alternatively, you can add a list of folders to check in **Settings** -> **SFX Folders**
+5. Alternatively, you can add extra SFX folders in **Settings** -> **SFX Folders**
 
 Cue was built with AVNs in mind, but Cue itself works the same on any Ren'Py game.
 

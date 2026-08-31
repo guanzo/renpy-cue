@@ -15,7 +15,7 @@ from cue_lib.paths import CUE_DIR_OVERRIDE_FILENAME, CUE_MOD_DIRNAME, CuePaths
 def test_in_game_base_dir_and_icon(tmp_path):
     p = CuePaths(str(tmp_path), "game1")
     assert p.in_game_base_dir == CUE_MOD_DIRNAME
-    assert p.icon("x.png") == CUE_MOD_DIRNAME + "/cue_lib/images/icons/x.png"
+    assert p.icon("x.png") == CUE_MOD_DIRNAME + "/cue_lib/assets/images/icons/x.png"
 
 
 def test_root_and_game_id_props(tmp_path):
@@ -200,7 +200,7 @@ def test_loader_owns_in_game_base_dir(tmp_path, monkeypatch):
     gamedir = str(tmp_path / "game")
     monkeypatch.setattr(_config, "gamedir", gamedir)
     p = CuePaths(str(tmp_path / "cue_root"), "g1")
-    assert p._loader_owns(gamedir + "/" + CUE_MOD_DIRNAME + "/cue_lib/images/icons/x.png")
+    assert p._loader_owns(gamedir + "/" + CUE_MOD_DIRNAME + "/cue_lib/assets/images/icons/x.png")
 
 
 def test_loader_owns_exact_root(tmp_path):

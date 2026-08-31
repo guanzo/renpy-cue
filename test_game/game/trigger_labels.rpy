@@ -8,8 +8,8 @@
 
 # Two distinct stills so a testcase can alternate context: re-showing the SAME
 # image does not re-fire, a DIFFERENT one does.
-image cueimg_a = "renpy_cue/cue_lib/images/icons/gear-solid.png"
-image cueimg_b = "renpy_cue/cue_lib/images/icons/music-solid.png"
+image cueimg_a = "renpy_cue/cue_lib/assets/images/icons/gear-solid.png"
+image cueimg_b = "renpy_cue/cue_lib/assets/images/icons/music-solid.png"
 
 # The test game ships no screens.rpy, so without a `screen say` the engine's
 # Character falls back to the legacy window display -- which never registers a

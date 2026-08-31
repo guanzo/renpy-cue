@@ -32,7 +32,7 @@ solid, regular, brands.
    - No stash at all: run `bash .local/icons/convert.sh` first (needs
      rsvg-convert).
 3. **Ship the PNG**: `cp .local/icons/<STYLE>/<NAME>.png
-   cue_lib/images/icons/<NAME>-<STYLE>.png`. Always name it
+   cue_lib/assets/images/icons/<NAME>-<STYLE>.png`. Always name it
    `<name>-<style>.png`, never a bare `<name>.png`.
 4. **Register it**: in `cue_lib/icons.py`, add one entry to `CUE_ICON_MAP`
    keeping the keys sorted:
@@ -55,5 +55,5 @@ solid, regular, brands.
   Unknown names render as literal text, so a forgotten map line is visible
   in the UI immediately.
 - Full manual recipe lives in the docstring of `cue_lib/icons.py`.
-- `cue_lib/images/icons/` is committed (ships with the mod);
+- `cue_lib/assets/images/icons/` is committed (ships with the mod);
   `.local/icons/` and `convert.sh` are gitignored local tooling.

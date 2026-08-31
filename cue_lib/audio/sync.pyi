@@ -4,7 +4,7 @@ from typing import Final, Tuple
 from cue_lib.db import CueDatabase
 
 CUE_SYNC_CHANNEL: Final = "cue_sync"
-CUE_SYNC_CLICK: Final = "renpy_cue/cue_lib/assets/metronome.mp3"
+CUE_SYNC_CLICK: Final = "renpy_cue/cue_lib/assets/audio/metronome.mp3"
 CUE_SYNC_STAGE_INTERVALS: Final = (1.0, 0.6, 0.4)
 CUE_SYNC_STAGE_LABELS: Final = ("Slow", "Medium", "Fast")
 CUE_SYNC_BEATS_PER_STAGE: Final = 3

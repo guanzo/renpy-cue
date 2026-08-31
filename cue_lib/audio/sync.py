@@ -26,7 +26,7 @@ CUE_SYNC_CHANNEL = "cue_sync"
 
 # Gamedir-relative path to the metronome click.  ~0.8s long; the slow stage
 # leaves it room to finish, fast overlaps into a quick roll (intended).
-CUE_SYNC_CLICK = "renpy_cue/cue_lib/assets/metronome.mp3"
+CUE_SYNC_CLICK = "renpy_cue/cue_lib/assets/audio/metronome.mp3"
 
 # Tempo stages: seconds per beat, slow -> medium -> fast, then repeat.
 CUE_SYNC_STAGE_INTERVALS = (1.0, 0.6, 0.4)

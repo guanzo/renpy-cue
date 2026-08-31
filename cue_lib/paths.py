@@ -105,7 +105,7 @@ class CuePaths(_renpy_python.NoRollback):
 
     def icon(self, filename):
         # type: (str) -> str
-        return self.in_game_base_dir + "/cue_lib/images/icons/" + filename
+        return self.in_game_base_dir + "/cue_lib/assets/images/icons/" + filename
 
     # ------------------------------------------------------------------
     # Loader ownership -- which absolute paths the loader patch may claim.

@@ -9,8 +9,8 @@ import zipfile
 def make_fixture():
     src = tempfile.mkdtemp()
     cue = os.path.join(src, "cue_lib")
-    os.makedirs(os.path.join(cue, "images"))
-    open(os.path.join(cue, "images", "icon.png"), "w").close()
+    os.makedirs(os.path.join(cue, "assets", "images"))
+    open(os.path.join(cue, "assets", "images", "icon.png"), "w").close()
     open(os.path.join(cue, "__init__.py"), "w").close()
     open(os.path.join(cue, "mod.py"), "w").close()
     open(os.path.join(cue, "z.rpy"), "w").close()
@@ -33,7 +33,7 @@ def test_build_strips_bytecode_and_wraps():
         assert r.returncode == 0, r.stderr
         names = zipfile.ZipFile(out).namelist()
         assert any(n == "renpy_cue/cue_lib/__init__.py" for n in names)
-        assert any(n.startswith("renpy_cue/cue_lib/images/") for n in names)
+        assert any(n.startswith("renpy_cue/cue_lib/assets/images/") for n in names)
         assert not any(n.endswith((".rpyc", ".pyo", ".pyc")) for n in names)
         assert not any("__pycache__" in n for n in names)
     finally:

@@ -241,9 +241,9 @@ testcase scene_row_thumbnails:
     # scene with no thumb.  Seed an image-carrying marker alongside the
     # placeholder-only scenes from scenes_page_render.
     $ _cue_scenes_seed()
-    $ _cue.markers["v_thumb_harness.ogv"] = {"_key": "v_thumb_harness.ogv", "replay": "replay_harness", "pools": [], "filepath": "renpy_cue/cue_lib/images/icons/gear-solid.png"}
+    $ _cue.markers["v_thumb_harness.ogv"] = {"_key": "v_thumb_harness.ogv", "replay": "replay_harness", "pools": [], "filepath": "renpy_cue/cue_lib/assets/images/icons/gear-solid.png"}
     run Function(_cue.overlay.set_page, CuePage.REPLAYS)
-    assert eval (_cue.replays.thumbs.thumb_for("replay_harness") == "renpy_cue/cue_lib/images/icons/gear-solid.png")
+    assert eval (_cue.replays.thumbs.thumb_for("replay_harness") == "renpy_cue/cue_lib/assets/images/icons/gear-solid.png")
     assert eval (_cue.replays.thumbs.thumb_for("no_such_label_harness") is None)
     pause 0.3
     $ _cue_scenes_cleanup()

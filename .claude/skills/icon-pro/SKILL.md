@@ -16,7 +16,7 @@ Unlike the free `/icon`, the Pro package ships only css + webfonts (no
 per-icon SVGs), so an icon's vector is a glyph in a style's woff2 keyed by a
 unicode codepoint. The shape is rebuilt from the woff2 by
 `.local/icons/pro_icon.py`. Output mirrors `/icon`: a white 32x32 PNG in
-`cue_lib/images/icons/` plus a `CUE_ICON_MAP` entry.
+`cue_lib/assets/images/icons/` plus a `CUE_ICON_MAP` entry.
 
 ## Steps
 
@@ -41,7 +41,7 @@ unicode codepoint. The shape is rebuilt from the woff2 by
    - Glyph missing from that style's font: report the available styles and
      stop -- do not silently fall back to another style.
 4. **Ship the PNG**: the extractor writes
-   `cue_lib/images/icons/<NAME>-<STYLE>.png`. Always `<name>-<style>.png`,
+   `cue_lib/assets/images/icons/<NAME>-<STYLE>.png`. Always `<name>-<style>.png`,
    never a bare `<name>.png`.
 5. **Register it**: in `cue_lib/ui/icons.py` (not `cue_lib/icons.py` -- the
    file lives under `ui/`), add one entry to `CUE_ICON_MAP` keeping the keys

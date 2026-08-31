@@ -3,12 +3,12 @@
 # cue_icon_btn buttons take a label that is either an icon name or plain
 # text.  Names resolve to Font Awesome Free 7.3.1 icons, rasterized to
 # white 32x32 PNGs by .local/icons/convert.sh (source checkout).  Shipped
-# PNGs live in cue_lib/images/icons/ and are referenced by game-dir-
+# PNGs live in cue_lib/assets/images/icons/ and are referenced by game-dir-
 # relative paths built from _cue.paths.in_game_base_dir, so they resolve in any game
 # the mod is symlinked into.
 #
 # Adding a new icon:
-#   1. Add <name>-solid.png (or -regular.png) to cue_lib/images/icons/:
+#   1. Add <name>-solid.png (or -regular.png) to cue_lib/assets/images/icons/:
 #      either by listing the FA icon in .local/icons/convert.sh and
 #      re-running it, or by copying from the .local/icons/<style>/ stash.
 #   2. Add one entry to CUE_ICON_MAP below.
