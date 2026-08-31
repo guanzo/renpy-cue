@@ -338,7 +338,10 @@ if [ "$DSL" = "legacy" ]; then
             [ -n "$_claim" ] && rmdir "$_claim" 2>/dev/null || true
             [ -n "$XVPID" ] && kill "$XVPID" 2>/dev/null || true
         }
-        trap '_worker_cleanup' 0
+        # The EXIT trap's final status wins in bash 5.1 (the runner's), so a bare
+        # `_worker_cleanup` tail (which exits 0 via `|| true`) would mask a failing
+        # worker's nonzero rc. Re-raise rc explicitly so failures reach the parent.
+        trap '_worker_cleanup; exit "$rc"' 0
         trap '_worker_cleanup; exit 1' 1 2 15
         # Seed from the main path's already-prepared /tmp trees: cue_lib is a
         # real copy there, and /tmp avoids the concurrent-read race on the slow
