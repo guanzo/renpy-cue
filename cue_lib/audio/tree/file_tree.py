@@ -73,7 +73,6 @@ class CueAudioTreeManager(_renpy_python.NoRollback):
         self.visible_tree = []  # flat, depth-annotated rows for the screen
         self.expanded_folders = {}  # folder_path -> bool
         self.search_query = ""  # non-empty -> visible_tree is a filtered view
-        self.search_truncated = 0  # rows dropped by the search cap (0 when idle)
         self._search_applied = ""  # query last rebuilt for (debounce marker)
         self._has_expanded_roots = False  # one-time root expansion done
 
@@ -279,12 +278,15 @@ class CueAudioTreeManager(_renpy_python.NoRollback):
         and every kept folder is force-expanded so all matches are visible;
         otherwise only expanded folders are recursed into.  self.tree and
         self.expanded_folders are never modified here, so clearing the search
-        restores the exact pre-search view.  During a search the rows are
-        capped at CUE_SEARCH_MAX_ROWS and the overflow count is left in
-        search_truncated (0 when under the cap or not searching)."""
+        restores the exact pre-search view.  A query under two characters does
+        not filter (so one-char typing shows the normal tree); the windowed
+        renderer lays out only the visible slice, so a broad match set is fine
+        to build in full."""
         query = self.search_query.strip()
 
-        if query:
+        # One-char queries force-expand nearly everything; treat them as no
+        # query so typing "a" does not collapse the user's tree view.
+        if len(query) >= CUE_SEARCH_MIN_CHARS:
             source = _cue_filter_tree(self.tree, query)
             force_expand = True
         else:
@@ -293,12 +295,6 @@ class CueAudioTreeManager(_renpy_python.NoRollback):
 
         result = []
         self._walk_tree(source, "", 0, result, force_expand)
-
-        if force_expand and len(result) > CUE_SEARCH_MAX_ROWS:
-            self.search_truncated = len(result) - CUE_SEARCH_MAX_ROWS
-            del result[CUE_SEARCH_MAX_ROWS:]
-        else:
-            self.search_truncated = 0
 
         self.visible_tree = result
 

@@ -252,9 +252,6 @@ screen cue_search_bar(field_path, manager, hint="Search"):
             clear_action=Function(manager.clear_search),
             hint_icon="magnifying-glass")
 
-        if manager.search_truncated:
-            etext "{} more results.  Narrow your search".format(manager.search_truncated) style "cue_help"
-
 # Toggle button: square-check icon when checked, square when unchecked.
 # on_bg/on_hover/off_bg/off_hover override backgrounds per state (None = style default).
 screen cue_checkbox(checked, label, action, tt_on=None, tt_off=None,

@@ -23,7 +23,7 @@ import cue_lib.audio.tree.pool_rows as _pool_rows
 import cue_lib.audio.tree.sfx_tree_rows as _sfx_rows
 import cue_lib.audio.tree.tree_rows as _core_rows
 import cue_lib.util as _util
-from cue_lib.audio.tree.file_tree import CUE_SEARCH_MAX_ROWS, CueAudioTreeManager
+from cue_lib.audio.tree.file_tree import CUE_SEARCH_MIN_CHARS, CueAudioTreeManager
 from cue_lib.audio.tree.music_tree import CueMusicTree
 from cue_lib.audio.sfx_manager import CueSfxManager, _cue_sfx_channel_index, _cue_sfx_channel_name
 from cue_lib.audio.tree.sfx_tree import CueSfxLibraryTree
@@ -314,20 +314,29 @@ def test_rebuild_tree_idle_respects_expansion():
     assert len(mgr.visible_tree) == 1
 
 
-def test_rebuild_tree_search_caps_broad_query():
+def test_rebuild_tree_search_returns_all_matches():
     mgr = CueAudioTreeManager()
     mgr.tree = _cue_build_tree(["f{}.mp3".format(i) for i in range(300)])
     mgr.search_query = "f"
     mgr.rebuild_tree()
-    assert len(mgr.visible_tree) <= CUE_SEARCH_MAX_ROWS
-    assert mgr.search_truncated == 300 - CUE_SEARCH_MAX_ROWS
+    assert len(mgr.visible_tree) == 300
 
 
-def test_rebuild_tree_idle_not_capped():
+def test_rebuild_tree_search_ignores_short_query():
+    mgr = CueAudioTreeManager()
+    mgr.tree = _cue_build_tree(FILES)
+    mgr.rebuild_tree()
+    collapsed = list(mgr.visible_tree)
+    mgr.search_query = "f" * (CUE_SEARCH_MIN_CHARS - 1)
+    mgr.rebuild_tree()
+    # Below the min-char threshold the query is ignored: tree stays collapsed.
+    assert mgr.visible_tree == collapsed
+
+
+def test_rebuild_tree_idle_full_tree():
     mgr = CueAudioTreeManager()
     mgr.tree = _cue_build_tree(["f{}.mp3".format(i) for i in range(300)])
     mgr.rebuild_tree()
-    assert mgr.search_truncated == 0
     assert len(mgr.visible_tree) == 300
 
 
@@ -415,7 +424,6 @@ def test_clear_search_resets_debounce_state():
     assert mgr._search_applied == "intense"
     mgr.clear_search()
     assert mgr._search_applied == ""
-    assert mgr.search_truncated == 0
 
 
 # ==========================================================================

@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from cue_lib._types import AudioSourceConfig
 from cue_lib.audio.recent import CueRecentManager
 
-CUE_SEARCH_MAX_ROWS: int
+CUE_SEARCH_MIN_CHARS: int
 
 class CueAudioTreeManager:
     external_folders: List[str]
@@ -17,7 +17,6 @@ class CueAudioTreeManager:
     visible_tree: List[Dict[str, Any]]
     expanded_folders: Dict[str, bool]
     search_query: str
-    search_truncated: int
     _search_applied: str
     _has_expanded_roots: bool
     _recent: Optional[CueRecentManager]

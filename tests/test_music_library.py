@@ -194,15 +194,14 @@ def test_search_matches_both_sources():
     assert GAME + "bgm/song.ogg" in rows
 
 
-def test_search_caps_rows():
+def test_search_returns_all_matches():
     user_paths = tuple("music/song{:02d}.ogg".format(i) for i in range(120))
     lib, _calls = _make_lib(user_paths=user_paths)
     lib.rebuild_tree()
     lib.search_query = "song"
     lib.rebuild_tree()
-    # 120 files + 1 "My Music/" folder row = 121, capped at 100.
-    assert lib.search_truncated == 21
-    assert len(lib.visible_tree) == 100
+    # 120 files + 1 "My Music/" folder row = 121, all returned (no cap).
+    assert len(lib.visible_tree) == 121
 
 
 def test_clear_search_restores_collapsed_tree():
@@ -802,8 +801,7 @@ def test_music_content_rows_preset_empty_help():
     lib = _content_lib()
     rows = _content_rows(lib, presets=(), recent_entries=None)
     assert any(
-        r["type"] == "help" and r["label"] == "No music presets yet. Save a trigger's song list to fill this."
-        for r in rows
+        r["type"] == "help" and r["label"] == "No music presets yet. Save a song list as a preset." for r in rows
     )
 
 
@@ -866,7 +864,7 @@ def test_music_content_rows_per_source_empty_states(monkeypatch):
     labels = [r["label"] for r in rows]
     assert "scan broke" in labels
     assert "No music found in: /music/" in labels
-    assert "Add .ogg, .mp3, .wav, .opus files there and click the refresh button." in labels
+    assert "Add audio files there and click refresh." in labels
     # The open-folder action row resolves the explorer variant.
     open_row = next(r for r in rows if r["label"] == "Open Music folder")
     assert open_row["type"] == "action"
@@ -874,7 +872,7 @@ def test_music_content_rows_per_source_empty_states(monkeypatch):
     # The Settings > Data Folder tip follows it, matching the SFX empty state.
     tip_row = next(r for r in rows if r["key"] == "user:settings_tip")
     assert tip_row["plain"] is True
-    assert tip_row["label"] == "Add additional folder locations in Settings > Data Folder."
+    assert tip_row["label"] == "Add folders in Settings > Data Folder."
     # scan-error line is plain (unstyled) with the error color.
     scan_row = next(r for r in rows if r["label"] == "scan broke")
     assert scan_row["plain"] is True
