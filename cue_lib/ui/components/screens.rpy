@@ -298,10 +298,10 @@ screen cue_tree_rows(rows, ymax=999999, width=None, key=None):
     $ _adj = _cue_tree_adjustment(key or "cue_tree")
     $ _pitch = _cue_scale_ui(_cue_btn_height) + 4  # natural row height + the original 4px gap
     $ _buf = 6  # rows of slack above and below the viewport
-    # First eval runs before the viewport has ever rendered, so _adj.page is 0;
-    # fall back to the full screen height so the first window covers whatever
-    # viewport mounts (a smaller default left blank space until a restart).
-    $ _page = _adj.page or renpy.config.screen_height
+    # An unmounted adjustment reports page as range/10 (0.1), so treat any
+    # page below one row as "not yet sized" and fall back to the full screen
+    # height: the first window must cover the viewport before it has rendered.
+    $ _page = _adj.page if _adj.page >= _pitch else renpy.config.screen_height
     $ _vis = max(2, int(_page // _pitch) + 2)
     $ _first = int(_adj.value) // _pitch
     $ _start = max(0, _first - _buf)

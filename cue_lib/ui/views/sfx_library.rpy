@@ -95,6 +95,6 @@ screen cue_sfx_library_content(_is_video):
         _unplayable),
         width=(_cue.sfx.library.sidebar_width
                if _cue.sfx.library.is_sidebar_mode else _cue_overlay_panel_width),
-        key="sfx_tree")
+        key=("sfx_tree_sidebar" if _cue.sfx.library.is_sidebar_mode else "sfx_tree"))
 
 
