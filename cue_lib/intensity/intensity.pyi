@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple, Union
 
 from cue_lib._types import IgroupHookDict, MarkerEntry
 from cue_lib.db import CueDatabase
@@ -68,7 +68,7 @@ class CueIntensityManager:
     def video_hook(self, pool_hooks: List[Optional[IgroupHookDict]]) -> Optional[str]: ...
     def is_pool_intensity_active(
         self,
-        igroup: Optional[IgroupHookDict],
+        igroup: Optional[Union[str, IgroupHookDict]],
         variants: Optional[List[float]],
         flags: Optional[CueIntensityFlags] = None,
     ) -> bool: ...

@@ -184,10 +184,6 @@ CUE_RESTART_JUMP_SECONDS = 0.3
 # marker tabs, level folders in a hooked pool's file list).
 CUE_INTENSITY_HINT_COLOR = "#ff8800"
 
-# Tooltip note paired with the hint bar, identifying a marker as an
-# intensity-hooked target.
-CUE_INTENSITY_NOTE = "Intensity mode active"
-
 # UI reference width: every overlay value is authored at 1920 virtual px and
 # mapped to the current screen by _cue_scale_ui().  Identity at 1920, so
 # authored values are the source of truth for the vast majority of games.

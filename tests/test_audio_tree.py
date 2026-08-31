@@ -29,11 +29,9 @@ from cue_lib.audio.sfx_manager import CueSfxManager, _cue_sfx_channel_index, _cu
 from cue_lib.audio.tree.sfx_tree import CueSfxLibraryTree
 from cue_lib.preset_store import CuePresetStore
 from cue_lib.constants import (
-    CUE_AUDIO_EXTS,
     CUE_GAME_MUSIC_FOLDER,
     CUE_HELP_SHIFT_SKIP_DELETE,
     CUE_INTENSITY_HINT_COLOR,
-    CUE_INTENSITY_NOTE,
     CUE_MY_MUSIC_FOLDER,
     CUE_PERSIST_SIDEBAR_MODE,
     CUE_PERSIST_SFX_TREE_EXPANDED,
@@ -739,6 +737,7 @@ def _fake_cue_pool_rows(monkeypatch, library, intensity=None, current_file=None)
         sfx=types.SimpleNamespace(
             library=library, preview_sfx=lambda *a, **k: None, preview_folder=lambda *a, **k: None
         ),
+        speed_resolver=types.SimpleNamespace(banding_speeds=lambda f: [1.0, 2.0]),
         intensity=intensity,
     )
     monkeypatch.setattr(_pool_rows, "_cue", cue)
@@ -813,9 +812,11 @@ def test_pool_files_rows_igroup_readonly(monkeypatch):
     )
     flags = types.SimpleNamespace(enabled=True, sfx_levels=True)
     intensity = types.SimpleNamespace(
-        level_files_by_id=lambda group, lv: ["soft/", "hit.ogg"], flags_from_entry=lambda entry: flags
+        level_files_by_id=lambda group, lv: ["soft/", "hit.ogg"],
+        flags_from_entry=lambda entry: flags,
+        is_pool_intensity_active=lambda igroup, variants, flags: True,
     )
-    _fake_cue_pool_rows(monkeypatch, library, intensity=intensity)
+    _fake_cue_pool_rows(monkeypatch, library, intensity=intensity, current_file="v0")
     rows = _pool_rows._cue_pool_files_rows(
         [], 0.5, "DETACH", None, (), None, None, None, None, None, igroup="Impacts", ilevel_id=1
     )
@@ -823,7 +824,7 @@ def test_pool_files_rows_igroup_readonly(monkeypatch):
     # Folder row: detach xmark + hint bar; children are play-only.
     assert rows[0]["buttons"][0]["action"] == "DETACH"
     assert rows[0]["bar_color"] == CUE_INTENSITY_HINT_COLOR
-    assert CUE_INTENSITY_NOTE in rows[0]["tt"]
+    assert "Active Intensity Group: 'Impacts'" in rows[0]["tt"]
     assert [b["icon"] for b in rows[1]["buttons"]] == ["play"]
 
 
@@ -834,6 +835,7 @@ def test_pool_files_rows_igroup_no_files(monkeypatch):
     intensity = types.SimpleNamespace(
         level_files_by_id=lambda group, lv: [],
         flags_from_entry=lambda entry: types.SimpleNamespace(enabled=False, sfx_levels=False),
+        is_pool_intensity_active=lambda igroup, variants, flags: False,
     )
     _fake_cue_pool_rows(monkeypatch, library, intensity=intensity)
     rows = _pool_rows._cue_pool_files_rows([], 0.5, None, None, (), None, None, None, None, None, igroup="Impacts")
@@ -1389,6 +1391,29 @@ def test_help_row_color_and_v_gap():
     assert row["v_gap"] == 2
 
 
+def test_elide_label_short_label_unchanged():
+    assert _core_rows._cue_elide_label("a.wav", 40) == "a.wav"
+    assert _core_rows._cue_elide_label("", 40) == ""
+
+
+def test_elide_label_long_label_trims_to_bound():
+    assert _core_rows._cue_elide_label("x" * 41, 40) == "x" * 37 + "..."
+    assert _core_rows._cue_elide_label("a" * 20, 10) == "aaaaaaa..."
+
+
+def test_elide_label_bound_at_exact_len_keeps_full():
+    assert _core_rows._cue_elide_label("x" * 40, 40) == "x" * 40
+    assert _core_rows._cue_elide_label("x" * 37, 40) == "x" * 37
+
+
+def test_tree_adjustment_persists_per_key():
+    first = _core_rows._cue_tree_adjustment("t1")
+    assert _core_rows._cue_tree_adjustment("t1") is first
+    assert _core_rows._cue_tree_adjustment("t2") is not first
+    first.value = 50
+    assert _core_rows._cue_tree_adjustment("t1").value == 50
+
+
 # ==========================================================================
 # SFX recently-used + preset rows
 # ==========================================================================
@@ -1880,7 +1905,7 @@ def test_sfx_content_rows_preset_empty_help(sfx):
     sfx.presets_expanded = True
     rows = _content_rows(sfx)
     # No preset names -> the pool-presets empty line inside the expanded section.
-    empty = [r for r in rows if r["label"] == "No pool presets yet. Save a pool as a preset to fill this."]
+    empty = [r for r in rows if r["label"] == "No pool presets yet. Save a pool as a preset."]
     assert len(empty) == 1
     assert empty[0]["type"] == "help"
     assert empty[0]["depth"] == 0
@@ -1919,7 +1944,7 @@ def test_sfx_content_rows_video_preset_empty_help(sfx):
     _seed_builtin(sfx)
     sfx.video_presets_expanded = True
     rows = _content_rows(sfx)
-    assert "No video presets yet. Save video markers as a preset to fill this." in [r["label"] for r in rows]
+    assert "No video presets yet. Save video markers as a preset." in [r["label"] for r in rows]
 
 
 def test_sfx_content_rows_intensity_children_expanded(sfx):
@@ -2023,8 +2048,8 @@ def test_sfx_content_rows_truly_empty_returns_only_empty_rows(sfx):
     labels = _row_labels(rows)
     assert labels == [
         "No audio files found in: {}".format(sfx._paths.audio_dir),
-        "Add {} files there and click the refresh button.".format(", ".join(CUE_AUDIO_EXTS)),
-        "Add additional folder locations in Settings > Data Folder.",
+        "Add audio files there and click refresh.",
+        "Add folders in Settings > Data Folder.",
     ]
     # Open-folder + download share one action row; nothing else renders.
     row = [r for r in rows if r["type"] == "actions"][0]

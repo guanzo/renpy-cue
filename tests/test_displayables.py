@@ -26,7 +26,7 @@ from cue_lib.ui.displayables import (
     CUE_INTENSITY_COLOR_LOW,
     CUE_INTENSITY_COLOR_HIGH,
 )
-from cue_lib.constants import CUE_INTENSITY_HINT_COLOR, CUE_INTENSITY_NOTE
+from cue_lib.constants import CUE_INTENSITY_HINT_COLOR
 from renpy.display.core import IgnoreEvent
 
 
@@ -221,8 +221,9 @@ def _make_mtl(
 
     def _fake_pool_active(igroup, variants, flags):
         # A non-None igroup is the intensity hook, gated on the per-video
-        # master switch (the real predicate is tested separately).
-        return intensity_on and bool(igroup)
+        # master + SFX-by-level switches (the real predicate is tested
+        # separately).
+        return intensity_on and sfx_levels and bool(igroup)
 
     intensity = types.SimpleNamespace(flags_from_entry=_fake_flags, is_pool_intensity_active=_fake_pool_active)
     cue = types.SimpleNamespace(
@@ -506,7 +507,7 @@ def test_mtl_render_intensity_no_border_when_sfx_levels_off(monkeypatch):
     env.tl._hover_idx = 0
     env.tl.render(200, 60, 0.0, 0.0)
     tip = CueVideoMarkerTimeline._marker_tip_text
-    assert CUE_INTENSITY_NOTE not in tip
+    assert "Active Intensity Group" not in tip
 
 
 def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
@@ -521,7 +522,7 @@ def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
     env.tl.render(200, 60, 0.0, 0.0)
     tip = CueVideoMarkerTimeline._marker_tip_text
     assert tip.startswith("Pool 1 (0:00)")
-    assert CUE_INTENSITY_NOTE in tip  # appended, not replacing the base text
+    assert "Active Intensity Group: 'Impacts'" in tip
 
 
 def test_mtl_render_intensity_tooltip_no_note_unhooked(monkeypatch):

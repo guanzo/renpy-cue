@@ -12,7 +12,7 @@ from renpy.display.core import Displayable, IgnoreEvent
 from cue_lib.state import _cue
 from cue_lib.util import _cue_escape_text, _cue_format_time, create_vid_key
 from cue_lib.audio.sync import CUE_SYNC_MARKER_FRACS
-from cue_lib.constants import CUE_DEBUG, CUE_INTENSITY_HINT_COLOR, CUE_INTENSITY_NOTE, CUE_UI_REF_WIDTH
+from cue_lib.constants import CUE_DEBUG, CUE_INTENSITY_HINT_COLOR, CUE_UI_REF_WIDTH
 
 MYPY = False
 if MYPY:
@@ -530,11 +530,8 @@ class CueVideoMarkerTimeline(Displayable):
 
     def _is_intensity_marker(self, marker, flags, variants):
         # type: (VideoPoolDict, CueIntensityFlags, Optional[List[float]]) -> bool
-        """True when this marker's own pool plays intensity levels: the
-        video's intensity toggle is on, SFX-by-level is on, it has 2+ speed
-        variants, and the pool's folder list is hooked to an intensity group."""
-        if flags is not None and not flags.sfx_levels:
-            return False
+        """True when this marker's own pool plays intensity levels -- the
+        canonical predicate in CueIntensityManager.is_pool_intensity_active."""
         return _cue.intensity.is_pool_intensity_active(marker.get("igroup"), variants, flags)
 
     def _hit_test(self, markers, dur, w, x, y):
@@ -643,7 +640,9 @@ class CueVideoMarkerTimeline(Displayable):
                 and 0 <= tip_idx < len(markers)
                 and self._is_intensity_marker(markers[tip_idx], intensity_flags, intensity_variants)
             ):
-                tip += "\n[" + CUE_INTENSITY_NOTE + "]"
+                hook = markers[tip_idx].get("igroup")
+                if hook:
+                    tip += "\nActive Intensity Group: '{}'".format(hook.get("name"))
             CueVideoMarkerTimeline._marker_tip_text = tip
             # Anchor to the hovered/dragged marker tab, not the cursor, so the
             # tip doesn't drift as the mouse moves within the tab.

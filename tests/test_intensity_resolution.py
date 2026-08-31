@@ -197,6 +197,17 @@ def test_is_pool_intensity_active_toggle_off_is_false(cue_env):
     assert m.is_pool_intensity_active("Impacts", [0.7, 1.0, 1.3], flags) is False
 
 
+def test_is_pool_intensity_active_sfx_levels_off_is_false(cue_env):
+    m = _two_level(cue_env)
+    flags = CueIntensityFlags(sfx_levels=False)
+    assert m.is_pool_intensity_active("Impacts", [0.7, 1.0, 1.3], flags) is False
+
+
+def test_is_pool_intensity_active_default_flags_stays_on(cue_env):
+    m = _two_level(cue_env)
+    assert m.is_pool_intensity_active("Impacts", [0.7, 1.0, 1.3], CueIntensityFlags()) is True
+
+
 def test_is_pool_intensity_active_fewer_than_two_variants_is_false(cue_env):
     m = _two_level(cue_env)
     assert m.is_pool_intensity_active("Impacts", [1.0]) is False

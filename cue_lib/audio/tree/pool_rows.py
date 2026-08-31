@@ -9,7 +9,7 @@
 from renpy.store import Function
 
 from cue_lib.audio.tree.tree_rows import _cue_file_row, _cue_folder_rows
-from cue_lib.constants import CUE_INTENSITY_HINT_COLOR, CUE_INTENSITY_NOTE
+from cue_lib.constants import CUE_INTENSITY_HINT_COLOR
 from cue_lib.state import _cue
 from cue_lib.util import _cue_pick_file, _cue_resolve_files, create_vid_key
 
@@ -46,12 +46,10 @@ def _cue_pool_files_rows(
         flags = _cue.intensity.flags_from_entry(
             _cue.markers.get(create_vid_key(_cue.current_file) if _cue.current_file else "", {})
         )
-        hook_tt = "Attached to intensity group '{}'.".format(igroup)
-        if flags.enabled and flags.sfx_levels:
-            hook_tt += "\n[" + CUE_INTENSITY_NOTE + "]"
-        return _cue_pool_igroup_rows(
-            level_files, preview_vol, detach_action, hook_tt, bool(flags.enabled and flags.sfx_levels)
-        )
+        variants = _cue.speed_resolver.banding_speeds(_cue.current_file) if _cue.current_file else None
+        live = _cue.intensity.is_pool_intensity_active(igroup, variants, flags)
+        hook_tt = "Active Intensity Group: '{}'".format(igroup)
+        return _cue_pool_igroup_rows(level_files, preview_vol, detach_action, hook_tt, live)
     rows = []  # type: List[TreeRowDict]
     if folder_label is not None:
         rows.extend(

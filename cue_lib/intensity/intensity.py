@@ -23,7 +23,7 @@ from cue_lib.util import _cue_resolve_files
 
 MYPY = False
 if MYPY:
-    from typing import Any, Callable, Dict, List, Optional, Tuple  # pyright: ignore[reportUnusedImport]
+    from typing import Any, Callable, Dict, List, Optional, Tuple, Union  # pyright: ignore[reportUnusedImport]
     from cue_lib._types import IgroupDict, IgroupHookDict, LevelDict, MarkerEntry  # pyright: ignore[reportUnusedImport]
     from cue_lib.db import CueDatabase  # pyright: ignore[reportUnusedImport]
 
@@ -309,9 +309,15 @@ class CueIntensityManager(_renpy_python.NoRollback):
         return None
 
     def is_pool_intensity_active(self, igroup, variants, flags=None):
-        # type: (Optional[IgroupHookDict], Optional[List[float]], Optional[CueIntensityFlags]) -> bool
-        if flags is not None and not flags.enabled:
-            return False
+        # type: (Optional[Union[str, IgroupHookDict]], Optional[List[float]], Optional[CueIntensityFlags]) -> bool
+        """True when a hooked pool's intensity mode is live: the master toggle
+        and SFX-by-level are on, the video has 2+ speed variants (i.e. at
+        least 1 non-default variant), and the pool carries a hook."""
+        if flags is not None:
+            if not flags.enabled:
+                return False
+            if not flags.sfx_levels:
+                return False
         if not variants or len(variants) < 2:
             return False
         return bool(igroup)
