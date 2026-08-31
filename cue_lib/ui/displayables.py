@@ -13,6 +13,7 @@ from cue_lib.state import _cue
 from cue_lib.util import _cue_escape_text, _cue_format_time, create_vid_key
 from cue_lib.audio.sync import CUE_SYNC_MARKER_FRACS
 from cue_lib.constants import CUE_DEBUG, CUE_INTENSITY_HINT_COLOR, CUE_UI_REF_WIDTH
+from cue_lib.intensity.intensity import _cue_igroup_tooltip
 
 MYPY = False
 if MYPY:
@@ -430,8 +431,8 @@ class CueVideoMarkerTimeline(Displayable):
     SEL_BG = "#446688"
     SEL_LINE = "#5588cc"
 
-    # Intensity-live marker indicator: a 2px bottom border under the tab and a
-    # tooltip note.  Hot orange reads as "escalating" against the tab's
+    # Intensity-hooked marker indicator: a 2px bottom border under the tab and
+    # a tooltip.  Hot orange reads as "escalating" against the tab's
     # green/blue/purple states.  Border color is CUE_INTENSITY_HINT_COLOR.
 
     def __init__(self, get_markers, get_active_index, set_active_index, set_time, get_dur, **kw):
@@ -609,7 +610,7 @@ class CueVideoMarkerTimeline(Displayable):
             bx_pos = px - self._tab_w // 2
             by_pos = self._track_h - _cue_scale_ui(2)
             c.rect(bg, (bx_pos, by_pos, self._tab_w, self._tab_h))
-            if intensity_flags is not None and self._is_intensity_marker(m, intensity_flags, intensity_variants):
+            if m.get("igroup") is not None:
                 c.rect(CUE_INTENSITY_HINT_COLOR, (bx_pos, by_pos + self._tab_h, self._tab_w, 1))
 
             txt = Txt(str(i + 1), style="cue_button_text", color="#ffffff")
@@ -635,14 +636,13 @@ class CueVideoMarkerTimeline(Displayable):
         if self._tip_text:
             tip = self._tip_text
             tip_idx = self._hover_idx if self._hover_idx >= 0 else self._drag_idx
-            if (
-                intensity_flags is not None
-                and 0 <= tip_idx < len(markers)
-                and self._is_intensity_marker(markers[tip_idx], intensity_flags, intensity_variants)
-            ):
+            if 0 <= tip_idx < len(markers):
                 hook = markers[tip_idx].get("igroup")
                 if hook:
-                    tip += "\nActive Intensity Group: '{}'".format(hook.get("name"))
+                    is_active = False
+                    if intensity_flags is not None:
+                        is_active = self._is_intensity_marker(markers[tip_idx], intensity_flags, intensity_variants)
+                    tip += "\n" + _cue_igroup_tooltip(hook.get("name"), is_active)
             CueVideoMarkerTimeline._marker_tip_text = tip
             # Anchor to the hovered/dragged marker tab, not the cursor, so the
             # tip doesn't drift as the mouse moves within the tab.

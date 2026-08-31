@@ -821,10 +821,12 @@ def test_pool_files_rows_igroup_readonly(monkeypatch):
         [], 0.5, "DETACH", None, (), None, None, None, None, None, igroup="Impacts", ilevel_id=1
     )
     assert [r["type"] for r in rows] == ["folder", "file", "file", "file"]
-    # Folder row: detach xmark + hint bar; children are play-only.
+    # Folder row: detach xmark + hint bar + active-group tooltip; children are
+    # play-only.
     assert rows[0]["buttons"][0]["action"] == "DETACH"
     assert rows[0]["bar_color"] == CUE_INTENSITY_HINT_COLOR
     assert "Active Intensity Group: 'Impacts'" in rows[0]["tt"]
+    assert "Locked to intensity group, no other files can be added to this pool." in rows[0]["tt"]
     assert [b["icon"] for b in rows[1]["buttons"]] == ["play"]
 
 
@@ -840,6 +842,29 @@ def test_pool_files_rows_igroup_no_files(monkeypatch):
     _fake_cue_pool_rows(monkeypatch, library, intensity=intensity)
     rows = _pool_rows._cue_pool_files_rows([], 0.5, None, None, (), None, None, None, None, None, igroup="Impacts")
     assert rows == []
+
+
+def test_pool_files_rows_igroup_inactive_shows_inactive_tooltip(monkeypatch):
+    library = types.SimpleNamespace(
+        files=["soft/a.ogg"], disabled_files=set(), expanded_file_refs={}, toggle_file_ref_expand=lambda *a, **k: None
+    )
+    flags = types.SimpleNamespace(enabled=False, sfx_levels=True)
+    intensity = types.SimpleNamespace(
+        level_files_by_id=lambda group, lv: ["soft/"],
+        flags_from_entry=lambda entry: flags,
+        is_pool_intensity_active=lambda igroup, variants, flags: False,
+    )
+    _fake_cue_pool_rows(monkeypatch, library, intensity=intensity, current_file="v0")
+    rows = _pool_rows._cue_pool_files_rows(
+        [], 0.5, "DETACH", None, (), None, None, None, None, None, igroup="Impacts", ilevel_id=1
+    )
+    # Hook present but intensity inactive (master toggle off): the level files
+    # still render read-only with the hint bar, but the tooltip says "Inactive"
+    # rather than claiming intensity mode is live.
+    assert rows[0]["type"] == "folder"
+    assert rows[0]["bar_color"] == CUE_INTENSITY_HINT_COLOR
+    assert "Inactive Intensity Group: 'Impacts'" in rows[0]["tt"]
+    assert "Locked to intensity group, no other files can be added to this pool." in rows[0]["tt"]
 
 
 def test_sfx_toggle_preset_expand(sfx):

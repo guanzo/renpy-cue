@@ -38,13 +38,24 @@ def _level_ramp(count, max_value):
     return [round(1.0 + i * step, 4) for i in range(count)]
 
 
-def _cue_intensity_volume_mult(level_mult):
+def _cue_igroup_volume_mult(level_mult):
     # type: (float) -> float
     """Clamp a level multiplier to [1.0, CUE_INTENSITY_VOLUME_MAX] so intensity
     never lowers the pool's volume.  resolve_pool_intensity bakes the clamp into the
     resolution's volume_mult; the fire path composes it with the pool volume in
     play_pool."""
     return min(CUE_INTENSITY_VOLUME_MAX, max(1.0, level_mult))
+
+
+def _cue_igroup_tooltip(group_name, is_active):
+    # type: (str, bool) -> str
+    """Tooltip for a pool locked to an intensity group: an active/inactive
+    status line plus the locked-pool note.  Shared by the pool-files rows and
+    the marker timeline."""
+    status = "Active" if is_active else "Inactive"
+    return ("{} Intensity Group: '{}'\nNo more files can be added to this pool.").format(
+        status, group_name
+    )
 
 
 class CueIntensityFlags(_renpy_python.NoRollback):
@@ -265,7 +276,7 @@ class CueIntensityManager(_renpy_python.NoRollback):
                     vm = 1.0
                 if not flags.frequency:
                     fm = 1.0
-        return CueIntensityResolution(igroup, level, _cue_intensity_volume_mult(vm), fm, resolve_files(files))
+        return CueIntensityResolution(igroup, level, _cue_igroup_volume_mult(vm), fm, resolve_files(files))
 
     def resolve_video_intensity(self, pool_hooks, current_speed, variants, flags=None, resolve_files=None):
         # type: (List[Optional[IgroupHookDict]], float, Optional[List[float]], Optional[CueIntensityFlags], Optional[Callable[[List[str]], List[str]]]) -> Optional[CueIntensityResolution]

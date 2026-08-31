@@ -477,7 +477,9 @@ def test_mtl_render_intensity_border_on_hooked_marker(monkeypatch):
     assert h >= 1
 
 
-def test_mtl_render_intensity_no_border_when_off(monkeypatch):
+def test_mtl_render_intensity_border_when_off_still_shows(monkeypatch):
+    # Master toggle off: the pool is still hooked, so the hint strip stays --
+    # only the tooltip status flips to "Inactive".
     env = _make_mtl(
         monkeypatch,
         [{"time": 0.0, "igroup": {"name": "Impacts", "level": 1}}, {"time": 5.0}],
@@ -485,14 +487,14 @@ def test_mtl_render_intensity_no_border_when_off(monkeypatch):
         intensity_on=False,
     )
     r = env.tl.render(200, 60, 0.0, 0.0)
-    colors = [op[1] for op in r.canvas().ops if op[0] == "rect"]
-    assert CUE_INTENSITY_HINT_COLOR not in colors
+    border_ops = [op for op in r.canvas().ops if op[0] == "rect" and op[1] == CUE_INTENSITY_HINT_COLOR]
+    assert len(border_ops) == 1
 
 
-def test_mtl_render_intensity_no_border_when_sfx_levels_off(monkeypatch):
-    # Master toggle is on but "Swap SFX by level" is off: the pool stays on its
-    # attached level folder, so it is not an intensity-swapped marker and the
-    # hint strip (and its tooltip note) must not appear.
+def test_mtl_render_intensity_hooked_when_sfx_levels_off(monkeypatch):
+    # Master on but "Swap SFX by level" off: the pool stays on its attached
+    # level folder (not intensity-swapped), but it is still hooked -- the hint
+    # strip renders and the tooltip marks it Inactive.
     env = _make_mtl(
         monkeypatch,
         [{"time": 0.0, "igroup": {"name": "Impacts", "level": 1}}, {"time": 5.0}],
@@ -501,13 +503,14 @@ def test_mtl_render_intensity_no_border_when_sfx_levels_off(monkeypatch):
         sfx_levels=False,
     )
     r = env.tl.render(200, 60, 0.0, 0.0)
-    colors = [op[1] for op in r.canvas().ops if op[0] == "rect"]
-    assert CUE_INTENSITY_HINT_COLOR not in colors
+    border_ops = [op for op in r.canvas().ops if op[0] == "rect" and op[1] == CUE_INTENSITY_HINT_COLOR]
+    assert len(border_ops) == 1
     env.tl._tip_text = "Pool 1 (0:00)"
     env.tl._hover_idx = 0
     env.tl.render(200, 60, 0.0, 0.0)
     tip = CueVideoMarkerTimeline._marker_tip_text
-    assert "Active Intensity Group" not in tip
+    assert "Inactive Intensity Group: 'Impacts'" in tip
+    assert "Locked to intensity group, no other files can be added to this pool." in tip
 
 
 def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
@@ -523,6 +526,7 @@ def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
     tip = CueVideoMarkerTimeline._marker_tip_text
     assert tip.startswith("Pool 1 (0:00)")
     assert "Active Intensity Group: 'Impacts'" in tip
+    assert "Locked to intensity group, no other files can be added to this pool." in tip
 
 
 def test_mtl_render_intensity_tooltip_no_note_unhooked(monkeypatch):
@@ -538,7 +542,7 @@ def test_mtl_render_intensity_tooltip_no_note_unhooked(monkeypatch):
     assert CueVideoMarkerTimeline._marker_tip_text == "Pool 2 (0:05)"
 
 
-def test_mtl_render_intensity_tooltip_no_note_when_off(monkeypatch):
+def test_mtl_render_intensity_tooltip_inactive_when_off(monkeypatch):
     env = _make_mtl(
         monkeypatch,
         [{"time": 0.0, "igroup": {"name": "Impacts", "level": 1}}, {"time": 5.0}],
@@ -548,7 +552,10 @@ def test_mtl_render_intensity_tooltip_no_note_when_off(monkeypatch):
     env.tl._tip_text = "Pool 1 (0:00)"
     env.tl._hover_idx = 0
     env.tl.render(200, 60, 0.0, 0.0)
-    assert CueVideoMarkerTimeline._marker_tip_text == "Pool 1 (0:00)"
+    tip = CueVideoMarkerTimeline._marker_tip_text
+    assert tip.startswith("Pool 1 (0:00)")
+    assert "Inactive Intensity Group: 'Impacts'" in tip
+    assert "Locked to intensity group, no other files can be added to this pool." in tip
 
 
 def test_mtl_event_mousemotion_hover_sets_tip(monkeypatch):

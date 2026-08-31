@@ -7,7 +7,7 @@
 import pytest
 
 from cue_lib.intensity import CueIntensityFlags, CueIntensityManager
-from cue_lib.intensity.intensity import _cue_intensity_volume_mult
+from cue_lib.intensity.intensity import _cue_igroup_tooltip, _cue_igroup_volume_mult
 
 
 @pytest.fixture
@@ -235,20 +235,33 @@ def test_flags_from_entry_reads_fields(cue_env):
 
 
 # ==========================================================================
-# _cue_intensity_volume_mult -- the clamp baked into resolution.volume_mult
+# _cue_igroup_tooltip -- shared locked-pool tooltip
+# ==========================================================================
+
+
+def test_group_tooltip_active_and_inactive():
+    assert _cue_igroup_tooltip("Impacts", True) == (
+        "Active Intensity Group: 'Impacts'\nLocked to intensity group, no other files can be added to this pool."
+    )
+    assert _cue_igroup_tooltip("Impacts", False) == (
+        "Inactive Intensity Group: 'Impacts'\nLocked to intensity group, no other files can be added to this pool."
+    )
+
+
+# _cue_igroup_volume_mult -- the clamp baked into resolution.volume_mult
 # ==========================================================================
 
 
 def test_volume_mult_identity():
-    assert _cue_intensity_volume_mult(1.0) == 1.0
+    assert _cue_igroup_volume_mult(1.0) == 1.0
 
 
 def test_volume_mult_caps_at_max():
-    assert _cue_intensity_volume_mult(3.0) == 1.25
+    assert _cue_igroup_volume_mult(3.0) == 1.25
 
 
 def test_volume_mult_floor_never_lowers():
-    assert _cue_intensity_volume_mult(0.5) == 1.0
+    assert _cue_igroup_volume_mult(0.5) == 1.0
 
 
 def test_volume_mult_matches_resolution_baked_scale(cue_env):
@@ -259,7 +272,7 @@ def test_volume_mult_matches_resolution_baked_scale(cue_env):
     r = m.resolve_pool_intensity("Impacts", 1, 1.3, [0.7, 1.0, 1.3], resolve_files=_resolve)
     assert r is not None
     _, vm = m.level_multipliers("Impacts", r.level)
-    assert r.volume_mult == _cue_intensity_volume_mult(vm)
+    assert r.volume_mult == _cue_igroup_volume_mult(vm)
 
 
 # ==========================================================================
