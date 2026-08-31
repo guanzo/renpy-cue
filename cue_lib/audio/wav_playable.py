@@ -99,7 +99,6 @@ class CueWavPlayable(_renpy_python.NoRollback):
         self._decision = {}  # path -> CUE_WAV_PLAYABLE_* state; read on play (no I/O)
         self._stamp = {}  # path -> (size, mtime) recorded at last probe/refresh
         self._reason = {}  # path -> short reason, only for unplayable files
-        self._unplayable = None  # cached {path: reason} snapshot (see unplayable)
         self._load_index()
 
     def _make_cache_root(self, temp_root):
@@ -172,18 +171,12 @@ class CueWavPlayable(_renpy_python.NoRollback):
 
     def unplayable(self):
         # type: () -> dict
-        """{path: reason} for every WAV that can't be made playable, for UI.
-
-        Cached snapshot: the SFX screen calls this on every hover/scroll
-        interaction, so it must not scan the full decision map each time.
-        Invalidated wherever a decision changes (_record, refresh, load)."""
-        if self._unplayable is None:
-            out = {}
-            for p, state in self._decision.items():
-                if state == CUE_WAV_PLAYABLE_UNPLAYABLE:
-                    out[p] = self._reason[p]
-            self._unplayable = out
-        return self._unplayable
+        """{path: reason} for every WAV that can't be made playable, for UI."""
+        out = {}
+        for p, state in self._decision.items():
+            if state == CUE_WAV_PLAYABLE_UNPLAYABLE:
+                out[p] = self._reason[p]
+        return out
 
     # ------------------------------------------------------------------
     # Internals
@@ -219,7 +212,6 @@ class CueWavPlayable(_renpy_python.NoRollback):
         the reason."""
         was = self._decision.get(path)
         self._decision[path] = state
-        self._unplayable = None  # decision changed; the UI snapshot is stale
         if state == CUE_WAV_PLAYABLE_UNPLAYABLE:
             self._reason[path] = reason
             if was != CUE_WAV_PLAYABLE_UNPLAYABLE:
@@ -251,7 +243,6 @@ class CueWavPlayable(_renpy_python.NoRollback):
                 self._decision = {_to_str(k): v for k, v in decision.items()}
             if isinstance(reasons, dict):
                 self._reason = {_to_str(k): v for k, v in reasons.items()}
-            self._unplayable = None  # maps replaced wholesale
         except Exception:
             _cue_log("WAV-PLAYABLE: index load failed at {}".format(path))
 

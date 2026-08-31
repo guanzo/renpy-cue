@@ -14,7 +14,6 @@ class CuePresets:
     _session_created: Set[Tuple[str, str]]
     _on_save: Optional[Callable[[], None]]
     _presets: Dict[str, Any]
-    _cache_version: int
 
     def __init__(
         self,

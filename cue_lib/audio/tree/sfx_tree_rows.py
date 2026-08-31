@@ -359,12 +359,6 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         ]  # type: List[TreeRowDict]
         if not igroup_names and not searching:
             rows.append(_cue_help_row("intensity:empty", "No intensity groups yet."))
-            rows.append(
-                _cue_help_row(
-                    "intensity:empty-hint",
-                    "An intensity group is a soft-to-hard level list; each level is a pool of files.",
-                )
-            )
         for gname in igroup_names:
             group_expanded = self._tree.expanded_igroups.get(gname, False)
             g_levels = _cue_filter_igroup_folders(gname, search_query)
@@ -549,68 +543,6 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         ]
 
     def content_rows(self, search_query, preset_names, video_preset_names, igroup_names, is_video, tgt_ok, unplayable):
-        # type: (str, List[str], List[str], List[str], bool, bool, Dict[str, str]) -> List[TreeRowDict]
-        """Memoized entry point: rebuild only when the rows' inputs changed.
-
-        The screen calls this on every interaction restart (each hover,
-        tooltip focus change, and scroll re-evaluates the screen body), so a
-        pure hover must not rebuild the full row stream -- at 50k files that
-        is an O(files) folder-ref expansion per mouse move.  _rows_key
-        fingerprints every input _build_content_rows reads."""
-        return self._memo_rows(
-            self._rows_key(search_query, preset_names, video_preset_names, igroup_names, is_video, tgt_ok, unplayable),
-            lambda: self._build_content_rows(
-                search_query, preset_names, video_preset_names, igroup_names, is_video, tgt_ok, unplayable
-            ),
-        )
-
-    def _rows_key(self, search_query, preset_names, video_preset_names, igroup_names, is_video, tgt_ok, unplayable):
-        # type: (str, List[str], List[str], List[str], bool, bool, Dict[str, str]) -> tuple
-        """Fingerprint of every state _build_content_rows reads.  Cheap by
-        design: id() for containers the tree reassigns on change (scan, tree
-        rebuild), value tuples for the small in-place-mutated expansion dicts,
-        preset-store versions for preset/igroup data, and marker-derived
-        strings for the target-assign state."""
-        tree = self._tree
-        recent = tree._recent
-        recent_fp = None
-        if recent is not None:
-            recent_fp = (recent.expanded, tuple((e.get("type"), e.get("ref")) for e in recent.entries()))
-        presets = _cue.presets
-        return (
-            search_query,
-            tuple(preset_names),
-            tuple(video_preset_names),
-            tuple(igroup_names),
-            is_video,
-            tgt_ok,
-            id(unplayable),
-            tree.builtin_tree,
-            id(tree.external_sources),
-            id(tree.visible_tree),
-            id(tree._file_index),
-            recent_fp,
-            tree.presets_expanded,
-            tree.video_presets_expanded,
-            tree.igroups_expanded,
-            tree.ilevel_add_target,
-            tuple(sorted(tree.expanded_presets.items())),
-            tuple(sorted(tree.expanded_video_presets.items())),
-            tuple(sorted((k, tuple(sorted(v.items()))) for k, v in tree.expanded_video_pools.items())),
-            tuple(sorted(tree.expanded_igroups.items())),
-            tuple(sorted((k, tuple(sorted(v))) for k, v in tree.expanded_ilevels.items())),
-            tuple(sorted(tree.expanded_file_refs.items())),
-            getattr(presets.audio, "_cache_version", 0),
-            getattr(presets.video, "_cache_version", 0),
-            getattr(presets.intensity, "_cache_version", 0),
-            _cue_target_assign_tt(),
-            _cue_send_level_to_target_tt(),
-            _cue.markers.resolve_target_context(),
-        )
-
-    def _build_content_rows(
-        self, search_query, preset_names, video_preset_names, igroup_names, is_video, tgt_ok, unplayable
-    ):
         # type: (str, List[str], List[str], List[str], bool, bool, Dict[str, str]) -> List[TreeRowDict]
         """Full SFX Library section stream: Recently Used, Pool Presets, Video
         Presets, Intensity Groups, then the file tree.  Name lists arrive raw

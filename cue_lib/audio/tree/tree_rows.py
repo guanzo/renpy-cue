@@ -174,30 +174,6 @@ class CueTreeRowsBuilder(_renpy_python.NoRollback):
     def __init__(self, tree):
         # type: (Any) -> None
         self._tree = tree
-        self._rows_cache_key = None  # fingerprint of the last built content_rows
-        self._rows_cache = None  # List[TreeRowDict] served on unchanged keys
-        # Hit/build counters for verifying the memo at runtime: hover a while
-        # in-game, then read them via the dev console (Shift+O).
-        self._rows_cache_hits = 0
-        self._rows_cache_builds = 0
-
-    def _memo_rows(self, key, build):
-        # type: (tuple, Any) -> List[TreeRowDict]
-        """Serve the cached row list when ``key`` is unchanged, else rebuild.
-
-        The SFX/music screens call content_rows on every interaction restart
-        (each hover, tooltip focus change, and scroll re-evaluates the screen
-        body), so without this a pure hover rebuilds every row.  Subclasses
-        fingerprint exactly the state content_rows reads; any input they miss
-        would serve stale rows, so _rows_key must stay exhaustive."""
-        if key == self._rows_cache_key and self._rows_cache is not None:
-            self._rows_cache_hits += 1
-            return self._rows_cache
-        rows = build()
-        self._rows_cache_key = key
-        self._rows_cache = rows
-        self._rows_cache_builds += 1
-        return rows
 
     def tree_rows(self, *state):
         # type: (*Any) -> List[TreeRowDict]

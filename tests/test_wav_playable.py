@@ -9,7 +9,7 @@ import io
 import struct
 import wave
 
-from cue_lib.audio.wav_playable import CUE_WAV_PLAYABLE_UNPLAYABLE, CueWavPlayable
+from cue_lib.audio.wav_playable import CueWavPlayable
 
 
 def _wav_raw(tag, sampwidth, data_bytes, channels=1, rate=48000):
@@ -385,50 +385,3 @@ def test_imports_and_converts_without_wave_or_audioop(tmp_path, monkeypatch):
     ch, sw, rate, frames = _read_frames(playable)
     assert (ch, sw, rate) == (1, 2, 48000)
     assert frames == bytes([0x01, 0x80, 0xFF, 0x7F])
-
-
-def test_unplayable_snapshot_cached_until_decision_changes(tmp_path):
-    """unplayable() builds the {path: reason} dict once and reuses it until a
-    decision changes -- the screen calls it on every hover/scroll, so this
-    must not be an O(files) scan per interaction."""
-    w = CueWavPlayable(temp_root=str(tmp_path / "cache"))
-    w._record("a.wav", CUE_WAV_PLAYABLE_UNPLAYABLE, "bad codec")
-
-    first = w.unplayable()
-    assert first == {"a.wav": "bad codec"}
-    assert w.unplayable() is first  # cached snapshot across pure re-evals
-
-    w._record("b.wav", CUE_WAV_PLAYABLE_UNPLAYABLE, "corrupt")
-    second = w.unplayable()
-    assert second is not first  # new decision invalidated the snapshot
-    assert set(second) == {"a.wav", "b.wav"}
-
-
-def test_unplayable_cache_invalidated_when_decision_cleared(tmp_path):
-    """A path leaving UNPLAYABLE (or vanishing) must drop it from the snapshot."""
-    src = str(tmp_path / "gone.wav")
-    w = CueWavPlayable(temp_root=str(tmp_path / "cache"))
-    w._record(src, CUE_WAV_PLAYABLE_UNPLAYABLE, "x")
-    before = w.unplayable()
-    assert src in before
-
-    # refresh() pops the decision when the file no longer exists.
-    w.refresh(src)
-    after = w.unplayable()
-    assert after is not before
-    assert src not in after
-
-
-def test_unplayable_cache_invalidated_on_index_load(tmp_path):
-    """Loading a persisted index replaces the maps, so the cached snapshot must
-    not outlive it."""
-    root = str(tmp_path / "cache")
-    w = CueWavPlayable(temp_root=root)
-    w._record("a.wav", CUE_WAV_PLAYABLE_UNPLAYABLE, "x")
-    w._save_index()
-    first = w.unplayable()
-    assert "a.wav" in first
-
-    # A fresh instance loads the index; its snapshot reflects the persisted maps.
-    w2 = CueWavPlayable(temp_root=root)
-    assert w2.unplayable() == {"a.wav": "x"}

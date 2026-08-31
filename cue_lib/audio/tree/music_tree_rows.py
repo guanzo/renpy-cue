@@ -195,50 +195,6 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
 
     def content_rows(self, search_query, preset_names, current_file):
         # type: (str, List[str], object) -> List[TreeRowDict]
-        """Memoized entry point: rebuild only when the rows' inputs changed.
-
-        The screen calls this on every interaction restart (each hover,
-        tooltip focus change, and scroll re-evaluates the screen body), so a
-        pure hover must not rebuild the full row stream.  _rows_key
-        fingerprints every input _build_content_rows reads."""
-        return self._memo_rows(
-            self._rows_key(search_query, preset_names, current_file),
-            lambda: self._build_content_rows(search_query, preset_names, current_file),
-        )
-
-    def _rows_key(self, search_query, preset_names, current_file):
-        # type: (str, List[str], object) -> tuple
-        """Fingerprint of every state _build_content_rows reads.  Same
-        contract as the SFX key: ids for reassigned containers, value tuples
-        for the small in-place-mutated expansion dicts, a preset-store version
-        for preset data, and the selected-trigger state."""
-        tree = self._tree
-        music = tree._music
-        recent = music._recent
-        recent_fp = None
-        if recent is not None:
-            recent_fp = (recent.expanded, tuple((e.get("type"), e.get("ref")) for e in recent.entries()))
-        return (
-            search_query,
-            tuple(preset_names),
-            current_file,
-            id(tree.user_tree),
-            id(tree.game_tree),
-            tree.user_scan_error,
-            tree.game_scan_error,
-            id(tree.external_sources),
-            id(tree.visible_tree),
-            music.presets_expanded,
-            tuple(sorted(music.expanded_presets.items())),
-            music.selected_key,
-            music.selected_trigger_label(),
-            recent_fp,
-            music._paths.music_dir,
-            getattr(music._presets.music, "_cache_version", 0),
-        )
-
-    def _build_content_rows(self, search_query, preset_names, current_file):
-        # type: (str, List[str], object) -> List[TreeRowDict]
         """Full Music Library section stream: Recently Used, Music Presets,
         the per-source empty/error states, then the combined tree (or the
         no-results line during a search).  preset_names arrive raw from the

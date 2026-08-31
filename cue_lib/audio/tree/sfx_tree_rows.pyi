@@ -28,26 +28,6 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         tgt_ok: bool,
         unplayable: Dict[str, str],
     ) -> List[TreeRowDict]: ...
-    def _rows_key(
-        self,
-        search_query: str,
-        preset_names: List[str],
-        video_preset_names: List[str],
-        igroup_names: List[str],
-        is_video: bool,
-        tgt_ok: bool,
-        unplayable: Dict[str, str],
-    ) -> tuple: ...
-    def _build_content_rows(
-        self,
-        search_query: str,
-        preset_names: List[str],
-        video_preset_names: List[str],
-        igroup_names: List[str],
-        is_video: bool,
-        tgt_ok: bool,
-        unplayable: Dict[str, str],
-    ) -> List[TreeRowDict]: ...
     def _builtin_empty_rows(self, tree: Any) -> List[TreeRowDict]: ...
     def _download_pack_button(self, tree: Any) -> TreeActionRowDict: ...
     def _download_pack_status_rows(self, tree: Any) -> List[TreeRowDict]: ...
