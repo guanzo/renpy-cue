@@ -167,7 +167,7 @@ def _make_mgr(tmp_path, refresh_calls):
 def test_scan_real_exports_builds_expected_entries(tmp_path, import_threads):
     mgr = _make_mgr(tmp_path, [])
     imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
-    os.makedirs(imports_dir)
+    os.makedirs(imports_dir, exist_ok=True)
     for name in (MAX_ZIP, MISMATCH_ZIP, PREFIX_ZIP):
         dst = os.path.join(imports_dir, name)
         with open(_fixture_path(name), "rb") as src_f:

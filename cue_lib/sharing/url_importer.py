@@ -139,7 +139,7 @@ class CueUrlImporter(_renpy_python.NoRollback):
         # type: (str) -> None
         """Background download: resolve redirects, stream to a .tmp in
         imports/, rename into place, then kick a scan so the zip shows up."""
-        imports_dir = self._importer.imports_dir()
+        imports_dir = self._importer._paths.imports_dir
         if not os.path.isdir(imports_dir):
             os.makedirs(imports_dir)
         tmp_path = None

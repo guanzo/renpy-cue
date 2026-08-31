@@ -69,12 +69,6 @@ class CueExportManager(_renpy_python.NoRollback):
         """True while a refresh pass or zip build runs in the background."""
         return self.is_refreshing or self.is_exporting
 
-    def exports_dir(self):
-        # type: () -> str
-        """Where export zips are written -- owned by paths.py on the live
-        shared tree."""
-        return self._paths.exports_dir
-
     def refresh(self):
         # type: () -> None
         """Request a background refresh.  The worker thread does the whole

@@ -82,7 +82,7 @@ def _drop_package(tmp_path, game_id, files, zip_name="pack.zip"):
         flat.extend(fs)
     imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
     if not os.path.isdir(imports_dir):
-        os.makedirs(imports_dir)
+        os.makedirs(imports_dir, exist_ok=True)
     zip_path = os.path.join(imports_dir, zip_name)
     _imp._cue_build_import_zip(src, game_id, "My pack", "author", "desc", flat, zip_path)
     return imports_dir, zip_path
@@ -271,7 +271,7 @@ def test_match_label_clean_import_empty(cue_env, tmp_path, import_threads):
 
 def test_scan_marks_newer_format_invalid(cue_env, tmp_path, import_threads):
     imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
-    os.makedirs(imports_dir)
+    os.makedirs(imports_dir, exist_ok=True)
     zip_path = os.path.join(imports_dir, "bad.zip")
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr("manifest.json", '{"format_version": 999, "game_id": "x", "contents": []}')
@@ -286,7 +286,7 @@ def test_scan_marks_newer_format_invalid(cue_env, tmp_path, import_threads):
 
 def test_scan_flags_missing_files_not_invalid(cue_env, tmp_path, import_threads):
     imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
-    os.makedirs(imports_dir)
+    os.makedirs(imports_dir, exist_ok=True)
     with zipfile.ZipFile(os.path.join(imports_dir, "bad.zip"), "w") as zf:
         zf.writestr("manifest.json", '{"format_version": 1, "game_id": "x", "contents": ["audio/nope.ogg"]}')
 
@@ -552,7 +552,7 @@ def test_activate_refuses_confirm_until_remapped(cue_env, tmp_path, import_threa
 
 def test_activate_refuses_invalid(cue_env, tmp_path, import_threads):
     imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
-    os.makedirs(imports_dir)
+    os.makedirs(imports_dir, exist_ok=True)
     with zipfile.ZipFile(os.path.join(imports_dir, "bad.zip"), "w") as zf:
         zf.writestr("manifest.json", '{"format_version": 999, "contents": []}')
     mgr, _calls = _make_mgr(cue_env)
@@ -566,7 +566,7 @@ def test_activate_refuses_invalid(cue_env, tmp_path, import_threads):
 def _drop_missing_files_package(tmp_path, game_id):
     """A zip whose manifest lists a file the archive doesn't carry."""
     imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
-    os.makedirs(imports_dir)
+    os.makedirs(imports_dir, exist_ok=True)
     with zipfile.ZipFile(os.path.join(imports_dir, "pack.zip"), "w") as zf:
         zf.writestr(
             "manifest.json", '{{"format_version": 1, "game_id": "{}", "contents": ["audio/nope.ogg"]}}'.format(game_id)
@@ -648,7 +648,7 @@ def test_scan_entry_carries_manifest_replays(cue_env, tmp_path, import_threads):
 def test_old_manifest_without_replays_yields_empty(cue_env, tmp_path, import_threads):
     # A pre-replays-field export has no replay list -- the row stays compact.
     imports_dir = os.path.join(str(tmp_path / "cue_root"), "imports")
-    os.makedirs(imports_dir)
+    os.makedirs(imports_dir, exist_ok=True)
     with zipfile.ZipFile(os.path.join(imports_dir, "old.zip"), "w") as zf:
         zf.writestr("manifest.json", '{"format_version": 1, "game_id": "%s", "contents": ["audio/sfx.ogg"]}' % GAME_ID)
         zf.writestr("audio/sfx.ogg", "sfx")

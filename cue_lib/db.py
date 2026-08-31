@@ -140,6 +140,8 @@ class CueDatabase(_renpy_python.NoRollback):
             self.paths.video_dir,
             self.paths.music_dir,
             self.paths.audio_dir,
+            self.paths.imports_dir,
+            self.paths.exports_dir,
         ]:
             if not os.path.isdir(_dir):
                 try:

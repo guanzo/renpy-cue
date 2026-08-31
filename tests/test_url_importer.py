@@ -45,11 +45,8 @@ def test_format_duration():
 
 class _FakeImporter(object):
     def __init__(self, imports_dir):
-        self._dir = imports_dir
+        self._paths = type("_Paths", (object,), {"imports_dir": imports_dir})()
         self.scan_calls = 0
-
-    def imports_dir(self):
-        return self._dir
 
     def scan(self):
         self.scan_calls += 1

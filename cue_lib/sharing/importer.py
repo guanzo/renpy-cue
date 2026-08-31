@@ -130,17 +130,11 @@ class CueImportManager(_renpy_python.NoRollback):
     # scanning
     # ------------------------------------------------------------------
 
-    def imports_dir(self):
-        # type: () -> str
-        """Where dropped .zips live -- under the live shared tree, never the
-        active import.  Owned by paths.py; delegation only."""
-        return self._paths.imports_dir
-
     def imports_unzip_dir(self):
         # type: () -> str
         """Where dropped zips are extracted into editable working copies --
         imports/ stays archives-only, so the drop zone isn't cluttered."""
-        return os.path.join(self.imports_dir(), "unzipped").replace("\\", "/")
+        return os.path.join(self._paths.imports_dir, "unzipped").replace("\\", "/")
 
     def _imp_dir(self, imp):
         # type: (str) -> str
@@ -191,7 +185,7 @@ class CueImportManager(_renpy_python.NoRollback):
         every zip (manifest read, game match).  The snapshot is swapped in with
         a single attribute write, so the UI only ever sees a consistent list."""
         imports = []
-        imports_dir = self.imports_dir()
+        imports_dir = self._paths.imports_dir
         try:
             if not os.path.isdir(imports_dir):
                 os.makedirs(imports_dir)
@@ -498,7 +492,7 @@ class CueImportManager(_renpy_python.NoRollback):
         entry = self.import_for(imp)
         zip_path = None
         if entry:
-            zip_path = os.path.join(self.imports_dir(), entry["zip"])
+            zip_path = os.path.join(self._paths.imports_dir, entry["zip"])
         imp_dir = self._imp_dir(imp)
         _shutil.rmtree(imp_dir, ignore_errors=True)
         if zip_path and os.path.isfile(zip_path):

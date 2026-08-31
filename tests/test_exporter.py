@@ -134,7 +134,7 @@ def test_refresh_empty_root_has_no_enabled(cue_env):
 
 def test_exports_dir_under_original_root(cue_env):
     mgr = CueExportManager(cue_env.paths)
-    assert mgr.exports_dir() == os.path.join(cue_env.paths.original_root, "exports")
+    assert mgr._paths.exports_dir == os.path.join(cue_env.paths.original_root, "exports")
 
 
 def test_cache_reuses_snapshot_until_invalidated(cue_env, monkeypatch):
@@ -168,7 +168,7 @@ def test_export_always_refreshes_contents(cue_env):
 
     _export_and_join(mgr)
 
-    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Fresh.zip")) as zf:
+    with zipfile.ZipFile(os.path.join(mgr._paths.exports_dir, "Fresh.zip")) as zf:
         names = zf.namelist()
         assert "audio/a.ogg" in names
         assert "music/m.ogg" in names
@@ -230,10 +230,10 @@ def test_export_writes_sanitized_zip(cue_env):
 
     _export_and_join(mgr)
 
-    zip_path = os.path.join(mgr.exports_dir(), "My Pack.zip")
+    zip_path = os.path.join(mgr._paths.exports_dir, "My Pack.zip")
     assert os.path.isfile(zip_path)
     assert mgr.export_error == ""
-    assert mgr.export_status == "Exported to {}.".format(os.path.join(mgr.exports_dir(), "My Pack.zip"))
+    assert mgr.export_status == "Exported to {}.".format(os.path.join(mgr._paths.exports_dir, "My Pack.zip"))
     with zipfile.ZipFile(zip_path) as zf:
         names = zf.namelist()
         assert CUE_IMPORT_MANIFEST_NAME in names
@@ -250,7 +250,7 @@ def test_export_collision_suffix(cue_env):
     for _i in range(3):
         _export_and_join(mgr)
 
-    exports = mgr.exports_dir()
+    exports = mgr._paths.exports_dir
     assert os.path.isfile(os.path.join(exports, "Pack.zip"))
     assert os.path.isfile(os.path.join(exports, "Pack (2).zip"))
     assert os.path.isfile(os.path.join(exports, "Pack (3).zip"))
@@ -264,7 +264,7 @@ def test_export_sanitizes_filename(cue_env):
 
     _export_and_join(mgr)
 
-    assert os.path.isfile(os.path.join(mgr.exports_dir(), "a_b_cbad.zip"))
+    assert os.path.isfile(os.path.join(mgr._paths.exports_dir, "a_b_cbad.zip"))
 
 
 def test_export_empty_is_error(cue_env):
@@ -275,7 +275,7 @@ def test_export_empty_is_error(cue_env):
 
     assert mgr.export_error
     assert mgr.export_status == ""
-    exports = mgr.exports_dir()
+    exports = mgr._paths.exports_dir
     assert not os.path.isdir(exports) or os.listdir(exports) == []
 
 
@@ -299,7 +299,7 @@ def test_export_runs_zip_build_off_thread(cue_env, monkeypatch):
     # Driving the recorded body synchronously reproduces the thread's finish:
     # status lands and the exporting flag clears.
     fake_thread.target(*fake_thread.args)
-    assert mgr.export_status == "Exported to {}.".format(os.path.join(mgr.exports_dir(), "Pack.zip"))
+    assert mgr.export_status == "Exported to {}.".format(os.path.join(mgr._paths.exports_dir, "Pack.zip"))
     assert mgr.is_exporting is False
 
 
@@ -358,7 +358,7 @@ def test_export_includes_music_trigger_log(cue_env):
 
     _export_and_join(mgr)
 
-    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "LogPack.zip")) as zf:
+    with zipfile.ZipFile(os.path.join(mgr._paths.exports_dir, "LogPack.zip")) as zf:
         names = zf.namelist()
         assert "data/markers/{}/music_triggers/replay_r1.json".format(GAME_ID) in names
 
@@ -387,7 +387,7 @@ def test_export_ships_every_category(cue_env):
 
     _export_and_join(mgr)
 
-    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Full.zip")) as zf:
+    with zipfile.ZipFile(os.path.join(mgr._paths.exports_dir, "Full.zip")) as zf:
         names = set(zf.namelist())
     for rel in (
         "data/markers/{}/v_a.json".format(GAME_ID),
@@ -411,7 +411,7 @@ def test_export_skips_unchecked(cue_env):
 
     _export_and_join(mgr)
 
-    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Only music.zip")) as zf:
+    with zipfile.ZipFile(os.path.join(mgr._paths.exports_dir, "Only music.zip")) as zf:
         names = zf.namelist()
         assert "music/m.ogg" in names
         assert "audio/a.ogg" not in names
@@ -578,7 +578,7 @@ def test_export_preserves_replay_deselection(cue_env):
     _export_and_join(mgr)
 
     assert mgr.checked_replays == set(["Run 1"])
-    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "{}.zip".format(GAME_ID))) as zf:
+    with zipfile.ZipFile(os.path.join(mgr._paths.exports_dir, "{}.zip".format(GAME_ID))) as zf:
         names = set(zf.namelist())
     assert "data/markers/{}/r1.json".format(GAME_ID) in names
     assert "data/markers/{}/r2.json".format(GAME_ID) not in names
@@ -618,7 +618,7 @@ def test_export_preserves_file_types_selection(cue_env):
     _export_and_join(mgr)
 
     assert mgr.is_checked(CueImportCategory.SFX) is False
-    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "{}.zip".format(GAME_ID))) as zf:
+    with zipfile.ZipFile(os.path.join(mgr._paths.exports_dir, "{}.zip".format(GAME_ID))) as zf:
         names = set(zf.namelist())
     assert "data/markers/{}/v.json".format(GAME_ID) in names
     assert "audio/a.ogg" not in names
@@ -666,9 +666,9 @@ def test_export_replay_packs_only_that_replay(cue_env):
     assert mgr.scope == CueExportScope.SPECIFIC_REPLAYS
     assert mgr.checked_replays == set(["Run 1"])
     assert mgr.name == "Run 1"  # named after the replay when Name is empty
-    assert mgr.export_status == "Exported to {}.".format(os.path.join(mgr.exports_dir(), "Run 1.zip"))
+    assert mgr.export_status == "Exported to {}.".format(os.path.join(mgr._paths.exports_dir, "Run 1.zip"))
     assert not mgr.export_error
-    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Run 1.zip")) as zf:
+    with zipfile.ZipFile(os.path.join(mgr._paths.exports_dir, "Run 1.zip")) as zf:
         names = set(zf.namelist())
     assert "data/markers/{}/r1.json".format(GAME_ID) in names
     assert "audio/a.ogg" in names
@@ -684,7 +684,7 @@ def test_export_omits_thumbs_cache_in_whole_game(cue_env):
 
     _export_and_join(mgr)
 
-    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Thumbs.zip")) as zf:
+    with zipfile.ZipFile(os.path.join(mgr._paths.exports_dir, "Thumbs.zip")) as zf:
         names = set(zf.namelist())
     assert "data/cue_thumbs.json" not in names
 
@@ -704,7 +704,7 @@ def test_export_omits_thumbs_cache_in_replay_scope(cue_env):
     mgr.export_replay("Run 1")
     mgr._export_thread.join()
 
-    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Run 1.zip")) as zf:
+    with zipfile.ZipFile(os.path.join(mgr._paths.exports_dir, "Run 1.zip")) as zf:
         names = set(zf.namelist())
     assert "data/cue_thumbs.json" not in names
 
@@ -847,7 +847,7 @@ def test_external_bake_sfx_ref_exported_relative(tmp_path, cue_env):
 
     _export_and_join(mgr)
 
-    zip_path = os.path.join(mgr.exports_dir(), "Replay.zip")
+    zip_path = os.path.join(mgr._paths.exports_dir, "Replay.zip")
     with zipfile.ZipFile(zip_path) as zf:
         names = set(zf.namelist())
         marker = json.loads(zf.read("data/markers/{}/a.json".format(GAME_ID)))
@@ -884,7 +884,7 @@ def test_external_bake_music_ref_exported_relative(tmp_path, cue_env):
 
     _export_and_join(mgr)
 
-    zip_path = os.path.join(mgr.exports_dir(), "Music.zip")
+    zip_path = os.path.join(mgr._paths.exports_dir, "Music.zip")
     with zipfile.ZipFile(zip_path) as zf:
         names = set(zf.namelist())
         marker = json.loads(zf.read("data/markers/{}/a.json".format(GAME_ID)))
@@ -922,7 +922,7 @@ def test_external_bake_folder_ref_expands_files(tmp_path, cue_env):
 
     _export_and_join(mgr)
 
-    zip_path = os.path.join(mgr.exports_dir(), "Folder.zip")
+    zip_path = os.path.join(mgr._paths.exports_dir, "Folder.zip")
     with zipfile.ZipFile(zip_path) as zf:
         names = set(zf.namelist())
         marker = json.loads(zf.read("data/markers/{}/a.json".format(GAME_ID)))
@@ -961,7 +961,7 @@ def test_external_bake_respects_unchecked_category(tmp_path, cue_env):
 
     _export_and_join(mgr)
 
-    zip_path = os.path.join(mgr.exports_dir(), "NoSfx.zip")
+    zip_path = os.path.join(mgr._paths.exports_dir, "NoSfx.zip")
     with zipfile.ZipFile(zip_path) as zf:
         names = set(zf.namelist())
         marker = json.loads(zf.read("data/markers/{}/a.json".format(GAME_ID)))
@@ -988,7 +988,7 @@ def test_external_bake_whole_game_scope(tmp_path, cue_env):
 
     _export_and_join(mgr)
 
-    zip_path = os.path.join(mgr.exports_dir(), "Whole.zip")
+    zip_path = os.path.join(mgr._paths.exports_dir, "Whole.zip")
     with zipfile.ZipFile(zip_path) as zf:
         names = set(zf.namelist())
         marker = json.loads(zf.read("data/markers/{}/a.json".format(GAME_ID)))
@@ -1027,7 +1027,7 @@ def test_export_ships_intensity_group_content(cue_env):
 
     _export_and_join(mgr)
 
-    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "FullI.zip")) as zf:
+    with zipfile.ZipFile(os.path.join(mgr._paths.exports_dir, "FullI.zip")) as zf:
         names = set(zf.namelist())
     assert _igroup_rel(name) in names
     assert "audio/soft/a.ogg" in names
@@ -1062,7 +1062,7 @@ def test_export_replay_packs_intensity_group(cue_env):
 
     _export_and_join(mgr)
 
-    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Intensity.zip")) as zf:
+    with zipfile.ZipFile(os.path.join(mgr._paths.exports_dir, "Intensity.zip")) as zf:
         names = set(zf.namelist())
     assert "data/markers/{}/r1.json".format(GAME_ID) in names
     assert _igroup_rel(name) in names

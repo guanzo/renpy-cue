@@ -178,13 +178,13 @@ screen cue_export_section():
 screen cue_import_imports():
     style_group "cue"
 
-    $ _imports_hint = ("Add export .zip file to:\n{}").format(_cue.importer.imports_dir())
+    $ _imports_hint = ("Add export .zip file to:\n{}").format(_cue.paths.imports_dir)
 
     use cue_section_frame("Import", tt=_imports_hint):
         etext ("Imports can be previewed, which will temporarily replace your data. "
             "If you like the preview, you can copy it into your data folder with \"Merge\".")
 
-        use cue_open_in_explorer_btn(_cue.importer.imports_dir(), "Open Imports Folder")
+        use cue_open_in_explorer_btn(_cue.paths.imports_dir, "Open Imports Folder")
 
         null height 4
         use cue_url_downloader()

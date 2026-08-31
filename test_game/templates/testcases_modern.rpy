@@ -337,8 +337,8 @@ testcase import_export_roundtrip:
     # and the copied .zip must be deterministic.
     $ import os as _os
     $ import shutil as _shutil
-    $ _shutil.rmtree(_cue.exporter.exports_dir(), ignore_errors=True)
-    $ _shutil.rmtree(_cue.importer.imports_dir(), ignore_errors=True)
+    $ _shutil.rmtree(_cue.paths.exports_dir, ignore_errors=True)
+    $ _shutil.rmtree(_cue.paths.imports_dir, ignore_errors=True)
     # The shared-root fixtures carry audio/, so the SFX category is non-empty.
     run Function(_cue.exporter.refresh)
     # refresh() runs on a background thread; wait for the snapshot swap before
@@ -353,9 +353,9 @@ testcase import_export_roundtrip:
     assert eval (_cue.exporter.export_status != "")
     # A recipient drops the .zip into imports/; scan() auto-extracts it and
     # matches it to this game (same game_id -> AUTO).
-    $ _zip_src = _os.path.join(_cue.exporter.exports_dir(), "Roundtrip.zip")
-    $ _zip_dst = _os.path.join(_cue.importer.imports_dir(), "Roundtrip.zip")
-    $ _os.makedirs(_cue.importer.imports_dir())
+    $ _zip_src = _os.path.join(_cue.paths.exports_dir, "Roundtrip.zip")
+    $ _zip_dst = _os.path.join(_cue.paths.imports_dir, "Roundtrip.zip")
+    $ _os.makedirs(_cue.paths.imports_dir)
     $ _shutil.copy(_zip_src, _zip_dst)
     run Function(_cue.importer.scan)
     # Scan (list + extract + manifest read) also runs on a background thread.
