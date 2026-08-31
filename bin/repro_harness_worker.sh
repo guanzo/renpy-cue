@@ -1,11 +1,15 @@
 #!/bin/sh
 set -e
+echo "BASH=$BASH_VERSION"
 
 _worker_cleanup() {
     rm -rf "/tmp/nonexistent_xyz"
     [ -n "$_claim" ] && rmdir "$_claim" 2>/dev/null || true
     [ -n "$XVPID" ] && kill "$XVPID" 2>/dev/null || true
+    exit "$rc"
 }
+trap '_worker_cleanup' EXIT
+trap '_worker_cleanup; exit 1' 1 2 15
 
 _worker() {
     trap '_worker_cleanup' 0
