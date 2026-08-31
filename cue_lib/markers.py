@@ -191,7 +191,7 @@ class CueMarkerManager(_renpy_python.NoRollback):
         self.video.active_pool = 0
         self.video.selected = set()
         self.video.sync_text()
-        self._store._db_save_marker(vid_key)
+        self._store._save_marker(vid_key)
         _cue_log(
             "APPLY-VIDEO-PRESET key={} preset={} markers={} dropped={}".format(vid_key, name, len(new_pools), dropped)
         )
@@ -570,7 +570,7 @@ def _cue_send_level_to_target(group, ilevel_id):
     pool = _cue.marker_store._ensure_pool(key, ctx.get_active_index())
     pool["igroup"] = {"name": group, "level": ilevel_id}
     pool["files"] = []
-    _cue.marker_store._db_save_marker(key)
+    _cue.marker_store._save_marker(key)
 
 
 def _cue_send_level_to_target_tt():

@@ -1355,16 +1355,16 @@ def test_play_custom_music_plays_pool(mgr, monkeypatch):
 def test_play_custom_music_cycles_pool(mgr, monkeypatch):
     mgr.install()
     _set_scene(mgr, "scene.ogv", "image")
-    mgr._store["i_scene.ogv"] = {"music": [
-        CUE_MUSIC_GAME_TAG + "music/a.ogg",
-        CUE_MUSIC_GAME_TAG + "music/b.ogg",
-        CUE_MUSIC_GAME_TAG + "music/c.ogg",
-    ]}
+    mgr._store["i_scene.ogv"] = {
+        "music": [
+            CUE_MUSIC_GAME_TAG + "music/a.ogg",
+            CUE_MUSIC_GAME_TAG + "music/b.ogg",
+            CUE_MUSIC_GAME_TAG + "music/c.ogg",
+        ]
+    }
     mgr.play_custom_music()
     # The whole pool plays as a sequence in the user's order, looping forever.
-    assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == [
-        "music/a.ogg", "music/b.ogg", "music/c.ogg"
-    ]
+    assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == ["music/a.ogg", "music/b.ogg", "music/c.ogg"]
     assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["loop"] is True
 
 

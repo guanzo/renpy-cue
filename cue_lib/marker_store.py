@@ -397,7 +397,7 @@ class CueMarkerStore(_renpy_python.NoRollback):
                 files.pop(file_index)
                 if not files:
                     del self._data[marker_key]
-                self._db_save_marker(marker_key)
+                self._save_marker(marker_key)
                 return True
         return False
 
@@ -426,7 +426,7 @@ class CueMarkerStore(_renpy_python.NoRollback):
             pools.pop(pool_index)
             if not pools:
                 del self._data[marker_key]
-        self._db_save_marker(marker_key)
+        self._save_marker(marker_key)
         return True
 
     def _clear_pool_files(self, marker_key, pool_index=0):
@@ -446,12 +446,12 @@ class CueMarkerStore(_renpy_python.NoRollback):
         if "igroup" in pool:
             pool.pop("igroup")
             pool["files"] = []
-            self._db_save_marker(marker_key)
+            self._save_marker(marker_key)
             return True
         if not pool.get("files", []):
             return False
         pool["files"] = []
-        self._db_save_marker(marker_key)
+        self._save_marker(marker_key)
         return True
 
     def _stamp_preset(self, marker_key, preset_name, pool_index=0):
@@ -461,7 +461,7 @@ class CueMarkerStore(_renpy_python.NoRollback):
         while len(pools) <= pool_index:
             pools.append({"files": [], "volume": CUE_VOLUME_DEFAULT})
         pools[pool_index] = {"preset": preset_name}
-        self._db_save_marker(marker_key)
+        self._save_marker(marker_key)
         _cue_log("STAMP-PRESET key={} pi={} preset={}".format(marker_key, pool_index, preset_name))
 
     def _detach_pool(self, marker_key, pool_index):
@@ -489,7 +489,7 @@ class CueMarkerStore(_renpy_python.NoRollback):
         # (toggled before detach) defines it, so overrides survive detach.
         if "exclusive" in preset or "exclusive" in pool:
             pool["exclusive"] = r.exclusive.to_dict()
-        self._db_save_marker(marker_key)
+        self._save_marker(marker_key)
         _cue_log("DETACH-POOL key={} pi={} preset={} files={}".format(marker_key, pool_index, preset_name, len(r.refs)))
         return True
 
@@ -575,7 +575,7 @@ class CueMarkerStore(_renpy_python.NoRollback):
     def save_marker(self, key):
         # type: (str) -> None
         """Persist one marker entry to data store. Call after mutating self._data[key]."""
-        self._db_save_marker(key)
+        self._save_marker(key)
 
     def save_markers(self, keys):
         # type: (List[str]) -> None
@@ -585,24 +585,31 @@ class CueMarkerStore(_renpy_python.NoRollback):
         db = self._db
         if db is not None and db.is_open():
             for key in keys:
-                if key in self._data:
-                    db.save_marker(key, self._data[key])
-                else:
-                    db.delete_marker(key)
+                self._persist(key)
         self._post_save(keys)
 
     # ------------------------------------------------------------------
     # Internal helpers -- write one item to DB, then run side effects
     # ------------------------------------------------------------------
 
-    def _db_save_marker(self, key):
+    def _persist(self, key):
+        # type: (str) -> None
+        """Write one entry to the DB, normalizing it first.  Any persist is a
+        normalization point: mutators that edit an entry in place (pool times,
+        volumes, ...) bypass _get_or_create_entry, so the guarded backfills
+        (filepath, speaker) and replay scoping only reach the DB here."""
+        if key in self._data:
+            entry = self._data[key]
+            self._normalize_entry(entry, key)
+            self._db.save_marker(key, entry)
+        else:
+            self._db.delete_marker(key)
+
+    def _save_marker(self, key):
         # type: (str) -> None
         db = self._db
         if db is not None and db.is_open():
-            if key in self._data:
-                db.save_marker(key, self._data[key])
-            else:
-                db.delete_marker(key)
+            self._persist(key)
         self._post_save([key])
 
     def _post_save(self, keys=None):

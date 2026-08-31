@@ -207,7 +207,7 @@ class CuePool(_CueFileContainer):
 
     def _save(self):
         # type: () -> None
-        self._store._db_save_marker(self._marker_key)
+        self._store._save_marker(self._marker_key)
 
 
 class CueAudioPreset(_CueFileContainer):

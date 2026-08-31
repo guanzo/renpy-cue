@@ -16,7 +16,7 @@ from cue_lib.trigger.helpers import CUE_SFX_AUDIBLE_LEAD
 #
 # The marker context classes receive their data manager through the
 # constructor and only call a narrow surface on it.  FakeManager backs that
-# surface with a real CueMarkerStore (db/on_save None, _db_save_marker
+# surface with a real CueMarkerStore (db/on_save None, _save_marker
 # redirected to ``saved_keys``) so pool edits exercise the real mutators +
 # CuePool views instead of a copy of the logic.
 
@@ -33,7 +33,7 @@ class FakeManager(object):
     """Stand-in for CueMarkerManager's data-facing surface, backed by a real
     CueMarkerStore.
 
-    The store's db/on_save are None and _db_save_marker is redirected to
+    The store's db/on_save are None and _save_marker is redirected to
     ``saved_keys``, so pool edits exercise the real store mutators + CuePool
     views instead of a copy of the logic.  Only the _cue-coupled seams stay
     fake: ctx, the sfx/vid collaborators, resolve_pool, and the dict-like
@@ -47,7 +47,7 @@ class FakeManager(object):
         self._vid_manager = FakeVidManager()
         self._store = CueMarkerStore(None, None, None, None)
         self._store._data = data if data is not None else {}
-        self._store._db_save_marker = self._record_save
+        self._store._save_marker = self._record_save
 
     def _record_save(self, key):
         self.saved_keys.append(key)
@@ -671,7 +671,7 @@ def make_runtime_cue(root="", audio_dir=""):
     # not exercising the migration still pass.
     cue.marker_store = types.SimpleNamespace(_data={})
     cue.marker_store._ensure_pool = _rec("marker_store", "_ensure_pool")
-    cue.marker_store._db_save_marker = _rec("marker_store", "_db_save_marker")
+    cue.marker_store._save_marker = _rec("marker_store", "_save_marker")
     cue.marker_store._detach_pool = _rec("marker_store", "_detach_pool")
     cue.intensity = types.SimpleNamespace()
 

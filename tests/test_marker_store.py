@@ -179,6 +179,66 @@ def test_setdefault_backfills_filepath(store, cue_env):
 
 
 # ---------------------------------------------------------------------------
+# Persist-time filepath backfill (in-place mutators bypass normalize)
+# ---------------------------------------------------------------------------
+
+
+def test_db_save_backfills_filepath_for_live_video(cue_env):
+    ctx = types.SimpleNamespace(
+        current_file="clip.webm", top_displayable=types.SimpleNamespace(_original_play="clip.webm")
+    )
+    s = _store_with_ctx(cue_env, ctx)
+    s._data["v_clip.webm"] = {"pools": [{"time": 0.0}]}
+    s._save_marker("v_clip.webm")
+    assert s._data["v_clip.webm"]["filepath"] == "clip.webm"
+
+
+def test_db_save_backfills_filepath_for_live_image(cue_env):
+    ctx = types.SimpleNamespace(current_file="beach.png", top_displayable=types.SimpleNamespace(filename="beach.png"))
+    s = _store_with_ctx(cue_env, ctx)
+    s._data["i_beach.png"] = {"pools": []}
+    s._save_marker("i_beach.png")
+    assert s._data["i_beach.png"]["filepath"] == "beach.png"
+
+
+def test_db_save_skips_filepath_when_other_file_on_screen(cue_env):
+    ctx = types.SimpleNamespace(current_file="beach.png", top_displayable=types.SimpleNamespace(filename="beach.png"))
+    s = _store_with_ctx(cue_env, ctx)
+    s._data["v_clip.webm"] = {"pools": [{"time": 0.0}]}
+    s._save_marker("v_clip.webm")
+    assert "filepath" not in s._data["v_clip.webm"]
+
+
+def test_db_save_preserves_existing_filepath(cue_env):
+    ctx = types.SimpleNamespace(current_file="beach.png", top_displayable=types.SimpleNamespace(filename="new.png"))
+    s = _store_with_ctx(cue_env, ctx)
+    s._data["i_beach.png"] = {"pools": [], "filepath": "old.png"}
+    s._save_marker("i_beach.png")
+    assert s._data["i_beach.png"]["filepath"] == "old.png"
+
+
+def test_save_markers_batch_backfills_filepath(cue_env):
+    ctx = types.SimpleNamespace(current_file="beach.png", top_displayable=types.SimpleNamespace(filename="beach.png"))
+    s = _store_with_ctx(cue_env, ctx)
+    s._data["i_beach.png"] = {"pools": []}
+    s._data["v_clip.webm"] = {"pools": [{"time": 0.0}]}
+    s.save_markers(["i_beach.png", "v_clip.webm"])
+    assert s._data["i_beach.png"]["filepath"] == "beach.png"
+    assert "filepath" not in s._data["v_clip.webm"]
+
+
+def test_db_save_stamps_replay_scoping_on_persist(cue_env, monkeypatch):
+    # In-place mutators bypass _get_or_create_entry, so replay scoping rides
+    # the persist-time normalize just like the filepath backfill.
+    ctx = types.SimpleNamespace(current_file="beach.png", top_displayable=types.SimpleNamespace(filename="beach.png"))
+    monkeypatch.setattr(_store, "_in_replay", "run-3")
+    s = _store_with_ctx(cue_env, ctx)
+    s._data["i_beach.png"] = {"pools": []}
+    s._save_marker("i_beach.png")
+    assert s._data["i_beach.png"]["replay"] == "run-3"
+
+
+# ---------------------------------------------------------------------------
 # Dialogue speaker capture
 # ---------------------------------------------------------------------------
 
@@ -519,7 +579,7 @@ def test_post_save_invokes_on_save_once_per_write(cue_env):
     s = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: calls.append(1))
     s._data["v_a"] = {"pools": [{"time": 1.0}]}
     s.save_marker("v_a")
-    s._db_save_marker("v_a")
+    s._save_marker("v_a")
     assert len(calls) == 2
 
 
@@ -680,7 +740,7 @@ def test_save_markers_deletes_missing_key(store, cue_env):
 
 def test_post_save_resaves_sanitized_video_pools(store, cue_env):
     store._data["v_dirty"] = {"pools": [{"files": ["a.ogg"]}]}
-    store._db_save_marker("v_dirty")
+    store._save_marker("v_dirty")
 
     fresh = CueMarkerStore(None, cue_env.db, cue_env.paths, lambda: None)
     fresh.load_from_db()
