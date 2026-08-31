@@ -344,10 +344,10 @@ screen cue_tree_row(_row, _row_w):
 
     default _hovered_key = None
 
-    # Per-row elide bound: the container width minus this row's own chrome
-    # (depth indent, leading icon buttons, file gap + warn icon, button side
-    # padding) divided by the scaled per-char width.  Row-local because a deep
-    # or button-heavy row has far less label room than a shallow one.
+    # Elide bound: (container width - this row's chrome) / char width, row-local
+    # because a deep or button-heavy row has far less label room.
+    # Only hover_buttons rows re-render on hover; skip the handlers otherwise.
+    $ _has_hover = bool(_row.get("hover_buttons"))
     $ _rlmax = _cue_row_label_max(_row, _row_w)
     vbox:
         hbox:
@@ -361,8 +361,8 @@ screen cue_tree_row(_row, _row_w):
                     tt=_b.get("tt"),
                     enabled=_b.get("enabled", True),
                     bg=_b.get("bg"),
-                    on_hover=SetLocalVariable("_hovered_key", _row["key"]),
-                    on_unhover=SetLocalVariable("_hovered_key", None))
+                    on_hover=(SetLocalVariable("_hovered_key", _row["key"]) if _has_hover else None),
+                    on_unhover=(SetLocalVariable("_hovered_key", None) if _has_hover else None))
             if _row["type"] == "folder":
                 hbox:
                     spacing 0
@@ -373,8 +373,8 @@ screen cue_tree_row(_row, _row_w):
                         _row["toggle"],
                         tt=_row.get("tt"),
                         icon=("caret-down" if _row.get("expanded") else "caret-right"),
-                        hovered=SetLocalVariable("_hovered_key", _row["key"]),
-                        unhovered=SetLocalVariable("_hovered_key", None))
+                        hovered=(SetLocalVariable("_hovered_key", _row["key"]) if _has_hover else None),
+                        unhovered=(SetLocalVariable("_hovered_key", None) if _has_hover else None))
                     for _hb in _row.get("hover_buttons", []):
                         if _hovered_key == _row["key"]:
                             use cue_icon_btn(
