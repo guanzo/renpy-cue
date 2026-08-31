@@ -1318,7 +1318,10 @@ testcase music_default_override_replaces:
     $ _cue.marker_store._get_or_create_entry("i_cueimg_a")["music_default_disabled"] = True
     $ _cue.music._pending = None
     $ _music.play(_default, channel="music")
-    pause 0.5
+    # The override crossfades the replacement in; wait past the fade so
+    # get_playing() reflects the new track (the old default is still on the
+    # channel mid-fade).
+    pause 2.0
     assert eval ("song_002" in (_music.get_playing(channel="music") or ""))
     assert eval (_cue.music.now_playing() is not None)
     # The override is skipped for _record: the replacement never re-records
@@ -1611,7 +1614,10 @@ testcase tree_window_scroll:
                 "depth": 1, "buttons": [{"icon": "play", "action": NullAction(), "tt": "Preview"}],
                 "gap": 1}
                for i in range(500)]
-    $ renpy.show_screen("cue_tree_rows", _rows, _layer="cue_layer", key="twin_test")
+    # ymax=200 bounds the viewport so the windowed rows actually overflow it and
+    # the Adjustment mounts with a real range (the screen default of 999999
+    # never mounts in a headless suite).
+    $ renpy.show_screen("cue_tree_rows", _rows, _layer="cue_layer", key="twin_test", ymax=200)
     pause 0.5
     assert eval (_adj.range > 0)
     assert eval (_adj.page > 0)

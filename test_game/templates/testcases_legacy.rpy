@@ -1659,7 +1659,10 @@ testcase music_default_override_replaces:
     $ _cue.marker_store._get_or_create_entry("i_cueimg_a")["music_default_disabled"] = True
     $ _cue.music._pending = None
     $ _music.play(_default, channel="music")
-    pause 0.5
+    # The override crossfades the replacement in; wait past the fade so
+    # get_playing() reflects the new track (the old default is still on the
+    # channel mid-fade).
+    pause 2.0
     # The override is skipped for _record: the replacement never re-records
     # the trigger with the custom path.
     $ _trigs = _cue.music.triggers_for("test_replay")
