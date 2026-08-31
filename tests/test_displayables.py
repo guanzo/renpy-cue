@@ -510,7 +510,7 @@ def test_mtl_render_intensity_hooked_when_sfx_levels_off(monkeypatch):
     env.tl.render(200, 60, 0.0, 0.0)
     tip = CueVideoMarkerTimeline._marker_tip_text
     assert "Inactive Intensity Group: 'Impacts'" in tip
-    assert "Locked to intensity group, no other files can be added to this pool." in tip
+    assert "No more files can be added to this pool." in tip
 
 
 def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
@@ -526,7 +526,7 @@ def test_mtl_render_intensity_tooltip_note_on_hooked_marker(monkeypatch):
     tip = CueVideoMarkerTimeline._marker_tip_text
     assert tip.startswith("Pool 1 (0:00)")
     assert "Active Intensity Group: 'Impacts'" in tip
-    assert "Locked to intensity group, no other files can be added to this pool." in tip
+    assert "No more files can be added to this pool." in tip
 
 
 def test_mtl_render_intensity_tooltip_no_note_unhooked(monkeypatch):
@@ -555,7 +555,7 @@ def test_mtl_render_intensity_tooltip_inactive_when_off(monkeypatch):
     tip = CueVideoMarkerTimeline._marker_tip_text
     assert tip.startswith("Pool 1 (0:00)")
     assert "Inactive Intensity Group: 'Impacts'" in tip
-    assert "Locked to intensity group, no other files can be added to this pool." in tip
+    assert "No more files can be added to this pool." in tip
 
 
 def test_mtl_event_mousemotion_hover_sets_tip(monkeypatch):

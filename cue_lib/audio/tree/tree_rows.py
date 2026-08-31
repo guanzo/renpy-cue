@@ -214,7 +214,15 @@ def _cue_actions_row(key, actions, depth=0):
 def _cue_folder_row(key, label, depth, buttons, toggle, expanded=False):
     # type: (str, str, int, List[TreeButtonDict], Any, bool) -> TreeFolderRowDict
     """A collapsible folder row (the header; children are separate rows)."""
-    return {"key": key, "type": "folder", "label": label, "depth": depth, "buttons": buttons, "toggle": toggle, "expanded": expanded}
+    return {
+        "key": key,
+        "type": "folder",
+        "label": label,
+        "depth": depth,
+        "buttons": buttons,
+        "toggle": toggle,
+        "expanded": expanded,
+    }
 
 
 def _cue_external_empty_rows(tree, kind_word):

@@ -911,7 +911,7 @@ def test_pool_files_rows_igroup_readonly(monkeypatch):
     assert rows[0]["buttons"][0]["action"] == "DETACH"
     assert rows[0]["bar_color"] == CUE_INTENSITY_HINT_COLOR
     assert "Active Intensity Group: 'Impacts'" in rows[0]["tt"]
-    assert "Locked to intensity group, no other files can be added to this pool." in rows[0]["tt"]
+    assert "No more files can be added to this pool." in rows[0]["tt"]
     assert [b["icon"] for b in rows[1]["buttons"]] == ["play"]
 
 
@@ -949,7 +949,7 @@ def test_pool_files_rows_igroup_inactive_shows_inactive_tooltip(monkeypatch):
     assert rows[0]["type"] == "folder"
     assert rows[0]["bar_color"] == CUE_INTENSITY_HINT_COLOR
     assert "Inactive Intensity Group: 'Impacts'" in rows[0]["tt"]
-    assert "Locked to intensity group, no other files can be added to this pool." in rows[0]["tt"]
+    assert "No more files can be added to this pool." in rows[0]["tt"]
 
 
 def test_sfx_toggle_preset_expand(sfx):
@@ -1461,7 +1461,8 @@ def test_folder_rows_open_and_closed():
     assert rows[0]["toggle"] == toggle
     assert rows[1:] == children
     closed = _core_rows._cue_folder_rows("p", "p", 1, toggle, False, False, buttons, children)
-    assert closed == [rows[0]]
+    # The closed header is the open header with only the expanded flag flipped.
+    assert closed == [_core_rows._cue_folder_row("p", "p", 1, buttons, toggle, expanded=False)]
 
 
 def test_folder_rows_auto_show_children_on_search():

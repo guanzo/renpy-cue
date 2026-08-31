@@ -53,9 +53,7 @@ def _cue_igroup_tooltip(group_name, is_active):
     status line plus the locked-pool note.  Shared by the pool-files rows and
     the marker timeline."""
     status = "Active" if is_active else "Inactive"
-    return ("{} Intensity Group: '{}'\nNo more files can be added to this pool.").format(
-        status, group_name
-    )
+    return ("{} Intensity Group: '{}'\nNo more files can be added to this pool.").format(status, group_name)
 
 
 class CueIntensityFlags(_renpy_python.NoRollback):

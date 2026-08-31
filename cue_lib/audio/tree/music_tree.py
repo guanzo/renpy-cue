@@ -166,7 +166,13 @@ class CueMusicTree(CueAudioTreeManager):
             else:
                 children = user_tree
                 has_files = False
-            my_music = {"type": "folder", "name": CUE_MY_MUSIC_FOLDER, "children": children, "has_files": has_files}
+            my_music = {
+                "type": "folder",
+                "name": CUE_MY_MUSIC_FOLDER,
+                "children": children,
+                "has_files": has_files,
+                "synthetic": True,
+            }
             if _cue.paths is not None:
                 my_music["abs_root"] = _cue.paths.music_dir
             result.append(my_music)

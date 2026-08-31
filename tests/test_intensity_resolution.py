@@ -241,10 +241,10 @@ def test_flags_from_entry_reads_fields(cue_env):
 
 def test_group_tooltip_active_and_inactive():
     assert _cue_igroup_tooltip("Impacts", True) == (
-        "Active Intensity Group: 'Impacts'\nLocked to intensity group, no other files can be added to this pool."
+        "Active Intensity Group: 'Impacts'\nNo more files can be added to this pool."
     )
     assert _cue_igroup_tooltip("Impacts", False) == (
-        "Inactive Intensity Group: 'Impacts'\nLocked to intensity group, no other files can be added to this pool."
+        "Inactive Intensity Group: 'Impacts'\nNo more files can be added to this pool."
     )
 
 

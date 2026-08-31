@@ -326,9 +326,19 @@ class CueAudioTreeManager(_renpy_python.NoRollback):
 
     def _wrap_source_tree(self, key, extra=None):
         # type: (str, Optional[Dict[str, Any]]) -> Dict[str, Any]
-        """Wrap a source's tree under its display_root (synthetic folder)."""
+        """Wrap a source's tree under its display_root (synthetic folder).
+
+        synthetic marks display-only source roots so folder compaction never
+        swallows them (they carry the abs-path tooltip and the game-music root
+        is an add-folder boundary)."""
         src = self._source_cfg(key)
-        node = {"type": "folder", "name": src["display_root"], "children": self._source_tree(key), "has_files": False}
+        node = {
+            "type": "folder",
+            "name": src["display_root"],
+            "children": self._source_tree(key),
+            "has_files": False,
+            "synthetic": True,
+        }
         if extra:
             node.update(extra)
         return node
@@ -362,6 +372,7 @@ class CueAudioTreeManager(_renpy_python.NoRollback):
                     "children": source["tree"],
                     "has_files": False,
                     "abs_root": source["abs_root"],
+                    "synthetic": True,
                 }
             )
 
@@ -419,7 +430,7 @@ class CueAudioTreeManager(_renpy_python.NoRollback):
                 node_path = full
                 has_files = item.get("has_files", False)
                 children = item.get("children", [])
-                if node_abs is None:
+                if node_abs is None and not item.get("synthetic"):
                     while (
                         len(children) == 1 and children[0]["type"] == "folder" and children[0].get("abs_root") is None
                     ):

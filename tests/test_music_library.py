@@ -207,7 +207,7 @@ def test_search_returns_all_matches():
 def test_clear_search_restores_collapsed_tree():
     lib, _calls = _make_lib(user_paths=("music/a.ogg", "music/sub/b.ogg"))
     lib.rebuild_tree()
-    lib.search_query = "b"
+    lib.search_query = "b.ogg"
     lib.rebuild_tree()
     assert USER + "sub/b.ogg" in _rows(lib)
     assert USER + "a.ogg" not in _rows(lib)
@@ -243,7 +243,7 @@ def test_toggle_folder_collapses_and_expands():
 def test_toggle_folder_noop_during_search():
     lib, _calls = _make_lib(user_paths=("music/a.ogg", "music/sub/b.ogg"))
     lib.rebuild_tree()
-    lib.search_query = "b"
+    lib.search_query = "b.ogg"
     lib.rebuild_tree()
     lib.toggle_folder(USER + "sub/")
     # Toggle is a no-op during search: the match stays force-expanded and no
@@ -289,8 +289,9 @@ def test_folder_rows_has_files():
     # Direct file under the folder -> shows "+".
     assert rows[USER]["has_files"] is True  # My Music/ hoists music/a.ogg
     assert rows[USER + "sub/"]["has_files"] is True
-    # Nested-only folder (no direct files) -> no "+".
-    assert rows[GAME + "bgm/"]["has_files"] is False
+    # bgm/ holds only the ost/ folder, so the chain compacts to one row that
+    # keeps the deepest folder's direct-file flag (ost/ holds y.ogg).
+    assert rows[GAME + "bgm/ost/"]["has_files"] is True
     # Synthetic Game Music root -> no "+".
     assert rows[GAME]["has_files"] is False
 
