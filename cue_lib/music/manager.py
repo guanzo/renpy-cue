@@ -44,7 +44,7 @@ if MYPY:
 _ORIGINALS = None
 
 # Transition length (seconds) when a music trigger replaces a playing track.
-CUE_MUSIC_CROSSFADE = 0.8
+CUE_MUSIC_CROSSFADE = 0.5
 
 
 class CueMusicManager(_renpy_python.NoRollback):
