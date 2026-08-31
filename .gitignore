@@ -10,6 +10,7 @@ bin/install_to_game.bat
 !.claude/skills/
 .worktrees/
 .local
+.wrangler
 .env
 .venv/
 .coverage

@@ -127,6 +127,15 @@ Intensity Groups tie your sound effects to video speed. As a video speeds up or 
 
 It's the feature that brings everything together: video SFX, loop SFX, loop frequency, and volume can all react to video speed, without needing to configure each speed variant individually.
 
+**How to set it up:**
+
+1. **Generate a speed variant** — in the **Speed** tab, create at least one speed variant for the video (8+ is ideal, so each level has speeds to map to).
+2. **Create an intensity group** — in the **SFX Library**, open the **Intensity Groups/** block, click **+ Group**, and give it a name.
+3. **Add levels** — click **+ Level** to add one level per intensity step. Level 1 is the softest; the last level is the hardest. 3 levels is a good starting point.
+4. **Add SFX to each level** — click the **folder** icon on a level row to enter add mode, then click **+** on any file or folder in the library to drop it into that level. Repeat for each level.
+5. **Hook the group to a pool** — with a **video** or **loop** targeted, click **+** on any level row. Cue adds that level's folder to the pool and auto-enables intensity for that video.
+
+
 ## Cue Data Folder
 
 Cue keeps your SFX, music, markers, presets, and video speed variants in one shared data folder used by every game where Cue is installed.
