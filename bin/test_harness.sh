@@ -32,13 +32,18 @@ if [ "$1" = "--both" ]; then
     shift
     MODERN=""
     LEGACY=""
+    # Pick by version, not by parser heuristics: an 8.x whose testparser
+    # predates the modern DSL would otherwise be classified legacy and shadow
+    # the real 7.x SDK (8.1.3 steals the legacy slot from 7.4.10).  Newest
+    # within each major wins, so the last write is the highest version seen.
     for d in "$ROOT"/.local/renpy-sdk/renpy-*-sdk; do
         [ -d "$d" ] || continue
-        if grep -q 'def parse_until' "$d/renpy/test/testparser.py" 2>/dev/null; then
-            MODERN="$d/renpy.sh"
-        else
-            LEGACY="$d/renpy.sh"
-        fi
+        ver="${d##*renpy-}"
+        ver="${ver%-sdk}"
+        case "$ver" in
+            7.*) LEGACY="$d/renpy.sh" ;;
+            8.*) MODERN="$d/renpy.sh" ;;
+        esac
     done
     if [ -z "$MODERN" ] || [ -z "$LEGACY" ]; then
         echo "need both a 7.x and an 8.x renpy-*-sdk under .local/renpy-sdk/ for --both" >&2
