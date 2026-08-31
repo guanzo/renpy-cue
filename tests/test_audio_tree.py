@@ -1606,7 +1606,7 @@ def _sfx_intensity_rows(sfx, names, query="", lv_hook_ok=True, lv_tt="Hook to po
 
 def test_sfx_intensity_rows_empty(sfx):
     rows = _sfx_intensity_rows(sfx, [])
-    assert len(rows) == 3
+    assert len(rows) == 2
     plus_group = rows[0]
     assert plus_group["type"] == "action"
     assert plus_group["label"] == "+ Group"
@@ -1616,7 +1616,6 @@ def test_sfx_intensity_rows_empty(sfx):
     assert rows[1]["type"] == "help"
     assert rows[1]["depth"] == 0
     assert rows[1]["label"] == "No intensity groups yet."
-    assert rows[2]["label"].startswith("An intensity group is a soft-to-hard")
 
 
 def test_sfx_intensity_rows_empty_state_matches_parent_indent(sfx):
@@ -1762,13 +1761,10 @@ def _content_rows(
     recent_entries=(),
     recent_expanded=False,
     ctx="video",
-    builder=None,
 ):
-    # type: (CueSfxLibraryTree, str, tuple, tuple, tuple, bool, bool, dict, tuple, bool, str, object) -> list
+    # type: (CueSfxLibraryTree, str, tuple, tuple, tuple, bool, bool, dict, tuple, bool, str) -> list
     """Full SFX section stream via the builder.  recent_entries None wires no
-    recent manager; otherwise the fake returns the given (type, ref) pairs.
-    builder reuses an existing CueSfxTreeRows so a test can check the
-    memo cache across calls (the screen uses the tree's persistent builder)."""
+    recent manager; otherwise the fake returns the given (type, ref) pairs."""
     import cue_lib.util as util_mod
 
     if recent_entries is None:
@@ -1802,9 +1798,9 @@ def _content_rows(
     )
     util_mod._cue.sfx = types.SimpleNamespace(library=types.SimpleNamespace(files=["pool/a.ogg"], disabled_files=set()))
     util_mod._cue.dialogs = types.SimpleNamespace(intensity=types.SimpleNamespace(open=lambda: None))
-    if builder is None:
-        builder = _sfx_rows.CueSfxTreeRows(sfx)
-    return builder.content_rows(query, list(presets), list(vpresets), list(igroups), is_video, tgt_ok, unplayable or {})
+    return _sfx_rows.CueSfxTreeRows(sfx).content_rows(
+        query, list(presets), list(vpresets), list(igroups), is_video, tgt_ok, unplayable or {}
+    )
 
 
 def _all_action_buttons(rows):
@@ -2296,37 +2292,3 @@ def test_sfx_pack_poll_scan_error_becomes_error_state(sfx, monkeypatch):
     sfx._sfx.sfx_pack.poll_sfx_pack()
     assert sfx._sfx.sfx_pack.state == "error"
     assert "scan failed" in sfx._sfx.sfx_pack.error
-
-
-def test_sfx_content_rows_memo_reuses_rows_until_state_changes(sfx):
-    """A pure re-evaluation (hover restarts the screen) must serve the cached
-    row list; any input the rows depend on must invalidate it."""
-    _seed_builtin(sfx)
-    builder = _sfx_rows.CueSfxTreeRows(sfx)
-    kw = dict(presets=["p"], vpresets=["vp"], igroups=["g"])
-    # Same dict object every call -- mirrors unplayable_files() returning the
-    # cached snapshot (a fresh dict each call would never match the id key).
-    unplayable = {"seed.wav": "bad"}
-
-    first = _content_rows(sfx, builder=builder, unplayable=unplayable, **kw)
-    second = _content_rows(sfx, builder=builder, unplayable=unplayable, **kw)
-    assert second is first  # nothing changed -> cached
-
-    # search query changed -> rebuild
-    assert _content_rows(sfx, builder=builder, query="p", unplayable=unplayable, **kw) is not first
-    # different unplayable snapshot object -> rebuild
-    assert _content_rows(sfx, builder=builder, unplayable={"x.wav": "bad"}, **kw) is not first
-    # folder-ui toggle mutated in place -> rebuild (value-fingerprinted)
-    sfx.expanded_presets["p"] = True
-    assert _content_rows(sfx, builder=builder, unplayable=unplayable, **kw) is not first
-
-
-def test_sfx_content_rows_memo_detects_tree_rebuild(sfx):
-    """A scan/toggle that rebuilds visible_tree must invalidate the cache."""
-    _seed_builtin(sfx)
-    builder = _sfx_rows.CueSfxTreeRows(sfx)
-    kw = dict(presets=["p"], vpresets=["vp"], igroups=["g"])
-    first = _content_rows(sfx, builder=builder, **kw)
-
-    sfx.rebuild_tree()  # new visible_tree list
-    assert _content_rows(sfx, builder=builder, **kw) is not first

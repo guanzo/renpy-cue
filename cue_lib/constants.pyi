@@ -1,6 +1,6 @@
 from typing import Final
 
-CUE_VERSION: Final = "0.3.0"
+CUE_VERSION: Final = "0.3.1"
 CUE_DISCORD: Final = "https://discord.gg/kAVtFGcQYm"
 CUE_GITHUB: Final = "https://github.com/guanzo/renpy-cue/issues"
 CUE_KOFI: Final = "https://ko-fi.com/guanzo"
