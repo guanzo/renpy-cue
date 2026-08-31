@@ -352,7 +352,9 @@ screen cue_tree_rows(rows):
                             tt=_row.get("tt"),
                             sensitive=_row.get("sensitive", True))
                 elif _row["type"] == "actions":
-                    for _a in _row["actions"]:
+                    for _a_index, _a in enumerate(_row["actions"]):
+                        if _a_index > 0:
+                            null width 4
                         if _a.get("explorer"):
                             use cue_open_in_explorer_btn(_a["explorer"], _a["label"])
                         elif _a.get("icon"):
