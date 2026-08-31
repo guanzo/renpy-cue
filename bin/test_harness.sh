@@ -368,15 +368,53 @@ if [ "$DSL" = "legacy" ]; then
         _failed=0
         for _name in $_slice; do
             echo "[cue] running testcase: $_name (worker $_w)"
-            rm -f "$WMODE/debug.log"
-            # Each testcase boots a fresh engine, but the data store is shared
-            # across testcases on this worker. A store-writing testcase leaks
-            # disk state (e.g. a leftover MULTI speed sequence after a pop that
-            # only removes in-memory) that a later plain-video testcase then
-            # resolves into an absolute play path and fails on. Reset the
-            # mutable data tree + persistent before every launch.
-            rm -rf "$WDATA/data" "$WDATA/backups" "$WDATA/video" "$WGAME/game/saves"
-            if ! timeout "$CUE_ENGINE_TIMEOUT" $_run "$LAUNCHER" --savedir "$WSAVEDIR" "$WGAME" test "$_name"; then
+            # The 7.2.x engine intermittently dies at its first interact with
+            # "Could not set video mode" when several workers boot at once:
+            # its SDL window/GL init is fragile under the Xvfb contention of a
+            # fresh parallel wave. That's a transient boot failure, not a
+            # testcase failure -- the same testcase boots fine moments later.
+            # Retry only that signature (a hang times out as 124, a real
+            # assertion differs), resetting mutable state per attempt.
+            _attempt=1
+            _max="${CUE_LEGACY_VIDEO_RETRIES:-2}"
+            _engine_rc=0
+            while :; do
+                rm -f "$WMODE/debug.log"
+                # Each testcase boots a fresh engine, but the data store is
+                # shared across testcases on this worker. A store-writing
+                # testcase leaks disk state (e.g. a leftover MULTI speed
+                # sequence after a pop that only removes in-memory) that a
+                # later plain-video testcase then resolves into an absolute
+                # play path and fails on. Reset the mutable data tree +
+                # persistent before every launch (and retry).
+                rm -rf "$WDATA/data" "$WDATA/backups" "$WDATA/video" "$WGAME/game/saves"
+                OUT="$(mktemp -t cue_legacy_${_w}.XXXXXX)"
+                if timeout "$CUE_ENGINE_TIMEOUT" $_run "$LAUNCHER" --savedir "$WSAVEDIR" "$WGAME" test "$_name" >"$OUT" 2>&1; then
+                    _engine_rc=0
+                    cat "$OUT"
+                    rm -f "$OUT"
+                    break
+                else
+                    _engine_rc=$?
+                    _retryable=0
+                    if [ "$_engine_rc" -ne 124 ] && [ "$_attempt" -lt "$_max" ] && \
+                       grep -q "Could not set video mode" "$OUT"; then
+                        _retryable=1
+                    fi
+                    cat "$OUT"
+                    rm -f "$OUT"
+                    if [ "$_retryable" -eq 1 ]; then
+                        echo "[cue] worker $_w testcase $_name: video-mode boot flake, retry $_attempt" >&2
+                        _attempt=$((_attempt + 1))
+                        continue
+                    fi
+                    break
+                fi
+            done
+            if [ "$_engine_rc" -eq 0 ]; then
+                _passed=$((_passed + 1))
+                echo "[cue] worker $_w testcase PASSED: $_name"
+            else
                 _failed=$((_failed + 1))
                 echo "[cue] worker $_w testcase FAILED: $_name" >&2
                 if [ -f "$WMODE/debug.log" ]; then
@@ -388,9 +426,6 @@ if [ "$DSL" = "legacy" ]; then
                     cat "$WMODE/error.log" >&2
                 fi
                 rc=1
-            else
-                _passed=$((_passed + 1))
-                echo "[cue] worker $_w testcase PASSED: $_name"
             fi
         done
         echo "[cue] worker $_w: $_passed passed, $_failed failed"
