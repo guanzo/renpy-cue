@@ -43,6 +43,9 @@ if MYPY:
 # captures our own wrapper as the "original" and double-wraps.
 _ORIGINALS = None
 
+# Transition length (seconds) when a music trigger replaces a playing track.
+CUE_MUSIC_CROSSFADE = 0.8
+
 
 class CueMusicManager(_renpy_python.NoRollback):
     """Detects music play/queue/stop events; forwards all calls unchanged.
@@ -287,6 +290,17 @@ class CueMusicManager(_renpy_python.NoRollback):
         """Display path for a recorded default music filepath."""
         return CUE_GAME_MUSIC_FOLDER + path
 
+    def _play_music(self, args, kwargs):
+        # type: (tuple, dict) -> Any
+        """Forward a music-channel play, crossfading when a track is playing.
+
+        Script-supplied fade values win; a silent channel starts instantly.
+        Ren'Py fades out the current track, then fades the new one in."""
+        if _music.is_playing(channel=CUE_DEFAULT_MUSIC_CHANNEL):
+            kwargs.setdefault("fadeout", CUE_MUSIC_CROSSFADE)
+            kwargs.setdefault("fadein", CUE_MUSIC_CROSSFADE)
+        return self._original_music_play(*args, **kwargs)
+
     def _on_play(self, *args, **kwargs):
         # type: (Any, Any) -> Any
         if "channel" in kwargs:
@@ -312,7 +326,7 @@ class CueMusicManager(_renpy_python.NoRollback):
                 elif args:
                     args = (override,) + tuple(args[1:])
                 play_args, play_kwargs = self._convert_play_file(args, kwargs)
-                return self._original_music_play(*play_args, **play_kwargs)
+                return self._play_music(play_args, play_kwargs)
 
         self._record("play", args, kwargs, channel_offset=1)
         play_args, play_kwargs = self._convert_play_file(args, kwargs)

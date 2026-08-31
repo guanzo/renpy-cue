@@ -526,8 +526,8 @@ class CueMusicTriggers(_renpy_python.NoRollback):
             return
         pool = self.music_pool_for(key)
         if pool:
-            self._mgr._original_music_play(
-                self._mgr._playable_file(random.choice(pool)), channel=CUE_DEFAULT_MUSIC_CHANNEL, loop=True
+            self._mgr._play_music(
+                (self._mgr._playable_file(random.choice(pool)),), {"channel": CUE_DEFAULT_MUSIC_CHANNEL, "loop": True}
             )
 
     def songs_for_trigger(self, key):

@@ -1369,6 +1369,92 @@ def test_play_custom_music_skips_default_trigger_scene(mgr, monkeypatch):
 
 
 # ==========================================================================
+# crossfade: a trigger firing while another track plays fades in the new song
+# ==========================================================================
+
+
+def _seed_playing(file="music/old.ogg"):
+    """Put a track on the music channel so is_playing() reads True."""
+    _music_mock._registry.setdefault(CUE_DEFAULT_MUSIC_CHANNEL, {})["playing"] = file
+
+
+def _spy_play(mgr):
+    """Replace _original_music_play with a recorder; return the calls list."""
+    calls = []
+
+    def _spy(*args, **kwargs):
+        calls.append((args, kwargs))
+
+    mgr._original_music_play = _spy
+    return calls
+
+
+def _crossfade_calls(mgr, monkeypatch):
+    """Wire the custom-music path against a recorder and fire it."""
+    mgr.install()
+    fake_rand = types.SimpleNamespace(choice=lambda pool: pool[0])
+    monkeypatch.setattr(_triggers_mod, "random", fake_rand)
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "music/c.ogg"]}
+    return _spy_play(mgr)
+
+
+def test_play_custom_music_crossfades_when_playing(mgr, monkeypatch):
+    _seed_playing()
+    calls = _crossfade_calls(mgr, monkeypatch)
+    mgr.play_custom_music()
+    assert calls[0][1]["fadeout"] == _music_mod.CUE_MUSIC_CROSSFADE
+    assert calls[0][1]["fadein"] == _music_mod.CUE_MUSIC_CROSSFADE
+
+
+def test_play_custom_music_no_fade_when_idle(mgr, monkeypatch):
+    calls = _crossfade_calls(mgr, monkeypatch)
+    mgr.play_custom_music()
+    assert "fadeout" not in calls[0][1]
+    assert "fadein" not in calls[0][1]
+
+
+def test_on_play_override_crossfades_when_playing(mgr, monkeypatch):
+    mgr.install()
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["music/default.ogg"]}]
+    mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "music/custom.ogg"], "music_default_disabled": True}
+    _seed_playing()
+    calls = _spy_play(mgr)
+    _music_mock.play("scripted.ogg", channel=CUE_DEFAULT_MUSIC_CHANNEL)
+    assert calls[0][1]["fadeout"] == _music_mod.CUE_MUSIC_CROSSFADE
+    assert calls[0][1]["fadein"] == _music_mod.CUE_MUSIC_CROSSFADE
+
+
+def test_on_play_override_no_fade_when_idle(mgr, monkeypatch):
+    mgr.install()
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["music/default.ogg"]}]
+    mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "music/custom.ogg"], "music_default_disabled": True}
+    calls = _spy_play(mgr)
+    _music_mock.play("scripted.ogg", channel=CUE_DEFAULT_MUSIC_CHANNEL)
+    assert "fadeout" not in calls[0][1]
+    assert "fadein" not in calls[0][1]
+
+
+def test_on_play_override_keeps_script_fade(mgr, monkeypatch):
+    # A `play music fadeout 2.0 fadein 1.5` statement keeps its own fades;
+    # the trigger override only fills in defaults.
+    mgr.install()
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["music/default.ogg"]}]
+    mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "music/custom.ogg"], "music_default_disabled": True}
+    _seed_playing()
+    calls = _spy_play(mgr)
+    _music_mock.play("scripted.ogg", channel=CUE_DEFAULT_MUSIC_CHANNEL, fadeout=2.0, fadein=1.5)
+    assert calls[0][1]["fadeout"] == 2.0
+    assert calls[0][1]["fadein"] == 1.5
+
+
+# ==========================================================================
 # Music Library folder-UI persistence (presets, trigger-box folder refs)
 # ==========================================================================
 
