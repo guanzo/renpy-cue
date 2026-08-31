@@ -8,7 +8,7 @@ import renpy.audio.music as _music
 
 from cue_lib.constants import CUE_INTENSITY_DELAY_MAX, CUE_INTENSITY_DELAY_MIN
 from cue_lib.state import _cue
-from cue_lib.util import _cue_pick_file, create_vid_key
+from cue_lib.util import _cue_pick_file, create_loop_key, create_vid_key
 
 MYPY = False
 if MYPY:
@@ -147,20 +147,27 @@ def _cue_vid_intensity_resolution(store, current_file, speed, variants):
 
     The result's volume_mult is the global scale for non-hooked fires
     during the video.  None when the file has no video markers, no pool
-    is hooked, or intensity is toggled off for the video -- i.e. no
-    intensity mode, so fires play unscaled."""
+    (video or loop) is hooked, or intensity is toggled off for the video
+    -- i.e. no intensity mode, so fires play unscaled."""
     if not current_file or not variants:
         return None
     entry = store.get(create_vid_key(current_file))
-    if entry is None:
-        return None
     flags = _cue.intensity.flags_from_entry(entry)
     if not flags.enabled:
         return None
     pool_hooks = []
-    for p in entry.get("pools", []):
-        rp = store.resolve_pool(p)
-        pool_hooks.append(rp.igroup)
+    if entry is not None:
+        for p in entry.get("pools", []):
+            rp = store.resolve_pool(p)
+            pool_hooks.append(rp.igroup)
+    if not pool_hooks:
+        # A loop pool hooked to a group also activates intensity mode when
+        # no video pool is hooked.
+        loop_entry = store.get(create_loop_key(current_file or ""))
+        if loop_entry is not None:
+            for p in loop_entry.get("pools", []):
+                rp = store.resolve_pool(p)
+                pool_hooks.append(rp.igroup)
     if not pool_hooks:
         return None
     return _cue.intensity.resolve_video_intensity(pool_hooks, speed, variants, flags=flags)

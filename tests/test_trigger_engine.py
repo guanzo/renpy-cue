@@ -925,6 +925,20 @@ def test_tick_snapshot_video_intensity(cue_env, monkeypatch):
     assert eng._vid_intensity.level == 2
 
 
+def test_tick_snapshot_loop_only_hook_activates(cue_env, monkeypatch):
+    store = FakeMarkerStore(
+        {"l_scene.ogv": {"pools": [{"igroup": {"name": "Impacts", "level": 1}, "frequency": CueLoopFrequency.MEDIUM}]}}
+    )
+    eng = _igroup_engine(cue_env, monkeypatch, store)
+    monkeypatch.setattr(eng.loop, "tick", lambda *a, **k: None)
+    monkeypatch.setattr(eng.video, "tick", lambda *a, **k: None)
+    eng.tick("scene.ogv", "movie")
+    # No video pool hooked -- the loop pool's hook still activates intensity
+    # mode: 1.3 -> L2, so non-hooked fires get the level's volume scale.
+    assert eng._vid_intensity is not None
+    assert eng._vid_intensity.level == 2
+
+
 def test_tick_snapshot_none_when_master_off(cue_env, monkeypatch):
     store = FakeMarkerStore(
         {"v_scene.ogv": {"pools": [{"igroup": {"name": "Impacts", "level": 1}}], "intensity": {"enabled": False}}}

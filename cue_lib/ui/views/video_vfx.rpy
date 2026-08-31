@@ -189,8 +189,12 @@ screen cue_video_vfx_intensity(_has_speeds):
     $ _vid_entry = _cue.markers.get(_vid_key, {})
     $ _vid_entries = (_cue.markers._resolve_video_pools(_vid_entry)
         if _vid_entry else [])
+    $ _loop_key = _cue_create_loop_key(_cue.current_file) if _cue.current_file else ""
+    $ _loop_entry = _cue.markers.get(_loop_key, {})
+    $ _loop_pools = (_loop_entry.get("pools", []) if _loop_entry else [])
     $ _pool_hooks = ([p.get("igroup") for p in _vid_entries]
-        if _vid_entries else [])
+        if _vid_entries else []) + ([p.get("igroup") for p in _loop_pools]
+        if _loop_pools else [])
     $ _hook_group = _cue.intensity.video_hook(_pool_hooks)
     $ _has_group = _hook_group is not None
 
@@ -219,8 +223,7 @@ screen cue_video_vfx_intensity(_has_speeds):
         vbox:
             spacing 2
             text ("2. Go to the SFX Library, create an intensity group with 2 or more levels, add any "
-                "one of it's level folders to a video pool. "
-                "(Ideally ~[CUE_INTENSITY_IDEAL_LEVELS] levels)")
+                "one of its level folders to a video or loop pool. ")
             if _has_group:
                 hbox:
                     use cue_icon("circle-check", icon_color=_cue_color_green, fade=False)
@@ -274,37 +277,40 @@ screen cue_video_vfx_intensity(_has_speeds):
                     else:
                         etext "Intensity is off for this video." color _cue_color_text_muted
                     
-                    $ _rows = {}
-                    for _sp, _lvl in _mapping:
-                        $ _rows.setdefault(_lvl, []).append(_sp)
-                    vbox:
-                        spacing 2
-                        # Header row fixes the column widths the data rows reuse.
-                        hbox:
-                            spacing 5
-                            etext "Speed Range" color _cue_color_text_muted minwidth 100
-                            etext "Level" color _cue_color_text_muted minwidth 40
-
-                        for _lvl in sorted(_rows):
-                            $ _row_speeds = sorted(_rows[_lvl])
-                            $ _row_lo = _cue_speed_label(_row_speeds[0])
-                            $ _row_hi = _cue_speed_label(_row_speeds[-1])
-                            $ _row_range = _row_lo if len(_row_speeds) == 1 else _row_lo + " - " + _row_hi
-                            $ _row_speed_tt = ", ".join(_cue_speed_label(_sp) for _sp in _row_speeds)
-                            $ _is_active_row = (_res is not None and _lvl == _res.level)
+                    if _mapping is None:
+                        etext "The intensity group needs 2+ levels to map speeds."
+                    else:
+                        $ _rows = {}
+                        for _sp, _lvl in _mapping:
+                            $ _rows.setdefault(_lvl, []).append(_sp)
+                        vbox:
+                            spacing 2
+                            # Header row fixes the column widths the data rows reuse.
                             hbox:
                                 spacing 5
-                                button:
-                                    style "empty"
-                                    action NullAction()
-                                    tooltip _row_speed_tt
-                                    etext _row_range minwidth 100
-                                etext str(_lvl)
-                                if _is_active_row:
-                                    use cue_icon("caret-left", 
-                                        icon_color=_cue_color_green,
-                                        size=14, 
-                                        fade=False)
+                                etext "Speed Range" color _cue_color_text_muted minwidth 100
+                                etext "Level" color _cue_color_text_muted minwidth 40
+
+                            for _lvl in sorted(_rows):
+                                $ _row_speeds = sorted(_rows[_lvl])
+                                $ _row_lo = _cue_speed_label(_row_speeds[0])
+                                $ _row_hi = _cue_speed_label(_row_speeds[-1])
+                                $ _row_range = _row_lo if len(_row_speeds) == 1 else _row_lo + " - " + _row_hi
+                                $ _row_speed_tt = ", ".join(_cue_speed_label(_sp) for _sp in _row_speeds)
+                                $ _is_active_row = (_res is not None and _lvl == _res.level)
+                                hbox:
+                                    spacing 5
+                                    button:
+                                        style "empty"
+                                        action NullAction()
+                                        tooltip _row_speed_tt
+                                        etext _row_range minwidth 100
+                                    etext str(_lvl)
+                                    if _is_active_row:
+                                        use cue_icon("caret-left",
+                                            icon_color=_cue_color_green,
+                                            size=14,
+                                            fade=False)
 
 
 screen cue_video_vfx_create(_avail, _has_speeds):
