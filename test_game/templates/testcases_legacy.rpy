@@ -1899,6 +1899,9 @@ testcase tree_render:
         {"key": "t1", "type": "folder", "label": "Folder/", "depth": 0,
          "buttons": [], "toggle": Function(_cue.sfx.library.toggle_folder, "Folder/"),
          "hover_buttons": [{"icon": "chevron-up", "action": NullAction(), "tt": "Move level up"}]},
+        # Long label forces elision; the tooltip reveals the full folder name.
+        {"key": "t1b", "type": "folder", "label": "ThisIsAVeryLongFolderNameThatMustBeElided/", "depth": 0,
+         "buttons": [], "toggle": Function(_cue.sfx.library.toggle_folder, "Folder/")},
         {"key": "t2", "type": "file", "label": "a.wav", "depth": 1,
          "buttons": [{"icon": "play", "action": NullAction(), "tt": "Preview audio"}],
          "warn": "bad format", "gap": 1, "size": 11},

@@ -364,14 +364,21 @@ screen cue_tree_row(_row, _row_w):
                     on_hover=(SetLocalVariable("_hovered_key", _row["key"]) if _has_hover else None),
                     on_unhover=(SetLocalVariable("_hovered_key", None) if _has_hover else None))
             if _row["type"] == "folder":
+                # A truncated nested-folder label reveals the full name as the
+                # tooltip.  Rows with their own tt (source roots) keep it.
+                $ _folder_label = _row["label"].rstrip("/")
+                $ _folder_elided = _cue_elide_label(_folder_label, _rlmax)
+                $ _folder_tt = _row.get("tt")
+                if not _folder_tt and _folder_elided != _folder_label:
+                    $ _folder_tt = _cue_escape_text(_folder_label)
                 hbox:
                     spacing 0
                     if _row.get("bar_color"):
                         add Solid(_row["bar_color"], xsize=2, ysize=14) yalign 0.5
                     use cue_txt_button(
-                        _cue_elide_label(_row["label"].rstrip("/"), _rlmax),
+                        _folder_elided,
                         _row["toggle"],
-                        tt=_row.get("tt"),
+                        tt=_folder_tt,
                         icon=("caret-down" if _row.get("expanded") else "caret-right"),
                         hovered=(SetLocalVariable("_hovered_key", _row["key"]) if _has_hover else None),
                         unhovered=(SetLocalVariable("_hovered_key", None) if _has_hover else None))
