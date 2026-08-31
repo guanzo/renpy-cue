@@ -416,6 +416,7 @@ class CueAudioTreeManager(_renpy_python.NoRollback):
                     "full_path": full,
                     "depth": depth,
                     "has_files": item.get("has_files", False),
+                    "expanded": expanded,
                 }
                 if node_abs is not None:
                     node["abs_root"] = node_abs

@@ -12,7 +12,7 @@ import renpy.python as _renpy_python
 from renpy.store import Function
 
 from cue_lib.ui.displayables import _cue_scale_ui
-from cue_lib.util import _cue_escape_text, _cue_log
+from cue_lib.util import _cue_escape_text
 
 MYPY = False
 if MYPY:
@@ -79,8 +79,6 @@ def _cue_tree_restart(key, value):
         return None
     _cue_tree_win[key] = (pitch, first, buf)
     renpy.exports.restart_interaction()
-    _cue_log('RESTART!!!!!')
-    
     return None
 
 
@@ -149,6 +147,8 @@ def _cue_row_label_max(row, container_w):
         # folder/action/help labels sit in a cue_button (side padding) or a
         # bare text line; both leave a small shoulder.
         chrome += btn_pad
+        if row["type"] == "folder":
+            chrome += button_w + icon_space  # the leading caret icon
     avail = container_w - chrome - _cue_scale_ui(CUE_ELIDE_SAFETY_PX)
     return max(min_chars, avail // char_w)
 
@@ -211,10 +211,10 @@ def _cue_actions_row(key, actions, depth=0):
     return {"key": key, "type": "actions", "actions": actions, "depth": depth}
 
 
-def _cue_folder_row(key, label, depth, buttons, toggle):
-    # type: (str, str, int, List[TreeButtonDict], Any) -> TreeFolderRowDict
+def _cue_folder_row(key, label, depth, buttons, toggle, expanded=False):
+    # type: (str, str, int, List[TreeButtonDict], Any, bool) -> TreeFolderRowDict
     """A collapsible folder row (the header; children are separate rows)."""
-    return {"key": key, "type": "folder", "label": label, "depth": depth, "buttons": buttons, "toggle": toggle}
+    return {"key": key, "type": "folder", "label": label, "depth": depth, "buttons": buttons, "toggle": toggle, "expanded": expanded}
 
 
 def _cue_external_empty_rows(tree, kind_word):
@@ -259,7 +259,7 @@ def _cue_section_rows(key, label, toggle_fn, expanded, searching, has_any, child
     search can skip an expensive child scan until the header is kept."""
     if searching and not has_any():
         return []
-    rows = _cue_folder_rows(key, label, 0, toggle_fn, False, False, [], [])
+    rows = _cue_folder_rows(key, label, 0, toggle_fn, expanded, searching, [], [])
     if expanded or (auto_show and searching):
         rows.extend(child_fn())
     return rows
@@ -271,7 +271,7 @@ def _cue_folder_rows(key, label, depth, toggle_fn, expanded, searching, buttons,
     search, when children auto-show like the tree).  hover_buttons (e.g. a
     level's move-up/down chevrons) render beside the label only while the
     row is hovered."""
-    row = _cue_folder_row(key, label, depth, buttons, toggle_fn)
+    row = _cue_folder_row(key, label, depth, buttons, toggle_fn, expanded=expanded)
     if hover_buttons:
         row["hover_buttons"] = hover_buttons
     rows = [row]  # type: List[TreeRowDict]
@@ -312,6 +312,7 @@ class CueTreeRowsBuilder(_renpy_python.NoRollback):
                     "depth": item["depth"],
                     "buttons": self.row_buttons(item, *state),
                     "toggle": Function(self._tree.toggle_folder, item["full_path"]),
+                    "expanded": item.get("expanded", False),
                 }  # type: TreeFolderRowDict
                 # Abs-path tooltip only on source roots: threading it onto every
                 # nested folder gives a big tree thousands of per-hover tooltips.

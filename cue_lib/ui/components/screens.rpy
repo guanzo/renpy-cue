@@ -174,10 +174,7 @@ screen cue_txt_button(label, action, bg=None, hover_bg=None, tt=None,
             hbox:
                 spacing 4
                 if _btn_icon is not None:
-                    if sensitive:
-                        add _btn_icon yalign 0.5
-                    else:
-                        add _btn_icon yalign 0.5 alpha 0.35
+                    add _btn_icon yoffset 1 yalign 0.5 alpha (1 if sensitive else 0.35)
                 etext label style "cue_button_text"
     else:
         textbutton _cue_escape_text(label):
@@ -293,23 +290,18 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
 screen cue_tree_rows(rows, ymax=999999, width=None, key=None):
     style_group "cue"
 
-    # Windowed construction: only the visible slice of rows (plus a buffer of
-    # rows on each side) is built, so a folder with thousands of files does not
-    # construct every cell when the overlay opens.  The scroll position lives
-    # in a persistent Adjustment (keyed by call site via `key`) that the
-    # viewport writes as the user scrolls; each re-eval recomputes the window
-    # from it.  The top/bottom spacers preserve the full scroll range without
-    # constructing the offscreen rows.  `width` is the *actual* container --
-    # the overlay panel, or the SFX sidebar's drag-resizable width (a logical
-    # width, scaled here to _row_w); each row then elides its label to the
-    # width minus its own chrome (see _cue_row_label_max) so cells stay
-    # single-line and uniform.  ymax caps the height (pool_files passes 120);
-    # 999999 is effectively unbounded.
+    # Windowed so a large folder doesn't construct every cell: only the slice
+    # around the scroll Adjustment's position becomes cells, spacers keep the
+    # scroll range, and labels elide to _row_w so cells stay uniform.  ymax
+    # caps height (pool_files passes 120); 999999 is unbounded.
     $ _row_w = _cue_scale_ui(width or _cue_overlay_panel_width)
     $ _adj = _cue_tree_adjustment(key or "cue_tree")
     $ _pitch = _cue_scale_ui(_cue_btn_height) + 4  # natural row height + the original 4px gap
     $ _buf = 6  # rows of slack above and below the viewport
-    $ _page = _adj.page or 480
+    # First eval runs before the viewport has ever rendered, so _adj.page is 0;
+    # fall back to the full screen height so the first window covers whatever
+    # viewport mounts (a smaller default left blank space until a restart).
+    $ _page = _adj.page or renpy.config.screen_height
     $ _vis = max(2, int(_page // _pitch) + 2)
     $ _first = int(_adj.value) // _pitch
     $ _start = max(0, _first - _buf)
@@ -377,9 +369,10 @@ screen cue_tree_row(_row, _row_w):
                     if _row.get("bar_color"):
                         add Solid(_row["bar_color"], xsize=2, ysize=14) yalign 0.5
                     use cue_txt_button(
-                        _cue_elide_label(_row["label"], _rlmax),
+                        _cue_elide_label(_row["label"].rstrip("/"), _rlmax),
                         _row["toggle"],
                         tt=_row.get("tt"),
+                        icon=("caret-down" if _row.get("expanded") else "caret-right"),
                         hovered=SetLocalVariable("_hovered_key", _row["key"]),
                         unhovered=SetLocalVariable("_hovered_key", None))
                     for _hb in _row.get("hover_buttons", []):

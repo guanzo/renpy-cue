@@ -354,6 +354,7 @@ class TreeFolderRowDict(TypedDict):
     depth: int
     buttons: List[TreeButtonDict]
     toggle: Any  # a Ren'Py action / Function()
+    expanded: NotRequired[bool]  # renders the folder caret down (vs right)
     hover_buttons: NotRequired[List[TreeButtonDict]]
     tt: NotRequired[str]
     bar_color: NotRequired[str]
