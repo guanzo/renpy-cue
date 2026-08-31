@@ -338,7 +338,8 @@ def test_on_play_replay_override_filepath(mgr, monkeypatch):
     mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["music/default.ogg"]}]
     mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_USER_TAG + "custom.ogg"], "music_default_disabled": True}
     _music_mock.play("scripted.ogg", channel=CUE_DEFAULT_MUSIC_CHANNEL)
-    assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == mgr._paths.music_dir + "custom.ogg"
+    # The override plays the pool as a looping sequence (single song here).
+    assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == [mgr._paths.music_dir + "custom.ogg"]
 
 
 def test_on_play_replay_override_args_form(mgr, monkeypatch):
@@ -348,7 +349,7 @@ def test_on_play_replay_override_args_form(mgr, monkeypatch):
     mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["music/default.ogg"]}]
     mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_USER_TAG + "custom.ogg"], "music_default_disabled": True}
     _music_mock.play("scripted.ogg", CUE_DEFAULT_MUSIC_CHANNEL)
-    assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == mgr._paths.music_dir + "custom.ogg"
+    assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == [mgr._paths.music_dir + "custom.ogg"]
 
 
 def test_on_play_replay_override_filenames_kwarg(mgr, monkeypatch):
@@ -358,7 +359,7 @@ def test_on_play_replay_override_filenames_kwarg(mgr, monkeypatch):
     mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["music/default.ogg"]}]
     mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_USER_TAG + "custom.ogg"], "music_default_disabled": True}
     _music_mock.play(filenames="scripted.ogg", channel=CUE_DEFAULT_MUSIC_CHANNEL)
-    assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == mgr._paths.music_dir + "custom.ogg"
+    assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == [mgr._paths.music_dir + "custom.ogg"]
 
 
 def test_on_play_replay_override_suppress(mgr, monkeypatch):
@@ -1317,12 +1318,21 @@ def test_pick_for_override_untouched_without_pool(mgr, monkeypatch):
 
 def test_pick_for_override_pool_choice(mgr, monkeypatch):
     monkeypatch.setattr(_store, "_in_replay", "replay1")
-    fake_rand = types.SimpleNamespace(choice=lambda pool: pool[-1])
-    monkeypatch.setattr(_triggers_mod, "random", fake_rand)
     _set_scene(mgr, "scene.ogv", "image")
     mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
     mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "a.ogg", CUE_MUSIC_GAME_TAG + "b.ogg"]}
-    assert mgr._pick_for_override() == "b.ogg"
+    # The whole pool (recorded default first, then customs) replaces the
+    # replay's `play music` as a sequence in the user's order, so it loops
+    # through every song instead of one pick on repeat.
+    assert mgr._pick_for_override() == ["m.ogg", "a.ogg", "b.ogg"]
+
+
+def test_pick_for_override_single_song(mgr, monkeypatch):
+    monkeypatch.setattr(_store, "_in_replay", "replay1")
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._triggers["replay1"] = [{"key_before": "i_scene.ogv", "filepaths": ["m.ogg"]}]
+    mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "a.ogg"]}
+    assert mgr._pick_for_override() == ["m.ogg", "a.ogg"]
 
 
 def test_pick_for_override_suppress(mgr, monkeypatch):
@@ -1335,12 +1345,27 @@ def test_pick_for_override_suppress(mgr, monkeypatch):
 
 def test_play_custom_music_plays_pool(mgr, monkeypatch):
     mgr.install()
-    fake_rand = types.SimpleNamespace(choice=lambda pool: pool[0])
-    monkeypatch.setattr(_triggers_mod, "random", fake_rand)
     _set_scene(mgr, "scene.ogv", "image")
     mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "music/c.ogg"]}
     mgr.play_custom_music()
-    assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == "music/c.ogg"
+    # A single-song pool still plays as a (single-entry) looping sequence.
+    assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == ["music/c.ogg"]
+
+
+def test_play_custom_music_cycles_pool(mgr, monkeypatch):
+    mgr.install()
+    _set_scene(mgr, "scene.ogv", "image")
+    mgr._store["i_scene.ogv"] = {"music": [
+        CUE_MUSIC_GAME_TAG + "music/a.ogg",
+        CUE_MUSIC_GAME_TAG + "music/b.ogg",
+        CUE_MUSIC_GAME_TAG + "music/c.ogg",
+    ]}
+    mgr.play_custom_music()
+    # The whole pool plays as a sequence in the user's order, looping forever.
+    assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["playing"] == [
+        "music/a.ogg", "music/b.ogg", "music/c.ogg"
+    ]
+    assert _music_mock._registry[CUE_DEFAULT_MUSIC_CHANNEL]["loop"] is True
 
 
 def test_play_custom_music_skips_rollback(mgr, monkeypatch):
@@ -1392,8 +1417,6 @@ def _spy_play(mgr):
 def _crossfade_calls(mgr, monkeypatch):
     """Wire the custom-music path against a recorder and fire it."""
     mgr.install()
-    fake_rand = types.SimpleNamespace(choice=lambda pool: pool[0])
-    monkeypatch.setattr(_triggers_mod, "random", fake_rand)
     _set_scene(mgr, "scene.ogv", "image")
     mgr._store["i_scene.ogv"] = {"music": [CUE_MUSIC_GAME_TAG + "music/c.ogg"]}
     return _spy_play(mgr)

@@ -3,7 +3,6 @@
 # editing, and the scene-music override pool.  Owns the trigger state; the
 # CueMusicManager delegates interception and playback to it.
 
-import random
 
 import renpy
 import renpy.python as _renpy_python
@@ -492,7 +491,7 @@ class CueMusicTriggers(_renpy_python.NoRollback):
         # type: () -> Any
         """Resolve what a default-trigger scene should play.
 
-        Returns a filepath (random pick from the marker's music pool), the
+        Returns the music pool as a sequence (list) to loop through, the
         _SUPPRESS_MUSIC sentinel (default disabled, no replacements), or None
         (untouched -- forward the scripted default unchanged).
         """
@@ -508,7 +507,7 @@ class CueMusicTriggers(_renpy_python.NoRollback):
             return None
         pool = self.music_pool_for(key_after)
         if pool:
-            return random.choice(pool)
+            return pool
         return _SUPPRESS_MUSIC
 
     def play_custom_music(self):
@@ -526,9 +525,8 @@ class CueMusicTriggers(_renpy_python.NoRollback):
             return
         pool = self.music_pool_for(key)
         if pool:
-            self._mgr._play_music(
-                (self._mgr._playable_file(random.choice(pool)),), {"channel": CUE_DEFAULT_MUSIC_CHANNEL, "loop": True}
-            )
+            files = [self._mgr._playable_file(p) for p in pool]
+            self._mgr._play_music((files,), {"channel": CUE_DEFAULT_MUSIC_CHANNEL, "loop": True})
 
     def songs_for_trigger(self, key):
         # type: (str) -> List[str]

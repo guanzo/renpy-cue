@@ -272,7 +272,7 @@ screen cue_video_vfx_intensity(_has_speeds):
 
                 vbox:
                     if _res is not None:
-                        etext "Intensity Group: " + _res.group
+                        etext "Group: " + _res.group
                         etext "Current Speed: " + _cue_speed_label(_cur_speed)
                     else:
                         etext "Intensity is off for this video." color _cue_color_text_muted
