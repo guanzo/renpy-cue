@@ -148,7 +148,6 @@ class CueWavPlayable(_renpy_python.NoRollback):
             self._decision.pop(path, None)
             self._stamp.pop(path, None)
             self._reason.pop(path, None)
-            self._unplayable = None
             return path
         stamp = (st.st_size, st.st_mtime)
         if path in self._stamp and self._stamp[path] == stamp:
