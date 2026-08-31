@@ -85,18 +85,16 @@ screen cue_sfx_library_content(_is_video):
     $ _q = _cue.sfx.library.search_query
     $ _tgt_ok = _cue.markers.target_is_available(_cue.markers.resolve_target_context())
     $ _unplayable = _cue.sfx.unplayable_files()
-    viewport:
-        xfill True
-        mousewheel True
-        scrollbars "vertical"
-        vscrollbar_unscrollable "hide"
-        use cue_tree_rows(_cue.sfx.library.content_rows(
-            _q,
-            _cue.presets.audio.list(),
-            _cue.presets.video.list(),
-            _cue.presets.intensity.list(),
-            _is_video,
-            _tgt_ok,
-            _unplayable))
+    use cue_tree_rows(_cue.sfx.library.content_rows(
+        _q,
+        _cue.presets.audio.list(),
+        _cue.presets.video.list(),
+        _cue.presets.intensity.list(),
+        _is_video,
+        _tgt_ok,
+        _unplayable),
+        width=(_cue.sfx.library.sidebar_width
+               if _cue.sfx.library.is_sidebar_mode else _cue_overlay_panel_width),
+        key="sfx_tree")
 
 

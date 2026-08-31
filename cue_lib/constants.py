@@ -191,7 +191,7 @@ CUE_UI_REF_WIDTH = 1920
 
 # SFX Library sidebar: default width and clamp bounds (1920-ref px).
 CUE_SIDEBAR_DEFAULT_WIDTH = 320
-CUE_SIDEBAR_MIN_WIDTH = 270
+CUE_SIDEBAR_MIN_WIDTH = 320
 CUE_SIDEBAR_MAX_WIDTH_RATIO = 0.3  # max width % of reference width
 
 # persistent._cue keys for the SFX sidebar state.

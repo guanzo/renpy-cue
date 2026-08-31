@@ -106,6 +106,7 @@ init -999 python:
     )
 
     from cue_lib.audio.tree.pool_rows import _cue_pool_files_rows
+    from cue_lib.audio.tree.tree_rows import _cue_elide_label, _cue_row_label_max, _cue_tree_adjustment, _cue_tree_window
 
     from cue_lib.runtime import (
         _cue_full_reload,

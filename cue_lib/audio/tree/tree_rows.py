@@ -11,7 +11,8 @@ import renpy.python as _renpy_python
 
 from renpy.store import Function
 
-from cue_lib.util import _cue_escape_text
+from cue_lib.ui.displayables import _cue_scale_ui
+from cue_lib.util import _cue_escape_text, _cue_log
 
 MYPY = False
 if MYPY:
@@ -28,7 +29,128 @@ if MYPY:
     )
 
 # Empty-library tip shared by the SFX and music empty states.
-CUE_SETTINGS_FOLDER_TIP = "Add additional folder locations in Settings > Data Folder."
+CUE_SETTINGS_FOLDER_TIP = "Add folders in Settings > Data Folder."
+
+# Px reserved past measured chrome when computing a row label's elide bound:
+# a nominal right shoulder plus headroom so glyph-width estimates cannot
+# under-reserve and push the label onto a second line.
+CUE_ELIDE_SAFETY_PX = 30
+
+# Persistent scroll adjustments for the windowed cue_tree_rows screen: one per
+# tree instance (keyed by the call site).  Module state is not tracked by
+# rollback, so the scroll position survives a rollback without a revert.
+_cue_tree_adjs = {}
+
+# Throttle state per tree key: the (pitch, first row, buffer) of the last
+# window the screen built.  The screen records it on every eval; the scroll
+# callback only restarts the interaction once the scroll has moved past it.
+_cue_tree_win = {}
+
+
+def _cue_tree_window(key, pitch, first, buf):
+    # type: (str, int, int, int) -> None
+    """Record the window the screen just built, for the scroll throttle.
+
+    The screen calls this on every eval.  _cue_tree_restart compares the new
+    scroll position against this build and restarts only when it has moved
+    `buf` rows past it."""
+    _cue_tree_win[key] = (pitch, first, buf)
+
+
+def _cue_tree_restart(key, value):
+    # type: (str, float) -> None
+    """Re-evaluate the screen when a windowed tree scrolls past its buffer.
+
+    A viewport scroll only redraws its displayables; it does not re-run the
+    screen function (per_interact runs once per interact_core, before its event
+    loop).  Without a restart the window slice goes stale and empty space shows
+    until some other event restarts the interaction.  Restarting on *every*
+    scroll would rebuild the window at mouse-motion rate during a scrollbar
+    drag, so this restarts only once the scroll has moved `buf` rows past the
+    last build -- the built slice always still covers the visible rows, and a
+    drag rebuilds at most once per buffer's worth of scroll.  Returns None so
+    the scroll event is not consumed."""
+    st = _cue_tree_win.get(key)
+    if st is None:
+        return None
+    pitch, first0, buf = st
+    first = int(value) // pitch
+    if abs(first - first0) < buf:
+        return None
+    _cue_tree_win[key] = (pitch, first, buf)
+    renpy.exports.restart_interaction()
+    _cue_log('RESTART!!!!!')
+    
+    return None
+
+
+def _cue_tree_adjustment(key):
+    # type: (str) -> Any
+    """Return the persistent scroll adjustment for a windowed tree instance.
+
+    cue_tree_rows builds only the visible slice of rows (plus a buffer on each
+    side) instead of every row, so it needs one Adjustment per tree to carry
+    the scroll position across re-evals.  The viewport writes the adjustment
+    as the user scrolls; the throttled `changed` callback re-evaluates the
+    screen so the window tracks the new position.  The range/page are filled
+    in by the viewport on its first render."""
+    import renpy.display.behavior as _renpy_behavior
+
+    def _changed(value):
+        _cue_tree_restart(key, value)
+
+    return _cue_tree_adjs.setdefault(key, _renpy_behavior.Adjustment(1, 0, changed=_changed))
+
+
+def _cue_elide_label(label, max_chars):
+    # type: (str, int) -> str
+    """Trim a row label to max_chars with a trailing "...".
+
+    Tree rows render in a vpgrid with a uniform cell height, so every label
+    must be single-line; paths, scan errors, and search queries are unbounded,
+    so the renderer elides labels here rather than letting them wrap."""
+    if len(label) > max_chars:
+        return label[: max_chars - 3] + "..."
+    return label
+
+
+def _cue_row_label_max(row, container_w):
+    # type: (TreeRowDict, int) -> int
+    """Max label chars for one tree row given the scaled container width.
+
+    The elide bound must keep the label on its own line, so the row's own
+    chrome is subtracted from the container's width (the overlay panel, or the
+    SFX sidebar, which is drag-resizable): per-depth indent, leading icon
+    buttons, file gap + warn icon, and the side padding of button labels.
+    container_w is scaled px; the per-char budget is the scaled width of a
+    12px glyph."""
+    indent_px = _cue_scale_ui(7)  # one indent level (the 2-space _cue_indent)
+    char_w = _cue_scale_ui(7)  # per-glyph width of a 12px label
+    button_w = _cue_scale_ui(getattr(renpy.store, "_cue_btn_height", 16))
+    btn_pad = _cue_scale_ui(4)  # cue_button side padding (2px each side)
+    btn_gap = 4  # null gap between action buttons
+    icon_space = _cue_scale_ui(4)  # hbox spacing between an icon and its label
+    min_chars = 16  # never elide below this many characters
+
+    chrome = indent_px * row.get("depth", 0)
+    chrome += button_w * len(row.get("buttons", []))
+    if row["type"] == "file":
+        chrome += row.get("gap", 1)
+        if row.get("warn"):
+            chrome += button_w
+    elif row["type"] == "actions":
+        for index, act in enumerate(row["actions"]):
+            chrome += btn_pad
+            if index > 0:
+                chrome += btn_gap
+            if act.get("icon"):
+                chrome += icon_space + button_w
+    else:
+        # folder/action/help labels sit in a cue_button (side padding) or a
+        # bare text line; both leave a small shoulder.
+        chrome += btn_pad
+    avail = container_w - chrome - _cue_scale_ui(CUE_ELIDE_SAFETY_PX)
+    return max(min_chars, avail // char_w)
 
 
 def _cue_file_row(key, label, depth, buttons, warn=None, gap=1, size=None):

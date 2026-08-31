@@ -21,11 +21,9 @@ if MYPY:
 
     from cue_lib._types import AudioSourceConfig
 
-# Broad search queries ("a" matches most files) can force-expand thousands of
-# rows, which is slow to render.  Search results are capped at this many rows;
-# the overflow count is left in search_truncated so the UI can ask for a
-# narrower query.
-CUE_SEARCH_MAX_ROWS = 100
+# One-char queries force-expand nearly every matching file; below this length
+# the query is ignored and the normal tree is shown.
+CUE_SEARCH_MIN_CHARS = 2
 
 
 class CueAudioTreeManager(_renpy_python.NoRollback):

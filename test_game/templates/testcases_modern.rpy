@@ -1595,6 +1595,30 @@ testcase tree_render:
     $ renpy.hide_screen("cue_tree_rows")
 
 
+testcase tree_window_scroll:
+    run Jump("start")
+    $ _cue_test_reset()
+    # Windowed cue_tree_rows: 500 rows exceed any viewport, so the persistent
+    # Adjustment must gain a positive range (the spacers preserve full content
+    # height), and scrolling it to the bottom must not crash the rebuild.  The
+    # screen only constructs the visible window, so this also exercises the
+    # spacer math on a large row stream.
+    $ _adj = _cue_tree_adjustment("twin_test")
+    $ _rows = [{"key": "w%d" % i, "type": "file", "label": "sfx_%04d.ogg" % i,
+                "depth": 1, "buttons": [{"icon": "play", "action": NullAction(), "tt": "Preview"}],
+                "gap": 1}
+               for i in range(500)]
+    $ renpy.show_screen("cue_tree_rows", _rows, _layer="cue_layer", key="twin_test")
+    pause 0.5
+    assert eval (_adj.range > 0)
+    assert eval (_adj.page > 0)
+    $ _adj.change(_adj.range)  # scroll to the bottom through the real path
+    pause 0.5
+    assert eval (int(_adj.value) == int(_adj.range))
+    assert screen "cue_tree_rows" layer "cue_layer"
+    $ renpy.hide_screen("cue_tree_rows")
+
+
 testcase settings_page_folder_sections:
     run Jump("start")
     $ _cue_test_reset()

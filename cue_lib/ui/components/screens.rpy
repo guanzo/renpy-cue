@@ -290,104 +290,165 @@ screen cue_pool_tabs(count, target, show_delete, delete_confirm, delete_action,
 #   v_gap   -- null height after the row (2px spacers in section builders)
 #   explorer -- action rows render cue_open_in_explorer_btn(dir, label)
 #   color   -- help rows render etext in this color (error text)
-screen cue_tree_rows(rows):
+screen cue_tree_rows(rows, ymax=999999, width=None, key=None):
+    style_group "cue"
+
+    # Windowed construction: only the visible slice of rows (plus a buffer of
+    # rows on each side) is built, so a folder with thousands of files does not
+    # construct every cell when the overlay opens.  The scroll position lives
+    # in a persistent Adjustment (keyed by call site via `key`) that the
+    # viewport writes as the user scrolls; each re-eval recomputes the window
+    # from it.  The top/bottom spacers preserve the full scroll range without
+    # constructing the offscreen rows.  `width` is the *actual* container --
+    # the overlay panel, or the SFX sidebar's drag-resizable width (a logical
+    # width, scaled here to _row_w); each row then elides its label to the
+    # width minus its own chrome (see _cue_row_label_max) so cells stay
+    # single-line and uniform.  ymax caps the height (pool_files passes 120);
+    # 999999 is effectively unbounded.
+    $ _row_w = _cue_scale_ui(width or _cue_overlay_panel_width)
+    $ _adj = _cue_tree_adjustment(key or "cue_tree")
+    $ _pitch = _cue_scale_ui(_cue_btn_height) + 4  # natural row height + the original 4px gap
+    $ _buf = 6  # rows of slack above and below the viewport
+    $ _page = _adj.page or 480
+    $ _vis = max(2, int(_page // _pitch) + 2)
+    $ _first = int(_adj.value) // _pitch
+    $ _start = max(0, _first - _buf)
+    $ _end = min(len(rows), _first + _vis + _buf)
+    $ _win = rows[_start:_end]
+    $ _top = _start * _pitch
+    $ _bottom = (len(rows) - _end) * _pitch
+    $ _cue_tree_window(key or "cue_tree", _pitch, _first, _buf)
+    viewport:
+        xfill True
+        yadjustment _adj
+        ymaximum ymax
+        mousewheel True
+        scrollbars "vertical"
+        vscrollbar_unscrollable "hide"
+        vbox:
+            # The 4px gap lives inside each _pitch cell (content + gap), so the
+            # vbox must not add cue_vbox's 5px spacing on top.
+            spacing 0
+            if _top:
+                fixed:
+                    ysize _top
+                    xfill True
+                    $pass # https://github.com/renpy/renpy/issues/3474
+            for _row in _win:
+                fixed:
+                    ysize _pitch
+                    xfill True
+                    $pass # https://github.com/renpy/renpy/issues/3474
+                    use cue_tree_row(_row, _row_w)
+            if _bottom:
+                fixed:
+                    ysize _bottom
+                    xfill True
+                    $pass # https://github.com/renpy/renpy/issues/3474
+
+
+screen cue_tree_row(_row, _row_w):
     style_group "cue"
 
     default _hovered_key = None
+
+    # Per-row elide bound: the container width minus this row's own chrome
+    # (depth indent, leading icon buttons, file gap + warn icon, button side
+    # padding) divided by the scaled per-char width.  Row-local because a deep
+    # or button-heavy row has far less label room than a shallow one.
+    $ _rlmax = _cue_row_label_max(_row, _row_w)
     vbox:
-        spacing 4
-        for _row in rows:
-            hbox:
-                spacing 2
-                if _row["depth"] > 0:
-                    etext _cue_indent * _row["depth"]
-                for _b in _row.get("buttons", []):
-                    use cue_icon_btn(
-                        _b["icon"],
-                        _b["action"],
-                        tt=_b.get("tt"),
-                        enabled=_b.get("enabled", True),
-                        bg=_b.get("bg"),
-                        on_hover=SetLocalVariable("_hovered_key", _row["key"]),
-                        on_unhover=SetLocalVariable("_hovered_key", None))
-                if _row["type"] == "folder":
-                    hbox:
-                        spacing 0
-                        if _row.get("bar_color"):
-                            add Solid(_row["bar_color"], xsize=2, ysize=14) yalign 0.5
+        hbox:
+            spacing 2
+            if _row["depth"] > 0:
+                etext _cue_indent * _row["depth"]
+            for _b in _row.get("buttons", []):
+                use cue_icon_btn(
+                    _b["icon"],
+                    _b["action"],
+                    tt=_b.get("tt"),
+                    enabled=_b.get("enabled", True),
+                    bg=_b.get("bg"),
+                    on_hover=SetLocalVariable("_hovered_key", _row["key"]),
+                    on_unhover=SetLocalVariable("_hovered_key", None))
+            if _row["type"] == "folder":
+                hbox:
+                    spacing 0
+                    if _row.get("bar_color"):
+                        add Solid(_row["bar_color"], xsize=2, ysize=14) yalign 0.5
+                    use cue_txt_button(
+                        _cue_elide_label(_row["label"], _rlmax),
+                        _row["toggle"],
+                        tt=_row.get("tt"),
+                        hovered=SetLocalVariable("_hovered_key", _row["key"]),
+                        unhovered=SetLocalVariable("_hovered_key", None))
+                    for _hb in _row.get("hover_buttons", []):
+                        if _hovered_key == _row["key"]:
+                            use cue_icon_btn(
+                                _hb["icon"],
+                                _hb["action"],
+                                tt=_hb.get("tt"),
+                                enabled=_hb.get("enabled", True),
+                                bg=_hb.get("bg"),
+                                on_hover=SetLocalVariable("_hovered_key", _row["key"]),
+                                on_unhover=SetLocalVariable("_hovered_key", None))
+            elif _row["type"] == "file":
+                null width _row.get("gap", 1)
+                if _row.get("size"):
+                    etext _cue_elide_label(_row["label"], _rlmax) color _cue_color_text_accent size _row["size"]
+                else:
+                    etext _cue_elide_label(_row["label"], _rlmax) color _cue_color_text_accent
+                if _row.get("warn"):
+                    use cue_icon(
+                        "triangle-exclamation",
+                        tt=("Invalid file: " + _row["warn"]),
+                        icon_color=_cue_color_warn)
+            elif _row["type"] == "action":
+                if _row.get("explorer"):
+                    use cue_open_in_explorer_btn(_row["explorer"], _cue_elide_label(_row["label"], _rlmax))
+                else:
+                    use cue_txt_button(
+                        _cue_elide_label(_row["label"], _rlmax),
+                        _row["action"],
+                        tt=_row.get("tt"),
+                        sensitive=_row.get("sensitive", True))
+            elif _row["type"] == "actions":
+                for _a_index, _a in enumerate(_row["actions"]):
+                    if _a_index > 0:
+                        null width 4
+                    if _a.get("explorer"):
+                        use cue_open_in_explorer_btn(_a["explorer"], _cue_elide_label(_a["label"], _rlmax))
+                    elif _a.get("icon"):
                         use cue_txt_button(
-                            _row["label"],
-                            _row["toggle"],
-                            tt=_row.get("tt"),
-                            hovered=SetLocalVariable("_hovered_key", _row["key"]),
-                            unhovered=SetLocalVariable("_hovered_key", None))
-                        for _hb in _row.get("hover_buttons", []):
-                            if _hovered_key == _row["key"]:
-                                use cue_icon_btn(
-                                    _hb["icon"],
-                                    _hb["action"],
-                                    tt=_hb.get("tt"),
-                                    enabled=_hb.get("enabled", True),
-                                    bg=_hb.get("bg"),
-                                    on_hover=SetLocalVariable("_hovered_key", _row["key"]),
-                                    on_unhover=SetLocalVariable("_hovered_key", None))
-                elif _row["type"] == "file":
-                    null width _row.get("gap", 1)
-                    if _row.get("size"):
-                        etext _row["label"] color _cue_color_text_accent size _row["size"]
-                    else:
-                        etext _row["label"] color _cue_color_text_accent
-                    if _row.get("warn"):
-                        use cue_icon(
-                            "triangle-exclamation",
-                            tt=("Invalid file: " + _row["warn"]),
-                            icon_color=_cue_color_warn)
-                elif _row["type"] == "action":
-                    if _row.get("explorer"):
-                        use cue_open_in_explorer_btn(_row["explorer"], _row["label"])
+                            _cue_elide_label(_a["label"], _rlmax),
+                            _a["action"],
+                            tt=_a.get("tt"),
+                            sensitive=_a.get("sensitive", True),
+                            icon=_a["icon"])
                     else:
                         use cue_txt_button(
-                            _row["label"],
-                            _row["action"],
-                            tt=_row.get("tt"),
-                            sensitive=_row.get("sensitive", True))
-                elif _row["type"] == "actions":
-                    for _a_index, _a in enumerate(_row["actions"]):
-                        if _a_index > 0:
-                            null width 4
-                        if _a.get("explorer"):
-                            use cue_open_in_explorer_btn(_a["explorer"], _a["label"])
-                        elif _a.get("icon"):
-                            use cue_txt_button(
-                                _a["label"],
-                                _a["action"],
-                                tt=_a.get("tt"),
-                                sensitive=_a.get("sensitive", True),
-                                icon=_a["icon"])
-                        else:
-                            use cue_txt_button(
-                                _a["label"],
-                                _a["action"],
-                                tt=_a.get("tt"),
-                                sensitive=_a.get("sensitive", True))
-                elif _row["type"] == "help":
-                    if _row.get("plain"):
-                        if _row.get("color"):
-                            etext _row["label"] color _row["color"]
-                        else:
-                            etext _row["label"]
-                    elif _row.get("color"):
-                        etext _row["label"] style "cue_help" color _row["color"]
+                            _cue_elide_label(_a["label"], _rlmax),
+                            _a["action"],
+                            tt=_a.get("tt"),
+                            sensitive=_a.get("sensitive", True))
+            elif _row["type"] == "help":
+                if _row.get("plain"):
+                    if _row.get("color"):
+                        etext _cue_elide_label(_row["label"], _rlmax) color _row["color"]
                     else:
-                        etext _row["label"] style "cue_help"
-            if _row.get("v_gap"):
-                null height _row["v_gap"]
+                        etext _cue_elide_label(_row["label"], _rlmax)
+                elif _row.get("color"):
+                    etext _cue_elide_label(_row["label"], _rlmax) style "cue_help" color _row["color"]
+                else:
+                    etext _cue_elide_label(_row["label"], _rlmax) style "cue_help"
+        if _row.get("v_gap"):
+            null height _row["v_gap"]
 
 # Pool file area shared by every marker pool type: a pool's own refs
 # (regular / preset-backed pools, full CRUD) or an igroup-hooked pool's level
 # files (read-only preview + detach xmark).  Rows come from
-# _cue_pool_files_rows and draw via the shared cue_tree_rows renderer.
-# Scrolls in a viewport when content exceeds ~6 rows.
+# _cue_pool_files_rows and draw via the shared cue_tree_row renderer in a
+# plain vpgrid (120px cap; short pools stay compact).
 screen cue_pool_files(files, preview_vol,
                       detach_action=None,
                       remove_fn=None, remove_args=(),
@@ -403,16 +464,24 @@ screen cue_pool_files(files, preview_vol,
                                    folder_label, folder_children,
                                    igroup, ilevel_id)
     if _rows:
-        if len(_rows) > 6:
-            viewport:
-                xfill True
-                ymaximum 120
-                mousewheel True
-                scrollbars "vertical"
-                vscrollbar_unscrollable "hide"
-                use cue_tree_rows(_rows)
-        else:
-            use cue_tree_rows(_rows)
+        # Plain vpgrid (not the windowed renderer): pools are capped at 120px
+        # and rarely exceed a screen of rows, so construction stays cheap and
+        # the scroll does not persist across pool switches.
+        $ _row_w = _cue_scale_ui(_cue_overlay_panel_width)
+        vpgrid:
+            cols 1
+            xfill True
+            spacing 4
+            ymaximum 120
+            mousewheel True
+            scrollbars "vertical"
+            vscrollbar_unscrollable "hide"
+            for _row in _rows:
+                fixed:
+                    ysize _cue_tree_row_h
+                    xfill True
+                    $pass # https://github.com/renpy/renpy/issues/3474
+                    use cue_tree_row(_row, _row_w)
     elif igroup is not None:
         etext "This level has no files yet."
 

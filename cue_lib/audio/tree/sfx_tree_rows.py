@@ -20,7 +20,7 @@ from cue_lib.audio.tree.tree_rows import (
     _cue_help_row,
     _cue_section_rows,
 )
-from cue_lib.constants import CUE_AUDIO_EXTS, CUE_HELP_SHIFT_SKIP_DELETE, CUE_INTENSITY_IDEAL_LEVELS, CueContextType
+from cue_lib.constants import CUE_HELP_SHIFT_SKIP_DELETE, CUE_INTENSITY_IDEAL_LEVELS, CueContextType
 from cue_lib.markers import (
     _cue_markers_send,
     _cue_send_level_to_target,
@@ -382,7 +382,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
                     children.append(
                         _cue_help_row(
                             "intensity:ideal:" + gname,
-                            "Add up to ~{} levels for the best experience.".format(CUE_INTENSITY_IDEAL_LEVELS),
+                            "Up to ~{} levels is ideal.".format(CUE_INTENSITY_IDEAL_LEVELS),
                             depth=1,
                             v_gap=2,
                         )
@@ -664,13 +664,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         rows.append(
             _cue_help_row("builtin:empty", "No audio files found in: {}".format(tree._paths.audio_dir), plain=True)
         )
-        rows.append(
-            _cue_help_row(
-                "builtin:add",
-                "Add {} files there and click the refresh button.".format(", ".join(CUE_AUDIO_EXTS)),
-                plain=True,
-            )
-        )
+        rows.append(_cue_help_row("builtin:add", "Add audio files there and click refresh.", plain=True))
         rows.append(_cue_help_row("builtin:settings_tip", CUE_SETTINGS_FOLDER_TIP, plain=True))
         rows.append(
             _cue_actions_row(
@@ -735,7 +729,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         """Pool Presets children: the empty-state line, then the preset rows."""
         rows = []  # type: List[TreeRowDict]
         if not preset_names:
-            rows.append(_cue_help_row("presets:empty", "No pool presets yet. Save a pool as a preset to fill this."))
+            rows.append(_cue_help_row("presets:empty", "No pool presets yet. Save a pool as a preset."))
         rows.extend(self._preset_rows(preset_names, search_query, target_ok, target_tt))
         return rows
 
@@ -744,9 +738,7 @@ class CueSfxTreeRows(CueTreeRowsBuilder):
         """Video Presets children: the empty-state line, then the preset rows."""
         rows = []  # type: List[TreeRowDict]
         if not video_preset_names:
-            rows.append(
-                _cue_help_row("vpresets:empty", "No video presets yet. Save video markers as a preset to fill this.")
-            )
+            rows.append(_cue_help_row("vpresets:empty", "No video presets yet. Save video markers as a preset."))
         rows.extend(self._video_preset_rows(video_preset_names, is_video))
         return rows
 

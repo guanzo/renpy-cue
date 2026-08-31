@@ -64,18 +64,11 @@ screen cue_music_page():
             if _cue.music.library.user_tree or _cue.music.library.game_tree:
                 use cue_search_bar("_cue.music.library.search_query", _cue.music.library)
     
-            viewport:
-                xfill True
-                yfill True
-                mousewheel True
-                scrollbars "vertical"
-                vscrollbar_unscrollable "hide"
-                $pass # https://github.com/renpy/renpy/issues/3474
-                
-                use cue_tree_rows(_cue.music.library.content_rows(
-                    _cue.music.library.search_query,
-                    _cue.presets.music.list(),
-                    _cue.current_file))
+            use cue_tree_rows(_cue.music.library.content_rows(
+                _cue.music.library.search_query,
+                _cue.presets.music.list(),
+                _cue.current_file),
+                key="music_tree")
 
 screen trigger_list(triggers):
     style_group "cue"

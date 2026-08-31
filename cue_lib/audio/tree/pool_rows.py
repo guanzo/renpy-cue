@@ -10,6 +10,7 @@ from renpy.store import Function
 
 from cue_lib.audio.tree.tree_rows import _cue_file_row, _cue_folder_rows
 from cue_lib.constants import CUE_INTENSITY_HINT_COLOR
+from cue_lib.intensity.intensity import _cue_igroup_tooltip
 from cue_lib.state import _cue
 from cue_lib.util import _cue_pick_file, _cue_resolve_files, create_vid_key
 
@@ -47,9 +48,8 @@ def _cue_pool_files_rows(
             _cue.markers.get(create_vid_key(_cue.current_file) if _cue.current_file else "", {})
         )
         variants = _cue.speed_resolver.banding_speeds(_cue.current_file) if _cue.current_file else None
-        live = _cue.intensity.is_pool_intensity_active(igroup, variants, flags)
-        hook_tt = "Active Intensity Group: '{}'".format(igroup)
-        return _cue_pool_igroup_rows(level_files, preview_vol, detach_action, hook_tt, live)
+        is_igroup_active = _cue.intensity.is_pool_intensity_active(igroup, variants, flags)
+        return _cue_pool_igroup_rows(level_files, preview_vol, detach_action, igroup, is_igroup_active)
     rows = []  # type: List[TreeRowDict]
     if folder_label is not None:
         rows.extend(
@@ -175,13 +175,15 @@ def _cue_pool_ref_rows(index, ref, preview_vol, remove_fn, remove_args, marker_k
     ]
 
 
-def _cue_pool_igroup_rows(level_files, preview_vol, detach_action, hook_tt, hint):
+def _cue_pool_igroup_rows(level_files, preview_vol, detach_action, group_name, is_igroup_active):
     # type: (List[str], float, Any, str, bool) -> List[TreeRowDict]
     """Read-only rows for an igroup-hooked pool: the level's files/folders
     with preview only, an optional detach xmark on each folder row, and the
-    level-folder hint bar."""
+    level-folder hint bar.  Every folder row carries the active/inactive group
+    tooltip + hint bar -- the pool is locked while hooked."""
     library = _cue.sfx.library
     rows = []  # type: List[TreeRowDict]
+    hook_tt = _cue_igroup_tooltip(group_name, is_igroup_active)
     for f in level_files:
         if f.endswith("/"):
             expanded = library.expanded_file_refs.get(f, False)
@@ -203,9 +205,8 @@ def _cue_pool_igroup_rows(level_files, preview_vol, detach_action, hook_tt, hint
                 "buttons": buttons,
                 "toggle": Function(library.toggle_file_ref_expand, f),
                 "tt": hook_tt,
+                "bar_color": CUE_INTENSITY_HINT_COLOR,
             }  # type: TreeFolderRowDict
-            if hint:
-                row["bar_color"] = CUE_INTENSITY_HINT_COLOR
             rows.append(row)
             if expanded:
                 for child in _cue_resolve_files([f]):

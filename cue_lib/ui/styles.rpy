@@ -47,6 +47,10 @@ define _cue_color_bar_active = "#3a5269"
 
 define _cue_overlay_panel_width = 500
 define _cue_btn_height = 16
+# Tree cell height for the virtualized cue_tree_rows.  Text is a fixed 12px
+# (never _cue_scale_ui'd), so at sub-1920 games the line (~16px) is taller than
+# a scaled icon button; the 18px floor keeps cells tall enough at every scale.
+define _cue_tree_row_h = max(_cue_scale_ui(18), 18)
 
 define _cue_indent = "  "
 

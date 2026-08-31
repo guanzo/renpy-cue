@@ -1439,6 +1439,43 @@ def test_elide_label_bound_at_exact_len_keeps_full():
     assert _core_rows._cue_elide_label("x" * 37, 40) == "x" * 37
 
 
+def test_row_label_max_chrome_shrinks_bound():
+    # At scale 1.0 (mock screen_width 1920): 500 - gap(1) - safety(19) = 480.
+    bare = _core_rows._cue_file_row("k", "a.wav", 0, [])
+    assert _core_rows._cue_row_label_max(bare, 500) == (500 - 1 - _core_rows.CUE_ELIDE_SAFETY_PX) // 7
+
+    # Depth indent (7/depth), each leading button (16), gap (1), warn icon (16)
+    # all eat into the label line.
+    deep = _core_rows._cue_file_row("k", "a.wav", 2, [{"icon": "play"}, {"icon": "plus"}], warn="bad")
+    chrome = 7 * 2 + 16 * 2 + 1 + 16
+    assert _core_rows._cue_row_label_max(deep, 500) == (500 - chrome - _core_rows.CUE_ELIDE_SAFETY_PX) // 7
+
+    # Same row in a narrower sidebar gets a smaller bound.
+    sidebar = _core_rows._cue_row_label_max(deep, 320)
+    assert sidebar < _core_rows._cue_row_label_max(deep, 500)
+
+    # A shallow, unbuttoned row keeps far more room than a deep button-heavy one.
+    assert _core_rows._cue_row_label_max(bare, 500) > _core_rows._cue_row_label_max(deep, 500)
+
+
+def test_row_label_max_actions_chrome():
+    plain = [_core_rows._cue_action_row("a", "Go"), _core_rows._cue_action_row("b", "Cancel")]
+    row = _core_rows._cue_actions_row("k", plain, depth=0)
+    # Button side padding (4 each) + 4px null gap between the two buttons.
+    assert _core_rows._cue_row_label_max(row, 500) == (500 - (4 * 2 + 4) - _core_rows.CUE_ELIDE_SAFETY_PX) // 7
+
+    icon = [_core_rows._cue_action_row("a", "Go", icon="download"), _core_rows._cue_action_row("b", "Cancel")]
+    row = _core_rows._cue_actions_row("k", icon, depth=0)
+    assert _core_rows._cue_row_label_max(row, 500) < _core_rows._cue_row_label_max(
+        _core_rows._cue_actions_row("k", plain, depth=0), 500
+    )
+
+
+def test_row_label_max_floor():
+    row = _core_rows._cue_file_row("k", "a.wav", 6, [{"icon": "a"}] * 4, warn="bad")
+    assert _core_rows._cue_row_label_max(row, 120) == 16
+
+
 def test_tree_adjustment_persists_per_key():
     first = _core_rows._cue_tree_adjustment("t1")
     assert _core_rows._cue_tree_adjustment("t1") is first

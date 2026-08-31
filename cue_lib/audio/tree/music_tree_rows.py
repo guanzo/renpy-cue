@@ -19,7 +19,7 @@ from cue_lib.audio.tree.tree_rows import (
     _cue_help_row,
     _cue_section_rows,
 )
-from cue_lib.constants import CUE_AUDIO_EXTS, CUE_HELP_SHIFT_SKIP_DELETE
+from cue_lib.constants import CUE_HELP_SHIFT_SKIP_DELETE
 from cue_lib.state import _cue
 from cue_lib.ui.dialogs import _cue_confirm_delete_music_preset
 from cue_lib.util import _cue_query_matches
@@ -187,9 +187,7 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
         """Music Presets children: the empty-state line, then the preset rows."""
         rows = []  # type: List[TreeRowDict]
         if not preset_names:
-            rows.append(
-                _cue_help_row("presets:empty", "No music presets yet. Save a trigger's song list to fill this.")
-            )
+            rows.append(_cue_help_row("presets:empty", "No music presets yet. Save a song list as a preset."))
         rows.extend(self._preset_rows(preset_names))
         return rows
 
@@ -252,13 +250,7 @@ class CueMusicTreeRows(CueTreeRowsBuilder):
                     )
                 )
             rows.append(_cue_help_row("user:empty", "No music found in: {}".format(music._paths.music_dir), plain=True))
-            rows.append(
-                _cue_help_row(
-                    "user:add",
-                    "Add {} files there and click the refresh button.".format(", ".join(CUE_AUDIO_EXTS)),
-                    plain=True,
-                )
-            )
+            rows.append(_cue_help_row("user:add", "Add audio files there and click refresh.", plain=True))
             rows.append(_cue_help_row("user:settings_tip", CUE_SETTINGS_FOLDER_TIP, plain=True))
             rows.append(_cue_action_row("user:open", "Open Music folder", explorer=music._paths.music_dir))
         game = self._tree.game_tree
