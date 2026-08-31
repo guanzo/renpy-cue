@@ -14,13 +14,18 @@ init -900 python:
             )
 
         def get_adjustment(self):
-            return ui.adjustment(
-                range=self.range,
-                value=int(round(_cue.sync.sync_lead * 1000)),
-                changed=self.changed,
-                step=self.step,
-                force_step=self.force_step,
-            )
+            # 7.4+ snaps to the step on drag release (force_step="release");
+            # 7.2.2's FieldValue lacks force_step and its Adjustment never snaps.
+            # Pass it only where the runtime supports it; 7.2.2 drags freely.
+            kw = {
+                "range": self.range,
+                "value": int(round(_cue.sync.sync_lead * 1000)),
+                "changed": self.changed,
+                "step": self.step,
+            }
+            if hasattr(self, "force_step"):
+                kw["force_step"] = self.force_step
+            return ui.adjustment(**kw)
 
         def changed(self, value):
             _cue.sync.set_sync_lead(value / 1000.0)
