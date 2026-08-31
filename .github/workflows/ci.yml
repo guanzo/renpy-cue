@@ -50,12 +50,14 @@ jobs:
       # ffprobe). Versioned so every leg and every run produces byte-identical
       # test video.
       FFMPEG_VERSION: "7.0.2"
-      # Legacy workers default to one per vCPU (capped at 8), so the 7.x leg
-      # runs parallel here (2 workers on the standard runner). 7.4.10 drops
-      # synthetic test-mouse clicks under multi-engine Xvfb contention, so each
-      # worker starts its own display (bin/test_harness.sh); one per core
-      # avoids that contention. The modern leg is single-process and ignores
-      # workers.
+      # Legacy legs run serial (1 worker): parallel workers each boot their own
+      # engine on a per-worker Xvfb, and on this 2-vCPU runner the concurrent
+      # llvmpipe software-GL boot is the source of the "Could not set video
+      # mode" (7.2.x) and SIGSEGV (8.1.3) flakes -- while measuring no faster
+      # than one engine (68 tests parallel ~148s vs 70 tests serial ~111s on
+      # the modern leg). WORKERS=1 inherits the xvfb-run display below. The
+      # modern leg is single-process regardless.
+      CUE_LEGACY_WORKERS: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -116,16 +118,11 @@ jobs:
         # Explicit `bash` invocation: the repo lives on a filesystem that
         # doesn't persist the exec bit (core.fileMode=false), so the scripts
         # aren't executable in the working tree.
-        # The legacy legs run parallel workers, each with its own Xvfb display,
-        # so wrapping them in xvfb-run too would nest a second display layer
-        # (and leak XAUTHORITY across displays). Only the modern single-process
-        # leg needs the wrapper.
-        run: |
-          if [ "${{ matrix.dsl }}" = "modern" ]; then
-            xvfb-run -a bash bin/test_harness.sh "$SDK_DIR/renpy.sh"
-          else
-            bash bin/test_harness.sh "$SDK_DIR/renpy.sh"
-          fi
+        # Every leg is single-process (legacy legs are serial via
+        # CUE_LEGACY_WORKERS=1, modern is always single-process), so all legs
+        # wrap in a single xvfb-run display. Parallel per-worker Xvfb was the
+        # source of the boot flakes -- see the CUE_LEGACY_WORKERS comment above.
+        run: xvfb-run -a bash bin/test_harness.sh "$SDK_DIR/renpy.sh"
 
       # Python 2.7 (Ren'Py 7.x) is the base runtime requirement, but pytest runs
       # under py3 -- so py3.6+ stdlib APIs (e.g. zipfile.ZipInfo.is_dir) and

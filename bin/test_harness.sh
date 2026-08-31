@@ -368,15 +368,17 @@ if [ "$DSL" = "legacy" ]; then
         _failed=0
         for _name in $_slice; do
             echo "[cue] running testcase: $_name (worker $_w)"
-            # The 7.2.x engine intermittently dies at its first interact with
-            # "Could not set video mode" when several workers boot at once:
-            # its SDL window/GL init is fragile under the Xvfb contention of a
-            # fresh parallel wave. That's a transient boot failure, not a
-            # testcase failure -- the same testcase boots fine moments later.
-            # Retry only that signature (a hang times out as 124, a real
-            # assertion differs), resetting mutable state per attempt.
+            # The legacy engines intermittently die under the Xvfb contention
+            # of a fresh parallel worker wave, two ways:
+            #   - 7.2.x: "Could not set video mode" at its first interact
+            #   - 8.1.3: native SIGSEGV (timeout exits 139, no traceback; the
+            #     crashing testcase differs run to run)
+            # Both are transient engine failures, not testcase failures -- the
+            # same testcase boots fine moments later. Retry only those two
+            # signatures (a hang times out as 124, a real assertion differs),
+            # resetting mutable state per attempt.
             _attempt=1
-            _max="${CUE_LEGACY_VIDEO_RETRIES:-2}"
+            _max="${CUE_LEGACY_RETRIES:-2}"
             _engine_rc=0
             while :; do
                 rm -f "$WMODE/debug.log"
@@ -397,14 +399,20 @@ if [ "$DSL" = "legacy" ]; then
                 else
                     _engine_rc=$?
                     _retryable=0
-                    if [ "$_engine_rc" -ne 124 ] && [ "$_attempt" -lt "$_max" ] && \
-                       grep -q "Could not set video mode" "$OUT"; then
-                        _retryable=1
+                    _reason=""
+                    if [ "$_engine_rc" -ne 124 ] && [ "$_attempt" -lt "$_max" ]; then
+                        if grep -q "Could not set video mode" "$OUT"; then
+                            _retryable=1
+                            _reason="video-mode boot flake"
+                        elif [ "$_engine_rc" -eq 139 ]; then
+                            _retryable=1
+                            _reason="native segfault"
+                        fi
                     fi
                     cat "$OUT"
                     rm -f "$OUT"
                     if [ "$_retryable" -eq 1 ]; then
-                        echo "[cue] worker $_w testcase $_name: video-mode boot flake, retry $_attempt" >&2
+                        echo "[cue] worker $_w testcase $_name: $_reason, retry $_attempt" >&2
                         _attempt=$((_attempt + 1))
                         continue
                     fi
