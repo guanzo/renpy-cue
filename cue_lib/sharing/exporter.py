@@ -22,7 +22,6 @@ from cue_lib.sharing.importer_io import (
     _cue_external_roots,
     _cue_replay_assets_full,
     _cue_sanitize_filename,
-    _cue_thumbs_cache_rel,
 )
 from cue_lib.util import _cue_log
 
@@ -40,7 +39,7 @@ class CueExportManager(_renpy_python.NoRollback):
         self._paths = paths
         self.scope = CueExportScope.ALL_REPLAYS
         self.file_types = CueExportFileTypes.ALL
-        self.checked = dict((cat, True) for cat in CUE_IMPORT_CATEGORY_ORDER)  # type: Dict[int, bool]
+        self.checked_file_types = dict((cat, True) for cat in CUE_IMPORT_CATEGORY_ORDER)  # type: Dict[int, bool]
         self.name = ""
         self.author = ""
         self.description = ""
@@ -59,6 +58,10 @@ class CueExportManager(_renpy_python.NoRollback):
         # The disk snapshot is cached and rebuilt only when markers change
         # (see invalidate_cache), so mode toggles and exports reuse it.
         self._cache_valid = False
+        # Replays default all-checked once, on the first snapshot.  After that
+        # refresh never rewrites the selection -- same as checked_file_types
+        # in Specific File Types mode, where a refresh only swaps fresh data.
+        self._replay_selection_seeded = False
 
     @property
     def is_busy(self):
@@ -113,9 +116,12 @@ class CueExportManager(_renpy_python.NoRollback):
     def _refresh_worker(self):
         # type: () -> None
         """The background refresh pass.  Any failure is logged and the
-        previous snapshot stays put rather than a half-built one."""
+        previous snapshot stays put rather than a half-built one.  The
+        one-time checkbox default is applied after the snapshot, outside
+        _do_refresh, so the refresh itself never touches the selection."""
         try:
             self._do_refresh()
+            self._seed_default_replays()
         except Exception as e:
             _cue_log("EXPORT: refresh failed: {}".format(e))
         finally:
@@ -129,17 +135,14 @@ class CueExportManager(_renpy_python.NoRollback):
         The snapshot is swapped in with a few attribute writes, so the UI
         only ever sees a consistent result -- a torn read between two writes
         is one cosmetic frame at worst, since the GIL makes each assignment
-        atomic.  Replays are seeded checked; a selection made in an earlier
-        refresh survives."""
+        atomic.  Selection state is never touched: a refresh only guarantees
+        fresh data, it does not rewrite the user's choices."""
         contents = _cue_enumerate_import_files(self._paths.original_root, self._paths.game_id)
         counts = dict((cat, len(files)) for cat, files in contents.items())
         labels = _cue_replay_labels(self._paths.original_root, self._paths.game_id)
-        replays = [{"replay": label, "marker_count": count} for label, count in labels]
-        known = set(self.checked_replays)
         self.contents_by_category = contents
         self.counts = counts
-        self.replays = replays
-        self.checked_replays = known | set(label for label, _c in labels)
+        self.replays = [{"replay": label, "marker_count": count} for label, count in labels]
         self.current_replay = self._current_replay()
         self._cache_valid = True
 
@@ -154,6 +157,18 @@ class CueExportManager(_renpy_python.NoRollback):
     # ------------------------------------------------------------------
     # scope + selection state
     # ------------------------------------------------------------------
+
+    def _seed_default_replays(self):
+        # type: () -> None
+        """One-time default: seed the replay checkboxes all-on from the first
+        snapshot that lists any.  Selection is a user choice, not refresh
+        data, so this lives outside _do_refresh and runs only once -- a
+        later refresh or export never re-checks a replay the user turned
+        off, exactly like checked_file_types in Specific File Types mode."""
+        if self._replay_selection_seeded or not self.replays:
+            return
+        self.checked_replays = set(r["replay"] for r in self.replays)
+        self._replay_selection_seeded = True
 
     def set_scope(self, scope):
         # type: (int) -> None
@@ -174,11 +189,11 @@ class CueExportManager(_renpy_python.NoRollback):
 
     def toggle_category(self, cat):
         # type: (int) -> None
-        self.checked[cat] = not self.is_checked(cat)
+        self.checked_file_types[cat] = not self.is_checked(cat)
 
     def is_checked(self, cat):
         # type: (int) -> bool
-        return bool(self.checked.get(cat, False))
+        return bool(self.checked_file_types.get(cat, False))
 
     def is_category_enabled(self, cat):
         # type: (int) -> bool
@@ -241,20 +256,7 @@ class CueExportManager(_renpy_python.NoRollback):
             contents, marker_arcnames = self._replay_selection()
         else:
             contents, marker_arcnames = self._category_selection()
-        cache_arc = self._cache_arcname()
-        if cache_arc and cache_arc not in contents:
-            contents.append(cache_arc)
         return contents, marker_arcnames
-
-    def _cache_arcname(self):
-        # type: () -> Optional[str]
-        """The scene-thumbnail mapping arcname when a cache exists on disk,
-        else None.  Exports snapshot whatever mapping the game has downloaded
-        -- never fabricate thumbnails it hasn't got."""
-        rel = _cue_thumbs_cache_rel()
-        if os.path.isfile(os.path.join(self._paths.original_root, rel.replace("/", os.sep))):
-            return rel
-        return None
 
     def _category_selection(self):
         # type: () -> Tuple[List[str], List[str]]
@@ -406,6 +408,9 @@ class CueExportManager(_renpy_python.NoRollback):
             return
         self.scope = CueExportScope.SPECIFIC_REPLAYS
         self.checked_replays = set([label])
+        # This is an explicit selection, so export()'s synchronous refresh must
+        # not default-seed the checkbox list over it.
+        self._replay_selection_seeded = True
         if not self.name.strip():
             self.name = label
         self.export()

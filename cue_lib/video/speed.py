@@ -26,6 +26,10 @@ from cue_lib.util import (
     _cue_unwrap_displayable,
     _cue_get_movie_play,
     _cue_atl_child_displayables,
+    _cue_split_ext,
+    _cue_variant_suffix,
+    _cue_parse_variant_speed,
+    _cue_is_variant_of,
     create_vid_key,
 )
 
@@ -168,7 +172,7 @@ class CueVidSpeedResolver(_renpy_python.NoRollback):
             # raw may be a speed variant (e.g. in shared_dir).
             # Resolve back to the original base path from self.paths.
             for _key, _base in self.paths.items():
-                if self.is_variant_of(raw, _base):
+                if _cue_is_variant_of(raw, _base):
                     return _base
         return raw
 
@@ -408,35 +412,6 @@ class CueVidSpeedResolver(_renpy_python.NoRollback):
             )
         )
 
-    # Variant path utilities
-    _VARIANT_PREFIX = "_cue"
-
-    @staticmethod
-    def _suffix_variant(speed, ext):
-        # type: (float, str) -> str
-        return "{cue}{speed:.1f}x{ext}".format(cue=CueVidSpeedResolver._VARIANT_PREFIX, speed=speed, ext=ext)
-
-    @staticmethod
-    def _parse_variant_speed(filename, base_no_ext, ext):
-        # type: (str, str, str) -> Optional[float]
-        prefix = base_no_ext + CueVidSpeedResolver._VARIANT_PREFIX
-        suffix = "x" + ext
-        if not (filename.startswith(prefix) and filename.endswith(suffix)):
-            return None
-        middle = filename[len(prefix) : -len(suffix)]
-        try:
-            return float(middle)
-        except ValueError:
-            return None
-
-    @staticmethod
-    def _split_ext(path):
-        # type: (str) -> Tuple[str, str]
-        base, ext = os.path.splitext(path)
-        if not ext:
-            ext = ".webm"
-        return base, ext
-
     def variant_path(self, base_path, speed):
         # type: (str, Any) -> str
         """Return the absolute filesystem path for a speed variant.
@@ -450,24 +425,9 @@ class CueVidSpeedResolver(_renpy_python.NoRollback):
                 return os.path.normpath(base_path).replace("\\", "/")
             return os.path.normpath(os.path.join(_config.gamedir, base_path)).replace("\\", "/")
         base_name = os.path.basename(base_path)
-        base, ext = self._split_ext(base_name)
-        filename = base + self._suffix_variant(speed, ext)
+        base, ext = _cue_split_ext(base_name)
+        filename = base + _cue_variant_suffix(speed, ext)
         return os.path.join(self._paths.video_dir, filename).replace("\\", "/")
-
-    @classmethod
-    def is_variant_of(cls, path, base_path):
-        # type: (Type[CueVidSpeedResolver], str, str) -> bool
-        if not path or not base_path:
-            return False
-        # Compare basenames because the variant may live in the shared
-        # video dir while base_path is a game-relative vpath.
-        path_name = os.path.basename(path)
-        base_name = os.path.basename(base_path)
-        if path_name == base_name:
-            return True
-        base, ext = cls._split_ext(base_name)
-        sp = cls._parse_variant_speed(path_name, base, ext)
-        return sp is not None
 
     def get_available_speeds(self, base_path):
         # type: (str) -> List[float]
@@ -475,11 +435,11 @@ class CueVidSpeedResolver(_renpy_python.NoRollback):
         if not base_path:
             return speeds
         base_name = os.path.basename(base_path)
-        base_no_ext, ext = self._split_ext(base_name)
+        base_no_ext, ext = _cue_split_ext(base_name)
         try:
             video_dir = self._paths.video_dir
             for f in os.listdir(video_dir):
-                sp = self._parse_variant_speed(f, base_no_ext, ext)
+                sp = _cue_parse_variant_speed(f, base_no_ext, ext)
                 if sp is not None and sp != CUE_DEFAULT_VIDEO_SPEED:
                     if os.path.isfile(os.path.join(video_dir, f)):
                         speeds.append(sp)

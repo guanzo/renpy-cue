@@ -547,6 +547,74 @@ def _cue_speed_label(sp):
     return "{:.1f}x".format(sp)
 
 
+def _cue_split_ext(path):
+    # type: (str) -> Tuple[str, str]
+    """Split a movie filename into (stem, ext); a missing ext defaults to
+    .webm.  Shared by the speed resolver and the exporter, which must agree
+    on how variant names are built."""
+    base, ext = os.path.splitext(path)
+    if not ext:
+        ext = ".webm"
+    return base, ext
+
+
+def _cue_variant_suffix(speed, ext):
+    # type: (float, str) -> str
+    """The filename suffix for a speed variant: base clip.mkv at 1.5x gets
+    '_cue1.5x.mkv'.  The exporter matches variants from raw filenames, so the
+    naming scheme lives in one place."""
+    return "_cue{:.1f}x{}".format(speed, ext)
+
+
+def _cue_parse_variant_speed(filename, base_no_ext, ext):
+    # type: (str, str, str) -> Optional[float]
+    """The speed a variant filename encodes, or None when it isn't a variant
+    of the base movie."""
+    prefix = base_no_ext + "_cue"
+    suffix = "x" + ext
+    if not (filename.startswith(prefix) and filename.endswith(suffix)):
+        return None
+    middle = filename[len(prefix) : -len(suffix)]
+    try:
+        return float(middle)
+    except ValueError:
+        return None
+
+
+def _cue_is_variant_of(path, base_path):
+    # type: (str, str) -> bool
+    """True when path is a speed variant of base_path (or the base file
+    itself).  Compares basenames because the variant may live in the shared
+    video dir while base_path is a game-relative vpath."""
+    if not path or not base_path:
+        return False
+    path_name = os.path.basename(path)
+    base_name = os.path.basename(base_path)
+    if path_name == base_name:
+        return True
+    base, ext = _cue_split_ext(base_name)
+    return _cue_parse_variant_speed(path_name, base, ext) is not None
+
+
+def _cue_variant_base_name(name):
+    # type: (str) -> str
+    """The base-movie filename a variant belongs to: clip_cue1.5x.mkv ->
+    clip.mkv; a non-variant returns itself."""
+    base, ext = _cue_split_ext(name)
+    prefix = "_cue"
+    idx = base.rfind(prefix)
+    if idx == -1:
+        return name
+    middle = base[idx + len(prefix) :]
+    if not middle.endswith("x"):
+        return name
+    try:
+        float(middle[:-1])
+    except ValueError:
+        return name
+    return base[:idx] + ext
+
+
 def _cue_format_size(num_bytes):
     # type: (Optional[float]) -> str
     """Format a byte count with a human unit: 1536 -> '1.5 KB'.  Non-numeric

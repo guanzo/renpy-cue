@@ -19,7 +19,7 @@ from cue_lib.video.video_edit_queue import (
     CueVideoEditQueue,
     CueVideoJob,
 )
-from cue_lib.util import _cue_log, _cue_ui_refresh
+from cue_lib.util import _cue_log, _cue_split_ext, _cue_ui_refresh
 
 MYPY = False
 if MYPY:
@@ -416,7 +416,7 @@ class CueVideoEditor(_renpy_python.NoRollback):
         orig_vpath = vp.replace("\\", "/")
         orig_fs = os.path.normpath(os.path.join(_config.gamedir, orig_vpath))
         out_fspath = self._speed_resolver.variant_path(orig_fs, factor)
-        _base, _ext = self._speed_resolver._split_ext(os.path.basename(orig_fs))
+        _base, _ext = _cue_split_ext(os.path.basename(orig_fs))
         job_id = self.job_queue._next_job_id
         self.job_queue._next_job_id += 1
         # The temp name is job-scoped so a stale temp/passlog from a prior

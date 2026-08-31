@@ -557,6 +557,73 @@ def test_replay_scope_contents_is_subset(cue_env):
     assert "audio/b.ogg" not in sel
 
 
+def test_export_preserves_replay_deselection(cue_env):
+    # export() refreshes synchronously for fresh data, but that refresh must
+    # never re-check a replay the user turned off -- the deselection is a
+    # choice, not stale data to overwrite.
+    _seed(
+        cue_env,
+        [
+            ("audio/a.ogg", "a"),
+            ("audio/b.ogg", "b"),
+            ("data/markers/{}/r1.json".format(GAME_ID), '{"replay": "Run 1", "pools": [{"files": ["audio/a.ogg"]}]}'),
+            ("data/markers/{}/r2.json".format(GAME_ID), '{"replay": "Run 2", "pools": [{"files": ["audio/b.ogg"]}]}'),
+        ],
+    )
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    _switch(mgr, "set_scope", CueExportScope.SPECIFIC_REPLAYS)
+    mgr.toggle_replay("Run 2")  # only Run 1 stays checked
+
+    _export_and_join(mgr)
+
+    assert mgr.checked_replays == set(["Run 1"])
+    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "{}.zip".format(GAME_ID))) as zf:
+        names = set(zf.namelist())
+    assert "data/markers/{}/r1.json".format(GAME_ID) in names
+    assert "data/markers/{}/r2.json".format(GAME_ID) not in names
+
+
+def test_refresh_preserves_replay_selection(cue_env):
+    # A cache-invalidated background refresh swaps fresh data only; the
+    # checkbox selection survives it.
+    _seed(
+        cue_env,
+        [
+            ("data/markers/{}/r1.json".format(GAME_ID), '{"replay": "Run 1", "pools": []}'),
+            ("data/markers/{}/r2.json".format(GAME_ID), '{"replay": "Run 2", "pools": []}'),
+        ],
+    )
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    _switch(mgr, "set_scope", CueExportScope.SPECIFIC_REPLAYS)
+    mgr.toggle_replay("Run 2")  # only Run 1 stays checked
+
+    mgr.invalidate_cache()
+    _refresh_and_join(mgr)
+
+    assert mgr.checked_replays == set(["Run 1"])
+
+
+def test_export_preserves_file_types_selection(cue_env):
+    # Export refreshes synchronously for fresh data; the Specific File Types
+    # checkboxes are a user choice and must survive it, same as replay
+    # deselection.
+    _seed(cue_env, [("audio/a.ogg", "a"), ("data/markers/{}/v.json".format(GAME_ID), '{"pools": []}')])
+    mgr = CueExportManager(cue_env.paths)
+    _refresh_and_join(mgr)
+    _switch(mgr, "set_file_types", CueExportFileTypes.SPECIFIC)
+    mgr.toggle_category(CueImportCategory.SFX)
+
+    _export_and_join(mgr)
+
+    assert mgr.is_checked(CueImportCategory.SFX) is False
+    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "{}.zip".format(GAME_ID))) as zf:
+        names = set(zf.namelist())
+    assert "data/markers/{}/v.json".format(GAME_ID) in names
+    assert "audio/a.ogg" not in names
+
+
 def test_replay_contents_respect_file_types(cue_env):
     _seed(
         cue_env,
@@ -607,10 +674,9 @@ def test_export_replay_packs_only_that_replay(cue_env):
     assert "audio/a.ogg" in names
 
 
-def test_export_includes_thumbs_cache_in_whole_game(cue_env):
-    # The scene-thumbnail cache is runtime data that rides every export so an
-    # import (and its preview hotswap) shows dev-selected thumbs, not the
-    # marker-filepath fallback.
+def test_export_omits_thumbs_cache_in_whole_game(cue_env):
+    # cue_thumbs.json is downloaded per-user from the release; shipping the
+    # exporter's local snapshot would downgrade a recipient on a newer build.
     _seed(cue_env, [("data/markers/{}/v_a.json".format(GAME_ID), "{}"), ("data/cue_thumbs.json", '{"games": {}}')])
     mgr = CueExportManager(cue_env.paths)
     _refresh_and_join(mgr)
@@ -620,10 +686,10 @@ def test_export_includes_thumbs_cache_in_whole_game(cue_env):
 
     with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Thumbs.zip")) as zf:
         names = set(zf.namelist())
-    assert "data/cue_thumbs.json" in names
+    assert "data/cue_thumbs.json" not in names
 
 
-def test_export_includes_thumbs_cache_in_replay_scope(cue_env):
+def test_export_omits_thumbs_cache_in_replay_scope(cue_env):
     _seed(
         cue_env,
         [
@@ -639,19 +705,6 @@ def test_export_includes_thumbs_cache_in_replay_scope(cue_env):
     mgr._export_thread.join()
 
     with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "Run 1.zip")) as zf:
-        names = set(zf.namelist())
-    assert "data/cue_thumbs.json" in names
-
-
-def test_export_omits_thumbs_cache_when_absent(cue_env):
-    _seed(cue_env, [("data/markers/{}/v_a.json".format(GAME_ID), "{}")])
-    mgr = CueExportManager(cue_env.paths)
-    _refresh_and_join(mgr)
-    mgr.name = "NoThumbs"
-
-    _export_and_join(mgr)
-
-    with zipfile.ZipFile(os.path.join(mgr.exports_dir(), "NoThumbs.zip")) as zf:
         names = set(zf.namelist())
     assert "data/cue_thumbs.json" not in names
 

@@ -803,7 +803,7 @@ class FakePathsVideo(object):
 
 class FakeVidSpeedResolver(object):
     """Speed-resolver stand-in for the editor's create() path: base_path_for /
-    variant_path / _split_ext, driven by a configured base tag."""
+    variant_path, driven by a configured base tag."""
 
     def __init__(self, base=None):
         self.base = base
@@ -817,6 +817,3 @@ class FakeVidSpeedResolver(object):
     def variant_path(self, base_path, speed):
         _b, _e = os.path.splitext(base_path)
         return _b + "__cue_{:.1f}x{}".format(speed, _e)
-
-    def _split_ext(self, path):
-        return os.path.splitext(path)

@@ -34,7 +34,14 @@ from cue_lib.constants import (
     CueImportMatch,
 )
 from cue_lib.paths import CuePaths, CUE_THUMBS_CACHE_NAME
-from cue_lib.util import _cue_is_abs_path, _cue_log, _cue_replace_file, _to_str
+from cue_lib.util import (
+    _cue_is_abs_path,
+    _cue_is_variant_of,
+    _cue_log,
+    _cue_replace_file,
+    _cue_variant_base_name,
+    _to_str,
+)
 
 MYPY = False
 if MYPY:
@@ -369,15 +376,18 @@ def _cue_replay_assets_full(root, game_id, replay_labels):
     has its own.  External (e:) refs are dropped too (their files live outside
     the shared tree and can't be packed); the count lets the exporter warn.
 
-    A replay whose markers include any video marker (v_ key) also pulls the
-    whole video/<game_id>/ tree: the base movie path is runtime state, not
-    stored on markers, so the variant files can't be mapped per-marker -- the
-    entire set goes (the recipient only gets the variants, never the game's
-    own base movie)."""
+    Video markers (v_ key) pull the speed variants of the movie they belong
+    to, resolved from the base-movie path captured on the marker at creation
+    (entry["filepath"]) -- a replay-scoped export never ships every movie in
+    the video/<game_id>/ tree.  A video marker saved before filepaths were
+    captured has no filepath; one of those anywhere in scope falls back to the
+    whole variant tree, since its movie can't be identified (the recipient
+    only gets the variants, never the game's own base movie)."""
     paths = CuePaths(root, game_id)
     labels = set(replay_labels)
     result = {}
-    has_video = False
+    video_bases = set()  # type: Set[str]
+    has_unmapped_video = False
     external_refs = set()  # type: Set[str]
 
     try:
@@ -394,7 +404,11 @@ def _cue_replay_assets_full(root, game_id, replay_labels):
         if entry.get("replay") not in labels:
             continue
         if name.startswith(CUE_VID_KEY_PREFIX):
-            has_video = True
+            fp = entry.get("filepath")
+            if fp:
+                video_bases.add(fp)
+            else:
+                has_unmapped_video = True
 
         _cue_add_asset(result, CueImportCategory.MARKERS, "data/markers/{}/{}".format(game_id, name))
         pools = list(entry.get("pools") or []) + list(entry.get("timestamps") or [])
@@ -423,9 +437,20 @@ def _cue_replay_assets_full(root, game_id, replay_labels):
                 rel = _cue_music_rel(song)
                 if rel:
                     _cue_add_referenced_asset(root, result, rel)
-    if has_video:
+    if has_unmapped_video:
+        # A video marker in scope predates filepath capture; its movie can't
+        # be identified, so ship the whole variant tree (old behavior).
         for rel in _cue_collect_tree(root, paths.video_dir):
             _cue_add_asset(result, CueImportCategory.SPEED_VARIANTS, rel)
+    elif video_bases:
+        # Normalize marker filepaths to their base movie (a marker may have
+        # captured a variant path), then keep only matching variants.
+        bases = set(_cue_variant_base_name(os.path.basename(b)) for b in video_bases)
+        for rel in _cue_collect_tree(root, paths.video_dir):
+            for base_name in bases:
+                if _cue_is_variant_of(rel, base_name):
+                    _cue_add_asset(result, CueImportCategory.SPEED_VARIANTS, rel)
+                    break
     # Per-replay metadata subdirs ride with their replay: the cast file
     # (replays/<label>.json) and the default-music trigger log
     # (music_triggers/<label>.json).  Both are marker-dir children, not

@@ -660,7 +660,7 @@ def test_refresh_channel_movie_displayable_variant(cue):
 
     d = Movie()
     cue.speed_resolver.base_path_for = lambda f: "movies/scene.webm"
-    cue.speed_resolver.is_variant_of = lambda path, target: True
+    _runtime._cue_is_variant_of = lambda path, target: True
     _movie_channel("movie", "movies/scene__cue_2.0x.webm", dur=10.0)
     _runtime._cue_refresh_channel(displayable=d)
     assert cue.vid_manager.channel == "movie"
@@ -671,7 +671,7 @@ def test_refresh_channel_movie_displayable_no_match_clears(cue):
 
     d = Movie()
     cue.speed_resolver.base_path_for = lambda f: "movies/scene.webm"
-    cue.speed_resolver.is_variant_of = lambda path, target: False
+    _runtime._cue_is_variant_of = lambda path, target: False
     _movie_channel("movie", "movies/other.webm", dur=10.0)
     _runtime._cue_refresh_channel(displayable=d)
     assert cue.vid_manager.channel is None

@@ -9,7 +9,7 @@ import zipfile
 
 from cue_lib.sharing import importer_io as _imp
 from cue_lib.backup import _safe_extract_path
-from cue_lib.constants import CUE_IMPORT_MANIFEST_NAME
+from cue_lib.constants import CUE_IMPORT_MANIFEST_NAME, CueImportCategory
 
 GAME_ID = "g1"
 
@@ -394,6 +394,80 @@ def test_replay_export_import_roundtrip_matches_source(tmp_path):
     assert _walk_rel(out) == set(flat) | {CUE_IMPORT_MANIFEST_NAME}
     assert "audio/unused.ogg" not in flat
     assert "data/markers/{}/no_replay.json".format(GAME_ID) not in flat
+
+
+def test_replay_video_export_scoped_to_marker_filepath(tmp_path):
+    """A replay-scoped export packs only the speed variants of the movies its
+    video markers actually reference (via the captured filepath), never the
+    whole video tree."""
+    root = str(tmp_path / "src")
+    _write(root, "data/markers/{}/scene_a.json".format(GAME_ID), _json.dumps({"replay": "Run 1", "pools": []}))
+    _write(
+        root,
+        "data/markers/{}/v_clip.json".format(GAME_ID),
+        _json.dumps({"replay": "Run 1", "pools": [], "filepath": "video/clip.mkv"}),
+    )
+    # A second movie's variants -- referenced by nothing in the replay.
+    for rel, content in [
+        ("video/{}/clip_cue0.5x.mkv".format(GAME_ID), "v0.5"),
+        ("video/{}/clip_cue2.0x.mkv".format(GAME_ID), "v2"),
+        ("video/{}/other_cue0.5x.mkv".format(GAME_ID), "o0.5"),
+        ("video/{}/other_cue2.0x.mkv".format(GAME_ID), "o2"),
+    ]:
+        _write(root, rel, content)
+
+    assets = _imp._cue_replay_assets(root, GAME_ID, ["Run 1"])
+    variants = assets.get(CueImportCategory.SPEED_VARIANTS, [])
+
+    assert "video/{}/clip_cue0.5x.mkv".format(GAME_ID) in variants
+    assert "video/{}/clip_cue2.0x.mkv".format(GAME_ID) in variants
+    assert "video/{}/other_cue0.5x.mkv".format(GAME_ID) not in variants
+    assert "video/{}/other_cue2.0x.mkv".format(GAME_ID) not in variants
+
+
+def test_replay_video_export_variant_suffix_filepath_resolves(tmp_path):
+    """A marker whose captured filepath is itself a variant still scopes to
+    the base movie's variants."""
+    root = str(tmp_path / "src")
+    _write(root, "data/markers/{}/v_clip.json".format(GAME_ID), _json.dumps({"replay": "Run 1", "pools": []}))
+    _write(
+        root,
+        "data/markers/{}/v_other.json".format(GAME_ID),
+        _json.dumps({"replay": "Run 1", "pools": [], "filepath": "video/{}/other_cue1.5x.mkv".format(GAME_ID)}),
+    )
+    for rel, content in [
+        ("video/{}/clip_cue0.5x.mkv".format(GAME_ID), "v0.5"),
+        ("video/{}/other_cue0.5x.mkv".format(GAME_ID), "o0.5"),
+        ("video/{}/other_cue2.0x.mkv".format(GAME_ID), "o2"),
+    ]:
+        _write(root, rel, content)
+
+    assets = _imp._cue_replay_assets(root, GAME_ID, ["Run 1"])
+    variants = assets.get(CueImportCategory.SPEED_VARIANTS, [])
+
+    assert "video/{}/clip_cue0.5x.mkv".format(GAME_ID) in variants
+    assert "video/{}/other_cue0.5x.mkv".format(GAME_ID) in variants
+    assert "video/{}/other_cue2.0x.mkv".format(GAME_ID) in variants
+
+
+def test_replay_video_export_whole_tree_when_filepath_missing(tmp_path):
+    """A video marker saved before filepath capture has no movie to scope to;
+    its replay falls back to the whole variant tree so nothing it needs is
+    dropped."""
+    root = str(tmp_path / "src")
+    _write(root, "data/markers/{}/scene_a.json".format(GAME_ID), _json.dumps({"replay": "Run 1", "pools": []}))
+    _write(root, "data/markers/{}/v_clip.json".format(GAME_ID), _json.dumps({"replay": "Run 1", "pools": []}))
+    for rel, content in [
+        ("video/{}/clip_cue0.5x.mkv".format(GAME_ID), "v0.5"),
+        ("video/{}/other_cue0.5x.mkv".format(GAME_ID), "o0.5"),
+    ]:
+        _write(root, rel, content)
+
+    assets = _imp._cue_replay_assets(root, GAME_ID, ["Run 1"])
+    variants = assets.get(CueImportCategory.SPEED_VARIANTS, [])
+
+    assert "video/{}/clip_cue0.5x.mkv".format(GAME_ID) in variants
+    assert "video/{}/other_cue0.5x.mkv".format(GAME_ID) in variants
 
 
 # ---------------------------------------------------------------------------

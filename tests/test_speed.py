@@ -37,7 +37,13 @@ from cue_lib.video.speed import (
     _cue_seamless_play_callback,
 )
 from cue_lib.constants import CUE_AUTO_SPEED_MIN_VARIANTS, CUE_DEFAULT_VIDEO_SPEED
-from cue_lib.util import create_vid_key
+from cue_lib.util import (
+    _cue_is_variant_of,
+    _cue_parse_variant_speed,
+    _cue_split_ext,
+    _cue_variant_suffix,
+    create_vid_key,
+)
 
 import cue_lib.state as _state
 
@@ -164,29 +170,27 @@ def _set_movie(env, path, pos=0.5):
 
 
 def test_split_ext_keeps_double_ext():
-    assert CueVidSpeedResolver._split_ext("scene.cue.webm") == ("scene.cue", ".webm")
+    assert _cue_split_ext("scene.cue.webm") == ("scene.cue", ".webm")
 
 
 def test_split_ext_defaults_webm():
-    assert CueVidSpeedResolver._split_ext("scene") == ("scene", ".webm")
+    assert _cue_split_ext("scene") == ("scene", ".webm")
 
 
 def test_suffix_variant_format():
-    assert CueVidSpeedResolver._suffix_variant(1.5, ".webm") == "_cue1.5x.webm"
-    assert CueVidSpeedResolver._suffix_variant(2.0, ".mp4") == "_cue2.0x.mp4"
+    assert _cue_variant_suffix(1.5, ".webm") == "_cue1.5x.webm"
+    assert _cue_variant_suffix(2.0, ".mp4") == "_cue2.0x.mp4"
 
 
 def test_parse_variant_speed_valid():
-    parse = CueVidSpeedResolver._parse_variant_speed
-    assert parse("scene_cue1.5x.webm", "scene", ".webm") == 1.5
-    assert parse("scene_cue2.0x.webm", "scene", ".webm") == 2.0
+    assert _cue_parse_variant_speed("scene_cue1.5x.webm", "scene", ".webm") == 1.5
+    assert _cue_parse_variant_speed("scene_cue2.0x.webm", "scene", ".webm") == 2.0
 
 
 def test_parse_variant_speed_rejects_non_variants():
-    parse = CueVidSpeedResolver._parse_variant_speed
-    assert parse("scene.webm", "scene", ".webm") is None
-    assert parse("scene_cue1.5x.mp4", "scene", ".webm") is None
-    assert parse("scene_otherx.webm", "scene", ".webm") is None
+    assert _cue_parse_variant_speed("scene.webm", "scene", ".webm") is None
+    assert _cue_parse_variant_speed("scene_cue1.5x.mp4", "scene", ".webm") is None
+    assert _cue_parse_variant_speed("scene_otherx.webm", "scene", ".webm") is None
 
 
 def test_variant_path_default_speed_abs(env):
@@ -207,11 +211,11 @@ def test_variant_path_other_speed_goes_to_video_dir(env):
 def test_is_variant_of(env):
     r = env.resolver
     v15 = r.variant_path(env.base_fs, 1.5)
-    assert r.is_variant_of(v15, env.base_fs) is True
-    assert r.is_variant_of(env.base_fs, env.base_fs) is True
-    assert r.is_variant_of("other.mp4", env.base_fs) is False
-    assert r.is_variant_of("", env.base_fs) is False
-    assert r.is_variant_of(v15, "") is False
+    assert _cue_is_variant_of(v15, env.base_fs) is True
+    assert _cue_is_variant_of(env.base_fs, env.base_fs) is True
+    assert _cue_is_variant_of("other.mp4", env.base_fs) is False
+    assert _cue_is_variant_of("", env.base_fs) is False
+    assert _cue_is_variant_of(v15, "") is False
 
 
 # ==========================================================================
@@ -1655,9 +1659,8 @@ def test_create_delete_speed_default_speed_noop(env):
 
 
 def test_parse_variant_speed_bad_float(env):
-    parse = CueVidSpeedResolver._parse_variant_speed
-    assert parse("scene_cue1.5x.webm", "scene", ".webm") == 1.5
-    assert parse("scene_cuexyzx.webm", "scene", ".webm") is None
+    assert _cue_parse_variant_speed("scene_cue1.5x.webm", "scene", ".webm") == 1.5
+    assert _cue_parse_variant_speed("scene_cuexyzx.webm", "scene", ".webm") is None
 
 
 def test_get_available_speeds_listdir_failure(env, monkeypatch):

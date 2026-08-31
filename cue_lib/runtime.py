@@ -14,6 +14,7 @@ from cue_lib.util import (
     _cue_log,
     _cue_unwrap_displayable,
     _cue_get_movie_play,
+    _cue_is_variant_of,
     create_img_key,
     create_vid_key,
     create_dlg_key,
@@ -237,7 +238,7 @@ def _cue_holding_movie(displayable):
                 play = _cue_get_movie_play(displayable)
                 target = _cue.speed_resolver.base_path_for(_cue.current_file)
                 if play and target:
-                    return (play == target) or _cue.speed_resolver.is_variant_of(play, target)
+                    return (play == target) or _cue_is_variant_of(play, target)
         except Exception:
             pass
     return False
@@ -269,7 +270,7 @@ def _cue_refresh_channel(displayable=None):
                 target_path = _cue.speed_resolver.base_path_for(_cue.current_file)
                 if target_path:
                     for ch_name, ch_obj, path in candidates:
-                        if path == target_path or _cue.speed_resolver.is_variant_of(path, target_path):
+                        if path == target_path or _cue_is_variant_of(path, target_path):
                             _cue_apply_channel(ch_name, ch_obj, old_ch)
                             return
                 if _cue.vid_manager.channel:
