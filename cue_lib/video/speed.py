@@ -35,7 +35,7 @@ from cue_lib.util import (
 
 MYPY = False
 if MYPY:
-    from typing import Any, Dict, List, Optional, Tuple, Type
+    from typing import Any, Dict, List, Optional, Tuple
     from cue_lib._types import MarkerEntry
     from cue_lib.marker_store import CueMarkerStore  # pyright: ignore[reportUnusedImport]
     from cue_lib.video.video import CueVideoManager  # pyright: ignore[reportUnusedImport]
