@@ -226,3 +226,105 @@ def test_excl_dlg_play_does_not_fade_video(cue, real_sfx):
     eng.fire_context("d_scene.ogv__L1")
 
     assert _video_still_playing(video_ch), "PLAY mode should leave the v:-marker alone"
+
+
+# ---------------------------------------------------------------------------
+# Loop scene-boundary fade (default PLAY behavior)
+# ---------------------------------------------------------------------------
+
+
+def test_loop_play_fades_prev_scene_tail(cue, real_sfx, monkeypatch):
+    """A default PLAY loop in the new scene fades a loop still tailing from
+    the previous scene -- no exclusive icon needed for a clean handoff."""
+    monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
+    store = FakeMarkerStore(
+        {
+            "l_sceneA.ogg": {"pools": [{"files": ["loopA.ogg"], "frequency": 1}]},
+            "l_sceneB.ogg": {"pools": [{"files": ["loopB.ogg"], "frequency": 1}]},
+        }
+    )
+    eng = _excl_dlg_engine(store)
+
+    eng.loop.tick(100.0, 1, "sceneA.ogg", 1.0, None)
+    old_ch = _channel_playing("loopA.ogg")
+    assert old_ch is not None, "scene A loop should be playing"
+
+    eng.reset()  # file change wipes per-file loop state
+    eng.loop.tick(200.0, 2, "sceneB.ogg", 1.0, None)
+
+    assert _channel_playing("loopA.ogg") is None, "previous-scene tail must be faded"
+    assert _channel_playing("loopB.ogg") is not None, "new-scene loop must play"
+
+
+def test_loop_play_keeps_same_scene_tail(cue, real_sfx, monkeypatch):
+    """Within one scene, a default PLAY loop leaves another pool's loop alone."""
+    monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
+    store = FakeMarkerStore(
+        {"l_scene.ogg": {"pools": [{"files": ["loopA.ogg"], "frequency": 1}, {"files": ["loopB.ogg"], "frequency": 1}]}}
+    )
+    eng = _excl_dlg_engine(store)
+
+    eng.loop.tick(100.0, 1, "scene.ogg", 1.0, None)
+
+    assert _channel_playing("loopA.ogg") is not None
+    assert _channel_playing("loopB.ogg") is not None, "second pool must play concurrently"
+    assert _channel_playing("loopA.ogg") is not None, "same-scene loop must survive the second pool's fire"
+
+
+def test_loop_prev_scene_fade_spares_video_sfx(cue, real_sfx, monkeypatch):
+    """The scene-boundary loop fade must not cut a playing v:-marker SFX."""
+    monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
+    store = FakeMarkerStore(
+        {
+            "l_sceneA.ogg": {"pools": [{"files": ["loopA.ogg"], "frequency": 1}]},
+            "l_sceneB.ogg": {"pools": [{"files": ["loopB.ogg"], "frequency": 1}]},
+        }
+    )
+    eng = _excl_dlg_engine(store)
+
+    eng.loop.tick(100.0, 1, "sceneA.ogg", 1.0, None)
+    assert _channel_playing("loopA.ogg") is not None
+
+    video_ch = _fire_video_sfx(eng)
+    assert video_ch is not None
+
+    eng.loop.tick(200.0, 2, "sceneB.ogg", 1.0, None)
+
+    assert _video_still_playing(video_ch), "scene-boundary loop fade must not cut video SFX"
+    assert _channel_playing("loopA.ogg") is None
+    assert _channel_playing("loopB.ogg") is not None
+
+
+# ---------------------------------------------------------------------------
+# Loop per-pool no-repeat guard (additive on top of global last-2)
+# ---------------------------------------------------------------------------
+
+
+def test_loop_no_repeat_recent_window(cue, real_sfx, monkeypatch):
+    """A loop pool avoids redrawing a file inside its own recent window
+    (len(files)//2), even though the raw draw keeps landing on it."""
+    monkeypatch.setattr(_trigger._random, "uniform", lambda a, b: 0.0)
+    store = FakeMarkerStore({"l_scene.ogg": {"pools": [{"files": ["a.ogg", "b.ogg"], "frequency": 1}]}})
+    eng = _excl_dlg_engine(store)
+
+    # Scripted picks: every draw would land on a.ogg; the recent guard must
+    # divert the second fire to b.ogg.
+    picks = ["a.ogg", "a.ogg", "a.ogg", "b.ogg"]
+    calls = []
+
+    def _fake_pick_file(files):
+        calls.append(1)
+        f = picks[min(len(calls) - 1, len(picks) - 1)]
+        return f if f in files else files[0]
+
+    monkeypatch.setattr(_thelpers, "_cue_pick_file", _fake_pick_file)
+
+    eng.loop.tick(100.0, 1, "scene.ogg", 1.0, None)
+    assert _channel_playing("a.ogg") is not None
+
+    _music.stop(channel=_channel_playing("a.ogg"))  # first shot finishes
+    eng.loop.tick(103.0, 2, "scene.ogg", 1.0, None)  # re-arms the next cycle
+    eng.loop.tick(106.0, 3, "scene.ogg", 1.0, None)  # second fire
+
+    assert _channel_playing("a.ogg") is None, "recent window must divert the repeat"
+    assert _channel_playing("b.ogg") is not None, "second fire must pick a fresh file"

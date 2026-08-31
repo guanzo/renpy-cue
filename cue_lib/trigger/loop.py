@@ -10,7 +10,7 @@ import renpy.python as _renpy_python
 from cue_lib.markers import CueExclusiveStart
 from cue_lib.state import _cue
 from cue_lib.trigger.exclusive import CUE_EXCL_KIND_LOOP
-from cue_lib.trigger.helpers import _cue_effective_delay, _cue_loop_still_playing, _cue_pick_deduped
+from cue_lib.trigger.helpers import _cue_effective_delay, _cue_loop_still_playing, _cue_pick_loop_deduped
 from cue_lib.util import _cue_log, create_loop_key, create_vid_key
 
 MYPY = False
@@ -83,7 +83,9 @@ class CueLoopTrigger(_renpy_python.NoRollback):
             if not self._pool_should_fire(pst, now, tick, loop_key, pi, resolved):
                 continue
 
-            picked_file = self._pool_fire(pst, now, tick, loop_key, pi, pool, entry, resolved, vol_mult, picked)
+            picked_file = self._pool_fire(
+                pst, now, tick, loop_key, pi, pool, entry, resolved, vol_mult, picked, current_file
+            )
             if picked_file:
                 picked.append(picked_file)
 
@@ -97,6 +99,7 @@ class CueLoopTrigger(_renpy_python.NoRollback):
             "play_start": 0.0,
             "blocked_logged": False,
             "ilevel": resolved.level,
+            "recent": [],
         }
 
     def _pool_should_fire(self, pst, now, tick, loop_key, pi, resolved):
@@ -153,16 +156,32 @@ class CueLoopTrigger(_renpy_python.NoRollback):
 
         return True
 
-    def _pool_fire(self, pst, now, tick, loop_key, pi, pool, entry, resolved, vol_mult, picked):
-        # type: (Dict[str, Any], float, int, str, int, Any, Any, Any, float, List[str]) -> Optional[str]
+    def _pool_fire(self, pst, now, tick, loop_key, pi, pool, entry, resolved, vol_mult, picked, scene):
+        # type: (Dict[str, Any], float, int, str, int, Any, Any, Any, float, List[str], Optional[str]) -> Optional[str]
         """Pick a deduped file and play it on the loop channel.
 
         Returns the picked file (None when deduped away); the caller records
-        it in the running dedup list.  FADE mode sweeps other loop channels."""
-        picked_file = _cue_pick_deduped(resolved.files, picked)
+        it in the running dedup list.  FADE mode sweeps other loop channels;
+        any start mode fades loops still tailing from a previous scene."""
+        # Per-pool no-repeat: avoid this pool's own recent picks (the global
+        # last-2 is shared across pools, so one pool's activity launders
+        # another's picks out of it).  window = len//2 guarantees enough fresh
+        # files stay eligible -- a repeat beats a skipped fire.
+        window = len(resolved.files) // 2
+        recent = pst["recent"]
+        picked_file = _cue_pick_loop_deduped(resolved.files, picked, recent)
         if picked_file is None:
             return None
         excl = resolved.exclusive
+
+        # A loop from a previous scene may still be tailing out -- fade it so
+        # this fire starts clean.  Same-scene loops are left to the exclusive
+        # gates (hold/wait/fade), which is what "overlapping" means on purpose.
+        stale = self._engine.excl.out_of_scene_channels(CUE_EXCL_KIND_LOOP, scene)
+        if stale:
+            faded = _cue.sfx.fade_out(only_channels=stale)
+            _cue_log("TICK#{} POOL-STALE key={} pool={} faded={}".format(tick, loop_key, pi, faded))
+
         if excl.start == CueExclusiveStart.FADE:
             # Cut-in: fade out other loops (never image/dialogue SFX).
             faded = _cue.sfx.fade_out(
@@ -170,12 +189,17 @@ class CueLoopTrigger(_renpy_python.NoRollback):
                 only_channels=self._engine.excl.kind_channels(CUE_EXCL_KIND_LOOP),
             )
             _cue_log("TICK#{} POOL-SWEEP key={} pool={} faded={}".format(tick, loop_key, pi, faded))
+
         ch_used = _cue.sfx.play_pool(entry, loop_key, pool, pi, file=picked_file, volume_mult=vol_mult)
         if ch_used:
             pst["channels"] = [ch_used]
             pst["play_start"] = now
             pst["blocked_logged"] = False
-            self._engine.excl.track_channel(ch_used, CUE_EXCL_KIND_LOOP, None, None, excl.hold)
+
+            recent.append(picked_file)
+            if window > 0 and len(recent) > window:
+                del recent[: len(recent) - window]
+            self._engine.excl.track_channel(ch_used, CUE_EXCL_KIND_LOOP, scene, None, excl.hold)
 
             _cue_log(
                 "TICK#{} POOL-PLAY  key={} pool={} ch={} dur={:.2f}s next_in={:.2f}s".format(

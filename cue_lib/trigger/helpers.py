@@ -55,6 +55,33 @@ def _cue_pick_deduped(files, picked, max_tries=3):
         tries += 1
 
 
+def _cue_pick_loop_deduped(files, picked, recent):
+    # type: (List[str], List[str], List[str]) -> Optional[str]
+    """Loop-pool pick: avoid this-tick picks (hard, echo guard) and the pool's
+    own recent picks (soft -- a repeat beats a skipped fire when the window
+    covers the pool).  The global last-2 guard applies underneath.
+
+    Loop pools track their own recent window so one pool's activity can't
+    launder another pool's picks out of the shared last-2 list (a 10-file pool
+    otherwise repeats a file once the global window rotates past it)."""
+    if len(files) <= 1:
+        return files[0] if files else None
+    picked_set = set(picked)
+    recent_set = set(recent)
+
+    def _draw(avoid_set):
+        for _ in range(12):
+            file = _cue_pick_file(files)
+            if file not in avoid_set:
+                return file
+        return None
+
+    file = _draw(picked_set | recent_set)
+    if file is None:
+        file = _draw(picked_set)
+    return file
+
+
 def _cue_marker_lead(tick_interval, speed, audible_lead=CUE_SFX_AUDIBLE_LEAD):
     # type: (float, float, float) -> float
     """Seconds (REFERENCE time) to fire a video marker early.

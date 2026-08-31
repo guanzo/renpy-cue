@@ -82,6 +82,16 @@ class CueExclusiveRegistry(_renpy_python.NoRollback):
         """Channels currently playing in the given domain (kind)."""
         return [ch for ch, info in self.channels.items() if info.get("kind") == kind]
 
+    def out_of_scene_channels(self, kind, scene):
+        # type: (str, Optional[str]) -> List[str]
+        """Channels in this domain still tracked from a different scene.
+
+        A loop from a previous scene is leftover once the file changes; the
+        loop fire path fades these so their tails don't overlap the new
+        scene's first fire.  Same-scene channels are left to the exclusive
+        gates (hold/wait/fade)."""
+        return [ch for ch, info in self.channels.items() if info.get("kind") == kind and info.get("scene") != scene]
+
     def is_hold_blocked(self, kind, scene, line):
         # type: (str, Optional[str], Optional[str]) -> bool
         """True if a holding SFX in the same domain but not self's group is
