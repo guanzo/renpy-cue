@@ -409,20 +409,39 @@ class CueAudioTreeManager(_renpy_python.NoRollback):
             full = prefix + item["name"]
             if item["type"] == "folder":
                 node_abs = item.get("abs_root")
-                expanded = force_expand or self.expanded_folders.get(full, False)
+                # VS Code-style compaction: a folder whose only child is a
+                # folder collapses into one row labelled "parent/child".  The
+                # label joins the real names; full_path stays the deepest real
+                # path so toggles, refs, and buttons key off it.  Source roots
+                # (abs_root) are never compacted -- they carry the abs-path
+                # tooltip.  Expansion reads the deepest folder's key.
+                label = item["name"]
+                node_path = full
+                has_files = item.get("has_files", False)
+                children = item.get("children", [])
+                if node_abs is None:
+                    while (
+                        len(children) == 1 and children[0]["type"] == "folder" and children[0].get("abs_root") is None
+                    ):
+                        child = children[0]
+                        label += child["name"]
+                        node_path += child["name"]
+                        has_files = child.get("has_files", False)
+                        children = child.get("children", [])
+                expanded = force_expand or self.expanded_folders.get(node_path, False)
                 node = {
                     "type": "folder",
-                    "name": item["name"],
-                    "full_path": full,
+                    "name": label,
+                    "full_path": node_path,
                     "depth": depth,
-                    "has_files": item.get("has_files", False),
+                    "has_files": has_files,
                     "expanded": expanded,
                 }
                 if node_abs is not None:
                     node["abs_root"] = node_abs
                 result.append(node)
                 if expanded:
-                    self._walk_tree(item.get("children", []), full, depth + 1, result, force_expand)
+                    self._walk_tree(children, node_path, depth + 1, result, force_expand)
             else:
                 result.append(self._file_node(item, full, depth))
 

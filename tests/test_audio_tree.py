@@ -427,6 +427,83 @@ def test_clear_search_resets_debounce_state():
 
 
 # ==========================================================================
+# Compact single-child folder chains (VS Code-style)
+# ==========================================================================
+
+
+def test_rebuild_tree_compacts_single_child_folder_chain():
+    m = _ScanSrc(["a/b/c.ogg"])
+    m.scan()
+    m.expanded_folders = {"a/": True, "a/b/": True}
+    m.rebuild_tree()
+    # a/ holds only one folder child (b/), so both collapse into one row.
+    assert _rows(m) == [("folder", "a/b/", "a/b/", 0), ("file", "c.ogg", "a/b/c.ogg", 1)]
+
+
+def test_rebuild_tree_compact_expands_deepest_folder_key():
+    m = _ScanSrc(["a/b/c.ogg"])
+    m.scan()
+    # a/ collapsed but a/b/ expanded: the merged row reads the deepest key.
+    m.expanded_folders = {"a/": False, "a/b/": True}
+    m.rebuild_tree()
+    assert _rows(m) == [("folder", "a/b/", "a/b/", 0), ("file", "c.ogg", "a/b/c.ogg", 1)]
+
+
+def test_rebuild_tree_compact_hides_children_when_deepest_collapsed():
+    m = _ScanSrc(["a/b/c.ogg"])
+    m.scan()
+    m.expanded_folders = {"a/b/": False}
+    m.rebuild_tree()
+    assert _rows(m) == [("folder", "a/b/", "a/b/", 0)]
+
+
+def test_rebuild_tree_compact_multilevel_chain():
+    m = _ScanSrc(["a/b/c/d.ogg"])
+    m.scan()
+    m.expanded_folders = {"a/": True, "a/b/": True, "a/b/c/": True}
+    m.rebuild_tree()
+    assert _rows(m) == [("folder", "a/b/c/", "a/b/c/", 0), ("file", "d.ogg", "a/b/c/d.ogg", 1)]
+
+
+def test_rebuild_tree_no_compact_when_folder_has_sibling():
+    m = _ScanSrc(["a/b.ogg", "a/b/c.ogg"])
+    m.scan()
+    m.expanded_folders = {"a/": True, "a/b/": True}
+    m.rebuild_tree()
+    assert _rows(m) == [
+        ("folder", "a/", "a/", 0),
+        ("folder", "b/", "a/b/", 1),
+        ("file", "c.ogg", "a/b/c.ogg", 2),
+        ("file", "b.ogg", "a/b.ogg", 1),
+    ]
+
+
+def test_rebuild_tree_no_compact_abs_root_source():
+    m = _ScanSrc(["a/b/c.ogg"])
+    m.scan()
+    m.tree = [{"type": "folder", "name": "root/", "children": m.tree, "has_files": False, "abs_root": "/tmp/src"}]
+    m.expanded_folders = {"root/": True, "root/a/": True, "root/a/b/": True}
+    m.rebuild_tree()
+    # The abs-root source stays its own row (abs-path tooltip); the real
+    # single-child chain below it still compacts.
+    assert _rows(m) == [
+        ("folder", "root/", "root/", 0),
+        ("folder", "a/b/", "root/a/b/", 1),
+        ("file", "c.ogg", "root/a/b/c.ogg", 2),
+    ]
+
+
+def test_rebuild_tree_compact_uses_deepest_has_files():
+    m = _ScanSrc(["a/b/x.ogg", "a/b/y.ogg"])
+    m.scan()
+    m.expanded_folders = {"a/": True, "a/b/": True}
+    m.rebuild_tree()
+    row = m.visible_tree[0]
+    assert (row["type"], row["name"], row["full_path"]) == ("folder", "a/b/", "a/b/")
+    assert row["has_files"] is True
+
+
+# ==========================================================================
 # CueMusicTree scan sources
 # ==========================================================================
 
